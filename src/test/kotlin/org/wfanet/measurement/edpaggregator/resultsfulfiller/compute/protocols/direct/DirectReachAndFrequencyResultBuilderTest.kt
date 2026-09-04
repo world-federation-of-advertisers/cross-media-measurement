@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
@@ -162,6 +163,164 @@ class DirectReachAndFrequencyResultBuilderTest {
       assertThat(first.reach.value).isWithin(UNIT_SENSITIVITY_BOUND).of(100L)
     }
 
+  @Test
+  fun `buildMeasurementResult keeps deterministic methodology after partial thresholding`() =
+    runBlocking {
+      val frequencyData =
+        IntArray(110) { index ->
+          when {
+            index < 10 -> 1
+            index < 40 -> 2
+            else -> 3
+          }
+        }
+
+      val result =
+        DirectReachAndFrequencyResultBuilder(
+            directProtocolConfig = DIRECT_PROTOCOL,
+            maxFrequency = 3,
+            reachPrivacyParams = REACH_PRIVACY_PARAMS,
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.NONE,
+            frequencyData = frequencyData,
+            maxPopulation = null,
+            resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.reach.value).isEqualTo(110L)
+      assertThat(result.frequency.relativeFrequencyDistributionMap.getValue(1L)).isEqualTo(0.0)
+      assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
+    }
+
+  @Test
+  fun `buildMeasurementResult reports variance when final frequency bucket is thresholded`() =
+    runBlocking {
+      val frequencyData = IntArray(480) { index -> 3 + index / 120 }
+      val thresholds =
+        ResultMinimumThresholds(minUsers = 400, minImpressions = 2000, reachMaxFrequencyPerUser = 6)
+
+      val result =
+        DirectReachAndFrequencyResultBuilder(
+            directProtocolConfig = DIRECT_PROTOCOL_WITHOUT_DETERMINISTIC_DISTRIBUTION,
+            maxFrequency = 6,
+            reachPrivacyParams = REACH_PRIVACY_PARAMS,
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.NONE,
+            frequencyData = frequencyData,
+            maxPopulation = null,
+            resultMinimumThresholds = thresholds,
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.reach.value).isEqualTo(480)
+      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+      assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { it == 0.0 })
+        .isTrue()
+      assertThat(result.frequency.hasCustomDirectMethodology()).isTrue()
+      val frequencyVariances = result.frequency.customDirectMethodology.variance.frequency
+      val expectedRelativeVariance = (2000.0 / 480.0) * (2000.0 / 480.0)
+      assertThat(frequencyVariances.variancesMap.getValue(1L))
+        .isWithin(1E-12)
+        .of(expectedRelativeVariance)
+      assertThat(frequencyVariances.kPlusVariancesMap.getValue(1L))
+        .isWithin(1E-12)
+        .of(expectedRelativeVariance)
+      assertThat(frequencyVariances.variancesMap.filterKeys { it > 1L }.values)
+        .containsExactlyElementsIn(List(5) { 0.0 })
+      Unit
+    }
+
+  @Test
+  fun `buildMeasurementResult includes noise variance when final frequency bucket is thresholded`() =
+    runBlocking {
+      val threshold = 20000
+      val result =
+        DirectReachAndFrequencyResultBuilder(
+            directProtocolConfig = DIRECT_PROTOCOL_WITHOUT_DETERMINISTIC_DISTRIBUTION,
+            maxFrequency = 6,
+            reachPrivacyParams = REACH_PRIVACY_PARAMS,
+            frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+            samplingRate = SAMPLING_RATE,
+            directNoiseMechanism = DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
+            frequencyData = IntArray(4800) { index -> 3 + index / 1200 },
+            maxPopulation = null,
+            resultMinimumThresholds =
+              ResultMinimumThresholds(
+                minUsers = 4000,
+                minImpressions = threshold,
+                reachMaxFrequencyPerUser = 6,
+              ),
+          )
+          .buildMeasurementResult()
+
+      assertThat(result.reach.value).isGreaterThan(0L)
+      assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+      assertThat(result.frequency.relativeFrequencyDistributionMap.values.all { it == 0.0 })
+        .isTrue()
+      assertThat(result.frequency.noiseMechanism).isEqualTo(NoiseMechanism.CONTINUOUS_GAUSSIAN)
+      val relativeVariance =
+        result.frequency.customDirectMethodology.variance.frequency.variancesMap.getValue(1L)
+      val thresholdRelativeVariance =
+        (threshold.toDouble() / result.reach.value) * (threshold.toDouble() / result.reach.value)
+      assertThat(relativeVariance).isGreaterThan(thresholdRelativeVariance)
+    }
+
+  @Test
+  fun `buildMeasurementResult reports variance when reach is thresholded`() = runBlocking {
+    val result =
+      DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL_WITHOUT_DETERMINISTIC_COUNT_DISTINCT,
+          maxFrequency = 6,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = IntArray(99) { 1 },
+          maxPopulation = null,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 100,
+              minImpressions = 1,
+              reachMaxFrequencyPerUser = 6,
+            ),
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.reach.value).isEqualTo(0)
+    assertThat(result.reach.hasCustomDirectMethodology()).isTrue()
+    assertThat(result.reach.customDirectMethodology.variance.scalar).isEqualTo(10000.0)
+    assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
+  }
+
+  @Test
+  fun `buildMeasurementResult does not report variance for a true zero histogram`() = runBlocking {
+    val result =
+      DirectReachAndFrequencyResultBuilder(
+          directProtocolConfig = DIRECT_PROTOCOL,
+          maxFrequency = 6,
+          reachPrivacyParams = REACH_PRIVACY_PARAMS,
+          frequencyPrivacyParams = FREQUENCY_PRIVACY_PARAMS,
+          samplingRate = SAMPLING_RATE,
+          directNoiseMechanism = DirectNoiseMechanism.NONE,
+          frequencyData = IntArray(480),
+          maxPopulation = null,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 400,
+              minImpressions = 2000,
+              reachMaxFrequencyPerUser = 6,
+            ),
+        )
+        .buildMeasurementResult()
+
+    assertThat(result.reach.value).isEqualTo(0)
+    assertThat(result.reach.hasDeterministicCountDistinct()).isTrue()
+    assertThat(result.frequency.hasDeterministicDistribution()).isTrue()
+  }
+
   companion object {
     private val MAX_FREQUENCY = 10
     private val REACH_PRIVACY_PARAMS = differentialPrivacyParams {
@@ -180,8 +339,23 @@ class DirectReachAndFrequencyResultBuilderTest {
 
     private val NOISE_MECHANISM = NoiseMechanism.CONTINUOUS_GAUSSIAN
 
+    private val DIRECT_PROTOCOL_WITHOUT_DETERMINISTIC_DISTRIBUTION = direct {
+      noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+      deterministicCountDistinct =
+        ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
+    }
+
+    private val DIRECT_PROTOCOL_WITHOUT_DETERMINISTIC_COUNT_DISTINCT = direct {
+      noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
+      deterministicDistribution =
+        ProtocolConfig.Direct.DeterministicDistribution.getDefaultInstance()
+    }
+
     private val DIRECT_PROTOCOL = direct {
       noiseMechanisms += NOISE_MECHANISM
+      customDirectMethodology = ProtocolConfig.Direct.CustomDirectMethodology.getDefaultInstance()
       deterministicCountDistinct =
         ProtocolConfig.Direct.DeterministicCountDistinct.getDefaultInstance()
       deterministicDistribution =

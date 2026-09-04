@@ -33,3 +33,13 @@ data class ResultMinimumThresholds(
   val reachMaxFrequencyPerUser: Int =
     minOf(Byte.MAX_VALUE.toInt(), ComputationParams.MIN_RING_MODULUS - 1),
 )
+
+/**
+ * A released value and its variance when minimum-threshold suppression occurred.
+ *
+ * [variance] is null unless thresholding changed a positive result to zero. When present, it
+ * includes publisher-noise variance and fixed threshold correction variance. Scalar variance is in
+ * the squared units of [value]; frequency variance is in count units before conversion to
+ * relative-frequency units.
+ */
+data class MinimumThresholdResult<T>(val value: T, val variance: Double?)

@@ -29,11 +29,12 @@ class ImpressionComputationsTest {
     val histogram = longArrayOf(0L, 5L, 0L, 3L, 7L, 0L) // 2*5 + 4*3 + 5*7
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+        )
+        .value
     assertThat(result).isEqualTo(57L)
   }
 
@@ -44,11 +45,12 @@ class ImpressionComputationsTest {
     val histogram = longArrayOf(0L, 5L, 0L, 10L) // 2*5 + 4*10
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+        )
+        .value
     assertThat(result).isEqualTo(50L)
   }
 
@@ -58,11 +60,12 @@ class ImpressionComputationsTest {
     val scale = 0.5
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = scale,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = scale,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+        )
+        .value
     assertThat(result).isEqualTo((57L / scale).toLong())
   }
 
@@ -72,11 +75,12 @@ class ImpressionComputationsTest {
     val maxFrequency = 4L
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
+          resultMinimumThresholds = null,
+        )
+        .value
     val rawImpressionCount =
       1 * 2 +
         min(maxFrequency, 2) * 4 +
@@ -97,11 +101,12 @@ class ImpressionComputationsTest {
     val maxFrequency = 4L
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 0.5,
-        noiser = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 0.5,
+          noiser = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequency.toInt()),
+          resultMinimumThresholds = null,
+        )
+        .value
     val rawImpressionCount =
       1 * 2 +
         min(maxFrequency, 2) * 4 +
@@ -117,16 +122,63 @@ class ImpressionComputationsTest {
   }
 
   @Test
+  fun `computeImpressionCount returns variance for a suppressed positive value`() {
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = longArrayOf(2L, 4L),
+        vidSamplingIntervalWidth = 1.0,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 1),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.variance).isEqualTo(1.0)
+  }
+
+  @Test
+  fun `computeImpressionCount variance includes publisher noise when suppressed`() {
+    val threshold = 10000
+    val noiser = GaussianResultNoiser(DP_PARAMS, DP_PARAMS, maxFrequencyPerUser = 2)
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = longArrayOf(1000, 500),
+        vidSamplingIntervalWidth = 0.5,
+        noiser = noiser,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = threshold),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.variance)
+      .isWithin(1E-9)
+      .of(threshold.toDouble() * threshold + noiser.impressionVariance / (0.5 * 0.5))
+  }
+
+  @Test
+  fun `computeImpressionCount returns no variance for a true zero`() {
+    val result =
+      ImpressionComputations.computeImpressionCount(
+        rawHistogram = longArrayOf(0L, 0L),
+        vidSamplingIntervalWidth = 1.0,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 1),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.variance).isNull()
+  }
+
+  @Test
   fun `impression count with K Anonymity is zero for too few unique users`() {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L) // 1*2 + 2*4 + 4*8 + 7*10 + 7*2
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 28, minImpressions = 50)
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = NoNoise,
-        resultMinimumThresholds = resultMinimumThresholds,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = NoNoise,
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+        .value
     assertThat(result).isEqualTo(0)
   }
 
@@ -136,11 +188,12 @@ class ImpressionComputationsTest {
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 28, minImpressions = 100)
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = NoNoise,
-        resultMinimumThresholds = resultMinimumThresholds,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = NoNoise,
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+        .value
     assertThat(result).isEqualTo(0)
   }
 
@@ -150,11 +203,12 @@ class ImpressionComputationsTest {
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 24, minImpressions = 50)
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = NoNoise,
-        resultMinimumThresholds = resultMinimumThresholds,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = NoNoise,
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+        .value
     assertThat(result).isEqualTo(130)
   }
 
@@ -164,11 +218,12 @@ class ImpressionComputationsTest {
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 48, minImpressions = 100)
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 0.5,
-        noiser = NoNoise,
-        resultMinimumThresholds = resultMinimumThresholds,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 0.5,
+          noiser = NoNoise,
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+        .value
     assertThat(result).isEqualTo(260)
   }
 
@@ -178,11 +233,12 @@ class ImpressionComputationsTest {
     val resultMinimumThresholds = ResultMinimumThresholds(minUsers = 56, minImpressions = 100)
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 0.5,
-        noiser = NoNoise,
-        resultMinimumThresholds = resultMinimumThresholds,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 0.5,
+          noiser = NoNoise,
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+        .value
     assertThat(result).isEqualTo(0)
   }
 
@@ -191,11 +247,12 @@ class ImpressionComputationsTest {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L)
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = deterministicNoiser(),
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = deterministicNoiser(),
+          resultMinimumThresholds = null,
+        )
+        .value
     // Capped at MAX_FREQUENCY: 1*2 + 2*4 + 4*8 + 4*10 + 4*2
     val rawImpressionCount = 90L
 
@@ -209,11 +266,12 @@ class ImpressionComputationsTest {
 
     fun compute() =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = deterministicNoiser(),
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = deterministicNoiser(),
+          resultMinimumThresholds = null,
+        )
+        .value
 
     assertThat(compute()).isEqualTo(compute())
   }
@@ -224,16 +282,17 @@ class ImpressionComputationsTest {
 
     fun compute(seedVector: IntArray) =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser =
-          DeterministicTruncatedLaplaceResultNoiser(
-            combinedFrequencyVector = seedVector,
-            contributionCount = 1,
-            maxFrequencyPerUser = MAX_FREQUENCY,
-          ),
-        resultMinimumThresholds = null,
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser =
+            DeterministicTruncatedLaplaceResultNoiser(
+              combinedFrequencyVector = seedVector,
+              contributionCount = 1,
+              maxFrequencyPerUser = MAX_FREQUENCY,
+            ),
+          resultMinimumThresholds = null,
+        )
+        .value
 
     assertThat(compute(IntArray(50) { 1 })).isNotEqualTo(compute(SEED_VECTOR))
   }
@@ -243,12 +302,13 @@ class ImpressionComputationsTest {
     val histogram = longArrayOf(2L, 4L, 0L, 8L, 0L, 0L, 10L, 0L, 2L)
     val result =
       ImpressionComputations.computeImpressionCount(
-        rawHistogram = histogram,
-        vidSamplingIntervalWidth = 1.0,
-        noiser = deterministicNoiser(),
-        // 26 users in the histogram, so the user threshold cannot be met.
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1000, minImpressions = 1),
-      )
+          rawHistogram = histogram,
+          vidSamplingIntervalWidth = 1.0,
+          noiser = deterministicNoiser(),
+          // 26 users in the histogram, so the user threshold cannot be met.
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1000, minImpressions = 1),
+        )
+        .value
 
     assertThat(result).isEqualTo(0)
   }
@@ -365,6 +425,10 @@ class ImpressionComputationsTest {
       )
 
     assertThat(result.value).isEqualTo(0L)
+    val unsuppressed = dynamicallyClipped(COARSE_RHO)
+    assertThat(result.variance)
+      .isWithin(result.variance * RELATIVE_TOLERANCE)
+      .of(unsuppressed.variance + 500.0 * 500.0)
   }
 
   @Test

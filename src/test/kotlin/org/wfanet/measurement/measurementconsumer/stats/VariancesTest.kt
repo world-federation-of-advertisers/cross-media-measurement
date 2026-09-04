@@ -27,6 +27,38 @@ import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 @RunWith(JUnit4::class)
 class VariancesTest {
   @Test
+  fun `computeMeasurementVariance combines custom frequency variance with reach variance`() {
+    val reach = 480L
+    val reachVariance = 2500.0
+    val countStandardDeviation = 2000.0
+    val relativeVariance = (countStandardDeviation / reach) * (countStandardDeviation / reach)
+    val relativeVariances = (1..6).associateWith { if (it == 1) relativeVariance else 0.0 }
+
+    val result =
+      VariancesImpl.computeMeasurementVariance(
+        CustomDirectFrequencyMethodology(relativeVariances, relativeVariances),
+        FrequencyMeasurementVarianceParams(
+          totalReach = reach,
+          reachMeasurementVariance = reachVariance,
+          relativeFrequencyDistribution = (1..6).associateWith { 0.0 },
+          measurementParams =
+            FrequencyMeasurementParams(
+              vidSamplingInterval = VidSamplingInterval(0.0, 1.0),
+              dpParams = DpParams(1.0, 1E-9),
+              noiseMechanism = NoiseMechanism.NONE,
+              maximumFrequency = 6,
+            ),
+        ),
+      )
+
+    val expectedCountVariance = relativeVariance * (reach.toDouble() * reach + reachVariance)
+    assertThat(result.countVariances.getValue(1)).isWithin(1E-6).of(expectedCountVariance)
+    assertThat(result.kPlusCountVariances.getValue(1)).isWithin(1E-6).of(expectedCountVariance)
+    assertThat(result.countVariances.filterKeys { it > 1 }.values)
+      .containsExactlyElementsIn(List(5) { 0.0 })
+  }
+
+  @Test
   fun `computeMeasurementVariance returns the truncated Laplace variance for deterministic reach`() {
     // The system's compiled params: Laplace(0, b) with b = sensitivity/epsilon = 1.0, confined to
     // the Geng et al. threshold B = b * ln(1 + (e^epsilon - 1) / (2 * delta)) = 6.7571, the same

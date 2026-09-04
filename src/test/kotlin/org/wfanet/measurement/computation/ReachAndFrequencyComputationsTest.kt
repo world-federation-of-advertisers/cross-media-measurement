@@ -32,12 +32,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0,
-        vectorSize = 20,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 1.0,
+          vectorSize = 20,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+        )
+        .value
     assertThat(reach).isEqualTo(16)
   }
 
@@ -46,12 +47,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 0.5,
-        vectorSize = 40,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 0.5,
+          vectorSize = 40,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+        )
+        .value
     assertThat(reach).isEqualTo(32)
   }
 
@@ -60,12 +62,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 0.5,
-        vectorSize = 40,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 20, minImpressions = 20),
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 0.5,
+          vectorSize = 40,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 20, minImpressions = 20),
+        )
+        .value
     assertThat(reach).isEqualTo(32)
   }
 
@@ -74,12 +77,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 0.5,
-        vectorSize = 40,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 35, minImpressions = 30),
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 0.5,
+          vectorSize = 40,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 35, minImpressions = 30),
+        )
+        .value
     assertThat(reach).isEqualTo(0)
   }
 
@@ -88,13 +92,18 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 5, 1) // Frequencies 1, 2, 3
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 0.5,
-        vectorSize = 40,
-        noiser = NoNoise,
-        resultMinimumThresholds =
-          ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 0.5,
+          vectorSize = 40,
+          noiser = NoNoise,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 30,
+              minImpressions = 50,
+              reachMaxFrequencyPerUser = 3,
+            ),
+        )
+        .value
     assertThat(reach).isEqualTo(0)
   }
 
@@ -104,12 +113,13 @@ class ReachAndFrequencyComputationsTest {
     val tolerance = getNoiseTolerance(DP_PARAMS)
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0,
-        vectorSize = 200,
-        noiser = GAUSSIAN_NOISER,
-        resultMinimumThresholds = null,
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 1.0,
+          vectorSize = 200,
+          noiser = GAUSSIAN_NOISER,
+          resultMinimumThresholds = null,
+        )
+        .value
     assertThat(reach).isAtMost(min(200, 170 + tolerance))
     assertThat(reach).isAtLeast(max(0L, 170 - tolerance))
   }
@@ -119,13 +129,18 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0,
-        vectorSize = 200,
-        noiser = GAUSSIAN_NOISER_CAP_3,
-        resultMinimumThresholds =
-          ResultMinimumThresholds(minUsers = 30, minImpressions = 50, reachMaxFrequencyPerUser = 3),
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 1.0,
+          vectorSize = 200,
+          noiser = GAUSSIAN_NOISER_CAP_3,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 30,
+              minImpressions = 50,
+              reachMaxFrequencyPerUser = 3,
+            ),
+        )
+        .value
     val tolerance = getNoiseTolerance(DP_PARAMS)
     assertThat(reach).isAtLeast(170 - tolerance)
     assertThat(reach).isAtMost(170 + tolerance)
@@ -136,17 +151,18 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(100, 50, 20) // Reach in sample = 170
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0,
-        vectorSize = 200,
-        noiser = GAUSSIAN_NOISER_CAP_3,
-        resultMinimumThresholds =
-          ResultMinimumThresholds(
-            minUsers = 200,
-            minImpressions = 200,
-            reachMaxFrequencyPerUser = 3,
-          ),
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 1.0,
+          vectorSize = 200,
+          noiser = GAUSSIAN_NOISER_CAP_3,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 200,
+              minImpressions = 200,
+              reachMaxFrequencyPerUser = 3,
+            ),
+        )
+        .value
     assertThat(reach).isEqualTo(0)
   }
 
@@ -155,12 +171,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 30, 60) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 3,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-        vidSamplingIntervalWidth = null,
-      )
+          rawHistogram,
+          maxFrequency = 3,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+          vidSamplingIntervalWidth = null,
+        )
+        .value
     val expected = mapOf(1L to 0.1, 2L to 0.3, 3L to 0.6)
     assertThat(distribution.keys).isEqualTo(expected.keys)
     for ((k, v) in distribution) {
@@ -173,12 +190,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(0, 0, 0)
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 3,
-        noiser = NoNoise,
-        resultMinimumThresholds = null,
-        vidSamplingIntervalWidth = null,
-      )
+          rawHistogram,
+          maxFrequency = 3,
+          noiser = NoNoise,
+          resultMinimumThresholds = null,
+          vidSamplingIntervalWidth = null,
+        )
+        .value
     val expected = mapOf(1L to 0.0, 2L to 0.0, 3L to 0.0)
     assertThat(distribution).isEqualTo(expected)
   }
@@ -189,12 +207,13 @@ class ReachAndFrequencyComputationsTest {
     val totalReached = rawHistogram.sum()
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 5,
-        noiser = GAUSSIAN_NOISER,
-        resultMinimumThresholds = null,
-        vidSamplingIntervalWidth = null,
-      )
+          rawHistogram,
+          maxFrequency = 5,
+          noiser = GAUSSIAN_NOISER,
+          resultMinimumThresholds = null,
+          vidSamplingIntervalWidth = null,
+        )
+        .value
 
     assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
 
@@ -221,12 +240,13 @@ class ReachAndFrequencyComputationsTest {
     val exception =
       assertFailsWith<IllegalArgumentException> {
         ReachAndFrequencyComputations.computeFrequencyDistribution(
-          rawHistogram,
-          maxFrequency = 3,
-          noiser = NoNoise,
-          resultMinimumThresholds = null,
-          vidSamplingIntervalWidth = null,
-        )
+            rawHistogram,
+            maxFrequency = 3,
+            noiser = NoNoise,
+            resultMinimumThresholds = null,
+            vidSamplingIntervalWidth = null,
+          )
+          .value
       }
     assertThat(exception.message).contains("Invalid histogram size")
   }
@@ -234,7 +254,7 @@ class ReachAndFrequencyComputationsTest {
   @Test
   fun `computeFrequencyDistribution zeroes only freq-1 bucket when it fails threshold`() {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
-    val distribution =
+    val result =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 3,
@@ -246,7 +266,8 @@ class ReachAndFrequencyComputationsTest {
     // freq2 (30) and freq3 (70) pass, so only freq1 is suppressed.
     val totalAfterFold = 30.0 + 70.0
     val expected = mapOf(1L to 0.0, 2L to 30.0 / totalAfterFold, 3L to 70.0 / totalAfterFold)
-    assertThat(distribution).isEqualTo(expected)
+    assertThat(result.value).isEqualTo(expected)
+    assertThat(result.variance).isNull()
   }
 
   @Test
@@ -255,12 +276,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 30, 70)
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 3,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
-        vidSamplingIntervalWidth = 1.0,
-      )
+          rawHistogram,
+          maxFrequency = 3,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
+          vidSamplingIntervalWidth = 1.0,
+        )
+        .value
     val expected = mapOf(1L to 1.0, 2L to 0.0, 3L to 0.0)
     assertThat(distribution).isEqualTo(expected)
   }
@@ -270,12 +292,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 30, 70) // Frequencies 1, 2, 3
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 3,
-        noiser = GAUSSIAN_NOISER,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
-        vidSamplingIntervalWidth = 1.0,
-      )
+          rawHistogram,
+          maxFrequency = 3,
+          noiser = GAUSSIAN_NOISER,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 11, minImpressions = 5),
+          vidSamplingIntervalWidth = 1.0,
+        )
+        .value
     // With fold-down + noise, outcome is non-deterministic. Either all zeros or sums to 1.
     val sum = distribution.values.sum()
     assertThat(sum == 0.0 || Math.abs(sum - 1.0) < FLOAT_COMPARISON_TOLERANCE).isTrue()
@@ -287,14 +310,63 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 30, 70)
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 3,
-        noiser = GAUSSIAN_NOISER,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
-        vidSamplingIntervalWidth = 1.0,
-      )
+          rawHistogram,
+          maxFrequency = 3,
+          noiser = GAUSSIAN_NOISER,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 110, minImpressions = 5),
+          vidSamplingIntervalWidth = 1.0,
+        )
+        .value
     assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
     assertThat(distribution[3L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
+  }
+
+  @Test
+  fun `computeReach returns variance for a suppressed positive value`() {
+    val result =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram = longArrayOf(10, 5, 1),
+        vidSamplingIntervalWidth = 1.0,
+        vectorSize = 20,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.variance).isEqualTo(100.0)
+  }
+
+  @Test
+  fun `computeReach variance includes publisher noise when suppressed`() {
+    val threshold = 5000
+    val result =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram = longArrayOf(1000, 500, 100),
+        vidSamplingIntervalWidth = 0.5,
+        vectorSize = 10000,
+        noiser = GAUSSIAN_NOISER,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = threshold, minImpressions = 1),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.variance)
+      .isWithin(1E-9)
+      .of(threshold.toDouble() * threshold + GAUSSIAN_NOISER.reachVariance / (0.5 * 0.5))
+  }
+
+  @Test
+  fun `computeReach returns no variance for a true zero`() {
+    val result =
+      ReachAndFrequencyComputations.computeReach(
+        rawHistogram = longArrayOf(0, 0, 0),
+        vidSamplingIntervalWidth = 1.0,
+        vectorSize = 20,
+        noiser = NoNoise,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
+      )
+
+    assertThat(result.value).isEqualTo(0L)
+    assertThat(result.variance).isNull()
   }
 
   @Test
@@ -303,12 +375,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 5, 1)
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0,
-        vectorSize = 20,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 1.0,
+          vectorSize = 20,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 10, minImpressions = 50),
+        )
+        .value
     assertThat(reach).isEqualTo(0)
   }
 
@@ -321,12 +394,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(5, 10, 20)
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 3,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 15),
-        vidSamplingIntervalWidth = 1.0,
-      )
+          rawHistogram,
+          maxFrequency = 3,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 1, minImpressions = 15),
+          vidSamplingIntervalWidth = 1.0,
+        )
+        .value
     // freq1: 5*1=5 < 15 fails impressions, cannot fold lower. Only freq1 is suppressed.
     // freq2 (10) and freq3 (20) pass, so they remain.
     val totalAfterFold = 10.0 + 20.0
@@ -342,12 +416,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(2758, 1925, 336, 311, 0)
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 5,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 500, minImpressions = 10),
-        vidSamplingIntervalWidth = 1.0,
-      )
+          rawHistogram,
+          maxFrequency = 5,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 500, minImpressions = 10),
+          vidSamplingIntervalWidth = 1.0,
+        )
+        .value
     val totalAfterFold = 2758 + 1925 + 647
     assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(2758.0 / totalAfterFold)
     assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1925.0 / totalAfterFold)
@@ -369,12 +444,13 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(10, 30, 70)
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 3,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 50, minImpressions = 5),
-        vidSamplingIntervalWidth = 0.5,
-      )
+          rawHistogram,
+          maxFrequency = 3,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 50, minImpressions = 5),
+          vidSamplingIntervalWidth = 0.5,
+        )
+        .value
     val totalAfterFold = 30.0 + 70.0
     assertThat(distribution[1L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(0.0)
     assertThat(distribution[2L]).isWithin(FLOAT_COMPARISON_TOLERANCE).of(30.0 / totalAfterFold)
@@ -388,12 +464,13 @@ class ReachAndFrequencyComputationsTest {
     val totalUsers = rawHistogram.sum()
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 5,
-        noiser = NoNoise,
-        resultMinimumThresholds = ResultMinimumThresholds(minUsers = 30, minImpressions = 10),
-        vidSamplingIntervalWidth = 1.0,
-      )
+          rawHistogram,
+          maxFrequency = 5,
+          noiser = NoNoise,
+          resultMinimumThresholds = ResultMinimumThresholds(minUsers = 30, minImpressions = 10),
+          vidSamplingIntervalWidth = 1.0,
+        )
+        .value
     // Distribution sums to 1.0 means all users are accounted for
     assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)
     // Verify folded buckets contribute to lower ones (freq5=5 and freq4=20 fold to freq3)
@@ -406,7 +483,7 @@ class ReachAndFrequencyComputationsTest {
   fun `computeFrequencyDistribution zeros everything when 1+ bucket fails after fold-down`() {
     // All users are at high frequencies — after fold-down to freq1, it still fails min_users
     val rawHistogram = longArrayOf(3, 5, 2, 1, 1)
-    val distribution =
+    val result =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
         rawHistogram,
         maxFrequency = 5,
@@ -416,7 +493,30 @@ class ReachAndFrequencyComputationsTest {
       )
     // All buckets should be zero because even after folding everything to 1+,
     // total users (12) < minUsers (50)
-    assertThat(distribution.values.all { it == 0.0 }).isTrue()
+    assertThat(result.value.values.all { it == 0.0 }).isTrue()
+    assertThat(result.variance).isEqualTo(2500.0)
+  }
+
+  @Test
+  fun `computeFrequencyDistribution variance includes folded bucket noise`() {
+    val threshold = 10000
+    val maxFrequency = 3
+    val result =
+      ReachAndFrequencyComputations.computeFrequencyDistribution(
+        rawHistogram = longArrayOf(1000, 1000, 1000),
+        maxFrequency = maxFrequency,
+        noiser = GAUSSIAN_NOISER,
+        resultMinimumThresholds = ResultMinimumThresholds(minUsers = threshold, minImpressions = 1),
+        vidSamplingIntervalWidth = 0.5,
+      )
+
+    assertThat(result.value.values.all { it == 0.0 }).isTrue()
+    assertThat(result.variance)
+      .isWithin(1E-9)
+      .of(
+        threshold.toDouble() * threshold +
+          maxFrequency * GAUSSIAN_NOISER.frequencyBucketVariance / (0.5 * 0.5)
+      )
   }
 
   @Test
@@ -425,13 +525,18 @@ class ReachAndFrequencyComputationsTest {
     val rawHistogram = longArrayOf(3, 5, 2, 1, 1)
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = 1.0,
-        vectorSize = 20,
-        noiser = NoNoise,
-        resultMinimumThresholds =
-          ResultMinimumThresholds(minUsers = 50, minImpressions = 10, reachMaxFrequencyPerUser = 5),
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = 1.0,
+          vectorSize = 20,
+          noiser = NoNoise,
+          resultMinimumThresholds =
+            ResultMinimumThresholds(
+              minUsers = 50,
+              minImpressions = 10,
+              reachMaxFrequencyPerUser = 5,
+            ),
+        )
+        .value
     assertThat(reach).isEqualTo(0)
   }
 
@@ -444,20 +549,22 @@ class ReachAndFrequencyComputationsTest {
 
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-        vectorSize = 20,
-        noiser = NoNoise,
-        resultMinimumThresholds = thresholds,
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+          vectorSize = 20,
+          noiser = NoNoise,
+          resultMinimumThresholds = thresholds,
+        )
+        .value
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 5,
-        noiser = NoNoise,
-        resultMinimumThresholds = thresholds,
-        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-      )
+          rawHistogram,
+          maxFrequency = 5,
+          noiser = NoNoise,
+          resultMinimumThresholds = thresholds,
+          vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+        )
+        .value
 
     assertThat(reach).isEqualTo(0)
     assertThat(distribution.values.all { it == 0.0 }).isTrue()
@@ -472,20 +579,22 @@ class ReachAndFrequencyComputationsTest {
 
     val reach =
       ReachAndFrequencyComputations.computeReach(
-        rawHistogram,
-        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-        vectorSize = 10000,
-        noiser = NoNoise,
-        resultMinimumThresholds = thresholds,
-      )
+          rawHistogram,
+          vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+          vectorSize = 10000,
+          noiser = NoNoise,
+          resultMinimumThresholds = thresholds,
+        )
+        .value
     val distribution =
       ReachAndFrequencyComputations.computeFrequencyDistribution(
-        rawHistogram,
-        maxFrequency = 5,
-        noiser = NoNoise,
-        resultMinimumThresholds = thresholds,
-        vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-      )
+          rawHistogram,
+          maxFrequency = 5,
+          noiser = NoNoise,
+          resultMinimumThresholds = thresholds,
+          vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+        )
+        .value
 
     assertThat(reach).isGreaterThan(0)
     assertThat(distribution.values.sum()).isWithin(FLOAT_COMPARISON_TOLERANCE).of(1.0)

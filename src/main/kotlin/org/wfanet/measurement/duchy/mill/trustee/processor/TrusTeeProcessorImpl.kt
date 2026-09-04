@@ -124,6 +124,9 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
     val rawHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency)
     val sampledReachAndFrequency = ReachAndFrequency(rawHistogram.sum(), rawHistogram)
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4454): Add TrusTEE
+    // minimum-threshold correction variance.
+
     return when (val params = trusTeeParams) {
       is TrusTeeReachParams -> {
         // A reach-only measurement has a single set of DP params, and never draws a frequency
@@ -131,32 +134,35 @@ class TrusTeeProcessorImpl(override val trusTeeParams: TrusTeeParams) : TrusTeeP
         val noiser = noiser(frequencyVector, params.dpParams, params.dpParams)
         val reach =
           ReachAndFrequencyComputations.computeReach(
-            sampledReachAndFrequency,
-            vidSamplingIntervalWidth,
-            frequencyVector.size,
-            noiser,
-            resultMinimumThresholds = resultMinimumThresholds,
-          )
+              sampledReachAndFrequency,
+              vidSamplingIntervalWidth,
+              frequencyVector.size,
+              noiser,
+              resultMinimumThresholds = resultMinimumThresholds,
+            )
+            .value
         ReachResult(reach = reach, methodology = DeterministicMethodology)
       }
       is TrusTeeReachAndFrequencyParams -> {
         val noiser = noiser(frequencyVector, params.reachDpParams, params.frequencyDpParams)
         val reach =
           ReachAndFrequencyComputations.computeReach(
-            sampledReachAndFrequency,
-            vidSamplingIntervalWidth,
-            frequencyVector.size,
-            noiser,
-            resultMinimumThresholds = resultMinimumThresholds,
-          )
+              sampledReachAndFrequency,
+              vidSamplingIntervalWidth,
+              frequencyVector.size,
+              noiser,
+              resultMinimumThresholds = resultMinimumThresholds,
+            )
+            .value
         val frequency =
           ReachAndFrequencyComputations.computeFrequencyDistribution(
-            rawHistogram,
-            maxFrequency,
-            noiser,
-            resultMinimumThresholds = resultMinimumThresholds,
-            vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-          )
+              rawHistogram,
+              maxFrequency,
+              noiser,
+              resultMinimumThresholds = resultMinimumThresholds,
+              vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+            )
+            .value
         ReachAndFrequencyResult(reach, frequency, DeterministicMethodology)
       }
     }

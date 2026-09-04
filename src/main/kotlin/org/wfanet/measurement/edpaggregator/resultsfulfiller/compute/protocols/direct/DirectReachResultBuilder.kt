@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.HistogramComputations
+import org.wfanet.measurement.computation.MinimumThresholdResult
 import org.wfanet.measurement.computation.ReachAndFrequencyComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
@@ -54,32 +55,36 @@ class DirectReachResultBuilder(
 ) : MeasurementResultBuilder {
 
   override suspend fun buildMeasurementResult(): Measurement.Result {
-    if (!directProtocolConfig.hasDeterministicCountDistinct()) {
-      throw RequisitionRefusalException.Default(
-        Requisition.Refusal.Justification.DECLINED,
-        "No valid methodologies for direct reach computation.",
-      )
-    }
     val histogram: LongArray =
       HistogramComputations.buildHistogram(
         frequencyVector = frequencyData,
         maxFrequency = resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1,
       )
 
-    val reachValue = getReachValue(histogram)
-
+    val reachResult = getReachResult(histogram)
+    if (reachResult.variance == null && !directProtocolConfig.hasDeterministicCountDistinct()) {
+      throw RequisitionRefusalException.Default(
+        Requisition.Refusal.Justification.DECLINED,
+        "No valid methodologies for direct reach computation.",
+      )
+    }
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
 
     return MeasurementKt.result {
       reach = reach {
-        value = reachValue
+        value = reachResult.value
         this.noiseMechanism = protocolConfigNoiseMechanism
-        deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        val variance = reachResult.variance
+        if (variance != null) {
+          customDirectMethodology = ThresholdedResultMethodologies.buildScalar(variance)
+        } else {
+          deterministicCountDistinct = DeterministicCountDistinct.getDefaultInstance()
+        }
       }
     }
   }
 
-  private fun getReachValue(histogram: LongArray): Long {
+  private fun getReachResult(histogram: LongArray): MinimumThresholdResult<Long> {
     if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct reach...")
     }

@@ -2641,7 +2641,8 @@ class ResultsFulfillerTest {
         decryptResult(request.encryptedResult, MC_PRIVATE_KEY).unpack()
 
       assertThat(result.reach.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
-      assertTrue(result.reach.hasDeterministicCountDistinct())
+      assertTrue(result.reach.hasCustomDirectMethodology())
+      assertThat(result.reach.customDirectMethodology.variance.scalar).isEqualTo(10000.0)
       assertThat(result.frequency.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
       assertTrue(result.frequency.hasDeterministicDistribution())
 

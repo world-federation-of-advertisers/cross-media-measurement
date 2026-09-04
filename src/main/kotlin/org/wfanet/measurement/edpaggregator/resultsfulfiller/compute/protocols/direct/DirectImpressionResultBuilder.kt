@@ -30,6 +30,7 @@ import org.wfanet.measurement.computation.DifferentialPrivacyParams
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
+import org.wfanet.measurement.computation.MinimumThresholdResult
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.MeasurementResultBuilder
@@ -97,22 +98,25 @@ class DirectImpressionResultBuilder(
       return buildDynamicallyClippedResult()
     }
 
-    if (!directProtocolConfig.hasDeterministicCount()) {
+    val impressionResult = computeImpressionResult(effectiveMaxFrequency)
+    if (impressionResult.variance == null && !directProtocolConfig.hasDeterministicCount()) {
       throw RequisitionRefusalException.Default(
         Requisition.Refusal.Justification.DECLINED,
         "No valid methodologies for direct impression computation.",
       )
     }
-
-    val impressionValue = computeImpressionCount(effectiveMaxFrequency)
-
     val protocolConfigNoiseMechanism = directNoiseMechanism.toProtocolConfigNoiseMechanism()
     return MeasurementKt.result {
       impression = impression {
-        value = impressionValue
+        value = impressionResult.value
         this.noiseMechanism = protocolConfigNoiseMechanism
-        this.deterministicCount = deterministicCount {
-          customMaximumFrequencyPerUser = effectiveMaxFrequency
+        val variance = impressionResult.variance
+        if (variance != null) {
+          customDirectMethodology = ThresholdedResultMethodologies.buildScalar(variance)
+        } else {
+          this.deterministicCount = deterministicCount {
+            customMaximumFrequencyPerUser = effectiveMaxFrequency
+          }
         }
       }
     }
@@ -161,49 +165,41 @@ class DirectImpressionResultBuilder(
     }
   }
 
-  /**
-   * Computes the impression count based on frequency data and capping configuration.
-   *
-   * When [impressionMaxFrequencyPerUser] is -1, uses uncapped impressions directly (with
-   * k-anonymity checks if configured). Otherwise, builds a histogram and computes the capped
-   * impression count.
-   *
-   * @param effectiveMaxFrequency The maximum frequency per user to use for capped computations.
-   * @return The computed impression count.
-   */
-  private fun computeImpressionCount(effectiveMaxFrequency: Int): Long {
-    return if (releaseUncapped) {
-      computeUncappedImpressionValue()
+  private fun computeImpressionResult(effectiveMaxFrequency: Int): MinimumThresholdResult<Long> =
+    if (releaseUncapped) {
+      computeUncappedImpressionResult()
     } else {
       val histogram: LongArray =
         HistogramComputations.buildHistogram(
           frequencyVector = frequencyData,
           maxFrequency = effectiveMaxFrequency,
         )
-      getImpressionValue(histogram, effectiveMaxFrequency)
+      getImpressionResult(histogram, effectiveMaxFrequency)
     }
+
+  private fun computeUncappedImpressionResult(): MinimumThresholdResult<Long> {
+    val thresholds =
+      resultMinimumThresholds
+        ?: return MinimumThresholdResult(totalUncappedImpressions, variance = null)
+    val reach = frequencyData.count { it != 0 }
+    val failsThreshold =
+      totalUncappedImpressions < thresholds.minImpressions || reach < thresholds.minUsers
+    return MinimumThresholdResult(
+      value = if (failsThreshold) 0L else totalUncappedImpressions,
+      variance =
+        if (failsThreshold && totalUncappedImpressions > 0L) {
+          val thresholdStandardDeviation = thresholds.minImpressions.toDouble()
+          thresholdStandardDeviation * thresholdStandardDeviation
+        } else {
+          null
+        },
+    )
   }
 
-  /**
-   * Computes the uncapped impression value, applying k-anonymity checks if configured.
-   *
-   * @return The uncapped impression count, or 0 if k-anonymity thresholds are not met.
-   */
-  private fun computeUncappedImpressionValue(): Long {
-    if (resultMinimumThresholds != null) {
-      val reachValue = frequencyData.count { it != 0 }
-      return if (totalUncappedImpressions < resultMinimumThresholds.minImpressions) {
-        0L
-      } else if (reachValue < resultMinimumThresholds.minUsers) {
-        0L
-      } else {
-        totalUncappedImpressions
-      }
-    }
-    return totalUncappedImpressions
-  }
-
-  private fun getImpressionValue(histogram: LongArray, maxFrequency: Int): Long {
+  private fun getImpressionResult(
+    histogram: LongArray,
+    maxFrequency: Int,
+  ): MinimumThresholdResult<Long> {
     if (directNoiseMechanism != DirectNoiseMechanism.NONE) {
       logger.info("Adding $directNoiseMechanism publisher noise to direct impression...")
     }
