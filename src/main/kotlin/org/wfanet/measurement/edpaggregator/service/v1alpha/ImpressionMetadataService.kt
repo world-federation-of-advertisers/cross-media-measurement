@@ -27,6 +27,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
+import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyActiveException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundException
@@ -50,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.UndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
@@ -83,6 +85,7 @@ import org.wfanet.measurement.internal.edpaggregator.entityKey as internalEntity
 import org.wfanet.measurement.internal.edpaggregator.getImpressionMetadataRequest as internalGetImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRequest as internalListImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.undeleteImpressionMetadataRequest as internalUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.updateImpressionMetadataRequest as internalUpdateImpressionMetadataRequest
 
 class ImpressionMetadataService(
@@ -540,6 +543,70 @@ class ImpressionMetadataService(
         InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
+        InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
+        InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
+        InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
+        InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI,
+        InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION,
+        InternalErrors.Reason.REQUISITION_METADATA_STATE_INVALID,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
+        InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+        InternalErrors.Reason.INVALID_FIELD_VALUE,
+        InternalErrors.Reason.ETAG_MISMATCH,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
+        InternalErrors.Reason.VID_LABELING_JOB_NOT_FOUND,
+        InternalErrors.Reason.VID_LABELING_JOB_STATE_INVALID,
+        InternalErrors.Reason.VID_LABELING_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RANKER_JOB_NOT_FOUND,
+        InternalErrors.Reason.RANKER_JOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
+        InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
+        InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
+        null -> Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    }
+  }
+
+  override suspend fun undeleteImpressionMetadata(
+    request: UndeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val key =
+      ImpressionMetadataKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    return try {
+      internalImpressionMetadataStub
+        .undeleteImpressionMetadata(
+          internalUndeleteImpressionMetadataRequest {
+            dataProviderResourceId = key.dataProviderId
+            impressionMetadataResourceId = key.impressionMetadataId
+          }
+        )
+        .toImpressionMetadata()
+    } catch (e: StatusException) {
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
+          ImpressionMetadataNotFoundException(request.name, e)
+            .asStatusRuntimeException(e.status.code)
+        InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID ->
+          ImpressionMetadataAlreadyActiveException(request.name, e)
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
+        InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
         InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
         InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
