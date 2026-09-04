@@ -19,6 +19,12 @@ from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
 
 
+# Uncapped impression results do not have a strict per-user maximum. This is a
+# correction-model assumption about the largest plausible average frequency of
+# a threshold-suppressed result, not an enforced contribution bound.
+_MAXIMUM_EXPECTED_AVERAGE_FREQUENCY = 127
+
+
 @dataclass(frozen=True)
 class PotentialDirectResultMinimumThresholds:
     """Adds correction uncertainty for potentially suppressed Direct zeros.
@@ -27,8 +33,8 @@ class PotentialDirectResultMinimumThresholds:
     that could have produced a result processed by this instance. They are not
     necessarily the exact current policy of any one EDP. Thresholds are treated
     as standard-deviation components and combined with reported noise in
-    quadrature. The maximum frequency bounds impressions hidden when the
-    minimum-user gate suppresses a capped impression result.
+    quadrature. Impression uncertainty assumes that a suppressed result's
+    average frequency does not exceed [_MAXIMUM_EXPECTED_AVERAGE_FREQUENCY].
 
     Operators must follow the rollout contract documented in the Reporting V2
     deployment guide so these bounds cannot be lower than a producer's policy.
@@ -36,7 +42,6 @@ class PotentialDirectResultMinimumThresholds:
 
     min_users: int
     min_impressions: int
-    maximum_frequency_per_user: int
     applies_to_multi_publisher_results: bool
 
     def __post_init__(self):
@@ -44,10 +49,6 @@ class PotentialDirectResultMinimumThresholds:
             raise ValueError("min_users must be greater than 0.")
         if self.min_impressions <= 0:
             raise ValueError("min_impressions must be greater than 0.")
-        if self.maximum_frequency_per_user <= 0:
-            raise ValueError(
-                "maximum_frequency_per_user must be greater than 0."
-            )
 
     def add_reach_uncertainty(self, measurement: Measurement) -> Measurement:
         """Adds uncertainty for either threshold that can suppress reach."""
@@ -84,7 +85,7 @@ class PotentialDirectResultMinimumThresholds:
                 impression,
                 max(
                     self.min_impressions,
-                    self.min_users * self.maximum_frequency_per_user,
+                    self.min_users * _MAXIMUM_EXPECTED_AVERAGE_FREQUENCY,
                 ),
             )
 

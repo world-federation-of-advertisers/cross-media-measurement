@@ -195,7 +195,6 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         thresholds = PotentialDirectResultMinimumThresholds(
             min_users=100,
             min_impressions=1000,
-            maximum_frequency_per_user=5,
             applies_to_multi_publisher_results=True,
         )
 

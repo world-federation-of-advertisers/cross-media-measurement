@@ -27,7 +27,6 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
         thresholds = PotentialDirectResultMinimumThresholds(
             min_users=100,
             min_impressions=1000,
-            maximum_frequency_per_user=20,
             applies_to_multi_publisher_results=False,
         )
 
@@ -44,7 +43,6 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
         thresholds = PotentialDirectResultMinimumThresholds(
             min_users=100,
             min_impressions=1000,
-            maximum_frequency_per_user=20,
             applies_to_multi_publisher_results=True,
         )
         impression = Measurement(
@@ -73,7 +71,6 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
         thresholds = PotentialDirectResultMinimumThresholds(
             min_users=100,
             min_impressions=1000,
-            maximum_frequency_per_user=20,
             applies_to_multi_publisher_results=False,
         )
 
@@ -92,7 +89,7 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
 
         self.assertAlmostEqual(result.reach.sigma, math.hypot(30, 1000))
         self.assertAlmostEqual(
-            result.impression.sigma, math.hypot(60, 2000)
+            result.impression.sigma, math.hypot(60, 12700)
         )
         self.assertAlmostEqual(
             result.k_reach[1].sigma, math.hypot(40, 1000)
@@ -103,7 +100,6 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
         thresholds = PotentialDirectResultMinimumThresholds(
             min_users=100,
             min_impressions=1000,
-            maximum_frequency_per_user=20,
             applies_to_multi_publisher_results=False,
         )
         measurement_set = MeasurementSet(
@@ -124,21 +120,12 @@ class PotentialDirectResultMinimumThresholdsTest(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=0,
                 min_impressions=1000,
-                maximum_frequency_per_user=20,
                 applies_to_multi_publisher_results=False,
             )
         with self.assertRaisesRegex(ValueError, "min_impressions"):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=0,
-                maximum_frequency_per_user=20,
-                applies_to_multi_publisher_results=False,
-            )
-        with self.assertRaisesRegex(ValueError, "maximum_frequency_per_user"):
-            PotentialDirectResultMinimumThresholds(
-                min_users=100,
-                min_impressions=1000,
-                maximum_frequency_per_user=0,
                 applies_to_multi_publisher_results=False,
             )
 

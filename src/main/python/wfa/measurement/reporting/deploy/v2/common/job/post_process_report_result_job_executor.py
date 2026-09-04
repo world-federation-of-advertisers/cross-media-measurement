@@ -128,24 +128,12 @@ flags.DEFINE_alias(
     "potential-direct-result-min-impressions",
     "potential_direct_result_min_impressions",
 )
-_POTENTIAL_DIRECT_RESULT_MAXIMUM_FREQUENCY_PER_USER = flags.DEFINE_integer(
-    "potential_direct_result_maximum_frequency_per_user",
-    0,
-    "Conservative upper bound on the maximum frequency per user across all "
-    "configured EDP policies that may have produced a pending thresholded "
-    "Direct impression result.",
-)
-flags.DEFINE_alias(
-    "potential-direct-result-maximum-frequency-per-user",
-    "potential_direct_result_maximum_frequency_per_user",
-)
 flags.register_multi_flags_validator(
     [
         "potential_direct_thresholding_edp",
         "potential_edp_thresholding_applies_to_union",
         "potential_direct_result_min_users",
         "potential_direct_result_min_impressions",
-        "potential_direct_result_maximum_frequency_per_user",
     ],
     lambda values: (
         not values["potential_direct_thresholding_edp"]
@@ -154,19 +142,16 @@ flags.register_multi_flags_validator(
         ]
         and values["potential_direct_result_min_users"] == 0
         and values["potential_direct_result_min_impressions"] == 0
-        and values["potential_direct_result_maximum_frequency_per_user"] == 0
     )
     or (
         bool(values["potential_direct_thresholding_edp"])
         and values["potential_direct_result_min_users"] > 0
         and values["potential_direct_result_min_impressions"] > 0
-        and values["potential_direct_result_maximum_frequency_per_user"] > 0
     ),
     message=(
         "--potential_direct_thresholding_edp, "
         "--potential_direct_result_min_users, "
-        "--potential_direct_result_min_impressions, and "
-        "--potential_direct_result_maximum_frequency_per_user must all be set "
+        "and --potential_direct_result_min_impressions must all be set "
         "or all be disabled"
     ),
 )
@@ -254,9 +239,6 @@ def main(argv):
                 min_users=_POTENTIAL_DIRECT_RESULT_MIN_USERS.value,
                 min_impressions=(
                     _POTENTIAL_DIRECT_RESULT_MIN_IMPRESSIONS.value
-                ),
-                maximum_frequency_per_user=(
-                    _POTENTIAL_DIRECT_RESULT_MAXIMUM_FREQUENCY_PER_USER.value
                 ),
                 applies_to_multi_publisher_results=(
                     _EDP_THRESHOLDING_APPLIES_TO_UNION.value

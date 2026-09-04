@@ -148,7 +148,6 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         ],
         potential_direct_result_min_users=100,
         potential_direct_result_min_impressions=1000,
-        potential_direct_result_maximum_frequency_per_user=5,
         potential_edp_thresholding_applies_to_union=True,
         potential_direct_thresholding_edp=[
             "dataProviders/edp1",
@@ -189,7 +188,6 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                 PotentialDirectResultMinimumThresholds(
                     min_users=100,
                     min_impressions=1000,
-                    maximum_frequency_per_user=5,
                     applies_to_multi_publisher_results=True,
                 )
             ),
@@ -256,18 +254,15 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                     pass
 
     @parameterized.named_parameters(
-        ("thresholds_without_edp", 100, 1000, 5, []),
-        ("edp_without_thresholds", 0, 0, 0, ["dataProviders/edp1"]),
-        ("users_only", 100, 0, 0, ["dataProviders/edp1"]),
-        ("impressions_only", 0, 1000, 0, ["dataProviders/edp1"]),
-        ("maximum_frequency_only", 0, 0, 5, ["dataProviders/edp1"]),
-        ("missing_maximum_frequency", 100, 1000, 0, ["dataProviders/edp1"]),
-        ("negative_users", -1, 1000, 5, ["dataProviders/edp1"]),
-        ("negative_impressions", 100, -1, 5, ["dataProviders/edp1"]),
-        ("negative_maximum_frequency", 100, 1000, -1, ["dataProviders/edp1"]),
+        ("thresholds_without_edp", 100, 1000, []),
+        ("edp_without_thresholds", 0, 0, ["dataProviders/edp1"]),
+        ("users_only", 100, 0, ["dataProviders/edp1"]),
+        ("impressions_only", 0, 1000, ["dataProviders/edp1"]),
+        ("negative_users", -1, 1000, ["dataProviders/edp1"]),
+        ("negative_impressions", 100, -1, ["dataProviders/edp1"]),
     )
     def test_invalid_potential_direct_thresholds_raise_error(
-        self, min_users, min_impressions, maximum_frequency, thresholding_edps
+        self, min_users, min_impressions, thresholding_edps
     ):
         with flagsaver.flagsaver():
             with self.assertRaisesRegex(
@@ -277,9 +272,6 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                 with flagsaver.flagsaver(
                     potential_direct_result_min_users=min_users,
                     potential_direct_result_min_impressions=min_impressions,
-                    potential_direct_result_maximum_frequency_per_user=(
-                        maximum_frequency
-                    ),
                     potential_direct_thresholding_edp=thresholding_edps,
                 ):
                     pass
@@ -302,7 +294,6 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                 with flagsaver.flagsaver(
                     potential_direct_result_min_users=100,
                     potential_direct_result_min_impressions=1000,
-                    potential_direct_result_maximum_frequency_per_user=5,
                     potential_direct_thresholding_edp=invalid_entries,
                 ):
                     pass

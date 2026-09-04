@@ -69,7 +69,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=False,
             ),
             potential_direct_thresholding_data_provider_ids={"edp-one"},
@@ -122,7 +121,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=False,
             ),
             potential_direct_thresholding_data_provider_ids={"edp-one"},
@@ -172,7 +170,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=False,
             ),
             potential_direct_thresholding_data_provider_ids={
@@ -218,7 +215,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=True,
             ),
             potential_direct_thresholding_data_provider_ids={"edp-one"},
@@ -274,7 +270,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=False,
             ),
             potential_direct_thresholding_data_provider_ids={"edp-one"},
@@ -321,7 +316,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=False,
             ),
             potential_direct_thresholding_data_provider_ids={
@@ -371,7 +365,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=True,
             ),
             potential_direct_thresholding_data_provider_ids={"edp-one"},
@@ -420,7 +413,6 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             PotentialDirectResultMinimumThresholds(
                 min_users=100,
                 min_impressions=1000,
-                maximum_frequency_per_user=5,
                 applies_to_multi_publisher_results=False,
             ),
             potential_direct_thresholding_data_provider_ids={"edp-two"},

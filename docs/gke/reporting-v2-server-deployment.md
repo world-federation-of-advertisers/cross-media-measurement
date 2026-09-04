@@ -346,14 +346,17 @@ for an example.
 The Reporting V2 configuration can identify EDPs whose Direct results may be
 minimum-thresholded and supply the bounds used when correcting suppressed
 zeros. `_potentialDirectResultMinUsers`,
-`_potentialDirectResultMinImpressions`, and
-`_potentialDirectResultMaximumFrequencyPerUser` are conservative upper bounds
-across every applicable policy that could have produced a result still awaiting
+and `_potentialDirectResultMinImpressions` are conservative upper bounds across
+every applicable policy that could have produced a result still awaiting
 post-processing. They are not copies of one EDP's current settings.
 
 For EDPs with different policies, configure the greatest applicable value for
 each bound. A higher bound can give a suppressed zero less weight during
 correction; a lower bound can understate its uncertainty.
+
+For impression correction, the post-processor assumes a maximum average
+frequency of 127. This is a correction-model assumption, not an enforced cap on
+uncapped Direct impression results.
 
 Set `_edpThresholdingAppliesToUnion` only when a
 listed EDP may suppress its frequency-vector contribution before multi-party
@@ -364,7 +367,7 @@ aggregate thresholding, which is tracked separately in issue #4454.
 
 Use the following rollout order whenever a producer policy changes:
 
-1. Before increasing an EDP threshold or maximum frequency, deploy
+1. Before increasing an EDP threshold, deploy
    the new correction upper bound and wait for that configuration to become
    active.
 2. Deploy the producer policy change.

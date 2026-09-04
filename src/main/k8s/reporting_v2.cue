@@ -25,7 +25,6 @@ package k8s
 	// list and zero threshold settings disable potential Direct threshold correction.
 	_potentialDirectResultMinUsers:                  uint | *0
 	_potentialDirectResultMinImpressions:            uint | *0
-	_potentialDirectResultMaximumFrequencyPerUser:   uint | *0
 	_potentialDirectThresholdingEdps:                [...string] | *[]
 	// Whether listed EDPs may suppress their inputs to multi-publisher results.
 	_edpThresholdingAppliesToUnion: bool | *false
@@ -382,7 +381,6 @@ package k8s
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
 					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
-					"--potential-direct-result-maximum-frequency-per-user=\(_potentialDirectResultMaximumFrequencyPerUser)",
 					"--potential-edp-thresholding-applies-to-union=\(_edpThresholdingAppliesToUnion)",
 				] + [ for edp in _potentialDirectThresholdingEdps {
 					"--potential-direct-thresholding-edp=\(edp)"
