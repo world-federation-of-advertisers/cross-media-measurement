@@ -99,6 +99,9 @@ class PotentialDirectResultMinimumThresholds:
         self, k_reach: dict[int, Measurement]
     ) -> dict[int, Measurement]:
         k_reach = dict(k_reach)
+        # TODO(world-federation-of-advertisers/cross-media-measurement#4464):
+        # Model partial fold-down if correction is expected to reconstruct the
+        # pre-threshold histogram rather than preserve displayed values.
         if k_reach and all(
             measurement.value == 0 for measurement in k_reach.values()
         ):

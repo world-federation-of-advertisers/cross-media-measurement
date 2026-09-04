@@ -235,6 +235,59 @@ class TestPostProcessReportSummaryV2(unittest.TestCase):
             480,
         )
 
+    def test_partial_frequency_histogram_remains_exact_and_solvable(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 280 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 200 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+                applies_to_multi_publisher_results=False,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(result.updated_measurements["reach"], 480)
+        self.assertEqual(
+            result.updated_measurements["frequency-bin-1"], 280
+        )
+        self.assertEqual(
+            result.updated_measurements["frequency-bin-2"], 200
+        )
+        self.assertEqual(result.updated_measurements["impressions"], 2400)
+
     def test_direct_result_with_multiple_reporting_sets_for_one_edp_is_corrected(
         self,
     ):
