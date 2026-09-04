@@ -1193,9 +1193,9 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
-  fun `listImpressionMetadata returns deleted ImpressionMetadata when show deleted is set to true`() =
+  fun `listImpressionMetadata includes deleted ImpressionMetadata when show deleted is true`() =
     runBlocking {
-      val created = createImpressionMetadata(IMPRESSION_METADATA)
+      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
       val deleted =
         service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created[0].name })
 
@@ -1208,8 +1208,55 @@ class ImpressionMetadataServiceTest {
         )
 
       assertThat(response)
-        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += deleted })
+        .isEqualTo(
+          listImpressionMetadataResponse {
+            impressionMetadata += listOf(deleted, created[1]).sortedBy { it.name }
+          }
+        )
     }
+
+  @Test
+  fun `listImpressionMetadata filters deleted ImpressionMetadata by state`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+    val deleted =
+      service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created[0].name })
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          showDeleted = true
+          filter =
+            ListImpressionMetadataRequestKt.filter { state = ImpressionMetadata.State.DELETED }
+        }
+      )
+
+    assertThat(response).isEqualTo(listImpressionMetadataResponse { impressionMetadata += deleted })
+  }
+
+  @Test
+  fun `listImpressionMetadata rejects deleted state without show deleted`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            filter =
+              ListImpressionMetadataRequestKt.filter { state = ImpressionMetadata.State.DELETED }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "filter.state"
+        }
+      )
+  }
 
   @Test
   fun `listImpressionMetadata throws INVALID_ARGUMENT when parent is not set`() = runBlocking {

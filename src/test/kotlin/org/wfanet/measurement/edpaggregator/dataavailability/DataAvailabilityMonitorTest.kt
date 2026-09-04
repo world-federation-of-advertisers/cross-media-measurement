@@ -64,13 +64,22 @@ class DataAvailabilityMonitorTest {
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
-        .thenAnswer { _ ->
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          assertThat(request.showDeleted).isTrue()
+          assertThat(request.filter.state).isEqualTo(V1AlphaImpressionMetadata.State.DELETED)
           listImpressionMetadataResponse {
             impressionMetadata += v1alphaImpressionMetadata {
               name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-deleted-1"
               blobUri =
                 "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-10/metadata_campaign_123.json"
               state = V1AlphaImpressionMetadata.State.DELETED
+            }
+            impressionMetadata += v1alphaImpressionMetadata {
+              name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-active-1"
+              blobUri =
+                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-11/metadata_campaign_456.json"
+              state = V1AlphaImpressionMetadata.State.ACTIVE
             }
           }
         }
