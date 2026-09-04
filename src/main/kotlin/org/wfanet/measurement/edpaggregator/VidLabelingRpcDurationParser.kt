@@ -25,7 +25,9 @@ object VidLabelingRpcDurationParser {
     require(HUMAN_READABLE_DURATION_PATTERN.matches(value)) {
       "Value must be a complete human-readable duration"
     }
-    return value.toDuration()
+    val duration: Duration = value.toDuration()
+    require(duration > Duration.ZERO) { "Value must be a positive human-readable duration" }
+    return duration
   }
 
   private val HUMAN_READABLE_DURATION_PATTERN = Regex("(?:\\d+(?:ns|ms|s|m|h|d))+")
