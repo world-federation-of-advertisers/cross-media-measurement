@@ -224,7 +224,7 @@ abstract class BaseTeeApplication(
         workItemAttemptsStub.failWorkItemAttempt(
           failWorkItemAttemptRequest {
             this.name = workItemAttempt.name
-            this.errorMessage = e.message.toString()
+            this.errorMessage = e.toString()
           }
         )
       }

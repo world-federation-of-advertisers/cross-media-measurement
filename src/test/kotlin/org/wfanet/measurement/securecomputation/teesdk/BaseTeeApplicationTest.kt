@@ -34,8 +34,11 @@ import org.junit.Rule
 import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfa.measurement.queue.testing.TestWork
 import org.wfa.measurement.queue.testing.testWork
@@ -49,6 +52,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.queue.MessageConsumer
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -65,6 +69,7 @@ class BaseTeeApplicationImpl(
   workItemsClient: WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsCoroutineStub,
   controlPlaneThrottler: Throttler? = null,
+  private val failure: Exception? = null,
 ) :
   BaseTeeApplication(
     subscriptionId = subscriptionId,
@@ -78,6 +83,7 @@ class BaseTeeApplicationImpl(
 
   override suspend fun runWork(message: Any) {
     val testWork = message.unpack(TestWork::class.java)
+    failure?.let { throw it }
     messageProcessed.complete(testWork)
   }
 }
@@ -256,6 +262,48 @@ class BaseTeeApplicationTest {
     assertThat(consumer.ackCount).isEqualTo(0)
 
     assertThat(app.messageProcessed.isCompleted).isFalse()
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `failure report includes exception type when exception has no message`() = runBlocking {
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure = IllegalStateException(),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "some-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    val requestCaptor = argumentCaptor<FailWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsServiceMock, times(1)) {
+      failWorkItemAttempt(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.errorMessage).isEqualTo("java.lang.IllegalStateException")
+    assertThat(consumer.nackCount).isEqualTo(1)
     job.cancelAndJoin()
   }
 
