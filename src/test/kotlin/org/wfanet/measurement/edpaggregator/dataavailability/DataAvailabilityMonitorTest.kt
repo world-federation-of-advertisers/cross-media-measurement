@@ -113,6 +113,7 @@ class DataAvailabilityMonitorTest {
 
     private const val STALE_DAYS_METRIC = "edpa.data_availability.stale_days"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
+    private const val TEST_SYNC_ID = "test-sync-id"
   }
 
   private lateinit var openTelemetry: OpenTelemetrySdk
@@ -157,15 +158,20 @@ class DataAvailabilityMonitorTest {
     modelLine: String,
     date: String,
     synced: Boolean = true,
+    availabilityPublished: Boolean = synced,
   ): Unit = runBlocking {
     val path = "$EDP_IMPRESSION_PATH/model-line/$modelLine/$date/done"
     storageClient.writeBlob(path, ByteString.copyFromUtf8("done"))
+    val metadata = mutableMapOf<String, String>()
     if (synced) {
-      storageClient.updateBlobMetadata(
-        path,
-        metadata =
-          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
-      )
+      metadata[DataAvailabilityBlobs.SYNCED_BY_KEY] = DataAvailabilityBlobs.SYNCED_BY_VALUE
+      metadata[DataAvailabilityBlobs.SYNC_ID_KEY] = TEST_SYNC_ID
+    }
+    if (availabilityPublished) {
+      metadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY] = TEST_SYNC_ID
+    }
+    if (metadata.isNotEmpty()) {
+      storageClient.updateBlobMetadata(path, metadata = metadata)
     }
   }
 
@@ -1544,6 +1550,54 @@ class DataAvailabilityMonitorTest {
     assertThat(status.unprocessedDoneDates).isEmpty()
     // Healthy: hasData = true, no late arrivals, no unprocessed done.
     assertThat(status.healthyDates).containsExactly(LocalDate.of(2026, 3, 15))
+  }
+
+  @Test
+  fun `checkFullStatus flags latest attempt when prior publication marker exists`() = runBlocking {
+    val storageClient = createStorageClient()
+
+    ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+    createDoneBlob(
+      storageClient,
+      MODEL_LINE_A.modelLineId,
+      "2026-03-15",
+      synced = true,
+      availabilityPublished = false,
+    )
+    storageClient.updateBlobMetadata(
+      "$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-15/done",
+      metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to "previous-sync-id"),
+    )
+    createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+    val monitor =
+      DataAvailabilityMonitor(
+        storageClient = storageClient,
+        edpImpressionPath = EDP_IMPRESSION_PATH,
+        activeModelLines = setOf(MODEL_LINE_A),
+        impressionMetadataStub = null,
+        dataProviderName = null,
+        clock = { Instant.now().plus(Duration.ofHours(25)) },
+      )
+
+    val result =
+      monitor.checkFullStatus(
+        maxStaleDays = 3,
+        timeZone = TIME_ZONE,
+        clock = { TODAY },
+        unprocessedDoneThreshold = Duration.ofHours(24),
+        spuriousDeletionLookbackDays = null,
+      )
+
+    val status = result.statuses.single()
+    assertThat(status.unprocessedDoneDates).isEmpty()
+    assertThat(status.unpublishedAvailabilityDates).containsExactly(LocalDate.of(2026, 3, 15))
+    assertThat(status.healthyDates).isEmpty()
+    val metrics = collectMetrics()
+    assertThat(
+        getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPUBLISHED_AVAILABILITY)
+      )
+      .isEqualTo(1)
   }
 
   @Test

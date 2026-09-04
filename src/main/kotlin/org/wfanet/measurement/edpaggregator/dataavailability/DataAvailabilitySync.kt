@@ -177,26 +177,27 @@ class DataAvailabilitySync(
 
       // Count total records
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
+      val syncId = UUID.randomUUID().toString()
 
       // 2. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys)
       }
 
-      // 2b. Stamp the `done` blob with the synced-by marker. The marker means "the
-      // ImpressionMetadata store is updated for this date" — Spanner records are persisted
-      // and metadata blobs are stamped. It does NOT imply that Kingdom data availability has
-      // been updated: gap detection at step 5 may skip the Kingdom publish entirely when
-      // errorIfGapsExist=true, and Kingdom publish has its own failure signal
-      // (`cmmsRpcErrorsCounter`) when it is attempted.
+      // 2b. Stamp the `done` blob with this attempt's sync ID. This means the
+      // ImpressionMetadata store is updated for this date, but does not imply that Kingdom data
+      // availability has been updated. A new ID deliberately invalidates any publication marker
+      // left by an earlier attempt, making a later gap skip or RPC failure durably detectable.
       //
-      // DataAvailabilityMonitor uses the marker to tell late-arrival from never-arrived: a done
-      // blob older than its threshold without this marker means Sync did not (yet) update the
-      // ImpressionMetadata store for the date.
+      // DataAvailabilityMonitor compares this ID with PUBLISHED_SYNC_ID_KEY to distinguish a
+      // fully completed attempt from one that stopped after metadata persistence.
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata =
-          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+          mapOf(
+            DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+            DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
+          ),
       )
 
       // 3. Retrieve model line bound from ImpressionMetadataStorage for all model lines
@@ -316,6 +317,18 @@ class DataAvailabilitySync(
           }
         }
       }
+
+      // This marker is the durable completion signal for both phases of synchronization. Keep the
+      // metadata-store marker above separate so a failure in the Kingdom RPC remains detectable.
+      storageClient.updateBlobMetadata(
+        blobKey = doneBlobUri.key,
+        metadata =
+          mapOf(
+            DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+            DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
+            DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId,
+          ),
+      )
 
       // Record successful sync
       recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)

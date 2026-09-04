@@ -48,8 +48,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UndeleteImpressionMetadataRe
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
-import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 @RunWith(JUnit4::class)
@@ -58,6 +58,7 @@ class MissingImpressionMetadataRecoveryTest {
   private val listRequests = mutableListOf<ListImpressionMetadataRequest>()
   private val undeleteRequests = mutableListOf<UndeleteImpressionMetadataRequest>()
   private var undeleteError: StatusException? = null
+  private var publicationCompletes = true
   private val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
@@ -483,8 +484,99 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(metricValue(FAILED_UNDELETES_METRIC)).isEqualTo(1)
   }
 
+  @Test
+  fun `recover backfills legacy folder once with representative per model line`(): Unit =
+    runBlocking {
+      val storageClient = InMemoryStorageClient()
+      writeIncompleteFullSyncMetadata(
+        storageClient,
+        "2026-08-03",
+        "metadata-a.json",
+        "metadata-b.json",
+        "metadata-c.json",
+        includeSyncId = false,
+      )
+      for (fileName in listOf("metadata-a.json", "metadata-b.json")) {
+        val uri = metadataUri("2026-08-03", fileName)
+        registeredMetadata[uri] = impressionMetadata {
+          name = "$DATA_PROVIDER_NAME/impressionMetadata/$fileName"
+          blobUri = uri
+          modelLine = MODEL_LINE_NAME
+          state = ImpressionMetadata.State.ACTIVE
+        }
+      }
+      val secondModelLineUri = metadataUri("2026-08-03", "metadata-c.json")
+      registeredMetadata[secondModelLineUri] = impressionMetadata {
+        name = "$DATA_PROVIDER_NAME/impressionMetadata/metadata-c.json"
+        blobUri = secondModelLineUri
+        modelLine = SECOND_MODEL_LINE_NAME
+        state = ImpressionMetadata.State.ACTIVE
+      }
+      val syncedBlobKeys = mutableListOf<Set<String>>()
+      val recovery =
+        buildRecovery(
+          storageClient,
+          impressionMetadataBatchSize = 100,
+          registerSyncedMetadata = true,
+        ) { _, blobKeys ->
+          syncedBlobKeys += blobKeys
+        }
+
+      val firstResult = recovery.recover()
+      val secondResult = recovery.recover()
+
+      assertThat(firstResult.missingBlobs).isEqualTo(0)
+      assertThat(firstResult.incompleteFullSyncFolders).isEqualTo(1)
+      assertThat(firstResult.dateFoldersResynced).isEqualTo(1)
+      assertThat(firstResult.errors).isEmpty()
+      assertThat(syncedBlobKeys).hasSize(1)
+      assertThat(syncedBlobKeys.single()).hasSize(2)
+      assertThat(
+          syncedBlobKeys.single().map { blobKey ->
+            registeredMetadata.getValue("$BUCKET_URI/$blobKey").modelLine
+          }
+        )
+        .containsExactly(MODEL_LINE_NAME, SECOND_MODEL_LINE_NAME)
+      assertThat(secondResult.incompleteFullSyncFolders).isEqualTo(0)
+      assertThat(secondResult.dateFoldersResynced).isEqualTo(0)
+    }
+
+  @Test
+  fun `recover retries when gap-blocked sync leaves publication incomplete`(): Unit = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    writeIncompleteFullSyncMetadata(storageClient, "2026-08-03", "metadata.json")
+    val uri = metadataUri("2026-08-03", "metadata.json")
+    registeredMetadata[uri] = impressionMetadata {
+      name = "$DATA_PROVIDER_NAME/impressionMetadata/metadata"
+      blobUri = uri
+      modelLine = MODEL_LINE_NAME
+      state = ImpressionMetadata.State.ACTIVE
+    }
+    publicationCompletes = false
+    var syncCalls = 0
+    val recovery =
+      buildRecovery(
+        storageClient,
+        impressionMetadataBatchSize = 100,
+        registerSyncedMetadata = true,
+      ) { _, _ ->
+        syncCalls++
+      }
+
+    val firstResult = recovery.recover()
+    val secondResult = recovery.recover()
+
+    assertThat(firstResult.incompleteFullSyncFolders).isEqualTo(1)
+    assertThat(firstResult.dateFoldersResynced).isEqualTo(0)
+    assertThat(firstResult.errors.single().message).contains("publication")
+    assertThat(secondResult.incompleteFullSyncFolders).isEqualTo(1)
+    assertThat(secondResult.dateFoldersResynced).isEqualTo(0)
+    assertThat(secondResult.errors.single().message).contains("publication")
+    assertThat(syncCalls).isEqualTo(2)
+  }
+
   private fun buildRecovery(
-    storageClient: StorageClient,
+    storageClient: BlobMetadataStorageClient,
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
     sync: suspend (String, Set<String>) -> Unit,
@@ -517,6 +609,18 @@ class MissingImpressionMetadataRecoveryTest {
             )
           }
         }
+        if (publicationCompletes) {
+          val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
+          storageClient.updateBlobMetadata(
+            doneBlobKey,
+            metadata =
+              mapOf(
+                DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+                DataAvailabilityBlobs.SYNC_ID_KEY to TEST_SYNC_ID,
+                DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to TEST_SYNC_ID,
+              ),
+          )
+        }
       },
       metrics = metrics,
     )
@@ -533,6 +637,34 @@ class MissingImpressionMetadataRecoveryTest {
       "$EDP_IMPRESSION_PATH/model-line/model-line-1/$date/done",
       ByteString.EMPTY,
     )
+    storageClient.updateBlobMetadata(
+      "$EDP_IMPRESSION_PATH/model-line/model-line-1/$date/done",
+      metadata =
+        mapOf(
+          DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+          DataAvailabilityBlobs.SYNC_ID_KEY to TEST_SYNC_ID,
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to TEST_SYNC_ID,
+        ),
+    )
+  }
+
+  private suspend fun writeIncompleteFullSyncMetadata(
+    storageClient: InMemoryStorageClient,
+    date: String,
+    vararg fileNames: String,
+    includeSyncId: Boolean = true,
+  ) {
+    for (fileName in fileNames) {
+      storageClient.writeBlob(metadataKey(date, fileName), ByteString.copyFromUtf8("metadata"))
+    }
+    val doneBlobKey = "$EDP_IMPRESSION_PATH/model-line/model-line-1/$date/done"
+    storageClient.writeBlob(doneBlobKey, ByteString.EMPTY)
+    val metadata =
+      mutableMapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    if (includeSyncId) {
+      metadata[DataAvailabilityBlobs.SYNC_ID_KEY] = TEST_SYNC_ID
+    }
+    storageClient.updateBlobMetadata(doneBlobKey, metadata = metadata)
   }
 
   private fun metadataKey(date: String, fileName: String): String =
@@ -550,8 +682,8 @@ class MissingImpressionMetadataRecoveryTest {
     return metric.longGaugeData.points.single().value
   }
 
-  private class RecordingStorageClient(private val delegate: StorageClient) :
-    StorageClient by delegate {
+  private class RecordingStorageClient(private val delegate: BlobMetadataStorageClient) :
+    BlobMetadataStorageClient by delegate {
     val listedBlobPrefixes = mutableListOf<String?>()
 
     override suspend fun listBlobs(prefix: String?) =
@@ -563,7 +695,12 @@ class MissingImpressionMetadataRecoveryTest {
     private const val BUCKET_URI = "gs://$BUCKET_NAME"
     private const val EDP_IMPRESSION_PATH = "edp/test/vid-labeled-impressions"
     private const val DATA_PROVIDER_NAME = "dataProviders/test-provider"
+    private const val MODEL_LINE_NAME =
+      "modelProviders/test-provider/modelSuites/test-suite/modelLines/model-line-1"
+    private const val SECOND_MODEL_LINE_NAME =
+      "modelProviders/test-provider/modelSuites/test-suite/modelLines/model-line-2"
     private const val MISSING_BLOBS_METRIC = "edpa.data_availability_recovery.missing_blobs"
+    private const val TEST_SYNC_ID = "test-sync-id"
     private const val FAILED_BLOBS_METRIC = "edpa.data_availability_recovery.failed_blobs"
     private const val FAILED_UNDELETES_METRIC = "edpa.data_availability_recovery.failed_undeletes"
     private const val DELETED_RECORDS_WITH_BLOBS_METRIC =

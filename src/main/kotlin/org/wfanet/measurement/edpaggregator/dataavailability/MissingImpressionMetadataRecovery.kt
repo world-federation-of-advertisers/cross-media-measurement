@@ -42,7 +42,9 @@ import org.wfanet.measurement.storage.StorageClient
  * Recovers finalized metadata blobs that have no corresponding `ImpressionMetadata` resource.
  *
  * Also restores deleted resources whose metadata blobs still exist. Date folders are reconciled
- * sequentially so memory usage is bounded by the number of objects and records in one folder.
+ * sequentially so memory usage is bounded by the number of objects and records in one folder. A
+ * folder whose metadata was persisted but whose Kingdom publication did not complete is retried
+ * with one representative metadata blob per model line.
  *
  * @param storageClient Client used to list metadata and completion blobs.
  * @param storageRootUri Storage scheme and bucket used to build metadata blob URIs.
@@ -96,6 +98,8 @@ class MissingImpressionMetadataRecovery(
    * @property recoveredBlobs Missing blobs verified active after resynchronization.
    * @property failedBlobs Missing blobs not verified active after resynchronization.
    * @property dateFoldersResynced Number of date folders successfully resynchronized and verified.
+   * @property incompleteFullSyncFolders Finalized folders whose metadata was persisted but whose
+   *   Kingdom data availability publication was not marked complete when scanned.
    * @property errors Per-target recovery failures.
    */
   data class RecoveryResult(
@@ -107,6 +111,7 @@ class MissingImpressionMetadataRecovery(
     val recoveredBlobs: Int,
     val failedBlobs: Int,
     val dateFoldersResynced: Int,
+    val incompleteFullSyncFolders: Int,
     val errors: List<RecoveryError>,
   )
 
@@ -119,10 +124,11 @@ class MissingImpressionMetadataRecovery(
     val recoveredBlobs: Int,
     val failedBlobs: Int,
     val dateFoldersResynced: Int,
+    val incompleteFullSyncFolders: Int,
     val errors: List<RecoveryError>,
   )
 
-  /** Restores deleted resources and re-runs sync for missing resources. */
+  /** Restores deleted resources and re-runs incomplete metadata or availability synchronization. */
   suspend fun recover(): RecoveryResult {
     var finalizedMetadataBlobs = 0
     var missingBlobs = 0
@@ -132,6 +138,7 @@ class MissingImpressionMetadataRecovery(
     var recoveredBlobs = 0
     var failedBlobs = 0
     var dateFoldersResynced = 0
+    var incompleteFullSyncFolders = 0
     val errors = mutableListOf<RecoveryError>()
 
     for (dateFolderPrefix in listDateFolderPrefixes()) {
@@ -151,6 +158,7 @@ class MissingImpressionMetadataRecovery(
             recoveredBlobs = 0,
             failedBlobs = 0,
             dateFoldersResynced = 0,
+            incompleteFullSyncFolders = 0,
             errors = listOf(RecoveryError(dateFolderPrefix, e.message ?: e::class.java.simpleName)),
           )
         }
@@ -163,6 +171,7 @@ class MissingImpressionMetadataRecovery(
       recoveredBlobs += result.recoveredBlobs
       failedBlobs += result.failedBlobs
       dateFoldersResynced += result.dateFoldersResynced
+      incompleteFullSyncFolders += result.incompleteFullSyncFolders
       errors += result.errors
     }
 
@@ -200,6 +209,7 @@ class MissingImpressionMetadataRecovery(
       recoveredBlobs = recoveredBlobs,
       failedBlobs = failedBlobs,
       dateFoldersResynced = dateFoldersResynced,
+      incompleteFullSyncFolders = incompleteFullSyncFolders,
       errors = errors,
     )
   }
@@ -247,8 +257,9 @@ class MissingImpressionMetadataRecovery(
     }
 
     val doneBlobKey = "${dateFolderPrefix.removeSuffix("/")}$DONE_SUFFIX"
+    val doneBlob = blobs.firstOrNull { it.blobKey == doneBlobKey }
     val finalizedMetadataBlobs =
-      if (blobs.any { it.blobKey == doneBlobKey }) {
+      if (doneBlob != null) {
         storageMetadataBlobs.filter(DataAvailabilityBlobs::isMetadataBlob)
       } else {
         emptyList()
@@ -256,7 +267,26 @@ class MissingImpressionMetadataRecovery(
     val finalizedBlobUris =
       finalizedMetadataBlobs.mapTo(mutableSetOf()) { BlobUris.buildUri(storageRootUri, it.blobKey) }
     val missingBlobUris = finalizedBlobUris.minus(registeredMetadata.keys)
-    val blobUrisToSync = missingBlobUris + undeletedBlobUris.intersect(finalizedBlobUris)
+    val incompleteFullSync =
+      doneBlob != null &&
+        finalizedMetadataBlobs.isNotEmpty() &&
+        !DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob)
+    val representativeBlobUris =
+      if (incompleteFullSync) {
+        registeredMetadata.values
+          .asSequence()
+          .filter {
+            it.blobUri in finalizedBlobUris &&
+              (it.state != ImpressionMetadata.State.DELETED || it.blobUri in undeletedBlobUris)
+          }
+          .associateBy { it.modelLine }
+          .values
+          .mapTo(mutableSetOf()) { it.blobUri }
+      } else {
+        emptySet()
+      }
+    val blobUrisToSync =
+      missingBlobUris + undeletedBlobUris.intersect(finalizedBlobUris) + representativeBlobUris
     if (blobUrisToSync.isEmpty()) {
       return FolderRecoveryResult(
         finalizedMetadataBlobs = finalizedMetadataBlobs.size,
@@ -267,6 +297,7 @@ class MissingImpressionMetadataRecovery(
         recoveredBlobs = 0,
         failedBlobs = 0,
         dateFoldersResynced = 0,
+        incompleteFullSyncFolders = if (incompleteFullSync) 1 else 0,
         errors = errors,
       )
     }
@@ -291,6 +322,7 @@ class MissingImpressionMetadataRecovery(
         recoveredBlobs = 0,
         failedBlobs = missingBlobUris.size,
         dateFoldersResynced = 0,
+        incompleteFullSyncFolders = if (incompleteFullSync) 1 else 0,
         errors = errors + RecoveryError(doneBlobUri, e.message ?: e::class.java.simpleName),
       )
     }
@@ -313,6 +345,17 @@ class MissingImpressionMetadataRecovery(
         )
     }
 
+    val availabilityPublicationCompleted =
+      storageClient.getBlob(doneBlobKey)?.let(DataAvailabilityBlobs::isDataAvailabilityPublished) ==
+        true
+    if (!availabilityPublicationCompleted) {
+      errors +=
+        RecoveryError(
+          doneBlobUri,
+          "Sync returned without completing Kingdom data availability publication",
+        )
+    }
+
     return FolderRecoveryResult(
       finalizedMetadataBlobs = finalizedMetadataBlobs.size,
       missingBlobs = missingBlobUris.size,
@@ -321,7 +364,9 @@ class MissingImpressionMetadataRecovery(
       failedUndeletes = failedUndeletes + inactiveUndeletedBlobUris.size,
       recoveredBlobs = missingBlobUris.size - unrecoveredBlobUris.size,
       failedBlobs = unrecoveredBlobUris.size,
-      dateFoldersResynced = if (unverifiedBlobUris.isEmpty()) 1 else 0,
+      dateFoldersResynced =
+        if (unverifiedBlobUris.isEmpty() && availabilityPublicationCompleted) 1 else 0,
+      incompleteFullSyncFolders = if (incompleteFullSync) 1 else 0,
       errors = errors,
     )
   }

@@ -8,7 +8,7 @@ at a time. For each folder, it lists storage objects and pages through the metad
 folder's blob URI prefix. This bounds memory to one date folder instead of loading the full
 lookback window.
 
-It repairs two inconsistencies:
+It repairs three inconsistencies:
 
 - A finalized metadata file has no active or deleted `ImpressionMetadata` resource. A folder is
   finalized only when it contains a `done` blob. The command re-runs `DataAvailabilitySync`
@@ -17,9 +17,16 @@ It repairs two inconsistencies:
 - An `ImpressionMetadata` resource is deleted while its metadata file still exists. The command
   calls `UndeleteImpressionMetadata`, includes the restored blob in the finalized folder's
   `DataAvailabilitySync`, and reports any resource that could not be restored.
+- A finalized folder has the metadata-store `synced-by` marker but its latest
+  `data-availability-sync-id` does not match `data-availability-published-sync-id`. The command
+  re-runs `DataAvailabilitySync` with one representative blob per model line and verifies that the
+  publication IDs match. Missing or restored blobs are included in the same retry.
 
 Deleted-record checks also include folders without `done`, since that existence check is
 independent of upload finalization.
+
+If `error_if_gaps_exist` blocks publication, the publication IDs remain mismatched and the command
+exits nonzero so the folder remains retryable after the gap is corrected.
 
 ## Run the CLI
 
@@ -98,10 +105,10 @@ job runs during a low-traffic weekly window and `concurrencyPolicy: Forbid` prev
 from overlapping each other, but it does not prevent the Cloud Function from processing the same
 date folder. Avoid manually starting recovery while that folder is actively being finalized.
 
-Post-sync verification proves that repaired `ImpressionMetadata` resources are active. It does not
-independently prove the later Kingdom data-availability publication: the existing `synced-by`
-marker is written before that RPC. Durable detection and retry of a failure between those phases is
-tracked in [#4463](https://github.com/world-federation-of-advertisers/cross-media-measurement/issues/4463).
+Post-sync verification proves that every repaired `ImpressionMetadata` resource is active and that
+the sync and publication IDs match after the Kingdom update. The existing `synced-by` marker
+continues to record the earlier metadata-store phase, allowing the monitor to distinguish metadata
+persistence failures from Kingdom publication failures.
 
 ## Scale and performance
 
@@ -118,6 +125,10 @@ estimate based on one metadata file per folder. Missing-record repair is slower 
 and publishes availability intervals for each affected folder.
 
 The main speedups are folder-prefix filtering, 1,000-record pages, and bounded per-folder memory.
+For a folder that only lacks the publication marker, recovery feeds one representative metadata
+blob per model line back through `DataAvailabilitySync`; it does not rewrite all 5,000 resources.
+The first run after this marker is introduced backfills the last 90 days, after which healthy runs
+skip already-published folders.
 Parallelizing folders would shorten the scan but is intentionally avoided because concurrent syncs
 can race while replacing provider-wide Kingdom availability intervals.
 
@@ -132,3 +143,7 @@ All four are per-run gauges. Alert when either inconsistency gauge or either rep
 greater than zero. Each point has an
 `edpa.data_availability_recovery.edp_impression_path` attribute. Successful counts are in the
 completion log; a separate recovered gauge would duplicate `missing_blobs - failed_blobs`.
+The data-availability monitor also emits
+`edpa.data_availability.date_count{date_status="unpublished_availability"}` for folders whose
+metadata-store phase completed but whose Kingdom publication marker remains absent past the
+configured threshold.
