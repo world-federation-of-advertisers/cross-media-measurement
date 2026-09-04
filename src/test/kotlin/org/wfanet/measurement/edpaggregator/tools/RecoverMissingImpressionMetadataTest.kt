@@ -156,6 +156,39 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main includes date folder at end days ago boundary`() {
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      val yesterdayFolderPrefix =
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/${LocalDate.now(ZoneOffset.UTC).minusDays(1)}"
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$yesterdayFolderPrefix/metadata-invalid.json").build(),
+        "{".toByteArray(),
+      )
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$yesterdayFolderPrefix/done").build(),
+        byteArrayOf(),
+      )
+      val configFile = writeConfigFile(validConfig())
+
+      val capturedOutput =
+        CommandLineTesting.capturingOutput(
+          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 1) +
+            arrayOf(
+              "--storage-api-endpoint=${storageEmulator.storage.options.host}",
+              "--lookback-days=2",
+              "--throttler-minimum-interval=0s",
+            ),
+          ::main,
+        )
+
+      CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+    } finally {
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
   fun `main exits nonzero when recovery cannot register metadata`() {
     val impressionMetadataServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
       onBlocking { listImpressionMetadata(any<ListImpressionMetadataRequest>()) }
