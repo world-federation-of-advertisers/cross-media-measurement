@@ -93,6 +93,7 @@ kt_jvm_test(
     srcs = ["FailedDispatchRetrierTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.FailedDispatchRetrierTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
@@ -139,5 +140,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:vid_labeling_heal",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
