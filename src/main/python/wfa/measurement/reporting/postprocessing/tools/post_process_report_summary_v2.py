@@ -179,9 +179,8 @@ class ReportSummaryV2Processor:
                 )
             }
             thresholds = self._potential_direct_result_minimum_thresholds
-            # TODO(world-federation-of-advertisers/cross-media-measurement#4454):
-            # Account for EDPA contribution suppression and protocol-level
-            # thresholding in multi-publisher results.
+            # TODO(world-federation-of-advertisers/cross-media-measurement#4465):
+            # Account for EDPA contribution suppression in multi-publisher results.
             is_potentially_thresholded_direct_result = (
                 len(data_provider_ids) == 1
                 and data_provider_ids.issubset(

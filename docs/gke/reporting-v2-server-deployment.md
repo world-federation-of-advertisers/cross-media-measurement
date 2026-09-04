@@ -358,9 +358,10 @@ For impression correction, the post-processor assumes a maximum average
 frequency of 127. This is a correction-model assumption, not an enforced cap on
 uncapped Direct impression results.
 
-This correction is limited to single-publisher results. Correctly representing
-both EDPA contribution suppression and protocol-level thresholding in
-multi-publisher results is tracked separately in issue #4454.
+This correction is limited to single-publisher results. EDPA contribution
+suppression in multi-publisher results is tracked in issue #4465. Future
+protocol-level TrusTEE aggregate thresholding is tracked separately in issue
+#4454.
 
 Use the following rollout order whenever a producer policy changes:
 
