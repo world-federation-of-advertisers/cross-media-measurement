@@ -860,6 +860,9 @@ abstract class MeasurementConsumerSimulator(
       ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE -> {
         MeasurementComputationInfo(DeterministicMethodology, protocol.trusTee.noiseMechanism)
       }
+      ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE_V2 -> {
+        error("TrusTEE multimeasurement is not supported.")
+      }
       ProtocolConfig.Protocol.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Protocol is not set.")
       }
@@ -910,6 +913,8 @@ abstract class MeasurementConsumerSimulator(
               dataProviderCapabilities.honestMajorityShareShuffleSupported
             ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE ->
               dataProviderCapabilities.trusTeeSupported
+            ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE_V2 ->
+              dataProviderCapabilities.trusTeeV2Supported
             ProtocolConfig.Protocol.ProtocolCase.DIRECT,
             ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
             ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
@@ -1126,6 +1131,7 @@ abstract class MeasurementConsumerSimulator(
       MeasurementSpec.MeasurementTypeCase.IMPRESSION -> error("Should not be reached.")
       MeasurementSpec.MeasurementTypeCase.DURATION -> getExpectedDurationResult()
       MeasurementSpec.MeasurementTypeCase.POPULATION -> error("Should not be reached.")
+      MeasurementSpec.MeasurementTypeCase.MULTI -> error("Should not be reached.")
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("measurement_type not set")
     }

@@ -108,6 +108,9 @@ object DirectMeasurementResultFactory {
           )
         reachAndFrequencyResultBuilder.buildMeasurementResult()
       }
+      MeasurementSpec.MeasurementTypeCase.MULTI -> {
+        error("Multi measurements are not supported.")
+      }
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
         error("Measurement type not set.")
       }
