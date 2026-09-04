@@ -358,6 +358,12 @@ For impression correction, the post-processor assumes a maximum average
 frequency of 127. This is a correction-model assumption, not an enforced cap on
 uncapped Direct impression results.
 
+For single-publisher Direct results, this configuration assumes that DP noise
+and minimum thresholding are mutually exclusive. Threshold correction is
+applied only to zeros whose reported standard deviation is zero. A nonzero
+standard deviation is treated as DP-only and preserved unchanged. Combined DP
+and thresholding is tracked in issue #4466.
+
 This correction is limited to single-publisher results. EDPA contribution
 suppression in multi-publisher results is tracked in issue #4465. Future
 protocol-level TrusTEE aggregate thresholding is tracked separately in issue

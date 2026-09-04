@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import math
 from dataclasses import dataclass
 
 from noiseninja.noised_measurements import Measurement
@@ -32,9 +31,10 @@ class PotentialDirectResultMinimumThresholds:
     The fields are conservative upper bounds across every threshold policy
     that could have produced a result processed by this instance. They are not
     necessarily the exact current policy of any one EDP. Thresholds are treated
-    as standard-deviation components and combined with reported noise in
-    quadrature. Impression uncertainty assumes that a suppressed result's
-    average frequency does not exceed [_MAXIMUM_EXPECTED_AVERAGE_FREQUENCY].
+    as correction scales only when the reported standard deviation is zero.
+    A nonzero standard deviation is assumed to represent a DP-only result and
+    is preserved unchanged. Impression uncertainty assumes that a suppressed
+    result's average frequency does not exceed [_MAXIMUM_EXPECTED_AVERAGE_FREQUENCY].
 
     Operators must follow the rollout contract documented in the Reporting V2
     deployment guide so these bounds cannot be lower than a producer's policy.
@@ -106,10 +106,12 @@ class PotentialDirectResultMinimumThresholds:
     def _add_uncertainty(
         measurement: Measurement, threshold: int
     ) -> Measurement:
-        if measurement.value != 0:
+        # TODO(world-federation-of-advertisers/cross-media-measurement#4466):
+        # Model a Direct result that uses DP noise and minimum thresholding.
+        if measurement.value != 0 or measurement.sigma != 0:
             return measurement
         return Measurement(
             measurement.value,
-            math.hypot(measurement.sigma, threshold),
+            threshold,
             measurement.name,
         )
