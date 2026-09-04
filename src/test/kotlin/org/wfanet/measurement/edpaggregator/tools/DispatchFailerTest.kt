@@ -27,11 +27,13 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argThat
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
@@ -88,6 +90,11 @@ class DispatchFailerTest {
         }
       )
     }
+    val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verifyBlocking(modelLineService) {
+      markRawImpressionUploadModelLineFailed(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
   }
 
   @Test

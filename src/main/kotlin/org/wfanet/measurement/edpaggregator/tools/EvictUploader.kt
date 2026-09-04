@@ -34,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
 /**
  * Evicts uploads that carry bad data for a model line, using the last-good-snapshot rebuild
@@ -161,16 +162,16 @@ class EvictUploader(
           getRawImpressionUploadModelLineRequest { name = entry.modelLineName }
         )
       if (current.state != RawImpressionUploadModelLine.State.FAILED) {
-        // TODO(world-federation-of-advertisers/cross-media-measurement#4211): once #4211 makes
-        // request_id REQUIRED on the Mark* RPCs, set
-        // requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(entry.modelLineName) so
-        // a
-        // re-run hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
         rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
             name = entry.modelLineName
             errorMessage = reason
             etag = current.etag
+            requestId =
+              RequestIds.forMarkRawImpressionUploadModelLineFailed(
+                entry.modelLineName,
+                current.etag,
+              )
           }
         )
         failed.add(entry.modelLineName)

@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
@@ -34,7 +33,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -113,14 +114,7 @@ class FailedDispatchRetrier(
     // Re-publish before transitioning, so the work exists before the line is claimed.
     var republished = 0
     for (oldId in oldWorkItemIds) {
-      if (republishWorkItem(oldId)) republished++
-    }
-
-    // If every target WorkItem already exists (a re-retry after a prior retry left them in place),
-    // do NOT advance the model line: transitioning with no fresh worker signal would masquerade as
-    // progress. Leave it FAILED so stuck-phase recovery or the operator can investigate.
-    if (republished == 0) {
-      return RetryResult(modelLine.name, 0, modelLine.state)
+      if (republishWorkItem(oldId, modelLine.etag)) republished++
     }
 
     val updated = transition(modelLine, targetState)
@@ -244,10 +238,11 @@ class FailedDispatchRetrier(
   }
 
   /**
-   * Re-publishes the WorkItem [oldWorkItemId] under a fresh deterministic id. Returns true if a new
-   * WorkItem was created, false if it already existed (an idempotent repeat retry).
+   * Re-publishes the WorkItem [oldWorkItemId] for the failed model-line version identified by
+   * [modelLineEtag]. Returns true if a new WorkItem was created, or false when the same retry
+   * attempt already created it.
    */
-  private suspend fun republishWorkItem(oldWorkItemId: String): Boolean {
+  private suspend fun republishWorkItem(oldWorkItemId: String, modelLineEtag: String): Boolean {
     val existing =
       try {
         workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$oldWorkItemId" })
@@ -260,26 +255,45 @@ class FailedDispatchRetrier(
         }
         throw e
       }
-    val newId = "rt-" + UUID.nameUUIDFromBytes("retry:$oldWorkItemId".toByteArray()).toString()
+    var newId = RequestIds.forRetriedWorkItem(oldWorkItemId, modelLineEtag)
     val republished = workItem {
       queue = existing.queue
       workItemParams = existing.workItemParams
     }
-    return try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          workItemId = newId
-          workItem = republished
+    while (true) {
+      try {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            workItemId = newId
+            workItem = republished
+          }
+        )
+        logger.info("Re-published $oldWorkItemId as $newId (queue=${existing.queue}).")
+        return true
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+
+        val existingRetry =
+          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$newId" })
+        when (existingRetry.state) {
+          WorkItem.State.QUEUED,
+          WorkItem.State.RUNNING,
+          WorkItem.State.SUCCEEDED -> {
+            logger.info(
+              "Retry WorkItem $newId already exists in ${existingRetry.state}; " +
+                "continuing the idempotent retry."
+            )
+            return false
+          }
+          WorkItem.State.FAILED -> {
+            val failureVersion =
+              "${existingRetry.updateTime.seconds}:${existingRetry.updateTime.nanos}"
+            newId = RequestIds.forRetriedWorkItem(newId, failureVersion)
+          }
+          WorkItem.State.STATE_UNSPECIFIED,
+          WorkItem.State.UNRECOGNIZED ->
+            error("Retry WorkItem $newId has invalid state ${existingRetry.state}.")
         }
-      )
-      logger.info("Re-published $oldWorkItemId as $newId (queue=${existing.queue}).")
-      true
-    } catch (e: StatusException) {
-      if (e.status.code == Status.Code.ALREADY_EXISTS) {
-        logger.info("Retry WorkItem $newId already exists; skipping (idempotent).")
-        false
-      } else {
-        throw e
       }
     }
   }
@@ -288,17 +302,13 @@ class FailedDispatchRetrier(
     modelLine: RawImpressionUploadModelLine,
     targetState: RawImpressionUploadModelLine.State,
   ): RawImpressionUploadModelLine =
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4211): once #4211 makes
-    // request_id REQUIRED on the Mark* RPCs, set requestId on each mark below via the matching
-    // RequestIds.forMarkRawImpressionUploadModelLine<Phase>(modelLine.name) helper so a repeat
-    // retry
-    // hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
     when (targetState) {
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
         rawImpressionModelLinesStub.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
             name = modelLine.name
             etag = modelLine.etag
+            requestId = RequestIds.forHealingRetryPoolAssigning(modelLine.name, modelLine.etag)
           }
         )
       RawImpressionUploadModelLine.State.RANKING ->
@@ -306,6 +316,7 @@ class FailedDispatchRetrier(
           markRawImpressionUploadModelLineRankingRequest {
             name = modelLine.name
             etag = modelLine.etag
+            requestId = RequestIds.forHealingRetryRanking(modelLine.name, modelLine.etag)
           }
         )
       RawImpressionUploadModelLine.State.LABELING ->
@@ -313,6 +324,7 @@ class FailedDispatchRetrier(
           markRawImpressionUploadModelLineLabelingRequest {
             name = modelLine.name
             etag = modelLine.etag
+            requestId = RequestIds.forHealingRetryLabeling(modelLine.name, modelLine.etag)
           }
         )
       else -> error("unreachable: targetState is a phase state")
