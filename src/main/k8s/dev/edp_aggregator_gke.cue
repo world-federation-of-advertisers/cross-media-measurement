@@ -117,6 +117,7 @@ edpAggregator: #EdpAggregator & {
 			"--impression-metadata-api-target=edp-aggregator-system-api-server:8443",
 			"--impression-metadata-api-cert-host=localhost",
 			"--lookback-days=90",
+			"--end-days-ago=0",
 			"--impression-metadata-batch-size=1000",
 			"--throttler-minimum-interval=100ms",
 		]

@@ -126,10 +126,17 @@ class RecoverMissingImpressionMetadata : Runnable {
 
   @set:Option(
     names = ["--lookback-days"],
-    description = ["Number of date folders to reconcile, including today"],
+    description = ["Lookback horizon in days, including today"],
     defaultValue = "90",
   )
   private var lookbackDays: Int by Delegates.notNull()
+
+  @set:Option(
+    names = ["--end-days-ago"],
+    description = ["Days before today for the newest date folder to reconcile"],
+    required = true,
+  )
+  private var endDaysAgo: Int by Delegates.notNull()
 
   override fun run() {
     val config = parseTextProto(configFile, DataAvailabilitySyncConfig.getDefaultInstance())
@@ -142,6 +149,8 @@ class RecoverMissingImpressionMetadata : Runnable {
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
     require(lookbackDays > 0) { "lookback-days must be greater than zero" }
+    require(endDaysAgo >= 0) { "end-days-ago must not be negative" }
+    require(endDaysAgo < lookbackDays) { "end-days-ago must be less than lookback-days" }
     val storageApiEndpoint = storageApiEndpoint
     val storageClient =
       GcsStorageClient(
@@ -180,7 +189,8 @@ class RecoverMissingImpressionMetadata : Runnable {
         )
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-    val latestDataDate = LocalDate.now(ZoneOffset.UTC)
+    val today = LocalDate.now(ZoneOffset.UTC)
+    val latestDataDate = today.minusDays(endDaysAgo.toLong())
     val recovery =
       MissingImpressionMetadataRecovery(
         storageClient = storageClient,
@@ -190,7 +200,7 @@ class RecoverMissingImpressionMetadata : Runnable {
         dataProviderName = config.dataProvider,
         throttler = throttler,
         impressionMetadataBatchSize = impressionMetadataBatchSize,
-        earliestDataDate = latestDataDate.minusDays((lookbackDays - 1).toLong()),
+        earliestDataDate = today.minusDays((lookbackDays - 1).toLong()),
         latestDataDate = latestDataDate,
         sync = { doneBlobUri, metadataBlobKeys ->
           DataAvailabilitySync(
