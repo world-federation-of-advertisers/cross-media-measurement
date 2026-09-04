@@ -26,8 +26,6 @@ package k8s
 	_potentialDirectResultMinUsers:                  uint | *0
 	_potentialDirectResultMinImpressions:            uint | *0
 	_potentialDirectThresholdingEdps:                [...string] | *[]
-	// Whether listed EDPs may suppress their inputs to multi-publisher results.
-	_edpThresholdingAppliesToUnion: bool | *false
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -381,7 +379,6 @@ package k8s
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
 					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
 					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
-					"--potential-edp-thresholding-applies-to-union=\(_edpThresholdingAppliesToUnion)",
 				] + [ for edp in _potentialDirectThresholdingEdps {
 					"--potential-direct-thresholding-edp=\(edp)"
 				}] + _tlsArgs + _internalApiTarget.args

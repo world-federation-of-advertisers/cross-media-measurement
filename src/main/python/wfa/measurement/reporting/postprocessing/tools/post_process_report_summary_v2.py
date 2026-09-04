@@ -179,24 +179,13 @@ class ReportSummaryV2Processor:
                 )
             }
             thresholds = self._potential_direct_result_minimum_thresholds
+            # TODO(world-federation-of-advertisers/cross-media-measurement#4454):
+            # Account for EDPA contribution suppression and protocol-level
+            # thresholding in multi-publisher results.
             is_potentially_thresholded_direct_result = (
                 len(data_provider_ids) == 1
                 and data_provider_ids.issubset(
                     self._potential_direct_thresholding_data_provider_ids
-                )
-            )
-            # An EDP Aggregator can suppress its own frequency-vector
-            # contribution before a multi-party protocol combines the inputs.
-            # TODO(world-federation-of-advertisers/cross-media-measurement#4454):
-            # Independently account for protocol-level TrusTEE aggregate
-            # thresholding if it is enabled.
-            is_potentially_thresholded_multi_publisher_result = (
-                thresholds is not None
-                and thresholds.applies_to_multi_publisher_results
-                and len(data_provider_ids) > 1
-                and bool(
-                    data_provider_ids
-                    & self._potential_direct_thresholding_data_provider_ids
                 )
             )
 
@@ -222,10 +211,7 @@ class ReportSummaryV2Processor:
                             result.reach.metric,
                     )
                     if (
-                        (
-                            is_potentially_thresholded_direct_result
-                            or is_potentially_thresholded_multi_publisher_result
-                        )
+                        is_potentially_thresholded_direct_result
                         and thresholds is not None
                     ):
                         measurement = thresholds.add_reach_uncertainty(
@@ -251,7 +237,6 @@ class ReportSummaryV2Processor:
                         self._extract_measurement_set(
                             result,
                             is_potentially_thresholded_direct_result,
-                            is_potentially_thresholded_multi_publisher_result,
                         )
                         for result in weekly_results
                     ]
@@ -280,7 +265,6 @@ class ReportSummaryV2Processor:
                 new_set = self._extract_measurement_set(
                     report_summary_set_result.whole_campaign_result,
                     is_potentially_thresholded_direct_result,
-                    is_potentially_thresholded_multi_publisher_result,
                 )
                 bucket = self._whole_campaign_measurements[impression_filter]
                 if edp_combination in bucket:
@@ -295,7 +279,6 @@ class ReportSummaryV2Processor:
         self,
         result: ReportSummaryWindowResult,
         is_potentially_thresholded_direct_result: bool,
-        is_potentially_thresholded_multi_publisher_result: bool,
     ) -> MeasurementSet:
         """Extracts a MeasurementSet from a ReportSummaryWindowResult."""
         reach = None
@@ -325,13 +308,6 @@ class ReportSummaryV2Processor:
         thresholds = self._potential_direct_result_minimum_thresholds
         if is_potentially_thresholded_direct_result and thresholds is not None:
             return thresholds.add_measurement_set_uncertainty(measurement_set)
-        if (
-            is_potentially_thresholded_multi_publisher_result
-            and thresholds is not None
-        ):
-            return thresholds.add_reach_and_frequency_uncertainty(
-                measurement_set
-            )
         return measurement_set
 
     def _record_measurement_list_aliases(

@@ -97,18 +97,6 @@ flags.register_validator(
         "dataProviders/{id}"
     ),
 )
-_EDP_THRESHOLDING_APPLIES_TO_UNION = (
-    flags.DEFINE_boolean(
-        "potential_edp_thresholding_applies_to_union",
-        False,
-        "Whether configured thresholding EDPs may suppress their "
-        "frequency-vector contributions to multi-EDP union results.",
-    )
-)
-flags.DEFINE_alias(
-    "potential-edp-thresholding-applies-to-union",
-    "potential_edp_thresholding_applies_to_union",
-)
 _POTENTIAL_DIRECT_RESULT_MIN_USERS = flags.DEFINE_integer(
     "potential_direct_result_min_users",
     0,
@@ -131,15 +119,11 @@ flags.DEFINE_alias(
 flags.register_multi_flags_validator(
     [
         "potential_direct_thresholding_edp",
-        "potential_edp_thresholding_applies_to_union",
         "potential_direct_result_min_users",
         "potential_direct_result_min_impressions",
     ],
     lambda values: (
         not values["potential_direct_thresholding_edp"]
-        and not values[
-            "potential_edp_thresholding_applies_to_union"
-        ]
         and values["potential_direct_result_min_users"] == 0
         and values["potential_direct_result_min_impressions"] == 0
     )
@@ -239,9 +223,6 @@ def main(argv):
                 min_users=_POTENTIAL_DIRECT_RESULT_MIN_USERS.value,
                 min_impressions=(
                     _POTENTIAL_DIRECT_RESULT_MIN_IMPRESSIONS.value
-                ),
-                applies_to_multi_publisher_results=(
-                    _EDP_THRESHOLDING_APPLIES_TO_UNION.value
                 ),
             )
         )

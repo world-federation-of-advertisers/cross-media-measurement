@@ -358,12 +358,9 @@ For impression correction, the post-processor assumes a maximum average
 frequency of 127. This is a correction-model assumption, not an enforced cap on
 uncapped Direct impression results.
 
-Set `_edpThresholdingAppliesToUnion` only when a
-listed EDP may suppress its frequency-vector contribution before multi-party
-aggregation. When enabled, correction accounts for potentially suppressed
-zero reach and fully zero frequency histograms in multi-publisher results that
-include a listed EDP. This setting does not represent protocol-level TrusTEE
-aggregate thresholding, which is tracked separately in issue #4454.
+This correction is limited to single-publisher results. Correctly representing
+both EDPA contribution suppression and protocol-level thresholding in
+multi-publisher results is tracked separately in issue #4454.
 
 Use the following rollout order whenever a producer policy changes:
 

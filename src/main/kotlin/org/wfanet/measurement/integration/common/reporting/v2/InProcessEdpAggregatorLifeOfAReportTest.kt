@@ -1201,12 +1201,6 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       processBuilder
         .command()
         .add("--potential-direct-result-min-impressions=${thresholds.minImpressions}")
-      processBuilder
-        .command()
-        .add(
-          "--potential-direct-result-maximum-frequency-per-user=" +
-            IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
-        )
       for (edpDisplayName in resultMinimumThresholdsByEdp.keys.sorted()) {
         val edpResourceName =
           inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name

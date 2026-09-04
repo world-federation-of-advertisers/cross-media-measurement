@@ -28,12 +28,6 @@ from tools.potential_direct_result_minimum_thresholds import (
 
 class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
 
-    def test_union_flag_defaults_to_false(self):
-        union_flag = (
-            post_process_report_result_job_executor._EDP_THRESHOLDING_APPLIES_TO_UNION
-        )
-        self.assertFalse(union_flag.default)
-
     @flagsaver.flagsaver(
         internal_api_target="internal_api_target",
         tls_cert_file="client_cert",
@@ -148,7 +142,6 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
         ],
         potential_direct_result_min_users=100,
         potential_direct_result_min_impressions=1000,
-        potential_edp_thresholding_applies_to_union=True,
         potential_direct_thresholding_edp=[
             "dataProviders/edp1",
             "dataProviders/edp2",
@@ -188,7 +181,6 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                 PotentialDirectResultMinimumThresholds(
                     min_users=100,
                     min_impressions=1000,
-                    applies_to_multi_publisher_results=True,
                 )
             ),
             potential_direct_thresholding_edps=[
@@ -298,16 +290,6 @@ class PostProcessReportResultJobExecutorTest(parameterized.TestCase):
                 ):
                     pass
 
-    def test_union_flag_without_threshold_configuration_raises_error(self):
-        with flagsaver.flagsaver():
-            with self.assertRaisesRegex(
-                flags.IllegalFlagValueError,
-                "must all be set or all be disabled",
-            ):
-                with flagsaver.flagsaver(
-                    potential_edp_thresholding_applies_to_union=True,
-                ):
-                    pass
 
 
 if __name__ == "__main__":

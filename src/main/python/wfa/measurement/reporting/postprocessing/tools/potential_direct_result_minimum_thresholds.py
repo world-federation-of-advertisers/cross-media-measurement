@@ -42,7 +42,6 @@ class PotentialDirectResultMinimumThresholds:
 
     min_users: int
     min_impressions: int
-    applies_to_multi_publisher_results: bool
 
     def __post_init__(self):
         if self.min_users <= 0:
@@ -56,28 +55,15 @@ class PotentialDirectResultMinimumThresholds:
             measurement, max(self.min_users, self.min_impressions)
         )
 
-    def add_reach_and_frequency_uncertainty(
+    def add_measurement_set_uncertainty(
         self, measurement_set: MeasurementSet
     ) -> MeasurementSet:
-        """Adds potential thresholding uncertainty to reach and frequency."""
+        """Adds potential thresholding uncertainty to a measurement set."""
         reach = measurement_set.reach
         if reach is not None:
             reach = self.add_reach_uncertainty(reach)
 
         k_reach = self._add_frequency_uncertainty(measurement_set.k_reach)
-        return MeasurementSet(
-            reach=reach,
-            k_reach=k_reach,
-            impression=measurement_set.impression,
-        )
-
-    def add_measurement_set_uncertainty(
-        self, measurement_set: MeasurementSet
-    ) -> MeasurementSet:
-        """Adds potential thresholding uncertainty to a measurement set."""
-        reach_and_frequency = self.add_reach_and_frequency_uncertainty(
-            measurement_set
-        )
 
         impression = measurement_set.impression
         if impression is not None:
@@ -90,8 +76,8 @@ class PotentialDirectResultMinimumThresholds:
             )
 
         return MeasurementSet(
-            reach=reach_and_frequency.reach,
-            k_reach=reach_and_frequency.k_reach,
+            reach=reach,
+            k_reach=k_reach,
             impression=impression,
         )
 
