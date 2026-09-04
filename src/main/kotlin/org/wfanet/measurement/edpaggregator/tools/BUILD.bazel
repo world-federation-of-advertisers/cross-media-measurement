@@ -38,6 +38,46 @@ java_image(
 )
 
 kt_jvm_library(
+    name = "recover_missing_impression_metadata",
+    srcs = ["RecoverMissingImpressionMetadata.kt"],
+    deps = [
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:missing_impression_metadata_recovery",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:storage_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:transport_layer_security_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud:core",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
+    ],
+)
+
+java_binary(
+    name = "RecoverMissingImpressionMetadata",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.RecoverMissingImpressionMetadataKt",
+    runtime_deps = [":recover_missing_impression_metadata"],
+)
+
+java_image(
+    name = "recover_missing_impression_metadata_image",
+    binary = ":RecoverMissingImpressionMetadata",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.RecoverMissingImpressionMetadataKt",
+    visibility = ["//src:docker_image_deployment"],
+)
+
+kt_jvm_library(
     name = "vid_labeling_heal",
     srcs = [
         "DispatchFailer.kt",
