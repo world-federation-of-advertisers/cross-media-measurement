@@ -328,6 +328,8 @@ fun InternalProtocolConfig.toProtocolConfig(
         MeasurementSpec.MeasurementTypeCase.IMPRESSION -> ProtocolConfig.MeasurementType.IMPRESSION
         MeasurementSpec.MeasurementTypeCase.DURATION -> ProtocolConfig.MeasurementType.DURATION
         MeasurementSpec.MeasurementTypeCase.POPULATION -> ProtocolConfig.MeasurementType.POPULATION
+        MeasurementSpec.MeasurementTypeCase.MULTI ->
+          throw IllegalArgumentException("Multi measurements are not supported")
       }
 
     when (measurementType) {
@@ -398,6 +400,8 @@ fun InternalProtocolConfig.toProtocolConfig(
             }
         }
       }
+      ProtocolConfig.MeasurementType.MULTI ->
+        throw IllegalArgumentException("Multi measurements are not supported")
       ProtocolConfig.MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED,
       ProtocolConfig.MeasurementType.UNRECOGNIZED -> error("Invalid MeasurementType")
     }
