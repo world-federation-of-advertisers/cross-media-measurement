@@ -140,6 +140,7 @@ import org.wfanet.measurement.common.crypto.subjectKeyIdentifier
 import org.wfanet.measurement.common.crypto.testing.loadSigningKey
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
+import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -581,6 +582,7 @@ private val ALL_FILTERS =
 private const val CONTAINING_REPORT = "report X"
 
 // Metric ID and Name
+private const val CMMS_ERROR_DOMAIN = "halo.wfanet.org"
 private const val METRIC_ID = "metric-id"
 private val METRIC_NAME =
   MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, METRIC_ID).toName()
@@ -5245,13 +5247,103 @@ class MetricsServiceTest {
       }
 
       val exception =
-        assertFailsWith(Exception::class) {
+        assertFailsWith(StatusRuntimeException::class) {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) {
             runBlocking { service.createMetric(request) }
           }
         }
-      assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.status.description).contains("Required field unspecified or invalid.")
     }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT naming field from CMMS ErrorInfo`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    whenever(measurementsMock.batchCreateMeasurements(any()))
+      .thenThrow(
+        Status.INVALID_ARGUMENT.asRuntimeException(
+          errorInfo {
+            domain = CMMS_ERROR_DOMAIN
+            reason = "REQUIRED_FIELD_NOT_SET"
+            metadata["fieldName"] = "requests.measurement.measurement_spec"
+          }
+        )
+      )
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).contains("requests.measurement.measurement_spec")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when CMMS ErrorInfo has no field name`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    whenever(measurementsMock.batchCreateMeasurements(any()))
+      .thenThrow(
+        Status.INVALID_ARGUMENT.asRuntimeException(
+          errorInfo {
+            domain = CMMS_ERROR_DOMAIN
+            reason = "MEASUREMENT_CONSUMER_NOT_FOUND"
+          }
+        )
+      )
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).contains("Required field unspecified or invalid.")
+  }
+
+  @Test
+  fun `createMetric throws INVALID_ARGUMENT when ErrorInfo is from another domain`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    whenever(measurementsMock.batchCreateMeasurements(any()))
+      .thenThrow(
+        Status.INVALID_ARGUMENT.asRuntimeException(
+          errorInfo {
+            domain = "other.example.com"
+            reason = "REQUIRED_FIELD_NOT_SET"
+            metadata["fieldName"] = "requests.measurement.measurement_spec"
+          }
+        )
+      )
+
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith(StatusRuntimeException::class) {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.status.description).doesNotContain("requests.measurement.measurement_spec")
+  }
 
   @Test
   fun `createMetric throws exception when batchSetCmmsMeasurementId throws exception`(): Unit =

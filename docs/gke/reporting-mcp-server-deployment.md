@@ -211,6 +211,47 @@ the inner quotes (for example `W/\"...\"`); pass the unescaped value
 This is per-user: the Access model has no group- or tenant-wide grant, so every
 user who needs access gets their own principal and binding.
 
+### Root-scoped permissions
+
+Some Reporting resources are protected at the **root** of the API rather than on
+a `MeasurementConsumer`. `ImpressionQualificationFilter` is one, so the
+`list_impression_qualification_filters` and
+`get_impression_qualification_filter` tools (and the prompts that call them)
+return `PERMISSION_DENIED` for a principal that only holds a role on the
+`MeasurementConsumer`. Listing is root-scoped only; the `get` permission may
+alternatively be granted on an individual `ImpressionQualificationFilter`.
+
+Create a root-scoped role once per environment and bind the principal to it on
+the root policy. The root is the default protected resource, so
+`policies create` takes no `--protected-resource`; `policies lookup` requires
+the flag, so pass it empty.
+
+```shell
+Access $ACCESS_FLAGS roles create \
+  --role-id=iqfReader \
+  --resource-type=reporting.halo-cmm.org/Root \
+  --permission=permissions/reporting.impressionQualificationFilters.get \
+  --permission=permissions/reporting.impressionQualificationFilters.list
+
+Access $ACCESS_FLAGS policies create \
+  --policy-id=root-policy \
+  --binding-role=roles/iqfReader \
+  --binding-member=principals/<PRINCIPAL_ID>
+```
+
+If a root policy already exists, look it up and add the member to it instead of
+creating one:
+
+```shell
+Access $ACCESS_FLAGS policies lookup --protected-resource=
+
+Access $ACCESS_FLAGS policies add-members \
+  --name=<ROOT_POLICY_NAME> \
+  --binding-role=roles/iqfReader \
+  --binding-member=principals/<PRINCIPAL_ID> \
+  --etag=<CURRENT_ETAG>
+```
+
 ## Step 6 — Verify
 
 1.  Sign in through the connector.
@@ -249,6 +290,7 @@ forwards the bearer token to the Reporting API, which validates it the same way.
 | Sign-in succeeds but every tool call fails with an invalid/expired-token error | Token carries the wrong environment's audience — often a tenant default audience overriding the per-environment request | Step 3f |
 | `PERMISSION_DENIED`, token has **no** `scope` claim    | Client app not granted the scope (per-app authorization) | Step 3d |
 | `PERMISSION_DENIED`, token **has** the `reporting.*` scope | Reporting role not bound to the principal            | Step 5  |
+| `list_impression_qualification_filters` returns `PERMISSION_DENIED` | Impression qualification filters are root-scoped; the principal has only a `MeasurementConsumer` binding | Step 5, Root-scoped permissions |
 | Connector fails to connect, endpoint unreachable       | Managed certificate still provisioning, or exposure not rendered (both `MCP_HOST` and the issuer must be set) | Steps 1–2 |
 | Public endpoint stands up without OAuth                | Exposure gated on both `MCP_HOST` and the issuer; one is missing | Step 2  |
 
