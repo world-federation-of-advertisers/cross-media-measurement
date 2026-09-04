@@ -22,6 +22,8 @@ import io.grpc.netty.NettyServerBuilder
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit.SECONDS
 import org.junit.ClassRule
 import org.junit.Rule
@@ -55,6 +57,32 @@ class RecoverMissingImpressionMetadataTest {
   }
 
   @Test
+  fun `main exits nonzero when end days ago is not specified`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        connectionArgs(configFile, apiTarget = "localhost:1"),
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+  }
+
+  @Test
+  fun `main exits nonzero when end days ago is outside lookback horizon`() {
+    val configFile = writeConfigFile(validConfig())
+
+    val capturedOutput =
+      CommandLineTesting.capturingOutput(
+        requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 90),
+        ::main,
+      )
+
+    CommandLineTesting.assertThat(capturedOutput).status().isNotEqualTo(0)
+  }
+
+  @Test
   fun `main exits nonzero when configuration is invalid`() {
     val configFile =
       writeConfigFile(
@@ -69,7 +97,7 @@ class RecoverMissingImpressionMetadataTest {
 
     val capturedOutput =
       CommandLineTesting.capturingOutput(
-        requiredArgs(configFile, apiTarget = "localhost:1"),
+        requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0),
         ::main,
       )
 
@@ -84,7 +112,40 @@ class RecoverMissingImpressionMetadataTest {
 
       val capturedOutput =
         CommandLineTesting.capturingOutput(
-          requiredArgs(configFile, apiTarget = "localhost:1") + storageArgs,
+          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 0) + storageArgs,
+          ::main,
+        )
+
+      CommandLineTesting.assertThat(capturedOutput).status().isEqualTo(0)
+    } finally {
+      storageEmulator.deleteBucketRecursive(BUCKET_NAME)
+    }
+  }
+
+  @Test
+  fun `main excludes date folders newer than end days ago`() {
+    storageEmulator.createBucket(BUCKET_NAME)
+    try {
+      val todayFolderPrefix =
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/${LocalDate.now(ZoneOffset.UTC)}"
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$todayFolderPrefix/metadata-invalid.json").build(),
+        "{".toByteArray(),
+      )
+      storageEmulator.storage.create(
+        BlobInfo.newBuilder(BUCKET_NAME, "$todayFolderPrefix/done").build(),
+        byteArrayOf(),
+      )
+      val configFile = writeConfigFile(validConfig())
+
+      val capturedOutput =
+        CommandLineTesting.capturingOutput(
+          requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 1) +
+            arrayOf(
+              "--storage-api-endpoint=${storageEmulator.storage.options.host}",
+              "--lookback-days=2",
+              "--throttler-minimum-interval=0s",
+            ),
           ::main,
         )
 
@@ -120,7 +181,8 @@ class RecoverMissingImpressionMetadataTest {
 
       val capturedOutput =
         CommandLineTesting.capturingOutput(
-          requiredArgs(configFile, apiTarget = "localhost:${server.port}") + storageArgs,
+          requiredArgs(configFile, apiTarget = "localhost:${server.port}", endDaysAgo = 0) +
+            storageArgs,
           ::main,
         )
 
@@ -141,12 +203,15 @@ class RecoverMissingImpressionMetadataTest {
         "--throttler-minimum-interval=0s",
       )
 
-  private fun requiredArgs(configFile: File, apiTarget: String): Array<String> =
+  private fun connectionArgs(configFile: File, apiTarget: String): Array<String> =
     arrayOf(
       "--config-file=${configFile.path}",
       "--kingdom-public-api-target=$apiTarget",
       "--impression-metadata-api-target=$apiTarget",
     )
+
+  private fun requiredArgs(configFile: File, apiTarget: String, endDaysAgo: Int): Array<String> =
+    connectionArgs(configFile, apiTarget) + "--end-days-ago=$endDaysAgo"
 
   private fun validConfig(): String =
     """

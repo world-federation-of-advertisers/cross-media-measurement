@@ -38,7 +38,8 @@ RecoverMissingImpressionMetadata \
   --config-file=/etc/halo-cmms/edp-aggregator/config/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
-  --lookback-days=90
+  --lookback-days=90 \
+  --end-days-ago=0
 ```
 
 Optional flags:
@@ -47,7 +48,13 @@ Optional flags:
 - `--impression-metadata-api-cert-host`
 - `--throttler-minimum-interval` (default `1s`)
 - `--impression-metadata-batch-size` (default `1000`)
-- `--lookback-days` (default `90`, including the current UTC date)
+- `--lookback-days` (default `90`; the oldest eligible date is 89 days before today)
+
+`--end-days-ago` is required and sets the newest eligible date relative to the current UTC date.
+It must be nonnegative and less than `--lookback-days`. For example,
+`--lookback-days=90 --end-days-ago=30` scans from 89 days ago through 30 days ago, inclusive.
+The weekly CronJob passes `--end-days-ago=0`, so it scans the most recent 90 dates including
+today.
 
 The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails.
 A successfully repaired inconsistency does not cause a nonzero exit.
@@ -61,6 +68,7 @@ deploys `recover-missing-impression-metadata-edp7-cronjob` with:
 - schedule `0 6 * * 0` (Sunday at 06:00 UTC);
 - `concurrencyPolicy: Forbid`;
 - a 90-day lookback;
+- `--end-days-ago=0` to include the current UTC date;
 - list and write batches of 1,000 records; and
 - a 100 ms minimum interval between API requests.
 
