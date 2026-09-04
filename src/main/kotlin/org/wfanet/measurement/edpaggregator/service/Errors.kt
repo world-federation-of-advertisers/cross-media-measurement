@@ -345,6 +345,17 @@ class ImpressionMetadataNotFoundException(
   }
 }
 
+class ImpressionMetadataAlreadyActiveException(
+  impressionMetadataResourceName: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
+    "ImpressionMetadata $impressionMetadataResourceName is already active",
+    mapOf(Errors.Metadata.IMPRESSION_METADATA to impressionMetadataResourceName),
+    cause,
+  )
+
 class ImpressionMetadataAlreadyExistsException(blobUri: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,

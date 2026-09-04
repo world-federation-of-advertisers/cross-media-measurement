@@ -62,6 +62,10 @@ service ImpressionMetadataService {
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
       returns (ImpressionMetadata) {}
 
+  // Restores a deleted `ImpressionMetadata` entry.
+  rpc UndeleteImpressionMetadata(UndeleteImpressionMetadataRequest)
+      returns (ImpressionMetadata) {}
+
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse) {}
@@ -273,6 +277,19 @@ message ListImpressionMetadataResponse {
 // Request message for the `DeleteImpressionMetadata` method.
 message DeleteImpressionMetadataRequest {
   // The resource name of the ImpressionMetadata to delete.
+  // Format:
+  // `dataProviders/{data_provider}/impressionMetadata/{impression_metadata}`
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+}
+
+// Request message for the `UndeleteImpressionMetadata` method.
+message UndeleteImpressionMetadataRequest {
+  // The resource name of the deleted `ImpressionMetadata` to restore.
   // Format:
   // `dataProviders/{data_provider}/impressionMetadata/{impression_metadata}`
   string name = 1 [
