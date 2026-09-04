@@ -23,9 +23,9 @@ package k8s
 	// These values are conservative upper bounds across all policies that could have produced a
 	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
 	// list and zero threshold settings disable potential Direct threshold correction.
-	_potentialDirectResultMinUsers:                  uint | *0
-	_potentialDirectResultMinImpressions:            uint | *0
-	_potentialDirectThresholdingEdps:                [...string] | *[]
+	_potentialDirectResultMinUsers:       uint | *0
+	_potentialDirectResultMinImpressions: uint | *0
+	_potentialDirectThresholdingEdps:     [...string] | *[]
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
