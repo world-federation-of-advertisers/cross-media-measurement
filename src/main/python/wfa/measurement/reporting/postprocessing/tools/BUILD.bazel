@@ -35,8 +35,17 @@ py_binary(
     srcs = ["post_process_report_summary_v2.py"],
     imports = ["../"],
     deps = [
+        ":potential_direct_result_minimum_thresholds",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/report",
+    ],
+)
+
+py_library(
+    name = "potential_direct_result_minimum_thresholds",
+    srcs = ["potential_direct_result_minimum_thresholds.py"],
+    deps = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/noiseninja",
     ],
 )
 
@@ -96,6 +105,7 @@ py_library(
         requirement("absl-py"),
         requirement("google-api-core"),
         requirement("protobuf"),
+        ":potential_direct_result_minimum_thresholds",
         ":report_conversion",
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:report_result_py_pb2",

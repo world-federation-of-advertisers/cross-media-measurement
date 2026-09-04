@@ -188,6 +188,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    */
   private val directNoiseType: ResultsFulfillerParams.NoiseParams.NoiseType =
     ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+  private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> =
+    emptyMap(),
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -415,6 +417,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp4" to directNoiseType,
             ),
           edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
+          resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
         )
         runBlocking {
           registerDataAvailabilityIntervals(kingdomChannel, edpDisplayNameToResourceMap)
@@ -1061,6 +1064,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
+  protected fun dataProviderName(edpDisplayName: String): String =
+    inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name
+
   protected fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
     assertWithMessage("measurements").that(measurements).isNotEmpty()
     var expectedProtocolFound = false
@@ -1182,6 +1188,25 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     processBuilder.command().add("--tls-cert-file=${REPORTING_TLS_CERT_FILE.path}")
     processBuilder.command().add("--tls-key-file=${REPORTING_TLS_KEY_FILE.path}")
     processBuilder.command().add("--cert-collection-file=${ALL_ROOT_CERTS_FILE.path}")
+    if (resultMinimumThresholdsByEdp.isNotEmpty()) {
+      val thresholds = resultMinimumThresholdsByEdp.values.first()
+      require(
+        resultMinimumThresholdsByEdp.values.all {
+          it.minUsers == thresholds.minUsers && it.minImpressions == thresholds.minImpressions
+        }
+      ) {
+        "The report corrector supports one shared minimum threshold configuration."
+      }
+      processBuilder.command().add("--potential-direct-result-min-users=${thresholds.minUsers}")
+      processBuilder
+        .command()
+        .add("--potential-direct-result-min-impressions=${thresholds.minImpressions}")
+      for (edpDisplayName in resultMinimumThresholdsByEdp.keys.sorted()) {
+        val edpResourceName =
+          inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name
+        processBuilder.command().add("--potential-direct-thresholding-edp=$edpResourceName")
+      }
+    }
     val process = processBuilder.start()
     process.waitFor()
   }
@@ -1461,6 +1486,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         delta = 1e-15
       }
 
+    private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
+
     /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
     private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {
       reachParams =
@@ -1513,7 +1540,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     }
                 }
             }
-          maximumFrequencyPerUser = 60
+          maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
         }
 
       watchDurationParams =

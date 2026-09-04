@@ -341,6 +341,48 @@ report-result-post-processor-cronjob  30 7 * * *   False     0        <none>    
 See [Updating Retention Policies](../operations/updating-retention-policies.md)
 for an example.
 
+### Configuring potential Direct minimum-threshold correction
+
+The Reporting V2 configuration can identify EDPs whose Direct results may be
+minimum-thresholded and supply the bounds used when correcting suppressed
+zeros. `_potentialDirectResultMinUsers`,
+and `_potentialDirectResultMinImpressions` are conservative upper bounds across
+every applicable policy that could have produced a result still awaiting
+post-processing. They are not copies of one EDP's current settings.
+
+For EDPs with different policies, configure the greatest applicable value for
+each bound. A higher bound can give a suppressed zero less weight during
+correction; a lower bound can understate its uncertainty.
+
+For impression correction, the post-processor assumes a maximum average
+frequency of 127. This is a correction-model assumption, not an enforced cap on
+uncapped Direct impression results.
+
+For single-publisher Direct results, this configuration assumes that DP noise
+and minimum thresholding are mutually exclusive. Threshold correction is
+applied only to zeros whose reported standard deviation is zero. A nonzero
+standard deviation is treated as DP-only and preserved unchanged. Combined DP
+and thresholding is tracked in issue #4466.
+
+This correction is limited to single-publisher results. EDPA contribution
+suppression in multi-publisher results is tracked in issue #4465. Future
+protocol-level TrusTEE aggregate thresholding is tracked separately in issue
+#4454.
+
+Use the following rollout order whenever a producer policy changes:
+
+1. Before increasing an EDP threshold, deploy
+   the new correction upper bound and wait for that configuration to become
+   active.
+2. Deploy the producer policy change.
+3. When decreasing a correction upper bound, retain the previous higher value
+   until every result produced under the previous policy has been processed or
+   expired.
+
+This ordering is required because threshold policy metadata is not persisted
+with a result. If a deployment cannot guarantee this ordering and queue-drain
+condition, it must not enable corrector-side potential-threshold handling.
+
 ### Troubleshooting
 
 *   `notAuthorized` error

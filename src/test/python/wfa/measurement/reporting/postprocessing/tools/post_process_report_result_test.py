@@ -20,6 +20,9 @@ from unittest.mock import ANY
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import compute_basic_metric_set
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2, )
 
@@ -61,6 +64,27 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.mock_batch_get_reporting_set_response = text_format.Parse(
                 reporting_sets_textproto,
                 reporting_sets_service_pb2.BatchGetReportingSetsResponse(),
+            )
+
+    def test_constructor_rejects_thresholds_without_edps(self):
+        with self.assertRaisesRegex(ValueError, "configured together"):
+            PostProcessReportResult(
+                self.mock_report_results_stub,
+                self.mock_reporting_sets_stub,
+                potential_direct_result_minimum_thresholds=(
+                    PotentialDirectResultMinimumThresholds(
+                        min_users=100,
+                        min_impressions=1000,
+                    )
+                ),
+            )
+
+    def test_constructor_rejects_thresholding_edps_without_thresholds(self):
+        with self.assertRaisesRegex(ValueError, "configured together"):
+            PostProcessReportResult(
+                self.mock_report_results_stub,
+                self.mock_reporting_sets_stub,
+                potential_direct_thresholding_edps=["dataProviders/edp1"],
             )
 
     def test_compute_basic_metric_set_no_population_raise_error(self):
@@ -560,7 +584,7 @@ class PostProcessReportResultTest(unittest.TestCase):
             self.assertAlmostEqual(actual, expected)
 
     @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
-    def test_post_process_report_result_with_exempted_edps_passed_to_processor(self, mock_processor_class):
+    def test_post_process_report_result_configuration_passed_to_processor(self, mock_processor_class):
         # Configures the mock stubs to return the data from the textproto files.
         self.mock_report_results_stub.ListReportingSetResults.return_value = (
             self.mock_list_reporing_set_results_response)
@@ -577,17 +601,49 @@ class PostProcessReportResultTest(unittest.TestCase):
         mock_result.large_corrections = []
         mock_processor_instance.process.return_value = mock_result
 
+        thresholds = PotentialDirectResultMinimumThresholds(
+            min_users=100,
+            min_impressions=1000,
+        )
         report_result_processor = PostProcessReportResult(
-            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+            self.mock_report_results_stub,
+            self.mock_reporting_sets_stub,
+            potential_direct_result_minimum_thresholds=thresholds,
+            potential_direct_thresholding_edps=["dataProviders/edp1"],
+        )
         exempted_edps = ['dataProviders/edp1']
         report_result_processor.process(
             self.cmms_measurement_consumer_id, self.external_report_result_id,
             exempted_edps)
 
-        # Verify that ReportSummaryV2Processor was instantiated with the exempted reporting set ids
+        self.assertEqual(
+            self.mock_reporting_sets_stub.BatchGetReportingSets.call_count, 2
+        )
+        primitive_reporting_set_request = (
+            self.mock_reporting_sets_stub.BatchGetReportingSets.call_args_list[
+                1
+            ].args[0]
+        )
+        self.assertCountEqual(
+            primitive_reporting_set_request.external_reporting_set_ids,
+            [
+                "reporting_set_id_edp1",
+                "reporting_set_id_edp2",
+                "reporting_set_id_edp3",
+            ],
+        )
+
+        # Verify that processor configuration is preserved.
         mock_processor_class.assert_called_with(
             ANY,
-            ['reporting_set_id_edp1']
+            ['reporting_set_id_edp1'],
+            potential_direct_result_minimum_thresholds=thresholds,
+            potential_direct_thresholding_data_provider_ids={"edp1"},
+            data_provider_ids_by_reporting_set_id={
+                "reporting_set_id_edp1": {"edp1"},
+                "reporting_set_id_edp2": {"edp2"},
+                "reporting_set_id_edp3": {"edp3"},
+            },
         )
 
     def test_post_process_report_result_raises_on_large_corrections(self):
@@ -613,7 +669,7 @@ class PostProcessReportResultTest(unittest.TestCase):
                 self.cmms_measurement_consumer_id,
                 self.external_report_result_id, [])
 
-    def test_get_ami_mrc_exempted_reporting_set_id(self):
+    def test_get_data_provider_ids_by_primitive_reporting_set_id(self):
         self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
             self.mock_batch_get_reporting_set_response)
 
@@ -622,44 +678,53 @@ class PostProcessReportResultTest(unittest.TestCase):
 
         # Case 1: Empty inputs
         self.assertEqual(
-            report_result_processor._get_ami_mrc_exempted_reporting_set_id(
-                self.cmms_measurement_consumer_id, [], ['dataProviders/edp1']),
-            [],
-        )
-        self.assertEqual(
-            report_result_processor._get_ami_mrc_exempted_reporting_set_id(
-                self.cmms_measurement_consumer_id, ['reporting_set_id_edp1'], []),
-            [],
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id, []),
+            {},
         )
 
-        # Case 2: No match
-        exempted_ids = report_result_processor._get_ami_mrc_exempted_reporting_set_id(
-            self.cmms_measurement_consumer_id,
-            [
-                'reporting_set_id_edp1',
-                'reporting_set_id_edp2',
-                'reporting_set_id_edp1_edp2',
-            ],
-            ['dataProviders/edp5'],
+        data_provider_ids_by_reporting_set_id = (
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id,
+                [
+                    'reporting_set_id_edp1',
+                    'reporting_set_id_edp2',
+                    'reporting_set_id_edp1_edp2',
+                ],
+            )
         )
         self.assertEqual(
-            exempted_ids,
-            [],
+            data_provider_ids_by_reporting_set_id,
+            {
+                'reporting_set_id_edp1': {'edp1'},
+                'reporting_set_id_edp2': {'edp2'},
+            },
         )
 
-        # Case 3: Match with EDP name
-        exempted_ids = report_result_processor._get_ami_mrc_exempted_reporting_set_id(
-            self.cmms_measurement_consumer_id,
-            [
-                'reporting_set_id_edp1',
-                'reporting_set_id_edp2',
-                'reporting_set_id_edp1_edp2',
-            ],
-            ['dataProviders/edp1'],
+    def test_get_data_provider_ids_includes_all_edps_in_primitive_set(self):
+        response = reporting_sets_service_pb2.BatchGetReportingSetsResponse()
+        response.CopyFrom(self.mock_batch_get_reporting_set_response)
+        primitive_reporting_set = response.reporting_sets[0]
+        primitive_reporting_set.primitive.event_group_keys.add(
+            cmms_data_provider_id="edp2"
         )
-        self.assertCountEqual(
-            exempted_ids,
-            ['reporting_set_id_edp1'],
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            response
+        )
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub
+        )
+
+        result = (
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id,
+                ['reporting_set_id_edp1'],
+            )
+        )
+
+        self.assertEqual(
+            result,
+            {'reporting_set_id_edp1': {'edp1', 'edp2'}},
         )
 
     def _make_reporting_set_result(

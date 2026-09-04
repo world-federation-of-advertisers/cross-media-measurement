@@ -21,6 +21,9 @@ from absl import flags
 from absl import logging
 
 from job import post_process_report_result_job
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 
 _INTERNAL_API_TARGET = flags.DEFINE_string(
     "internal_api_target",
@@ -72,6 +75,69 @@ flags.register_validator(
         for v in values
     ),
     message="--ami_mrc_exempted_edps entries must be of the form dataProviders/{id}",
+)
+_POTENTIAL_DIRECT_THRESHOLDING_EDPS = flags.DEFINE_multi_string(
+    "potential_direct_thresholding_edp",
+    [],
+    "EDP resource name whose Direct results may use minimum thresholding. May be repeated.",
+)
+flags.DEFINE_alias(
+    "potential-direct-thresholding-edp", "potential_direct_thresholding_edp"
+)
+flags.register_validator(
+    "potential_direct_thresholding_edp",
+    lambda values: all(
+        value.startswith("dataProviders/")
+        and value.count("/") == 1
+        and value.split("/")[1]
+        for value in values
+    ),
+    message=(
+        "--potential_direct_thresholding_edp entries must be of the form "
+        "dataProviders/{id}"
+    ),
+)
+_POTENTIAL_DIRECT_RESULT_MIN_USERS = flags.DEFINE_integer(
+    "potential_direct_result_min_users",
+    0,
+    "Conservative upper bound on the minimum users that any configured EDP "
+    "may require for a Direct result to be displayed.",
+)
+flags.DEFINE_alias(
+    "potential-direct-result-min-users", "potential_direct_result_min_users"
+)
+_POTENTIAL_DIRECT_RESULT_MIN_IMPRESSIONS = flags.DEFINE_integer(
+    "potential_direct_result_min_impressions",
+    0,
+    "Conservative upper bound on the minimum impressions that any configured "
+    "EDP may require for a Direct result to be displayed.",
+)
+flags.DEFINE_alias(
+    "potential-direct-result-min-impressions",
+    "potential_direct_result_min_impressions",
+)
+flags.register_multi_flags_validator(
+    [
+        "potential_direct_thresholding_edp",
+        "potential_direct_result_min_users",
+        "potential_direct_result_min_impressions",
+    ],
+    lambda values: (
+        not values["potential_direct_thresholding_edp"]
+        and values["potential_direct_result_min_users"] == 0
+        and values["potential_direct_result_min_impressions"] == 0
+    )
+    or (
+        bool(values["potential_direct_thresholding_edp"])
+        and values["potential_direct_result_min_users"] > 0
+        and values["potential_direct_result_min_impressions"] > 0
+    ),
+    message=(
+        "--potential_direct_thresholding_edp, "
+        "--potential_direct_result_min_users, "
+        "and --potential_direct_result_min_impressions must all be set "
+        "or all be disabled"
+    ),
 )
 
 
@@ -150,6 +216,17 @@ def main(argv):
     credentials = _get_secure_credentials(tls_key_file, tls_cert_file,
                                           cert_collection_file)
 
+    potential_direct_result_minimum_thresholds = None
+    if _POTENTIAL_DIRECT_RESULT_MIN_USERS.value > 0:
+        potential_direct_result_minimum_thresholds = (
+            PotentialDirectResultMinimumThresholds(
+                min_users=_POTENTIAL_DIRECT_RESULT_MIN_USERS.value,
+                min_impressions=(
+                    _POTENTIAL_DIRECT_RESULT_MIN_IMPRESSIONS.value
+                ),
+            )
+        )
+
     try:
         with _create_secure_channel(
             internal_api_target,
@@ -160,6 +237,12 @@ def main(argv):
             job = post_process_report_result_job.PostProcessReportResultJob(
                 internal_reporting_channel,
                 ami_mrc_exempted_edps=_AMI_MRC_EXEMPTED_EDPS.value,
+                potential_direct_result_minimum_thresholds=(
+                    potential_direct_result_minimum_thresholds
+                ),
+                potential_direct_thresholding_edps=(
+                    _POTENTIAL_DIRECT_THRESHOLDING_EDPS.value
+                ),
             )
 
             logging.info("Executing PostProcessReportResultJob.")

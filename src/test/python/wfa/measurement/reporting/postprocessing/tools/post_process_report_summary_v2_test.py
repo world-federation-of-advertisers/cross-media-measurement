@@ -31,9 +31,351 @@ StatusCode = report_post_processor_result_pb2.ReportPostProcessorStatus.StatusCo
 NOISE_CORRECTION_TOLERANCE = 0.1
 
 from tools.post_process_report_summary_v2 import ReportSummaryV2Processor
+from tools.potential_direct_result_minimum_thresholds import (
+    PotentialDirectResultMinimumThresholds,
+)
 
 
 class TestPostProcessReportSummaryV2(unittest.TestCase):
+    def test_empty_direct_histogram_can_be_corrected_to_match_reach(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(result.updated_measurements["reach"], 480)
+        self.assertEqual(
+            result.updated_measurements["frequency-bin-1"]
+            + result.updated_measurements["frequency-bin-2"],
+            480,
+        )
+
+    def test_zero_direct_cumulative_reach_can_be_corrected(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              cumulative_results {
+                reach {
+                  value: 900
+                  standard_deviation: 0
+                  metric: "reach-week-one"
+                }
+              }
+              cumulative_results {
+                reach {
+                  value: 0
+                  standard_deviation: 0
+                  metric: "reach-week-two"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(result.updated_measurements["reach-week-one"], 900)
+        self.assertEqual(result.updated_measurements["reach-week-two"], 900)
+        self.assertEqual(result.large_corrections, [])
+
+    def test_empty_union_histogram_remains_exact(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              data_providers: "provider-two"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={
+                "edp-one",
+                "edp-two",
+            },
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"},
+                "provider-two": {"edp-two"},
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_NOT_FOUND,
+        )
+
+
+    def test_partial_frequency_histogram_remains_exact_and_solvable(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 280 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 200 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+        self.assertEqual(result.updated_measurements["reach"], 480)
+        self.assertEqual(
+            result.updated_measurements["frequency-bin-1"], 280
+        )
+        self.assertEqual(
+            result.updated_measurements["frequency-bin-2"], 200
+        )
+        self.assertEqual(result.updated_measurements["impressions"], 2400)
+
+    def test_direct_result_with_multiple_reporting_sets_for_one_edp_is_corrected(
+        self,
+    ):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one-a"
+              data_providers: "provider-one-b"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-one"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one-a": {"edp-one"},
+                "provider-one-b": {"edp-one"},
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+        )
+
+    def test_reporting_set_with_multiple_edps_remains_exact(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one-two"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={
+                "edp-one",
+                "edp-two",
+            },
+            data_provider_ids_by_reporting_set_id={
+                "provider-one-two": {"edp-one", "edp-two"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_NOT_FOUND,
+        )
+
+
+    def test_empty_direct_histogram_remains_exact_for_unlisted_edp(self):
+        report_summary = text_format.Parse(
+            """
+            population: 10000
+            report_summary_set_results {
+              impression_filter: "ami"
+              set_operation: "union"
+              data_providers: "provider-one"
+              whole_campaign_result {
+                reach { value: 480 standard_deviation: 0 metric: "reach" }
+                frequency {
+                  bins { key: 1 value { value: 0 standard_deviation: 0 } }
+                  bins { key: 2 value { value: 0 standard_deviation: 0 } }
+                  metric: "frequency"
+                }
+                impression_count {
+                  value: 2400
+                  standard_deviation: 0
+                  metric: "impressions"
+                }
+              }
+            }
+            """,
+            report_summary_v2_pb2.ReportSummaryV2(),
+        )
+
+        result = ReportSummaryV2Processor(
+            report_summary,
+            [],
+            PotentialDirectResultMinimumThresholds(
+                min_users=100,
+                min_impressions=1000,
+            ),
+            potential_direct_thresholding_data_provider_ids={"edp-two"},
+            data_provider_ids_by_reporting_set_id={
+                "provider-one": {"edp-one"}
+            },
+        ).process()
+
+        self.assertEqual(
+            result.status.status_code,
+            StatusCode.SOLUTION_NOT_FOUND,
+        )
 
     def test_report_summary_with_a_single_reach_is_processed_correctly(self):
         report_summary_textproto = """
