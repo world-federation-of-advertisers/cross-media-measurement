@@ -8,7 +8,7 @@ at a time. For each folder, it lists storage objects and pages through the metad
 folder's blob URI prefix. This bounds memory to one date folder instead of loading the full
 lookback window.
 
-It repairs three inconsistencies:
+It repairs four inconsistencies:
 
 - A finalized metadata file has no active or deleted `ImpressionMetadata` resource. A folder is
   finalized only when it contains a `done` blob. The command re-runs `DataAvailabilitySync`
@@ -17,10 +17,13 @@ It repairs three inconsistencies:
 - An `ImpressionMetadata` resource is deleted while its metadata file still exists. The command
   calls `UndeleteImpressionMetadata`, includes the restored blob in the finalized folder's
   `DataAvailabilitySync`, and reports any resource that could not be restored.
+- A finalized metadata blob has an active resource but no `synced-by` marker, which can happen
+  when an upload overwrites a previously processed blob or synchronization stops while stamping
+  blobs. The command includes every such blob in the retry.
 - A finalized folder has the metadata-store `synced-by` marker but its latest
   `data-availability-sync-id` does not match `data-availability-published-sync-id`. The command
-  re-runs `DataAvailabilitySync` with one representative blob per model line and verifies that the
-  publication IDs match. Missing or restored blobs are included in the same retry.
+  re-runs `DataAvailabilitySync` with one representative marked blob per model line and verifies
+  that the publication IDs match. Missing, restored, and unmarked blobs share the same retry.
 
 Deleted-record checks also include folders without `done`, since that existence check is
 independent of upload finalization.
@@ -115,7 +118,9 @@ date folder. Avoid manually starting recovery while that folder is actively bein
 
 Post-sync verification proves that every repaired `ImpressionMetadata` resource is active and that
 the sync and publication IDs match after the Kingdom update. The existing `synced-by` marker
-continues to record the earlier metadata-store phase, allowing the monitor to distinguish metadata
+continues to record the metadata-store phase. The sync attempt ID is written before metadata-store
+mutation, and publication updates only its own marker, so overlapping attempts cannot erase a
+newer incomplete attempt. These separate markers allow the monitor to distinguish metadata
 persistence failures from Kingdom publication failures.
 
 ## Scale and performance
@@ -136,7 +141,10 @@ The main speedups are folder-prefix filtering, 1,000-record pages, and bounded p
 For a folder that only lacks the publication marker, recovery feeds one representative metadata
 blob per model line back through `DataAvailabilitySync`; it does not rewrite all 5,000 resources.
 The first run after this marker is introduced backfills the last 90 days, after which healthy runs
-skip already-published folders.
+skip already-published folders. Markerless legacy folders outside the configured window are not
+reported as failed publication attempts; operators can backfill a chosen historical range with the
+CLI. A successful synchronization performs three small metadata patches on `done`: attempt start,
+metadata-store completion, and Kingdom-publication completion.
 Parallelizing folders would shorten the scan but is intentionally avoided because concurrent syncs
 can race while replacing provider-wide Kingdom availability intervals.
 
@@ -152,6 +160,7 @@ greater than zero. Each point has an
 `edpa.data_availability_recovery.edp_impression_path` attribute. Successful counts are in the
 completion log; a separate recovered gauge would duplicate `missing_blobs - failed_blobs`.
 The data-availability monitor also emits
-`edpa.data_availability.date_count{date_status="unpublished_availability"}` for folders whose
-metadata-store phase completed but whose Kingdom publication marker remains absent past the
-configured threshold.
+`edpa.data_availability.date_count{date_status="unpublished_availability"}` for folders whose new
+sync-attempt ID does not match the Kingdom publication marker after the configured threshold.
+Legacy `synced-by` folders without a sync-attempt ID are migrated by recovery within its configured
+date range and do not create permanent monitor alerts outside that range.

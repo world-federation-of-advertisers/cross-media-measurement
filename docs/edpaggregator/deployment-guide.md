@@ -250,9 +250,8 @@ data-availability health per model line. Per its config it flags:
 * **Stale model lines** — no upload within `max_stale_days` (default 3).
 * **Unprocessed `done` blobs** — a `done` blob older than
   `unprocessed_done_threshold` (default 24h) that DataAvailabilitySync never stamped.
-* **Unpublished availability** — a `done` blob whose metadata-store phase was stamped but whose
-  Kingdom data-availability publication was not marked complete after
-  `unprocessed_done_threshold`.
+* **Unpublished availability** — a `done` blob with a sync-attempt ID whose Kingdom-publication ID
+  does not match after `unprocessed_done_threshold`. Markerless legacy folders are not flagged.
 * **Spurious deletions** — `ImpressionMetadata` marked deleted while its blob still
   exists on the bucket (enabled when `spurious_deletion_lookback_days > 0`).
 

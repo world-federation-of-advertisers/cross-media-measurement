@@ -722,20 +722,88 @@ class DataAvailabilitySyncTest {
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(dataProvidersServiceMock, times(2)) { replaceDataAvailabilityIntervals(any()) }
     val doneUpdates = storageClient.updateBlobMetadataCalls.filter { it.blobKey.endsWith("/done") }
-    assertThat(doneUpdates).hasSize(3)
+    assertThat(doneUpdates).hasSize(5)
     assertThat(doneUpdates.first().metadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
     assertThat(doneUpdates.first().metadata)
       .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
-    assertThat(doneUpdates[1].metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
-      .isNotEqualTo(doneUpdates.first().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
-    assertThat(doneUpdates.last().metadata)
+    assertThat(doneUpdates[1].metadata)
       .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
-    assertThat(doneUpdates.last().metadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneUpdates[2].metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+      .isNotEqualTo(doneUpdates.first().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+    assertThat(doneUpdates[3].metadata)
+      .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneUpdates.last().metadata).doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
+    assertThat(doneUpdates.last().metadata).doesNotContainKey(DataAvailabilityBlobs.SYNC_ID_KEY)
     assertThat(doneUpdates.last().metadata).containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
     assertThat(doneUpdates.last().metadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY])
-      .isEqualTo(doneUpdates.last().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
-    assertThat(doneUpdates.last().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
-      .isEqualTo(doneUpdates[1].metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+      .isEqualTo(doneUpdates[2].metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+  }
+
+  @Test
+  fun `sync does not let older completion mask newer attempt`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    val doneBlobKey = "${folderPrefix}done"
+    val newerSyncId = "newer-sync-id"
+    wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+      .thenAnswer {
+        storageClient.mergeBlobMetadata(
+          doneBlobKey,
+          mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to newerSyncId),
+        )
+        DataProvider.getDefaultInstance()
+      }
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/$doneBlobKey")
+
+    val doneMetadata = storageClient.blobMetadata.getValue(doneBlobKey)
+    assertThat(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isEqualTo(newerSyncId)
+    assertThat(doneMetadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY]).isNotEqualTo(newerSyncId)
+  }
+
+  @Test
+  fun `sync announces attempt before metadata persistence`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    wheneverBlocking {
+        impressionMetadataServiceMock.batchCreateImpressionMetadata(
+          any<BatchCreateImpressionMetadataRequest>()
+        )
+      }
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+
+    val doneMetadata = storageClient.blobMetadata.getValue("${folderPrefix}done")
+    assertThat(doneMetadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
+    assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
   }
 
   @Test
@@ -996,9 +1064,9 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-    // Four calls: metadata file, impressions file, metadata-store completion on done, and full
-    // availability-publication completion on done.
-    assertThat(storageClient.updateBlobMetadataCalls).hasSize(4)
+    // Five calls: metadata file, impressions file, attempt start on done, metadata-store completion
+    // on done, and full availability-publication completion on done.
+    assertThat(storageClient.updateBlobMetadataCalls).hasSize(5)
 
     // Verify metadata file update (has resource ID + synced-by in metadata)
     val metadataFileUpdate =
@@ -1018,17 +1086,19 @@ class DataAvailabilitySyncTest {
 
     val doneFileUpdates =
       storageClient.updateBlobMetadataCalls.filter { it.blobKey.endsWith("/done") }
-    assertThat(doneFileUpdates).hasSize(2)
-    assertThat(doneFileUpdates.first().metadata)
-      .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneFileUpdates).hasSize(3)
     assertThat(doneFileUpdates.first().metadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
-    assertThat(doneFileUpdates.last().metadata)
+    assertThat(doneFileUpdates.first().metadata)
+      .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    assertThat(doneFileUpdates[1].metadata)
       .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
-    assertThat(doneFileUpdates.last().metadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneFileUpdates.last().metadata)
+      .doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
+    assertThat(doneFileUpdates.last().metadata).doesNotContainKey(DataAvailabilityBlobs.SYNC_ID_KEY)
     assertThat(doneFileUpdates.last().metadata)
       .containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
     assertThat(doneFileUpdates.last().metadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY])
-      .isEqualTo(doneFileUpdates.last().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+      .isEqualTo(doneFileUpdates.first().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
     assertThat(doneFileUpdates.all { it.customCreateTime == null }).isTrue()
 
     // Metadata and impressions files share the same customCreateTime (interval start time).
@@ -2578,6 +2648,11 @@ class DataAvailabilitySyncTest {
     )
 
     val updateBlobMetadataCalls = mutableListOf<UpdateBlobMetadataCall>()
+    val blobMetadata = mutableMapOf<String, MutableMap<String, String>>()
+
+    fun mergeBlobMetadata(blobKey: String, metadata: Map<String, String>) {
+      blobMetadata.getOrPut(blobKey) { mutableMapOf() }.putAll(metadata)
+    }
 
     override suspend fun updateBlobMetadata(
       blobKey: String,
@@ -2585,6 +2660,7 @@ class DataAvailabilitySyncTest {
       metadata: Map<String, String>,
     ) {
       updateBlobMetadataCalls.add(UpdateBlobMetadataCall(blobKey, customCreateTime, metadata))
+      mergeBlobMetadata(blobKey, metadata)
     }
   }
 }

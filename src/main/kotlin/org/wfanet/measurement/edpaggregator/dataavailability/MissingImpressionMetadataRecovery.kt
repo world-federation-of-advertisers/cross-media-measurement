@@ -267,6 +267,15 @@ class MissingImpressionMetadataRecovery(
     val finalizedBlobUris =
       finalizedMetadataBlobs.mapTo(mutableSetOf()) { BlobUris.buildUri(storageRootUri, it.blobKey) }
     val missingBlobUris = finalizedBlobUris.minus(registeredMetadata.keys)
+    val unsyncedRegisteredBlobUris =
+      finalizedMetadataBlobs
+        .asSequence()
+        .filterNot(DataAvailabilityBlobs::isSynced)
+        .map { BlobUris.buildUri(storageRootUri, it.blobKey) }
+        .filterTo(mutableSetOf()) { blobUri ->
+          val metadata = registeredMetadata[blobUri]
+          metadata?.state == ImpressionMetadata.State.ACTIVE || blobUri in undeletedBlobUris
+        }
     val incompleteFullSync =
       doneBlob != null &&
         finalizedMetadataBlobs.isNotEmpty() &&
@@ -286,7 +295,10 @@ class MissingImpressionMetadataRecovery(
         emptySet()
       }
     val blobUrisToSync =
-      missingBlobUris + undeletedBlobUris.intersect(finalizedBlobUris) + representativeBlobUris
+      missingBlobUris +
+        undeletedBlobUris.intersect(finalizedBlobUris) +
+        unsyncedRegisteredBlobUris +
+        representativeBlobUris
     if (blobUrisToSync.isEmpty()) {
       return FolderRecoveryResult(
         finalizedMetadataBlobs = finalizedMetadataBlobs.size,

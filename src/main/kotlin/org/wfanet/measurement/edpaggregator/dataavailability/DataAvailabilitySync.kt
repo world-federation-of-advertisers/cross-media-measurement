@@ -179,28 +179,28 @@ class DataAvailabilitySync(
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
       val syncId = UUID.randomUUID().toString()
 
-      // 2. Persist ImpressionMetadata (create new, update changed)
+      // 2. Announce this attempt before mutating ImpressionMetadata. This invalidates any
+      // publication marker left by an earlier attempt, so a failure during persistence remains
+      // visible and retryable.
+      storageClient.updateBlobMetadata(
+        blobKey = doneBlobUri.key,
+        metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to syncId),
+      )
+
+      // 3. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys)
       }
 
-      // 2b. Stamp the `done` blob with this attempt's sync ID. This means the
-      // ImpressionMetadata store is updated for this date, but does not imply that Kingdom data
-      // availability has been updated. A new ID deliberately invalidates any publication marker
-      // left by an earlier attempt, making a later gap skip or RPC failure durably detectable.
-      //
-      // DataAvailabilityMonitor compares this ID with PUBLISHED_SYNC_ID_KEY to distinguish a
-      // fully completed attempt from one that stopped after metadata persistence.
+      // Record metadata-store completion separately. Disjoint marker writes prevent an older
+      // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata =
-          mapOf(
-            DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
-            DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
-          ),
+          mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
       )
 
-      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model lines
+      // 4. Retrieve model line bound from ImpressionMetadataStorage for all model lines
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
           computeModelLineBoundsRequest { parent = dataProviderName }
@@ -318,16 +318,12 @@ class DataAvailabilitySync(
         }
       }
 
-      // This marker is the durable completion signal for both phases of synchronization. Keep the
-      // metadata-store marker above separate so a failure in the Kingdom RPC remains detectable.
+      // This marker is the durable completion signal for both phases of synchronization. Only
+      // update the publication ID here. If another attempt has written a newer sync ID while this
+      // attempt was publishing, the resulting mismatch must remain visible and retryable.
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
-        metadata =
-          mapOf(
-            DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
-            DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
-            DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId,
-          ),
+        metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
       )
 
       // Record successful sync

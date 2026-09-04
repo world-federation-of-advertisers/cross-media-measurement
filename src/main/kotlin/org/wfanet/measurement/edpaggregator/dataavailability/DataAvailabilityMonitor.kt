@@ -523,8 +523,10 @@ class DataAvailabilityMonitor(
       // should reasonably have processed it, flag the date as having an unprocessed done.
       val doneAge = Duration.between(doneBlob.createTime, now)
       val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
+      val hasSyncAttempt = doneBlob.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
       val isUnpublishedAvailability =
         doneSynced &&
+          hasSyncAttempt &&
           !DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob) &&
           doneAge >= unprocessedDoneThreshold
       if (isUnprocessedDone) {
