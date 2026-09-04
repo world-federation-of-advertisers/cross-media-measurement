@@ -3,7 +3,8 @@
 `RecoverMissingImpressionMetadata` reconciles finalized impression metadata files in blob storage
 with the EDP Aggregator `ImpressionMetadataService`.
 
-The command performs one storage listing and classifies two inconsistencies:
+The command enumerates storage directory prefixes, lists objects only in date folders inside the
+lookback window, and classifies two inconsistencies:
 
 - A finalized metadata file has no active or deleted `ImpressionMetadata` resource. The command
   re-runs `DataAvailabilitySync` through a filtered storage view containing only the missing files
@@ -70,6 +71,9 @@ The pod needs:
 - the TLS files referenced by `DataAvailabilitySyncConfig` mounted at their configured paths; and
 - OpenTelemetry injection or equivalent exporter configuration for alerts.
 
+The Kubernetes job sets `OTEL_METRIC_EXPORT_INTERVAL=5000`, allowing short no-op runs to export
+their metrics before the process exits.
+
 To trigger the deployed CronJob immediately:
 
 ```shell
@@ -91,8 +95,9 @@ Files without a `YYYY-MM-DD` parent directory are outside the recovery scope.
 
 - `edpa.data_availability_recovery.missing_blobs`
 - `edpa.data_availability_recovery.deleted_records_with_blobs`
-- `edpa.data_availability_recovery.recovered_blobs`
 - `edpa.data_availability_recovery.failed_blobs`
 
-All four are per-run gauges. Alert when either inconsistency gauge or the failure gauge is greater
-than zero. Each point has an `edpa.data_availability_recovery.edp_impression_path` attribute.
+All three are per-run gauges. Alert when either inconsistency gauge or the failure gauge is greater
+than zero. Each point has an `edpa.data_availability_recovery.edp_impression_path` attribute. The
+number recovered is available in the completion log and is derivable as `missing_blobs -
+failed_blobs`.

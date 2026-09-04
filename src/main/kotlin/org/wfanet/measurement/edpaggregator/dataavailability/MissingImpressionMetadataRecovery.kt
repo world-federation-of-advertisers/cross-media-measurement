@@ -141,7 +141,6 @@ class MissingImpressionMetadataRecovery(
       )
     }
     if (missingBlobUris.isEmpty()) {
-      metrics.recoveredBlobsGauge.set(0, metricAttributes)
       metrics.failedBlobsGauge.set(0, metricAttributes)
       return RecoveryResult(
         finalizedMetadataBlobs = finalizedMetadataBlobs.size,
@@ -184,7 +183,6 @@ class MissingImpressionMetadataRecovery(
       }
     }
 
-    metrics.recoveredBlobsGauge.set(recoveredBlobs.toLong(), metricAttributes)
     metrics.failedBlobsGauge.set(failedBlobs.toLong(), metricAttributes)
     return RecoveryResult(
       finalizedMetadataBlobs = finalizedMetadataBlobs.size,

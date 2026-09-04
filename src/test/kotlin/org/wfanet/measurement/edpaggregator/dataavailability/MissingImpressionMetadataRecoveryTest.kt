@@ -167,7 +167,6 @@ class MissingImpressionMetadataRecoveryTest {
         metadataKey("2026-08-01", "metadata-b.binpb"),
       )
     assertThat(metricValue(MISSING_BLOBS_METRIC)).isEqualTo(2)
-    assertThat(metricValue(RECOVERED_BLOBS_METRIC)).isEqualTo(2)
     assertThat(metricValue(FAILED_BLOBS_METRIC)).isEqualTo(0)
     assertThat(metricValue(DELETED_RECORDS_WITH_BLOBS_METRIC)).isEqualTo(0)
   }
@@ -330,7 +329,6 @@ class MissingImpressionMetadataRecoveryTest {
     private const val EDP_IMPRESSION_PATH = "edp/test/vid-labeled-impressions"
     private const val DATA_PROVIDER_NAME = "dataProviders/test-provider"
     private const val MISSING_BLOBS_METRIC = "edpa.data_availability_recovery.missing_blobs"
-    private const val RECOVERED_BLOBS_METRIC = "edpa.data_availability_recovery.recovered_blobs"
     private const val FAILED_BLOBS_METRIC = "edpa.data_availability_recovery.failed_blobs"
     private const val DELETED_RECORDS_WITH_BLOBS_METRIC =
       "edpa.data_availability_recovery.deleted_records_with_blobs"

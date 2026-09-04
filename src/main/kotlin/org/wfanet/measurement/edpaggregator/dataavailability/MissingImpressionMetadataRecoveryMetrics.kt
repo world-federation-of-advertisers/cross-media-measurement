@@ -35,15 +35,6 @@ class MissingImpressionMetadataRecoveryMetrics(meter: Meter) {
       .ofLongs()
       .build()
 
-  /** Missing blobs in successfully resynchronized date folders. */
-  val recoveredBlobsGauge: LongGauge =
-    meter
-      .gaugeBuilder("edpa.data_availability_recovery.recovered_blobs")
-      .setDescription("Missing ImpressionMetadata blobs recovered in the current run")
-      .setUnit("{blob}")
-      .ofLongs()
-      .build()
-
   /** Deleted resources whose metadata blobs still exist. */
   val deletedRecordsWithBlobsGauge: LongGauge =
     meter

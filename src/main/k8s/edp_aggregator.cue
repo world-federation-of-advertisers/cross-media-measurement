@@ -259,6 +259,8 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 				_container: {
 					image: _images["recover-missing-impression-metadata"]
 					args:  cfg.args
+					// Recovery runs can finish before the default 30-second interval.
+					_envVars: "OTEL_METRIC_EXPORT_INTERVAL": value: "5000"
 				}
 				spec: {
 					schedule: _recoverMissingImpressionMetadataCronSchedule
