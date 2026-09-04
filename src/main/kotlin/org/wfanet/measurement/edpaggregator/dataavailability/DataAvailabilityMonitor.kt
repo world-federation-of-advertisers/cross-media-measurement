@@ -28,6 +28,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
@@ -414,6 +415,7 @@ class DataAvailabilityMonitor(
                 this.pageToken = pageToken
                 filter = listImpressionMetadataRequestFilter {
                   modelLine = modelLineName
+                  state = V1AlphaImpressionMetadata.State.DELETED
                   intervalOverlaps = spuriousInterval
                 }
               }
@@ -422,20 +424,22 @@ class DataAvailabilityMonitor(
         }
         .flattenConcat()
 
-    deletedEntries.collect { entry ->
-      val blobKey = SelectedStorageClient.parseBlobUri(entry.blobUri).key
-      val blob = storageClient.getBlob(blobKey)
-      blob?.let {
-        spuriousCount++
-        if (spuriousCount <= 10) {
-          logger.log(
-            Level.WARNING,
-            "Spurious deletion detected for model line $modelLineName: " +
-              "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
-          )
-        }
-      } ?: legitimateCount++
-    }
+    deletedEntries
+      .filter { it.state == V1AlphaImpressionMetadata.State.DELETED }
+      .collect { entry ->
+        val blobKey = SelectedStorageClient.parseBlobUri(entry.blobUri).key
+        val blob = storageClient.getBlob(blobKey)
+        blob?.let {
+          spuriousCount++
+          if (spuriousCount <= 10) {
+            logger.log(
+              Level.WARNING,
+              "Spurious deletion detected for model line $modelLineName: " +
+                "entry ${entry.name} is deleted but blob exists at ${entry.blobUri}",
+            )
+          }
+        } ?: legitimateCount++
+      }
 
     logger.log(
       Level.INFO,

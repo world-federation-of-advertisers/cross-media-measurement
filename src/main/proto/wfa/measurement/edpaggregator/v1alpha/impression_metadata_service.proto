@@ -247,9 +247,16 @@ message ListImpressionMetadataRequest {
     // Filter by exact blob URIs. Only entries whose `blob_uri` matches
     // one of the given values are returned.
     repeated string blob_uris = 6 [(google.api.field_behavior) = OPTIONAL];
+
+    // State to filter by.
+    // `DELETED` may only be specified when `show_deleted` is true.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not a resource
+    //     state field. --)
+    ImpressionMetadata.State state = 7 [(google.api.field_behavior) = OPTIONAL];
   }
 
-  // A flag indicating whether to include soft DELETED entries.
+  // Whether to include soft-deleted entries in addition to active entries.
   bool show_deleted = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
