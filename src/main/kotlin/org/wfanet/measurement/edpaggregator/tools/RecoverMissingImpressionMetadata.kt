@@ -236,7 +236,8 @@ class RecoverMissingImpressionMetadata : Runnable {
         "failedUndeletes=${result.failedUndeletes}, " +
         "recoveredBlobs=${result.recoveredBlobs}, " +
         "failedBlobs=${result.failedBlobs}, " +
-        "dateFoldersResynced=${result.dateFoldersResynced}"
+        "dateFoldersResynced=${result.dateFoldersResynced}, " +
+        "incompleteFullSyncFolders=${result.incompleteFullSyncFolders}"
     )
     for (error in result.errors) {
       logger.warning("Recovery error [${error.target}]: ${error.message}")

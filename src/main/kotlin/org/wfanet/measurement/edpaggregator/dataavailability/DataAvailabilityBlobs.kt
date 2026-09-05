@@ -34,20 +34,26 @@ import org.wfanet.measurement.storage.StorageClient
 object DataAvailabilityBlobs {
   /**
    * GCS custom metadata key written by [DataAvailabilitySync] to signal that the blob has been
-   * processed. Written on both:
+   * persisted to the ImpressionMetadata store. Written on both:
    * - each scanned metadata blob (used by `DataAvailabilityMonitor`'s late-arrival check — an
    *   unmarked metadata blob in a date whose `done` blob *does* carry the marker means the metadata
    *   blob was rewritten after Sync ran);
    * - the per-date `done` blob (used by `DataAvailabilityMonitor`'s unprocessed-done check — an
-   *   unmarked `done` blob older than the threshold means Sync never completed for the date).
+   *   unmarked `done` blob older than the threshold means Sync never persisted the date).
    *
    * The marker is content-independent: blob content / `updateTime` is unreliable for distinguishing
    * these cases because Sync's own metadata writes bump `updateTime`.
    */
   const val SYNCED_BY_KEY = "synced-by"
 
-  /** Value written to [SYNCED_BY_KEY] on processed blobs. */
+  /** Value written to [SYNCED_BY_KEY] on persisted blobs. */
   const val SYNCED_BY_VALUE = "data-availability-sync"
+
+  /** GCS custom metadata key identifying the latest metadata-store sync attempt. */
+  const val SYNC_ID_KEY = "data-availability-sync-id"
+
+  /** GCS custom metadata key identifying the sync attempt published to the Kingdom. */
+  const val PUBLISHED_SYNC_ID_KEY = "data-availability-published-sync-id"
 
   /** Filename suffix on the per-date "done" marker. */
   private const val DONE_SUFFIX = "/done"
@@ -71,6 +77,13 @@ object DataAvailabilityBlobs {
 
   /** Returns true if [blob] carries the marker written by [DataAvailabilitySync]. */
   fun isSynced(blob: StorageClient.Blob): Boolean = blob.metadata[SYNCED_BY_KEY] == SYNCED_BY_VALUE
+
+  /** Returns true if [blob] records successful Kingdom data availability publication. */
+  fun isDataAvailabilityPublished(blob: StorageClient.Blob): Boolean {
+    if (!isSynced(blob)) return false
+    val syncId = blob.metadata[SYNC_ID_KEY] ?: return false
+    return blob.metadata[PUBLISHED_SYNC_ID_KEY] == syncId
+  }
 
   /**
    * Storage-only enumeration of date folders under [prefix]. Classifies each date-named subfolder

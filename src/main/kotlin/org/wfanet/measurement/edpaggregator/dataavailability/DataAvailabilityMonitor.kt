@@ -111,6 +111,10 @@ class DataAvailabilityMonitor(
    *   `synced-by=data-availability-sync` marker and is older than `unprocessedDoneThreshold`,
    *   indicating `DataAvailabilitySync` did not complete for this date. `null` when no uploaded
    *   dates were found.
+   * @property unpublishedAvailabilityDates Dates where metadata-store persistence completed but the
+   *   latest `data-availability-sync-id` does not match `data-availability-published-sync-id` after
+   *   `unprocessedDoneThreshold`, indicating Kingdom publication did not complete. `null` when no
+   *   uploaded dates were found.
    * @property healthyDates Dates with a "done" blob, data files, and no late arrivals, or `null`
    *   when no uploaded dates were found.
    * @property spuriousDeletionCount Number of deleted ImpressionMetadata entries whose blob still
@@ -129,6 +133,7 @@ class DataAvailabilityMonitor(
     val datesWithoutDoneBlob: List<LocalDate>?,
     val lateArrivingDates: List<LocalDate>?,
     val unprocessedDoneDates: List<LocalDate>?,
+    val unpublishedAvailabilityDates: List<LocalDate>?,
     val healthyDates: List<LocalDate>?,
     val spuriousDeletionCount: Int?,
     val legitimateDeletionCount: Int?,
@@ -237,6 +242,7 @@ class DataAvailabilityMonitor(
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
         unprocessedDoneDates = null,
+        unpublishedAvailabilityDates = null,
         healthyDates = null,
         spuriousDeletionCount = dateInfo.spuriousDeletionCount,
         legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -276,6 +282,7 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
       unprocessedDoneDates = dateInfo.unprocessedDoneDates,
+      unpublishedAvailabilityDates = dateInfo.unpublishedAvailabilityDates,
       healthyDates = dateInfo.healthyDates,
       spuriousDeletionCount = dateInfo.spuriousDeletionCount,
       legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -298,6 +305,7 @@ class DataAvailabilityMonitor(
         datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
         lateArrivingDates = null,
         unprocessedDoneDates = null,
+        unpublishedAvailabilityDates = null,
         healthyDates = null,
         spuriousDeletionCount = dateInfo.spuriousDeletionCount,
         legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -328,6 +336,7 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = dateInfo.datesWithoutDoneBlob,
       lateArrivingDates = dateInfo.lateArrivingDates,
       unprocessedDoneDates = dateInfo.unprocessedDoneDates,
+      unpublishedAvailabilityDates = dateInfo.unpublishedAvailabilityDates,
       healthyDates = dateInfo.healthyDates,
       spuriousDeletionCount = dateInfo.spuriousDeletionCount,
       legitimateDeletionCount = dateInfo.legitimateDeletionCount,
@@ -369,6 +378,13 @@ class DataAvailabilityMonitor(
           "complete): ${dateInfo.unprocessedDoneDates}",
       )
     }
+    if (dateInfo.unpublishedAvailabilityDates.isNotEmpty()) {
+      logger.log(
+        Level.WARNING,
+        "Model line $modelLineName has dates whose metadata was persisted but whose data " +
+          "availability was not published: ${dateInfo.unpublishedAvailabilityDates}",
+      )
+    }
   }
 
   /** Info about uploaded dates for a model line. */
@@ -378,6 +394,7 @@ class DataAvailabilityMonitor(
     val datesWithoutDoneBlob: List<LocalDate>,
     val lateArrivingDates: List<LocalDate>,
     val unprocessedDoneDates: List<LocalDate>,
+    val unpublishedAvailabilityDates: List<LocalDate>,
     val healthyDates: List<LocalDate>,
     val spuriousDeletionCount: Int?,
     val legitimateDeletionCount: Int?,
@@ -469,6 +486,7 @@ class DataAvailabilityMonitor(
     val zeroImpressionDatesList = mutableListOf<LocalDate>()
     val lateArrivingDatesList = mutableListOf<LocalDate>()
     val unprocessedDoneDatesList = mutableListOf<LocalDate>()
+    val unpublishedAvailabilityDatesList = mutableListOf<LocalDate>()
     val healthyDatesList = mutableListOf<LocalDate>()
 
     val now = clock()
@@ -484,13 +502,14 @@ class DataAvailabilityMonitor(
         zeroImpressionDatesList.add(date)
       }
 
-      // Two distinct alert categories share the marker:
-      //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it
-      //     successfully processes the date. Absent marker => Sync did not (yet) complete.
+      // The metadata-persistence marker supports two alert categories:
+      //   - Sync stamps `synced-by=data-availability-sync` on the `done` blob after it persists
+      //     ImpressionMetadata. An absent marker means that phase did not complete.
       //   - Sync stamps the same marker on each metadata blob it processes. An unmarked
-      //     metadata blob in a date Sync DID complete for represents late-arriving or
+      //     metadata blob in a date whose persistence phase completed represents late-arriving or
       //     rewritten data (the EDP overwrote a metadata blob after Sync ran; fresh GCS
       //     uploads replace prior user-set custom metadata).
+      // Full Kingdom publication is tracked separately by matching per-attempt IDs on `done`.
       val doneSynced = DataAvailabilityBlobs.isSynced(doneBlob)
       val hasLateArrivals =
         if (doneSynced) {
@@ -504,11 +523,20 @@ class DataAvailabilityMonitor(
       // should reasonably have processed it, flag the date as having an unprocessed done.
       val doneAge = Duration.between(doneBlob.createTime, now)
       val isUnprocessedDone = !doneSynced && doneAge >= unprocessedDoneThreshold
+      val hasSyncAttempt = doneBlob.metadata.containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+      val isUnpublishedAvailability =
+        doneSynced &&
+          hasSyncAttempt &&
+          !DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob) &&
+          doneAge >= unprocessedDoneThreshold
       if (isUnprocessedDone) {
         unprocessedDoneDatesList.add(date)
       }
+      if (isUnpublishedAvailability) {
+        unpublishedAvailabilityDatesList.add(date)
+      }
 
-      if (hasData && !hasLateArrivals && !isUnprocessedDone) {
+      if (hasData && !hasLateArrivals && !isUnprocessedDone && !isUnpublishedAvailability) {
         healthyDatesList.add(date)
       }
     }
@@ -519,6 +547,7 @@ class DataAvailabilityMonitor(
       datesWithoutDoneBlob = enumerated.datesWithoutDoneBlob,
       lateArrivingDates = lateArrivingDatesList.sorted(),
       unprocessedDoneDates = unprocessedDoneDatesList.sorted(),
+      unpublishedAvailabilityDates = unpublishedAvailabilityDatesList.sorted(),
       healthyDates = healthyDatesList.sorted(),
       spuriousDeletionCount = null,
       legitimateDeletionCount = null,
@@ -572,6 +601,10 @@ class DataAvailabilityMonitor(
     addDateCount(
       status.unprocessedDoneDates?.size ?: 0,
       DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE,
+    )
+    addDateCount(
+      status.unpublishedAvailabilityDates?.size ?: 0,
+      DataAvailabilityMonitorMetrics.STATUS_UNPUBLISHED_AVAILABILITY,
     )
     addDateCount(status.healthyDates?.size ?: 0, DataAvailabilityMonitorMetrics.STATUS_HEALTHY)
     addDateCount(
