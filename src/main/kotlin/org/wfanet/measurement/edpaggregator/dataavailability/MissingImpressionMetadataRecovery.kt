@@ -357,6 +357,27 @@ class MissingImpressionMetadataRecovery(
         )
     }
 
+    val remainingUnmarkedBlobUris =
+      if (unsyncedRegisteredBlobUris.isEmpty()) {
+        emptySet()
+      } else {
+        storageClient
+          .listBlobs(dateFolderPrefix)
+          .toList()
+          .asSequence()
+          .filter(DataAvailabilityBlobs::isMetadataBlob)
+          .filterNot(DataAvailabilityBlobs::isSynced)
+          .map { BlobUris.buildUri(storageRootUri, it.blobKey) }
+          .filterTo(mutableSetOf()) { it in unsyncedRegisteredBlobUris }
+      }
+    if (remainingUnmarkedBlobUris.isNotEmpty()) {
+      errors +=
+        RecoveryError(
+          doneBlobUri,
+          "Sync completed but ${remainingUnmarkedBlobUris.size} metadata blobs remain unmarked",
+        )
+    }
+
     val availabilityPublicationCompleted =
       storageClient.getBlob(doneBlobKey)?.let(DataAvailabilityBlobs::isDataAvailabilityPublished) ==
         true
@@ -377,7 +398,13 @@ class MissingImpressionMetadataRecovery(
       recoveredBlobs = missingBlobUris.size - unrecoveredBlobUris.size,
       failedBlobs = unrecoveredBlobUris.size,
       dateFoldersResynced =
-        if (unverifiedBlobUris.isEmpty() && availabilityPublicationCompleted) 1 else 0,
+        if (
+          unverifiedBlobUris.isEmpty() &&
+            remainingUnmarkedBlobUris.isEmpty() &&
+            availabilityPublicationCompleted
+        )
+          1
+        else 0,
       incompleteFullSyncFolders = if (incompleteFullSync) 1 else 0,
       errors = errors,
     )

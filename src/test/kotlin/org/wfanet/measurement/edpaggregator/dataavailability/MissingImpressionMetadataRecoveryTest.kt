@@ -609,6 +609,34 @@ class MissingImpressionMetadataRecoveryTest {
   }
 
   @Test
+  fun `recover reports sync that leaves active blob unmarked`(): Unit = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    writeFinalizedMetadata(storageClient, "2026-08-03", "metadata.json")
+    val blobKey = metadataKey("2026-08-03", "metadata.json")
+    val blobUri = metadataUri("2026-08-03", "metadata.json")
+    storageClient.writeBlob(blobKey, ByteString.copyFromUtf8("rewritten metadata"))
+    registeredMetadata[blobUri] = impressionMetadata {
+      name = "$DATA_PROVIDER_NAME/impressionMetadata/metadata"
+      this.blobUri = blobUri
+      modelLine = MODEL_LINE_NAME
+      state = ImpressionMetadata.State.ACTIVE
+    }
+    val recovery =
+      buildRecovery(
+        storageClient,
+        impressionMetadataBatchSize = 100,
+        registerSyncedMetadata = true,
+        markSyncedBlobs = false,
+      ) { _, _ ->
+      }
+
+    val result = recovery.recover()
+
+    assertThat(result.dateFoldersResynced).isEqualTo(0)
+    assertThat(result.errors.single().message).contains("remain unmarked")
+  }
+
+  @Test
   fun `recover retries every unmarked metadata blob in incomplete folder`(): Unit = runBlocking {
     val storageClient = InMemoryStorageClient()
     writeIncompleteFullSyncMetadata(
@@ -691,6 +719,21 @@ class MissingImpressionMetadataRecoveryTest {
     registerSyncedMetadata: Boolean,
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
+    buildRecovery(
+      storageClient,
+      impressionMetadataBatchSize,
+      registerSyncedMetadata,
+      markSyncedBlobs = true,
+      sync,
+    )
+
+  private fun buildRecovery(
+    storageClient: BlobMetadataStorageClient,
+    impressionMetadataBatchSize: Int,
+    registerSyncedMetadata: Boolean,
+    markSyncedBlobs: Boolean,
+    sync: suspend (String, Set<String>) -> Unit,
+  ): MissingImpressionMetadataRecovery =
     MissingImpressionMetadataRecovery(
       storageClient = storageClient,
       storageRootUri = BlobUri(scheme = "gs", bucket = BUCKET_NAME, key = ""),
@@ -706,12 +749,14 @@ class MissingImpressionMetadataRecoveryTest {
       latestDataDate = LocalDate.parse("2026-08-31"),
       sync = { doneBlobUri, blobKeys ->
         sync(doneBlobUri, blobKeys)
-        for (blobKey in blobKeys) {
-          storageClient.updateBlobMetadata(
-            blobKey,
-            metadata =
-              mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
-          )
+        if (markSyncedBlobs) {
+          for (blobKey in blobKeys) {
+            storageClient.updateBlobMetadata(
+              blobKey,
+              metadata =
+                mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+            )
+          }
         }
         if (registerSyncedMetadata) {
           for (blobKey in blobKeys) {
