@@ -14,8 +14,9 @@
 
 package k8s
 
-_secretName:           string @tag("secret_name")
-_systemApiAddressName: "edp-aggregator-system"
+_secretName:             string @tag("secret_name")
+_systemApiAddressName:   "edp-aggregator-system"
+#KingdomPublicApiTarget: string @tag("kingdom_public_api_target")
 
 // Name of K8s service account for the internal API server.
 #InternalEdpAggregatorServerServiceAccount: "internal-edp-aggregator-server"
@@ -83,7 +84,8 @@ edpAggregator: #EdpAggregator & {
 		"edp-aggregator-system-api-server": _ipAddressName: _systemApiAddressName
 	}
 
-	_syncEventGroupActivitiesServiceAccountName: #SyncEventGroupActivitiesServiceAccount
+	_syncEventGroupActivitiesServiceAccountName:         #SyncEventGroupActivitiesServiceAccount
+	_recoverMissingImpressionMetadataServiceAccountName: #SyncEventGroupActivitiesServiceAccount
 
 	// Per-EDP arg lists for sync-event-group-activities. Each EDP has an entry
 	// here; the textproto config for that EDP is staged into the edp-aggregator
@@ -102,6 +104,22 @@ edpAggregator: #EdpAggregator & {
 			// Start in preview; switch to "--mode=append" (creates only) or
 			// "--mode=sync" (creates + deletes) after validating a run.
 			"--mode=preview",
+		]
+	}
+
+	// Reconcile the last 90 date folders once per week. The schedule defaults
+	// to Sundays at 06:00 UTC in edp_aggregator.cue.
+	_recoverMissingImpressionMetadataArgs: "edp7": {
+		tlsSecrets: ["edp7-tls", "data-availability-tls"]
+		args: [
+			"--config-file=/etc/halo-cmms/edp-aggregator/config/data-availability-recovery-config-edp7.textproto",
+			"--kingdom-public-api-target=\(#KingdomPublicApiTarget)",
+			"--impression-metadata-api-target=edp-aggregator-system-api-server:8443",
+			"--impression-metadata-api-cert-host=localhost",
+			"--lookback-days=90",
+			"--end-days-ago=0",
+			"--impression-metadata-batch-size=1000",
+			"--throttler-minimum-interval=100ms",
 		]
 	}
 }
