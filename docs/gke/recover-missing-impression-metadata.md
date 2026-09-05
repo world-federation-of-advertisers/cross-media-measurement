@@ -102,9 +102,10 @@ kubectl logs -l app=recover-missing-impression-metadata-edp7-app --tail=200
 ## Operational boundaries
 
 The recovery job and `DataAvailabilitySyncFunction` do not share a distributed lock. The scheduled
-job runs during a low-traffic weekly window and `concurrencyPolicy: Forbid` prevents recovery jobs
-from overlapping each other, but it does not prevent the Cloud Function from processing the same
-date folder. Avoid manually starting recovery while that folder is actively being finalized.
+job runs during a low-traffic weekly window, and `concurrencyPolicy: Forbid` prevents scheduled
+runs from overlapping. It does not serialize manually created Jobs or prevent the Cloud Function
+from processing the same date folder. Do not start multiple manual recovery Jobs concurrently,
+and avoid manually starting recovery while a target folder is actively being finalized.
 
 Post-sync verification proves that repaired `ImpressionMetadata` resources are active. It does not
 independently prove the later Kingdom data-availability publication: the existing `synced-by`
