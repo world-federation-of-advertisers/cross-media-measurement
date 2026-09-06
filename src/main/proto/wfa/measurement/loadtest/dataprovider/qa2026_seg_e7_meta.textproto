@@ -1,0 +1,903 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# GENERATED FILE - DO NOT EDIT.
+# Regenerate with:
+#   python3 src/main/python/wfa/measurement/loadtest/qa2026/generate_specs.py
+
+# proto-file: wfa/measurement/api/v2alpha/event_group_metadata/testing/simulator_synthetic_data_spec.proto
+# proto-message: SyntheticEventGroupSpec
+
+description: "QA 2026 segment e7-meta: VIDs 5,800,001-6,600,000 over 2026-04-01..2026-05-15"
+
+date_specs {
+  date_range {
+    start {
+      year: 2026
+      month: 4
+      day: 1
+    }
+    end_exclusive {
+      year: 2026
+      month: 5
+      day: 15
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 5800001
+        end_exclusive: 5826667
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5826667
+        end_exclusive: 5853334
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 5853334
+        end_exclusive: 5873333
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5873333
+        end_exclusive: 5893333
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 5893333
+        end_exclusive: 5906666
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5906666
+        end_exclusive: 5919999
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 5919999
+        end_exclusive: 5926666
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5926666
+        end_exclusive: 5933334
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+}
+
+date_specs {
+  date_range {
+    start {
+      year: 2026
+      month: 4
+      day: 8
+    }
+    end_exclusive {
+      year: 2026
+      month: 5
+      day: 15
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 5933334
+        end_exclusive: 5960000
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5960000
+        end_exclusive: 5986667
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 5986667
+        end_exclusive: 6006666
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6006666
+        end_exclusive: 6026666
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6026666
+        end_exclusive: 6039999
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6039999
+        end_exclusive: 6053332
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 6053332
+        end_exclusive: 6059999
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6059999
+        end_exclusive: 6066667
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+}
+
+date_specs {
+  date_range {
+    start {
+      year: 2026
+      month: 4
+      day: 15
+    }
+    end_exclusive {
+      year: 2026
+      month: 5
+      day: 15
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 6066667
+        end_exclusive: 6093333
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6093333
+        end_exclusive: 6120000
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 6120000
+        end_exclusive: 6139999
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6139999
+        end_exclusive: 6159999
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6159999
+        end_exclusive: 6173332
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6173332
+        end_exclusive: 6186665
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 6186665
+        end_exclusive: 6193332
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6193332
+        end_exclusive: 6200000
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+}
+
+date_specs {
+  date_range {
+    start {
+      year: 2026
+      month: 4
+      day: 23
+    }
+    end_exclusive {
+      year: 2026
+      month: 5
+      day: 15
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 6200000
+        end_exclusive: 6226666
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6226666
+        end_exclusive: 6253333
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 6253333
+        end_exclusive: 6273332
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6273332
+        end_exclusive: 6293332
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6293332
+        end_exclusive: 6306665
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6306665
+        end_exclusive: 6319998
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 6319998
+        end_exclusive: 6326665
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6326665
+        end_exclusive: 6333333
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+}
+
+date_specs {
+  date_range {
+    start {
+      year: 2026
+      month: 4
+      day: 30
+    }
+    end_exclusive {
+      year: 2026
+      month: 5
+      day: 15
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 6333333
+        end_exclusive: 6359999
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6359999
+        end_exclusive: 6386666
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 6386666
+        end_exclusive: 6406665
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6406665
+        end_exclusive: 6426665
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6426665
+        end_exclusive: 6439998
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6439998
+        end_exclusive: 6453331
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 6453331
+        end_exclusive: 6459998
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6459998
+        end_exclusive: 6466666
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+}
+
+date_specs {
+  date_range {
+    start {
+      year: 2026
+      month: 5
+      day: 7
+    }
+    end_exclusive {
+      year: 2026
+      month: 5
+      day: 15
+    }
+  }
+  frequency_specs {
+    frequency: 1
+    vid_range_specs {
+      vid_range {
+        start: 6466666
+        end_exclusive: 6493333
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6493333
+        end_exclusive: 6520000
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 6520000
+        end_exclusive: 6540000
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6540000
+        end_exclusive: 6560000
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6560000
+        end_exclusive: 6573333
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6573333
+        end_exclusive: 6586667
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 6586667
+        end_exclusive: 6593334
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6593334
+        end_exclusive: 6600001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+  }
+}
