@@ -585,6 +585,7 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
     if (source.hasEncryptedMergedDek()) {
       encryptedMergedDek = source.encryptedMergedDek.toPublic()
     }
+    failureAttemptId = source.failureAttemptId
   }
 }
 

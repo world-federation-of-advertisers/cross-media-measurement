@@ -78,17 +78,20 @@ class FailedDispatchRetrier(
     val workItemsRepublished: Int,
     /** The phase the model line was re-triggered at. */
     val newState: RawImpressionUploadModelLine.State,
+    /** Whether this invocation found a retry that a prior invocation already started. */
+    val wasAlreadyStarted: Boolean,
   )
 
   /**
-   * Re-triggers the `FAILED` `(rawImpressionUpload, cmmsModelLine)` and transitions it out of
-   * `FAILED`. Re-triggers [fromPhase] if given, otherwise the furthest phase the model line
-   * reached.
+   * Re-triggers the `(rawImpressionUpload, cmmsModelLine)` after its latest failure. If that retry
+   * was already started, returns its current model-line state without creating more WorkItems.
+   * Otherwise, re-triggers [fromPhase] if given, or the furthest phase the model line reached.
    *
    * @param fromPhase optional override of the phase to re-trigger from (`POOL_ASSIGNING`,
    *   `RANKING`, or `LABELING`); when null the furthest reached phase is auto-detected.
-   * @throws IllegalArgumentException if the model line is missing or not `FAILED`, [fromPhase] is
-   *   not a phase state, or no jobs exist for the target phase to re-publish.
+   * @throws IllegalArgumentException if the model line is missing, has no failure-attempt identity,
+   *   is neither `FAILED` nor the result of that failure's retry, [fromPhase] is not a phase state,
+   *   or no jobs exist for the target phase to re-publish.
    * @throws IllegalStateException if a job's original WorkItem no longer exists (its dispatch never
    *   enqueued), so it cannot be re-published standalone.
    */
@@ -102,8 +105,27 @@ class FailedDispatchRetrier(
         ?: throw IllegalArgumentException(
           "No RawImpressionUploadModelLine for $cmmsModelLine under $rawImpressionUpload"
         )
-    require(modelLine.state == RawImpressionUploadModelLine.State.FAILED) {
-      "${modelLine.name} is ${modelLine.state}, expected FAILED"
+    require(fromPhase == null || fromPhase in RETRY_PHASES) {
+      "--from-phase must be one of POOL_ASSIGNING, RANKING, LABELING; got $fromPhase"
+    }
+    require(modelLine.failureAttemptId.isNotEmpty()) {
+      "${modelLine.name} has no failure_attempt_id; expected a model line that has failed"
+    }
+
+    if (modelLine.state != RawImpressionUploadModelLine.State.FAILED) {
+      val existingPhase =
+        findExistingRetryPhase(
+          rawImpressionUpload,
+          cmmsModelLine,
+          modelLine.state,
+          modelLine.failureAttemptId,
+          fromPhase,
+        )
+      requireNotNull(existingPhase) {
+        "${modelLine.name} is ${modelLine.state}, expected FAILED or an existing retry for " +
+          "failure_attempt_id ${modelLine.failureAttemptId}"
+      }
+      return RetryResult(modelLine.name, 0, modelLine.state, wasAlreadyStarted = true)
     }
 
     // Re-trigger [fromPhase] if the operator specified one; otherwise the furthest phase reached
@@ -114,11 +136,78 @@ class FailedDispatchRetrier(
     // Re-publish before transitioning, so the work exists before the line is claimed.
     var republished = 0
     for (oldId in oldWorkItemIds) {
-      if (republishWorkItem(oldId, modelLine.etag)) republished++
+      if (republishWorkItem(oldId, modelLine.failureAttemptId)) republished++
     }
 
-    val updated = transition(modelLine, targetState)
-    return RetryResult(updated.name, republished, updated.state)
+    val updated = transition(modelLine, targetState, modelLine.failureAttemptId)
+    return RetryResult(updated.name, republished, updated.state, wasAlreadyStarted = false)
+  }
+
+  /** Returns the phase of an existing retry for [failureAttemptId], or `null` if none exists. */
+  private suspend fun findExistingRetryPhase(
+    uploadName: String,
+    cmmsModelLine: String,
+    currentState: RawImpressionUploadModelLine.State,
+    failureAttemptId: String,
+    fromPhase: RawImpressionUploadModelLine.State?,
+  ): RawImpressionUploadModelLine.State? {
+    val possiblePhases =
+      when (currentState) {
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+          listOf(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+        RawImpressionUploadModelLine.State.RANKING ->
+          listOf(
+            RawImpressionUploadModelLine.State.RANKING,
+            RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+          )
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.COMPLETED -> RETRY_PHASES
+        RawImpressionUploadModelLine.State.CREATED,
+        RawImpressionUploadModelLine.State.FAILED,
+        RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
+        RawImpressionUploadModelLine.State.UNRECOGNIZED -> emptyList()
+      }
+    val candidatePhases =
+      if (fromPhase == null) possiblePhases else possiblePhases.filter { it == fromPhase }
+    for (phase in candidatePhases) {
+      val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
+      if (
+        originalWorkItemIds.isNotEmpty() &&
+          originalWorkItemIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }
+      ) {
+        return phase
+      }
+    }
+    return null
+  }
+
+  private suspend fun retryWorkItemIsActiveOrSucceeded(
+    originalWorkItemId: String,
+    failureAttemptId: String,
+  ): Boolean {
+    var retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    while (true) {
+      val retryWorkItem =
+        try {
+          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$retryWorkItemId" })
+        } catch (e: StatusException) {
+          if (e.status.code == Status.Code.NOT_FOUND) return false
+          throw e
+        }
+      when (retryWorkItem.state) {
+        WorkItem.State.QUEUED,
+        WorkItem.State.RUNNING,
+        WorkItem.State.SUCCEEDED -> return true
+        WorkItem.State.FAILED -> {
+          val failureVersion =
+            "${retryWorkItem.updateTime.seconds}:${retryWorkItem.updateTime.nanos}"
+          retryWorkItemId = RequestIds.forRetriedWorkItem(retryWorkItemId, failureVersion)
+        }
+        WorkItem.State.STATE_UNSPECIFIED,
+        WorkItem.State.UNRECOGNIZED ->
+          error("Retry WorkItem $retryWorkItemId has invalid state ${retryWorkItem.state}.")
+      }
+    }
   }
 
   /**
@@ -147,34 +236,29 @@ class FailedDispatchRetrier(
     uploadName: String,
     cmmsModelLine: String,
     phase: RawImpressionUploadModelLine.State,
+  ): List<String> {
+    val workItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
+    require(workItemIds.isNotEmpty()) {
+      "No jobs found for $cmmsModelLine under $uploadName; cannot retry from $phase"
+    }
+    return workItemIds
+  }
+
+  private suspend fun workItemIdsForPhaseOrEmpty(
+    uploadName: String,
+    cmmsModelLine: String,
+    phase: RawImpressionUploadModelLine.State,
   ): List<String> =
     when (phase) {
-      RawImpressionUploadModelLine.State.LABELING -> {
-        val names = listVidLabelingJobNames(uploadName, cmmsModelLine)
-        require(names.isNotEmpty()) {
-          "No VidLabelingJobs for $cmmsModelLine under $uploadName; cannot retry from LABELING"
+      RawImpressionUploadModelLine.State.LABELING ->
+        listVidLabelingJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidLabeler(it) }
+      RawImpressionUploadModelLine.State.RANKING ->
+        listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+        listPoolAssignmentJobShards(uploadName, cmmsModelLine).map {
+          WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it)
         }
-        names.map { WorkItemIds.forVidLabeler(it) }
-      }
-      RawImpressionUploadModelLine.State.RANKING -> {
-        val names = listRankerJobNames(uploadName, cmmsModelLine)
-        require(names.isNotEmpty()) {
-          "No RankerJobs for $cmmsModelLine under $uploadName; cannot retry from RANKING"
-        }
-        names.map { WorkItemIds.forVidRankBuilder(it) }
-      }
-      RawImpressionUploadModelLine.State.POOL_ASSIGNING -> {
-        val shards = listPoolAssignmentJobShards(uploadName, cmmsModelLine)
-        require(shards.isNotEmpty()) {
-          "No PoolAssignmentJobs for $cmmsModelLine under $uploadName; cannot retry from " +
-            "POOL_ASSIGNING"
-        }
-        shards.map { WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it) }
-      }
-      else ->
-        throw IllegalArgumentException(
-          "--from-phase must be one of POOL_ASSIGNING, RANKING, LABELING; got $phase"
-        )
+      else -> error("unreachable: $phase is not a retry phase")
     }
 
   private suspend fun listVidLabelingJobNames(
@@ -238,11 +322,11 @@ class FailedDispatchRetrier(
   }
 
   /**
-   * Re-publishes the WorkItem [oldWorkItemId] for the failed model-line version identified by
-   * [modelLineEtag]. Returns true if a new WorkItem was created, or false when the same retry
-   * attempt already created it.
+   * Re-publishes the WorkItem [oldWorkItemId] for the failure identified by [failureAttemptId].
+   * Returns true if a new WorkItem was created, or false when the same retry attempt already
+   * created it.
    */
-  private suspend fun republishWorkItem(oldWorkItemId: String, modelLineEtag: String): Boolean {
+  private suspend fun republishWorkItem(oldWorkItemId: String, failureAttemptId: String): Boolean {
     val existing =
       try {
         workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$oldWorkItemId" })
@@ -255,7 +339,7 @@ class FailedDispatchRetrier(
         }
         throw e
       }
-    var newId = RequestIds.forRetriedWorkItem(oldWorkItemId, modelLineEtag)
+    var newId = RequestIds.forRetriedWorkItem(oldWorkItemId, failureAttemptId)
     val republished = workItem {
       queue = existing.queue
       workItemParams = existing.workItemParams
@@ -301,6 +385,7 @@ class FailedDispatchRetrier(
   private suspend fun transition(
     modelLine: RawImpressionUploadModelLine,
     targetState: RawImpressionUploadModelLine.State,
+    failureAttemptId: String,
   ): RawImpressionUploadModelLine =
     when (targetState) {
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
@@ -308,7 +393,7 @@ class FailedDispatchRetrier(
           markRawImpressionUploadModelLinePoolAssigningRequest {
             name = modelLine.name
             etag = modelLine.etag
-            requestId = RequestIds.forHealingRetryPoolAssigning(modelLine.name, modelLine.etag)
+            requestId = RequestIds.forHealingRetryPoolAssigning(modelLine.name, failureAttemptId)
           }
         )
       RawImpressionUploadModelLine.State.RANKING ->
@@ -316,7 +401,7 @@ class FailedDispatchRetrier(
           markRawImpressionUploadModelLineRankingRequest {
             name = modelLine.name
             etag = modelLine.etag
-            requestId = RequestIds.forHealingRetryRanking(modelLine.name, modelLine.etag)
+            requestId = RequestIds.forHealingRetryRanking(modelLine.name, failureAttemptId)
           }
         )
       RawImpressionUploadModelLine.State.LABELING ->
@@ -324,13 +409,19 @@ class FailedDispatchRetrier(
           markRawImpressionUploadModelLineLabelingRequest {
             name = modelLine.name
             etag = modelLine.etag
-            requestId = RequestIds.forHealingRetryLabeling(modelLine.name, modelLine.etag)
+            requestId = RequestIds.forHealingRetryLabeling(modelLine.name, failureAttemptId)
           }
         )
       else -> error("unreachable: targetState is a phase state")
     }
 
   companion object {
+    private val RETRY_PHASES =
+      listOf(
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.RANKING,
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+      )
     private val logger: Logger = Logger.getLogger(FailedDispatchRetrier::class.java.name)
   }
 }
