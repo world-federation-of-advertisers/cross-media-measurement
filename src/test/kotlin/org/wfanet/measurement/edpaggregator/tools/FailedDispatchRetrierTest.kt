@@ -104,6 +104,7 @@ class FailedDispatchRetrierTest {
     state = RawImpressionUploadModelLine.State.FAILED
     etag = ETAG
     failureAttemptId = FAILURE_ATTEMPT_ID
+    failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
   }
 
   private suspend fun stubFailedModelLine() {
@@ -239,6 +240,32 @@ class FailedDispatchRetrierTest {
       markRawImpressionUploadModelLinePoolAssigning(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+  }
+
+  @Test
+  fun `retryFailed rejects evicted output`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking {
+          whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+            .thenReturn(
+              listRawImpressionUploadModelLinesResponse {
+                rawImpressionUploadModelLines +=
+                  failedModelLine().copy {
+                    failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+                  }
+              }
+            )
+
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+        }
+      }
+
+    assertThat(error).hasMessageThat().contains("only PROCESSING_FAILURE can be retried")
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineRanking(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLinePoolAssigning(any()) }
   }
 
   @Test

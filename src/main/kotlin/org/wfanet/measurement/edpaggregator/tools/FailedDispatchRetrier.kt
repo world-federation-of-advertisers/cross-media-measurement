@@ -44,7 +44,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /**
  * Re-triggers a `FAILED` `(upload, model line)` after the operator has resolved the root cause of a
- * dead-lettered dispatch.
+ * dead-lettered dispatch. Only `PROCESSING_FAILURE` rows are retryable; `EVICTED_OUTPUT` rows
+ * require a replacement upload.
  *
  * It re-triggers the **furthest phase the model line reached** — detected from which per-phase job
  * rows exist: `VidLabelingJob`s ⇒ Phase 2 (`LABELING`), else `RankerJob`s ⇒ Phase 1 (`RANKING`),
@@ -92,9 +93,9 @@ class FailedDispatchRetrier(
    *
    * @param fromPhase optional override of the phase to re-trigger from (`POOL_ASSIGNING`,
    *   `RANKING`, or `LABELING`); when null the furthest reached phase is auto-detected.
-   * @throws IllegalArgumentException if the model line is missing, has no failure-attempt identity,
-   *   is neither `FAILED` nor the result of that failure's retry, [fromPhase] is not a phase state,
-   *   or no jobs exist for the target phase to re-publish.
+   * @throws IllegalArgumentException if the model line is missing, was not a processing failure,
+   *   has no failure-attempt identity, is neither `FAILED` nor the result of that failure's retry,
+   *   [fromPhase] is not a phase state, or no jobs exist for the target phase to re-publish.
    * @throws IllegalStateException if a job's original WorkItem no longer exists (its dispatch never
    *   enqueued), so it cannot be re-published standalone.
    */
@@ -114,6 +115,12 @@ class FailedDispatchRetrier(
         )
     require(fromPhase == null || fromPhase in RETRY_PHASES) {
       "--from-phase must be one of POOL_ASSIGNING, RANKING, LABELING; got $fromPhase"
+    }
+    require(
+      modelLine.failureReason == RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+    ) {
+      "${modelLine.name} has failure_reason ${modelLine.failureReason}; only " +
+        "PROCESSING_FAILURE can be retried"
     }
     require(modelLine.failureAttemptId.isNotEmpty()) {
       "${modelLine.name} has no failure_attempt_id; expected a model line that has failed"

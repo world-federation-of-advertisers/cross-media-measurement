@@ -144,9 +144,11 @@ class EvictUploader(
   }
 
   /**
-   * Executes [plan]: marks each cascade `(upload, model line)` `FAILED` (recording [reason]) and
-   * soft-deletes its cumulative `SNAPSHOT` rank-index blobs. Model lines already `FAILED` are left
-   * as-is; snapshot soft-deletes are still applied (idempotent).
+   * Executes [plan]: marks each cascade `(upload, model line)` `FAILED` with failure reason
+   * `EVICTED_OUTPUT` (recording [reason]) and soft-deletes its cumulative `SNAPSHOT` rank-index
+   * blobs. Model lines already failed for another reason are reclassified as evicted before their
+   * snapshots are deleted, so `retry-failed` cannot recreate invalidated output. Already-evicted
+   * model lines and snapshot soft-deletes are idempotent.
    */
   suspend fun evict(cmmsModelLine: String, plan: EvictionPlan, reason: String): EvictionResult {
     val failed = mutableListOf<String>()
@@ -154,28 +156,29 @@ class EvictUploader(
     for (entry in plan.cascade) {
       // Re-fetch the model line so the Mark uses a current etag and state: the plan may be minutes
       // old, and the Monitor or another operator could have advanced the row since. Reusing the
-      // plan-time etag would throw ABORTED partway through the cascade; re-reading also lets us
-      // skip
-      // rows that are already FAILED.
+      // plan-time etag would throw ABORTED partway through the cascade. Re-reading also lets an
+      // already-failed processing attempt be reclassified as evicted before its snapshots are
+      // deleted.
       val current =
         rawImpressionModelLinesStub.getRawImpressionUploadModelLine(
           getRawImpressionUploadModelLineRequest { name = entry.modelLineName }
         )
-      if (current.state != RawImpressionUploadModelLine.State.FAILED) {
+      if (
+        current.state != RawImpressionUploadModelLine.State.FAILED ||
+          current.failureReason != RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+      ) {
         rawImpressionModelLinesStub.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
             name = entry.modelLineName
             errorMessage = reason
             etag = current.etag
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
             requestId =
-              RequestIds.forMarkRawImpressionUploadModelLineFailed(
-                entry.modelLineName,
-                current.etag,
-              )
+              RequestIds.forEvictRawImpressionUploadModelLine(entry.modelLineName, current.etag)
           }
         )
         failed.add(entry.modelLineName)
-        logger.info("Marked ${entry.modelLineName} FAILED.")
+        logger.info("Marked ${entry.modelLineName} FAILED with reason EVICTED_OUTPUT.")
       }
       deleted += softDeleteSnapshots(entry.uploadName, cmmsModelLine)
     }

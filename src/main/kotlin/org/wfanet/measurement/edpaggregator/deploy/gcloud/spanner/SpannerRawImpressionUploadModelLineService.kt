@@ -66,6 +66,7 @@ import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as FailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -568,6 +569,38 @@ class SpannerRawImpressionUploadModelLineService(
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
+    if (
+      request.failureReason == FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED
+    ) {
+      throw RequiredFieldNotSetException("failure_reason")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.failureReason == FailureReason.UNRECOGNIZED) {
+      throw InvalidFieldValueException("failure_reason")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val validPreviousStates =
+      when (request.failureReason) {
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE ->
+          setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+          )
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
+          setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+          )
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED,
+        FailureReason.UNRECOGNIZED -> error("failure_reason was validated")
+      }
 
     val transitionResult =
       transitionState(
@@ -577,18 +610,12 @@ class SpannerRawImpressionUploadModelLineService(
         request.etag,
         request.requestId,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
-        validPreviousStates =
-          setOf(
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
-          ),
+        validPreviousStates = validPreviousStates,
         markRequestIdColumn = "MarkFailedRequestId",
         currentMarkRequestId = { it.markFailedRequestId },
       ) {
         set("ErrorMessage").to(request.errorMessage)
+        set("FailureReason").to(request.failureReason)
       }
     // On an AIP-155 replay the stored (first) error_message is authoritative and returned as-is;
     // only a fresh transition adopts this request's error_message (the row read before the write
@@ -599,6 +626,7 @@ class SpannerRawImpressionUploadModelLineService(
       transitionResult.modelLine.copy {
         errorMessage = request.errorMessage
         failureAttemptId = request.requestId
+        failureReason = request.failureReason
       }
     }
   }
