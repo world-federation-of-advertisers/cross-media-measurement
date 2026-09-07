@@ -275,10 +275,17 @@ class RetryFailedCommand : EdpaApiCommand() {
             ),
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
-        println(
-          "Re-triggered ${result.modelLineName} at ${result.newState}: created " +
-            "${result.workItemsRepublished} retry WorkItem(s)."
-        )
+        if (result.wasAlreadyStarted) {
+          println(
+            "Retry for ${result.modelLineName} was already started; current state is " +
+              "${result.newState}."
+          )
+        } else {
+          println(
+            "Re-triggered ${result.modelLineName} at ${result.newState}: created " +
+              "${result.workItemsRepublished} retry WorkItem(s)."
+          )
+        }
       }
     } finally {
       edpaChannel.shutdown()

@@ -79,10 +79,10 @@ class RequestIdsTest {
         RequestIds.forMarkRawImpressionUploadModelLineLabeling(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineCompleted(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG),
-        RequestIds.forHealingRetryPoolAssigning(MODEL_LINE_NAME, ETAG),
-        RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, ETAG),
-        RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, ETAG),
-        RequestIds.forRetriedWorkItem(VID_LABELING_JOB, ETAG).removePrefix("rt-"),
+        RequestIds.forHealingRetryPoolAssigning(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
+        RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
+        RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
+        RequestIds.forRetriedWorkItem(VID_LABELING_JOB, FAILURE_ATTEMPT_ID).removePrefix("rt-"),
       )
     for (id in ids) {
       assertThat(UUID.fromString(id).version()).isEqualTo(4)
@@ -90,13 +90,19 @@ class RequestIdsTest {
   }
 
   @Test
-  fun `healing request ids distinguish resource versions`() {
+  fun `mark-failed request ids distinguish resource versions`() {
     assertThat(RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG))
       .isNotEqualTo(
         RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, "new-etag")
       )
-    assertThat(RequestIds.forRetriedWorkItem(VID_LABELING_JOB, ETAG))
-      .isNotEqualTo(RequestIds.forRetriedWorkItem(VID_LABELING_JOB, "new-etag"))
+  }
+
+  @Test
+  fun `healing request ids distinguish failure attempts`() {
+    assertThat(RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID))
+      .isNotEqualTo(RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, "failure-attempt-2"))
+    assertThat(RequestIds.forRetriedWorkItem(VID_LABELING_JOB, FAILURE_ATTEMPT_ID))
+      .isNotEqualTo(RequestIds.forRetriedWorkItem(VID_LABELING_JOB, "failure-attempt-2"))
   }
 
   companion object {
@@ -109,5 +115,6 @@ class RequestIdsTest {
     private const val MODEL_LINE_NAME = "$UPLOAD/rawImpressionUploadModelLines/riuml-1"
     private const val VID_LABELING_JOB = "$UPLOAD/vidLabelingJobs/vlj-1"
     private const val ETAG = "etag-1"
+    private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
   }
 }
