@@ -62,6 +62,7 @@ class DispatchFailer(
           name = modelLine.name
           errorMessage = reason
           etag = modelLine.etag
+          failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
           requestId =
             RequestIds.forMarkRawImpressionUploadModelLineFailed(modelLine.name, modelLine.etag)
         }

@@ -79,6 +79,7 @@ class RequestIdsTest {
         RequestIds.forMarkRawImpressionUploadModelLineLabeling(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineCompleted(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG),
+        RequestIds.forEvictRawImpressionUploadModelLine(MODEL_LINE_NAME, ETAG),
         RequestIds.forHealingRetryPoolAssigning(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
@@ -95,6 +96,12 @@ class RequestIdsTest {
       .isNotEqualTo(
         RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, "new-etag")
       )
+  }
+
+  @Test
+  fun `processing failure and eviction request ids do not collide`() {
+    assertThat(RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG))
+      .isNotEqualTo(RequestIds.forEvictRawImpressionUploadModelLine(MODEL_LINE_NAME, ETAG))
   }
 
   @Test

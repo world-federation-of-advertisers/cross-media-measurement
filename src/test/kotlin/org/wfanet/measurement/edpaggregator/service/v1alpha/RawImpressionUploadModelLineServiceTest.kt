@@ -65,6 +65,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase as InternalModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as InternalModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.encryptedDek as internalEncryptedDek
@@ -992,6 +993,7 @@ class RawImpressionUploadModelLineServiceTest {
           etag = created.etag
           errorMessage = "Something went wrong"
           requestId = failureAttemptId
+          failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
         }
       )
 
@@ -999,6 +1001,8 @@ class RawImpressionUploadModelLineServiceTest {
     assertThat(failed.name).isEqualTo(created.name)
     assertThat(failed.errorMessage).isEqualTo("Something went wrong")
     assertThat(failed.failureAttemptId).isEqualTo(failureAttemptId)
+    assertThat(failed.failureReason)
+      .isEqualTo(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
   }
 
   @Test
@@ -1029,6 +1033,32 @@ class RawImpressionUploadModelLineServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+          }
+        )
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed throws INVALID_ARGUMENT for missing failure reason`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "failure_reason"
           }
         )
     }
@@ -1395,6 +1425,7 @@ class RawImpressionUploadModelLineServiceTest {
       etag = created.etag
       errorMessage = "Something went wrong"
       requestId = UUID.randomUUID().toString()
+      failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
     }
 
     val first = service.markRawImpressionUploadModelLineFailed(request)
@@ -1413,6 +1444,8 @@ class RawImpressionUploadModelLineServiceTest {
       cmmsModelLine = CMMS_MODEL_LINE
       state = InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
       failureAttemptId = "failure-attempt-1"
+      failureReason =
+        InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
       poolOffsets += listOf(0L, 5L, 10L)
       maxEventDate = date {
         year = 2026
@@ -1431,6 +1464,8 @@ class RawImpressionUploadModelLineServiceTest {
 
     assertThat(publicModelLine.poolOffsetsList).containsExactly(0L, 5L, 10L).inOrder()
     assertThat(publicModelLine.failureAttemptId).isEqualTo("failure-attempt-1")
+    assertThat(publicModelLine.failureReason)
+      .isEqualTo(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
     assertThat(publicModelLine.maxEventDate)
       .isEqualTo(
         date {

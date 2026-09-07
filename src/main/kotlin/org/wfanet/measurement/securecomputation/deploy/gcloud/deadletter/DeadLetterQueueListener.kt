@@ -368,6 +368,7 @@ class DeadLetterQueueListener(
           // RawImpressionUploadModelLine resource carries it) instead of an extra Get.
           etag = parent.etag
           this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+          failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
           // AIP-155 idempotency on Pub/Sub redelivery: the etag identifies the model-line version
           // being failed, so a later failure after an operator retry receives a new request ID.
           requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(parent.name, parent.etag)

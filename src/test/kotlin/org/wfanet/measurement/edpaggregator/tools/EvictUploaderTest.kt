@@ -148,7 +148,10 @@ class EvictUploaderTest {
     }
     for (request in requestCaptor.allValues) {
       assertThat(request.requestId).isNotEmpty()
+      assertThat(request.failureReason)
+        .isEqualTo(RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT)
     }
+    assertThat(requestCaptor.allValues.map { it.requestId }).containsNoDuplicates()
   }
 
   @Test
@@ -227,7 +230,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict skips an already-FAILED model line but still soft-deletes its snapshots`() {
+  fun `evict skips an already-evicted model line but still soft-deletes its snapshots`() {
     val result = runBlocking {
       whenever(uploadService.listRawImpressionUploads(any()))
         .thenReturn(
@@ -248,13 +251,15 @@ class EvictUploaderTest {
             }
           }
         )
-      // evict() re-fetches current state before marking; it is already FAILED, so Mark is skipped.
+      // evict() re-fetches current state before marking. This row is already classified as
+      // evicted, so Mark is skipped.
       whenever(modelLineService.getRawImpressionUploadModelLine(any()))
         .thenReturn(
           rawImpressionUploadModelLine {
             name = modelLineName("up1")
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
           }
         )
       whenever(rankIndexBlobService.listRankIndexBlobs(any()))
@@ -275,6 +280,63 @@ class EvictUploaderTest {
     assertThat(result.failedModelLines).isEmpty()
     assertThat(result.deletedSnapshots).isEqualTo(1)
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
+  }
+
+  @Test
+  fun `evict reclassifies a processing failure before deleting snapshots`() {
+    val result = runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+            }
+          }
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = modelLineName("up1")
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.FAILED
+              failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+            }
+          }
+        )
+      whenever(modelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          rawImpressionUploadModelLine {
+            name = modelLineName("up1")
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+            etag = "etag-up1"
+          }
+        )
+      whenever(modelLineService.markRawImpressionUploadModelLineFailed(any()))
+        .thenReturn(
+          rawImpressionUploadModelLine {
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+          }
+        )
+      whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+        .thenReturn(listRankIndexBlobsResponse {})
+
+      val plan = evictUploader.plan(MODEL_LINE, listOf(uploadName("up1")), cutoffTime = T0)
+      evictUploader.evict(MODEL_LINE, plan, REASON)
+    }
+
+    assertThat(result.failedModelLines).containsExactly(modelLineName("up1"))
+    val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verifyBlocking(modelLineService) {
+      markRawImpressionUploadModelLineFailed(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.failureReason)
+      .isEqualTo(RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT)
+    assertThat(requestCaptor.firstValue.etag).isEqualTo("etag-up1")
   }
 
   companion object {

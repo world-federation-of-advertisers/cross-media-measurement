@@ -19,6 +19,7 @@ package wfa.measurement.internal.edpaggregator;
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_failure_reason.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -76,9 +77,11 @@ service RawImpressionUploadModelLineService {
       MarkRawImpressionUploadModelLineCompletedRequest)
       returns (RawImpressionUploadModelLine);
 
-  // Marks a `RawImpressionUploadModelLine` as `FAILED`. Throws
-  // `ABORTED` if `etag` does not match. Throws `FAILED_PRECONDITION`
-  // if the prior state does not allow this transition.
+  // Marks a `RawImpressionUploadModelLine` as `FAILED`. Processing failures
+  // can be recorded from an active phase; evictions can also invalidate
+  // completed or previously failed output. Throws `ABORTED` if `etag` does not
+  // match. Throws `FAILED_PRECONDITION` if the prior state does not allow the
+  // transition for the specified failure reason.
   rpc MarkRawImpressionUploadModelLineFailed(
       MarkRawImpressionUploadModelLineFailedRequest)
       returns (RawImpressionUploadModelLine);
@@ -272,4 +275,7 @@ message MarkRawImpressionUploadModelLineFailedRequest {
 
   // A request ID provided by the client to ensure idempotency on retry.
   string request_id = 6;
+
+  // Reason that the model line is being marked FAILED.
+  RawImpressionUploadModelLineFailureReason failure_reason = 7;
 }
