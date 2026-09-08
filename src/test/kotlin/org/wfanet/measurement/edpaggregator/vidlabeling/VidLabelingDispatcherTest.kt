@@ -513,7 +513,8 @@ class VidLabelingDispatcherTest {
       name = sourceUploadName
       state = RawImpressionUpload.State.FAILED
       doneBlobUri = DONE_BLOB_PATH
-      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
     }
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -550,6 +551,7 @@ class VidLabelingDispatcherTest {
           name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
           doneBlobUri = DONE_BLOB_PATH
           doneBlobGeneration = DONE_BLOB_GENERATION
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
         }
       )
     whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
@@ -575,12 +577,14 @@ class VidLabelingDispatcherTest {
       name = sourceUploadName
       state = RawImpressionUpload.State.FAILED
       doneBlobUri = DONE_BLOB_PATH
-      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
     }
     val registeredRecovery = rawImpressionUpload {
       name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
       doneBlobUri = DONE_BLOB_PATH
       doneBlobGeneration = DONE_BLOB_GENERATION
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
       replacesRawImpressionUpload = sourceUploadName
     }
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
@@ -645,12 +649,14 @@ class VidLabelingDispatcherTest {
       name = sourceUploadName
       state = RawImpressionUpload.State.FAILED
       doneBlobUri = DONE_BLOB_PATH
-      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
     }
     val newerRecovery = rawImpressionUpload {
       name = "$DATA_PROVIDER_NAME/rawImpressionUploads/newer-recovery"
       doneBlobUri = DONE_BLOB_PATH
-      doneBlobGeneration = DONE_BLOB_GENERATION + 1
+      doneBlobGeneration = DONE_BLOB_GENERATION - 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
       replacesRawImpressionUpload = sourceUploadName
     }
     whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
@@ -675,7 +681,8 @@ class VidLabelingDispatcherTest {
       name = sourceUploadName
       state = RawImpressionUpload.State.COMPLETED
       doneBlobUri = DONE_BLOB_PATH
-      doneBlobGeneration = DONE_BLOB_GENERATION - 1
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
     }
     whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenReturn(source)
     whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
