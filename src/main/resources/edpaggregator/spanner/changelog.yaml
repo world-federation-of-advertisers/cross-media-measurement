@@ -67,3 +67,9 @@ databaseChangeLog:
   - include:
       file: add-raw-impression-upload-replacement.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-done-blob-create-time.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-registration-complete.sql
+      relativeToChangeLogFile: true

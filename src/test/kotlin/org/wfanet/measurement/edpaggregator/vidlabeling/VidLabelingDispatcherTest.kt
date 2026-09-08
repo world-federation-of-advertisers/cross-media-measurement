@@ -46,6 +46,7 @@ import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
+import org.mockito.kotlin.verify
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -61,12 +62,14 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
@@ -226,7 +229,10 @@ class VidLabelingDispatcherTest {
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
     readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
     readBlobMetadata: suspend (String) -> RawImpressionBlobMetadata = {
-      RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 100L)
+      RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 100L, RAW_BLOB_CREATE_TIME)
+    },
+    readDoneBlobMetadata: suspend () -> RawImpressionBlobMetadata = {
+      RawImpressionBlobMetadata(DONE_BLOB_GENERATION, 0L, DONE_BLOB_CREATE_TIME)
     },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
   ): VidLabelingDispatcher {
@@ -242,7 +248,13 @@ class VidLabelingDispatcherTest {
       overrideModelLines = overrideModelLines,
       modelLineConfigs = modelLineConfigs,
       readEventDate = readEventDate,
-      readBlobMetadata = readBlobMetadata,
+      readBlobMetadata = { blobKey ->
+        if (blobKey.substringAfterLast("/").equals("done", ignoreCase = true)) {
+          readDoneBlobMetadata()
+        } else {
+          readBlobMetadata(blobKey)
+        }
+      },
       clock = fixedClock,
       metrics = metrics,
     )
@@ -267,6 +279,17 @@ class VidLabelingDispatcherTest {
       .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
     whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
       .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    whenever(
+        rawImpressionUploadService.markRawImpressionUploadRegistrationComplete(
+          any<MarkRawImpressionUploadRegistrationCompleteRequest>()
+        )
+      )
+      .thenReturn(
+        RawImpressionUpload.newBuilder()
+          .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
+          .setRegistrationComplete(true)
+          .build()
+      )
     // The post-registration fast path lists uploads; default to none so dispatch is a no-op unless
     // a test overrides this.
     whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
@@ -364,6 +387,7 @@ class VidLabelingDispatcherTest {
                 blob2.blobKey -> 222L
                 else -> error("Unexpected blob: $blobKey")
               },
+              RAW_BLOB_CREATE_TIME,
             )
           }
         )
@@ -390,6 +414,9 @@ class VidLabelingDispatcherTest {
       // event_date is populated from each file's plaintext Parquet footer (readEventDate seam).
       assertThat(request.requestsList.map { it.rawImpressionUploadFile.eventDate })
         .containsExactly(EVENT_DATE_PROTO, EVENT_DATE_PROTO)
+      verifyBlocking(rawImpressionUploadService) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
     }
 
   @Test
@@ -404,7 +431,9 @@ class VidLabelingDispatcherTest {
 
     val dispatcher =
       createDispatcher(
-        readBlobMetadata = { RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 123L) },
+        readBlobMetadata = {
+          RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 123L, RAW_BLOB_CREATE_TIME)
+        },
         readEventDate = {
           footerPath = it
           EVENT_DATE
@@ -453,6 +482,9 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         batchCreateRawImpressionUploadModelLines(any())
+      }
+      verifyBlocking(rawImpressionUploadService) {
+        markRawImpressionUploadRegistrationComplete(any())
       }
     }
 
@@ -528,7 +560,10 @@ class VidLabelingDispatcherTest {
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
 
-      val dispatcher = createDispatcher()
+      val dispatcher =
+        createDispatcher(
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(123L, 0L, DONE_BLOB_CREATE_TIME) }
+        )
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
 
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
@@ -542,6 +577,8 @@ class VidLabelingDispatcherTest {
         .isEqualTo(requestCaptor.allValues[1].requestId)
       assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobGeneration })
         .containsExactly(123L, 123L)
+      assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobCreateTime })
+        .containsExactly(DONE_BLOB_CREATE_TIME.toProtoTime(), DONE_BLOB_CREATE_TIME.toProtoTime())
     }
 
   @Test
@@ -552,10 +589,17 @@ class VidLabelingDispatcherTest {
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
 
-      val dispatcher = createDispatcher()
+      var liveGeneration = 123L
+      var liveCreateTime = DONE_BLOB_CREATE_TIME
+      val dispatcher =
+        createDispatcher(
+          readDoneBlobMetadata = { RawImpressionBlobMetadata(liveGeneration, 0L, liveCreateTime) }
+        )
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
 
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      liveGeneration = 456L
+      liveCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1)
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 456L)
 
       val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
@@ -569,40 +613,44 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
-  fun `out of order done event does not register stale snapshot`() =
+  fun `upload ignores stale done event before listing files`() =
     runBlocking<Unit> {
       val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
-      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
-        throw StatusException(Status.ALREADY_EXISTS.withDescription("newer generation exists"))
-      }
-      whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation
-        ->
-        val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
-        if (request.filter.doneBlobUri == DONE_BLOB_PATH) {
-          listRawImpressionUploadsResponse {
-            rawImpressionUploads +=
-              RawImpressionUpload.newBuilder()
-                .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/newer")
-                .setDoneBlobUri(DONE_BLOB_PATH)
-                .setDoneBlobGeneration(200L)
-                .build()
+
+      createDispatcher(
+          readDoneBlobMetadata = {
+            RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
           }
-        } else {
-          listRawImpressionUploadsResponse {}
-        }
-      }
+        )
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
 
-      createDispatcher().upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+      verify(storageClient, never()).listBlobs(any())
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+    }
 
-      verifyBlocking(rawImpressionUploadFileService, never()) {
-        batchCreateRawImpressionUploadFiles(any())
-      }
-      verifyBlocking(rawImpressionUploadModelLineService, never()) {
-        batchCreateRawImpressionUploadModelLines(any())
-      }
+  @Test
+  fun `upload ignores done event when done object changes during listing`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      var metadataReadCount = 0
+
+      createDispatcher(
+          readDoneBlobMetadata = {
+            metadataReadCount++
+            if (metadataReadCount == 1) {
+              RawImpressionBlobMetadata(150L, 0L, DONE_BLOB_CREATE_TIME)
+            } else {
+              RawImpressionBlobMetadata(200L, 0L, DONE_BLOB_CREATE_TIME.plusSeconds(1))
+            }
+          }
+        )
+        .upload(DONE_BLOB_PATH, doneBlobGeneration = 150L)
+
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
     }
 
   @Test
@@ -726,6 +774,35 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
       verifyBlocking(rawImpressionUploadModelLineService) {
         batchCreateRawImpressionUploadModelLines(any())
+      }
+    }
+
+  @Test
+  fun `upload acks when a newer upload wins after the final done generation check`() =
+    runBlocking<Unit> {
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenAnswer {
+        throw StatusException(Status.ALREADY_EXISTS.withDescription("newer upload exists"))
+      }
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {},
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/newer-upload")
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(DONE_BLOB_GENERATION + 1L)
+                .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime())
+                .build()
+          },
+        )
+
+      createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        batchCreateRawImpressionUploadFiles(any())
       }
     }
 
@@ -871,6 +948,8 @@ class VidLabelingDispatcherTest {
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner"
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
+    private val DONE_BLOB_CREATE_TIME: Instant = Instant.parse("2026-06-03T11:00:00Z")
+    private val RAW_BLOB_CREATE_TIME: Instant = Instant.parse("2026-06-03T10:00:00Z")
     private val EVENT_DATE: LocalDate = LocalDate.parse("2026-06-01")
     private val EVENT_DATE_PROTO = date {
       year = 2026
