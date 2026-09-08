@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
@@ -103,8 +104,8 @@ class RecoverUploader(
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to source.name,
       )
     val generation = rewriteDoneBlob(source.doneBlobUri, source.doneBlobGeneration, metadata)
-    require(generation > source.doneBlobGeneration) {
-      "rewriting ${source.doneBlobUri} did not create a newer generation: $generation"
+    require(generation > 0L && generation != source.doneBlobGeneration) {
+      "rewriting ${source.doneBlobUri} did not create a distinct valid generation: $generation"
     }
     return Result(source.name, source.doneBlobUri, generation, cmmsModelLines)
   }
@@ -121,13 +122,21 @@ class RecoverUploader(
             this.pageToken = pageToken
           }
         )
-      latest =
-        (response.rawImpressionUploadsList + listOfNotNull(latest)).maxByOrNull {
-          it.doneBlobGeneration
-        }
+      latest = findLatestUpload(response.rawImpressionUploadsList + listOfNotNull(latest))
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return latest
+  }
+
+  private fun findLatestUpload(uploads: List<RawImpressionUpload>): RawImpressionUpload? {
+    val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
+    return if (timestamped.isNotEmpty()) {
+      timestamped.maxWithOrNull { left, right ->
+        Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+      }
+    } else {
+      uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
+    }
   }
 
   private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> {

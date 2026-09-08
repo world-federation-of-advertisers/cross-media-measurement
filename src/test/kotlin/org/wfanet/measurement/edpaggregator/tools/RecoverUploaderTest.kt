@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
+import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -28,6 +29,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -89,12 +91,28 @@ class RecoverUploaderTest {
   }
 
   @Test
+  fun `recover rejects a rewrite that returns the source generation`() = runBlocking {
+    stubSourceUpload()
+    stubModelLine(RawImpressionUploadModelLine.State.FAILED)
+    stubSnapshot()
+    val recoverUploader = recoverUploader { _, _, _ -> GENERATION }
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
+      }
+
+    assertThat(error).hasMessageThat().contains("distinct valid generation")
+  }
+
+  @Test
   fun `recover rejects a superseded upload`() = runBlocking {
     stubSourceUpload(
       rawImpressionUpload {
         name = REPLACEMENT_UPLOAD
         doneBlobUri = DONE_BLOB_URI
         doneBlobGeneration = NEW_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
       }
     )
     var rewriteCalled = false
@@ -201,6 +219,7 @@ class RecoverUploaderTest {
       state = RawImpressionUpload.State.FAILED
       doneBlobUri = DONE_BLOB_URI
       doneBlobGeneration = GENERATION
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
     }
     whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(source)
     whenever(uploadsService.listRawImpressionUploads(any()))
@@ -251,6 +270,7 @@ class RecoverUploaderTest {
     private const val MODEL_LINE_2 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
     private const val DONE_BLOB_URI = "gs://raw-bucket/edp/date/done"
     private const val GENERATION = 100L
-    private const val NEW_GENERATION = 101L
+    private const val NEW_GENERATION = 50L
+    private val DONE_BLOB_CREATE_TIME = Instant.parse("2026-09-01T00:00:00Z")
   }
 }
