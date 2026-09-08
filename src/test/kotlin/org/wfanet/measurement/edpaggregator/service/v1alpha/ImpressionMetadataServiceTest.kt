@@ -1249,6 +1249,7 @@ class ImpressionMetadataServiceTest {
 
     assertThat(response.impressionMetadataList.map { it.state })
       .containsExactly(ImpressionMetadata.State.ACTIVE, ImpressionMetadata.State.ACTIVE)
+      .inOrder()
   }
 
   @Test
