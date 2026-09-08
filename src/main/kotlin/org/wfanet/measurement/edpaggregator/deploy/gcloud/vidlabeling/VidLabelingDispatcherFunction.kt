@@ -27,6 +27,8 @@ import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.BasicFileAttributes
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
@@ -53,6 +55,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingDispatcherParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
@@ -145,7 +148,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           )
 
       val storageClient: StorageClient = createStorageClient(doneBlobPath)
-      val readBlobGeneration = createBlobGenerationReader(doneBlobPath)
+      val readBlobMetadata = createBlobMetadataReader(doneBlobPath)
       val parquetStorageClient: ParquetStorageClient = createParquetStorageClient(doneBlobPath)
       val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
 
@@ -255,7 +258,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatcher(
           storageClient = storageClient,
           readEventDate = { blobKey -> readEventDateFromFooter(parquetStorageClient, blobKey) },
-          readBlobGeneration = readBlobGeneration,
+          readBlobMetadata = readBlobMetadata,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
@@ -370,18 +373,22 @@ class VidLabelingDispatcherFunction : HttpFunction {
       }
     }
 
-    private fun createBlobGenerationReader(doneBlobPath: String): suspend (String) -> Long {
+    private fun createBlobMetadataReader(
+      doneBlobPath: String
+    ): suspend (String) -> RawImpressionBlobMetadata {
       if (!fileSystemPath.isNullOrEmpty()) {
         val storageRoot = File(EnvVars.checkIsPath("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH"))
         return { blobKey ->
           withContext(Dispatchers.IO) {
             val blobFile = storageRoot.resolve(blobKey)
-            check(blobFile.isFile) {
+            val attributes =
+              Files.readAttributes(blobFile.toPath(), BasicFileAttributes::class.java)
+            check(attributes.isRegularFile) {
               "Raw impression file disappeared before registration: $blobKey"
             }
-            blobFile.lastModified().also { generation ->
-              check(generation > 0L) { "Raw impression file has no modification time: $blobKey" }
-            }
+            val generation = attributes.lastModifiedTime().toMillis()
+            check(generation > 0L) { "Raw impression file has no modification time: $blobKey" }
+            RawImpressionBlobMetadata(generation = generation, sizeBytes = attributes.size())
           }
         }
       }
@@ -398,10 +405,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
           .service
       return { blobKey ->
         withContext(Dispatchers.IO) {
-          checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, blobKey))) {
+          val blob =
+            checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, blobKey))) {
               "Raw impression blob disappeared before registration: $blobKey"
             }
-            .generation
+          RawImpressionBlobMetadata(generation = blob.generation, sizeBytes = blob.size)
         }
       }
     }
