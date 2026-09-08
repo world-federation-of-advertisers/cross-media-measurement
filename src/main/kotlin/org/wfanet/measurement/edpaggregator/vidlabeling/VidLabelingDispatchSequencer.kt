@@ -171,6 +171,7 @@ class VidLabelingDispatchSequencer(
     val uploads: List<RawImpressionUpload> =
       (listUploads(RawImpressionUpload.State.CREATED) +
           listUploads(RawImpressionUpload.State.ACTIVE))
+        .filter { it.registrationComplete }
         .sortedBy { Timestamps.toNanos(it.createTime) }
     val modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>> =
       uploads.associate { it.name to listUploadModelLines(it.name) }
