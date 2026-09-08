@@ -1031,6 +1031,7 @@ abstract class ImpressionMetadataServiceTest {
         State.IMPRESSION_METADATA_STATE_ACTIVE,
         State.IMPRESSION_METADATA_STATE_ACTIVE,
       )
+      .inOrder()
   }
 
   @Test
