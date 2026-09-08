@@ -24,6 +24,7 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.concurrent.TimeUnit
@@ -43,6 +44,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
@@ -58,8 +60,27 @@ private class FilteringBlobMetadataStorageClient(
   private val delegate: BlobMetadataStorageClient,
   private val includedBlobKeys: Set<String>,
 ) : BlobMetadataStorageClient by delegate {
+  private val mutableProcessedMetadataBlobKeys = mutableSetOf<String>()
+
+  val processedMetadataBlobKeys: Set<String>
+    get() = mutableProcessedMetadataBlobKeys
+
   override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> {
     return delegate.listBlobs(prefix).filter { it.blobKey in includedBlobKeys }
+  }
+
+  override suspend fun updateBlobMetadata(
+    blobKey: String,
+    customCreateTime: Instant?,
+    metadata: Map<String, String>,
+  ) {
+    delegate.updateBlobMetadata(blobKey, customCreateTime, metadata)
+    if (
+      blobKey in includedBlobKeys &&
+        metadata[DataAvailabilityBlobs.SYNCED_BY_KEY] == DataAvailabilityBlobs.SYNCED_BY_VALUE
+    ) {
+      mutableProcessedMetadataBlobKeys += blobKey
+    }
   }
 }
 
@@ -203,9 +224,11 @@ class RecoverMissingImpressionMetadata : Runnable {
         earliestDataDate = today.minusDays((lookbackDays - 1).toLong()),
         latestDataDate = latestDataDate,
         sync = { doneBlobUri, metadataBlobKeys ->
+          val filteringStorageClient =
+            FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
           DataAvailabilitySync(
               edpImpressionPath = config.edpImpressionPath,
-              storageClient = FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys),
+              storageClient = filteringStorageClient,
               dataProvidersStub = dataProvidersStub,
               impressionMetadataServiceStub = impressionMetadataStub,
               dataProviderName = config.dataProvider,
@@ -215,6 +238,7 @@ class RecoverMissingImpressionMetadata : Runnable {
               errorIfGapsExist = config.errorIfGapsExist,
             )
             .sync(doneBlobUri)
+          filteringStorageClient.processedMetadataBlobKeys
         },
         metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
       )

@@ -55,7 +55,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param impressionMetadataBatchSize Maximum results per metadata list page.
  * @param earliestDataDate Earliest date folder included in the reconciliation.
  * @param latestDataDate Latest date folder included in the reconciliation.
- * @param sync Re-runs data availability sync for a completion blob and selected metadata keys.
+ * @param sync Re-runs data availability sync for a completion blob and selected metadata keys, and
+ *   returns the keys that sync processed.
  * @param metrics Records reconciliation results.
  */
 class MissingImpressionMetadataRecovery(
@@ -68,7 +69,7 @@ class MissingImpressionMetadataRecovery(
   private val impressionMetadataBatchSize: Int,
   private val earliestDataDate: LocalDate,
   private val latestDataDate: LocalDate,
-  private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Unit,
+  private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Set<String>,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
 ) {
   init {
@@ -319,25 +320,26 @@ class MissingImpressionMetadataRecovery(
         BlobUris.buildUri(storageRootUri, it.blobKey) in blobUrisToSync
       }
     val doneBlobUri = BlobUris.buildUri(storageRootUri, doneBlobKey)
-    try {
-      sync(doneBlobUri, metadataBlobsToSync.mapTo(mutableSetOf()) { it.blobKey })
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      logger.log(Level.SEVERE, "Failed to resynchronize $doneBlobUri", e)
-      return FolderRecoveryResult(
-        finalizedMetadataBlobs = finalizedMetadataBlobs.size,
-        missingBlobs = missingBlobUris.size,
-        deletedRecordsWithBlobs = deletedMetadataWithBlobs.size,
-        undeletedRecords = undeletedRecords,
-        failedUndeletes = failedUndeletes,
-        recoveredBlobs = 0,
-        failedBlobs = missingBlobUris.size,
-        dateFoldersResynced = 0,
-        incompleteFullSyncFolders = if (incompleteFullSync) 1 else 0,
-        errors = errors + RecoveryError(doneBlobUri, e.message ?: e::class.java.simpleName),
-      )
-    }
+    val processedMetadataBlobKeys =
+      try {
+        sync(doneBlobUri, metadataBlobsToSync.mapTo(mutableSetOf()) { it.blobKey })
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        logger.log(Level.SEVERE, "Failed to resynchronize $doneBlobUri", e)
+        return FolderRecoveryResult(
+          finalizedMetadataBlobs = finalizedMetadataBlobs.size,
+          missingBlobs = missingBlobUris.size,
+          deletedRecordsWithBlobs = deletedMetadataWithBlobs.size,
+          undeletedRecords = undeletedRecords,
+          failedUndeletes = failedUndeletes,
+          recoveredBlobs = 0,
+          failedBlobs = missingBlobUris.size,
+          dateFoldersResynced = 0,
+          incompleteFullSyncFolders = if (incompleteFullSync) 1 else 0,
+          errors = errors + RecoveryError(doneBlobUri, e.message ?: e::class.java.simpleName),
+        )
+      }
 
     val activeBlobUris =
       listRegisteredMetadata(dateFolderPrefix)
@@ -348,12 +350,27 @@ class MissingImpressionMetadataRecovery(
     val inactiveUndeletedBlobUris =
       undeletedBlobUris.intersect(finalizedBlobUris).minus(activeBlobUris)
     val unverifiedBlobUris = unrecoveredBlobUris + inactiveUndeletedBlobUris
+    val processedMetadataBlobUris =
+      processedMetadataBlobKeys.mapTo(mutableSetOf()) { BlobUris.buildUri(storageRootUri, it) }
+    val unprocessedUndeletedBlobUris =
+      undeletedBlobUris
+        .intersect(finalizedBlobUris)
+        .intersect(activeBlobUris)
+        .minus(processedMetadataBlobUris)
     if (unverifiedBlobUris.isNotEmpty()) {
       errors +=
         RecoveryError(
           doneBlobUri,
           "Sync completed but ${unverifiedBlobUris.size} metadata blobs are still missing or " +
             "inactive",
+        )
+    }
+    if (unprocessedUndeletedBlobUris.isNotEmpty()) {
+      errors +=
+        RecoveryError(
+          doneBlobUri,
+          "Sync completed but ${unprocessedUndeletedBlobUris.size} undeleted metadata blobs " +
+            "were not processed",
         )
     }
 
@@ -400,6 +417,7 @@ class MissingImpressionMetadataRecovery(
       dateFoldersResynced =
         if (
           unverifiedBlobUris.isEmpty() &&
+            unprocessedUndeletedBlobUris.isEmpty() &&
             remainingUnmarkedBlobUris.isEmpty() &&
             availabilityPublicationCompleted
         )

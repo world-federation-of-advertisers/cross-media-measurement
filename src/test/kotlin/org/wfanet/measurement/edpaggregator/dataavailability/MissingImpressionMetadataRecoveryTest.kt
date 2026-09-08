@@ -484,6 +484,36 @@ class MissingImpressionMetadataRecoveryTest {
   }
 
   @Test
+  fun `recover reports active undeleted metadata omitted by sync as not resynchronized`() =
+    runBlocking {
+      val storageClient = InMemoryStorageClient()
+      val deletedUri = metadataUri("2026-08-03", "metadata-deleted.json")
+      writeFinalizedMetadata(storageClient, "2026-08-03", "metadata-deleted.json")
+      registeredMetadata[deletedUri] = impressionMetadata {
+        name = "$DATA_PROVIDER_NAME/impressionMetadata/deleted-skipped"
+        blobUri = deletedUri
+        state = ImpressionMetadata.State.DELETED
+      }
+
+      val result =
+        buildRecovery(
+            storageClient,
+            impressionMetadataBatchSize = 100,
+            registerSyncedMetadata = false,
+            markSyncedBlobs = false,
+          ) { _, _ ->
+          }
+          .recover()
+
+      assertThat(result.deletedRecordsWithBlobs).isEqualTo(1)
+      assertThat(result.undeletedRecords).isEqualTo(1)
+      assertThat(result.failedUndeletes).isEqualTo(0)
+      assertThat(result.dateFoldersResynced).isEqualTo(0)
+      assertThat(result.errors.single().message)
+        .contains("undeleted metadata blobs were not processed")
+    }
+
+  @Test
   fun `recover reports undeleted metadata that is inactive after sync as failed`() = runBlocking {
     val storageClient = InMemoryStorageClient()
     val deletedUri = metadataUri("2026-08-03", "metadata-deleted.json")
@@ -783,6 +813,7 @@ class MissingImpressionMetadataRecoveryTest {
               ),
           )
         }
+        if (markSyncedBlobs) blobKeys else emptySet()
       },
       metrics = metrics,
     )
