@@ -52,4 +52,10 @@ message RawImpressionUpload {
 
   // Resource ID of the preceding upload revision for the same done-blob path.
   string replaces_raw_impression_upload_resource_id = 8;
+
+  // Creation time of the exact Cloud Storage `done` object version.
+  google.protobuf.Timestamp done_blob_create_time = 9;
+
+  // Whether registration of this upload's files and model lines finished.
+  bool registration_complete = 10;
 }
