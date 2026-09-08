@@ -1235,6 +1235,26 @@ class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `listImpressionMetadata filters active ImpressionMetadata when show deleted is true`() =
+    runBlocking {
+      val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+      service.deleteImpressionMetadata(deleteImpressionMetadataRequest { name = created[0].name })
+
+      val response =
+        service.listImpressionMetadata(
+          listImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            showDeleted = true
+            filter =
+              ListImpressionMetadataRequestKt.filter { state = ImpressionMetadata.State.ACTIVE }
+          }
+        )
+
+      assertThat(response)
+        .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created[1] })
+    }
+
+  @Test
   fun `listImpressionMetadata rejects deleted state without show deleted`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {

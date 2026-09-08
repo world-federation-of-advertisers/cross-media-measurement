@@ -699,16 +699,28 @@ class ImpressionMetadataService(
       }
     }
 
-    if (request.filter.state == ImpressionMetadata.State.UNRECOGNIZED) {
-      throw InvalidFieldValueException("filter.state")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (request.filter.state == ImpressionMetadata.State.DELETED && !request.showDeleted) {
-      throw InvalidFieldValueException("filter.state") { fieldName ->
-          "$fieldName cannot be DELETED unless show_deleted is true"
+    val internalState =
+      when (request.filter.state) {
+        ImpressionMetadata.State.STATE_UNSPECIFIED ->
+          if (request.showDeleted) {
+            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_UNSPECIFIED
+          } else {
+            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_ACTIVE
+          }
+        ImpressionMetadata.State.ACTIVE -> request.filter.state.toInternal()
+        ImpressionMetadata.State.DELETED -> {
+          if (!request.showDeleted) {
+            throw InvalidFieldValueException("filter.state") { fieldName ->
+                "$fieldName cannot be DELETED unless show_deleted is true"
+              }
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+          request.filter.state.toInternal()
         }
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
+        ImpressionMetadata.State.UNRECOGNIZED ->
+          throw InvalidFieldValueException("filter.state")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
 
     val pageSize =
       if (request.pageSize == 0) {
@@ -748,14 +760,7 @@ class ImpressionMetadataService(
           blobUris += request.filter.blobUrisList
         }
 
-        state =
-          when {
-            request.filter.state != ImpressionMetadata.State.STATE_UNSPECIFIED ->
-              request.filter.state.toInternal()
-            request.showDeleted ->
-              InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_UNSPECIFIED
-            else -> InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_ACTIVE
-          }
+        state = internalState
       }
 
     val internalResponse: InternalListImpressionMetadataResponse =
