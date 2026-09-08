@@ -80,13 +80,20 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-common",
-    version = "0.5.0",
+    version = "0.10.0",
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
     name = "virtual-people-core-serving",
-    version = "0.4.0",
+    version = "0.6.0",
     repo_name = "wfa_virtual_people_core_serving",
+)
+
+# DO_NOT_SUBMIT: Remove after https://github.com/world-federation-of-advertisers/bazel-registry/pull/218 is merged.
+git_override(
+    module_name = "virtual-people-core-serving",
+    commit = "0dfc0066450f0e548744f5bfec332a507507bb5d",
+    remote = "https://github.com/world-federation-of-advertisers/virtual-people-core-serving.git",
 )
 bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
