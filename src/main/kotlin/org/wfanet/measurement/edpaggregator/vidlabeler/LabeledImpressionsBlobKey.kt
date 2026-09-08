@@ -20,6 +20,14 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 
 /** Deterministic key derivation for VID-labeled impression outputs. */
 object LabeledImpressionsBlobKeys {
+  /** Returns the absolute output URI for one raw-impression input and model line. */
+  fun forInputUri(
+    prefix: String,
+    inputBlobUri: String,
+    modelLine: String,
+    eventDate: LocalDate,
+  ): String = "${prefix.trimEnd('/')}/${forInput(inputBlobUri, modelLine, eventDate)}"
+
   /** Returns the relative output key for one raw-impression input and model line. */
   fun forInput(inputBlobUri: String, modelLine: String, eventDate: LocalDate): String {
     val modelLineId =
