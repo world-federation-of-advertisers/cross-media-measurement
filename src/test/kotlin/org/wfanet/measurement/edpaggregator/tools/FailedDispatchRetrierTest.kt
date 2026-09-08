@@ -152,7 +152,7 @@ class FailedDispatchRetrierTest {
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
     assertThat(result.wasAlreadyStarted).isFalse()
-    assertThat(events).containsExactly("transition", "get-original", "create").inOrder()
+    assertThat(events).containsExactly("get-original", "transition", "create").inOrder()
     val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineLabelingRequest>()
     verifyBlocking(modelLineService) {
       markRawImpressionUploadModelLineLabeling(requestCaptor.capture())
@@ -454,6 +454,40 @@ class FailedDispatchRetrierTest {
         }
       }
     assertThat(error).hasMessageThat().contains("cannot be re-published")
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `retryFailed validates every original work item before claiming`() {
+    val error =
+      assertFailsWith<IllegalStateException> {
+        runBlocking {
+          stubFailedModelLine()
+          whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+            .thenReturn(
+              listVidLabelingJobsResponse {
+                vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME }
+                vidLabelingJobs += vidLabelingJob { name = SECOND_VID_JOB_NAME }
+              }
+            )
+          whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+            val request = invocation.getArgument<GetWorkItemRequest>(0)
+            if (request.name == "workItems/${WorkItemIds.forVidLabeler(VID_JOB_NAME)}") {
+              workItem { queue = "q" }
+            } else {
+              throw Status.NOT_FOUND.asRuntimeException()
+            }
+          }
+
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+        }
+      }
+
+    assertThat(error).hasMessageThat().contains("cannot be re-published")
+    verifyBlocking(workItemsService, times(2)) { getWorkItem(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
@@ -468,6 +502,7 @@ class FailedDispatchRetrierTest {
                 vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME }
               }
             )
+          whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
           whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any())).thenAnswer {
             throw Status.FAILED_PRECONDITION.asRuntimeException()
           }
@@ -477,7 +512,6 @@ class FailedDispatchRetrierTest {
       }
 
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
@@ -493,6 +527,7 @@ class FailedDispatchRetrierTest {
                 vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME }
               }
             )
+          whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
           whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
             .thenReturn(
               failedModelLine().copy {
@@ -505,7 +540,6 @@ class FailedDispatchRetrierTest {
       }
 
     assertThat(error).hasMessageThat().contains("no WorkItems were published")
-    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
@@ -615,6 +649,7 @@ class FailedDispatchRetrierTest {
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val MODEL_LINE_NAME = "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1"
     private const val VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj1"
+    private const val SECOND_VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj2"
     private const val RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj1"
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"

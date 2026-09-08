@@ -163,6 +163,12 @@ class FailedDispatchRetrier(
           workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, modelLine.state),
         )
       }
+    // Validate every source before claiming the model line so a missing WorkItem cannot strand the
+    // retry in an active state with nothing runnable.
+    val sourceWorkItems = mutableMapOf<String, WorkItem>()
+    for (oldId in phaseWorkItems.workItemIds) {
+      sourceWorkItems[oldId] = getRequiredWorkItem(oldId)
+    }
 
     // Claim the retry before publishing. The service rejects an evicted row atomically, while the
     // deterministic request ID lets a later invocation replay a claim whose publication crashed.
@@ -174,8 +180,8 @@ class FailedDispatchRetrier(
         "${updated.failureReason} while claiming the retry; no WorkItems were published"
     }
     var republished = 0
-    for (oldId in phaseWorkItems.workItemIds) {
-      if (republishWorkItem(oldId, modelLine.failureAttemptId)) republished++
+    for ((oldId, sourceWorkItem) in sourceWorkItems) {
+      if (republishWorkItem(oldId, sourceWorkItem, modelLine.failureAttemptId)) republished++
     }
 
     return RetryResult(
@@ -384,30 +390,34 @@ class FailedDispatchRetrier(
     return shards
   }
 
-  /**
-   * Re-publishes the WorkItem [oldWorkItemId] for the failure identified by [failureAttemptId].
-   * Returns true if a new WorkItem was created, or false when the same retry attempt already
-   * created it.
-   */
-  private suspend fun republishWorkItem(oldWorkItemId: String, failureAttemptId: String): Boolean {
-    val existing =
-      try {
-        rpcThrottlers.controlPlane.onReady {
-          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$oldWorkItemId" })
-        }
-      } catch (e: StatusException) {
-        if (e.status.code == Status.Code.NOT_FOUND) {
-          throw IllegalStateException(
-            "WorkItem workItems/$oldWorkItemId not found; its dispatch never enqueued, so it " +
-              "cannot be re-published standalone."
-          )
-        }
-        throw e
+  private suspend fun getRequiredWorkItem(workItemId: String): WorkItem =
+    try {
+      rpcThrottlers.controlPlane.onReady {
+        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
       }
+    } catch (e: StatusException) {
+      if (e.status.code == Status.Code.NOT_FOUND) {
+        throw IllegalStateException(
+          "WorkItem workItems/$workItemId not found; its dispatch never enqueued, so it " +
+            "cannot be re-published standalone."
+        )
+      }
+      throw e
+    }
+
+  /**
+   * Re-publishes [sourceWorkItem] as a retry of [oldWorkItemId] for [failureAttemptId]. Returns
+   * true if a new WorkItem was created, or false when the same retry attempt already created it.
+   */
+  private suspend fun republishWorkItem(
+    oldWorkItemId: String,
+    sourceWorkItem: WorkItem,
+    failureAttemptId: String,
+  ): Boolean {
     var newId = RequestIds.forRetriedWorkItem(oldWorkItemId, failureAttemptId)
     val republished = workItem {
-      queue = existing.queue
-      workItemParams = existing.workItemParams
+      queue = sourceWorkItem.queue
+      workItemParams = sourceWorkItem.workItemParams
     }
     while (true) {
       try {
@@ -419,7 +429,7 @@ class FailedDispatchRetrier(
             }
           )
         }
-        logger.info("Re-published $oldWorkItemId as $newId (queue=${existing.queue}).")
+        logger.info("Re-published $oldWorkItemId as $newId (queue=${sourceWorkItem.queue}).")
         return true
       } catch (e: StatusException) {
         if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
