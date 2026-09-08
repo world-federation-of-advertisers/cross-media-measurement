@@ -914,7 +914,7 @@ abstract class MeasurementConsumerSimulator(
             ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE ->
               dataProviderCapabilities.trusTeeSupported
             ProtocolConfig.Protocol.ProtocolCase.TRUS_TEE_V2 ->
-              dataProviderCapabilities.trusTeeV2Supported
+              error("TrusTEE multimeasurement is not supported.")
             ProtocolConfig.Protocol.ProtocolCase.DIRECT,
             ProtocolConfig.Protocol.ProtocolCase.LIQUID_LEGIONS_V2,
             ProtocolConfig.Protocol.ProtocolCase.REACH_ONLY_LIQUID_LEGIONS_V2 -> true
