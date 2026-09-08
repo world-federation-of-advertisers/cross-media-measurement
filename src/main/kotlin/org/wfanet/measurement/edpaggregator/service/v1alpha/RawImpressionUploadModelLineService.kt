@@ -469,17 +469,19 @@ class RawImpressionUploadModelLineService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     validateEtagAndRequestId(request.etag, request.requestId)
-    if (
-      request.failureReason ==
-        RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
-    ) {
-      throw RequiredFieldNotSetException("failure_reason")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
     if (request.failureReason == RawImpressionUploadModelLine.FailureReason.UNRECOGNIZED) {
       throw InvalidFieldValueException("failure_reason")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val failureReason =
+      if (
+        request.failureReason ==
+          RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
+      ) {
+        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+      } else {
+        request.failureReason
+      }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineFailed(
@@ -490,7 +492,7 @@ class RawImpressionUploadModelLineService(
             etag = request.etag
             requestId = request.requestId
             errorMessage = request.errorMessage
-            failureReason = request.failureReason.toInternal()
+            this.failureReason = failureReason.toInternal()
           }
         )
       } catch (e: StatusException) {

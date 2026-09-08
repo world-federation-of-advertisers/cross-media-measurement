@@ -24,6 +24,8 @@ START BATCH DDL;
 
 ALTER PROTO BUNDLE INSERT (
   `wfa.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason`
+) UPDATE (
+  `wfa.measurement.internal.edpaggregator.RawImpressionUploadModelLineState`
 );
 
 ALTER TABLE RawImpressionUploadModelLine ADD COLUMN FailureReason

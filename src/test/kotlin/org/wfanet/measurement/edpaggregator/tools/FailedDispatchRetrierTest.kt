@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import io.grpc.Status
+import io.grpc.StatusException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
@@ -118,22 +119,28 @@ class FailedDispatchRetrierTest {
 
   @Test
   fun `retryFailed re-triggers Phase 2 when VidLabelingJobs exist`() {
+    val events = mutableListOf<String>()
     val result = runBlocking {
       stubFailedModelLine()
       whenever(vidLabelingJobService.listVidLabelingJobs(any()))
         .thenReturn(
           listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
         )
-      whenever(workItemsService.getWorkItem(any()))
-        .thenReturn(
-          workItem {
-            queue = "q"
-            state = WorkItem.State.QUEUED
-          }
-        )
-      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
-      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
-        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+      whenever(workItemsService.getWorkItem(any())).thenAnswer {
+        events += "get-original"
+        workItem {
+          queue = "q"
+          state = WorkItem.State.QUEUED
+        }
+      }
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        events += "create"
+        workItem {}
+      }
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any())).thenAnswer {
+        events += "transition"
+        failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
+      }
 
       retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
     }
@@ -145,6 +152,7 @@ class FailedDispatchRetrierTest {
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
     assertThat(result.wasAlreadyStarted).isFalse()
+    assertThat(events).containsExactly("transition", "get-original", "create").inOrder()
     val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineLabelingRequest>()
     verifyBlocking(modelLineService) {
       markRawImpressionUploadModelLineLabeling(requestCaptor.capture())
@@ -261,11 +269,38 @@ class FailedDispatchRetrierTest {
         }
       }
 
-    assertThat(error).hasMessageThat().contains("only PROCESSING_FAILURE can be retried")
+    assertThat(error).hasMessageThat().contains("only processing failures can be retried")
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineRanking(any()) }
-    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLinePoolAssigning(any()) }
+    verifyBlocking(modelLineService, never()) {
+      markRawImpressionUploadModelLinePoolAssigning(any())
+    }
+  }
+
+  @Test
+  fun `retryFailed retries legacy failed rows without a failure reason`() {
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += failedModelLine().copy { clearFailureReason() }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    assertThat(result.workItemsRepublished).isEqualTo(1)
   }
 
   @Test
@@ -362,34 +397,38 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
-  fun `retryFailed rejects a non-FAILED model line without a matching retry`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        runBlocking {
-          whenever(modelLineService.listRawImpressionUploadModelLines(any()))
-            .thenReturn(
-              listRawImpressionUploadModelLinesResponse {
-                rawImpressionUploadModelLines +=
-                  failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
-              }
-            )
-          whenever(vidLabelingJobService.listVidLabelingJobs(any()))
-            .thenReturn(
-              listVidLabelingJobsResponse {
-                vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME }
-              }
-            )
-          whenever(workItemsService.getWorkItem(any())).thenAnswer {
-            throw Status.NOT_FOUND.asRuntimeException()
+  fun `retryFailed finishes publication when a prior invocation committed only the claim`() {
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
           }
-
-          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.LABELING)
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<GetWorkItemRequest>(0)
+        if (request.name == "workItems/${WorkItemIds.forVidLabeler(VID_JOB_NAME)}") {
+          workItem { queue = "q" }
+        } else {
+          throw Status.NOT_FOUND.asRuntimeException()
         }
       }
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
 
-    assertThat(error).hasMessageThat().contains("expected FAILED or an existing retry")
-    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
-    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE, RawImpressionUploadModelLine.State.LABELING)
+    }
+
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    assertThat(result.wasAlreadyStarted).isTrue()
+    verifyBlocking(modelLineService) { markRawImpressionUploadModelLineLabeling(any()) }
+    verifyBlocking(workItemsService) { createWorkItem(any()) }
   }
 
   @Test
@@ -407,10 +446,67 @@ class FailedDispatchRetrierTest {
           whenever(workItemsService.getWorkItem(any())).thenAnswer {
             throw Status.NOT_FOUND.asRuntimeException()
           }
+          whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+            .thenReturn(
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
+            )
           retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
         }
       }
     assertThat(error).hasMessageThat().contains("cannot be re-published")
+  }
+
+  @Test
+  fun `retryFailed does not publish when the atomic claim is rejected`() {
+    val error =
+      assertFailsWith<StatusException> {
+        runBlocking {
+          stubFailedModelLine()
+          whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+            .thenReturn(
+              listVidLabelingJobsResponse {
+                vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME }
+              }
+            )
+          whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any())).thenAnswer {
+            throw Status.FAILED_PRECONDITION.asRuntimeException()
+          }
+
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+        }
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `retryFailed does not publish when a claim replay returns an evicted row`() {
+    val error =
+      assertFailsWith<IllegalStateException> {
+        runBlocking {
+          stubFailedModelLine()
+          whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+            .thenReturn(
+              listVidLabelingJobsResponse {
+                vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME }
+              }
+            )
+          whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+            .thenReturn(
+              failedModelLine().copy {
+                failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              }
+            )
+
+          retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+        }
+      }
+
+    assertThat(error).hasMessageThat().contains("no WorkItems were published")
+    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
