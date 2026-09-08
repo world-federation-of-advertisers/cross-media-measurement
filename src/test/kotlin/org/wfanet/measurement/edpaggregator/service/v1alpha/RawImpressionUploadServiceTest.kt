@@ -51,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadReq
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -89,6 +90,7 @@ class RawImpressionUploadServiceTest {
       rawImpressionUpload = rawImpressionUpload {
         doneBlobUri = DONE_BLOB_URI
         doneBlobGeneration = DONE_BLOB_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
       }
       requestId = REQUEST_ID
     }
@@ -108,6 +110,7 @@ class RawImpressionUploadServiceTest {
           state = RawImpressionUpload.State.CREATED
           doneBlobUri = DONE_BLOB_URI
           doneBlobGeneration = DONE_BLOB_GENERATION
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           createTime = upload.createTime
           updateTime = upload.updateTime
         }
@@ -126,7 +129,8 @@ class RawImpressionUploadServiceTest {
           parent = DATA_PROVIDER_KEY.toName()
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = DONE_BLOB_URI
-            doneBlobGeneration = 1L
+            doneBlobGeneration = 900L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -138,7 +142,8 @@ class RawImpressionUploadServiceTest {
           parent = DATA_PROVIDER_KEY.toName()
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = DONE_BLOB_URI
-            doneBlobGeneration = 2L
+            doneBlobGeneration = 120L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -150,6 +155,34 @@ class RawImpressionUploadServiceTest {
       )
       .isEqualTo(replacement)
   }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete finalizes upload registration`(): Unit =
+    runBlocking {
+      val upload =
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = DONE_BLOB_GENERATION
+              doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      val completed =
+        service.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            name = upload.name
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      assertThat(completed.registrationComplete).isTrue()
+      assertThat(completed.state).isEqualTo(RawImpressionUpload.State.COMPLETED)
+    }
 
   @Test
   fun `createRawImpressionUpload with requestId is idempotent`(): Unit = runBlocking {
@@ -345,6 +378,7 @@ class RawImpressionUploadServiceTest {
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = DONE_BLOB_URI
             doneBlobGeneration = DONE_BLOB_GENERATION
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           }
           requestId = REQUEST_ID
         }
@@ -400,6 +434,7 @@ class RawImpressionUploadServiceTest {
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = DONE_BLOB_URI
             doneBlobGeneration = DONE_BLOB_GENERATION
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -452,6 +487,7 @@ class RawImpressionUploadServiceTest {
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = DONE_BLOB_URI
             doneBlobGeneration = DONE_BLOB_GENERATION
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -463,11 +499,12 @@ class RawImpressionUploadServiceTest {
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = DONE_BLOB_URI
             doneBlobGeneration = DONE_BLOB_GENERATION + 1L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
           }
           requestId = UUID.randomUUID().toString()
         }
       )
-    val sortedCreated = listOf(created1, created2).sortedBy { it.name }
+    val sortedCreatedNames = listOf(created1.name, created2.name).sorted()
 
     val firstResponse =
       service.listRawImpressionUploads(
@@ -492,9 +529,10 @@ class RawImpressionUploadServiceTest {
     assertThat(secondResponse.rawImpressionUploadsList).hasSize(1)
     assertThat(
         (firstResponse.rawImpressionUploadsList + secondResponse.rawImpressionUploadsList)
-          .sortedBy { it.name }
+          .map { it.name }
+          .sorted()
       )
-      .isEqualTo(sortedCreated)
+      .isEqualTo(sortedCreatedNames)
   }
 
   @Test
@@ -777,6 +815,7 @@ class RawImpressionUploadServiceTest {
     private val REQUEST_ID = UUID.randomUUID().toString()
     private const val DONE_BLOB_URI = "gs://test-bucket/2026-06-16/done"
     private const val DONE_BLOB_GENERATION = 1234L
+    private val DONE_BLOB_CREATE_TIME = Instant.parse("2026-06-16T00:00:00Z")
     // An enum number that is not part of RawImpressionUpload.State, forcing UNRECOGNIZED.
     private const val UNRECOGNIZED_STATE_VALUE = 999
   }

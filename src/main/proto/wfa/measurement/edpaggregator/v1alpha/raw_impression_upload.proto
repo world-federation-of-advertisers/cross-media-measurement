@@ -84,4 +84,11 @@ message RawImpressionUpload {
       type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
     }
   ];
+
+  // Creation time of the exact Cloud Storage `done` object version.
+  google.protobuf.Timestamp done_blob_create_time = 8
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // Whether registration of this upload's files and model lines finished.
+  bool registration_complete = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

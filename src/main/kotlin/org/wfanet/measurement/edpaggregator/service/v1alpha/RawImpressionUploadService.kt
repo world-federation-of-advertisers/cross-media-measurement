@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
@@ -32,6 +33,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadReq
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -45,6 +47,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest as internalCreateUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest as internalGetUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest as internalListUploadsRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadRegistrationCompleteRequest as internalMarkRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
 
 class RawImpressionUploadService(
@@ -82,6 +85,13 @@ class RawImpressionUploadService(
       throw InvalidFieldValueException("raw_impression_upload.done_blob_generation")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (
+      request.rawImpressionUpload.hasDoneBlobCreateTime() &&
+        !Timestamps.isValid(request.rawImpressionUpload.doneBlobCreateTime)
+    ) {
+      throw InvalidFieldValueException("raw_impression_upload.done_blob_create_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
@@ -102,6 +112,9 @@ class RawImpressionUploadService(
             rawImpressionUpload = internalRawImpressionUpload {
               doneBlobUri = request.rawImpressionUpload.doneBlobUri
               doneBlobGeneration = request.rawImpressionUpload.doneBlobGeneration
+              if (request.rawImpressionUpload.hasDoneBlobCreateTime()) {
+                doneBlobCreateTime = request.rawImpressionUpload.doneBlobCreateTime
+              }
             }
             requestId = request.requestId
           }
@@ -215,6 +228,47 @@ class RawImpressionUploadService(
       }
 
     return internalResponse.toPublic()
+  }
+
+  override suspend fun markRawImpressionUploadRegistrationComplete(
+    request: MarkRawImpressionUploadRegistrationCompleteRequest
+  ): RawImpressionUpload {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val uploadKey =
+      RawImpressionUploadKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    return try {
+      internalUploadStub
+        .markRawImpressionUploadRegistrationComplete(
+          internalMarkRegistrationCompleteRequest {
+            dataProviderResourceId = uploadKey.dataProviderId
+            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+            requestId = request.requestId
+          }
+        )
+        .toPublic()
+    } catch (e: StatusException) {
+      if (InternalErrors.getReason(e) == InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND) {
+        throw RawImpressionUploadNotFoundException(request.name, e)
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+      throw Status.INTERNAL.withCause(e).asRuntimeException()
+    }
   }
 
   override suspend fun listRawImpressionUploads(
@@ -349,6 +403,10 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
     state = source.state.toPublic()
     doneBlobUri = source.doneBlobUri
     doneBlobGeneration = source.doneBlobGeneration
+    if (source.hasDoneBlobCreateTime()) {
+      doneBlobCreateTime = source.doneBlobCreateTime
+    }
+    registrationComplete = source.registrationComplete
     if (source.replacesRawImpressionUploadResourceId.isNotEmpty()) {
       replacesRawImpressionUpload =
         RawImpressionUploadKey(

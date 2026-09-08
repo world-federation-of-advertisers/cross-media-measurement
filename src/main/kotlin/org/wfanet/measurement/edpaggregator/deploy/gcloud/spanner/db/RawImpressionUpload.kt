@@ -19,6 +19,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Statement
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -26,6 +27,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequest
@@ -51,7 +53,9 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadByResourceId(
       RawImpressionUploadResourceId,
       DoneBlobUri,
       DoneBlobGeneration,
+      DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
@@ -94,7 +98,9 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
       RawImpressionUploadResourceId,
       DoneBlobUri,
       DoneBlobGeneration,
+      DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
@@ -118,7 +124,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
   return buildRawImpressionUploadResult(row)
 }
 
-/** Finds the highest registered generation for a done-blob path. */
+/** Finds the latest registered version for a done-blob path. */
 suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
   dataProviderResourceId: String,
   doneBlobUri: String,
@@ -131,18 +137,20 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       RawImpressionUploadResourceId,
       DoneBlobUri,
       DoneBlobGeneration,
+      DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
     FROM RawImpressionUpload@{
-      FORCE_INDEX=RawImpressionUploadByDoneBlobGeneration,
+      FORCE_INDEX=RawImpressionUploadByDoneBlobCreateTime,
       spanner_emulator.disable_query_null_filtered_index_check=true
     }
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND DoneBlobUri = @doneBlobUri
-      AND DoneBlobGeneration IS NOT NULL
-    ORDER BY DoneBlobGeneration DESC
+      AND DoneBlobCreateTime IS NOT NULL
+    ORDER BY DoneBlobCreateTime DESC
     LIMIT 1
     """
       .trimIndent()
@@ -165,14 +173,16 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       RawImpressionUploadResourceId,
       DoneBlobUri,
       DoneBlobGeneration,
+      DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
       State,
       CreateTime,
       UpdateTime,
     FROM RawImpressionUpload
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND DoneBlobUri = @doneBlobUri
-      AND DoneBlobGeneration IS NULL
+      AND DoneBlobCreateTime IS NULL
     ORDER BY CreateTime DESC
     LIMIT 1
     """
@@ -209,6 +219,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
   createRequestId: String,
   state: RawImpressionUploadState,
   doneBlobGeneration: Long,
+  doneBlobCreateTime: Timestamp?,
   replacesRawImpressionUploadResourceId: String?,
 ) {
   bufferInsertMutation("RawImpressionUpload") {
@@ -220,9 +231,13 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
     }
     set("DoneBlobUri").to(doneBlobUri)
     set("DoneBlobGeneration").to(doneBlobGeneration)
+    if (doneBlobCreateTime != null) {
+      set("DoneBlobCreateTime").to(doneBlobCreateTime.toGcloudTimestamp())
+    }
     if (replacesRawImpressionUploadResourceId != null) {
       set("ReplacesRawImpressionUploadResourceId").to(replacesRawImpressionUploadResourceId)
     }
+    set("RegistrationComplete").to(false)
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -245,7 +260,9 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
         RawImpressionUploadResourceId,
         DoneBlobUri,
         DoneBlobGeneration,
+        DoneBlobCreateTime,
         ReplacesRawImpressionUploadResourceId,
+        RegistrationComplete,
         State,
         CreateTime,
         UpdateTime,
@@ -328,14 +345,35 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
       if (!struct.isNull("DoneBlobGeneration")) {
         doneBlobGeneration = struct.getLong("DoneBlobGeneration")
       }
+      if (!struct.isNull("DoneBlobCreateTime")) {
+        doneBlobCreateTime = struct.getTimestamp("DoneBlobCreateTime").toProto()
+      }
       if (!struct.isNull("ReplacesRawImpressionUploadResourceId")) {
         replacesRawImpressionUploadResourceId =
           struct.getString("ReplacesRawImpressionUploadResourceId")
       }
+      registrationComplete = struct.getBoolean("RegistrationComplete")
       state = struct.getProtoEnum("State", RawImpressionUploadState::forNumber)
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
     },
     struct.getLong("RawImpressionUploadId"),
   )
+}
+
+/** Marks registration of an upload's children complete. */
+fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadRegistrationComplete(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  state: RawImpressionUploadState? = null,
+) {
+  bufferUpdateMutation("RawImpressionUpload") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("RegistrationComplete").to(true)
+    if (state != null) {
+      set("State").to(state)
+    }
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
 }
