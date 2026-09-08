@@ -20,6 +20,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.time.Duration
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.Path
 import org.wfanet.measurement.common.flatten
@@ -27,6 +28,7 @@ import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetEncryptionConfig
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import picocli.CommandLine
 
 /**
  * Base [BaseTeeAppRunner] for the VID Labeling phase TEE apps (SubpoolAssigner / VidRankBuilder /
@@ -37,6 +39,47 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 abstract class BaseVidLabelingTeeAppRunner(
   private val hadoopConfigurationFor: (StorageConfig) -> Configuration
 ) : BaseTeeAppRunner() {
+
+  @CommandLine.Option(
+    names = ["--kingdom-rpc-min-interval"],
+    description = ["Minimum interval between outbound VID Repository RPCs."],
+    defaultValue = "500ms",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var kingdomRpcMinInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--metadata-read-rpc-min-interval"],
+    description = ["Minimum interval between outbound metadata read RPCs."],
+    defaultValue = "100ms",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var metadataReadRpcMinInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--metadata-write-rpc-min-interval"],
+    description = ["Minimum interval between outbound metadata write RPCs."],
+    defaultValue = "200ms",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var metadataWriteRpcMinInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--control-plane-rpc-min-interval"],
+    description = ["Minimum interval between outbound Secure Computation control-plane RPCs."],
+    defaultValue = "250ms",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var controlPlaneRpcMinInterval: Duration
+
+  protected val rpcThrottlers: VidLabelingRpcThrottlers by lazy {
+    VidLabelingRpcThrottlers.fromMinimumIntervals(
+      kingdom = kingdomRpcMinInterval,
+      metadataRead = metadataReadRpcMinInterval,
+      metadataWrite = metadataWriteRpcMinInterval,
+      controlPlane = controlPlaneRpcMinInterval,
+    )
+  }
 
   init {
     // Register Tink AEAD key templates (e.g. AES128_GCM) so the phase apps can generate DEKs to

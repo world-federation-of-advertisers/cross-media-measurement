@@ -34,6 +34,7 @@ import kotlinx.coroutines.sync.Semaphore
 import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -147,6 +148,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
  *   detection.
  * @param retentionDays retention window in days (must exceed the max measurement-report window).
  * @param today the UTC date treated as "now" for the rank-age cutoff.
+ * @param rpcThrottlers process-scoped rate limiters for rank-index metadata RPCs.
  * @param workerDispatcher CPU dispatcher for the parallel forward rank build; capped to [stripes]
  *   via `limitedParallelism`. Defaults to [Dispatchers.Default]. The backfill path stays serial.
  * @param stripes number of map stripes for the parallel forward build (≈ available cores). One
@@ -169,6 +171,7 @@ class SubpoolRanker(
   private val maxEventDate: Date,
   private val retentionDays: Int,
   private val today: LocalDate,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val workerDispatcher: CoroutineDispatcher = Dispatchers.Default,
   private val stripes: Int = ConcurrentRankAllocator.DEFAULT_STRIPES,
   private val maxInFlightRecords: Int = maxOf(2, ConcurrentRankAllocator.DEFAULT_STRIPES * 2),
@@ -579,19 +582,21 @@ class SubpoolRanker(
     rankIndexBlobsStub
       .listResources { pageToken: String ->
         val response =
-          listRankIndexBlobs(
-            listRankIndexBlobsRequest {
-              parent = rawImpressionUpload
-              filter =
-                ListRankIndexBlobsRequestKt.filter {
-                  this.blobType = blobType
-                  cmmsModelLine = modelLine
-                  this.poolOffset = poolOffset
-                }
-              pageSize = 1
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rankIndexBlobsStub.listRankIndexBlobs(
+              listRankIndexBlobsRequest {
+                parent = rawImpressionUpload
+                filter =
+                  ListRankIndexBlobsRequestKt.filter {
+                    this.blobType = blobType
+                    cmmsModelLine = modelLine
+                    this.poolOffset = poolOffset
+                  }
+                pageSize = 1
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rankIndexBlobsList, response.nextPageToken)
       }
       // Short-circuit at the first page that has a match: cancels pagination instead of scanning
@@ -616,18 +621,20 @@ class SubpoolRanker(
     rankIndexBlobsStub
       .listResources { pageToken: String ->
         val response =
-          listRankIndexBlobs(
-            listRankIndexBlobsRequest {
-              parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
-              filter =
-                ListRankIndexBlobsRequestKt.filter {
-                  blobType = RankIndexBlob.BlobType.SNAPSHOT
-                  cmmsModelLine = modelLine
-                  this.poolOffset = poolOffset
-                }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rankIndexBlobsStub.listRankIndexBlobs(
+              listRankIndexBlobsRequest {
+                parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
+                filter =
+                  ListRankIndexBlobsRequestKt.filter {
+                    blobType = RankIndexBlob.BlobType.SNAPSHOT
+                    cmmsModelLine = modelLine
+                    this.poolOffset = poolOffset
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rankIndexBlobsList, response.nextPageToken)
       }
       .collect { page ->
@@ -695,19 +702,21 @@ class SubpoolRanker(
     rankIndexBlobsStub
       .listResources { pageToken: String ->
         val response =
-          listRankIndexBlobs(
-            listRankIndexBlobsRequest {
-              parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
-              filter =
-                ListRankIndexBlobsRequestKt.filter {
-                  blobType = RankIndexBlob.BlobType.SNAPSHOT
-                  cmmsModelLine = modelLine
-                  this.poolOffset = poolOffset
-                  maxEventDateOnOrBefore = cutoff
-                }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rankIndexBlobsStub.listRankIndexBlobs(
+              listRankIndexBlobsRequest {
+                parent = "$dataProvider/rawImpressionUploads/${ResourceKey.WILDCARD_ID}"
+                filter =
+                  ListRankIndexBlobsRequestKt.filter {
+                    blobType = RankIndexBlob.BlobType.SNAPSHOT
+                    cmmsModelLine = modelLine
+                    this.poolOffset = poolOffset
+                    maxEventDateOnOrBefore = cutoff
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rankIndexBlobsList, response.nextPageToken)
       }
       .collect { page ->
@@ -779,37 +788,39 @@ class SubpoolRanker(
     dek: EncryptedDek,
     snapshotMaxEventDate: Date,
   ) {
-    rankIndexBlobsStub.batchCreateRankIndexBlobs(
-      batchCreateRankIndexBlobsRequest {
-        parent = rawImpressionUpload
-        requests += createRankIndexBlobRequest {
+    rpcThrottlers.metadataWrite.onReady {
+      rankIndexBlobsStub.batchCreateRankIndexBlobs(
+        batchCreateRankIndexBlobsRequest {
           parent = rawImpressionUpload
-          rankIndexBlob = rankIndexBlob {
-            blobType = RankIndexBlob.BlobType.SNAPSHOT
-            cmmsModelLine = modelLine
-            this.poolOffset = poolOffset
-            blobUri = snapshotKey
-            blobChecksum = snapshotChecksum
-            encryptedDek = dek
-            maxEventDate = snapshotMaxEventDate
+          requests += createRankIndexBlobRequest {
+            parent = rawImpressionUpload
+            rankIndexBlob = rankIndexBlob {
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              cmmsModelLine = modelLine
+              this.poolOffset = poolOffset
+              blobUri = snapshotKey
+              blobChecksum = snapshotChecksum
+              encryptedDek = dek
+              maxEventDate = snapshotMaxEventDate
+            }
+            requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.SNAPSHOT)
           }
-          requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.SNAPSHOT)
-        }
-        requests += createRankIndexBlobRequest {
-          parent = rawImpressionUpload
-          rankIndexBlob = rankIndexBlob {
-            blobType = RankIndexBlob.BlobType.DAY_ONLY
-            cmmsModelLine = modelLine
-            this.poolOffset = poolOffset
-            blobUri = dayOnlyKey
-            blobChecksum = dayOnlyChecksum
-            encryptedDek = dek
-            maxEventDate = this@SubpoolRanker.maxEventDate
+          requests += createRankIndexBlobRequest {
+            parent = rawImpressionUpload
+            rankIndexBlob = rankIndexBlob {
+              blobType = RankIndexBlob.BlobType.DAY_ONLY
+              cmmsModelLine = modelLine
+              this.poolOffset = poolOffset
+              blobUri = dayOnlyKey
+              blobChecksum = dayOnlyChecksum
+              encryptedDek = dek
+              maxEventDate = this@SubpoolRanker.maxEventDate
+            }
+            requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)
           }
-          requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)
         }
-      }
-    )
+      )
+    }
   }
 
   private fun recordMetrics(

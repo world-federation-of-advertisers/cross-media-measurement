@@ -656,6 +656,59 @@ supply:
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
 
+#### VID Labeling outbound RPC rate limits
+
+Every VID Labeling process shares four client-side throttlers across its coroutines. The defaults
+pace Kingdom reads at **2 QPS** (one call every 500 milliseconds), EDP-Aggregator metadata reads at
+**10 QPS** (one call every 100 milliseconds), metadata mutations at **5 QPS** (one call every 200
+milliseconds), and Secure Computation `WorkItems`/`WorkItemAttempts` calls at **4 QPS** (one call
+every 250 milliseconds). These are per-process limits, not measured downstream capacities or
+deployment-wide quotas.
+
+The checked-in topology permits 24 phase-worker VMs, one dispatcher function, one monitor/dispatch
+function, one internal API server, and one concurrently running operator retry process. If every
+eligible process saturates a throttle class, the aggregate ceilings are 4 Kingdom RPCs per second
+(two functions), 280 metadata reads per second (28 processes), 140 metadata mutations per second
+(28 processes), and 112 control-plane RPCs per second (28 processes). These are conservative
+per-class envelopes, not per-method bounds: each class contains multiple methods, and each method
+has its own caller set. Compare each method's measured traffic and configured server limit before
+tuning these values.
+
+The Terraform module caps both the dispatcher and monitor at one instance. The checked-in Kingdom
+`RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
+so the two functions' worst-case 4 QPS leaves 20 percent headroom without competing with
+ResultsFulfiller, RequisitionFetcher, EventGroupSync, or DataAvailabilitySync in the shared default
+bucket. The configured methods are `ModelLines/GetModelLine`, `ModelLines/ListModelLines`,
+`ModelRollouts/ListModelRollouts`, and `ModelShards/ListModelShards`; for example:
+
+```textproto
+per_method_rate_limit {
+  key: "wfa.measurement.api.v2alpha.ModelLines/ListModelLines"
+  value {
+    maximum_request_count: 20
+    average_request_rate: 5
+  }
+}
+```
+
+Both VID Labeling scheduler jobs use a 660-second attempt deadline, retaining 60 seconds of response
+headroom beyond the monitor function's 600-second timeout. The GCS-triggered DataWatcher has a
+540-second timeout and calls a dispatcher capped at 480 seconds, so that synchronous caller also
+retains one minute of shutdown and response headroom.
+
+The dispatcher and monitor accept these optional environment variables:
+
+* `VID_LABELING_KINGDOM_RPC_MIN_INTERVAL`
+* `VID_LABELING_METADATA_READ_RPC_MIN_INTERVAL`
+* `VID_LABELING_METADATA_WRITE_RPC_MIN_INTERVAL`
+* `VID_LABELING_CONTROL_PLANE_RPC_MIN_INTERVAL`
+
+The TEE worker applications accept the corresponding command-line flags
+`--kingdom-rpc-min-interval`, `--metadata-read-rpc-min-interval`,
+`--metadata-write-rpc-min-interval`, and `--control-plane-rpc-min-interval`. The Secure Computation
+internal API server uses the latter three flags for its dead-letter listeners. Values are complete
+human-readable durations such as `500ms` or `1000ms` and must be positive.
+
 ---
 
 ## Config file formats

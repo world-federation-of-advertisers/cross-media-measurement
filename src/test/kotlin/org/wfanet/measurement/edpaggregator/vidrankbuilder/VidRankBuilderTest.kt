@@ -32,6 +32,8 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -225,6 +227,7 @@ class VidRankBuilderTest {
     workItemsStub: WorkItemsCoroutineStub = mock(),
     maxFileBatchSizeBytes: Long = 1_000_000_000,
     vidLabelerQueue: String = QUEUE,
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ) =
     VidRankBuilder(
       subpoolRanker = subpoolRanker,
@@ -241,6 +244,7 @@ class VidRankBuilderTest {
       vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
       vidLabelerQueue = vidLabelerQueue,
       maxFileBatchSizeBytes = maxFileBatchSizeBytes,
+      rpcThrottlers = rpcThrottlers,
     )
 
   @Test
@@ -279,6 +283,7 @@ class VidRankBuilderTest {
       val vidLabelingJobs = recordingVidLabelingJobs(jobRequests)
       val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.RANKING)
       val published = mutableListOf<CreateWorkItemRequest>()
+      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
       val result =
         builder(
@@ -287,6 +292,7 @@ class VidRankBuilderTest {
             modelLines,
             vidLabelingJobs,
             workItemsStub = recordingWorkItems(published),
+            rpcThrottlers = recordingThrottlers.throttlers,
           )
           .run()
 
@@ -301,6 +307,10 @@ class VidRankBuilderTest {
       // Template fields carry through.
       assertThat(params.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+      assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
     }
 
   @Test
@@ -649,6 +659,7 @@ class VidRankBuilderTest {
         vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
         vidLabelerQueue = QUEUE,
         maxFileBatchSizeBytes = 1_000_000_000,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     assertFailsWith<IllegalArgumentException> { subject.run() }
@@ -757,6 +768,7 @@ class VidRankBuilderTest {
         vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
         vidLabelerQueue = QUEUE,
         maxFileBatchSizeBytes = 100,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
         maxJobsPerBatchCreate = 1,
       )
 

@@ -21,9 +21,10 @@ and replay.
 ## Cloud Run Service Configuration
 
 After deploying the Cloud Function, operators should configure the underlying
-Cloud Run service for production workloads. These settings are not managed by
-Terraform because `gcloud functions deploy` resets them on each deployment;
-apply them after deployment or via a CI post-deploy step.
+Cloud Run service for production workloads. Most settings below are not managed
+by Terraform because `gcloud functions deploy` resets them on each deployment;
+apply them after deployment or via a CI post-deploy step. Function timeout is
+the exception and can be set with this module's `timeout_seconds` input.
 
 ```bash
 gcloud run services update <FUNCTION_NAME> \
@@ -43,6 +44,9 @@ gcloud run services update <FUNCTION_NAME> \
 | `min-instances` | `0` | Default. Cold starts (~5s) are well within the 600s ack deadline. The DLQ preserves messages during extended outages (redeployment, infrastructure failures). Set to `1` if low-latency event processing is required. |
 | `max-instances` | `10` | Limits concurrent instances during burst processing (e.g. GCS lifecycle deleting hundreds of files). Adjust based on downstream capacity (Spanner, Kingdom API). |
 | `concurrency` | `1` | Each invocation processes a single GCS event. Serial processing avoids contention on shared resources (gRPC channels, Spanner transactions). |
-| `timeout` | `120s` | Most invocations complete in under 1 second. The 120s ceiling accommodates cold starts (~5s) and occasional slow downstream RPCs. |
+| `timeout` | `120s` | Most invocations complete in under 1 second. Set `timeout_seconds` when the handler synchronously waits for downstream work; the VID-labeling DataWatcher uses the event-driven maximum of 540s. |
 | `cpu` | `0.5` | GCS-triggered functions (data-watcher, data-watcher-delete) are lightweight event routers that match a config and forward an HTTP POST. 0.5 vCPU is sufficient. Downstream functions that do heavier work (Spanner writes, KMS decryption) should use 1 vCPU. |
 | `memory` | `512Mi` | Matches the `--memory=512MB` in the deploy command. Increase if the function loads large configurations or handles high-cardinality tracing. |
+
+The VID-labeling DataWatcher waits for a dispatcher whose timeout is 480 seconds, leaving one minute
+of caller headroom.

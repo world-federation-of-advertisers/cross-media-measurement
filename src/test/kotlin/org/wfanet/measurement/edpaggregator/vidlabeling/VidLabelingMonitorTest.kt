@@ -59,6 +59,8 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
@@ -227,7 +229,9 @@ class VidLabelingMonitorTest {
   private fun List<MetricData>.counterValue(name: String): Long =
     associateBy { it.name }.getValue(name).longSumData.points.single().value
 
-  private fun createSequencer(): VidLabelingDispatchSequencer =
+  private fun createSequencer(
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+  ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
@@ -246,13 +250,16 @@ class VidLabelingMonitorTest {
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
+      rpcThrottlers = rpcThrottlers,
     )
 
-  private fun createMonitor(): VidLabelingMonitor =
+  private fun createMonitor(
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+  ): VidLabelingMonitor =
     VidLabelingMonitor(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
-      dispatchSequencer = createSequencer(),
+      dispatchSequencer = createSequencer(rpcThrottlers),
       dataProviderName = DATA_PROVIDER,
       stalenessThreshold = STALENESS_THRESHOLD,
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
@@ -261,6 +268,7 @@ class VidLabelingMonitorTest {
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
       workItemsStub = workItemsStub,
+      rpcThrottlers = rpcThrottlers,
       clock = fixedClock,
     )
 
@@ -836,8 +844,11 @@ class VidLabelingMonitorTest {
       }
     }
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val result = createMonitor().runHealth()
+    val result = createMonitor(recordingThrottlers.throttlers).runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(1)
     assertThat(
@@ -850,6 +861,10 @@ class VidLabelingMonitorTest {
     assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/ranker")
     // C3: a successful recovery is not an issue; only exhausted recovery is.
     assertThat(result.hasIssues).isFalse()
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
   }
 
   @Test

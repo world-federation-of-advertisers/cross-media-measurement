@@ -17,12 +17,36 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import picocli.CommandLine
 
 @RunWith(JUnit4::class)
 class VidLabelingHealTest {
+  @Test
+  fun `command line rejects negative RPC interval`() {
+    val exception =
+      assertFailsWith<CommandLine.ParameterException> {
+        CommandLine(VidLabelingHeal())
+          .parseArgs("retry-failed", "--metadata-read-rpc-min-interval=-1s")
+      }
+
+    assertThat(exception).hasMessageThat().contains("complete human-readable duration")
+  }
+
+  @Test
+  fun `command line rejects partially malformed RPC interval`() {
+    val exception =
+      assertFailsWith<CommandLine.ParameterException> {
+        CommandLine(VidLabelingHeal())
+          .parseArgs("retry-failed", "--control-plane-rpc-min-interval=500msjunk")
+      }
+
+    assertThat(exception).hasMessageThat().contains("complete human-readable duration")
+  }
+
   @Test
   fun `isAffirmative accepts y and yes case-insensitively, ignoring surrounding whitespace`() {
     assertThat(isAffirmative("yes")).isTrue()

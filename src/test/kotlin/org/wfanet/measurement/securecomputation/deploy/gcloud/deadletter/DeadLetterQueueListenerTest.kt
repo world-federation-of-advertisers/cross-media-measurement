@@ -27,6 +27,7 @@ import kotlinx.coroutines.channels.Channel
 import org.junit.Test
 import org.mockito.kotlin.*
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRankerJobFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
@@ -720,6 +721,7 @@ class DeadLetterQueueListenerTest {
               rawImpressionUploadModelLines += parentModelLine()
             }
         }
+      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
       val listener =
         DeadLetterQueueListener(
@@ -731,6 +733,7 @@ class DeadLetterQueueListenerTest {
           rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
           vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
           rawImpressionUploadModelLinesStub = mockModelLinesStub,
+          rpcThrottlers = recordingThrottlers.throttlers,
         )
 
       val job = launch { listener.run() }
@@ -758,6 +761,10 @@ class DeadLetterQueueListenerTest {
 
       verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
       verify(mockQueueMessage, timeout(5000)).ack()
+      assertEquals(0, recordingThrottlers.kingdom.invocationCount)
+      assertEquals(2, recordingThrottlers.metadataRead.invocationCount)
+      assertEquals(2, recordingThrottlers.metadataWrite.invocationCount)
+      assertEquals(1, recordingThrottlers.controlPlane.invocationCount)
 
       messageChannel.close()
       job.cancel()
@@ -808,6 +815,7 @@ class DeadLetterQueueListenerTest {
           rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
           vidLabelingJobsStub = mockVidLabelingJobsStub,
           rawImpressionUploadModelLinesStub = mockModelLinesStub,
+          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
         )
 
       val job = launch { listener.run() }
@@ -886,6 +894,7 @@ class DeadLetterQueueListenerTest {
           rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
           vidLabelingJobsStub = mockVidLabelingJobsStub,
           rawImpressionUploadModelLinesStub = mockModelLinesStub,
+          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
         )
 
       val job = launch { listener.run() }
@@ -962,6 +971,7 @@ class DeadLetterQueueListenerTest {
         rankerJobsStub = mockRankerJobsStub,
         vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
         rawImpressionUploadModelLinesStub = mockModelLinesStub,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     val job = launch { listener.run() }
@@ -1035,6 +1045,7 @@ class DeadLetterQueueListenerTest {
         rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
         vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
         rawImpressionUploadModelLinesStub = mockModelLinesStub,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     val job = launch { listener.run() }
@@ -1068,6 +1079,7 @@ class DeadLetterQueueListenerTest {
       rankerJobsStub = mock(),
       vidLabelingJobsStub = mock(),
       rawImpressionUploadModelLinesStub = mock(),
+      rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
 
   private fun workItemForAppParams(appParams: com.google.protobuf.Any): WorkItem = workItem {

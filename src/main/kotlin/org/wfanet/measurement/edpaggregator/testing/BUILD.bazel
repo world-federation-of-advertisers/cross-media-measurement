@@ -9,6 +9,20 @@ package(
 )
 
 kt_jvm_library(
+    name = "vid_labeling_rpc_throttlers",
+    srcs = ["VidLabelingRpcThrottlers.kt"],
+    visibility = [
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/securecomputation:__subpackages__",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler/testing",
+    ],
+)
+
+kt_jvm_library(
     name = "test_encrypted_storage",
     srcs = ["TestEncryptedStorage.kt"],
     deps = [

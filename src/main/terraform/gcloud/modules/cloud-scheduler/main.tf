@@ -33,10 +33,11 @@ resource "google_project_iam_member" "scheduler_function_invoker" {
 }
 
 resource "google_cloud_scheduler_job" "scheduler_job" {
-  name        = coalesce(var.scheduler_config.scheduler_job_name, "${var.scheduler_config.name}-requisition-fetcher")
-  description = var.scheduler_config.scheduler_job_description
-  schedule    = var.scheduler_config.schedule
-  time_zone   = var.scheduler_config.time_zone
+  name             = coalesce(var.scheduler_config.scheduler_job_name, "${var.scheduler_config.name}-requisition-fetcher")
+  description      = var.scheduler_config.scheduler_job_description
+  schedule         = var.scheduler_config.schedule
+  time_zone        = var.scheduler_config.time_zone
+  attempt_deadline = var.scheduler_config.attempt_deadline
 
   http_target {
     http_method = "POST"
@@ -56,7 +57,7 @@ resource "google_cloud_scheduler_job" "scheduler_job" {
   }
 
   depends_on = [
-      google_service_account_iam_member.allow_terraform_to_use_scheduler_service_account,
-      google_project_iam_member.scheduler_function_invoker
-    ]
+    google_service_account_iam_member.allow_terraform_to_use_scheduler_service_account,
+    google_project_iam_member.scheduler_function_invoker
+  ]
 }

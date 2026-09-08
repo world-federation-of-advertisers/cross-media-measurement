@@ -61,6 +61,9 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
@@ -196,7 +199,8 @@ class VidLabelingDispatcherTest {
   }
 
   private fun createSequencer(
-    modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS
+    modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ): VidLabelingDispatchSequencer {
     return VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
@@ -216,6 +220,7 @@ class VidLabelingDispatcherTest {
       rawImpressionUploadFileStub = rawImpressionUploadFilesStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
+      rpcThrottlers = rpcThrottlers,
     )
   }
 
@@ -224,6 +229,7 @@ class VidLabelingDispatcherTest {
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
     readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
       storageClient = storageClient,
@@ -231,12 +237,13 @@ class VidLabelingDispatcherTest {
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       modelLinesStub = modelLinesStub,
-      dispatchSequencer = createSequencer(modelLineConfigs),
+      dispatchSequencer = createSequencer(modelLineConfigs, rpcThrottlers),
       dataProviderName = DATA_PROVIDER_NAME,
       modelSuiteName = MODEL_SUITE_NAME,
       overrideModelLines = overrideModelLines,
       modelLineConfigs = modelLineConfigs,
       readEventDate = readEventDate,
+      rpcThrottlers = rpcThrottlers,
       clock = fixedClock,
       metrics = metrics,
     )
@@ -247,6 +254,15 @@ class VidLabelingDispatcherTest {
     whenever(blob.blobKey).thenReturn(key)
     whenever(blob.size).thenReturn(size)
     return blob
+  }
+
+  private class RecordingThrottler : Throttler {
+    var onReadyCalls = 0
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      onReadyCalls++
+      return block()
+    }
   }
 
   private suspend fun stubRawImpressionUploadCreation() {
@@ -373,6 +389,32 @@ class VidLabelingDispatcherTest {
       assertThat(request.requestsList.map { it.rawImpressionUploadFile.eventDate })
         .containsExactly(EVENT_DATE_PROTO, EVENT_DATE_PROTO)
     }
+
+  @Test
+  fun `upload routes Kingdom and metadata RPCs through their throttlers`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+    val kingdom = RecordingThrottler()
+    val metadataRead = RecordingThrottler()
+    val metadataWrite = RecordingThrottler()
+
+    createDispatcher(
+        rpcThrottlers =
+          VidLabelingRpcThrottlers(
+            kingdom,
+            metadataRead,
+            metadataWrite,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().controlPlane,
+          )
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(kingdom.onReadyCalls).isGreaterThan(0)
+    assertThat(metadataRead.onReadyCalls).isGreaterThan(0)
+    assertThat(metadataWrite.onReadyCalls).isGreaterThan(0)
+  }
 
   @Test
   fun `upload with override model lines skips ListModelLines API`() = runBlocking {

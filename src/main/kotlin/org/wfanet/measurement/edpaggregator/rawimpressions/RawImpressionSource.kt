@@ -34,6 +34,7 @@ import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
@@ -142,6 +143,7 @@ typealias ParquetUndigestedEvent = UndigestedEvent<Map<String, ParquetValue>>
  * retry (or the sink's output naming) MUST therefore be idempotent per blob to avoid duplicates.
  *
  * @property rawImpressionUploadFilesStub client used to list the upload's files.
+ * @property metadataReadThrottler shared rate limiter for metadata discovery RPCs.
  * @property rawImpressionUpload resource name of the upload to read, format
  *   `dataProviders/{data_provider}/rawImpressionUploads/{raw_impression_upload}`.
  * @property eventIdColumn parquet column holding the event id (used for the digest). A `STRING`
@@ -151,6 +153,7 @@ typealias ParquetUndigestedEvent = UndigestedEvent<Map<String, ParquetValue>>
 class RawImpressionSource<E : ParquetRawEvent>(
   private val parquetStorageClient: ParquetStorageClient,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
+  private val metadataReadThrottler: Throttler,
   private val rawImpressionUpload: String,
   private val eventIdColumn: String,
   private val shardIndex: Int = 0,
@@ -462,10 +465,12 @@ class RawImpressionSource<E : ParquetRawEvent>(
             async(readDispatcher) {
               resolveSemaphore.withPermit {
                 try {
-                  rawImpressionUploadFilesStub
-                    .getRawImpressionUploadFile(
-                      getRawImpressionUploadFileRequest { name = fileName }
-                    )
+                  metadataReadThrottler
+                    .onReady {
+                      rawImpressionUploadFilesStub.getRawImpressionUploadFile(
+                        getRawImpressionUploadFileRequest { name = fileName }
+                      )
+                    }
                     .blobUri
                 } catch (e: StatusException) {
                   throw Exception("Error getting RawImpressionUploadFile $fileName", e)
@@ -481,13 +486,15 @@ class RawImpressionSource<E : ParquetRawEvent>(
       .listResources { pageToken: String ->
         val response =
           try {
-            listRawImpressionUploadFiles(
-              listRawImpressionUploadFilesRequest {
-                parent = rawImpressionUpload
-                pageSize = LIST_PAGE_SIZE
-                this.pageToken = pageToken
-              }
-            )
+            metadataReadThrottler.onReady {
+              rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+                listRawImpressionUploadFilesRequest {
+                  parent = rawImpressionUpload
+                  pageSize = LIST_PAGE_SIZE
+                  this.pageToken = pageToken
+                }
+              )
+            }
           } catch (e: StatusException) {
             throw Exception("Error listing RawImpressionUploadFiles for $rawImpressionUpload", e)
           }

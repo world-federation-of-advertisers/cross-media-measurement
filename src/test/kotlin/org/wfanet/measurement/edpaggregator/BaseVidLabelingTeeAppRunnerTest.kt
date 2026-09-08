@@ -23,6 +23,7 @@ import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.protobuf.ByteString
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -38,6 +39,7 @@ import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
 import org.wfanet.measurement.storage.parquetRow
 import org.wfanet.measurement.storage.parquetValue
+import picocli.CommandLine
 
 @RunWith(JUnit4::class)
 class BaseVidLabelingTeeAppRunnerTest {
@@ -59,6 +61,27 @@ class BaseVidLabelingTeeAppRunnerTest {
 
     fun storageClient(cfg: StorageConfig): ConditionalOperationStorageClient =
       buildStorageClient(cfg)
+  }
+
+  @Test
+  fun `command line rejects negative RPC interval`() {
+    val exception =
+      assertFailsWith<CommandLine.ParameterException> {
+        CommandLine(TestRunner(Configuration())).parseArgs("--metadata-read-rpc-min-interval=-1s")
+      }
+
+    assertThat(exception).hasMessageThat().contains("complete human-readable duration")
+  }
+
+  @Test
+  fun `command line rejects partially malformed RPC interval`() {
+    val exception =
+      assertFailsWith<CommandLine.ParameterException> {
+        CommandLine(TestRunner(Configuration()))
+          .parseArgs("--control-plane-rpc-min-interval=500msjunk")
+      }
+
+    assertThat(exception).hasMessageThat().contains("complete human-readable duration")
   }
 
   @Test

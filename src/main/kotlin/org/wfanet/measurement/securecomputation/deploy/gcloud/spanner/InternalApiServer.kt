@@ -38,6 +38,8 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
@@ -166,6 +168,30 @@ class InternalApiServer : Runnable {
   )
   private lateinit var channelShutdownTimeout: Duration
 
+  @CommandLine.Option(
+    names = ["--metadata-read-rpc-min-interval"],
+    defaultValue = "100ms",
+    description = ["Minimum interval between outbound EDPA metadata read RPCs from this process."],
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var metadataReadRpcMinInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--metadata-write-rpc-min-interval"],
+    defaultValue = "200ms",
+    description = ["Minimum interval between outbound EDPA metadata write RPCs from this process."],
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var metadataWriteRpcMinInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--control-plane-rpc-min-interval"],
+    defaultValue = "250ms",
+    description = ["Minimum interval between outbound WorkItems RPCs from this process."],
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var controlPlaneRpcMinInterval: Duration
+
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
@@ -175,6 +201,12 @@ class InternalApiServer : Runnable {
     // them, so the EDPA cert/key/target flags are not required in that case.
     val edpaConnection: EdpaConnection? =
       if (deadLetterSubscriptionIds.isEmpty()) null else buildEdpaConnection()
+    val rpcThrottlers =
+      VidLabelingRpcThrottlers.fromMinimumIntervals(
+        metadataRead = metadataReadRpcMinInterval,
+        metadataWrite = metadataWriteRpcMinInterval,
+        controlPlane = controlPlaneRpcMinInterval,
+      )
 
     runBlocking {
       spannerFlags.usingSpanner { spanner ->
@@ -219,6 +251,7 @@ class InternalApiServer : Runnable {
                   // Non-null: edpaConnection is built whenever deadLetterSubscriptionIds is
                   // non-empty, which is exactly when this map iterates.
                   edpaStubs = checkNotNull(edpaConnection).stubs,
+                  rpcThrottlers = rpcThrottlers,
                 )
               async {
                 try {
@@ -320,6 +353,7 @@ class InternalApiServer : Runnable {
     subscriptionId: String,
     queueSubscriber: QueueSubscriber,
     edpaStubs: EdpaStubs,
+    rpcThrottlers: VidLabelingRpcThrottlers,
   ): DeadLetterQueueListener {
     return DeadLetterQueueListener(
       subscriptionId = subscriptionId,
@@ -330,6 +364,7 @@ class InternalApiServer : Runnable {
       rankerJobsStub = edpaStubs.rankerJobsStub,
       vidLabelingJobsStub = edpaStubs.vidLabelingJobsStub,
       rawImpressionUploadModelLinesStub = edpaStubs.rawImpressionUploadModelLinesStub,
+      rpcThrottlers = rpcThrottlers,
     )
   }
 

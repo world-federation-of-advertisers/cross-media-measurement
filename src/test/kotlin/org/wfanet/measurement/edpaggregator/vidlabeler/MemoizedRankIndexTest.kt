@@ -39,6 +39,7 @@ import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -56,6 +57,8 @@ private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
 
 @RunWith(JUnit4::class)
 class MemoizedRankIndexTest {
+  private val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
+  private val metadataReadThrottler = recordingThrottlers.throttlers.metadataRead
   private val kekUri = FakeKmsClient.KEY_URI_PREFIX + "key1"
   private lateinit var kmsClient: FakeKmsClient
   private lateinit var storageClient: InMemoryStorageClient
@@ -121,7 +124,7 @@ class MemoizedRankIndexTest {
       )
 
     val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE)
+      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metadataReadThrottler)
     }
 
     assertThat(index.subpoolCount).isEqualTo(2)
@@ -142,7 +145,7 @@ class MemoizedRankIndexTest {
       )
 
     val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE)
+      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metadataReadThrottler)
     }
 
     assertThat(index.lookup(digestOf(fpX)).map { it.poolOffset to it.localRank })
@@ -178,7 +181,7 @@ class MemoizedRankIndexTest {
     val rows =
       listOf(seedSnapshot("ranks/pool10/up1", 10L, fp(0x11), rank = 5, createTimeSeconds = 1L))
     val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE)
+      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metadataReadThrottler)
     }
 
     assertThat(index.lookup(digestOf(fp(0x99)))).isEmpty()
@@ -192,7 +195,13 @@ class MemoizedRankIndexTest {
     val newer = seedSnapshot("ranks/pool10/up1", 10L, fpA, rank = 5, createTimeSeconds = 2L)
 
     val index = runBlocking {
-      MemoizedRankIndex.load(stubReturning(listOf(older, newer)), rankStore, DP, MODEL_LINE)
+      MemoizedRankIndex.load(
+        stubReturning(listOf(older, newer)),
+        rankStore,
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+      )
     }
 
     assertThat(index.subpoolCount).isEqualTo(1)
@@ -217,13 +226,16 @@ class MemoizedRankIndexTest {
       onBlocking { listRankIndexBlobs(any(), any()) }.doReturn(page1, page2)
     }
 
-    val index = runBlocking { MemoizedRankIndex.load(stub, rankStore, DP, MODEL_LINE) }
+    val index = runBlocking {
+      MemoizedRankIndex.load(stub, rankStore, DP, MODEL_LINE, metadataReadThrottler)
+    }
 
     assertThat(index.subpoolCount).isEqualTo(2)
     assertThat(index.lookup(digestOf(fpA)).map { it.poolOffset to it.localRank })
       .containsExactly(10L to 5L)
     assertThat(index.lookup(digestOf(fpB)).map { it.poolOffset to it.localRank })
       .containsExactly(20L to 7L)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(2)
   }
 
   @Test
@@ -231,7 +243,13 @@ class MemoizedRankIndexTest {
     val exception =
       assertFailsWith<IllegalStateException> {
         runBlocking {
-          MemoizedRankIndex.load(stubReturning(emptyList()), rankStore, DP, MODEL_LINE)
+          MemoizedRankIndex.load(
+            stubReturning(emptyList()),
+            rankStore,
+            DP,
+            MODEL_LINE,
+            metadataReadThrottler,
+          )
         }
       }
 
@@ -251,7 +269,13 @@ class MemoizedRankIndexTest {
 
     for (ordering in listOf(listOf(b1, b2), listOf(b2, b1))) {
       val index = runBlocking {
-        MemoizedRankIndex.load(stubReturning(ordering), rankStore, DP, MODEL_LINE)
+        MemoizedRankIndex.load(
+          stubReturning(ordering),
+          rankStore,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+        )
       }
       assertThat(index.lookup(digestOf(fp(0x22))).map { it.poolOffset to it.localRank })
         .containsExactly(10L to 9L)
@@ -283,7 +307,13 @@ class MemoizedRankIndexTest {
     val exception =
       assertFailsWith<IllegalStateException> {
         runBlocking {
-          MemoizedRankIndex.load(stubReturning(listOf(row)), rankStore, DP, MODEL_LINE)
+          MemoizedRankIndex.load(
+            stubReturning(listOf(row)),
+            rankStore,
+            DP,
+            MODEL_LINE,
+            metadataReadThrottler,
+          )
         }
       }
     assertThat(exception).hasMessageThat().contains("Malformed rank index blob")
@@ -298,7 +328,13 @@ class MemoizedRankIndexTest {
 
     assertFailsWith<IllegalStateException> {
       runBlocking {
-        MemoizedRankIndex.load(stubReturning(listOf(corrupted)), rankStore, DP, MODEL_LINE)
+        MemoizedRankIndex.load(
+          stubReturning(listOf(corrupted)),
+          rankStore,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+        )
       }
     }
   }
@@ -327,7 +363,14 @@ class MemoizedRankIndexTest {
       )
 
     runBlocking {
-      MemoizedRankIndex.load(stubReturning(rows), rankStore, DP, MODEL_LINE, metrics = metrics)
+      MemoizedRankIndex.load(
+        stubReturning(rows),
+        rankStore,
+        DP,
+        MODEL_LINE,
+        metadataReadThrottler,
+        metrics = metrics,
+      )
     }
 
     val collected = reader.collectAllMetrics().associateBy { it.name }
@@ -387,7 +430,15 @@ class MemoizedRankIndexTest {
     }
 
     assertFailsWith<IllegalStateException> {
-      runBlocking { MemoizedRankIndex.load(stubReturning(listOf(row)), rankStore, DP, MODEL_LINE) }
+      runBlocking {
+        MemoizedRankIndex.load(
+          stubReturning(listOf(row)),
+          rankStore,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+        )
+      }
     }
   }
 
@@ -406,7 +457,15 @@ class MemoizedRankIndexTest {
     }
 
     assertFailsWith<IllegalStateException> {
-      runBlocking { MemoizedRankIndex.load(stubReturning(listOf(row)), rankStore, DP, MODEL_LINE) }
+      runBlocking {
+        MemoizedRankIndex.load(
+          stubReturning(listOf(row)),
+          rankStore,
+          DP,
+          MODEL_LINE,
+          metadataReadThrottler,
+        )
+      }
     }
   }
 

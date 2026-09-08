@@ -288,6 +288,9 @@ module "data_watcher_cloud_function" {
   secrets_to_access                           = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "finalized"
   uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_config.generation
+  # The DataWatcher waits synchronously for the dispatcher. Event-driven gen2 functions allow at
+  # most 540 seconds, so give the caller that maximum and keep the dispatcher below it.
+  timeout_seconds = 540
 }
 
 module "data_watcher_delete_cloud_function" {
@@ -854,6 +857,13 @@ module "vid_labeling_dispatcher_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+
+  # The dispatcher and monitor authenticate to Kingdom as the same EDP. One instance of each
+  # limits their combined worst-case rate to 4 QPS, below the dedicated 5-QPS VID Repository method
+  # buckets. The 480-second timeout leaves one minute of caller headroom under the DataWatcher's
+  # 540-second timeout.
+  timeout_seconds = 480
+  max_instances   = 1
 }
 
 # The DataWatcher invokes the dispatcher over HTTP when a "done" blob lands.
@@ -900,20 +910,33 @@ module "vid_labeling_monitor_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+
+  # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
+  # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
+  timeout_seconds = 600
+  max_instances   = 1
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  scheduler_config          = var.vid_labeling_monitor_scheduler_config
-  depends_on                = [module.vid_labeling_monitor_cloud_function]
+  # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
+  scheduler_config = merge(
+    var.vid_labeling_monitor_scheduler_config,
+    { attempt_deadline = "660s" },
+  )
+  depends_on = [module.vid_labeling_monitor_cloud_function]
 }
 
 module "vid_labeling_dispatch_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  scheduler_config          = var.vid_labeling_dispatch_scheduler_config
-  depends_on                = [module.vid_labeling_monitor_cloud_function]
+  # This job invokes the same function in dispatch mode and needs the same response headroom.
+  scheduler_config = merge(
+    var.vid_labeling_dispatch_scheduler_config,
+    { attempt_deadline = "660s" },
+  )
+  depends_on = [module.vid_labeling_monitor_cloud_function]
 }
 
 resource "google_storage_bucket_iam_member" "vid_labeling_monitor_storage_viewer" {

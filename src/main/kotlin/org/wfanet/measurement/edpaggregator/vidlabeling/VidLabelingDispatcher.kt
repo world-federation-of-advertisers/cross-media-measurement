@@ -45,6 +45,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.BlobUris
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
@@ -86,6 +87,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
  * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
  *   footer (no decryption needed).
+ * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
  */
@@ -101,6 +103,7 @@ class VidLabelingDispatcher(
   private val overrideModelLines: List<String>,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
   private val readEventDate: suspend (blobKey: String) -> LocalDate,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
@@ -248,14 +251,16 @@ class VidLabelingDispatcher(
         .listResources { pageToken: String ->
           val response =
             try {
-              modelLinesStub.listModelLines(
-                listModelLinesRequest {
-                  parent = modelSuiteName
-                  if (pageToken.isNotEmpty()) {
-                    this.pageToken = pageToken
+              rpcThrottlers.kingdom.onReady {
+                modelLinesStub.listModelLines(
+                  listModelLinesRequest {
+                    parent = modelSuiteName
+                    if (pageToken.isNotEmpty()) {
+                      this.pageToken = pageToken
+                    }
                   }
-                }
-              )
+                )
+              }
             } catch (e: StatusException) {
               throw Exception("Error listing model lines for $modelSuiteName", e)
             }
@@ -317,7 +322,9 @@ class VidLabelingDispatcher(
     }
 
     return try {
-      rawImpressionUploadStub.createRawImpressionUpload(request)
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadStub.createRawImpressionUpload(request)
+      }
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
       // TODO(world-federation-of-advertisers/cross-media-measurement#4118): once #4118 adds
@@ -346,14 +353,16 @@ class VidLabelingDispatcher(
       .listResources { pageToken: String ->
         val response =
           try {
-            rawImpressionUploadStub.listRawImpressionUploads(
-              listRawImpressionUploadsRequest {
-                parent = dataProviderName
-                if (pageToken.isNotEmpty()) {
-                  this.pageToken = pageToken
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadStub.listRawImpressionUploads(
+                listRawImpressionUploadsRequest {
+                  parent = dataProviderName
+                  if (pageToken.isNotEmpty()) {
+                    this.pageToken = pageToken
+                  }
                 }
-              }
-            )
+              )
+            }
           } catch (e: StatusException) {
             throw Exception("Error listing RawImpressionUploads for $dataProviderName", e)
           }
@@ -416,7 +425,9 @@ class VidLabelingDispatcher(
       }
 
       try {
-        rawImpressionUploadFilesStub.batchCreateRawImpressionUploadFiles(request)
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionUploadFilesStub.batchCreateRawImpressionUploadFiles(request)
+        }
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.ALREADY_EXISTS) {
           // Idempotent redelivery: these files were already created. Ack and continue.
@@ -453,7 +464,9 @@ class VidLabelingDispatcher(
       }
 
       try {
-        rawImpressionUploadModelLineStub.batchCreateRawImpressionUploadModelLines(request)
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionUploadModelLineStub.batchCreateRawImpressionUploadModelLines(request)
+        }
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.ALREADY_EXISTS) {
           // Idempotent redelivery: these model lines were already created. Ack and continue.

@@ -41,10 +41,12 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
@@ -163,6 +165,7 @@ class SubpoolAssignerTest {
     source: RawImpressionSource<ParquetDigestedEvent> = mock(),
     accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
     totalShards: Int = 1,
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ) =
     SubpoolAssigner(
       rawImpressionSource = source,
@@ -184,6 +187,7 @@ class SubpoolAssignerTest {
       totalShards = totalShards,
       vidRankBuilderQueue = QUEUE,
       vidRankBuilderParamsTemplate = TEMPLATE,
+      rpcThrottlers = rpcThrottlers,
       accumulator = accumulator,
     )
 
@@ -254,9 +258,19 @@ class SubpoolAssignerTest {
             parent(RawImpressionUploadModelLine.State.RANKING, listOf(7L))
           }
       }
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
     val result =
-      assigner(store, paj, ruml, ranker, workItems, accumulator = accumulatorWith(7L)).assign()
+      assigner(
+          store,
+          paj,
+          ruml,
+          ranker,
+          workItems,
+          accumulator = accumulatorWith(7L),
+          rpcThrottlers = recordingThrottlers.throttlers,
+        )
+        .assign()
 
     assertThat(result.lastShardOut).isTrue()
     assertThat(order)
@@ -266,6 +280,10 @@ class SubpoolAssignerTest {
     val dekCaptor = argumentCaptor<EncryptedDek>()
     verifyBlocking(store) { mergeSubpool(any(), any(), dekCaptor.capture(), any()) }
     assertThat(dekCaptor.firstValue).isEqualTo(DEK_GEN)
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
   }
 
   @Test
