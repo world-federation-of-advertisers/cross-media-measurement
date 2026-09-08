@@ -371,11 +371,17 @@ protocol-level TrusTEE aggregate thresholding is tracked separately in issue
 
 Use the following rollout order whenever a producer policy changes:
 
-1. Before increasing an EDP threshold, deploy
-   the new correction upper bound and wait for that configuration to become
+1. Before enabling minimum thresholding for an EDP, add the EDP to
+   `_potentialDirectThresholdingEdps` and wait for that configuration to become
    active.
-2. Deploy the producer policy change.
-3. When decreasing a correction upper bound, retain the previous higher value
+2. Before increasing an EDP threshold, deploy the new correction upper bound
+   and wait for that configuration to become active.
+3. Deploy the producer policy change.
+4. To disable producer thresholding, deploy the producer policy change first.
+   Keep the EDP in `_potentialDirectThresholdingEdps` until every result
+   produced while thresholding was enabled has been processed or expired, and
+   only then remove it.
+5. When decreasing a correction upper bound, retain the previous higher value
    until every result produced under the previous policy has been processed or
    expired.
 
