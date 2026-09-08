@@ -377,12 +377,12 @@ class EvictUploader(
     val expectedImpressionsBlobUris =
       files
         .map { file ->
-          "$labeledImpressionsBlobPrefix/" +
-            LabeledImpressionsBlobKeys.forInput(
-              file.blobUri,
-              entry.cmmsModelLine,
-              file.eventDate.toLocalDate(),
-            )
+          LabeledImpressionsBlobKeys.forInputUri(
+            labeledImpressionsBlobPrefix,
+            file.blobUri,
+            entry.cmmsModelLine,
+            file.eventDate.toLocalDate(),
+          )
         }
         .distinct()
     val expectedMetadataBlobUris =
