@@ -52,12 +52,6 @@ abstract class RawImpressionUploadServiceTest {
     idGenerator: IdGenerator = IdGenerator.Default
   ): RawImpressionUploadServiceCoroutineImplBase
 
-  /** Sets an upload's state for tests that exercise revision sequencing. */
-  protected abstract suspend fun setUploadState(
-    rawImpressionUploadResourceId: String,
-    state: RawImpressionUploadState,
-  )
-
   @Before
   fun initService() {
     service = newService()
