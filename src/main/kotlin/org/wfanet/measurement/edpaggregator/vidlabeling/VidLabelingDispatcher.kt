@@ -173,7 +173,12 @@ class VidLabelingDispatcher(
 
       if (
         recoverySourceUpload != null &&
-          !validateRecovery(doneBlobPath, doneBlobGeneration, recoverySourceUpload)
+          !validateRecovery(
+            doneBlobPath,
+            doneBlobGeneration,
+            doneBlobMetadata.createTime,
+            recoverySourceUpload,
+          )
       ) {
         logger.info("Ignoring stale recovery generation $doneBlobGeneration for $doneBlobPath")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
@@ -691,6 +696,7 @@ class VidLabelingDispatcher(
   private suspend fun validateRecovery(
     doneBlobPath: String,
     doneBlobGeneration: Long,
+    doneBlobCreateTime: Instant,
     sourceUploadName: String,
   ): Boolean {
     require(overrideModelLines.isNotEmpty()) {
@@ -710,12 +716,25 @@ class VidLabelingDispatcher(
     require(source.doneBlobUri == doneBlobPath) {
       "$sourceUploadName belongs to ${source.doneBlobUri}, not $doneBlobPath"
     }
-    require(doneBlobGeneration > source.doneBlobGeneration) {
-      "Recovery generation $doneBlobGeneration must be newer than source generation " +
+    require(doneBlobGeneration != source.doneBlobGeneration) {
+      "Recovery generation $doneBlobGeneration must differ from source generation " +
         source.doneBlobGeneration
     }
+    val doneBlobCreateTimestamp = doneBlobCreateTime.toProtoTime()
+    if (source.hasDoneBlobCreateTime()) {
+      require(Timestamps.compare(doneBlobCreateTimestamp, source.doneBlobCreateTime) > 0) {
+        "Recovery object creation time must be newer than the source upload"
+      }
+    }
     val latest = findLatestUploadByDoneBlob(doneBlobPath)
-    if (latest != null && latest.doneBlobGeneration > doneBlobGeneration) return false
+    if (
+      latest != null &&
+        latest.doneBlobGeneration != doneBlobGeneration &&
+        latest.hasDoneBlobCreateTime() &&
+        Timestamps.compare(latest.doneBlobCreateTime, doneBlobCreateTimestamp) >= 0
+    ) {
+      return false
+    }
     val registeredRecovery = findUploadByDoneBlob(doneBlobPath, doneBlobGeneration)
     val isInitialDelivery = latest?.name == sourceUploadName
     val isRetryOfLatestRecovery =
