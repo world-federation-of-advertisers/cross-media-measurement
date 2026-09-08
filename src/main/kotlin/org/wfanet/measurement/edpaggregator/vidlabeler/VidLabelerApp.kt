@@ -743,12 +743,11 @@ class VidLabelerApp(
     return inputFiles
       .map { inputFile ->
         val inputBlob =
-          rpcThrottlers.metadataRead
-            .onReady {
-              rawImpressionUploadFilesStub.getRawImpressionUploadFile(
-                getRawImpressionUploadFileRequest { name = inputFile }
-              )
-            }
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.getRawImpressionUploadFile(
+              getRawImpressionUploadFileRequest { name = inputFile }
+            )
+          }
         val blobUri = inputBlob.blobUri
         val parquetBlob =
           parquetStorageClient.getBlob(generationMatchedBlobUri(blobUri, inputBlob.blobGeneration))

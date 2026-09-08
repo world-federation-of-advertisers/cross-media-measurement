@@ -47,7 +47,7 @@ class GenerationMatchedGoogleHadoopFileSystem : GoogleHadoopFileSystem() {
   private lateinit var storage: Storage
 
   override fun initialize(name: URI, configuration: Configuration) {
-    super.initialize(removeGenerationUserInfo(name), configuration)
+    super.initialize(removeGenerationQualifier(name), configuration)
     storage =
       StorageOptions.newBuilder()
         .setProjectId(configuration.get(PROJECT_ID_PROPERTY))
@@ -148,26 +148,34 @@ internal data class GenerationMatchedPath(
 
 internal fun parseGenerationMatchedPath(path: Path): GenerationMatchedPath? {
   val uri = path.toUri()
-  val userInfo = uri.rawUserInfo ?: return null
-  if (!userInfo.startsWith(GENERATION_USER_INFO_PREFIX)) return null
-  val generation =
-    userInfo.removePrefix(GENERATION_USER_INFO_PREFIX).toLongOrNull()?.takeIf { it > 0 }
-      ?: throw IOException("Invalid raw-impression generation in path: $path")
+  val (generation, objectName) = parseGenerationQualifier(uri) ?: return null
   val bucket =
     uri.host
       ?: uri.authority
       ?: throw IOException("Missing GCS bucket in raw-impression path: $path")
-  val objectName = uri.path.removePrefix("/")
   if (objectName.isEmpty())
     throw IOException("Missing GCS object name in raw-impression path: $path")
-  val cleanPath = Path(removeGenerationUserInfo(uri))
+  val cleanPath = Path(removeGenerationQualifier(uri))
   return GenerationMatchedPath(cleanPath, BlobId.of(bucket, objectName), generation)
 }
 
-private fun removeGenerationUserInfo(uri: URI): URI {
-  val userInfo = uri.rawUserInfo ?: return uri
-  if (!userInfo.startsWith(GENERATION_USER_INFO_PREFIX)) return uri
-  return URI.create(uri.toString().replaceFirst("://$userInfo@", "://"))
+private fun removeGenerationQualifier(uri: URI): URI {
+  val (_, objectName) = parseGenerationQualifier(uri) ?: return uri
+  return URI(uri.scheme, uri.authority, "/$objectName", null, null)
+}
+
+private fun parseGenerationQualifier(uri: URI): Pair<Long, String>? {
+  val path = uri.path
+  if (!path.startsWith(GENERATION_PATH_PREFIX)) return null
+  val generationAndObjectName = path.removePrefix(GENERATION_PATH_PREFIX)
+  val separatorIndex = generationAndObjectName.indexOf('/')
+  if (separatorIndex < 1) {
+    throw IOException("Invalid raw-impression generation in path: $uri")
+  }
+  val generation =
+    generationAndObjectName.substring(0, separatorIndex).toLongOrNull()?.takeIf { it > 0 }
+      ?: throw IOException("Invalid raw-impression generation in path: $uri")
+  return generation to generationAndObjectName.substring(separatorIndex + 1)
 }
 
 internal fun getGenerationMatchedBlob(storage: Storage, path: GenerationMatchedPath): Blob {
