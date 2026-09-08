@@ -45,6 +45,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.BlobUris
+import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt.filter as rawUploadFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
@@ -87,7 +88,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
  * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
  *   footer (no decryption needed).
- * @param readBlobGeneration reads the storage generation for a raw-impression file.
+ * @param readBlobMetadata reads the storage generation and size for a raw-impression file in one
+ *   metadata lookup.
  * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
  */
@@ -103,7 +105,7 @@ class VidLabelingDispatcher(
   private val overrideModelLines: List<String>,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
   private val readEventDate: suspend (blobKey: String) -> LocalDate,
-  private val readBlobGeneration: suspend (blobKey: String) -> Long,
+  private val readBlobMetadata: suspend (blobKey: String) -> RawImpressionBlobMetadata,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
@@ -396,13 +398,20 @@ class VidLabelingDispatcher(
       // BatchCreate writes below stay serial on purpose: they all write interleaved children of the
       // same RawImpressionUpload row, so parallelizing them would only force Spanner to
       // lock-serialize (or abort-retry) the writes.
-      val fileMetadataByBlobKey: Map<String, Pair<LocalDate, Long>> = coroutineScope {
+      val fileMetadataByBlobKey: Map<String, RawImpressionUploadFileMetadata> = coroutineScope {
         chunk
           .associate { blob ->
             blob.blobKey to
               async {
                 readSemaphore.withPermit {
-                  readEventDate(blob.blobKey) to readBlobGeneration(blob.blobKey)
+                  val metadata = readBlobMetadata(blob.blobKey)
+                  val blobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
+                  RawImpressionUploadFileMetadata(
+                    eventDate =
+                      readEventDate(generationMatchedBlobUri(blobUri, metadata.generation)),
+                    generation = metadata.generation,
+                    sizeBytes = metadata.sizeBytes,
+                  )
                 }
               }
           }
@@ -413,16 +422,14 @@ class VidLabelingDispatcher(
         parent = uploadName
         for (blob in chunk) {
           val fileBlobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
+          val fileMetadata = fileMetadataByBlobKey.getValue(blob.blobKey)
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
-            // size_bytes (REQUIRED) is the GCS object size from the directory listing (the Phase-1
-            // last-out bin-packer batches files by it). event_date (REQUIRED) is read from the
-            // file's plaintext Parquet footer so consumers can reconcile registered files by date.
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = fileBlobUri
-              blobGeneration = fileMetadataByBlobKey.getValue(blob.blobKey).second
-              sizeBytes = blob.size
-              this.eventDate = fileMetadataByBlobKey.getValue(blob.blobKey).first.toProtoDate()
+              blobGeneration = fileMetadata.generation
+              sizeBytes = fileMetadata.sizeBytes
+              eventDate = fileMetadata.eventDate.toProtoDate()
             }
             requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
           }
@@ -520,4 +527,12 @@ class VidLabelingDispatcher(
       return true
     }
   }
+
+  private data class RawImpressionUploadFileMetadata(
+    val eventDate: LocalDate,
+    val generation: Long,
+    val sizeBytes: Long,
+  )
 }
+
+data class RawImpressionBlobMetadata(val generation: Long, val sizeBytes: Long)

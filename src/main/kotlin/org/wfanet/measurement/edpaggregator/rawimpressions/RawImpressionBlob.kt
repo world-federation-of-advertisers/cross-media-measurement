@@ -24,7 +24,7 @@ data class RawImpressionBlob(val blobUri: String, val blobGeneration: Long) {
 }
 
 /**
- * Encodes [blobGeneration] as URI user-info consumed and removed by
+ * Encodes [blobGeneration] in a reserved path prefix consumed and removed by
  * [GenerationMatchedGoogleHadoopFileSystem], so the object name sent to GCS remains unchanged.
  *
  * Local-file URIs and relative paths are left unchanged because they have no GCS generation. They
@@ -39,9 +39,8 @@ fun generationMatchedBlobUri(blobUri: String, blobGeneration: Long): String {
   require(uri.rawUserInfo == null) {
     "Raw-impression object URI must not contain user-info: $blobUri"
   }
-  val generationUserInfo = "$GENERATION_USER_INFO_PREFIX$blobGeneration"
-  return "$GCS_SCHEME://$generationUserInfo@${blobUri.removePrefix("$GCS_SCHEME://")}"
+  return "$GCS_SCHEME://${uri.rawAuthority}$GENERATION_PATH_PREFIX$blobGeneration${uri.rawPath}"
 }
 
-const val GENERATION_USER_INFO_PREFIX = "wfa-generation-match-"
+const val GENERATION_PATH_PREFIX = "/.wfa-generation-match/"
 private const val GCS_SCHEME = "gs"

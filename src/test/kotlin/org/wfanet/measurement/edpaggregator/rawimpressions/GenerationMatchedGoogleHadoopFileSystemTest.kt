@@ -33,7 +33,7 @@ import org.mockito.kotlin.whenever
 @RunWith(JUnit4::class)
 class GenerationMatchedGoogleHadoopFileSystemTest {
   @Test
-  fun `generation fragment identifies original object and expected generation`() {
+  fun `generation qualifier identifies original object and expected generation`() {
     val path =
       checkNotNull(
         parseGenerationMatchedPath(
@@ -44,6 +44,15 @@ class GenerationMatchedGoogleHadoopFileSystemTest {
     assertThat(path.cleanPath.toString()).isEqualTo("gs://bucket/folder/file.parquet")
     assertThat(path.blobId).isEqualTo(BlobId.of("bucket", "folder/file.parquet"))
     assertThat(path.generation).isEqualTo(123L)
+  }
+
+  @Test
+  fun `generation qualifiers keep the Hadoop filesystem authority stable`() {
+    val first = Path(generationMatchedBlobUri("gs://bucket/folder/first.parquet", 123L)).toUri()
+    val second = Path(generationMatchedBlobUri("gs://bucket/folder/second.parquet", 456L)).toUri()
+
+    assertThat(first.authority).isEqualTo("bucket")
+    assertThat(second.authority).isEqualTo(first.authority)
   }
 
   @Test
