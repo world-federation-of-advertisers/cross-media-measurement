@@ -669,19 +669,113 @@ class PostProcessReportResultTest(unittest.TestCase):
                 self.cmms_measurement_consumer_id,
                 self.external_report_result_id, [])
 
+    def test_get_data_provider_ids_returns_empty_map_without_rpc(self):
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+
+        result = (
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id, []))
+
+        self.assertEqual(result, {})
+        self.mock_reporting_sets_stub.BatchGetReportingSets.assert_not_called()
+
+    def test_get_data_provider_ids_requests_1000_ids_in_one_batch(self):
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            reporting_sets_service_pb2.BatchGetReportingSetsResponse())
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+        reporting_set_ids = [
+            f'reporting-set-{index:04d}' for index in reversed(range(1000))
+        ]
+
+        result = (
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id, reporting_set_ids))
+
+        self.assertEqual(result, {})
+        self.mock_reporting_sets_stub.BatchGetReportingSets.assert_called_once()
+        request = self.mock_reporting_sets_stub.BatchGetReportingSets.call_args.args[
+            0]
+        self.assertEqual(
+            list(request.external_reporting_set_ids),
+            sorted(reporting_set_ids),
+        )
+
+    def test_get_data_provider_ids_requests_1001_ids_in_two_batches(self):
+        def batch_get_reporting_sets(request):
+            response = reporting_sets_service_pb2.BatchGetReportingSetsResponse()
+            for external_reporting_set_id in request.external_reporting_set_ids:
+                reporting_set = response.reporting_sets.add(
+                    external_reporting_set_id=external_reporting_set_id)
+                reporting_set.primitive.event_group_keys.add(
+                    cmms_data_provider_id=f'edp-{external_reporting_set_id}')
+            return response
+
+        self.mock_reporting_sets_stub.BatchGetReportingSets.side_effect = (
+            batch_get_reporting_sets)
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+        reporting_set_ids = [
+            f'reporting-set-{index:04d}' for index in range(1001)
+        ]
+
+        result = (
+            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+                self.cmms_measurement_consumer_id,
+                reversed(reporting_set_ids),
+            ))
+
+        requests = [
+            call.args[0] for call in
+            self.mock_reporting_sets_stub.BatchGetReportingSets.call_args_list
+        ]
+        self.assertEqual(
+            [len(request.external_reporting_set_ids) for request in requests],
+            [1000, 1],
+        )
+        self.assertEqual(
+            [
+                reporting_set_id
+                for request in requests
+                for reporting_set_id in request.external_reporting_set_ids
+            ],
+            reporting_set_ids,
+        )
+        self.assertEqual(len(result), 1001)
+        self.assertEqual(
+            result[reporting_set_ids[0]],
+            {f'edp-{reporting_set_ids[0]}'},
+        )
+        self.assertEqual(
+            result[reporting_set_ids[-1]],
+            {f'edp-{reporting_set_ids[-1]}'},
+        )
+
+    def test_get_data_provider_ids_requests_duplicate_id_once(self):
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            reporting_sets_service_pb2.BatchGetReportingSetsResponse())
+        report_result_processor = PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub)
+
+        report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
+            self.cmms_measurement_consumer_id,
+            ['reporting-set-two', 'reporting-set-one', 'reporting-set-two'],
+        )
+
+        request = self.mock_reporting_sets_stub.BatchGetReportingSets.call_args.args[
+            0]
+        self.assertEqual(
+            list(request.external_reporting_set_ids),
+            ['reporting-set-one', 'reporting-set-two'],
+        )
+
     def test_get_data_provider_ids_by_primitive_reporting_set_id(self):
         self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
             self.mock_batch_get_reporting_set_response)
 
         report_result_processor = PostProcessReportResult(
             self.mock_report_results_stub, self.mock_reporting_sets_stub)
-
-        # Case 1: Empty inputs
-        self.assertEqual(
-            report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(
-                self.cmms_measurement_consumer_id, []),
-            {},
-        )
 
         data_provider_ids_by_reporting_set_id = (
             report_result_processor._get_data_provider_ids_by_primitive_reporting_set_id(

@@ -53,6 +53,8 @@ BatchGetReportingSetsRequest = reporting_sets_service_pb2.BatchGetReportingSetsR
 ReportingWindowEntry = AddProcessedResultValuesRequest.ProcessedReportingSetResult.ReportingWindowEntry
 ReportingSetResult = report_result_pb2.ReportingSetResult
 
+_BATCH_GET_REPORTING_SETS_LIMIT = 1000
+
 
 def _get_cmms_data_provider_id(edp_name: str) -> str:
     """Converts an EDP resource name to a raw CMMS DataProvider ID."""
@@ -609,30 +611,39 @@ class PostProcessReportResult:
         Returns:
             CMMS DataProvider IDs keyed by external primitive reporting set ID.
         """
-        if not primitive_reporting_set_ids:
+        requested_reporting_set_ids = sorted(set(primitive_reporting_set_ids))
+        if not requested_reporting_set_ids:
             return {}
-        requested_reporting_set_ids = set(primitive_reporting_set_ids)
-
-        request = BatchGetReportingSetsRequest(
-            cmms_measurement_consumer_id=cmms_measurement_consumer_id,
-            external_reporting_set_ids=requested_reporting_set_ids,
-        )
-        response = self._reporting_sets_stub.BatchGetReportingSets(request)
         data_provider_ids_by_reporting_set_id: dict[str, set[str]] = {}
 
-        for reporting_set in response.reporting_sets:
-            if (
-                reporting_set.external_reporting_set_id
-                not in requested_reporting_set_ids
-                or reporting_set.WhichOneof("value") != "primitive"
-            ):
-                continue
-            data_provider_ids_by_reporting_set_id[
-                reporting_set.external_reporting_set_id
-            ] = {
-                key.cmms_data_provider_id
-                for key in reporting_set.primitive.event_group_keys
-            }
+        for offset in range(
+            0,
+            len(requested_reporting_set_ids),
+            _BATCH_GET_REPORTING_SETS_LIMIT,
+        ):
+            batch = requested_reporting_set_ids[
+                offset : offset + _BATCH_GET_REPORTING_SETS_LIMIT
+            ]
+            request = BatchGetReportingSetsRequest(
+                cmms_measurement_consumer_id=cmms_measurement_consumer_id,
+                external_reporting_set_ids=batch,
+            )
+            response = self._reporting_sets_stub.BatchGetReportingSets(request)
+            requested_batch_ids = set(batch)
+
+            for reporting_set in response.reporting_sets:
+                if (
+                    reporting_set.external_reporting_set_id
+                    not in requested_batch_ids
+                    or reporting_set.WhichOneof("value") != "primitive"
+                ):
+                    continue
+                data_provider_ids_by_reporting_set_id[
+                    reporting_set.external_reporting_set_id
+                ] = {
+                    key.cmms_data_provider_id
+                    for key in reporting_set.primitive.event_group_keys
+                }
 
         return data_provider_ids_by_reporting_set_id
 
