@@ -28,7 +28,8 @@ class RawImpressionBlobTest {
   fun `generationMatchedBlobUri encodes GCS generation for Hadoop reader`() {
     val uri = generationMatchedBlobUri("gs://bucket/folder/file.parquet", 123L)
 
-    assertThat(uri).isEqualTo("gs://wfa-generation-match-123@bucket/folder/file.parquet")
+    assertThat(uri).isEqualTo("gs://bucket/.wfa-generation-match/123/folder/file.parquet")
+    assertThat(java.net.URI.create(uri).authority).isEqualTo("bucket")
     assertThat(gcsHadoopConfiguration("project").get("fs.gs.impl"))
       .isEqualTo(GenerationMatchedGoogleHadoopFileSystem::class.java.name)
   }

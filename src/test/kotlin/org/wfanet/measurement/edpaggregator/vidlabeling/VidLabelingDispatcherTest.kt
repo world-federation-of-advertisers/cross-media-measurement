@@ -61,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
@@ -224,7 +225,9 @@ class VidLabelingDispatcherTest {
     overrideModelLines: List<String> = emptyList(),
     modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig> = DEFAULT_MODEL_LINE_CONFIGS,
     readEventDate: suspend (String) -> LocalDate = { EVENT_DATE },
-    readBlobGeneration: suspend (String) -> Long = { RAW_BLOB_GENERATION },
+    readBlobMetadata: suspend (String) -> RawImpressionBlobMetadata = {
+      RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 100L)
+    },
     metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
   ): VidLabelingDispatcher {
     return VidLabelingDispatcher(
@@ -239,7 +242,7 @@ class VidLabelingDispatcherTest {
       overrideModelLines = overrideModelLines,
       modelLineConfigs = modelLineConfigs,
       readEventDate = readEventDate,
-      readBlobGeneration = readBlobGeneration,
+      readBlobMetadata = readBlobMetadata,
       clock = fixedClock,
       metrics = metrics,
     )
@@ -351,7 +354,19 @@ class VidLabelingDispatcherTest {
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
 
-      val dispatcher = createDispatcher()
+      val dispatcher =
+        createDispatcher(
+          readBlobMetadata = { blobKey ->
+            RawImpressionBlobMetadata(
+              RAW_BLOB_GENERATION,
+              when (blobKey) {
+                blob1.blobKey -> 111L
+                blob2.blobKey -> 222L
+                else -> error("Unexpected blob: $blobKey")
+              },
+            )
+          }
+        )
       dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
       val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadFilesRequest>()
@@ -369,13 +384,37 @@ class VidLabelingDispatcherTest {
           "file:///$bucket/$FOLDER_PREFIX/file1.parquet",
           "file:///$bucket/$FOLDER_PREFIX/file2.parquet",
         )
-      // size_bytes is populated from each blob's size in the storage listing.
+      // size_bytes is captured with the object's generation.
       assertThat(request.requestsList.map { it.rawImpressionUploadFile.sizeBytes })
         .containsExactly(111L, 222L)
       // event_date is populated from each file's plaintext Parquet footer (readEventDate seam).
       assertThat(request.requestsList.map { it.rawImpressionUploadFile.eventDate })
         .containsExactly(EVENT_DATE_PROTO, EVENT_DATE_PROTO)
     }
+
+  @Test
+  fun `upload reads footer from captured blob generation`() = runBlocking {
+    val blobKey = "edp1/2024-01-15/file1.parquet"
+    val doneBlobPath = "gs://test-bucket/edp1/2024-01-15/done"
+    val blob = createMockBlob(blobKey)
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubFullResolutionChain(MODEL_LINE_1)
+    var footerPath = ""
+
+    val dispatcher =
+      createDispatcher(
+        readBlobMetadata = { RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 123L) },
+        readEventDate = {
+          footerPath = it
+          EVENT_DATE
+        },
+      )
+    dispatcher.upload(doneBlobPath, DONE_BLOB_GENERATION)
+
+    assertThat(footerPath)
+      .isEqualTo(generationMatchedBlobUri("gs://test-bucket/$blobKey", RAW_BLOB_GENERATION))
+  }
 
   @Test
   fun `upload with override model lines skips ListModelLines API`() = runBlocking {

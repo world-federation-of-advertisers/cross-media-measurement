@@ -79,6 +79,7 @@ import org.wfanet.measurement.securecomputation.service.Errors
  * @param vidLabelingJobsStub EDPA stub used to mark Phase-2 `VidLabelingJob`s FAILED.
  * @param rawImpressionUploadModelLinesStub EDPA stub used to resolve and mark the parent
  *   `RawImpressionUploadModelLine` FAILED.
+ * @param getLatestWorkItemAttemptError returns the latest worker error recorded for a WorkItem.
  */
 class DeadLetterQueueListener(
   private val subscriptionId: String,
@@ -89,6 +90,7 @@ class DeadLetterQueueListener(
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val getLatestWorkItemAttemptError: suspend (String) -> String? = { null },
 ) : AutoCloseable {
 
   /** Starts the listener by subscribing to the dead letter queue. */
@@ -139,12 +141,13 @@ class DeadLetterQueueListener(
 
     logger.fine("Processing dead letter message for work item: ${workItem.name}")
 
+    val errorMessage = resolveErrorMessage(workItem.name)
     try {
       workItemsStub.failWorkItem(failWorkItemRequest { workItemResourceId = workItem.name })
       logger.fine("Successfully marked work item as failed: ${workItem.name}")
       // Mark the EDPA resource(s) referenced by this WorkItem FAILED. Best-effort: any failure is
       // logged and swallowed so the already-terminal dead-letter message is still acked below.
-      markEdpaResourcesFailed(workItem)
+      markEdpaResourcesFailed(workItem, errorMessage)
       queueMessage.ack()
     } catch (e: Exception) {
       when (e) {
@@ -182,7 +185,7 @@ class DeadLetterQueueListener(
    * Every call is best-effort and never throws: a failure to mark an EDPA resource must not re-nack
    * an already-terminal dead-letter message.
    */
-  private suspend fun markEdpaResourcesFailed(workItem: WorkItem) {
+  private suspend fun markEdpaResourcesFailed(workItem: WorkItem, errorMessage: String) {
     val appParams =
       try {
         workItem.workItemParams.unpack(WorkItemParams::class.java).appParams
@@ -195,7 +198,6 @@ class DeadLetterQueueListener(
         return
       }
 
-    val errorMessage = "WorkItem ${workItem.name} dead-lettered (retries exhausted)"
     when (appParams.typeUrl.substringAfterLast('/')) {
       SUBPOOL_ASSIGNER_PARAMS_TYPE -> {
         val params = appParams.unpack(SubpoolAssignerParams::class.java)
@@ -235,6 +237,20 @@ class DeadLetterQueueListener(
           "WorkItem ${workItem.name} has app_params type ${appParams.typeUrl}; no EDPA marking"
         )
       }
+    }
+  }
+
+  private suspend fun resolveErrorMessage(workItemName: String): String {
+    val fallback = "WorkItem $workItemName dead-lettered (retries exhausted)"
+    return try {
+      getLatestWorkItemAttemptError(workItemName)?.takeIf { it.isNotEmpty() } ?: fallback
+    } catch (e: Exception) {
+      logger.log(
+        Level.WARNING,
+        "Could not read the latest WorkItemAttempt for $workItemName; using fallback error",
+        e,
+      )
+      fallback
     }
   }
 
