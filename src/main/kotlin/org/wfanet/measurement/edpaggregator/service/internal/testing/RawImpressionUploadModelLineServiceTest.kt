@@ -799,9 +799,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(resumed.errorMessage).isEmpty()
       assertThat(resumed.failureAttemptId).isEqualTo(failureAttemptId)
       assertThat(resumed.failureReason)
-        .isEqualTo(
-          FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
-        )
+        .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE)
 
       val nextFailureAttemptId = UUID.randomUUID().toString()
       val failedAgain =
@@ -999,9 +997,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
     assertThat(modelLine.errorMessage).isEqualTo("something went wrong")
     assertThat(modelLine.failureAttemptId).isEqualTo(failureAttemptId)
     assertThat(modelLine.failureReason)
-      .isEqualTo(
-        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
-      )
+      .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE)
   }
 
   @Test
@@ -1097,35 +1093,126 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(evicted.failureAttemptId).isEqualTo(evictionAttemptId)
       assertThat(evicted.failureReason)
         .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT)
+
+      suspend fun assertRetryRejected(block: suspend () -> Unit) {
+        val exception = assertFailsWith<StatusRuntimeException> { block() }
+        assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      }
+
+      assertRetryRejected {
+        service.markRawImpressionUploadModelLinePoolAssigning(
+          markRawImpressionUploadModelLinePoolAssigningRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = evicted.etag
+          }
+        )
+      }
+      assertRetryRejected {
+        service.markRawImpressionUploadModelLineRanking(
+          markRawImpressionUploadModelLineRankingRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = evicted.etag
+          }
+        )
+      }
+      assertRetryRejected {
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = evicted.etag
+          }
+        )
+      }
     }
 
   @Test
-  fun `markRawImpressionUploadModelLineFailed rejects unspecified failure reason`() = runBlocking {
-    val created = createModelLine()
+  fun `markRawImpressionUploadModelLineFailed rejects eviction from active states`() = runBlocking {
+    suspend fun assertEvictionRejected(modelLine: RawImpressionUploadModelLine) {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              requestId = UUID.randomUUID().toString()
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                modelLine.rawImpressionUploadModelLineResourceId
+              etag = modelLine.etag
+              failureReason =
+                FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+            }
+          )
+        }
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
 
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
+    val created = createModelLine()
+    assertEvictionRejected(created)
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+        }
+      )
+    assertEvictionRejected(poolAssigning)
+    val ranking =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = poolAssigning.etag
+        }
+      )
+    assertEvictionRejected(ranking)
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = ranking.etag
+        }
+      )
+    assertEvictionRejected(labeling)
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed defaults unspecified reason to processing failure`() =
+    runBlocking {
+      val created = createModelLine()
+      val failureAttemptId = UUID.randomUUID().toString()
+
+      val failed =
         service.markRawImpressionUploadModelLineFailed(
           markRawImpressionUploadModelLineFailedRequest {
-            requestId = UUID.randomUUID().toString()
+            requestId = failureAttemptId
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
             etag = created.etag
           }
         )
-      }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "failure_reason"
-        }
-      )
-  }
+      assertThat(failed.failureAttemptId).isEqualTo(failureAttemptId)
+      assertThat(failed.failureReason)
+        .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE)
+    }
 
   @Test
   fun `markRawImpressionUploadModelLineFailed transitions from POOL_ASSIGNING to FAILED`() =

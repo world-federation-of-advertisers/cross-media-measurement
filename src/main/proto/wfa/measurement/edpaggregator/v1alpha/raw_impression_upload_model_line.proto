@@ -130,6 +130,5 @@ message RawImpressionUploadModelLine {
 
   // Reason for the most recent transition to `FAILED`. Remains set until a
   // later failure replaces it.
-  FailureReason failure_reason = 12
-      [(google.api.field_behavior) = OUTPUT_ONLY];
+  FailureReason failure_reason = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

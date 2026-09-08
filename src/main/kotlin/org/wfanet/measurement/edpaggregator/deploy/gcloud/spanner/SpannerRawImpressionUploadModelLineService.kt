@@ -569,19 +569,22 @@ class SpannerRawImpressionUploadModelLineService(
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
-    if (
-      request.failureReason == FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED
-    ) {
-      throw RequiredFieldNotSetException("failure_reason")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
     if (request.failureReason == FailureReason.UNRECOGNIZED) {
       throw InvalidFieldValueException("failure_reason")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val failureReason =
+      if (
+        request.failureReason ==
+          FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED
+      ) {
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
+      } else {
+        request.failureReason
+      }
 
     val validPreviousStates =
-      when (request.failureReason) {
+      when (failureReason) {
         FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE ->
           setOf(
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
@@ -591,15 +594,11 @@ class SpannerRawImpressionUploadModelLineService(
           )
         FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
           setOf(
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
           )
         FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED,
-        FailureReason.UNRECOGNIZED -> error("failure_reason was validated")
+        FailureReason.UNRECOGNIZED -> error("failure_reason was normalized")
       }
 
     val transitionResult =
@@ -615,7 +614,7 @@ class SpannerRawImpressionUploadModelLineService(
         currentMarkRequestId = { it.markFailedRequestId },
       ) {
         set("ErrorMessage").to(request.errorMessage)
-        set("FailureReason").to(request.failureReason)
+        set("FailureReason").to(failureReason)
       }
     // On an AIP-155 replay the stored (first) error_message is authoritative and returned as-is;
     // only a fresh transition adopts this request's error_message (the row read before the write
@@ -626,7 +625,7 @@ class SpannerRawImpressionUploadModelLineService(
       transitionResult.modelLine.copy {
         errorMessage = request.errorMessage
         failureAttemptId = request.requestId
-        failureReason = request.failureReason
+        this.failureReason = failureReason
       }
     }
   }
@@ -727,6 +726,23 @@ class SpannerRawImpressionUploadModelLineService(
               rawImpressionUploadModelLineResourceId,
               result.rawImpressionUploadModelLine.state,
               validPreviousStates,
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+
+        // FAILED is retryable only when it represents processing failure. This check is in the
+        // same transaction as the state change so eviction and retry cannot both win.
+        if (
+          currentState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED &&
+            nextState in PROCESSING_STATES &&
+            result.rawImpressionUploadModelLine.failureReason !in RETRYABLE_FAILURE_REASONS
+        ) {
+          throw RawImpressionUploadModelLineStateInvalidException(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              rawImpressionUploadModelLineResourceId,
+              currentState,
+              validPreviousStates - State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
             )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
@@ -875,6 +891,12 @@ class SpannerRawImpressionUploadModelLineService(
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+      )
+
+    private val RETRYABLE_FAILURE_REASONS =
+      setOf(
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED,
+        FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE,
       )
   }
 }

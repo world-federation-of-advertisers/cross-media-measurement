@@ -63,9 +63,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase as InternalModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceCoroutineStub
-import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as InternalModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.encryptedDek as internalEncryptedDek
@@ -1038,29 +1038,23 @@ class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
-  fun `markRawImpressionUploadModelLineFailed throws INVALID_ARGUMENT for missing failure reason`() =
+  fun `markRawImpressionUploadModelLineFailed defaults missing reason to processing failure`() =
     runBlocking {
       val created = createModelLineForMark()
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.markRawImpressionUploadModelLineFailed(
-            markRawImpressionUploadModelLineFailedRequest {
-              name = created.name
-              etag = created.etag
-              requestId = UUID.randomUUID().toString()
-            }
-          )
-        }
+      val failureAttemptId = UUID.randomUUID().toString()
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "failure_reason"
+      val failed =
+        service.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            name = created.name
+            etag = created.etag
+            requestId = failureAttemptId
           }
         )
+
+      assertThat(failed.failureAttemptId).isEqualTo(failureAttemptId)
+      assertThat(failed.failureReason)
+        .isEqualTo(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
     }
 
   @Test

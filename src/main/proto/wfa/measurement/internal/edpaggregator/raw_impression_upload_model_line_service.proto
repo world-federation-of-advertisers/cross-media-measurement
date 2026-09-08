@@ -277,5 +277,7 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   string request_id = 6;
 
   // Reason that the model line is being marked FAILED.
+  //
+  // Defaults to PROCESSING_FAILURE when unspecified.
   RawImpressionUploadModelLineFailureReason failure_reason = 7;
 }

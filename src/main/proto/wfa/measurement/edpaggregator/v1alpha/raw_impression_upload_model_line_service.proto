@@ -396,7 +396,9 @@ message MarkRawImpressionUploadModelLineFailedRequest {
     (google.api.field_info).format = UUID4
   ];
 
-  // Reason that the model line is being marked `FAILED`.
+  // Optional. Reason that the model line is being marked `FAILED`.
+  //
+  // Defaults to `PROCESSING_FAILURE` when unspecified.
   RawImpressionUploadModelLine.FailureReason failure_reason = 5
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 }
