@@ -272,8 +272,13 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     private var latest: Timestamp? = null
     private val entityIdsByType = LinkedHashMap<String, LinkedHashSet<String>>()
 
-    private val blobKey = outputBlobKey(key)
-    private val outputBlobUri = "${outputStorageParams.impressionsBlobPrefix}/$blobKey"
+    private val outputBlobUri =
+      LabeledImpressionsBlobKeys.forInputUri(
+        outputStorageParams.impressionsBlobPrefix,
+        inputBlobUri,
+        key.modelLine,
+        fileMetadata.eventDate,
+      )
     private lateinit var outputEncryptedDek: EncryptedDek
 
     /** The draining/writing coroutine. Started eagerly so the blob is opened as records arrive. */
@@ -373,8 +378,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
           }
       }
 
-      val metadataKey = "$blobKey.metadata.binpb"
-      val metadataUri = "${outputStorageParams.impressionsBlobPrefix}/$metadataKey"
+      val metadataUri = "$outputBlobUri.metadata.binpb"
       // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
       // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
       // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
@@ -402,18 +406,6 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
       .put(VidLabelerMetrics.MODEL_LINE_KEY, modelLine)
       .put(VidLabelerMetrics.DROP_REASON_KEY, reason)
       .build()
-
-  /**
-   * Deterministic output blob key for [key] under this input file:
-   * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
-   * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's event date
-   * ([RawImpressionFileMetadata.eventDate], read from the footer, UTC; a raw file holds one day).
-   * The trailing SHA of (input file, model line) keeps the key deterministic, so a retried input
-   * file overwrites its previous output instead of duplicating it.
-   */
-  private fun outputBlobKey(key: OutputGroupKey): String {
-    return LabeledImpressionsBlobKeys.forInput(inputBlobUri, key.modelLine, fileMetadata.eventDate)
-  }
 
   private val Timestamp.epochNanos: Long
     get() = seconds * NANOS_PER_SECOND + nanos
