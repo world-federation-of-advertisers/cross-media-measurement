@@ -207,7 +207,11 @@ class VidLabelingDispatcher(
           selectUnregisteredBlobVersions(currentBlobVersions, exactRevision?.name)
         }
 
-      if (candidateBlobs.isEmpty()) {
+      val registrationBaseline = exactRevision ?: previousRevision
+      if (
+        candidateBlobs.isEmpty() &&
+          (registrationBaseline == null || isRegistrationComplete(registrationBaseline))
+      ) {
         logger.info("No new raw impression object versions found in $folderPrefix")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
@@ -271,6 +275,13 @@ class VidLabelingDispatcher(
         } else {
           selectUnregisteredBlobVersions(currentBlobVersions, refreshedCurrent.name)
         }
+
+      if (blobsToRegister.isEmpty() && !hasRegisteredFiles(refreshedCurrent.name)) {
+        markRegistrationComplete(rawImpressionUpload.name)
+        logger.info("No new raw impression object versions found in $folderPrefix")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       metrics.filesProcessedCounter.add(
         blobsToRegister.size.toLong(),
@@ -584,6 +595,20 @@ class VidLabelingDispatcher(
       throw Exception("Error marking RawImpressionUpload ${upload.name} registration complete", e)
     }
   }
+
+  private suspend fun hasRegisteredFiles(uploadName: String): Boolean {
+    val response =
+      rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+        listRawImpressionUploadFilesRequest {
+          parent = uploadName
+          pageSize = 1
+        }
+      )
+    return response.rawImpressionUploadFilesCount > 0
+  }
+
+  private fun isRegistrationComplete(upload: RawImpressionUpload): Boolean =
+    upload.registrationComplete || upload.state != RawImpressionUpload.State.CREATED
 
   private suspend fun resolveBlobVersions(
     blobs: List<StorageClient.Blob>,
