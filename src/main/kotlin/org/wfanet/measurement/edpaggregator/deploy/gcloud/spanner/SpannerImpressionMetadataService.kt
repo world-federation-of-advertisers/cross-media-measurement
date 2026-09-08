@@ -645,11 +645,11 @@ class SpannerImpressionMetadataService(
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=batchUndeleteImpressionMetadata"))
-    val restored = buildList {
+    val restored =
       transactionRunner.run { txn ->
         val existing =
           txn.getImpressionMetadataByResourceIds(dataProviderResourceId, resourceIds.toList())
-        request.requestsList.forEach { subRequest ->
+        request.requestsList.map { subRequest ->
           val result =
             existing[subRequest.impressionMetadataResourceId]
               ?: throw ImpressionMetadataNotFoundException(
@@ -666,10 +666,9 @@ class SpannerImpressionMetadataService(
             result.impressionMetadataId,
             State.IMPRESSION_METADATA_STATE_ACTIVE,
           )
-          add(result.impressionMetadata)
+          result.impressionMetadata
         }
       }
-    }
 
     val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
     return batchUndeleteImpressionMetadataResponse {
