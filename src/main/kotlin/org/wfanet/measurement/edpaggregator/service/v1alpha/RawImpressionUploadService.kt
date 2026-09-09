@@ -24,6 +24,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadNotFoundException
@@ -241,6 +242,10 @@ class RawImpressionUploadService(
       RawImpressionUploadKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -258,16 +263,29 @@ class RawImpressionUploadService(
           internalMarkRegistrationCompleteRequest {
             dataProviderResourceId = uploadKey.dataProviderId
             rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+            etag = request.etag
             requestId = request.requestId
           }
         )
         .toPublic()
     } catch (e: StatusException) {
-      if (InternalErrors.getReason(e) == InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND) {
-        throw RawImpressionUploadNotFoundException(request.name, e)
-          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+          RawImpressionUploadNotFoundException(request.name, e)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        InternalErrors.Reason.ETAG_MISMATCH ->
+          EtagMismatchException.fromInternal(e).asStatusRuntimeException(Status.Code.ABORTED)
+        null ->
+          if (
+            e.status.code == Status.Code.ALREADY_EXISTS ||
+              e.status.code == Status.Code.FAILED_PRECONDITION
+          ) {
+            e.status.withCause(e).asRuntimeException()
+          } else {
+            Status.INTERNAL.withCause(e).asRuntimeException()
+          }
+        else -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
-      throw Status.INTERNAL.withCause(e).asRuntimeException()
     }
   }
 
@@ -417,6 +435,7 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
     }
     createTime = source.createTime
     updateTime = source.updateTime
+    etag = source.etag
   }
 }
 

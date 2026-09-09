@@ -20,3 +20,7 @@
 -- Existing CREATED uploads may represent interrupted registration, so legacy rows start
 -- incomplete. Non-CREATED legacy rows are treated as complete by the dispatcher.
 ALTER TABLE RawImpressionUpload ADD COLUMN RegistrationComplete BOOL NOT NULL DEFAULT (FALSE);
+ALTER TABLE RawImpressionUpload ADD COLUMN MarkRegistrationCompleteRequestId STRING(36);
+
+CREATE UNIQUE NULL_FILTERED INDEX RawImpressionUploadByMarkRegistrationCompleteRequestId
+  ON RawImpressionUpload(DataProviderResourceId, MarkRegistrationCompleteRequestId);
