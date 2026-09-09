@@ -76,3 +76,6 @@ databaseChangeLog:
   - include:
       file: add-raw-upload-model-line-eviction-index.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-upload-model-line-recovery-dependency.sql
+      relativeToChangeLogFile: true

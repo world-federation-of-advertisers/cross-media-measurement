@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
@@ -503,6 +504,9 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.MarkCompletedRequestId,
       RawImpressionUploadModelLine.MarkFailedRequestId,
       RawImpressionUploadModelLine.FailureReason,
+      RawImpressionUploadModelLine.EvictionOperationId,
+      RawImpressionUploadModelLine.RecoveryAction,
+      RawImpressionUploadModelLine.RecoveryPredecessorRawImpressionUploadResourceId,
     FROM
       RawImpressionUploadModelLine
     """
@@ -544,6 +548,20 @@ private object RawImpressionUploadModelLineEntity {
               "FailureReason",
               RawImpressionUploadModelLineFailureReason::forNumber,
             )
+        }
+        if (!struct.isNull("EvictionOperationId")) {
+          evictionOperationId = struct.getString("EvictionOperationId")
+        }
+        if (!struct.isNull("RecoveryAction")) {
+          recoveryAction =
+            struct.getProtoEnum(
+              "RecoveryAction",
+              RawImpressionUploadModelLineRecoveryAction::forNumber,
+            )
+        }
+        if (!struct.isNull("RecoveryPredecessorRawImpressionUploadResourceId")) {
+          recoveryPredecessorRawImpressionUploadResourceId =
+            struct.getString("RecoveryPredecessorRawImpressionUploadResourceId")
         }
       },
       struct.getLong("RawImpressionUploadId"),
