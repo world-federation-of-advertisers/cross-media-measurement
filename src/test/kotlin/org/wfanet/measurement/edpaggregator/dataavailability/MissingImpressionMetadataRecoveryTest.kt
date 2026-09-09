@@ -491,6 +491,41 @@ class MissingImpressionMetadataRecoveryTest {
   }
 
   @Test
+  fun `recover ignores a deleted resource whose metadata blob is empty`(): Unit = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val deletedUri = metadataUri("2026-08-03", "metadata-empty.json")
+    storageClient.writeBlob(metadataKey("2026-08-03", "metadata-empty.json"), ByteString.EMPTY)
+    storageClient.writeBlob(
+      "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-03/done",
+      ByteString.EMPTY,
+    )
+    registeredMetadata[deletedUri] = impressionMetadata {
+      name = "$DATA_PROVIDER_NAME/impressionMetadata/deleted-empty"
+      blobUri = deletedUri
+      state = ImpressionMetadata.State.DELETED
+    }
+
+    val result =
+      buildRecovery(
+          storageClient,
+          impressionMetadataBatchSize = 100,
+          registerSyncedMetadata = true,
+        ) { _, _ ->
+        }
+        .recover()
+
+    assertThat(result.finalizedMetadataBlobs).isEqualTo(0)
+    assertThat(result.missingBlobs).isEqualTo(0)
+    assertThat(result.deletedRecordsWithBlobs).isEqualTo(0)
+    assertThat(result.undeletedRecords).isEqualTo(0)
+    assertThat(result.dateFoldersResynced).isEqualTo(0)
+    assertThat(result.errors).isEmpty()
+    assertThat(undeleteRequests).isEmpty()
+    assertThat(registeredMetadata.getValue(deletedUri).state)
+      .isEqualTo(ImpressionMetadata.State.DELETED)
+  }
+
+  @Test
   fun `recover treats concurrent undelete as success`() = runBlocking {
     val storageClient = InMemoryStorageClient()
     val deletedUri = metadataUri("2026-08-03", "metadata-deleted.json")
