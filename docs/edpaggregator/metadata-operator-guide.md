@@ -196,7 +196,7 @@ There are 6 secondary indexes (verified against the live schema):
 | `ImpressionMetadataByBlobUri` (unique) | no | Lookup / cleanup by exact blob URI. Entry on every create. |
 | `ImpressionMetadataByBlobUriPrefix` (non-unique) | no | Prefix lookup by blob URI. `BlobUri` is `NOT NULL`, so an entry on every create. |
 | `ImpressionMetadataByUpdateRequestId` (unique) | yes | Idempotency on update. `UpdateRequestId` is NULL on create, so no cost on the create path (only on update). |
-| `ImpressionMetadataByListFilterAndPagination` | no | Backs `ListImpressionMetadata` (model line + event group + interval) and pagination. Entry on every create. |
+| `ImpressionMetadataByListFilterAndPagination` | no | Backs `ListImpressionMetadata` (model line + event group + state + interval) and pagination. Entry on every create. |
 
 Entity keys live in an interleaved child table, `ImpressionMetadataEntityKeys`
 (`DataProviderResourceId`, `ImpressionMetadataId`, `EntityType`, `EntityId`),
@@ -211,10 +211,10 @@ list filter.
 `IntervalStartTime`, `IntervalEndTime`, `CreateTime`,
 `ImpressionMetadataResourceId`). The public filter exposes `model_line`,
 `event_group_reference_id`, `interval_overlaps`, `blob_uri_prefix`,
-`entity_keys`, and `blob_uris` (plus a `show_deleted` flag that governs whether
-soft-`DELETED` rows are returned — `State` is an index column, not a caller-set
-filter field). A filter that supplies the leading index columns (model line,
-then event group, then interval) is a range scan; one that omits them cannot use
+`entity_keys`, `blob_uris`, and `state` (plus a `show_deleted` flag that controls
+whether soft-`DELETED` rows are eligible to be returned). A filter that supplies
+the leading index columns (model line, then event group, then state, then
+interval) is a range scan; one that omits them cannot use
 the index efficiently.
 
 ## ImpressionMetadata service: behavior at scale

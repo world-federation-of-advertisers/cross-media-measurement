@@ -699,6 +699,29 @@ class ImpressionMetadataService(
       }
     }
 
+    val internalState =
+      when (request.filter.state) {
+        ImpressionMetadata.State.STATE_UNSPECIFIED ->
+          if (request.showDeleted) {
+            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_UNSPECIFIED
+          } else {
+            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_ACTIVE
+          }
+        ImpressionMetadata.State.ACTIVE -> request.filter.state.toInternal()
+        ImpressionMetadata.State.DELETED -> {
+          if (!request.showDeleted) {
+            throw InvalidFieldValueException("filter.state") { fieldName ->
+                "$fieldName cannot be DELETED unless show_deleted is true"
+              }
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+          request.filter.state.toInternal()
+        }
+        ImpressionMetadata.State.UNRECOGNIZED ->
+          throw InvalidFieldValueException("filter.state")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+
     val pageSize =
       if (request.pageSize == 0) {
         DEFAULT_PAGE_SIZE
@@ -737,12 +760,7 @@ class ImpressionMetadataService(
           blobUris += request.filter.blobUrisList
         }
 
-        state =
-          if (!request.showDeleted) {
-            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_ACTIVE
-          } else {
-            InternalImpressionMetadataState.IMPRESSION_METADATA_STATE_DELETED
-          }
+        state = internalState
       }
 
     val internalResponse: InternalListImpressionMetadataResponse =
