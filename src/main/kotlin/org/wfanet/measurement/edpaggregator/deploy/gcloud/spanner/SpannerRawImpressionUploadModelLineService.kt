@@ -595,7 +595,10 @@ class SpannerRawImpressionUploadModelLineService(
     return if (transitionResult.isReplay) {
       transitionResult.modelLine
     } else {
-      transitionResult.modelLine.copy { errorMessage = request.errorMessage }
+      transitionResult.modelLine.copy {
+        errorMessage = request.errorMessage
+        failureAttemptId = request.requestId
+      }
     }
   }
 

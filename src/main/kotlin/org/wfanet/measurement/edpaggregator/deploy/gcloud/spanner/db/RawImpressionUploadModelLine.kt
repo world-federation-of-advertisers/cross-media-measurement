@@ -512,6 +512,7 @@ private object RawImpressionUploadModelLineEntity {
           encryptedMergedDek =
             struct.getProtoMessage("EncryptedMergedDek", EncryptedDek.getDefaultInstance())
         }
+        failureAttemptId = markId("MarkFailedRequestId")
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RawImpressionUploadModelLineId"),

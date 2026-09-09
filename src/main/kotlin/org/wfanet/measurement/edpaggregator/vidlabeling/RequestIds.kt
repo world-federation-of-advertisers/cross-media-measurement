@@ -111,8 +111,24 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineCompleted(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineCompleted:$modelLineName")
 
-  fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String): String =
-    fromKey("markRawImpressionUploadModelLineFailed:$modelLineName")
+  fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String, etag: String): String =
+    fromKey("markRawImpressionUploadModelLineFailed:$modelLineName:$etag")
+
+  /** `request_id` for retrying a specific model-line failure at Phase 0. */
+  fun forHealingRetryPoolAssigning(modelLineName: String, failureAttemptId: String): String =
+    fromKey("healingRetryPoolAssigning:$modelLineName:$failureAttemptId")
+
+  /** `request_id` for retrying a specific model-line failure at Phase 1. */
+  fun forHealingRetryRanking(modelLineName: String, failureAttemptId: String): String =
+    fromKey("healingRetryRanking:$modelLineName:$failureAttemptId")
+
+  /** `request_id` for retrying a specific model-line failure at Phase 2. */
+  fun forHealingRetryLabeling(modelLineName: String, failureAttemptId: String): String =
+    fromKey("healingRetryLabeling:$modelLineName:$failureAttemptId")
+
+  /** WorkItem id for retrying [originalWorkItemId] after a specific model-line failure. */
+  fun forRetriedWorkItem(originalWorkItemId: String, failureAttemptId: String): String =
+    "rt-${fromKey("retryWorkItem:$originalWorkItemId:$failureAttemptId")}"
 
   private fun fromKey(key: String): String {
     // Render the deterministic (name-based) id in the RFC 4122 version-4 layout so the value

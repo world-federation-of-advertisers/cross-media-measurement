@@ -275,16 +275,15 @@ class RetryFailedCommand : EdpaApiCommand() {
             ),
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
-        if (result.workItemsRepublished == 0) {
-          System.err.println(
-            "WARN: all target WorkItems for ${result.modelLineName} already exist from a prior " +
-              "retry; the model line remains ${result.newState} and no new work was created. " +
-              "Investigate the prior retry's WorkItems (workItems/rt-<...>) before re-running."
+        if (result.wasAlreadyStarted) {
+          println(
+            "Retry for ${result.modelLineName} was already started; current state is " +
+              "${result.newState}."
           )
         } else {
           println(
-            "Re-triggered ${result.modelLineName} at ${result.newState}: republished " +
-              "${result.workItemsRepublished} WorkItem(s)."
+            "Re-triggered ${result.modelLineName} at ${result.newState}: created " +
+              "${result.workItemsRepublished} retry WorkItem(s)."
           )
         }
       }
