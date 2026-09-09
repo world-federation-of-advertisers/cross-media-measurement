@@ -1910,14 +1910,14 @@ abstract class ImpressionMetadataServiceTest {
             impressionMetadata =
               IMPRESSION_METADATA_2.copy {
                 impressionMetadataResourceId = "impression-metadata-z"
-                blobUri = "folder/c"
+                blobUri = "folder/a"
               }
           }
           requests += createImpressionMetadataRequest {
             impressionMetadata =
               IMPRESSION_METADATA_3.copy {
                 impressionMetadataResourceId = "impression-metadata-a"
-                blobUri = "folder/a"
+                blobUri = "folder/c"
               }
           }
           requests += createImpressionMetadataRequest {

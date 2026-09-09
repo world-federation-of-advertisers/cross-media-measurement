@@ -392,7 +392,10 @@ fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataState(
   }
 }
 
-/** Reads [ImpressionMetadata] ordered by resource ID. */
+/**
+ * Reads [ImpressionMetadata] ordered by blob URI for prefix pagination, or by resource ID
+ * otherwise.
+ */
 fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   dataProviderResourceId: String,
   filter: ListImpressionMetadataRequest.Filter,
