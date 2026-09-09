@@ -123,9 +123,9 @@ and avoid manually starting recovery while a target folder is actively being fin
 Post-sync verification proves that every repaired `ImpressionMetadata` resource is active and that
 the sync and publication IDs match after the Kingdom update. The existing `synced-by` marker
 continues to record the metadata-store phase. The sync attempt ID is written before metadata-store
-mutation, and publication updates only its own marker, so overlapping attempts cannot erase a
-newer incomplete attempt. These separate markers allow the monitor to distinguish metadata
-persistence failures from Kingdom publication failures.
+mutation, while publication updates only its own marker. If a newer attempt starts while an older
+attempt is publishing, their IDs remain mismatched until a complete retry. These separate markers
+allow the monitor to distinguish metadata-persistence failures from Kingdom publication failures.
 
 ## Scale and performance
 
