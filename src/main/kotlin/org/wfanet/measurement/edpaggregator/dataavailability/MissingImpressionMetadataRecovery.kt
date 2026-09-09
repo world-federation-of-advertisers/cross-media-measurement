@@ -24,6 +24,7 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
@@ -229,14 +230,19 @@ class MissingImpressionMetadataRecovery(
 
   private suspend fun recoverDateFolder(dateFolderPrefix: String): FolderRecoveryResult {
     val blobs = storageClient.listBlobs(dateFolderPrefix).toList()
-    val storageMetadataBlobs = blobs.filter(DataAvailabilityBlobs::isMetadataBlob)
-    val storageBlobUris =
-      storageMetadataBlobs.mapTo(mutableSetOf()) { BlobUris.buildUri(storageRootUri, it.blobKey) }
+    val storageMetadataBlobs = blobs.filter(::hasMetadataFileName)
+    val storageMetadataBlobsByUri =
+      storageMetadataBlobs.associateBy { BlobUris.buildUri(storageRootUri, it.blobKey) }
     val registeredMetadata = listRegisteredMetadata(dateFolderPrefix)
-    val deletedMetadataWithBlobs =
-      registeredMetadata.values.filter {
-        it.state == ImpressionMetadata.State.DELETED && it.blobUri in storageBlobUris
+    val deletedMetadataWithBlobs = mutableListOf<ImpressionMetadata>()
+    for (metadata in registeredMetadata.values) {
+      if (metadata.state == ImpressionMetadata.State.DELETED) {
+        val storageBlob = storageMetadataBlobsByUri[metadata.blobUri]
+        if (storageBlob != null && hasContent(storageBlob)) {
+          deletedMetadataWithBlobs += metadata
+        }
       }
+    }
 
     var undeletedRecords = 0
     var failedUndeletes = 0
@@ -273,7 +279,7 @@ class MissingImpressionMetadataRecovery(
     val doneBlob = blobs.firstOrNull { it.blobKey == doneBlobKey }
     val finalizedMetadataBlobs =
       if (doneBlob != null) {
-        storageMetadataBlobs
+        storageMetadataBlobs.filter(DataAvailabilityBlobs::isMetadataBlob)
       } else {
         emptyList()
       }
@@ -503,5 +509,19 @@ class MissingImpressionMetadataRecovery(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DONE_SUFFIX = "/done"
+    private const val METADATA_FILE_NAME = "metadata"
+
+    private fun hasMetadataFileName(blob: StorageClient.Blob): Boolean =
+      !blob.blobKey.endsWith(DONE_SUFFIX) &&
+        METADATA_FILE_NAME in blob.blobKey.substringAfterLast('/').lowercase()
+
+    private suspend fun hasContent(blob: StorageClient.Blob): Boolean {
+      return try {
+        blob.size != 0L
+      } catch (_: NullPointerException) {
+        // Some storage list implementations omit size; read only the deleted-row candidate.
+        blob.read().firstOrNull { it.size() > 0 } != null
+      }
+    }
   }
 }
