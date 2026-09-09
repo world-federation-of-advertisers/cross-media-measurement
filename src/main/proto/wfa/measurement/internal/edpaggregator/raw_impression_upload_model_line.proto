@@ -68,4 +68,9 @@ message RawImpressionUploadModelLine {
   // last shard's encrypted_dek, promoted on last-shard-out so a retrying
   // SubpoolAssigner reuses it.
   EncryptedDek encrypted_merged_dek = 12;
+
+  // Request ID of the most recent transition to FAILED. Remains set until a
+  // later failure replaces it, so retries can identify the failure attempt
+  // after this resource transitions back to an active state.
+  string failure_attempt_id = 13;
 }

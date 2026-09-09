@@ -110,4 +110,9 @@ message RawImpressionUploadModelLine {
   // generated DEK.
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_merged_dek = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Identifier of the most recent transition to `FAILED`. Remains set until a
+  // later failure replaces it so clients can recognize retries of that
+  // failure after this resource transitions back to an active state.
+  string failure_attempt_id = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
