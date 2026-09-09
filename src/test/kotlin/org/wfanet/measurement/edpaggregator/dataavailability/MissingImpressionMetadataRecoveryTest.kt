@@ -306,7 +306,7 @@ class MissingImpressionMetadataRecoveryTest {
   @Test
   fun `recover reports a date-folder listing failure in telemetry`(): Unit = runBlocking {
     val storageClient =
-      object : StorageClient by InMemoryStorageClient() {
+      object : BlobMetadataStorageClient by InMemoryStorageClient() {
         override suspend fun listBlobKeysAndPrefixes(prefix: String) =
           flow<String> { error("listing failed") }
       }
