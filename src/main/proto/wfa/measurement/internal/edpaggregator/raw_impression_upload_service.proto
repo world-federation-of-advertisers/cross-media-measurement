@@ -49,6 +49,7 @@ message MarkRawImpressionUploadRegistrationCompleteRequest {
   string data_provider_resource_id = 1;
   string raw_impression_upload_resource_id = 2;
   string request_id = 3;
+  string etag = 4;
 }
 
 // Request message for CreateRawImpressionUpload.

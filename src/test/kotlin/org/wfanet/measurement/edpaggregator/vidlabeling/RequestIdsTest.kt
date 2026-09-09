@@ -29,8 +29,8 @@ class RequestIdsTest {
   fun `request ids are stable across calls`() {
     assertThat(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
       .isEqualTo(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
-    assertThat(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD))
-      .isEqualTo(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD))
+    assertThat(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG))
+      .isEqualTo(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG))
     assertThat(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
       .isEqualTo(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
     assertThat(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
@@ -41,6 +41,12 @@ class RequestIdsTest {
   fun `upload request id differs by generation`() {
     assertThat(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
       .isNotEqualTo(RequestIds.forRawImpressionUpload(DONE_BLOB, 2L))
+  }
+
+  @Test
+  fun `registration completion request id differs by etag`() {
+    assertThat(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG))
+      .isNotEqualTo(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, "new-etag"))
   }
 
   @Test
@@ -71,7 +77,7 @@ class RequestIdsTest {
     val ids =
       listOf(
         RequestIds.forRawImpressionUpload(DONE_BLOB, 1L),
-        RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD),
+        RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG),
         RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI),
         RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE),
         RequestIds.forPoolAssignmentJob(UPLOAD, MODEL_LINE, 0),

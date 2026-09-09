@@ -289,6 +289,7 @@ class VidLabelingDispatcherTest {
         RawImpressionUpload.newBuilder()
           .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
           .setDoneBlobUri(DONE_BLOB_PATH)
+          .setEtag(UPLOAD_ETAG)
           .build()
       )
     whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
@@ -304,6 +305,7 @@ class VidLabelingDispatcherTest {
         RawImpressionUpload.newBuilder()
           .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
           .setRegistrationComplete(true)
+          .setEtag("completed-$UPLOAD_ETAG")
           .build()
       )
     // The post-registration fast path lists uploads; default to none so dispatch is a no-op unless
@@ -430,9 +432,13 @@ class VidLabelingDispatcherTest {
       // event_date is populated from each file's plaintext Parquet footer (readEventDate seam).
       assertThat(request.requestsList.map { it.rawImpressionUploadFile.eventDate })
         .containsExactly(EVENT_DATE_PROTO, EVENT_DATE_PROTO)
+      val completionCaptor = argumentCaptor<MarkRawImpressionUploadRegistrationCompleteRequest>()
       verifyBlocking(rawImpressionUploadService) {
-        markRawImpressionUploadRegistrationComplete(any())
+        markRawImpressionUploadRegistrationComplete(completionCaptor.capture())
       }
+      assertThat(completionCaptor.firstValue.etag).isEqualTo(UPLOAD_ETAG)
+      assertThat(completionCaptor.firstValue.requestId)
+        .isEqualTo(RequestIds.forRawImpressionUploadRegistrationComplete(uploadName, UPLOAD_ETAG))
     }
 
   @Test
@@ -800,6 +806,7 @@ class VidLabelingDispatcherTest {
                 .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
                 .setDoneBlobUri(DONE_BLOB_PATH)
                 .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+                .setEtag(UPLOAD_ETAG)
                 .build()
           }
         )
@@ -982,6 +989,7 @@ class VidLabelingDispatcherTest {
     private const val FOLDER_PREFIX = "/test-bucket/edp1/2024-01-15"
     private const val DONE_BLOB_PATH = "file://$FOLDER_PREFIX/done"
     private const val RAW_IMPRESSION_UPLOAD_ID = "upload-abc123"
+    private const val UPLOAD_ETAG = "upload-etag"
     private const val DONE_BLOB_GENERATION = 12345L
     private const val RAW_BLOB_GENERATION = 67890L
     private const val NUMBER_OF_SHARDS = 2
