@@ -362,10 +362,12 @@ class SpannerImpressionMetadataService(
             nextPageToken = listImpressionMetadataPageToken {
               this.after =
                 ListImpressionMetadataPageTokenKt.after {
-                  impressionMetadataResourceId =
-                    this@listImpressionMetadataResponse.impressionMetadata
-                      .last()
-                      .impressionMetadataResourceId
+                  val lastImpressionMetadata =
+                    this@listImpressionMetadataResponse.impressionMetadata.last()
+                  impressionMetadataResourceId = lastImpressionMetadata.impressionMetadataResourceId
+                  if (request.filter.blobUriPrefix.isNotEmpty()) {
+                    blobUri = lastImpressionMetadata.blobUri
+                  }
                 }
             }
           } else {

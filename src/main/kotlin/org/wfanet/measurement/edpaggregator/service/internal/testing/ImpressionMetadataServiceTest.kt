@@ -1816,6 +1816,126 @@ abstract class ImpressionMetadataServiceTest {
   }
 
   @Test
+  fun `listImpressionMetadata paginates blobUriPrefix filter by blob URI`(): Unit = runBlocking {
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            requests += createImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA_2.copy {
+                  impressionMetadataResourceId = "impression-metadata-z"
+                  blobUri = "folder/c"
+                }
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA_3.copy {
+                  impressionMetadataResourceId = "impression-metadata-a"
+                  blobUri = "folder/a"
+                }
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA_4.copy {
+                  impressionMetadataResourceId = "impression-metadata-m"
+                  blobUri = "folder/b"
+                }
+            }
+          }
+        )
+        .impressionMetadataList
+        .sortedBy { it.blobUri }
+
+    val firstResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 2
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(firstResponse)
+      .isEqualTo(
+        listImpressionMetadataResponse {
+          impressionMetadata += created.take(2)
+          nextPageToken = listImpressionMetadataPageToken {
+            after =
+              ListImpressionMetadataPageTokenKt.after {
+                impressionMetadataResourceId = created[1].impressionMetadataResourceId
+                blobUri = created[1].blobUri
+              }
+          }
+        }
+      )
+
+    val secondResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 2
+          pageToken = firstResponse.nextPageToken
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(secondResponse)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created.last() })
+  }
+
+  @Test
+  fun `listImpressionMetadata accepts legacy page token with blobUriPrefix`(): Unit = runBlocking {
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            requests += createImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA_2.copy {
+                  impressionMetadataResourceId = "impression-metadata-z"
+                  blobUri = "folder/c"
+                }
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA_3.copy {
+                  impressionMetadataResourceId = "impression-metadata-a"
+                  blobUri = "folder/a"
+                }
+            }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata =
+                IMPRESSION_METADATA_4.copy {
+                  impressionMetadataResourceId = "impression-metadata-m"
+                  blobUri = "folder/b"
+                }
+            }
+          }
+        )
+        .impressionMetadataList
+        .sortedBy { it.impressionMetadataResourceId }
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 2
+          pageToken = listImpressionMetadataPageToken {
+            after =
+              ListImpressionMetadataPageTokenKt.after {
+                impressionMetadataResourceId = created.first().impressionMetadataResourceId
+              }
+          }
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created.drop(1) })
+  }
+
+  @Test
   fun `listImpressionMetadata without state filter returns both active and deleted ImpressionMetadata`() =
     runBlocking {
       val (created1, created2) =
