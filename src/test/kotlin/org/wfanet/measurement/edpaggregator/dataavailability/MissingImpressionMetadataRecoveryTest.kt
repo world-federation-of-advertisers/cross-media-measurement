@@ -873,6 +873,11 @@ class MissingImpressionMetadataRecoveryTest {
       earliestDataDate = LocalDate.parse("2026-06-01"),
       latestDataDate = LocalDate.parse("2026-08-31"),
       sync = { doneBlobUri, blobKeys ->
+        val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
+        storageClient.updateBlobMetadata(
+          doneBlobKey,
+          metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to TEST_SYNC_ID),
+        )
         sync(doneBlobUri, blobKeys)
         if (markSyncedBlobs) {
           for (blobKey in blobKeys) {
@@ -896,16 +901,15 @@ class MissingImpressionMetadataRecoveryTest {
             )
           }
         }
+        storageClient.updateBlobMetadata(
+          doneBlobKey,
+          metadata =
+            mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
+        )
         if (publicationCompletes) {
-          val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
           storageClient.updateBlobMetadata(
             doneBlobKey,
-            metadata =
-              mapOf(
-                DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
-                DataAvailabilityBlobs.SYNC_ID_KEY to TEST_SYNC_ID,
-                DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to TEST_SYNC_ID,
-              ),
+            metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to TEST_SYNC_ID),
           )
         }
         if (markSyncedBlobs) blobKeys else emptySet()
