@@ -277,7 +277,7 @@ class VidLabelingDispatcher(
         }
 
       if (blobsToRegister.isEmpty() && !hasRegisteredFiles(refreshedCurrent.name)) {
-        markRegistrationComplete(rawImpressionUpload.name)
+        markRegistrationComplete(rawImpressionUpload)
         logger.info("No new raw impression object versions found in $folderPrefix")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
