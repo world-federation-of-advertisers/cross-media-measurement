@@ -485,7 +485,8 @@ class RecoverUploadCommand : EdpaApiCommand() {
       val current = requireNotNull(storage.get(blobId)) { "done blob does not exist: $doneBlobUri" }
       val currentMetadata = current.metadata.orEmpty()
       val isRetryableRecoveryGeneration =
-        current.generation > expectedGeneration &&
+        current.generation > 0L &&
+          current.generation != expectedGeneration &&
           metadata.all { (key, value) -> currentMetadata[key] == value }
       require(current.generation == expectedGeneration || isRetryableRecoveryGeneration) {
         "$doneBlobUri is at generation ${current.generation}, not source generation " +

@@ -76,7 +76,7 @@ class VidLabelingHealTest {
   }
 
   @Test
-  fun `rewriteDoneBlob can retry an undelivered recovery generation`() {
+  fun `rewriteDoneBlob can retry a lower-numbered undelivered recovery generation`() {
     val storage = mock<Storage>()
     val current = mock<Blob>()
     val created = mock<Blob>()
@@ -86,7 +86,7 @@ class VidLabelingHealTest {
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
       )
     whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(11L)
+    whenever(current.generation).thenReturn(9L)
     whenever(current.metadata).thenReturn(metadata)
     whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
       .thenReturn(created)
@@ -105,7 +105,7 @@ class VidLabelingHealTest {
     val targetOption = argumentCaptor<Storage.BlobTargetOption>()
     verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
     assertThat(blobInfo.firstValue.metadata).containsAtLeastEntriesIn(metadata)
-    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(11L))
+    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(9L))
   }
 
   @Test
