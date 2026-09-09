@@ -414,6 +414,7 @@ class DataAvailabilityMonitor(
                 this.pageToken = pageToken
                 filter = listImpressionMetadataRequestFilter {
                   modelLine = modelLineName
+                  state = V1AlphaImpressionMetadata.State.DELETED
                   intervalOverlaps = spuriousInterval
                 }
               }
@@ -423,6 +424,10 @@ class DataAvailabilityMonitor(
         .flattenConcat()
 
     deletedEntries.collect { entry ->
+      // Fail closed if the service violates the requested state filter.
+      check(entry.state == V1AlphaImpressionMetadata.State.DELETED) {
+        "ListImpressionMetadata returned ${entry.state} for a DELETED state filter"
+      }
       val blobKey = SelectedStorageClient.parseBlobUri(entry.blobUri).key
       val blob = storageClient.getBlob(blobKey)
       blob?.let {

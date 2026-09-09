@@ -972,6 +972,7 @@ class RawImpressionUploadModelLineServiceTest {
 
   @Test
   fun `markRawImpressionUploadModelLineFailed transitions state`() = runBlocking {
+    val failureAttemptId = UUID.randomUUID().toString()
     createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val created =
       service.createRawImpressionUploadModelLine(
@@ -990,13 +991,14 @@ class RawImpressionUploadModelLineServiceTest {
           name = created.name
           etag = created.etag
           errorMessage = "Something went wrong"
-          requestId = UUID.randomUUID().toString()
+          requestId = failureAttemptId
         }
       )
 
     assertThat(failed.state).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
     assertThat(failed.name).isEqualTo(created.name)
     assertThat(failed.errorMessage).isEqualTo("Something went wrong")
+    assertThat(failed.failureAttemptId).isEqualTo(failureAttemptId)
   }
 
   @Test
@@ -1410,6 +1412,7 @@ class RawImpressionUploadModelLineServiceTest {
       rawImpressionUploadModelLineResourceId = "model-line-1"
       cmmsModelLine = CMMS_MODEL_LINE
       state = InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+      failureAttemptId = "failure-attempt-1"
       poolOffsets += listOf(0L, 5L, 10L)
       maxEventDate = date {
         year = 2026
@@ -1427,6 +1430,7 @@ class RawImpressionUploadModelLineServiceTest {
     val publicModelLine = internalModelLine.toPublic()
 
     assertThat(publicModelLine.poolOffsetsList).containsExactly(0L, 5L, 10L).inOrder()
+    assertThat(publicModelLine.failureAttemptId).isEqualTo("failure-attempt-1")
     assertThat(publicModelLine.maxEventDate)
       .isEqualTo(
         date {
