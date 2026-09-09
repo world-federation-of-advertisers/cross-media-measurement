@@ -146,6 +146,7 @@ message ListImpressionMetadataPageToken {
   message After {
     google.protobuf.Timestamp create_time = 1;
     string impression_metadata_resource_id = 2;
+    // The last blob URI returned when filtering by `blob_uri_prefix`.
     string blob_uri = 3;
   }
   After after = 2;

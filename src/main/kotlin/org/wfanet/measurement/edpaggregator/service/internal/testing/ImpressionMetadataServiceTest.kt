@@ -1817,35 +1817,7 @@ abstract class ImpressionMetadataServiceTest {
 
   @Test
   fun `listImpressionMetadata paginates blobUriPrefix filter by blob URI`(): Unit = runBlocking {
-    val created =
-      service
-        .batchCreateImpressionMetadata(
-          batchCreateImpressionMetadataRequest {
-            requests += createImpressionMetadataRequest {
-              impressionMetadata =
-                IMPRESSION_METADATA_2.copy {
-                  impressionMetadataResourceId = "impression-metadata-z"
-                  blobUri = "folder/c"
-                }
-            }
-            requests += createImpressionMetadataRequest {
-              impressionMetadata =
-                IMPRESSION_METADATA_3.copy {
-                  impressionMetadataResourceId = "impression-metadata-a"
-                  blobUri = "folder/a"
-                }
-            }
-            requests += createImpressionMetadataRequest {
-              impressionMetadata =
-                IMPRESSION_METADATA_4.copy {
-                  impressionMetadataResourceId = "impression-metadata-m"
-                  blobUri = "folder/b"
-                }
-            }
-          }
-        )
-        .impressionMetadataList
-        .sortedBy { it.blobUri }
+    val created = createBlobUriPaginationMetadata().sortedBy { it.blobUri }
 
     val firstResponse =
       service.listImpressionMetadata(
@@ -1886,35 +1858,7 @@ abstract class ImpressionMetadataServiceTest {
 
   @Test
   fun `listImpressionMetadata accepts legacy page token with blobUriPrefix`(): Unit = runBlocking {
-    val created =
-      service
-        .batchCreateImpressionMetadata(
-          batchCreateImpressionMetadataRequest {
-            requests += createImpressionMetadataRequest {
-              impressionMetadata =
-                IMPRESSION_METADATA_2.copy {
-                  impressionMetadataResourceId = "impression-metadata-z"
-                  blobUri = "folder/c"
-                }
-            }
-            requests += createImpressionMetadataRequest {
-              impressionMetadata =
-                IMPRESSION_METADATA_3.copy {
-                  impressionMetadataResourceId = "impression-metadata-a"
-                  blobUri = "folder/a"
-                }
-            }
-            requests += createImpressionMetadataRequest {
-              impressionMetadata =
-                IMPRESSION_METADATA_4.copy {
-                  impressionMetadataResourceId = "impression-metadata-m"
-                  blobUri = "folder/b"
-                }
-            }
-          }
-        )
-        .impressionMetadataList
-        .sortedBy { it.impressionMetadataResourceId }
+    val created = createBlobUriPaginationMetadata().sortedBy { it.impressionMetadataResourceId }
 
     val response =
       service.listImpressionMetadata(
@@ -1933,6 +1877,36 @@ abstract class ImpressionMetadataServiceTest {
 
     assertThat(response)
       .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created.drop(1) })
+  }
+
+  private suspend fun createBlobUriPaginationMetadata(): List<ImpressionMetadata> {
+    return service
+      .batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          requests += createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA_2.copy {
+                impressionMetadataResourceId = "impression-metadata-z"
+                blobUri = "folder/c"
+              }
+          }
+          requests += createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA_3.copy {
+                impressionMetadataResourceId = "impression-metadata-a"
+                blobUri = "folder/a"
+              }
+          }
+          requests += createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA_4.copy {
+                impressionMetadataResourceId = "impression-metadata-m"
+                blobUri = "folder/b"
+              }
+          }
+        }
+      )
+      .impressionMetadataList
   }
 
   @Test
