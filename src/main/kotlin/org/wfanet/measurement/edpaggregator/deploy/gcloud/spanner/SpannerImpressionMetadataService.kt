@@ -345,6 +345,8 @@ class SpannerImpressionMetadataService(
       }
 
     val after = if (request.hasPageToken()) request.pageToken.after else null
+    val paginateByBlobUri =
+      request.filter.blobUriPrefix.isNotEmpty() && (after == null || after.blobUri.isNotEmpty())
 
     databaseClient.singleUse().use { txn ->
       val impressionMetadataList: Flow<ImpressionMetadata> =
@@ -365,7 +367,7 @@ class SpannerImpressionMetadataService(
                   val lastImpressionMetadata =
                     this@listImpressionMetadataResponse.impressionMetadata.last()
                   impressionMetadataResourceId = lastImpressionMetadata.impressionMetadataResourceId
-                  if (request.filter.blobUriPrefix.isNotEmpty()) {
+                  if (paginateByBlobUri) {
                     blobUri = lastImpressionMetadata.blobUri
                   }
                 }

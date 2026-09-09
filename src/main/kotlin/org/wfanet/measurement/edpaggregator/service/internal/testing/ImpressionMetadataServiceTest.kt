@@ -1864,7 +1864,7 @@ abstract class ImpressionMetadataServiceTest {
       service.listImpressionMetadata(
         listImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          pageSize = 2
+          pageSize = 1
           pageToken = listImpressionMetadataPageToken {
             after =
               ListImpressionMetadataPageTokenKt.after {
@@ -1876,7 +1876,30 @@ abstract class ImpressionMetadataServiceTest {
       )
 
     assertThat(response)
-      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created.drop(1) })
+      .isEqualTo(
+        listImpressionMetadataResponse {
+          impressionMetadata += created[1]
+          nextPageToken = listImpressionMetadataPageToken {
+            after =
+              ListImpressionMetadataPageTokenKt.after {
+                impressionMetadataResourceId = created[1].impressionMetadataResourceId
+              }
+          }
+        }
+      )
+
+    val finalResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 1
+          pageToken = response.nextPageToken
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(finalResponse)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created.last() })
   }
 
   private suspend fun createBlobUriPaginationMetadata(): List<ImpressionMetadata> {
