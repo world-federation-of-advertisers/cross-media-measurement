@@ -401,4 +401,22 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   // Defaults to `PROCESSING_FAILURE` when unspecified.
   RawImpressionUploadModelLine.FailureReason failure_reason = 5
       [(google.api.field_behavior) = OPTIONAL];
+
+  // Identifier shared by all rows in this eviction operation.
+  string eviction_operation_id = 6 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+
+  // Action required to replace output invalidated by the eviction.
+  RawImpressionUploadModelLine.RecoveryAction recovery_action = 7
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Upload whose completed replacement must exist before recovery can start.
+  string recovery_predecessor_raw_impression_upload = 8 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
 }

@@ -22,6 +22,9 @@ package org.wfanet.measurement.securecomputation.datawatcher
  * names; this object is the single source of truth.
  */
 object WatchedBlobs {
+  /** GCS custom metadata key identifying the eviction operation that authorized a recovery. */
+  const val EVICTION_OPERATION_ID_KEY = "eviction-operation-id"
+
   /** GCS custom metadata key identifying the evicted upload that authorizes a recovery override. */
   const val RECOVERY_SOURCE_UPLOAD_KEY = "recovery-source-upload"
 

@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse as InternalListResponse
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine as InternalRawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesRequest as internalBatchCreateRequest
@@ -482,6 +483,62 @@ class RawImpressionUploadModelLineService(
       } else {
         request.failureReason
       }
+    if (request.recoveryAction == RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.evictionOperationId.isNotEmpty()) {
+      try {
+        UUID.fromString(request.evictionOperationId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("eviction_operation_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+    val recoveryPredecessorKey =
+      request.recoveryPredecessorRawImpressionUpload
+        .takeIf { it.isNotEmpty() }
+        ?.let { name ->
+          RawImpressionUploadKey.fromName(name)
+            ?: throw InvalidFieldValueException("recovery_predecessor_raw_impression_upload")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+    if (failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT) {
+      if (request.evictionOperationId.isEmpty()) {
+        throw RequiredFieldNotSetException("eviction_operation_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (
+        request.recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED
+      ) {
+        throw RequiredFieldNotSetException("recovery_action")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (
+        request.recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY &&
+          recoveryPredecessorKey == null
+      ) {
+        throw RequiredFieldNotSetException("recovery_predecessor_raw_impression_upload")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    } else if (
+      request.evictionOperationId.isNotEmpty() ||
+        request.recoveryAction !=
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED ||
+        recoveryPredecessorKey != null
+    ) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      recoveryPredecessorKey != null &&
+        recoveryPredecessorKey.dataProviderId != modelLineKey.dataProviderId
+    ) {
+      throw InvalidFieldValueException("recovery_predecessor_raw_impression_upload")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineFailed(
@@ -493,6 +550,10 @@ class RawImpressionUploadModelLineService(
             requestId = request.requestId
             errorMessage = request.errorMessage
             this.failureReason = failureReason.toInternal()
+            evictionOperationId = request.evictionOperationId
+            recoveryAction = request.recoveryAction.toInternal()
+            recoveryPredecessorRawImpressionUploadResourceId =
+              recoveryPredecessorKey?.rawImpressionUploadId.orEmpty()
           }
         )
       } catch (e: StatusException) {
@@ -602,6 +663,16 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
     }
     failureAttemptId = source.failureAttemptId
     failureReason = source.failureReason.toPublic()
+    evictionOperationId = source.evictionOperationId
+    recoveryAction = source.recoveryAction.toPublic()
+    if (source.recoveryPredecessorRawImpressionUploadResourceId.isNotEmpty()) {
+      recoveryPredecessorRawImpressionUpload =
+        RawImpressionUploadKey(
+            source.dataProviderResourceId,
+            source.recoveryPredecessorRawImpressionUploadResourceId,
+          )
+          .toName()
+    }
   }
 }
 
@@ -675,5 +746,32 @@ internal fun RawImpressionUploadModelLine.FailureReason.toInternal(): InternalFa
     RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED ->
       InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED
     RawImpressionUploadModelLine.FailureReason.UNRECOGNIZED -> error("Unrecognized failure reason")
+  }
+}
+
+/** Converts an internal recovery action to its public representation. */
+internal fun InternalRecoveryAction.toPublic(): RawImpressionUploadModelLine.RecoveryAction {
+  return when (this) {
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED
+    InternalRecoveryAction.UNRECOGNIZED -> error("Unrecognized recovery action")
+  }
+}
+
+/** Converts a public recovery action to its internal representation. */
+internal fun RawImpressionUploadModelLine.RecoveryAction.toInternal(): InternalRecoveryAction {
+  return when (this) {
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED
+    RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED ->
+      error("Unrecognized recovery action")
   }
 }

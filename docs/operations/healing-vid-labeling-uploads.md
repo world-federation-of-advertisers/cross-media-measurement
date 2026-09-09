@@ -57,7 +57,8 @@ it is also invalid.
 
 For every planned upload/model-line pair, the command:
 
-1. marks the `RawImpressionUploadModelLine` `FAILED`;
+1. marks the `RawImpressionUploadModelLine` `FAILED` and records the eviction operation, required
+   recovery action, and predecessor upload;
 2. soft-deletes cumulative rank-index snapshots for memoized model lines;
 3. soft-deletes the matching `ImpressionMetadata`;
 4. permanently deletes the fetched generations of the generated VID-labeled blob and its
@@ -90,12 +91,13 @@ commands printed by `evict-uploads`. Superseded historical revisions are omitted
 Each command takes one source upload plus the complete comma-separated set of memoized model lines
 evicted from that revision, validates that the source is still latest and that every selected row is
 `FAILED` with a deleted snapshot, then atomically writes a new generation of the existing empty
-`done` object. The new object carries the selected model lines and source upload as paired recovery
-metadata; DataWatcher forwards them in `X-Override-Model-Lines` and
-`X-Recovery-Source-Upload`. Before
-honoring the override, VidLabelingDispatcher independently verifies that the source is the latest
-revision for that done path and that every selected row is `FAILED` with memoized snapshot history.
-It then creates a replacement upload for only those model lines. For example:
+`done` object. The new object carries the selected model lines, source upload, and eviction operation
+as recovery metadata; DataWatcher forwards them in `X-Override-Model-Lines`,
+`X-Recovery-Source-Upload`, and `X-Eviction-Operation-Id`. Before honoring the override,
+VidLabelingDispatcher independently verifies that the source is the latest revision for that done
+path, that every selected row belongs to that eviction operation and is marked for operator
+recovery, and that its predecessor has a completed replacement with a live snapshot. It then
+creates a replacement upload for only those model lines. For example:
 
 ```
 vid-labeling-heal recover-upload \
@@ -163,7 +165,9 @@ Recovery proceeds as follows:
    re-upload D3 or D5.
 
 Run recovery commands in their printed order and wait for each preceding replacement to complete,
-so every cumulative rank-index snapshot is rebuilt from its corrected predecessor. The normal
+so every cumulative rank-index snapshot is rebuilt from its corrected predecessor. Both normal EDP
+corrections and operator recovery events are rejected until their persisted predecessor dependency
+is complete. The normal
 labeling and data-availability flows regenerate output, restore matching soft-deleted metadata, and
 publish availability to Kingdom. Do not run `retry-failed` for rows evicted because their original
 jobs describe the invalid attempt. Recovery dispatch failures are returned by DataWatcher so the
