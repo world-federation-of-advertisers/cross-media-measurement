@@ -822,6 +822,7 @@ class VidLabelingDispatcherTest {
           .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
           .setReplacesRawImpressionUpload(previous.name)
           .setState(RawImpressionUpload.State.CREATED)
+          .setEtag(UPLOAD_ETAG)
           .build()
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
       stubRawImpressionUploadCreation()
@@ -879,6 +880,7 @@ class VidLabelingDispatcherTest {
           .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
           .setReplacesRawImpressionUpload(previous.name)
           .setState(RawImpressionUpload.State.CREATED)
+          .setEtag(UPLOAD_ETAG)
           .build()
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
       stubRawImpressionUploadCreation()
@@ -909,9 +911,13 @@ class VidLabelingDispatcherTest {
         )
         .upload(DONE_BLOB_PATH, doneBlobGeneration = 120L)
 
+      val completionCaptor = argumentCaptor<MarkRawImpressionUploadRegistrationCompleteRequest>()
       verifyBlocking(rawImpressionUploadService) {
-        markRawImpressionUploadRegistrationComplete(any())
+        markRawImpressionUploadRegistrationComplete(completionCaptor.capture())
       }
+      assertThat(completionCaptor.firstValue.etag).isEqualTo(UPLOAD_ETAG)
+      assertThat(completionCaptor.firstValue.requestId)
+        .isEqualTo(RequestIds.forRawImpressionUploadRegistrationComplete(current.name, UPLOAD_ETAG))
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         batchCreateRawImpressionUploadModelLines(any())
       }
