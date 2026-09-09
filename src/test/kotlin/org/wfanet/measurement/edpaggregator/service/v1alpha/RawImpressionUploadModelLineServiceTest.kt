@@ -64,6 +64,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase as InternalModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as InternalModelLineState
@@ -1439,7 +1440,11 @@ class RawImpressionUploadModelLineServiceTest {
       state = InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
       failureAttemptId = "failure-attempt-1"
       failureReason =
-        InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
+        InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+      evictionOperationId = "123e4567-e89b-42d3-a456-426614174000"
+      recoveryAction =
+        InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+      recoveryPredecessorRawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID_2
       poolOffsets += listOf(0L, 5L, 10L)
       maxEventDate = date {
         year = 2026
@@ -1459,7 +1464,13 @@ class RawImpressionUploadModelLineServiceTest {
     assertThat(publicModelLine.poolOffsetsList).containsExactly(0L, 5L, 10L).inOrder()
     assertThat(publicModelLine.failureAttemptId).isEqualTo("failure-attempt-1")
     assertThat(publicModelLine.failureReason)
-      .isEqualTo(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
+      .isEqualTo(RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT)
+    assertThat(publicModelLine.evictionOperationId)
+      .isEqualTo("123e4567-e89b-42d3-a456-426614174000")
+    assertThat(publicModelLine.recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+    assertThat(publicModelLine.recoveryPredecessorRawImpressionUpload)
+      .isEqualTo(UPLOAD_KEY_2.toName())
     assertThat(publicModelLine.maxEventDate)
       .isEqualTo(
         date {

@@ -449,12 +449,15 @@ class DataWatcherTest() {
         mapOf(
           WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to modelLines,
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/up1",
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY to EVICTION_OPERATION_ID,
         ),
       )
 
       assertThat(server.getLastRequestHeader("X-Override-Model-Lines")).isEqualTo(modelLines)
       assertThat(server.getLastRequestHeader("X-Recovery-Source-Upload"))
         .isEqualTo("dataProviders/dp/rawImpressionUploads/up1")
+      assertThat(server.getLastRequestHeader("X-Eviction-Operation-Id"))
+        .isEqualTo(EVICTION_OPERATION_ID)
       server.stop()
     }
   }
@@ -481,7 +484,7 @@ class DataWatcherTest() {
           )
         }
 
-      assertThat(error).hasMessageThat().contains("Recovery metadata must include both")
+      assertThat(error).hasMessageThat().contains("Recovery metadata must include")
     }
   }
 
@@ -508,7 +511,9 @@ class DataWatcherTest() {
             "test-schema://test-bucket/path-to-watch/some-data",
             mapOf(
               WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
-              WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/up1",
+              WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
+                "dataProviders/dp/rawImpressionUploads/up1",
+              WatchedBlobs.EVICTION_OPERATION_ID_KEY to EVICTION_OPERATION_ID,
             ),
           )
         }
@@ -516,6 +521,10 @@ class DataWatcherTest() {
       assertThat(error).hasMessageThat().contains("returned 500")
       server.stop()
     }
+  }
+
+  companion object {
+    private const val EVICTION_OPERATION_ID = "123e4567-e89b-42d3-a456-426614174000"
   }
 
   @Test

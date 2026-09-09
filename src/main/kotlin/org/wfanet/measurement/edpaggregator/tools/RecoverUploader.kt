@@ -33,7 +33,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
-/** Registers a fresh done-object generation for a memoized upload invalidated by an eviction. */
+/**
+ * Registers a fresh done-object generation for operator recovery of an evicted upload on the
+ * memoized path only.
+ */
 class RecoverUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
@@ -88,9 +91,31 @@ class RecoverUploader(
       "recover-upload only accepts FAILED model-line rows: ${notFailed.map { it.name to it.state }}"
     }
 
+    val requestedRows = cmmsModelLines.map { rowsByCmmsModelLine.getValue(it) }
+    val notOperatorRecovery =
+      requestedRows.filter {
+        it.recoveryAction !=
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+      }
+    require(notOperatorRecovery.isEmpty()) {
+      "recover-upload only accepts model lines marked for operator recovery: " +
+        notOperatorRecovery.map { it.name to it.recoveryAction }
+    }
+    val evictionOperationIds = requestedRows.map { it.evictionOperationId }.toSet()
+    require(evictionOperationIds.size == 1 && evictionOperationIds.single().isNotEmpty()) {
+      "all requested model lines must belong to one eviction operation"
+    }
+    for (row in requestedRows) {
+      requireRecoveryPredecessorReady(sourceKey.parentKey.toName(), row)
+    }
+
     val recoverableModelLines =
       rowsByCmmsModelLine.values
         .filter { it.state == RawImpressionUploadModelLine.State.FAILED }
+        .filter {
+          it.recoveryAction ==
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
         .filter { hasDeletedSnapshotHistory(sourceUploadName, it.cmmsModelLine) }
         .mapTo(mutableSetOf()) { it.cmmsModelLine }
     require(cmmsModelLines.toSet() == recoverableModelLines) {
@@ -102,6 +127,7 @@ class RecoverUploader(
       mapOf(
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to cmmsModelLines.joinToString(separator = ","),
         WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to source.name,
+        WatchedBlobs.EVICTION_OPERATION_ID_KEY to evictionOperationIds.single(),
       )
     val generation = rewriteDoneBlob(source.doneBlobUri, source.doneBlobGeneration, metadata)
     require(generation > 0L && generation != source.doneBlobGeneration) {
@@ -137,6 +163,72 @@ class RecoverUploader(
     } else {
       uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
     }
+  }
+
+  /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */
+  private suspend fun requireRecoveryPredecessorReady(
+    dataProviderName: String,
+    row: RawImpressionUploadModelLine,
+  ) {
+    val predecessorName = row.recoveryPredecessorRawImpressionUpload
+    require(predecessorName.isNotEmpty()) {
+      "${row.name} does not identify the upload that must complete before recovery"
+    }
+    val predecessor =
+      uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = predecessorName })
+    val revisions = listUploads(dataProviderName, predecessor.doneBlobUri)
+    val latest =
+      requireNotNull(findLatestUpload(revisions)) {
+        "No upload revision found for recovery predecessor $predecessorName"
+      }
+    require(
+      latest.name == predecessorName || replacesUpload(latest.name, predecessorName, revisions)
+    ) {
+      "Latest upload ${latest.name} does not replace recovery predecessor $predecessorName"
+    }
+    val replacementRow =
+      listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
+    require(replacementRow?.state == RawImpressionUploadModelLine.State.COMPLETED) {
+      "Recovery predecessor $predecessorName has not been replaced by a completed upload for " +
+        row.cmmsModelLine
+    }
+    require(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {
+      "Recovery predecessor $predecessorName has no live replacement snapshot for " +
+        row.cmmsModelLine
+    }
+  }
+
+  private suspend fun listUploads(parent: String, doneBlobUri: String): List<RawImpressionUpload> {
+    val uploads = mutableListOf<RawImpressionUpload>()
+    var pageToken = ""
+    do {
+      val response =
+        uploadsStub.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            this.parent = parent
+            filter = ListRawImpressionUploadsRequestKt.filter { this.doneBlobUri = doneBlobUri }
+            this.pageToken = pageToken
+          }
+        )
+      uploads += response.rawImpressionUploadsList
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return uploads
+  }
+
+  private fun replacesUpload(
+    candidateName: String,
+    predecessorName: String,
+    revisions: List<RawImpressionUpload>,
+  ): Boolean {
+    val revisionsByName = revisions.associateBy { it.name }
+    val visited = mutableSetOf<String>()
+    var current = revisionsByName[candidateName]?.replacesRawImpressionUpload.orEmpty()
+    while (current.isNotEmpty() && visited.add(current)) {
+      if (current == predecessorName) return true
+      current = revisionsByName[current]?.replacesRawImpressionUpload.orEmpty()
+    }
+    return false
   }
 
   private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> {
@@ -181,5 +273,21 @@ class RecoverUploader(
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return found
+  }
+
+  private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
+    val response =
+      rankIndexBlobsStub.listRankIndexBlobs(
+        listRankIndexBlobsRequest {
+          parent = uploadName
+          pageSize = 1
+          filter =
+            ListRankIndexBlobsRequestKt.filter {
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              this.cmmsModelLine = cmmsModelLine
+            }
+        }
+      )
+    return response.rankIndexBlobsCount > 0
   }
 }
