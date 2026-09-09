@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as FailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as RecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -1017,6 +1018,9 @@ abstract class RawImpressionUploadModelLineServiceTest {
             errorMessage = "completed output contains invalid data"
             failureReason =
               FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+            evictionOperationId = EVICTION_OPERATION_ID
+            recoveryAction =
+              RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
           }
         )
 
@@ -1025,6 +1029,9 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(modelLine.errorMessage).isEqualTo("completed output contains invalid data")
       assertThat(modelLine.failureReason)
         .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT)
+      assertThat(modelLine.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
+      assertThat(modelLine.recoveryAction)
+        .isEqualTo(RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION)
       assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
         .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
     }
@@ -1084,6 +1091,10 @@ abstract class RawImpressionUploadModelLineServiceTest {
             errorMessage = "invalid output"
             failureReason =
               FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+            evictionOperationId = EVICTION_OPERATION_ID
+            recoveryAction =
+              RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+            recoveryPredecessorRawImpressionUploadResourceId = "predecessor-upload"
           }
         )
 
@@ -1093,6 +1104,13 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(evicted.failureAttemptId).isEqualTo(evictionAttemptId)
       assertThat(evicted.failureReason)
         .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT)
+      assertThat(evicted.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
+      assertThat(evicted.recoveryAction)
+        .isEqualTo(
+          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+        )
+      assertThat(evicted.recoveryPredecessorRawImpressionUploadResourceId)
+        .isEqualTo("predecessor-upload")
 
       suspend fun assertRetryRejected(block: suspend () -> Unit) {
         val exception = assertFailsWith<StatusRuntimeException> { block() }
@@ -1149,6 +1167,9 @@ abstract class RawImpressionUploadModelLineServiceTest {
               etag = modelLine.etag
               failureReason =
                 FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+              evictionOperationId = EVICTION_OPERATION_ID
+              recoveryAction =
+                RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
             }
           )
         }
@@ -2434,6 +2455,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "dataProviders/dp1"
     private const val RAW_IMPRESSION_UPLOAD_RESOURCE_ID = "uploads/upload1"
+    private const val EVICTION_OPERATION_ID = "123e4567-e89b-42d3-a456-426614174000"
     private const val CMMS_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val CMMS_MODEL_LINE_2 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
     private const val CMMS_MODEL_LINE_3 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml3"

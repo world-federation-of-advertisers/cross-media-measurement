@@ -107,6 +107,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   may no longer be in the active window.
  * - `X-Recovery-Source-Upload`: Optional. Evicted source upload that authorizes an override
  *   forwarded from done-object recovery metadata.
+ * - `X-Eviction-Operation-Id`: Optional. Eviction operation that authorizes the recovery. Required
+ *   together with `X-Recovery-Source-Upload`.
  */
 class VidLabelingDispatcherFunction : HttpFunction {
   init {
@@ -141,6 +143,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           .map { header -> header.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
           .orElse(emptyList())
       val recoverySourceUpload = request.getFirstHeader(RECOVERY_SOURCE_UPLOAD_HEADER).orElse(null)
+      val evictionOperationId = request.getFirstHeader(EVICTION_OPERATION_ID_HEADER).orElse(null)
 
       val config: VidLabelingConfig =
         vidLabelingConfigsByDataProvider[dispatcherParams.dataProvider]
@@ -271,6 +274,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
           modelSuiteName = config.modelSuite,
           overrideModelLines = overrideModelLines,
           recoverySourceUpload = recoverySourceUpload,
+          recoveryOperationId = evictionOperationId,
           modelLineConfigs = modelLineConfigs,
         )
 
@@ -296,6 +300,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
     private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
+    private const val EVICTION_OPERATION_ID_HEADER: String = "X-Eviction-Operation-Id"
     private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
     private val modelLinesTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_LINES_TARGET")

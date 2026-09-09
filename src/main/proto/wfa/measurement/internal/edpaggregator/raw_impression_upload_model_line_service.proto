@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_failure_reason.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_recovery_action.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -280,4 +281,13 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   //
   // Defaults to PROCESSING_FAILURE when unspecified.
   RawImpressionUploadModelLineFailureReason failure_reason = 7;
+
+  // Identifier shared by all rows in this eviction operation.
+  string eviction_operation_id = 8;
+
+  // Action required to replace output invalidated by the eviction.
+  RawImpressionUploadModelLineRecoveryAction recovery_action = 9;
+
+  // Resource ID of the upload whose completed replacement is required.
+  string recovery_predecessor_raw_impression_upload_resource_id = 10;
 }
