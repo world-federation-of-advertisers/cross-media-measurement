@@ -176,14 +176,14 @@ class VidLabelingDispatcher(
       val resolvedModelLineNames = resolveModelLines()
 
       if (resolvedModelLineNames.isEmpty()) {
-        markRegistrationComplete(rawImpressionUpload.name)
+        markRegistrationComplete(rawImpressionUpload)
         logger.info("No active model lines resolved for $modelSuiteName")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
       createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLineNames)
-      markRegistrationComplete(rawImpressionUpload.name)
+      markRegistrationComplete(rawImpressionUpload)
 
       logger.info(
         "Registered upload ${rawImpressionUpload.name} with ${blobKeys.size} files and " +
@@ -438,11 +438,12 @@ class VidLabelingDispatcher(
     expectedGeneration: Long,
   ): Boolean = readBlobMetadata(doneBlobUri.key).generation == expectedGeneration
 
-  private suspend fun markRegistrationComplete(uploadName: String) {
+  private suspend fun markRegistrationComplete(upload: RawImpressionUpload) {
     rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
       markRawImpressionUploadRegistrationCompleteRequest {
-        name = uploadName
-        requestId = RequestIds.forRawImpressionUploadRegistrationComplete(uploadName)
+        name = upload.name
+        etag = upload.etag
+        requestId = RequestIds.forRawImpressionUploadRegistrationComplete(upload.name, upload.etag)
       }
     )
   }

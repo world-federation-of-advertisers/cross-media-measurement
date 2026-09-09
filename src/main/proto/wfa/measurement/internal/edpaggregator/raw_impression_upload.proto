@@ -58,4 +58,7 @@ message RawImpressionUpload {
 
   // Whether registration of this upload's files and model lines finished.
   bool registration_complete = 10;
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 11;
 }
