@@ -264,6 +264,8 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 				}
 				spec: {
 					schedule: _recoverMissingImpressionMetadataCronSchedule
+					// Enabled by the durable sync-completion follow-up after that protection lands.
+					suspend: true
 					jobTemplate: spec: template: spec: {
 						serviceAccountName: _recoverMissingImpressionMetadataServiceAccountName
 						_mounts: {

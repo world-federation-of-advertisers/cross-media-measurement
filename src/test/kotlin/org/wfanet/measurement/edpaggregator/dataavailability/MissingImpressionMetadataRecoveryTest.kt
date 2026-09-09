@@ -28,6 +28,7 @@ import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.time.LocalDate
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -199,6 +200,7 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(metricValue(FAILED_BLOBS_METRIC)).isEqualTo(0)
     assertThat(metricValue(DELETED_RECORDS_WITH_BLOBS_METRIC)).isEqualTo(0)
     assertThat(metricValue(FAILED_UNDELETES_METRIC)).isEqualTo(0)
+    assertThat(metricValue(RECOVERY_ERRORS_METRIC)).isEqualTo(0)
   }
 
   @Test
@@ -297,6 +299,32 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(result.errors).hasSize(1)
     assertThat(result.errors.single().message).contains("sync failed")
     assertThat(metricValue(FAILED_BLOBS_METRIC)).isEqualTo(1)
+    assertThat(metricValue(RECOVERY_ERRORS_METRIC)).isEqualTo(1)
+  }
+
+  @Test
+  fun `recover reports a date-folder listing failure in telemetry`(): Unit = runBlocking {
+    val storageClient =
+      object : StorageClient by InMemoryStorageClient() {
+        override suspend fun listBlobKeysAndPrefixes(prefix: String) =
+          flow<String> { error("listing failed") }
+      }
+
+    val result =
+      buildRecovery(
+          storageClient,
+          impressionMetadataBatchSize = 100,
+          registerSyncedMetadata = true,
+        ) { _, _ ->
+        }
+        .recover()
+
+    assertThat(result.errors).hasSize(1)
+    assertThat(result.errors.single().message).contains("listing failed")
+    assertThat(metricValue(MISSING_BLOBS_METRIC)).isEqualTo(0)
+    assertThat(metricValue(FAILED_BLOBS_METRIC)).isEqualTo(0)
+    assertThat(metricValue(FAILED_UNDELETES_METRIC)).isEqualTo(0)
+    assertThat(metricValue(RECOVERY_ERRORS_METRIC)).isEqualTo(1)
   }
 
   @Test
@@ -396,6 +424,38 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(result.errors.single().target)
       .isEqualTo("$DATA_PROVIDER_NAME/impressionMetadata/deleted-failure")
     assertThat(metricValue(FAILED_UNDELETES_METRIC)).isEqualTo(1)
+    assertThat(metricValue(RECOVERY_ERRORS_METRIC)).isEqualTo(1)
+  }
+
+  @Test
+  fun `recover leaves a deleted resource deleted when its blob is absent`(): Unit = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val deletedUri = metadataUri("2026-08-03", "metadata-deleted.json")
+    storageClient.writeBlob(
+      metadataKey("2026-08-03", "readme.txt"),
+      ByteString.copyFromUtf8("not metadata"),
+    )
+    registeredMetadata[deletedUri] = impressionMetadata {
+      name = "$DATA_PROVIDER_NAME/impressionMetadata/deleted-without-blob"
+      blobUri = deletedUri
+      state = ImpressionMetadata.State.DELETED
+    }
+
+    val result =
+      buildRecovery(
+          storageClient,
+          impressionMetadataBatchSize = 100,
+          registerSyncedMetadata = true,
+        ) { _, _ ->
+        }
+        .recover()
+
+    assertThat(result.deletedRecordsWithBlobs).isEqualTo(0)
+    assertThat(result.undeletedRecords).isEqualTo(0)
+    assertThat(result.failedUndeletes).isEqualTo(0)
+    assertThat(undeleteRequests).isEmpty()
+    assertThat(registeredMetadata.getValue(deletedUri).state)
+      .isEqualTo(ImpressionMetadata.State.DELETED)
   }
 
   @Test
@@ -596,6 +656,7 @@ class MissingImpressionMetadataRecoveryTest {
     private const val MISSING_BLOBS_METRIC = "edpa.data_availability_recovery.missing_blobs"
     private const val FAILED_BLOBS_METRIC = "edpa.data_availability_recovery.failed_blobs"
     private const val FAILED_UNDELETES_METRIC = "edpa.data_availability_recovery.failed_undeletes"
+    private const val RECOVERY_ERRORS_METRIC = "edpa.data_availability_recovery.errors"
     private const val DELETED_RECORDS_WITH_BLOBS_METRIC =
       "edpa.data_availability_recovery.deleted_records_with_blobs"
   }

@@ -62,6 +62,15 @@ class MissingImpressionMetadataRecoveryMetrics(meter: Meter) {
       .ofLongs()
       .build()
 
+  /** Recovery errors that caused the current run to be incomplete. */
+  val recoveryErrorsGauge: LongGauge =
+    meter
+      .gaugeBuilder("edpa.data_availability_recovery.errors")
+      .setDescription("Errors that prevented complete data availability recovery")
+      .setUnit("{error}")
+      .ofLongs()
+      .build()
+
   companion object {
     /** Attribute containing the scanned EDP impression path. */
     val EDP_IMPRESSION_PATH_ATTR: AttributeKey<String> =

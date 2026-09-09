@@ -27,8 +27,10 @@ The config file is a `DataAvailabilitySyncConfig` textproto. Its GCS bucket, dat
 impression path, model-line mapping, and TLS file paths are reused by the recovery command.
 
 ```shell
-RecoverMissingImpressionMetadata \
-  --config-file=/etc/halo-cmms/edp-aggregator/config/data-availability-sync-config.textproto \
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:RecoverMissingImpressionMetadata \
+  -- \
+  --config-file=/absolute/path/to/data-availability-sync-config.textproto \
   --kingdom-public-api-target=KINGDOM_HOST:8443 \
   --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
   --lookback-days=90 \
@@ -56,7 +58,8 @@ A successfully repaired inconsistency does not cause a nonzero exit.
 
 The `recover_missing_impression_metadata_image` target publishes the
 `edp-aggregator/recover-missing-impression-metadata` image. The EDP Aggregator GKE configuration
-deploys `recover-missing-impression-metadata-edp7-cronjob` with:
+stages `recover-missing-impression-metadata-edp7-cronjob` suspended until the durable
+sync-completion protection in the follow-up PR lands. The complete stack enables it with:
 
 - schedule `0 6 * * 0` (Sunday at 06:00 UTC);
 - `concurrencyPolicy: Forbid`;
@@ -126,6 +129,12 @@ estimate based on one metadata file per folder. Missing-record repair is slower 
 `DataAvailabilitySync` parses the selected blobs, performs writes, recomputes model-line bounds,
 and publishes availability intervals for each affected folder.
 
+Undelete recovery is intentionally rate-limited and currently uses one RPC per deleted resource.
+At the deployed 100 ms minimum interval, an extreme window in which all 900,000 records are
+deleted has a 25-hour throttle floor before network latency, verification, or resynchronization.
+That is a pathological repair case, not the healthy scan estimate. A future batch-undelete RPC is
+the main way to reduce this bound without exceeding the service's request budget.
+
 The main speedups are folder-prefix filtering, 1,000-record pages, and bounded per-folder memory.
 Parallelizing folders would shorten the scan but is intentionally avoided because concurrent syncs
 can race while replacing provider-wide Kingdom availability intervals.
@@ -136,8 +145,11 @@ can race while replacing provider-wide Kingdom availability intervals.
 - `edpa.data_availability_recovery.deleted_records_with_blobs`
 - `edpa.data_availability_recovery.failed_blobs`
 - `edpa.data_availability_recovery.failed_undeletes`
+- `edpa.data_availability_recovery.errors`
 
-All four are per-run gauges. Alert when either inconsistency gauge or either repair-failure gauge is
-greater than zero. Each point has an
+All five are per-run gauges. Alert when either inconsistency gauge, either targeted repair-failure
+gauge, or the aggregate error gauge is greater than zero. The aggregate gauge also covers failures
+such as an unsuccessful folder listing that cannot be attributed to a blob or undelete. Each point
+has an
 `edpa.data_availability_recovery.edp_impression_path` attribute. Successful counts are in the
 completion log; a separate recovered gauge would duplicate `missing_blobs - failed_blobs`.

@@ -126,14 +126,14 @@ class RecoverMissingImpressionMetadataTest {
   fun `main excludes date folders newer than end days ago`() {
     storageEmulator.createBucket(BUCKET_NAME)
     try {
-      val todayFolderPrefix =
-        "$EDP_IMPRESSION_PATH/model-line/model-line-1/${LocalDate.now(ZoneOffset.UTC)}"
+      val futureFolderPrefix =
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/${LocalDate.now(ZoneOffset.UTC).plusDays(1)}"
       storageEmulator.storage.create(
-        BlobInfo.newBuilder(BUCKET_NAME, "$todayFolderPrefix/metadata-invalid.json").build(),
+        BlobInfo.newBuilder(BUCKET_NAME, "$futureFolderPrefix/metadata-invalid.json").build(),
         "{".toByteArray(),
       )
       storageEmulator.storage.create(
-        BlobInfo.newBuilder(BUCKET_NAME, "$todayFolderPrefix/done").build(),
+        BlobInfo.newBuilder(BUCKET_NAME, "$futureFolderPrefix/done").build(),
         byteArrayOf(),
       )
       val configFile = writeConfigFile(validConfig())
@@ -143,7 +143,7 @@ class RecoverMissingImpressionMetadataTest {
           requiredArgs(configFile, apiTarget = "localhost:1", endDaysAgo = 1) +
             arrayOf(
               "--storage-api-endpoint=${storageEmulator.storage.options.host}",
-              "--lookback-days=2",
+              "--lookback-days=3",
               "--throttler-minimum-interval=0s",
             ),
           ::main,

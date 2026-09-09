@@ -135,7 +135,18 @@ class MissingImpressionMetadataRecovery(
     var dateFoldersResynced = 0
     val errors = mutableListOf<RecoveryError>()
 
-    for (dateFolderPrefix in listDateFolderPrefixes()) {
+    val dateFolderPrefixes =
+      try {
+        listDateFolderPrefixes()
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        logger.log(Level.SEVERE, "Failed to list date folders under $edpImpressionPath", e)
+        errors += RecoveryError(edpImpressionPath, e.message ?: e::class.java.simpleName)
+        emptyList()
+      }
+
+    for (dateFolderPrefix in dateFolderPrefixes) {
       val result =
         try {
           recoverDateFolder(dateFolderPrefix)
@@ -176,6 +187,7 @@ class MissingImpressionMetadataRecovery(
     metrics.deletedRecordsWithBlobsGauge.set(deletedRecordsWithBlobs.toLong(), metricAttributes)
     metrics.failedUndeletesGauge.set(failedUndeletes.toLong(), metricAttributes)
     metrics.failedBlobsGauge.set(failedBlobs.toLong(), metricAttributes)
+    metrics.recoveryErrorsGauge.set(errors.size.toLong(), metricAttributes)
 
     if (deletedRecordsWithBlobs > 0) {
       logger.log(
