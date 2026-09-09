@@ -85,29 +85,10 @@ class DataAvailabilityMonitorTest {
         .thenAnswer { _ -> listImpressionMetadataResponse {} }
     }
 
-  private val unexpectedStateServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
-    onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
-      .thenAnswer { invocation ->
-        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-        assertThat(request.showDeleted).isTrue()
-        assertThat(request.filter.state).isEqualTo(V1AlphaImpressionMetadata.State.DELETED)
-        listImpressionMetadataResponse {
-          impressionMetadata += v1alphaImpressionMetadata {
-            name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-active-1"
-            blobUri =
-              "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-11/metadata_campaign_456.json"
-            state = V1AlphaImpressionMetadata.State.ACTIVE
-          }
-        }
-      }
-  }
-
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule { addService(impressionMetadataServiceMock) }
 
   @get:Rule val grpcTestServerRule2 = GrpcTestServerRule { addService(noDeletedEntriesServiceMock) }
-
-  @get:Rule val grpcTestServerRule3 = GrpcTestServerRule { addService(unexpectedStateServiceMock) }
 
   private val impressionMetadataStubForTest: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule.channel)
@@ -115,10 +96,6 @@ class DataAvailabilityMonitorTest {
 
   private val noDeletedEntriesStub: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(grpcTestServerRule2.channel)
-  }
-
-  private val unexpectedStateStub: ImpressionMetadataServiceCoroutineStub by lazy {
-    ImpressionMetadataServiceCoroutineStub(grpcTestServerRule3.channel)
   }
 
   companion object {
@@ -1332,37 +1309,62 @@ class DataAvailabilityMonitorTest {
     }
 
   @Test
-  fun `checkFullStatus rejects active entry returned for deleted state filter`(): Unit =
-    runBlocking {
-      val storageClient = createStorageClient()
-      ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
-      createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-      createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
-
-      val monitor =
-        DataAvailabilityMonitor(
-          storageClient = storageClient,
-          edpImpressionPath = EDP_IMPRESSION_PATH,
-          activeModelLines = setOf(MODEL_LINE_A),
-          impressionMetadataStub = unexpectedStateStub,
-          dataProviderName = DATA_PROVIDER_NAME,
-        )
-
-      val exception =
-        assertFailsWith<IllegalStateException> {
-          monitor.checkFullStatus(
-            maxStaleDays = 3,
-            timeZone = TIME_ZONE,
-            clock = { TODAY },
-            unprocessedDoneThreshold = Duration.ofHours(24),
-            spuriousDeletionLookbackDays = 90,
-          )
+  fun `checkFullStatus rejects active entry returned for deleted state filter`() {
+    val unexpectedStateServiceMock: ImpressionMetadataServiceCoroutineImplBase = mockService {
+      onBlocking { listImpressionMetadata(org.mockito.kotlin.any<ListImpressionMetadataRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          assertThat(request.showDeleted).isTrue()
+          assertThat(request.filter.state).isEqualTo(V1AlphaImpressionMetadata.State.DELETED)
+          listImpressionMetadataResponse {
+            impressionMetadata += v1alphaImpressionMetadata {
+              name = "$DATA_PROVIDER_NAME/impressionMetadata/imp-active-1"
+              blobUri =
+                "gs://$BUCKET_NAME/$EDP_IMPRESSION_PATH/model-line/${MODEL_LINE_A.modelLineId}/2026-03-11/metadata_campaign_456.json"
+              state = V1AlphaImpressionMetadata.State.ACTIVE
+            }
+          }
         }
-
-      assertThat(exception)
-        .hasMessageThat()
-        .contains("ListImpressionMetadata returned ACTIVE for a DELETED state filter")
     }
+    val testRule = GrpcTestServerRule { addService(unexpectedStateServiceMock) }
+    val statement =
+      object : org.junit.runners.model.Statement() {
+        override fun evaluate() {
+          runBlocking {
+            val storageClient = createStorageClient()
+            ensureDirectories(MODEL_LINE_A.modelLineId, "2026-03-15")
+            createDoneBlob(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+            createDataFile(storageClient, MODEL_LINE_A.modelLineId, "2026-03-15")
+
+            val monitor =
+              DataAvailabilityMonitor(
+                storageClient = storageClient,
+                edpImpressionPath = EDP_IMPRESSION_PATH,
+                activeModelLines = setOf(MODEL_LINE_A),
+                impressionMetadataStub = ImpressionMetadataServiceCoroutineStub(testRule.channel),
+                dataProviderName = DATA_PROVIDER_NAME,
+              )
+
+            val exception =
+              assertFailsWith<IllegalStateException> {
+                monitor.checkFullStatus(
+                  maxStaleDays = 3,
+                  timeZone = TIME_ZONE,
+                  clock = { TODAY },
+                  unprocessedDoneThreshold = Duration.ofHours(24),
+                  spuriousDeletionLookbackDays = 90,
+                )
+              }
+
+            assertThat(exception)
+              .hasMessageThat()
+              .contains("ListImpressionMetadata returned ACTIVE for a DELETED state filter")
+          }
+        }
+      }
+
+    testRule.apply(statement, org.junit.runner.Description.EMPTY).evaluate()
+  }
 
   @Test
   fun `checkFullStatus detects spurious deletion when blob still exists`(): Unit = runBlocking {
