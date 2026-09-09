@@ -70,10 +70,6 @@ service ImpressionMetadataService {
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse) {}
 
-  // Restores a soft-deleted ImpressionMetadata entry.
-  rpc UndeleteImpressionMetadata(UndeleteImpressionMetadataRequest)
-      returns (ImpressionMetadata) {}
-
   // Restores multiple soft-deleted ImpressionMetadata entries in a single
   // request.
   rpc BatchUndeleteImpressionMetadata(BatchUndeleteImpressionMetadataRequest)
@@ -336,19 +332,6 @@ message BatchDeleteImpressionMetadataRequest {
 message BatchDeleteImpressionMetadataResponse {
   // The list of updated ImpressionMetadata, now marked as deleted.
   repeated ImpressionMetadata impression_metadata = 1;
-}
-
-// Request message for the `UndeleteImpressionMetadata` method.
-message UndeleteImpressionMetadataRequest {
-  // The resource name of the soft-deleted ImpressionMetadata to restore.
-  // Format:
-  // `dataProviders/{data_provider}/impressionMetadata/{impression_metadata}`
-  string name = 1 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
-    }
-  ];
 }
 
 // Request message for the `BatchUndeleteImpressionMetadata` method.

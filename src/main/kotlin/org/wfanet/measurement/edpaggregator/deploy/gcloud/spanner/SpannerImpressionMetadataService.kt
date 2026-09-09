@@ -584,44 +584,6 @@ class SpannerImpressionMetadataService(
     }
   }
 
-  override suspend fun undeleteImpressionMetadata(
-    request: UndeleteImpressionMetadataRequest
-  ): ImpressionMetadata {
-    validateUndeleteRequest(request, "")
-
-    val transactionRunner =
-      databaseClient.readWriteTransaction(Options.tag("action=undeleteImpressionMetadata"))
-    val restored =
-      try {
-        transactionRunner.run { txn ->
-          val result =
-            txn.getImpressionMetadataByResourceId(
-              request.dataProviderResourceId,
-              request.impressionMetadataResourceId,
-            )
-          if (result.impressionMetadata.state != State.IMPRESSION_METADATA_STATE_DELETED) {
-            throw ImpressionMetadataAlreadyExistsException(result.impressionMetadata.blobUri)
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-          }
-          txn.updateImpressionMetadataState(
-            request.dataProviderResourceId,
-            result.impressionMetadataId,
-            State.IMPRESSION_METADATA_STATE_ACTIVE,
-          )
-          result.impressionMetadata
-        }
-      } catch (e: ImpressionMetadataNotFoundException) {
-        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
-      }
-
-    val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
-    return restored.copy {
-      state = State.IMPRESSION_METADATA_STATE_ACTIVE
-      updateTime = commitTimestamp
-      etag = ETags.computeETag(commitTimestamp.toInstant())
-    }
-  }
-
   override suspend fun batchUndeleteImpressionMetadata(
     request: BatchUndeleteImpressionMetadataRequest
   ): BatchUndeleteImpressionMetadataResponse {
