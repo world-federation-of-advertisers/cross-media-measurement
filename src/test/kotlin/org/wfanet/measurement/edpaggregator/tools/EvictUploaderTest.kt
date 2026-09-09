@@ -25,12 +25,15 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -139,6 +142,13 @@ class EvictUploaderTest {
     // Both cascade model lines are failed and each has its SNAPSHOT soft-deleted.
     assertThat(result.failedModelLines).containsExactly(modelLineName("up2"), modelLineName("up3"))
     assertThat(result.deletedSnapshots).isEqualTo(2)
+    val requestCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verifyBlocking(modelLineService, times(2)) {
+      markRawImpressionUploadModelLineFailed(requestCaptor.capture())
+    }
+    for (request in requestCaptor.allValues) {
+      assertThat(request.requestId).isNotEmpty()
+    }
   }
 
   @Test

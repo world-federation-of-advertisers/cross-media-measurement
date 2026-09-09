@@ -755,7 +755,7 @@ class DeadLetterQueueListenerTest {
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
       assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
         modelLineCaptor.firstValue.requestId,
       )
 
@@ -838,7 +838,7 @@ class DeadLetterQueueListenerTest {
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
       assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
         modelLineCaptor.firstValue.requestId,
       )
 
@@ -916,7 +916,7 @@ class DeadLetterQueueListenerTest {
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
       assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
         modelLineCaptor.firstValue.requestId,
       )
 
@@ -989,7 +989,7 @@ class DeadLetterQueueListenerTest {
     assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
     assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
     assertEquals(
-      RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+      RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
       modelLineCaptor.firstValue.requestId,
     )
 
