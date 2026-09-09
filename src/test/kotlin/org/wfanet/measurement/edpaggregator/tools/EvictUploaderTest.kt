@@ -253,13 +253,15 @@ class EvictUploaderTest {
               name = uploadName("up2-old")
               createTime = T2.toProtoTime()
               doneBlobUri = "gs://raw/d2/done"
-              doneBlobGeneration = 1L
+              doneBlobGeneration = 200L
+              doneBlobCreateTime = T2.toProtoTime()
             }
             rawImpressionUploads += rawImpressionUpload {
               name = uploadName("up2-new")
               createTime = T3.toProtoTime()
               doneBlobUri = "gs://raw/d2/done"
-              doneBlobGeneration = 2L
+              doneBlobGeneration = 100L
+              doneBlobCreateTime = T3.toProtoTime()
               replacesRawImpressionUpload = uploadName("up2-old")
             }
           }
