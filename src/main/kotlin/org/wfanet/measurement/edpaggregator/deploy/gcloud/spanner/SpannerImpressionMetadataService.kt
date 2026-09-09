@@ -39,6 +39,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
 import org.wfanet.measurement.edpaggregator.service.internal.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -60,6 +61,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as 
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.ListImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.UndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.UpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
@@ -424,6 +426,65 @@ class SpannerImpressionMetadataService(
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return deletedImpressionMetadata.copy {
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
+  }
+
+  override suspend fun undeleteImpressionMetadata(
+    request: UndeleteImpressionMetadataRequest
+  ): ImpressionMetadata {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    if (request.impressionMetadataResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("impression_metadata_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner: AsyncDatabaseClient.TransactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=undeleteImpressionMetadata"))
+
+    val undeletedImpressionMetadata =
+      try {
+        transactionRunner.run { txn ->
+          val result =
+            txn.getImpressionMetadataByResourceId(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+            )
+
+          if (result.impressionMetadata.state != State.IMPRESSION_METADATA_STATE_DELETED) {
+            throw ImpressionMetadataStateInvalidException(
+              request.dataProviderResourceId,
+              request.impressionMetadataResourceId,
+              result.impressionMetadata.state,
+              setOf(State.IMPRESSION_METADATA_STATE_DELETED),
+            )
+          }
+
+          txn.updateImpressionMetadataState(
+            result.impressionMetadata.dataProviderResourceId,
+            result.impressionMetadataId,
+            State.IMPRESSION_METADATA_STATE_ACTIVE,
+          )
+
+          result.impressionMetadata.copy {
+            state = State.IMPRESSION_METADATA_STATE_ACTIVE
+            clearUpdateTime()
+            clearEtag()
+          }
+        }
+      } catch (e: ImpressionMetadataNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: ImpressionMetadataStateInvalidException) {
+        throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      }
+
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return undeletedImpressionMetadata.copy {
       updateTime = commitTimestamp
       etag = ETags.computeETag(commitTimestamp.toInstant())
     }
