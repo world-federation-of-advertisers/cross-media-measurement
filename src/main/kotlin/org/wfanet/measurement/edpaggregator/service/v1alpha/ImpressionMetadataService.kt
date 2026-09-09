@@ -745,40 +745,6 @@ class ImpressionMetadataService(
     }
   }
 
-  override suspend fun undeleteImpressionMetadata(
-    request: UndeleteImpressionMetadataRequest
-  ): ImpressionMetadata {
-    if (request.name.isEmpty()) {
-      throw RequiredFieldNotSetException("name")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    val key =
-      ImpressionMetadataKey.fromName(request.name)
-        ?: throw InvalidFieldValueException("name")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
-    return try {
-      internalImpressionMetadataStub
-        .undeleteImpressionMetadata(
-          internalUndeleteImpressionMetadataRequest {
-            dataProviderResourceId = key.dataProviderId
-            impressionMetadataResourceId = key.impressionMetadataId
-          }
-        )
-        .toImpressionMetadata()
-    } catch (e: StatusException) {
-      throw when (InternalErrors.getReason(e)) {
-        InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND ->
-          ImpressionMetadataNotFoundException(request.name, e)
-            .asStatusRuntimeException(Status.Code.NOT_FOUND)
-        InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS ->
-          ImpressionMetadataAlreadyExistsException.fromInternal(e)
-            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
-        else -> Status.INTERNAL.withCause(e).asRuntimeException()
-      }
-    }
-  }
-
   override suspend fun batchUndeleteImpressionMetadata(
     request: BatchUndeleteImpressionMetadataRequest
   ): BatchUndeleteImpressionMetadataResponse {
