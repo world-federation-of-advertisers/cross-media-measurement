@@ -68,6 +68,16 @@ message RawImpressionUploadModelLine {
     EVICTED_OUTPUT = 2;
   }
 
+  // Action required to replace output invalidated by an eviction.
+  enum RecoveryAction {
+    // No recovery action is specified.
+    RECOVERY_ACTION_UNSPECIFIED = 0;
+    // The EDP must correct the raw input and create a replacement upload.
+    RECOVERY_ACTION_EDP_CORRECTION = 1;
+    // Operator recovery of an evicted upload for the memoized path only.
+    RECOVERY_ACTION_OPERATOR_RECOVERY = 2;
+  }
+
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
@@ -131,4 +141,19 @@ message RawImpressionUploadModelLine {
   // Reason for the most recent transition to `FAILED`. Remains set until a
   // later failure replaces it.
   FailureReason failure_reason = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Identifier shared by all model-line rows in one eviction operation.
+  string eviction_operation_id = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Action required to replace output invalidated by the eviction.
+  RecoveryAction recovery_action = 14
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Upload whose completed replacement must exist before recovery can start.
+  string recovery_predecessor_raw_impression_upload = 15 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
 }
