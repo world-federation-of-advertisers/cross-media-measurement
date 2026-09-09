@@ -219,7 +219,7 @@ class MissingImpressionMetadataRecovery(
 
   private suspend fun recoverDateFolder(dateFolderPrefix: String): FolderRecoveryResult {
     val blobs = storageClient.listBlobs(dateFolderPrefix).toList()
-    val storageMetadataBlobs = blobs.filter(::hasMetadataFileName)
+    val storageMetadataBlobs = blobs.filter(DataAvailabilityBlobs::isMetadataBlob)
     val storageBlobUris =
       storageMetadataBlobs.mapTo(mutableSetOf()) { BlobUris.buildUri(storageRootUri, it.blobKey) }
     val registeredMetadata = listRegisteredMetadata(dateFolderPrefix)
@@ -262,7 +262,7 @@ class MissingImpressionMetadataRecovery(
     val doneBlobKey = "${dateFolderPrefix.removeSuffix("/")}$DONE_SUFFIX"
     val finalizedMetadataBlobs =
       if (blobs.any { it.blobKey == doneBlobKey }) {
-        storageMetadataBlobs.filter(DataAvailabilityBlobs::isMetadataBlob)
+        storageMetadataBlobs
       } else {
         emptyList()
       }
@@ -419,10 +419,5 @@ class MissingImpressionMetadataRecovery(
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val DONE_SUFFIX = "/done"
-    private const val METADATA_FILE_NAME = "metadata"
-
-    private fun hasMetadataFileName(blob: StorageClient.Blob): Boolean =
-      !blob.blobKey.endsWith(DONE_SUFFIX) &&
-        METADATA_FILE_NAME in blob.blobKey.substringAfterLast('/').lowercase()
   }
 }
