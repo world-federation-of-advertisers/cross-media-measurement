@@ -1007,6 +1007,172 @@ class RawImpressionUploadModelLineServiceTest {
   }
 
   @Test
+  fun `markRawImpressionUploadModelLineFailed forwards evicted output recovery fields`() =
+    runBlocking {
+      val completed = createCompletedModelLineForMark()
+      val failureAttemptId = UUID.randomUUID().toString()
+      val evictionOperationId = UUID.randomUUID().toString()
+
+      val failed =
+        service.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            name = completed.name
+            etag = completed.etag
+            errorMessage = "Evicted corrupted output"
+            requestId = failureAttemptId
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            this.evictionOperationId = evictionOperationId
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            recoveryPredecessorRawImpressionUpload = UPLOAD_KEY_2.toName()
+          }
+        )
+
+      assertThat(failed.state).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+      assertThat(failed.failureReason)
+        .isEqualTo(RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT)
+      assertThat(failed.evictionOperationId).isEqualTo(evictionOperationId)
+      assertThat(failed.recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+      assertThat(failed.recoveryPredecessorRawImpressionUpload).isEqualTo(UPLOAD_KEY_2.toName())
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed validates evicted output recovery fields`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val evictionOperationId = UUID.randomUUID().toString()
+      val requests =
+        listOf(
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            },
+            Errors.Reason.REQUIRED_FIELD_NOT_SET,
+            "eviction_operation_id",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = "not-a-uuid"
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            },
+            Errors.Reason.INVALID_FIELD_VALUE,
+            "eviction_operation_id",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+            },
+            Errors.Reason.REQUIRED_FIELD_NOT_SET,
+            "recovery_action",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            },
+            Errors.Reason.REQUIRED_FIELD_NOT_SET,
+            "recovery_predecessor_raw_impression_upload",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              recoveryPredecessorRawImpressionUpload = "malformed"
+            },
+            Errors.Reason.INVALID_FIELD_VALUE,
+            "recovery_predecessor_raw_impression_upload",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              recoveryPredecessorRawImpressionUpload =
+                "dataProviders/other/rawImpressionUploads/upload-2"
+            },
+            Errors.Reason.INVALID_FIELD_VALUE,
+            "recovery_predecessor_raw_impression_upload",
+          ),
+        )
+
+      for ((request, reason, fieldName) in requests) {
+        val exception =
+          assertFailsWith<StatusRuntimeException> {
+            service.markRawImpressionUploadModelLineFailed(request)
+          }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(exception.errorInfo)
+          .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              this.reason = reason.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = fieldName
+            }
+          )
+      }
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed rejects recovery fields for processing failure`() =
+    runBlocking {
+      val created = createModelLineForMark()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+              evictionOperationId = UUID.randomUUID().toString()
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "recovery_action"
+          }
+        )
+    }
+
+  @Test
   fun `markRawImpressionUploadModelLineFailed throws INVALID_ARGUMENT for empty name`() =
     runBlocking {
       val exception =
@@ -1234,6 +1400,41 @@ class RawImpressionUploadModelLineServiceTest {
         rawImpressionUploadModelLine = rawImpressionUploadModelLine {
           cmmsModelLine = CMMS_MODEL_LINE
         }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+  }
+
+  private suspend fun createCompletedModelLineForMark(): RawImpressionUploadModelLine {
+    val created = createModelLineForMark()
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = created.name
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val ranking =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          name = created.name
+          etag = poolAssigning.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          name = created.name
+          etag = ranking.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    return service.markRawImpressionUploadModelLineCompleted(
+      markRawImpressionUploadModelLineCompletedRequest {
+        name = created.name
+        etag = labeling.etag
         requestId = UUID.randomUUID().toString()
       }
     )
