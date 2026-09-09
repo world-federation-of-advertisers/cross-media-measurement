@@ -17,8 +17,7 @@
 -- changeset marcopremier:5 dbms:cloudspanner
 -- comment: Add index for BlobUri prefix lookups on ImpressionMetadata.
 
--- Index for BlobUri prefix lookups with pagination by ImpressionMetadataResourceId.
+-- Index for BlobUri prefix lookups and BlobUri keyset pagination.
 -- Supports STARTS_WITH queries on BlobUri.
 CREATE INDEX ImpressionMetadataByBlobUriPrefix
   ON ImpressionMetadata(DataProviderResourceId, BlobUri);
-
