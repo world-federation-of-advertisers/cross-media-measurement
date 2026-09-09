@@ -53,6 +53,10 @@ service ImpressionMetadataService {
   rpc DeleteImpressionMetadata(DeleteImpressionMetadataRequest)
       returns (ImpressionMetadata);
 
+  // Restores a deleted `ImpressionMetadata` entry.
+  rpc UndeleteImpressionMetadata(UndeleteImpressionMetadataRequest)
+      returns (ImpressionMetadata);
+
   // Marks multiple ImpressionMetadata entries as deleted in a single request.
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse);
@@ -147,6 +151,11 @@ message ListImpressionMetadataPageToken {
 }
 
 message DeleteImpressionMetadataRequest {
+  string data_provider_resource_id = 1;
+  string impression_metadata_resource_id = 2;
+}
+
+message UndeleteImpressionMetadataRequest {
   string data_provider_resource_id = 1;
   string impression_metadata_resource_id = 2;
 }

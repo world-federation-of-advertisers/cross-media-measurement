@@ -170,6 +170,7 @@ gRPC surfaces:
 - `UpdateImpressionMetadata` / `BatchUpdateImpressionMetadata`
 - `GetImpressionMetadata` / `ListImpressionMetadata`
 - `DeleteImpressionMetadata` / `BatchDeleteImpressionMetadata` (soft delete)
+- `UndeleteImpressionMetadata` (restore a soft-deleted resource)
 - `ComputeModelLineBounds`
 
 Writes come from **data-availability-sync** (on `done` blobs) and **cleanup**
