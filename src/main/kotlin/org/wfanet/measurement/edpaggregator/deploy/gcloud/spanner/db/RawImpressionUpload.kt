@@ -22,7 +22,9 @@ import com.google.cloud.spanner.Value
 import com.google.protobuf.Timestamp
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -38,6 +40,7 @@ import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
 data class RawImpressionUploadResult(
   val rawImpressionUpload: RawImpressionUpload,
   val rawImpressionUploadId: Long,
+  val markRegistrationCompleteRequestId: String,
 )
 
 /** Reads a [RawImpressionUpload] by its resource IDs. */
@@ -56,6 +59,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadByResourceId(
       DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
       RegistrationComplete,
+      MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
       UpdateTime,
@@ -101,6 +105,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
       DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
       RegistrationComplete,
+      MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
       UpdateTime,
@@ -124,6 +129,46 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
   return buildRawImpressionUploadResult(row)
 }
 
+/** Finds an upload whose registration was completed using [requestId]. */
+suspend fun AsyncDatabaseClient.ReadContext.findUploadByMarkRegistrationCompleteRequestId(
+  dataProviderResourceId: String,
+  requestId: String,
+): RawImpressionUploadResult? {
+  val sql: String =
+    """
+    SELECT
+      DataProviderResourceId,
+      RawImpressionUploadId,
+      RawImpressionUploadResourceId,
+      DoneBlobUri,
+      DoneBlobGeneration,
+      DoneBlobCreateTime,
+      ReplacesRawImpressionUploadResourceId,
+      RegistrationComplete,
+      MarkRegistrationCompleteRequestId,
+      State,
+      CreateTime,
+      UpdateTime,
+    FROM RawImpressionUpload@{
+      FORCE_INDEX=RawImpressionUploadByMarkRegistrationCompleteRequestId,
+      spanner_emulator.disable_query_null_filtered_index_check=true
+    }
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND MarkRegistrationCompleteRequestId = @requestId
+    """
+      .trimIndent()
+
+  val row =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("requestId").to(requestId)
+        }
+      )
+      .singleOrNullIfEmpty() ?: return null
+  return buildRawImpressionUploadResult(row)
+}
+
 /** Finds the latest registered version for a done-blob path. */
 suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
   dataProviderResourceId: String,
@@ -140,6 +185,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
       RegistrationComplete,
+      MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
       UpdateTime,
@@ -176,6 +222,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       DoneBlobCreateTime,
       ReplacesRawImpressionUploadResourceId,
       RegistrationComplete,
+      MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
       UpdateTime,
@@ -263,6 +310,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
         DoneBlobCreateTime,
         ReplacesRawImpressionUploadResourceId,
         RegistrationComplete,
+        MarkRegistrationCompleteRequestId,
         State,
         CreateTime,
         UpdateTime,
@@ -356,8 +404,14 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
       state = struct.getProtoEnum("State", RawImpressionUploadState::forNumber)
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
+      etag = ETags.computeETag(updateTime.toInstant())
     },
     struct.getLong("RawImpressionUploadId"),
+    if (struct.isNull("MarkRegistrationCompleteRequestId")) {
+      ""
+    } else {
+      struct.getString("MarkRegistrationCompleteRequestId")
+    },
   )
 }
 
@@ -365,12 +419,14 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
 fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadRegistrationComplete(
   dataProviderResourceId: String,
   rawImpressionUploadId: Long,
+  requestId: String,
   state: RawImpressionUploadState? = null,
 ) {
   bufferUpdateMutation("RawImpressionUpload") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("RawImpressionUploadId").to(rawImpressionUploadId)
     set("RegistrationComplete").to(true)
+    set("MarkRegistrationCompleteRequestId").to(requestId)
     if (state != null) {
       set("State").to(state)
     }

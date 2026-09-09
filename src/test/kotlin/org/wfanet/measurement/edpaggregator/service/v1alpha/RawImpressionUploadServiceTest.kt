@@ -102,6 +102,7 @@ class RawImpressionUploadServiceTest {
     assertThat(uploadKey.rawImpressionUploadId).isNotEmpty()
     assertThat(upload.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(upload.updateTime).isEqualTo(upload.createTime)
+    assertThat(upload.etag).isNotEmpty()
     // Verify the entire response, substituting the non-deterministic resource name and timestamps.
     assertThat(upload)
       .isEqualTo(
@@ -113,6 +114,7 @@ class RawImpressionUploadServiceTest {
           doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           createTime = upload.createTime
           updateTime = upload.updateTime
+          etag = upload.etag
         }
       )
     // Verify the upload was persisted by reading it back.
@@ -176,6 +178,7 @@ class RawImpressionUploadServiceTest {
         service.markRawImpressionUploadRegistrationComplete(
           markRawImpressionUploadRegistrationCompleteRequest {
             name = upload.name
+            etag = upload.etag
             requestId = UUID.randomUUID().toString()
           }
         )
@@ -183,6 +186,70 @@ class RawImpressionUploadServiceTest {
       assertThat(completed.registrationComplete).isTrue()
       assertThat(completed.state).isEqualTo(RawImpressionUpload.State.COMPLETED)
     }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete throws INVALID_ARGUMENT for missing etag`() =
+    runBlocking {
+      val upload =
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = DONE_BLOB_GENERATION
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadRegistrationComplete(
+            markRawImpressionUploadRegistrationCompleteRequest {
+              name = upload.name
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "etag"
+          }
+        )
+    }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete forwards stale etag as ABORTED`() = runBlocking {
+    val upload =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            name = upload.name
+            etag = "stale-etag"
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+  }
 
   @Test
   fun `createRawImpressionUpload with requestId is idempotent`(): Unit = runBlocking {

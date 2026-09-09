@@ -27,10 +27,13 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByCreateRequestId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByMarkRegistrationCompleteRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
@@ -38,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadRegistrationComplete
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
+import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
@@ -234,6 +238,7 @@ class SpannerRawImpressionUploadService(
     return result.copy {
       createTime = commitTimestamp
       updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
     }
   }
 
@@ -266,19 +271,51 @@ class SpannerRawImpressionUploadService(
     val (result, changed) =
       try {
         transactionRunner.run { txn ->
+          val replay =
+            txn.findUploadByMarkRegistrationCompleteRequestId(
+              request.dataProviderResourceId,
+              request.requestId,
+            )
+          if (replay != null) {
+            if (
+              replay.rawImpressionUpload.rawImpressionUploadResourceId !=
+                request.rawImpressionUploadResourceId
+            ) {
+              throw Status.ALREADY_EXISTS.withDescription(
+                  "request_id was already used for another RawImpressionUpload"
+                )
+                .asRuntimeException()
+            }
+            return@run replay.rawImpressionUpload to false
+          }
+
           val existing =
             txn.getRawImpressionUploadByResourceId(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
             )
+          if (request.etag.isEmpty()) {
+            throw RequiredFieldNotSetException("etag")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+          }
+          if (request.etag != existing.rawImpressionUpload.etag) {
+            throw EtagMismatchException(request.etag, existing.rawImpressionUpload.etag)
+              .asStatusRuntimeException(Status.Code.ABORTED)
+          }
           if (existing.rawImpressionUpload.registrationComplete) {
-            return@run existing.rawImpressionUpload to false
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "RawImpressionUpload registration is already complete"
+              )
+              .asRuntimeException()
           }
           if (
             existing.rawImpressionUpload.state ==
               RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED
           ) {
-            return@run existing.rawImpressionUpload to false
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "Cannot complete registration for a failed RawImpressionUpload"
+              )
+              .asRuntimeException()
           }
           val completedState =
             if (
@@ -296,6 +333,7 @@ class SpannerRawImpressionUploadService(
           txn.updateRawImpressionUploadRegistrationComplete(
             request.dataProviderResourceId,
             existing.rawImpressionUploadId,
+            request.requestId,
             completedState,
           )
           existing.rawImpressionUpload.copy {
@@ -307,9 +345,18 @@ class SpannerRawImpressionUploadService(
         }
       } catch (e: RawImpressionUploadNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      } catch (e: SpannerException) {
+        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+          throw Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
+        }
+        throw e
       }
     return if (changed) {
-      result.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+      val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+      result.copy {
+        updateTime = commitTimestamp
+        etag = ETags.computeETag(commitTimestamp.toInstant())
+      }
     } else {
       result
     }

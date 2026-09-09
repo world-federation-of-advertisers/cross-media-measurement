@@ -33,9 +33,9 @@ object RequestIds {
   fun forRawImpressionUpload(doneBlobPath: String, generation: Long): String =
     fromKey("rawImpressionUpload:$doneBlobPath:$generation")
 
-  /** `request_id` for completing registration of a `RawImpressionUpload`. */
-  fun forRawImpressionUploadRegistrationComplete(uploadName: String): String =
-    fromKey("rawImpressionUploadRegistrationComplete:$uploadName")
+  /** `request_id` for completing one observed version of a `RawImpressionUpload`. */
+  fun forRawImpressionUploadRegistrationComplete(uploadName: String, etag: String): String =
+    fromKey("rawImpressionUploadRegistrationComplete:$uploadName:$etag")
 
   /**
    * `request_id` for creating a `RawImpressionUploadFile`.
