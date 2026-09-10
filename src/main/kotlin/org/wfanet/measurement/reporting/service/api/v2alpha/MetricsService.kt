@@ -3245,8 +3245,8 @@ private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
 /**
  * Returns whether every [InternalMeasurement] of this [InternalMetric] is in a terminal state.
  *
- * A running [InternalMetric] for which this is true was not updated when its
- * [InternalMeasurement]s were, so syncing those [InternalMeasurement]s again updates it.
+ * A running [InternalMetric] for which this is true was not updated when its [InternalMeasurement]s
+ * were, so syncing those [InternalMeasurement]s again updates it.
  */
 private fun InternalMetric.hasOnlyTerminalMeasurements(): Boolean {
   return weightedMeasurementsList.isNotEmpty() &&
