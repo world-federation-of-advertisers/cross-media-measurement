@@ -134,6 +134,9 @@ class DataAvailabilitySync(
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
+    require(modelLineMap.values.all { it.isNotEmpty() }) {
+      "modelLineMap entries must contain at least one model line"
+    }
   }
 
   /**
@@ -178,29 +181,30 @@ class DataAvailabilitySync(
 
       // Count total records
       val totalRecords = impressionMetadataMap.values.sumOf { it.size }
+      val syncId = UUID.randomUUID().toString()
 
-      // 2. Persist ImpressionMetadata (create new, update changed)
+      // 2. Announce this attempt before mutating ImpressionMetadata. This invalidates any
+      // publication marker left by an earlier attempt, so a failure during persistence remains
+      // visible and retryable.
+      storageClient.updateBlobMetadata(
+        blobKey = doneBlobUri.key,
+        metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to syncId),
+      )
+
+      // 3. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys)
       }
 
-      // 2b. Stamp the `done` blob with the synced-by marker. The marker means "the
-      // ImpressionMetadata store is updated for this date" — Spanner records are persisted
-      // and metadata blobs are stamped. It does NOT imply that Kingdom data availability has
-      // been updated: gap detection at step 5 may skip the Kingdom publish entirely when
-      // errorIfGapsExist=true, and Kingdom publish has its own failure signal
-      // (`cmmsRpcErrorsCounter`) when it is attempted.
-      //
-      // DataAvailabilityMonitor uses the marker to tell late-arrival from never-arrived: a done
-      // blob older than its threshold without this marker means Sync did not (yet) update the
-      // ImpressionMetadata store for the date.
+      // Record metadata-store completion separately. Disjoint marker writes prevent an older
+      // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata =
           mapOf(DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE),
       )
 
-      // 3. Retrieve model line bound from ImpressionMetadataStorage for all model lines
+      // 4. Retrieve model line bound from ImpressionMetadataStorage for all model lines
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
           computeModelLineBoundsRequest { parent = dataProviderName }
@@ -229,6 +233,9 @@ class DataAvailabilitySync(
             }
           }
         }
+      check(availabilityEntries.isNotEmpty()) {
+        "No data availability intervals were computed for $dataProviderName"
+      }
 
       // Check, per model line present in this batch, for date gaps or in-range unfinalized
       // dates before updating availability intervals. Done locally via
@@ -291,32 +298,38 @@ class DataAvailabilitySync(
           return
         }
       }
-      if (availabilityEntries.isNotEmpty()) {
-        throttler.onReady {
-          try {
-            dataProvidersStub.replaceDataAvailabilityIntervals(
-              replaceDataAvailabilityIntervalsRequest {
-                name = dataProviderName
-                dataAvailabilityIntervals += availabilityEntries
-              }
-            )
-          } catch (e: StatusException) {
-            // Record CMMS RPC error
-            metrics.cmmsRpcErrorsCounter.add(
-              1,
-              Attributes.of(
-                DATA_PROVIDER_KEY_ATTR,
-                dataProviderName,
-                RPC_METHOD_ATTR,
-                RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS,
-                STATUS_CODE_ATTR,
-                e.status.code.name,
-              ),
-            )
-            throw Exception("Error replacing DataAvailability intervals", e)
-          }
+      throttler.onReady {
+        try {
+          dataProvidersStub.replaceDataAvailabilityIntervals(
+            replaceDataAvailabilityIntervalsRequest {
+              name = dataProviderName
+              dataAvailabilityIntervals += availabilityEntries
+            }
+          )
+        } catch (e: StatusException) {
+          // Record CMMS RPC error
+          metrics.cmmsRpcErrorsCounter.add(
+            1,
+            Attributes.of(
+              DATA_PROVIDER_KEY_ATTR,
+              dataProviderName,
+              RPC_METHOD_ATTR,
+              RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS,
+              STATUS_CODE_ATTR,
+              e.status.code.name,
+            ),
+          )
+          throw Exception("Error replacing DataAvailability intervals", e)
         }
       }
+
+      // This marker is the durable completion signal for both phases of synchronization. Only
+      // update the publication ID here. If another attempt has written a newer sync ID while this
+      // attempt was publishing, the resulting mismatch must remain visible and retryable.
+      storageClient.updateBlobMetadata(
+        blobKey = doneBlobUri.key,
+        metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
+      )
 
       // Record successful sync
       recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
