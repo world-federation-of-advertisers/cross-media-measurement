@@ -85,7 +85,7 @@ class DataAvailabilityCleanupTest {
                 impressionMetadata {
                   name = RESOURCE_ID
                   modelLine = "modelLine1"
-                  blobUri = request.filter.blobUriPrefix
+                  blobUri = request.filter.blobUrisList.single()
                   interval = interval {
                     startTime = timestamp { seconds = 100 }
                     endTime = timestamp { seconds = 200 }
@@ -171,11 +171,66 @@ class DataAvailabilityCleanupTest {
       listImpressionMetadata(listCaptor.capture())
     }
     assertThat(listCaptor.firstValue.parent).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(listCaptor.firstValue.filter.blobUriPrefix).isEqualTo(BLOB_URI)
+    assertThat(listCaptor.firstValue.filter.blobUrisList).containsExactly(BLOB_URI)
+    assertThat(listCaptor.firstValue.filter.blobUriPrefix).isEmpty()
 
     // Verify delete was called with the looked-up resource ID
     val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      deleteImpressionMetadata(deleteCaptor.capture())
+    }
+    assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
+  }
+
+  @Test
+  fun `cleanup only deletes record with exact blob URI`() = runBlocking {
+    val longerResourceId = "$DATA_PROVIDER_NAME/impressionMetadata/im-longer"
+    wheneverBlocking { impressionMetadataServiceMock.listImpressionMetadata(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        val availableMetadata =
+          listOf(
+            impressionMetadata {
+              name = RESOURCE_ID
+              modelLine = "modelLine1"
+              blobUri = BLOB_URI
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+              state = ImpressionMetadata.State.ACTIVE
+            },
+            impressionMetadata {
+              name = longerResourceId
+              modelLine = "modelLine1"
+              blobUri = "$BLOB_URI-other"
+              interval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              state = ImpressionMetadata.State.ACTIVE
+            },
+          )
+        val requestedBlobUris = request.filter.blobUrisList.toSet()
+        val matchingMetadata =
+          when {
+            requestedBlobUris.isNotEmpty() ->
+              availableMetadata.filter { it.blobUri in requestedBlobUris }
+            request.filter.blobUriPrefix.isNotEmpty() ->
+              availableMetadata.filter { it.blobUri.startsWith(request.filter.blobUriPrefix) }
+            else -> availableMetadata
+          }
+        listImpressionMetadataResponse { impressionMetadata += matchingMetadata }
+      }
+
+    val dataAvailabilityCleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+    val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
       deleteImpressionMetadata(deleteCaptor.capture())
     }
     assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)

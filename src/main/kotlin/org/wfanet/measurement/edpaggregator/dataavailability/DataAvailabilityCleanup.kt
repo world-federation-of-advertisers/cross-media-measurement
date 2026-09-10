@@ -187,7 +187,7 @@ class DataAvailabilityCleanup(
       impressionMetadataServiceStub.listImpressionMetadata(
         listImpressionMetadataRequest {
           parent = dataProviderName
-          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = blobUri }
+          filter = ListImpressionMetadataRequestKt.filter { blobUris += blobUri }
         }
       )
 
