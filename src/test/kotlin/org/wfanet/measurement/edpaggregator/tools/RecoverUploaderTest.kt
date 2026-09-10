@@ -111,9 +111,12 @@ class RecoverUploaderTest {
     stubSourceUpload(
       rawImpressionUpload {
         name = REPLACEMENT_UPLOAD
+        state = RawImpressionUpload.State.COMPLETED
         doneBlobUri = DONE_BLOB_URI
         doneBlobGeneration = NEW_GENERATION
         doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+        replacesRawImpressionUpload = UPLOAD
+        registrationComplete = true
       }
     )
     var rewriteCalled = false
@@ -129,6 +132,33 @@ class RecoverUploaderTest {
 
     assertThat(error).hasMessageThat().contains("superseded by $REPLACEMENT_UPLOAD")
     assertThat(rewriteCalled).isFalse()
+  }
+
+  @Test
+  fun `recover resumes when latest revision is an incomplete recovery`() = runBlocking {
+    stubSourceUpload(
+      rawImpressionUpload {
+        name = REPLACEMENT_UPLOAD
+        state = RawImpressionUpload.State.CREATED
+        doneBlobUri = DONE_BLOB_URI
+        doneBlobGeneration = NEW_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+        replacesRawImpressionUpload = UPLOAD
+        registrationComplete = false
+      }
+    )
+    stubModelLine(RawImpressionUploadModelLine.State.FAILED)
+    stubSnapshot()
+    var rewriteExpectedGeneration: Long? = null
+    val recoverUploader = recoverUploader { _, expectedGeneration, _ ->
+      rewriteExpectedGeneration = expectedGeneration
+      NEW_GENERATION - 1
+    }
+
+    val result = recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
+
+    assertThat(rewriteExpectedGeneration).isEqualTo(GENERATION)
+    assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION - 1)
   }
 
   @Test

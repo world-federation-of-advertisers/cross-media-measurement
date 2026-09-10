@@ -772,7 +772,11 @@ class VidLabelingDispatcher(
       registeredRecovery != null &&
         latest?.name == registeredRecovery.name &&
         registeredRecovery.replacesRawImpressionUpload == sourceUploadName
-    require(isInitialDelivery || isRetryOfLatestRecovery) {
+    val isRetryAfterIncompleteRecovery =
+      latest != null &&
+        latest.replacesRawImpressionUpload == sourceUploadName &&
+        !isRegistrationComplete(latest)
+    require(isInitialDelivery || isRetryOfLatestRecovery || isRetryAfterIncompleteRecovery) {
       "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
     }
 
