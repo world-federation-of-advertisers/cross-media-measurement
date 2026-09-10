@@ -62,7 +62,6 @@ class DataAvailabilityCleanupMetrics(meter: Meter = Instrumentation.meter) {
     const val CLEANUP_STATUS_SKIPPED = "skipped"
     const val ERROR_TYPE_NOT_FOUND = "not_found"
     const val ERROR_TYPE_RPC_ERROR = "rpc_error"
-    const val ERROR_TYPE_MULTIPLE_MATCHES = "multiple_matches"
     const val CLEANUP_SKIP_REASON_NONCURRENT_VERSION = "noncurrent_version"
   }
 }
