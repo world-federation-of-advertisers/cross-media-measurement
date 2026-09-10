@@ -43,7 +43,7 @@ class RecoverUploader(
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
   private val rewriteDoneBlob:
     suspend (doneBlobUri: String, expectedGeneration: Long, metadata: Map<String, String>) -> Long,
-) {
+) : RecoveryExecutor {
   data class Result(
     val sourceUpload: String,
     val doneBlobUri: String,
@@ -55,7 +55,7 @@ class RecoverUploader(
    * Rewrites the source upload's done object so DataWatcher dispatches a new upload restricted to
    * [cmmsModelLines].
    */
-  suspend fun recover(sourceUploadName: String, cmmsModelLines: List<String>): Result {
+  override suspend fun recover(sourceUploadName: String, cmmsModelLines: List<String>): Result {
     val sourceKey =
       requireNotNull(RawImpressionUploadKey.fromName(sourceUploadName)) {
         "Malformed RawImpressionUpload resource name: $sourceUploadName"

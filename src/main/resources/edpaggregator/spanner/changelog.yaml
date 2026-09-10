@@ -79,3 +79,6 @@ databaseChangeLog:
   - include:
       file: add-raw-upload-model-line-recovery-dependency.sql
       relativeToChangeLogFile: true
+  - include:
+      file: create-upload-healing-operation-schema.sql
+      relativeToChangeLogFile: true

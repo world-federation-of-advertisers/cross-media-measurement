@@ -1,0 +1,195 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_model_line.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "UploadHealingOperationProto";
+
+// A durable, resumable workflow for evicting and replacing invalid VID-labeling
+// uploads.
+message UploadHealingOperation {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    pattern: "dataProviders/{data_provider}/uploadHealingOperations/{upload_healing_operation}"
+    singular: "uploadHealingOperation"
+    plural: "uploadHealingOperations"
+  };
+
+  // State of the complete healing workflow.
+  enum State {
+    // Default, unspecified state. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // At least one eviction or replacement step remains incomplete.
+    IN_PROGRESS = 1;
+    // Every planned eviction and replacement has completed.
+    COMPLETE = 2;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Current workflow state.
+  State state = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Operator diagnosis recorded on evicted model lines.
+  string reason = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // Absolute URI prefix containing generated VID-labeled outputs.
+  string labeled_impressions_blob_prefix = 4
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Uploads explicitly selected as invalid by the operator.
+  repeated string bad_raw_impression_uploads = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Earliest upload creation time included by the retention policy.
+  google.protobuf.Timestamp cutoff_time = 6
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Ordered checkpoints in the eviction and replacement graph.
+  repeated UploadHealingStep steps = 7 [(google.api.field_behavior) = REQUIRED];
+
+  // Time when this operation was created.
+  google.protobuf.Timestamp create_time = 8
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when this operation was last updated.
+  google.protobuf.Timestamp update_time = 9
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+}
+
+// One ordered checkpoint in an UploadHealingOperation.
+message UploadHealingStep {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/UploadHealingStep"
+    pattern: "dataProviders/{data_provider}/uploadHealingOperations/{upload_healing_operation}/steps/{upload_healing_step}"
+    singular: "uploadHealingStep"
+    plural: "uploadHealingSteps"
+  };
+
+  // State of one healing step.
+  enum State {
+    // Default, unspecified state. Should not be used.
+    STATE_UNSPECIFIED = 0;
+    // The planned model-line output has not been evicted completely.
+    PENDING_EVICTION = 1;
+    // Eviction is complete and the step is waiting for a replacement upload.
+    WAITING_FOR_REPLACEMENT = 2;
+    // The operator recovery event was written and is being processed.
+    RECOVERY_STARTED = 3;
+    // Eviction and any required replacement have completed.
+    COMPLETE = 4;
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Stable order in which this step must be processed.
+  int64 sequence_number = 2 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Upload whose invalid output is evicted by this step.
+  string source_raw_impression_upload = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Evicted source model-line row.
+  string raw_impression_upload_model_line = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+    }
+  ];
+
+  // CMMS ModelLine processed by this step.
+  string cmms_model_line = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/ModelLine" }
+  ];
+
+  // Whether the step invalidates cumulative memoized state.
+  bool memoized = 6 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Action that creates the replacement output.
+  RawImpressionUploadModelLine.RecoveryAction recovery_action = 7 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // Upload whose replacement must complete before this step can be recovered.
+  string recovery_predecessor_raw_impression_upload = 8 [
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Whether this row is the revision on which the replacement action runs.
+  bool recovery_target = 9 [(google.api.field_behavior) = IMMUTABLE];
+
+  // Current checkpoint state.
+  State state = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Replacement upload observed after this step, if one has completed.
+  string replacement_raw_impression_upload = 11 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Time when eviction of this model-line output completed.
+  google.protobuf.Timestamp eviction_complete_time = 12
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when an operator recovery event was written.
+  google.protobuf.Timestamp recovery_start_time = 13
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when the replacement completed, or when no replacement was needed.
+  google.protobuf.Timestamp complete_time = 14
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when this step was last updated.
+  google.protobuf.Timestamp update_time = 15
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Done-object generation written for an operator recovery.
+  int64 recovery_done_blob_generation = 17
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}
