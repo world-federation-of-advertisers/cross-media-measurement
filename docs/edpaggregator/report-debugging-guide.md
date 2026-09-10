@@ -84,6 +84,54 @@ The stage-by-stage playbook below gives idle-friendly example queries (a bare
 `ORDER BY CreateTime DESC` to eyeball a fresh run); in production, always add the
 `WHERE <your-id>` filter and lean on the identifiers and traces above.
 
+## Print a report timeline with `report-trace`
+
+The `ReportTrace` operator CLI resolves a BasicReport to its generated Report,
+metrics, and Kingdom measurements, then searches Cloud Trace and Cloud Logging
+for all of those identifiers. It prints the matching spans and log entries in
+timestamp order, which is usually the fastest first step before using the
+stage-specific queries below.
+
+Run it from an environment with Application Default Credentials for a
+least-privilege operator service account. The identity needs permission to read
+Cloud Trace and Cloud Logging, read the Reporting Spanner database, connect to
+the Reporting Cloud SQL instance, and select from the Reporting Postgres
+database.
+
+```bash
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
+  -- \
+  --project=<PROJECT_ID> \
+  --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID> \
+  --spanner-project=<PROJECT_ID> \
+  --spanner-instance=<SPANNER_INSTANCE> \
+  --spanner-database=reporting \
+  --postgres-cloud-sql-connection-name=<PROJECT_ID>:<REGION>:<CLOUD_SQL_INSTANCE> \
+  --postgres-database=reporting-v2 \
+  --postgres-user=<DATABASE_USER>
+```
+
+If the BasicReport database is unavailable but the generated Report name is
+known, direct mode needs only observability permissions:
+
+```bash
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
+  -- \
+  --project=<PROJECT_ID> \
+  --report=measurementConsumers/<MC_ID>/reports/<REPORT_ID> \
+  --start-time=<RFC3339_START_TIME>
+```
+
+The Reporting service logs the BasicReport-to-Report association as
+`xmm.basic_report.name` and `xmm.report.name`. EDPA report-processing spans carry
+`xmm.report.name`; requisition-fulfillment spans additionally carry
+`xmm.requisition.name` and `xmm.edpa.group_id`. These stable keys are also useful
+for manual Cloud Logging and Cloud Trace queries. The CLI continues with the
+source that is available if one observability API is disabled or the operator
+lacks permission, and prints a warning for the unavailable source.
+
 ## Lifecycle overview
 
 ```

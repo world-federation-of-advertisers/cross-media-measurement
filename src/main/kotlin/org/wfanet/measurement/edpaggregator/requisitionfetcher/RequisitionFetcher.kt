@@ -52,6 +52,7 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -436,6 +437,7 @@ class RequisitionFetcher(
           Attributes.builder()
             .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
             .put(ATTR_REPORT_ID_KEY, unit.reportId)
+            .put(ReportTraceAttributes.REPORT_NAME, unit.reportId)
             .build(),
       ) {
         processReportInner(unit, pendingRecovery, metadataCache)
@@ -807,7 +809,7 @@ class RequisitionFetcher(
                     UUID.nameUUIDFromBytes("${requisition.name}/$groupId".toByteArray()).toString()
                 }
               }
-          }
+            }
         )
       }
     return response.requisitionMetadataList

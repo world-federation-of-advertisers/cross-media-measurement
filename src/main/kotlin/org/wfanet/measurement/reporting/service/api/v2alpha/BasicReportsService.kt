@@ -28,6 +28,7 @@ import io.grpc.StatusException
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.logging.Logger
 import kotlin.collections.List
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -622,6 +623,14 @@ class BasicReportsService(
         InternalErrors.Reason.INVALID_BASIC_REPORT,
         null -> Status.INTERNAL.withCause(e).asRuntimeException()
       }
+    }
+
+    logger.info {
+      val basicReportName =
+        BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
+      val reportName =
+        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName()
+      "Associated xmm.basic_report.name=$basicReportName xmm.report.name=$reportName"
     }
 
     return createdInternalBasicReport.toBasicReport(
@@ -1450,6 +1459,7 @@ class BasicReportsService(
   }
 
   companion object {
+    private val logger: Logger = Logger.getLogger(BasicReportsService::class.java.name)
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
     private const val SCALING_FACTOR = 10000

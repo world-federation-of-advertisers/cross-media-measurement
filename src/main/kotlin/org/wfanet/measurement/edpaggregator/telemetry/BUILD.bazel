@@ -29,7 +29,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "tracing",
-    srcs = ["Tracing.kt"],
+    srcs = [
+        "ReportTraceAttributes.kt",
+        "Tracing.kt",
+    ],
     deps = [
         ":edpa_telemetry",
         "//imports/java/io/opentelemetry/api",
@@ -47,6 +50,7 @@ kt_jvm_library(
     name = "telemetry",
     srcs = [
         "EdpaTelemetry.kt",
+        "ReportTraceAttributes.kt",
         "Tracing.kt",
     ],
     visibility = ["//visibility:public"],
