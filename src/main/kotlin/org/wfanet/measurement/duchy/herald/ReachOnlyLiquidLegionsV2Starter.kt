@@ -340,6 +340,7 @@ object ReachOnlyLiquidLegionsV2Starter {
                   MeasurementSpec.MeasurementTypeCase.IMPRESSION,
                   MeasurementSpec.MeasurementTypeCase.DURATION,
                   MeasurementSpec.MeasurementTypeCase.POPULATION,
+                  MeasurementSpec.MeasurementTypeCase.MULTI,
                   MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET -> {
                     throw IllegalArgumentException("Missing Reach in the measurementSpec.")
                   }

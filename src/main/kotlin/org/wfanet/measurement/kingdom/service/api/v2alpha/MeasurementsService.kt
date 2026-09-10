@@ -656,6 +656,7 @@ class MeasurementsService(
             }
         }
       }
+      MeasurementSpec.MeasurementTypeCase.MULTI -> error("Multi measurements are not supported.")
       MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
         error("MeasurementType not set.")
     }
@@ -800,6 +801,8 @@ private fun MeasurementSpec.validate() {
     MeasurementSpec.MeasurementTypeCase.POPULATION -> {
       grpcRequire(modelLine.isNotEmpty()) { "Model Line is unspecified" }
     }
+    MeasurementSpec.MeasurementTypeCase.MULTI ->
+      failGrpc(Status.INVALID_ARGUMENT) { "Multi measurements are not supported" }
     MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
       failGrpc(Status.INVALID_ARGUMENT) { "Measurement type is unspecified" }
   }
