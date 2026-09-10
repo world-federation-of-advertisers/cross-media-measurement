@@ -63,7 +63,7 @@ class UploadHealingOperationService(
     val dataProviderKey = parseDataProvider(request.parent, "parent")
     if (!request.hasUploadHealingOperation()) required("upload_healing_operation")
     validateUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
-    if (request.requestId.isNotEmpty()) validateUuid(request.requestId, "request_id")
+    validateUuid(request.requestId, "request_id")
     val operation = request.uploadHealingOperation
     if (operation.reason.isBlank()) required("upload_healing_operation.reason")
     if (operation.labeledImpressionsBlobPrefix.isBlank()) {
@@ -141,7 +141,7 @@ class UploadHealingOperationService(
               cutoffTime = operation.cutoffTime
               steps += internalSteps
             }
-            requestId = request.requestId.ifEmpty { request.uploadHealingOperationId }
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
@@ -174,7 +174,7 @@ class UploadHealingOperationService(
   ): UploadHealingStep {
     if (request.name.isBlank()) required("name")
     if (request.etag.isBlank()) required("etag")
-    if (request.requestId.isNotEmpty()) validateUuid(request.requestId, "request_id")
+    validateUuid(request.requestId, "request_id")
     val key = UploadHealingStepKey.fromName(request.name) ?: invalid("name")
     val stepId = key.uploadHealingStepId.toLongOrNull() ?: invalid("name")
     if (
