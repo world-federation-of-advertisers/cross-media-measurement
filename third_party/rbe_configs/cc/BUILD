@@ -16,7 +16,8 @@
 
 load(":cc_toolchain_config.bzl", "cc_toolchain_config")
 load(":armeabi_cc_toolchain_config.bzl", "armeabi_cc_toolchain_config")
-load("@rules_cc//cc:defs.bzl", "cc_toolchain", "cc_toolchain_suite")
+load("@rules_cc//cc/toolchains:cc_toolchain.bzl", "cc_toolchain")
+load("@rules_cc//cc/toolchains:cc_toolchain_suite.bzl", "cc_toolchain_suite")
 
 package(default_visibility = ["//visibility:public"])
 
@@ -60,9 +61,14 @@ filegroup(
 )
 
 filegroup(
+    name = "deps_scanner_wrapper",
+    srcs = ["deps_scanner_wrapper.sh"],
+)
+filegroup(
     name = "compiler_deps",
     srcs = glob(["extra_tools/**"], allow_empty = True) + [":builtin_include_directory_paths",
     ":cc_wrapper",
+    ":deps_scanner_wrapper",
     ":validate_static_library"],
 )
 
@@ -128,6 +134,7 @@ cc_toolchain_config(
         "objdump": "/usr/bin/objdump",
         "strip": "/usr/bin/strip",
         "c++filt": "/usr/bin/c++filt",
+        "cpp-module-deps-scanner": "deps_scanner_wrapper.sh",
         "parse_headers": "cc_wrapper.sh",
         "validate_static_library": "validate_static_library.sh"},
     compile_flags = ["-fstack-protector",
@@ -146,7 +153,7 @@ cc_toolchain_config(
     "-fdata-sections"],
     dbg_compile_flags = ["-g"],
     conly_flags = [],
-    cxx_flags = ["-std=c++14"],
+    cxx_flags = ["-std=c++17"],
     link_flags = ["-B/usr/lib/llvm-19/bin",
     "-B/usr/bin",
     "-Wl,-no-as-needed",
