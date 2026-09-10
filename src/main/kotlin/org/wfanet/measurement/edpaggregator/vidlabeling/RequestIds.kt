@@ -126,9 +126,9 @@ object RequestIds {
   fun forUploadHealingOperation(operationId: String): String =
     fromKey("uploadHealingOperation:$operationId")
 
-  /** `request_id` for recording one durable upload-healing checkpoint. */
-  fun forUploadHealingStep(stepName: String, state: String, replacementUploadName: String): String =
-    fromKey("uploadHealingStep:$stepName:$state:$replacementUploadName")
+  /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
+  fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
+    fromKey("uploadHealingStep:$stepName:$checkpoint:$evidence")
 
   /** `request_id` for retrying a specific model-line failure at Phase 0. */
   fun forHealingRetryPoolAssigning(modelLineName: String, failureAttemptId: String): String =
