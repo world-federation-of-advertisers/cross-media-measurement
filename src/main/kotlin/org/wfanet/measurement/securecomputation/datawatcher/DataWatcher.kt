@@ -33,6 +33,7 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
@@ -114,6 +115,7 @@ class DataWatcher(
       workItemParams {
           appParams = queueConfig.appParams
           this.dataPathParams = dataPathParams { this.dataPath = path }
+          traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
     val request = createWorkItemRequest {

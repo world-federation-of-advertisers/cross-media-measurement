@@ -23,6 +23,8 @@ import io.grpc.serviceconfig.methodConfig
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -42,6 +44,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.asBufferedFlow
@@ -50,6 +53,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
@@ -238,7 +243,15 @@ abstract class MillBase(
   }
 
   /** Process the computation according to its protocol and status. */
-  private suspend fun processComputation(token: ComputationToken) {
+  private suspend fun processComputation(token: ComputationToken) =
+    ReportTracing.traceSuspending(
+      spanName = "duchy.mill.process_computation",
+      attributes = token.reportTraceAttributes(),
+    ) {
+      processComputationInTrace(token)
+    }
+
+  private suspend fun processComputationInTrace(token: ComputationToken) {
     if (token.attempt > maximumAttempts) {
       failComputation(token, "Failing computation due to too many failed ComputationStageAttempts.")
       return
@@ -257,6 +270,8 @@ abstract class MillBase(
     try {
       processComputationImpl(token)
     } catch (e: Exception) {
+      Span.current().setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
+      Span.current().recordException(e)
       handleExceptions(token, e)
     }
     logger.info("$globalId@$millId: Processed computation ")
@@ -266,6 +281,16 @@ abstract class MillBase(
       STAGE_WALL_CLOCK_DURATION,
       stageWallClockDurationHistogram,
     )
+  }
+
+  private fun ComputationToken.reportTraceAttributes(): Attributes {
+    val builder =
+      Attributes.builder()
+        .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(globalComputationId).toName())
+    runCatching { MeasurementSpec.parseFrom(computationDetails.kingdomComputation.measurementSpec) }
+      .getOrNull()
+      ?.let { builder.putAll(ReportTraceAttributes.fromMeasurementSpec(it)) }
+    return builder.build()
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {

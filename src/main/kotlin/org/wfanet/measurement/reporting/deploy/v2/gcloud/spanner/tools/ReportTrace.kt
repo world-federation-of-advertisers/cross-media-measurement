@@ -56,6 +56,8 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.MetricKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import picocli.CommandLine
 
+private const val REPORT_NOT_CREATED = "(not created)"
+
 /** Identifiers that connect one BasicReport to work performed by downstream services. */
 internal data class ReportTraceContext(
   val basicReportName: String?,
@@ -66,15 +68,18 @@ internal data class ReportTraceContext(
   val createTime: Instant?,
 ) {
   val correlationValues: List<String>
-    get() = buildList {
-      if (basicReportName != null) {
-        add(basicReportName)
-      }
-      add(reportName)
-      addAll(metricNames)
-      addAll(measurementNames)
-    }
-      .distinct()
+    get() =
+      buildList {
+          if (basicReportName != null) {
+            add(basicReportName)
+          }
+          if (reportName != REPORT_NOT_CREATED) {
+            add(reportName)
+          }
+          addAll(metricNames)
+          addAll(measurementNames)
+        }
+        .distinct()
 }
 
 /** A single Cloud Logging entry in an end-to-end report timeline. */
@@ -129,7 +134,7 @@ internal class DatabaseBasicReportTraceResolver(
       return ReportTraceContext(
         basicReportName = basicReportKey.toName(),
         basicReportState = basicReport.state.name,
-        reportName = "(not created)",
+        reportName = REPORT_NOT_CREATED,
         metricNames = emptyList(),
         measurementNames = emptyList(),
         createTime = Instant.ofEpochMilli(Timestamps.toMillis(basicReport.createTime)),
@@ -249,7 +254,13 @@ internal class GoogleCloudReportTraceSpanReader(
     limit: Int,
   ): List<ReportTraceLogEntry> {
     credentials.refreshIfExpired()
-    val filter = "+label:$REPORT_TRACE_ATTRIBUTE:\"$reportName\""
+    val traceAttribute =
+      if (reportName.contains("/basicReports/")) {
+        BASIC_REPORT_TRACE_ATTRIBUTE
+      } else {
+        REPORT_TRACE_ATTRIBUTE
+      }
+    val filter = "+label:$traceAttribute:\"$reportName\""
     val query =
       mapOf(
           "view" to "COMPLETE",
@@ -320,6 +331,7 @@ internal class GoogleCloudReportTraceSpanReader(
 
   companion object {
     private const val TRACE_READ_SCOPE = "https://www.googleapis.com/auth/trace.readonly"
+    private const val BASIC_REPORT_TRACE_ATTRIBUTE = "xmm.basic_report.name"
     private const val REPORT_TRACE_ATTRIBUTE = "xmm.report.name"
     private const val MAX_TRACE_PAGE_SIZE = 1000
 
@@ -339,6 +351,7 @@ private object ReportTraceOutput {
         "textPayload:\"$escaped\" OR jsonPayload.message:\"$escaped\" OR " +
           "jsonPayload.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.report.name\"=\"$escaped\" OR " +
+          "jsonPayload.attributes.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.attributes.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"edpa.report_id\"=\"$escaped\" OR " +
           "jsonPayload.\"edpa.results_fulfiller.report_id\"=\"$escaped\""
@@ -506,11 +519,6 @@ internal class ReportTrace(
         )
       }
 
-    if (context.reportName == "(not created)") {
-      spec.commandLine().out.print(ReportTraceOutput.render(context, emptyList()))
-      return@runBlocking
-    }
-
     val parsedEndTime = parseTime("--end-time", endTime)
     val parsedStartTime =
       startTime?.let { parseTime("--start-time", it) }
@@ -525,7 +533,13 @@ internal class ReportTrace(
     val spanEntries =
       try {
         spanReaderFactory()
-          .read(project, context.reportName, parsedStartTime, parsedEndTime, entryLimit)
+          .read(
+            project,
+            context.basicReportName ?: context.reportName,
+            parsedStartTime,
+            parsedEndTime,
+            entryLimit,
+          )
       } catch (e: Exception) {
         spec.commandLine().err.println("Warning: unable to read Cloud Trace: ${e.message}")
         emptyList()

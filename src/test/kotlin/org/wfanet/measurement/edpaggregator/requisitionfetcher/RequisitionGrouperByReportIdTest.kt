@@ -174,6 +174,8 @@ class RequisitionGrouperByReportIdTest {
 
     assertThat(result).isNotNull()
     assertThat(result!!.groupId).isEqualTo(GROUP_ID)
+    assertThat(result.report).isEqualTo(REPORT_ID)
+    assertThat(result.basicReport).isEqualTo("measurementConsumers/mc/basicReports/basic-report")
     assertThat(result.modelLine).isEqualTo("some-model-line")
     assertThat(result.eventGroupMapList.single())
       .isEqualTo(

@@ -27,6 +27,22 @@ import org.junit.runners.JUnit4
 @RunWith(JUnit4::class)
 class ReportTraceTest {
   @Test
+  fun `context before Report creation only correlates by BasicReport`() {
+    val context =
+      ReportTraceContext(
+        basicReportName = "measurementConsumers/mc-1/basicReports/basic-report-1",
+        basicReportState = "CREATED",
+        reportName = "(not created)",
+        metricNames = emptyList(),
+        measurementNames = emptyList(),
+        createTime = Instant.parse("2026-09-10T12:00:00Z"),
+      )
+
+    assertThat(context.correlationValues)
+      .containsExactly("measurementConsumers/mc-1/basicReports/basic-report-1")
+  }
+
+  @Test
   fun `main prints entries from logs and traces in chronological order`() {
     val output = StringWriter()
     val error = StringWriter()

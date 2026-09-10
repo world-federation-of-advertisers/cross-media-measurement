@@ -26,6 +26,7 @@ import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.trace.Span
 import java.io.File
 import java.security.PrivateKey
 import java.security.SignatureException
@@ -119,6 +120,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -571,6 +573,17 @@ class MetricsService(
       val isSingleDataProvider: Boolean = nonceHashes.size == 1
       val metric = runningMetric.internalMetric
       val metricSpec = metric.metricSpec
+      Span.current()
+        .setAttribute(ReportTraceAttributes.REPORT_NAME, metric.details.containingReport)
+        .setAttribute(
+          ReportTraceAttributes.METRIC_NAME,
+          MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName(),
+        )
+        .also { span ->
+          if (metric.details.basicReport.isNotBlank()) {
+            span.setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, metric.details.basicReport)
+          }
+        }
 
       return measurementSpec {
         measurementPublicKey = packedMeasurementEncryptionPublicKey
@@ -612,6 +625,7 @@ class MetricsService(
         // Add reporting metadata
         reportingMetadata = reportingMetadata {
           report = metric.details.containingReport
+          basicReport = metric.details.basicReport
           this.metric =
             MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName()
         }
@@ -1449,6 +1463,19 @@ class MetricsService(
       }
     val measurementConsumerName: String = parentKey.toName()
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
+    if (request.metricId.isNotBlank()) {
+      Span.current()
+        .setAttribute(
+          ReportTraceAttributes.METRIC_NAME,
+          MetricKey(parentKey.measurementConsumerId, request.metricId).toName(),
+        )
+        .setAttribute(ReportTraceAttributes.REPORT_NAME, request.metric.containingReport)
+        .also { span ->
+          if (request.metric.basicReport.isNotBlank()) {
+            span.setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.metric.basicReport)
+          }
+        }
+    }
 
     val reportingSetKey =
       ReportingSetKey.fromName(request.metric.reportingSet)
@@ -1558,6 +1585,19 @@ class MetricsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
       }
+
+    request.requestsList
+      .map { it.metric.basicReport }
+      .filter(String::isNotBlank)
+      .distinct()
+      .singleOrNull()
+      ?.let { Span.current().setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, it) }
+    request.requestsList
+      .map { it.metric.containingReport }
+      .filter(String::isNotBlank)
+      .distinct()
+      .singleOrNull()
+      ?.let { Span.current().setAttribute(ReportTraceAttributes.REPORT_NAME, it) }
 
     val measurementConsumerName: String = parentKey.toName()
     val measurementConsumerConfig =
@@ -1853,6 +1893,7 @@ class MetricsService(
         details =
           InternalMetricKt.details {
             containingReport = request.metric.containingReport
+            basicReport = request.metric.basicReport
             filters += request.metric.filtersList
           }
       }
@@ -2044,6 +2085,7 @@ class MetricsService(
       state = source.state.toPublic()
       createTime = source.createTime
       containingReport = source.details.containingReport
+      basicReport = source.details.basicReport
       // The calculations can throw an error, but we still want to return the metric.
       when (state) {
         Metric.State.SUCCEEDED -> {

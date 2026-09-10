@@ -26,6 +26,7 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.trace.Span
 import java.time.DateTimeException
 import java.time.LocalDate
 import java.time.Period
@@ -57,6 +58,7 @@ import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
@@ -339,6 +341,17 @@ class ReportsService(
     grpcRequire(request.hasReport()) { "Report is not specified." }
     grpcRequire(request.reportId.matches(RESOURCE_ID_REGEX)) { "Report ID is invalid." }
 
+    Span.current()
+      .setAttribute(
+        ReportTraceAttributes.REPORT_NAME,
+        ReportKey(parentKey.measurementConsumerId, request.reportId).toName(),
+      )
+      .also { span ->
+        if (request.report.basicReport.isNotBlank()) {
+          span.setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.report.basicReport)
+        }
+      }
+
     grpcRequire(request.report.reportingMetricEntriesList.isNotEmpty()) {
       "No ReportingMetricEntry is specified."
     }
@@ -409,6 +422,20 @@ class ReportsService(
       }
 
     // Create metrics.
+    Span.current()
+      .setAttribute(
+        ReportTraceAttributes.REPORT_NAME,
+        ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
+          .toName(),
+      )
+      .also { span ->
+        if (internalReport.details.basicReport.isNotBlank()) {
+          span.setAttribute(
+            ReportTraceAttributes.BASIC_REPORT_NAME,
+            internalReport.details.basicReport,
+          )
+        }
+      }
     val createMetricRequests: Flow<CreateMetricRequest> =
       @OptIn(ExperimentalCoroutinesApi::class)
       internalReport.reportingMetricEntriesMap.entries.asFlow().flatMapMerge { entry ->
@@ -427,6 +454,7 @@ class ReportsService(
               containingReportResourceName =
                 ReportKey(internalReport.cmmsMeasurementConsumerId, internalReport.externalReportId)
                   .toName(),
+              basicReportResourceName = internalReport.details.basicReport,
             )
           }
         }
@@ -517,6 +545,7 @@ class ReportsService(
           .toName()
 
       tags.putAll(internalReport.details.tagsMap)
+      basicReport = internalReport.details.basicReport
 
       reportingMetricEntries +=
         internalReport.reportingMetricEntriesMap.map { internalReportingMetricEntry ->
@@ -669,6 +698,7 @@ class ReportsService(
         details =
           InternalReportKt.details {
             tags.putAll(request.report.tagsMap)
+            basicReport = request.report.basicReport
             when (request.report.timeCase) {
               Report.TimeCase.TIME_INTERVALS -> {
                 timeIntervals = request.report.timeIntervals.toInternal()

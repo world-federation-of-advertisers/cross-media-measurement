@@ -1,0 +1,16 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "report_tracing",
+    srcs = ["ReportTracing.kt"],
+    deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/api:context",
+        "//imports/java/io/opentelemetry/extension:kotlin",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

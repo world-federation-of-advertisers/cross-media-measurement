@@ -21,6 +21,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.trace.Span
 import java.util.AbstractMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -68,6 +69,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -689,6 +691,11 @@ class MeasurementsService(
           .asRuntimeException()
       }
     measurementSpec.validate()
+    Span.current()
+      .addEvent(
+        "kingdom.measurement.accepted",
+        ReportTraceAttributes.fromMeasurementSpec(measurementSpec),
+      )
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProviderValues: Map<ExternalId, DataProviderValue> = buildMap {
