@@ -397,6 +397,61 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed creates successor while model line remains active after retry failure`() {
+    val originalWorkItemId = WorkItemIds.forVidLabeler(VID_JOB_NAME)
+    val firstRetryId = RequestIds.forRetriedWorkItem(originalWorkItemId, FAILURE_ATTEMPT_ID)
+    val successorId = RequestIds.forRetriedWorkItem(firstRetryId, "123:456")
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        when (invocation.getArgument<GetWorkItemRequest>(0).name) {
+          "workItems/$originalWorkItemId" -> workItem { queue = "q" }
+          "workItems/$firstRetryId" ->
+            workItem {
+              queue = "q"
+              state = WorkItem.State.FAILED
+              updateTime = timestamp {
+                seconds = 123
+                nanos = 456
+              }
+            }
+          "workItems/$successorId" -> throw Status.NOT_FOUND.asRuntimeException()
+          else -> error("unexpected WorkItem")
+        }
+      }
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+      whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+        when (invocation.getArgument<CreateWorkItemRequest>(0).workItemId) {
+          firstRetryId -> throw Status.ALREADY_EXISTS.asRuntimeException()
+          successorId -> workItem {}
+          else -> error("unexpected WorkItem")
+        }
+      }
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    assertThat(result.wasAlreadyStarted).isTrue()
+    val requestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues.map { it.workItemId })
+      .containsExactly(firstRetryId, successorId)
+      .inOrder()
+  }
+
+  @Test
   fun `retryFailed finishes publication when a prior invocation committed only the claim`() {
     val result = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
