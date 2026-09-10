@@ -16,6 +16,9 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -23,10 +26,14 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
+import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest as InternalAdvanceRequest
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest as InternalCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
@@ -94,6 +101,118 @@ class UploadHealingOperationServiceTest {
     assertThat(result.name).isEqualTo("$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID")
     assertThat(result.stepsList.single().rawImpressionUploadModelLine).isEqualTo(MODEL_LINE_ROW)
     Unit
+  }
+
+  @Test
+  fun `advance forwards a server-verified action instead of writable state`() = runBlocking {
+    var captured: InternalAdvanceRequest? = null
+    org.mockito.kotlin
+      .whenever(internalService.advanceUploadHealingStep(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured = invocation.getArgument(0)
+        INTERNAL_OPERATION.stepsList.single()
+      }
+    val service = newService()
+
+    val result =
+      service.advanceUploadHealingStep(
+        advanceUploadHealingStepRequest {
+          name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/steps/1"
+          etag = "etag"
+          action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
+          recoveryDoneBlobGeneration = 123L
+          requestId = REQUEST_ID
+        }
+      )
+
+    assertThat(captured!!.action).isEqualTo(InternalAdvanceRequest.Action.RECORD_RECOVERY)
+    assertThat(captured!!.uploadHealingStepId).isEqualTo(1L)
+    assertThat(captured!!.recoveryDoneBlobGeneration).isEqualTo(123L)
+    assertThat(result.state)
+      .isEqualTo(
+        org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep.State.PENDING_EVICTION
+      )
+    Unit
+  }
+
+  @Test
+  fun `create translates internal errors`() = runBlocking {
+    org.mockito.kotlin
+      .whenever(internalService.createUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenThrow(Status.ALREADY_EXISTS.withDescription("internal details").asRuntimeException())
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService().createUploadHealingOperation(validCreateRequest())
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(error.status.description).doesNotContain("internal details")
+  }
+
+  @Test
+  fun `get translates internal errors`() = runBlocking {
+    org.mockito.kotlin
+      .whenever(internalService.getUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenThrow(Status.NOT_FOUND.withDescription("internal details").asRuntimeException())
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .getUploadHealingOperation(
+            getUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(error.status.description).doesNotContain("internal details")
+  }
+
+  @Test
+  fun `advance translates internal errors`() = runBlocking {
+    org.mockito.kotlin
+      .whenever(internalService.advanceUploadHealingStep(org.mockito.kotlin.any()))
+      .thenThrow(
+        Status.FAILED_PRECONDITION.withDescription("internal details").asRuntimeException()
+      )
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .advanceUploadHealingStep(
+            advanceUploadHealingStepRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/steps/1"
+              etag = "etag"
+              action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(error.status.description).doesNotContain("internal details")
+  }
+
+  private fun newService() =
+    UploadHealingOperationService(
+      InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel)
+    )
+
+  private fun validCreateRequest() = createUploadHealingOperationRequest {
+    parent = DATA_PROVIDER
+    uploadHealingOperationId = OPERATION_ID
+    requestId = REQUEST_ID
+    uploadHealingOperation = uploadHealingOperation {
+      reason = "bad data"
+      labeledImpressionsBlobPrefix = "gs://output/vid"
+      badRawImpressionUploads += UPLOAD
+      cutoffTime = timestamp { seconds = 100L }
+      steps += uploadHealingStep {
+        sequenceNumber = 0L
+        sourceRawImpressionUpload = UPLOAD
+        rawImpressionUploadModelLine = MODEL_LINE_ROW
+        cmmsModelLine = CMMS_MODEL_LINE
+        recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+      }
+    }
   }
 
   companion object {

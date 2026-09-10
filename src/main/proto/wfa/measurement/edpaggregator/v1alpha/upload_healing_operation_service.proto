@@ -19,7 +19,6 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
-import "google/protobuf/field_mask.proto";
 import "wfa/measurement/edpaggregator/v1alpha/upload_healing_operation.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -36,8 +35,8 @@ service UploadHealingOperationService {
   rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
       returns (UploadHealingOperation) {}
 
-  // Updates the mutable checkpoint fields of one healing step.
-  rpc UpdateUploadHealingStep(UpdateUploadHealingStepRequest)
+  // Advances one healing step after verifying the requested workflow action.
+  rpc AdvanceUploadHealingStep(AdvanceUploadHealingStepRequest)
       returns (UploadHealingStep) {}
 }
 
@@ -80,19 +79,48 @@ message GetUploadHealingOperationRequest {
   ];
 }
 
-// Request message for `UpdateUploadHealingStep`.
-message UpdateUploadHealingStepRequest {
-  // Step containing its name, etag, and requested checkpoint fields.
-  UploadHealingStep upload_healing_step = 1
-      [(google.api.field_behavior) = REQUIRED];
+// Request message for `AdvanceUploadHealingStep`.
+message AdvanceUploadHealingStepRequest {
+  // Action whose preconditions the server verifies before advancing the step.
+  enum Action {
+    // Default, unspecified action. Should not be used.
+    ACTION_UNSPECIFIED = 0;
+    // Confirms that the source model-line output was evicted.
+    CONFIRM_EVICTION = 1;
+    // Records that the operator wrote a recovery done object.
+    RECORD_RECOVERY = 2;
+    // Confirms that a valid replacement upload completed.
+    CONFIRM_REPLACEMENT = 3;
+  }
 
-  // Fields to update. Supported paths are `state`,
-  // `replacement_raw_impression_upload`, and `recovery_done_blob_generation`.
-  google.protobuf.FieldMask update_mask = 2
-      [(google.api.field_behavior) = REQUIRED];
+  // Resource name of the step to advance.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingStep"
+    }
+  ];
 
-  // Optional UUID that makes this checkpoint update retry-safe.
-  string request_id = 3 [
+  // Entity tag returned with the current step.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // Workflow action to verify and record.
+  Action action = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // Replacement upload to verify when `action` is `CONFIRM_REPLACEMENT`.
+  string replacement_raw_impression_upload = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Done-object generation written when `action` is `RECORD_RECOVERY`.
+  int64 recovery_done_blob_generation = 5
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Optional UUID that makes this transition retry-safe.
+  string request_id = 6 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];

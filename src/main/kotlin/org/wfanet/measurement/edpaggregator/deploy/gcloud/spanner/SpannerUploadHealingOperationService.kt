@@ -22,16 +22,28 @@ import io.grpc.Status
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.flow.firstOrNull
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.completeUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankIndexBlobs
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingStep
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.internal.edpaggregator.BlobType
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.GetUploadHealingOperationRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
-import org.wfanet.measurement.internal.edpaggregator.UpdateUploadHealingStepRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
@@ -86,29 +98,51 @@ class SpannerUploadHealingOperationService(
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
   }
 
-  override suspend fun updateUploadHealingStep(
-    request: UpdateUploadHealingStepRequest
+  override suspend fun advanceUploadHealingStep(
+    request: AdvanceUploadHealingStepRequest
   ): UploadHealingStep {
     requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
     requireNotBlank(request.uploadHealingOperationId, "upload_healing_operation_id")
-    require(request.hasUploadHealingStep()) { "upload_healing_step is required" }
+    require(request.uploadHealingStepId > 0L) { "upload_healing_step_id must be positive" }
+    requireNotBlank(request.etag, "etag")
     if (request.requestId.isNotEmpty()) requireUuid(request.requestId, "request_id")
-    require(request.uploadHealingStep.uploadHealingStepId > 0L) {
-      "upload_healing_step.upload_healing_step_id must be positive"
-    }
     require(
-      request.updateMask.pathsList.toSet() ==
-        setOf(
-          "state",
-          "replacement_raw_impression_upload_resource_id",
-          "recovery_done_blob_generation",
-        )
+      request.action != AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED &&
+        request.action != AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED
     ) {
-      "update_mask must contain state and replacement_raw_impression_upload_resource_id"
+      "action is required"
+    }
+    when (request.action) {
+      AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION -> {
+        require(request.replacementRawImpressionUploadResourceId.isEmpty()) {
+          "replacement_raw_impression_upload_resource_id must be empty for CONFIRM_EVICTION"
+        }
+        require(request.recoveryDoneBlobGeneration == 0L) {
+          "recovery_done_blob_generation must be zero for CONFIRM_EVICTION"
+        }
+      }
+      AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY -> {
+        require(request.replacementRawImpressionUploadResourceId.isEmpty()) {
+          "replacement_raw_impression_upload_resource_id must be empty for RECORD_RECOVERY"
+        }
+        require(request.recoveryDoneBlobGeneration > 0L) {
+          "recovery_done_blob_generation must be positive for RECORD_RECOVERY"
+        }
+      }
+      AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT -> {
+        require(request.replacementRawImpressionUploadResourceId.isNotEmpty()) {
+          "replacement_raw_impression_upload_resource_id is required for CONFIRM_REPLACEMENT"
+        }
+        require(request.recoveryDoneBlobGeneration == 0L) {
+          "recovery_done_blob_generation must be zero for CONFIRM_REPLACEMENT"
+        }
+      }
+      AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED,
+      AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED -> error("action was validated")
     }
 
     val transactionRunner =
-      databaseClient.readWriteTransaction(Options.tag("action=updateUploadHealingStep"))
+      databaseClient.readWriteTransaction(Options.tag("action=advanceUploadHealingStep"))
     transactionRunner.run { txn ->
       val result =
         txn.findUploadHealingOperation(
@@ -116,39 +150,72 @@ class SpannerUploadHealingOperationService(
           request.uploadHealingOperationId,
         ) ?: throw notFound(request.uploadHealingOperationId)
       val operation = result.uploadHealingOperation
-      val requested = request.uploadHealingStep
       val current =
-        operation.stepsList.firstOrNull { it.uploadHealingStepId == requested.uploadHealingStepId }
+        operation.stepsList.firstOrNull { it.uploadHealingStepId == request.uploadHealingStepId }
           ?: throw Status.NOT_FOUND.withDescription(
-              "UploadHealingStep ${requested.uploadHealingStepId} not found"
+              "UploadHealingStep ${request.uploadHealingStepId} not found"
             )
             .asRuntimeException()
-      if (
-        current.state == requested.state &&
-          current.replacementRawImpressionUploadResourceId ==
-            requested.replacementRawImpressionUploadResourceId &&
-          current.recoveryDoneBlobGeneration == requested.recoveryDoneBlobGeneration
-      ) {
+      if (isIdempotentReplay(current, request)) {
         return@run
       }
-      if (current.etag != requested.etag) {
+      if (current.etag != request.etag) {
         throw Status.ABORTED.withDescription("upload_healing_step etag mismatch")
           .asRuntimeException()
       }
-      validateTransition(current, requested)
+      val nextState =
+        when (request.action) {
+          AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION -> {
+            precondition(
+              current.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION
+            ) {
+              "eviction can only be confirmed from PENDING_EVICTION"
+            }
+            validateEviction(txn, request, current)
+            if (current.recoveryTarget) {
+              UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT
+            } else {
+              UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE
+            }
+          }
+          AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY -> {
+            precondition(
+              current.state ==
+                UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT
+            ) {
+              "recovery can only start from WAITING_FOR_REPLACEMENT"
+            }
+            validateRecoveryStart(operation, current, request)
+            UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED
+          }
+          AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT -> {
+            precondition(
+              current.state ==
+                UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT ||
+                current.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED
+            ) {
+              "replacement can only be confirmed while waiting for recovery"
+            }
+            validateReplacement(txn, operation, current, request)
+            UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE
+          }
+          AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED,
+          AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED -> error("action was validated")
+        }
       txn.updateUploadHealingStep(
         request.dataProviderResourceId,
         request.uploadHealingOperationId,
-        requested.uploadHealingStepId,
-        requested.state,
-        requested.replacementRawImpressionUploadResourceId,
-        requested.recoveryDoneBlobGeneration,
+        request.uploadHealingStepId,
+        current.state,
+        nextState,
+        request.replacementRawImpressionUploadResourceId,
+        request.recoveryDoneBlobGeneration,
         request.requestId,
       )
       if (
-        requested.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE &&
+        nextState == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE &&
           operation.stepsList.all {
-            it.uploadHealingStepId == requested.uploadHealingStepId ||
+            it.uploadHealingStepId == request.uploadHealingStepId ||
               it.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE
           }
       ) {
@@ -165,14 +232,14 @@ class SpannerUploadHealingOperationService(
     }
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
       .stepsList
-      .single { it.uploadHealingStepId == request.uploadHealingStep.uploadHealingStepId }
+      .single { it.uploadHealingStepId == request.uploadHealingStepId }
   }
 
   private suspend fun getOperation(
     dataProviderResourceId: String,
     operationId: String,
   ): UploadHealingOperation =
-    databaseClient.singleUse().use { readContext ->
+    databaseClient.readOnlyTransaction().use { readContext ->
       readContext
         .findUploadHealingOperation(dataProviderResourceId, operationId)
         ?.uploadHealingOperation ?: throw notFound(operationId)
@@ -252,47 +319,213 @@ class SpannerUploadHealingOperationService(
     }
   }
 
-  private fun validateTransition(current: UploadHealingStep, requested: UploadHealingStep) {
-    val allowed =
-      when (current.state) {
-        UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION ->
-          setOf(
-            UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT,
-            UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE,
-          )
-        UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT ->
-          setOf(
-            UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED,
-            UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE,
-          )
-        UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED ->
-          setOf(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
-        UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE -> emptySet()
-        UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_UNSPECIFIED,
-        UploadHealingStep.State.UNRECOGNIZED -> emptySet()
-      }
-    require(requested.state in allowed) {
-      "invalid upload-healing step transition ${current.state} -> ${requested.state}"
+  private fun isIdempotentReplay(
+    current: UploadHealingStep,
+    request: AdvanceUploadHealingStepRequest,
+  ): Boolean =
+    when (request.action) {
+      AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION ->
+        current.state != UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION
+      AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY ->
+        (current.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED ||
+          current.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE) &&
+          current.recoveryDoneBlobGeneration == request.recoveryDoneBlobGeneration
+      AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT ->
+        current.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE &&
+          current.replacementRawImpressionUploadResourceId ==
+            request.replacementRawImpressionUploadResourceId
+      AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED,
+      AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED -> false
     }
-    if (requested.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED) {
-      require(
-        current.recoveryAction ==
-          RawImpressionUploadModelLineRecoveryAction
-            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
-      ) {
-        "only operator-recovery steps can enter RECOVERY_STARTED"
-      }
-      require(requested.recoveryDoneBlobGeneration > 0L) {
-        "recovery_done_blob_generation is required for RECOVERY_STARTED"
-      }
+
+  private suspend fun validateEviction(
+    txn: AsyncDatabaseClient.TransactionContext,
+    request: AdvanceUploadHealingStepRequest,
+    current: UploadHealingStep,
+  ) {
+    val modelLine =
+      txn
+        .getRawImpressionUploadModelLineByResourceIds(
+          request.dataProviderResourceId,
+          current.sourceRawImpressionUploadResourceId,
+          current.rawImpressionUploadModelLineResourceId,
+        )
+        ?.rawImpressionUploadModelLine
+        ?: throw Status.FAILED_PRECONDITION.withDescription("evicted model-line row was not found")
+          .asRuntimeException()
+    precondition(
+      modelLine.state ==
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED &&
+        modelLine.failureReason ==
+          RawImpressionUploadModelLineFailureReason
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT &&
+        modelLine.evictionOperationId == request.uploadHealingOperationId
+    ) {
+      "source model line has not been evicted by this healing operation"
+    }
+  }
+
+  private fun validateRecoveryStart(
+    operation: UploadHealingOperation,
+    current: UploadHealingStep,
+    request: AdvanceUploadHealingStepRequest,
+  ) {
+    precondition(
+      current.recoveryAction ==
+        RawImpressionUploadModelLineRecoveryAction
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+    ) {
+      "only operator-recovery steps can record a recovery"
+    }
+    precondition(request.recoveryDoneBlobGeneration > 0L) {
+      "recovery_done_blob_generation must be positive"
+    }
+    validatePredecessor(operation, current)
+  }
+
+  private suspend fun validateReplacement(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+    current: UploadHealingStep,
+    request: AdvanceUploadHealingStepRequest,
+  ) {
+    precondition(request.replacementRawImpressionUploadResourceId.isNotBlank()) {
+      "replacement_raw_impression_upload_resource_id is required"
+    }
+    validatePredecessor(operation, current)
+
+    val source =
+      txn
+        .getRawImpressionUploadByResourceId(
+          request.dataProviderResourceId,
+          current.sourceRawImpressionUploadResourceId,
+        )
+        .rawImpressionUpload
+    val replacementResult =
+      txn.getRawImpressionUploadByResourceId(
+        request.dataProviderResourceId,
+        request.replacementRawImpressionUploadResourceId,
+      )
+    val replacement = replacementResult.rawImpressionUpload
+    precondition(replacement.doneBlobUri == source.doneBlobUri) {
+      "replacement does not use the source done-object path"
+    }
+    val latest =
+      txn
+        .findLatestUploadByDoneBlobUri(request.dataProviderResourceId, source.doneBlobUri)
+        ?.rawImpressionUpload
+    precondition(
+      latest?.rawImpressionUploadResourceId == request.replacementRawImpressionUploadResourceId
+    ) {
+      "replacement is not the latest upload revision"
+    }
+    precondition(
+      replacesUpload(
+        txn,
+        request.dataProviderResourceId,
+        replacement,
+        current.sourceRawImpressionUploadResourceId,
+      )
+    ) {
+      "replacement does not descend from the source upload"
+    }
+    precondition(
+      replacement.registrationComplete &&
+        replacement.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED
+    ) {
+      "replacement upload has not completed registration and processing"
     }
     if (
-      requested.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE &&
-        current.recoveryTarget
+      current.recoveryAction ==
+        RawImpressionUploadModelLineRecoveryAction
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
     ) {
-      require(requested.replacementRawImpressionUploadResourceId.isNotBlank()) {
-        "replacement_raw_impression_upload_resource_id is required for a recovery target"
+      precondition(
+        current.recoveryDoneBlobGeneration > 0L &&
+          replacement.doneBlobGeneration == current.recoveryDoneBlobGeneration
+      ) {
+        "replacement does not match the recorded recovery generation"
       }
+    }
+
+    val replacementModelLine =
+      txn
+        .readRawImpressionUploadModelLines(
+          request.dataProviderResourceId,
+          replacement.rawImpressionUploadResourceId,
+          ListRawImpressionUploadModelLinesRequest.Filter.newBuilder()
+            .setCmmsModelLine(current.cmmsModelLine)
+            .build(),
+          limit = 1,
+        )
+        .firstOrNull()
+        ?.rawImpressionUploadModelLine
+        ?: throw Status.FAILED_PRECONDITION.withDescription("replacement model line was not found")
+          .asRuntimeException()
+    precondition(
+      replacementModelLine.cmmsModelLine == current.cmmsModelLine &&
+        replacementModelLine.state ==
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+    ) {
+      "replacement model line has not completed"
+    }
+    if (current.memoized) {
+      val snapshot =
+        txn
+          .readRankIndexBlobs(
+            request.dataProviderResourceId,
+            replacement.rawImpressionUploadResourceId,
+            ListRankIndexBlobsRequest.Filter.newBuilder()
+              .setBlobType(BlobType.BLOB_TYPE_SNAPSHOT)
+              .setCmmsModelLine(current.cmmsModelLine)
+              .build(),
+            showDeleted = false,
+            limit = 1,
+          )
+          .firstOrNull()
+      precondition(snapshot != null) { "replacement has no active memoized snapshot" }
+    }
+  }
+
+  private fun validatePredecessor(operation: UploadHealingOperation, current: UploadHealingStep) {
+    val predecessorId = current.recoveryPredecessorRawImpressionUploadResourceId
+    if (predecessorId.isEmpty()) return
+    val predecessorSteps =
+      operation.stepsList.filter {
+        it.sourceRawImpressionUploadResourceId == predecessorId && it.recoveryTarget
+      }
+    precondition(
+      predecessorSteps.isEmpty() ||
+        predecessorSteps.all {
+          it.state == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE
+        }
+    ) {
+      "the predecessor upload has not completed recovery"
+    }
+  }
+
+  private suspend fun replacesUpload(
+    txn: AsyncDatabaseClient.TransactionContext,
+    dataProviderResourceId: String,
+    candidate: org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload,
+    sourceResourceId: String,
+  ): Boolean {
+    val visited = mutableSetOf<String>()
+    var predecessorId = candidate.replacesRawImpressionUploadResourceId
+    while (predecessorId.isNotEmpty() && visited.add(predecessorId)) {
+      if (predecessorId == sourceResourceId) return true
+      predecessorId =
+        txn
+          .getRawImpressionUploadByResourceId(dataProviderResourceId, predecessorId)
+          .rawImpressionUpload
+          .replacesRawImpressionUploadResourceId
+    }
+    return false
+  }
+
+  private fun precondition(condition: Boolean, message: () -> String) {
+    if (!condition) {
+      throw Status.FAILED_PRECONDITION.withDescription(message()).asRuntimeException()
     }
   }
 
