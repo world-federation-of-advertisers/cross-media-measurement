@@ -20,6 +20,12 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
+	// These values are conservative upper bounds across all policies that could have produced a
+	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
+	// list and zero threshold settings disable potential Direct threshold correction.
+	_potentialDirectResultMinUsers:       uint | *0
+	_potentialDirectResultMinImpressions: uint | *0
+	_potentialDirectThresholdingEdps:     [...string] | *[]
 
 	_certificateCacheExpirationDuration:  string | *"60m"
 	_dataProviderCacheExpirationDuration: string | *"60m"
@@ -371,7 +377,11 @@ package k8s
 			_container: {
 				args: [
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
-				] + _tlsArgs + _internalApiTarget.args
+					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
+					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
+				] + [ for edp in _potentialDirectThresholdingEdps {
+					"--potential-direct-thresholding-edp=\(edp)"
+				}] + _tlsArgs + _internalApiTarget.args
 			}
 			spec: {
 				schedule: _reportResultProcessorCronSchedule
