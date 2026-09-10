@@ -241,6 +241,7 @@ class VidLabelingDispatcherFunctionTest {
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_001", emptyFlow(), footer)
       parquetStorageClient.writeBlob("edp/edp_name/timestamp/impressions_002", emptyFlow(), footer)
     }
+    val doneGeneration = File(tempFolder.root, "edp/edp_name/timestamp/done").lastModified()
 
     val port = startFunction()
 
@@ -250,7 +251,7 @@ class VidLabelingDispatcherFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", "file:////edp/edp_name/timestamp/done")
-        .header("X-DataWatcher-Generation", "12345")
+        .header("X-DataWatcher-Generation", doneGeneration.toString())
         .POST(HttpRequest.BodyPublishers.ofString(dispatcherParams.toJson()))
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())

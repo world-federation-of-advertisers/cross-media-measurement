@@ -257,7 +257,15 @@ class VidLabelingDispatcherFunction : HttpFunction {
       val dispatcher =
         VidLabelingDispatcher(
           storageClient = storageClient,
-          readEventDate = { blobKey -> readEventDateFromFooter(parquetStorageClient, blobKey) },
+          readEventDate = { blobUri ->
+            val blobPath =
+              if (fileSystemPath.isNullOrEmpty()) {
+                blobUri
+              } else {
+                SelectedStorageClient.parseBlobUri(blobUri).key
+              }
+            readEventDateFromFooter(parquetStorageClient, blobPath)
+          },
           readBlobMetadata = readBlobMetadata,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
