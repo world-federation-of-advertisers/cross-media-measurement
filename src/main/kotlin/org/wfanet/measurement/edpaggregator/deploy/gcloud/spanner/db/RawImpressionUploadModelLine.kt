@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
@@ -478,6 +479,7 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.MarkLabelingRequestId,
       RawImpressionUploadModelLine.MarkCompletedRequestId,
       RawImpressionUploadModelLine.MarkFailedRequestId,
+      RawImpressionUploadModelLine.FailureReason,
     FROM
       RawImpressionUploadModelLine
     """
@@ -513,6 +515,13 @@ private object RawImpressionUploadModelLineEntity {
             struct.getProtoMessage("EncryptedMergedDek", EncryptedDek.getDefaultInstance())
         }
         failureAttemptId = markId("MarkFailedRequestId")
+        if (!struct.isNull("FailureReason")) {
+          failureReason =
+            struct.getProtoEnum(
+              "FailureReason",
+              RawImpressionUploadModelLineFailureReason::forNumber,
+            )
+        }
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RawImpressionUploadModelLineId"),
