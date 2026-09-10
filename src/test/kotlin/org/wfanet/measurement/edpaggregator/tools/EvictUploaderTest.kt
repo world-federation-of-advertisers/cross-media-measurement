@@ -282,7 +282,7 @@ class EvictUploaderTest {
     }
 
   @Test
-  fun `plan orders EDP corrections before memoized operator recoveries`(): Unit = runBlocking {
+  fun `plan keeps recovery dependencies in chronological order`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(
         listRawImpressionUploadsResponse {
@@ -310,15 +310,15 @@ class EvictUploaderTest {
     assertThat(entries.getValue(uploadName("up4")).recoveryAction)
       .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION)
     assertThat(entries.getValue(uploadName("up4")).recoveryPredecessorUploadName)
-      .isEqualTo(uploadName("up2"))
+      .isEqualTo(uploadName("up3"))
     assertThat(entries.getValue(uploadName("up3")).recoveryAction)
       .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
     assertThat(entries.getValue(uploadName("up3")).recoveryPredecessorUploadName)
-      .isEqualTo(uploadName("up4"))
+      .isEqualTo(uploadName("up2"))
     assertThat(entries.getValue(uploadName("up5")).recoveryAction)
       .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
     assertThat(entries.getValue(uploadName("up5")).recoveryPredecessorUploadName)
-      .isEqualTo(uploadName("up3"))
+      .isEqualTo(uploadName("up4"))
   }
 
   @Test

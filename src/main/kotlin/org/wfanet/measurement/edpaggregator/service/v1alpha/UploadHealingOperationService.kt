@@ -16,9 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
-import com.google.protobuf.FieldMask
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -30,22 +31,23 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingStepKey
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
-import org.wfanet.measurement.edpaggregator.v1alpha.UpdateUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
+import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest as InternalAdvanceRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub as InternalOperationStub
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep as InternalStep
+import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingStepRequest as internalAdvanceStepRequest
 import org.wfanet.measurement.internal.edpaggregator.createUploadHealingOperationRequest as internalCreateOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.getUploadHealingOperationRequest as internalGetOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.updateUploadHealingStepRequest as internalUpdateStepRequest
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
 
@@ -127,20 +129,24 @@ class UploadHealingOperationService(
         }
       }
     val internalResponse =
-      internalOperationStub.createUploadHealingOperation(
-        internalCreateOperationRequest {
-          dataProviderResourceId = dataProviderKey.dataProviderId
-          uploadHealingOperationId = request.uploadHealingOperationId
-          uploadHealingOperation = internalOperation {
-            reason = operation.reason
-            labeledImpressionsBlobPrefix = operation.labeledImpressionsBlobPrefix
-            badRawImpressionUploadResourceIds += badUploadIds
-            cutoffTime = operation.cutoffTime
-            steps += internalSteps
+      try {
+        internalOperationStub.createUploadHealingOperation(
+          internalCreateOperationRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            uploadHealingOperationId = request.uploadHealingOperationId
+            uploadHealingOperation = internalOperation {
+              reason = operation.reason
+              labeledImpressionsBlobPrefix = operation.labeledImpressionsBlobPrefix
+              badRawImpressionUploadResourceIds += badUploadIds
+              cutoffTime = operation.cutoffTime
+              steps += internalSteps
+            }
+            requestId = request.requestId.ifEmpty { request.uploadHealingOperationId }
           }
-          requestId = request.requestId.ifEmpty { request.uploadHealingOperationId }
-        }
-      )
+        )
+      } catch (e: StatusException) {
+        throw translateInternalError(e, "UploadHealingOperation could not be created")
+      }
     return internalResponse.toPublic()
   }
 
@@ -149,68 +155,83 @@ class UploadHealingOperationService(
   ): UploadHealingOperation {
     if (request.name.isBlank()) required("name")
     val key = UploadHealingOperationKey.fromName(request.name) ?: invalid("name")
-    return internalOperationStub
-      .getUploadHealingOperation(
-        internalGetOperationRequest {
-          dataProviderResourceId = key.dataProviderId
-          uploadHealingOperationId = key.uploadHealingOperationId
-        }
-      )
-      .toPublic()
+    return try {
+      internalOperationStub
+        .getUploadHealingOperation(
+          internalGetOperationRequest {
+            dataProviderResourceId = key.dataProviderId
+            uploadHealingOperationId = key.uploadHealingOperationId
+          }
+        )
+        .toPublic()
+    } catch (e: StatusException) {
+      throw translateInternalError(e, "UploadHealingOperation ${request.name} was not found")
+    }
   }
 
-  override suspend fun updateUploadHealingStep(
-    request: UpdateUploadHealingStepRequest
+  override suspend fun advanceUploadHealingStep(
+    request: AdvanceUploadHealingStepRequest
   ): UploadHealingStep {
-    if (!request.hasUploadHealingStep()) required("upload_healing_step")
-    val step = request.uploadHealingStep
-    if (step.name.isBlank()) required("upload_healing_step.name")
-    if (step.etag.isBlank()) required("upload_healing_step.etag")
+    if (request.name.isBlank()) required("name")
+    if (request.etag.isBlank()) required("etag")
     if (request.requestId.isNotEmpty()) validateUuid(request.requestId, "request_id")
-    val key = UploadHealingStepKey.fromName(step.name) ?: invalid("upload_healing_step.name")
-    val stepId = key.uploadHealingStepId.toLongOrNull() ?: invalid("upload_healing_step.name")
+    val key = UploadHealingStepKey.fromName(request.name) ?: invalid("name")
+    val stepId = key.uploadHealingStepId.toLongOrNull() ?: invalid("name")
     if (
-      step.state == UploadHealingStep.State.STATE_UNSPECIFIED ||
-        step.state == UploadHealingStep.State.UNRECOGNIZED
+      request.action == AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED ||
+        request.action == AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED
     ) {
-      invalid("upload_healing_step.state")
+      invalid("action")
     }
-    val allowedPaths =
-      setOf("state", "replacement_raw_impression_upload", "recovery_done_blob_generation")
-    if (request.updateMask.pathsList.toSet() != allowedPaths) invalid("update_mask")
+    if (
+      request.action == AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY &&
+        request.recoveryDoneBlobGeneration <= 0L
+    ) {
+      invalid("recovery_done_blob_generation")
+    }
+    if (
+      request.action != AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY &&
+        request.recoveryDoneBlobGeneration != 0L
+    ) {
+      invalid("recovery_done_blob_generation")
+    }
     val replacementId =
-      if (step.replacementRawImpressionUpload.isEmpty()) {
+      if (
+        request.action != AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT &&
+          request.replacementRawImpressionUpload.isNotEmpty()
+      ) {
+        invalid("replacement_raw_impression_upload")
+      } else if (request.replacementRawImpressionUpload.isEmpty()) {
+        if (request.action == AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT) {
+          required("replacement_raw_impression_upload")
+        }
         ""
       } else {
         parseUpload(
-            step.replacementRawImpressionUpload,
-            "upload_healing_step.replacement_raw_impression_upload",
+            request.replacementRawImpressionUpload,
+            "replacement_raw_impression_upload",
             key.parentKey.parentKey,
           )
           .rawImpressionUploadId
       }
-    return internalOperationStub
-      .updateUploadHealingStep(
-        internalUpdateStepRequest {
-          dataProviderResourceId = key.dataProviderId
-          uploadHealingOperationId = key.uploadHealingOperationId
-          uploadHealingStep = internalStep {
+    return try {
+      internalOperationStub
+        .advanceUploadHealingStep(
+          internalAdvanceStepRequest {
+            dataProviderResourceId = key.dataProviderId
+            uploadHealingOperationId = key.uploadHealingOperationId
             uploadHealingStepId = stepId
-            state = step.state.toInternal()
+            etag = request.etag
+            action = request.action.toInternal()
             replacementRawImpressionUploadResourceId = replacementId
-            recoveryDoneBlobGeneration = step.recoveryDoneBlobGeneration
-            etag = step.etag
+            recoveryDoneBlobGeneration = request.recoveryDoneBlobGeneration
+            requestId = request.requestId
           }
-          updateMask =
-            FieldMask.newBuilder()
-              .addPaths("state")
-              .addPaths("replacement_raw_impression_upload_resource_id")
-              .addPaths("recovery_done_blob_generation")
-              .build()
-          requestId = request.requestId
-        }
-      )
-      .toPublic(key.parentKey)
+        )
+        .toPublic(key.parentKey)
+    } catch (e: StatusException) {
+      throw translateInternalError(e, "UploadHealingStep ${request.name} could not advance")
+    }
   }
 
   private fun InternalOperation.toPublic(): UploadHealingOperation {
@@ -304,7 +325,38 @@ class UploadHealingOperationService(
 
   private fun invalid(field: String): Nothing =
     throw InvalidFieldValueException(field).asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+  private fun translateInternalError(
+    exception: StatusException,
+    publicDescription: String,
+  ): StatusRuntimeException {
+    val publicCode =
+      when (exception.status.code) {
+        Status.Code.ALREADY_EXISTS,
+        Status.Code.NOT_FOUND,
+        Status.Code.ABORTED,
+        Status.Code.FAILED_PRECONDITION -> exception.status.code
+        else -> Status.Code.INTERNAL
+      }
+    return Status.fromCode(publicCode)
+      .withDescription(publicDescription)
+      .withCause(exception)
+      .asRuntimeException()
+  }
 }
+
+private fun AdvanceUploadHealingStepRequest.Action.toInternal(): InternalAdvanceRequest.Action =
+  when (this) {
+    AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION ->
+      InternalAdvanceRequest.Action.CONFIRM_EVICTION
+    AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY ->
+      InternalAdvanceRequest.Action.RECORD_RECOVERY
+    AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT ->
+      InternalAdvanceRequest.Action.CONFIRM_REPLACEMENT
+    AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED,
+    AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED ->
+      InternalAdvanceRequest.Action.ACTION_UNSPECIFIED
+  }
 
 private fun RawImpressionUploadModelLine.RecoveryAction.toInternal(): InternalRecoveryAction =
   when (this) {
@@ -336,19 +388,6 @@ private fun InternalOperation.State.toPublic(): UploadHealingOperation.State =
       UploadHealingOperation.State.COMPLETE
     InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED,
     InternalOperation.State.UNRECOGNIZED -> UploadHealingOperation.State.STATE_UNSPECIFIED
-  }
-
-private fun UploadHealingStep.State.toInternal(): InternalStep.State =
-  when (this) {
-    UploadHealingStep.State.PENDING_EVICTION ->
-      InternalStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION
-    UploadHealingStep.State.WAITING_FOR_REPLACEMENT ->
-      InternalStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT
-    UploadHealingStep.State.RECOVERY_STARTED ->
-      InternalStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED
-    UploadHealingStep.State.COMPLETE -> InternalStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE
-    UploadHealingStep.State.STATE_UNSPECIFIED,
-    UploadHealingStep.State.UNRECOGNIZED -> InternalStep.State.UPLOAD_HEALING_STEP_STATE_UNSPECIFIED
   }
 
 private fun InternalStep.State.toPublic(): UploadHealingStep.State =
