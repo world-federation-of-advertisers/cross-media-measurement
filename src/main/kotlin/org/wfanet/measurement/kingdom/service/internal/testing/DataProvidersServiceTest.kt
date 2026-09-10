@@ -637,6 +637,7 @@ abstract class DataProvidersServiceTest<T : DataProvidersCoroutineImplBase> {
     val capabilities = dataProviderCapabilities {
       honestMajorityShareShuffleSupported = true
       trusTeeSupported = true
+      trusTeeV2Supported = true
     }
 
     val response: DataProvider =
