@@ -831,6 +831,64 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload accepts newer recovery after prior recovery stopped after upload creation`() =
+    runBlocking {
+      val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+      val source = rawImpressionUpload {
+        name = sourceUploadName
+        state = RawImpressionUpload.State.FAILED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 200
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(2).toProtoTime()
+      }
+      val incompleteRecovery = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/incomplete-recovery"
+        state = RawImpressionUpload.State.CREATED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION + 100
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+        replacesRawImpressionUpload = sourceUploadName
+        registrationComplete = false
+      }
+      val newRecovery = rawImpressionUpload {
+        name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+        state = RawImpressionUpload.State.CREATED
+        doneBlobUri = DONE_BLOB_PATH
+        doneBlobGeneration = DONE_BLOB_GENERATION
+        doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        replacesRawImpressionUpload = incompleteRecovery.name
+        etag = UPLOAD_ETAG
+      }
+      val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      stubRawImpressionUploadCreation()
+      stubRecoverySource(source, incompleteRecovery)
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any())).thenReturn(newRecovery)
+      stubOverrideResolutionChain()
+
+      createDispatcher(
+          overrideModelLines = listOf(MODEL_LINE_1),
+          recoverySourceUpload = sourceUploadName,
+          recoveryOperationId = EVICTION_OPERATION_ID,
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+      val createCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+      verifyBlocking(rawImpressionUploadService) {
+        createRawImpressionUpload(createCaptor.capture())
+      }
+      assertThat(createCaptor.firstValue.rawImpressionUpload.doneBlobGeneration)
+        .isEqualTo(DONE_BLOB_GENERATION)
+      verifyBlocking(rawImpressionUploadFileService) { batchCreateRawImpressionUploadFiles(any()) }
+      verifyBlocking(rawImpressionUploadModelLineService) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+      verifyBlocking(rawImpressionUploadService) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
+    }
+
+  @Test
   fun `upload ignores stale recovery event after newer generation is registered`() = runBlocking {
     val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
     val source = rawImpressionUpload {

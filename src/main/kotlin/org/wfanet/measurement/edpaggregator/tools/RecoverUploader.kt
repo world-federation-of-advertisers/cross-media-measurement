@@ -75,7 +75,11 @@ class RecoverUploader(
     }
 
     val latest = findLatestUpload(sourceKey.parentKey.toName(), source.doneBlobUri)
-    require(latest?.name == source.name) {
+    val isResumableIncompleteRecovery =
+      latest != null &&
+        latest.replacesRawImpressionUpload == source.name &&
+        !isRegistrationComplete(latest)
+    require(latest?.name == source.name || isResumableIncompleteRecovery) {
       "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
     }
 
@@ -164,6 +168,9 @@ class RecoverUploader(
       uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
     }
   }
+
+  private fun isRegistrationComplete(upload: RawImpressionUpload): Boolean =
+    upload.registrationComplete || upload.state != RawImpressionUpload.State.CREATED
 
   /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */
   private suspend fun requireRecoveryPredecessorReady(
