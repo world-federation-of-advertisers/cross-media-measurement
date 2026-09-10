@@ -87,7 +87,7 @@ class EvictUploader(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   labeledImpressionsBlobPrefix: String,
   private val deleteBlob: suspend (String) -> Boolean,
-) {
+) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
 
   init {
@@ -380,7 +380,13 @@ class EvictUploader(
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
    * carrying the resource ID treats the already-deleted row as an idempotent `NOT_FOUND`.
    */
-  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
+  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult = evict(plan, reason) {}
+
+  override suspend fun evict(
+    plan: EvictionPlan,
+    reason: String,
+    onEntryEvicted: suspend (CascadeEntry) -> Unit,
+  ): EvictionResult {
     val refreshed = plan(plan.badUploads, plan.cutoffTime)
     require(refreshed.cascade == plan.cascade) {
       "eviction plan changed after confirmation; review the new plan and retry"
@@ -430,6 +436,7 @@ class EvictUploader(
       val outputCleanup = cleanLabeledOutputs(entry, cleanedMetadataNames, cleanedBlobUris)
       deletedMetadata += outputCleanup.deletedMetadata
       deletedOutputBlobs += outputCleanup.deletedBlobs
+      onEntryEvicted(entry)
     }
     return EvictionResult(failed, deleted, deletedMetadata, deletedOutputBlobs)
   }
