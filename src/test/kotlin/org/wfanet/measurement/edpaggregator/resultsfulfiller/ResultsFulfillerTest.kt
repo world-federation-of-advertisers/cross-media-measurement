@@ -156,6 +156,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfillerSelector
+import org.wfanet.measurement.edpaggregator.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt
@@ -2813,6 +2814,10 @@ class ResultsFulfillerTest {
 
     val spans = collectSpans()
     val reportSpan = spans.first { it.name == "report_fulfillment" }
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo("reports/telemetry-report")
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
     val reportFinishedEvent = reportSpan.events.first { it.name == "report_processing_finished" }
     val reportIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.report_id")
     val groupIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
@@ -2825,6 +2830,12 @@ class ResultsFulfillerTest {
     assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.OK)
 
     val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo("reports/telemetry-report")
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
     val requisitionFinishedEvent =
       requisitionSpan.events.first { it.name == "requisition_processing_finished" }
     val requisitionAttr = AttributeKey.stringKey("edpa.results_fulfiller.cmms_requisition")

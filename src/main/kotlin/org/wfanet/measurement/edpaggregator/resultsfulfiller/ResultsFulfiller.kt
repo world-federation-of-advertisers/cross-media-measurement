@@ -64,6 +64,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -244,7 +245,14 @@ class ResultsFulfiller(
     // Get the KEK URI from BlobDetails.encryptedDek for TrusTee protocol encryption
     val kekUri = eventSource.getKekUri()
 
-    Tracing.traceSuspending(spanName = SPAN_REPORT_FULFILLMENT, attributes = Attributes.empty()) {
+    Tracing.traceSuspending(
+      spanName = SPAN_REPORT_FULFILLMENT,
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, reportId)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .build(),
+    ) {
       val span = Span.current()
       val frequencyVectorMap =
         metrics.frequencyVectorDuration.measureSuspending {
@@ -380,7 +388,12 @@ class ResultsFulfiller(
 
     Tracing.traceSuspending(
       spanName = SPAN_REQUISITION_FULFILLMENT,
-      attributes = Attributes.empty(),
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, reportId)
+          .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .build(),
     ) {
       val span = Span.current()
       var processingMetadata: RequisitionMetadata? = null
