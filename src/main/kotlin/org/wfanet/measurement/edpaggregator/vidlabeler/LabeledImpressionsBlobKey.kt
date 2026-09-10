@@ -28,17 +28,26 @@ object LabeledImpressionsBlobKeys {
     eventDate: LocalDate,
   ): String = "${prefix.trimEnd('/')}/${forInput(inputBlobUri, modelLine, eventDate)}"
 
+  /** Returns the absolute done-marker URI for one model line and event date. */
+  fun forDoneUri(prefix: String, modelLine: String, eventDate: LocalDate): String =
+    "${prefix.trimEnd('/')}/${forDateDirectory(modelLine, eventDate)}/done"
+
   /** Returns the relative output key for one raw-impression input and model line. */
   fun forInput(inputBlobUri: String, modelLine: String, eventDate: LocalDate): String {
+    val dateDirectory = forDateDirectory(modelLine, eventDate)
+    val digest =
+      MessageDigest.getInstance("SHA-256")
+        .digest("$inputBlobUri|$modelLine".toByteArray(Charsets.UTF_8))
+    val sha = digest.joinToString("") { "%02x".format(it) }
+    return "$dateDirectory/$sha"
+  }
+
+  private fun forDateDirectory(modelLine: String, eventDate: LocalDate): String {
     val modelLineId =
       requireNotNull(ModelLineKey.fromName(modelLine)) {
           "model line is not a valid ModelLine resource name: $modelLine"
         }
         .modelLineId
-    val digest =
-      MessageDigest.getInstance("SHA-256")
-        .digest("$inputBlobUri|$modelLine".toByteArray(Charsets.UTF_8))
-    val sha = digest.joinToString("") { "%02x".format(it) }
-    return "model-line/$modelLineId/$eventDate/$sha"
+    return "model-line/$modelLineId/$eventDate"
   }
 }
