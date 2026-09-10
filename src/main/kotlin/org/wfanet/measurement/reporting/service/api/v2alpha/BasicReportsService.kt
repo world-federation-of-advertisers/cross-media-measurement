@@ -25,6 +25,7 @@ import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.trace.Span
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.util.UUID
@@ -51,6 +52,7 @@ import org.wfanet.measurement.common.api.ResourceKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.cel.CelPredicates
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
@@ -213,6 +215,15 @@ class BasicReportsService(
   )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
+    MeasurementConsumerKey.fromName(request.parent)?.let { parentKey ->
+      if (request.basicReportId.isNotBlank()) {
+        Span.current()
+          .setAttribute(
+            ReportTraceAttributes.BASIC_REPORT_NAME,
+            BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName(),
+          )
+      }
+    }
     val eventTemplateFieldsByPath = eventMessageDescriptor.eventTemplateFieldsByPath
 
     // The Campaign Group is either supplied by the caller (when campaign_group is specified) or,
@@ -566,10 +577,13 @@ class BasicReportsService(
           .asRuntimeException()
     }
 
+    val basicReportName =
+      BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
     val report: Report =
       try {
         buildReport(
           request.basicReport,
+          basicReportName,
           campaignGroupResolution.campaignGroupKey,
           reportingSetMaps.nameByReportingSetComposite,
           reportingSetsMetricCalculationSpecDetailsMap,
@@ -626,12 +640,16 @@ class BasicReportsService(
     }
 
     logger.info {
-      val basicReportName =
-        BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
       val reportName =
         ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName()
       "Associated xmm.basic_report.name=$basicReportName xmm.report.name=$reportName"
     }
+    Span.current()
+      .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+      .setAttribute(
+        ReportTraceAttributes.REPORT_NAME,
+        ReportKey(parentKey.measurementConsumerId, createReportRequest.reportId).toName(),
+      )
 
     return createdInternalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false
@@ -1298,6 +1316,7 @@ class BasicReportsService(
    */
   private suspend fun buildReport(
     basicReport: BasicReport,
+    basicReportName: String,
     campaignGroupKey: ReportingSetKey,
     nameByReportingSetComposite: Map<ReportingSet.Composite, String>,
     reportingSetMetricCalculationSpecDetailsMap:
@@ -1310,6 +1329,7 @@ class BasicReportsService(
       buildMetricCalculationSpecToNameMap(campaignGroupKey).toMutableMap()
 
     return report {
+      this.basicReport = basicReportName
       for (reportingSetMetricCalculationSpecDetailsEntry in
         reportingSetMetricCalculationSpecDetailsMap.entries) {
         reportingMetricEntries +=

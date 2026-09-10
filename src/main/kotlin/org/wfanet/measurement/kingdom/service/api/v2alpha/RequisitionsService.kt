@@ -20,6 +20,8 @@ import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
@@ -72,6 +74,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
@@ -352,6 +355,14 @@ private fun InternalRequisition.toRequisition(): Requisition {
       }
   }
   val measurementSpec: MeasurementSpec = packedMeasurementSpec.unpack()
+  Span.current()
+    .addEvent(
+      "kingdom.requisition.returned",
+      Attributes.builder()
+        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        .put(ReportTraceAttributes.REQUISITION_NAME, requisitionKey.toName())
+        .build(),
+    )
   val dataProviderPublicKey = any {
     value = details.dataProviderPublicKey
     typeUrl =

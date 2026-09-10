@@ -125,13 +125,22 @@ bazel run \
   --start-time=<RFC3339_START_TIME>
 ```
 
-The Reporting service logs the BasicReport-to-Report association as
-`xmm.basic_report.name` and `xmm.report.name`. EDPA report-processing spans carry
-`xmm.report.name`; requisition-fulfillment spans additionally carry
-`xmm.requisition.name` and `xmm.edpa.group_id`. These stable keys are also useful
-for manual Cloud Logging and Cloud Trace queries. The CLI continues with the
-source that is available if one observability API is disabled or the operator
-lacks permission, and prints a warning for the unavailable source.
+The stable correlation key is the full `BasicReport` resource name in
+`xmm.basic_report.name`. Reporting copies it through the generated `Report` and
+`Metric` into `MeasurementSpec.ReportingMetadata.basic_report`. Kingdom stores
+that signed spec unchanged and includes it in the requisitions and system
+computation it creates. EDPA writes the BasicReport and Report names into each
+grouped-requisitions blob; DataWatcher also persists W3C trace context in the
+WorkItem so the TEE processing span can continue the dispatch trace. Herald and
+all mills, including HMSS and TrusTEE, recover the identifiers from the
+computation's serialized `MeasurementSpec`. The post-processing/noise-correction
+job prefixes all logs emitted while processing a BasicReport with
+`xmm.basic_report.name` and `xmm.report.name`.
+
+The CLI searches Cloud Trace by `xmm.basic_report.name` in BasicReport mode and
+uses the resolved BasicReport, Report, Metric, and Measurement identifiers for
+Cloud Logging. It continues with whichever observability source is available if
+one API is disabled or the operator lacks permission.
 
 ## Lifecycle overview
 
@@ -352,13 +361,16 @@ measurement; its metrics are a good first check for "is the whole pipeline
 healthy right now, independent of my report?". Reporting emits
 `reporting.unreachable_basic_reports` for BasicReports it cannot advance.
 
-Traces (when exported) let you follow a single request across services — e.g. a
-fulfillment span from the results-fulfiller through its Kingdom/Duchy RPCs —
-without correlating timestamps across log streams by hand. The results-fulfiller
-records per-requisition span events (e.g. a `requisition_processing_failed` event
-on failure) carrying attributes like the fulfiller type, model line, and group/
-report IDs — that is where the *breakdown* of a failure lives; the metrics only
-tell you success-vs-failure counts.
+Traces (when exported) let you follow synchronous calls without correlating
+timestamps across log streams by hand. The DataWatcher-to-TEE WorkItem boundary
+also carries W3C trace context explicitly. Other durable boundaries may begin a
+new trace, so `xmm.basic_report.name` is the cross-trace join key. The
+results-fulfiller records per-requisition span events (for example,
+`requisition_processing_failed`) carrying the BasicReport, Report, requisition,
+group, fulfiller type, model line, status, and error type. The Herald and mill
+spans carry the BasicReport, Report, Metric, and computation names. Metrics only
+show aggregate success-versus-failure counts; use spans and logs for a specific
+report.
 
 ## The playbook
 

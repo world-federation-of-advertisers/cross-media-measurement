@@ -14,6 +14,9 @@
 """A job for fetching, correcting, and updating a report."""
 
 from absl import logging
+from contextlib import contextmanager
+from contextvars import ContextVar
+import logging as stdlib_logging
 from typing import Iterable, Optional
 import grpc
 from grpc_status import rpc_status
@@ -30,6 +33,47 @@ from tools.potential_direct_result_minimum_thresholds import (
 )
 
 _MAX_PAGE_SIZE = 50
+
+_REPORT_TRACE_CONTEXT: ContextVar[str] = ContextVar(
+    "xmm_report_trace_context", default=""
+)
+
+
+class _ReportTraceFilter(stdlib_logging.Filter):
+    """Prefixes every nested noise-correction log with report identifiers."""
+
+    def filter(self, record: stdlib_logging.LogRecord) -> bool:
+        trace_context = _REPORT_TRACE_CONTEXT.get()
+        if trace_context and not getattr(record, "_xmm_report_trace_added", False):
+            record.msg = f"{trace_context} {record.msg}"
+            record._xmm_report_trace_added = True
+        return True
+
+
+logging.get_absl_logger().addFilter(_ReportTraceFilter())
+
+
+@contextmanager
+def _report_trace_logging_context(
+    basic_report: basic_report_pb2.BasicReport,
+):
+    measurement_consumer = basic_report.cmms_measurement_consumer_id
+    identifiers = [
+        "xmm.basic_report.name="
+        f"measurementConsumers/{measurement_consumer}/basicReports/"
+        f"{basic_report.external_basic_report_id}"
+    ]
+    if basic_report.external_report_id:
+        identifiers.append(
+            "xmm.report.name="
+            f"measurementConsumers/{measurement_consumer}/reports/"
+            f"{basic_report.external_report_id}"
+        )
+    token = _REPORT_TRACE_CONTEXT.set(" ".join(identifiers))
+    try:
+        yield
+    finally:
+        _REPORT_TRACE_CONTEXT.reset(token)
 
 # Domain, reason, and metadata key emitted by the internal reporting server
 # when the operation's precondition on BasicReport state fails. See
@@ -162,6 +206,12 @@ class PostProcessReportResultJob:
     def _process_basic_report(
         self, basic_report: basic_report_pb2.BasicReport
     ) -> bool:
+        with _report_trace_logging_context(basic_report):
+            return self._process_basic_report_with_trace(basic_report)
+
+    def _process_basic_report_with_trace(
+        self, basic_report: basic_report_pb2.BasicReport
+    ) -> bool:
         """Processes a single basic report.
 
         This method calls the post-processor to correct the report results. If
@@ -266,6 +316,7 @@ class PostProcessReportResultJob:
             )
             return False
 
+        logging.info("Finished post-processing BasicReport")
         return succeeded
 
     def execute(self) -> bool:

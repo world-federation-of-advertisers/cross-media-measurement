@@ -26,6 +26,9 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -92,6 +95,30 @@ abstract class BaseTeeApplication(
    * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
+    val body = queueMessage.body
+    val traceContext =
+      if (body.workItemParams.`is`(WorkItem.WorkItemParams::class.java)) {
+        runCatching {
+            body.workItemParams.unpack(WorkItem.WorkItemParams::class.java).traceContextMap
+          }
+          .getOrDefault(emptyMap())
+      } else {
+        emptyMap()
+      }
+    W3CTraceContext.withExtractedContext(traceContext) {
+      ReportTracing.traceSuspending(
+        spanName = "secure_computation.work_item.process",
+        attributes =
+          io.opentelemetry.api.common.Attributes.of(ReportTraceAttributes.WORK_ITEM_NAME, body.name),
+      ) {
+        processMessageInContext(queueMessage)
+      }
+    }
+  }
+
+  private suspend fun processMessageInContext(
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>
+  ) {
     logger.info("Starting to process message with ackId: ${queueMessage.ackId}")
     val body: WorkItem = queueMessage.body
 
@@ -147,13 +174,13 @@ abstract class BaseTeeApplication(
                   "WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}"
                 )
                 queueMessage.ack()
-                return@processMessage
+                return@processMessageInContext
               } else {
                 logger.log(Level.SEVERE, error) {
                   "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
                 }
                 queueMessage.nack()
-                return@processMessage
+                return@processMessageInContext
               }
             }
           }

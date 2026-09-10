@@ -2725,26 +2725,36 @@ class MetricsServiceTest {
 
   @Test
   fun `createMetric creates CMMS measurements for incremental reach`() {
+    val basicReportName =
+      "measurementConsumers/${MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId}/" +
+        "basicReports/basic-report"
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
     } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking { internalMetricsMock.createMetric(any()) } doReturn
+      INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
+        details = details.copy { basicReport = basicReportName }
+      }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { basicReport = basicReportName }
       metricId = METRIC_ID
     }
 
     val result =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
-    val expected = PENDING_INCREMENTAL_REACH_METRIC
+    val expected = PENDING_INCREMENTAL_REACH_METRIC.copy { basicReport = basicReportName }
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateMetricRequest {
-          metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
+          metric =
+            INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+              details = details.copy { basicReport = basicReportName }
+            }
           externalMetricId = METRIC_ID
         }
       )
@@ -2795,6 +2805,7 @@ class MetricsServiceTest {
             nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
             reportingMetadata = reportingMetadata {
               report = CONTAINING_REPORT
+              basicReport = basicReportName
               metric =
                 MetricKey(
                     INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,

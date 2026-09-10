@@ -59,12 +59,12 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
 import org.wfanet.measurement.dataprovider.RequisitionRefusalException
 import org.wfanet.measurement.edpaggregator.StorageConfig
-import org.wfanet.measurement.edpaggregator.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
@@ -148,8 +148,27 @@ class ResultsFulfiller(
    * @throws IllegalArgumentException If a requisition specifies an unsupported protocol.
    * @throws Exception If decryption or RPC fulfillment fails.
    */
+  suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) =
+    Tracing.traceSuspending(
+      spanName = SPAN_PROCESS_GROUP,
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .also { builder ->
+            if (groupedRequisitions.report.isNotBlank()) {
+              builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+            }
+            if (groupedRequisitions.basicReport.isNotBlank()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
+            }
+          }
+          .build(),
+    ) {
+      fulfillRequisitionsInternal(parallelism)
+    }
+
   @OptIn(ExperimentalCoroutinesApi::class)
-  suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+  private suspend fun fulfillRequisitionsInternal(parallelism: Int) {
     val reportProcessingTimer = TimeSource.Monotonic.markNow()
     val requisitions =
       groupedRequisitions.requisitionsList.mapIndexed { index, entry ->
@@ -214,10 +233,12 @@ class ResultsFulfiller(
       return
     }
 
-    val reportId: String =
+    val metadataReportId: String =
       requireNotNull(requisitionsMetadata.first().report) {
         "Report ID is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
       }
+    val reportId = groupedRequisitions.report.ifBlank { metadataReportId }
+    val basicReportName = groupedRequisitions.basicReport
     val earliestCreateTime: Instant =
       requireNotNull(requisitionsMetadata.mapNotNull { it.createTime?.toInstant() }.minOrNull()) {
         "Create time is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
@@ -251,6 +272,11 @@ class ResultsFulfiller(
         Attributes.builder()
           .put(ReportTraceAttributes.REPORT_NAME, reportId)
           .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .also { builder ->
+            if (basicReportName.isNotBlank()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            }
+          }
           .build(),
     ) {
       val span = Span.current()
@@ -393,6 +419,12 @@ class ResultsFulfiller(
           .put(ReportTraceAttributes.REPORT_NAME, reportId)
           .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
           .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .also { builder ->
+            val basicReportName = measurementSpec.reportingMetadata.basicReport
+            if (basicReportName.isNotBlank()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            }
+          }
           .build(),
     ) {
       val span = Span.current()
@@ -760,6 +792,7 @@ class ResultsFulfiller(
     /** Mask for converting signed byte to unsigned int. */
     private const val BYTE_TO_UNSIGNED_MASK = 0xFF
 
+    private const val SPAN_PROCESS_GROUP = "results_fulfiller.process_group"
     private const val SPAN_REPORT_FULFILLMENT = "report_fulfillment"
     private const val SPAN_REQUISITION_FULFILLMENT = "requisition_fulfillment"
 

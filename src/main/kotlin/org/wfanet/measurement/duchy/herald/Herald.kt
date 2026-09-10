@@ -19,6 +19,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.serviceconfig.MethodConfigKt
 import io.grpc.serviceconfig.methodConfig
+import io.opentelemetry.api.common.Attributes
 import java.time.Clock
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -30,6 +31,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.time.delay
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.PrivateKeyStore
 import org.wfanet.measurement.common.crypto.tink.TinkKeyId
@@ -37,6 +39,8 @@ import org.wfanet.measurement.common.crypto.tink.TinkPrivateKeyHandle
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.duchy.service.internal.computations.toGetTokenRequest
 import org.wfanet.measurement.duchy.utils.key
 import org.wfanet.measurement.internal.duchy.ComputationDetails
@@ -211,7 +215,15 @@ class Herald(
     }
   }
 
-  private suspend fun processSystemComputation(computation: Computation) {
+  private suspend fun processSystemComputation(computation: Computation) =
+    ReportTracing.traceSuspending(
+      spanName = "duchy.herald.process_computation",
+      attributes = computation.reportTraceAttributes(),
+    ) {
+      processSystemComputationInTrace(computation)
+    }
+
+  private suspend fun processSystemComputationInTrace(computation: Computation) {
     require(computation.name.isNotEmpty()) { "Resource name not specified" }
     val globalId: String = computation.key.computationId
     logger.fine("[id=$globalId]: Processing updated GlobalComputation")
@@ -237,6 +249,14 @@ class Herald(
     if (state in deletableComputationStates) {
       deleteComputationAtDuchy(computation)
     }
+  }
+
+  private fun Computation.reportTraceAttributes(): Attributes {
+    val builder = Attributes.builder().put(ReportTraceAttributes.COMPUTATION_NAME, name)
+    runCatching { MeasurementSpec.parseFrom(measurementSpec) }
+      .getOrNull()
+      ?.let { builder.putAll(ReportTraceAttributes.fromMeasurementSpec(it)) }
+    return builder.build()
   }
 
   /** Creates a new computation. */

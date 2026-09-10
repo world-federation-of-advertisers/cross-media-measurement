@@ -1008,6 +1008,9 @@ class BasicReportsServiceTest {
         createReportRequest {
           parent = request.parent
           report = report {
+            this.basicReport =
+              BasicReportKey(measurementConsumerKey.measurementConsumerId, request.basicReportId)
+                .toName()
             reportingMetricEntries +=
               ReportKt.reportingMetricEntry {
                 key =
