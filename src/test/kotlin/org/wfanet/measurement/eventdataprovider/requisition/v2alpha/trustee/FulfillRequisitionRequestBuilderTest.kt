@@ -23,6 +23,7 @@ import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.io.IOException
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
 import org.junit.Test
@@ -396,8 +397,8 @@ class FulfillRequisitionRequestBuilderTest {
     val dekStreamingAead = dekKeysetHandle.getPrimitive(StreamingAead::class.java)
 
     // The payload is encrypted with no associated data, so the details ciphertext cannot stand in
-    // for it.
-    assertFailsWith<GeneralSecurityException> {
+    // for it. Tink surfaces the failed segment authentication as an IOException from the read.
+    assertFailsWith<IOException> {
       dekStreamingAead
         .newDecryptingStream(
           header.trusTeeV2.encryptedFulfillmentDetails.ciphertext.newInput(),
