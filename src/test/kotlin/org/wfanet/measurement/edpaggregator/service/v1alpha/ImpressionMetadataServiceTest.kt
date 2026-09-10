@@ -56,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadat
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -1393,6 +1394,44 @@ class ImpressionMetadataServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "filter.state"
         }
       )
+  }
+
+  @Test
+  fun `batchUndeleteImpressionMetadata restores deleted metadata`() = runBlocking {
+    val created = createImpressionMetadata(IMPRESSION_METADATA, IMPRESSION_METADATA_2)
+    service.batchDeleteImpressionMetadata(
+      batchDeleteImpressionMetadataRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        names += created.map { it.name }
+      }
+    )
+
+    val response =
+      service.batchUndeleteImpressionMetadata(
+        batchUndeleteImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          names += created.map { it.name }
+        }
+      )
+
+    assertThat(response.impressionMetadataList.map { it.state })
+      .containsExactly(ImpressionMetadata.State.ACTIVE, ImpressionMetadata.State.ACTIVE)
+      .inOrder()
+  }
+
+  @Test
+  fun `batchUndeleteImpressionMetadata rejects name under another parent`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchUndeleteImpressionMetadata(
+          batchUndeleteImpressionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            names += "dataProviders/another/impressionMetadata/impression-1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

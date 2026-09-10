@@ -55,6 +55,7 @@ private const val BASE_SQL =
     RawImpressionUploadFile.FileResourceId,
     RawImpressionUploadFile.CreateRequestId,
     RawImpressionUploadFile.BlobUri,
+    RawImpressionUploadFile.BlobGeneration,
     RawImpressionUploadFile.SizeBytes,
     RawImpressionUploadFile.EventDate,
     RawImpressionUploadFile.CreateTime,
@@ -220,6 +221,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
   sizeBytes: Long,
   eventDate: com.google.type.Date,
   createRequestId: String,
+  blobGeneration: Long,
 ) {
   bufferInsertMutation("RawImpressionUploadFile") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -228,6 +230,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadFile(
     set("FileResourceId").to(fileResourceId)
     set("CreateRequestId").to(createRequestId)
     set("BlobUri").to(blobUri)
+    set("BlobGeneration").to(blobGeneration)
     set("SizeBytes").to(sizeBytes)
     set("EventDate").to(eventDate.toCloudDate())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
@@ -362,6 +365,9 @@ private fun buildRawImpressionUploadFileResult(struct: Struct): RawImpressionUpl
       rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
       fileResourceId = struct.getString("FileResourceId")
       blobUri = struct.getString("BlobUri")
+      if (!struct.isNull("BlobGeneration")) {
+        blobGeneration = struct.getLong("BlobGeneration")
+      }
       sizeBytes = struct.getLong("SizeBytes")
       eventDate = struct.getDate("EventDate").toProtoDate()
       createTime = struct.getTimestamp("CreateTime").toProto()

@@ -46,6 +46,8 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt.filter as rawUploadFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
@@ -87,6 +89,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
  * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
  *   footer (no decryption needed).
+ * @param readBlobMetadata reads the storage generation and size for a raw-impression file in one
+ *   metadata lookup.
  * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock for determining active model line windows.
  * @param metrics OpenTelemetry metrics recorder.
@@ -103,6 +107,7 @@ class VidLabelingDispatcher(
   private val overrideModelLines: List<String>,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
   private val readEventDate: suspend (blobKey: String) -> LocalDate,
+  private val readBlobMetadata: suspend (blobKey: String) -> RawImpressionBlobMetadata,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
@@ -317,7 +322,10 @@ class VidLabelingDispatcher(
   ): RawImpressionUpload {
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
-      rawImpressionUpload = rawImpressionUpload { doneBlobUri = doneBlobPath }
+      rawImpressionUpload = rawImpressionUpload {
+        doneBlobUri = doneBlobPath
+        doneBlobGeneration = generation
+      }
       requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
     }
 
@@ -333,7 +341,7 @@ class VidLabelingDispatcher(
       // deterministic-UUID collision in RequestIds.forRawImpressionUpload) also surfaces as
       // ALREADY_EXISTS, yet findUploadByDoneBlobUri returns null for it — log that collision
       // explicitly (logger.severe) and rethrow instead of the opaque IllegalStateException below.
-      findUploadByDoneBlobUri(doneBlobPath)
+      findUploadByDoneBlob(doneBlobPath, generation)
         ?: throw IllegalStateException(
           "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
             doneBlobPath
@@ -342,13 +350,14 @@ class VidLabelingDispatcher(
   }
 
   /**
-   * Finds the existing `RawImpressionUpload` for [doneBlobPath] under this DataProvider, matching
-   * on `done_blob_uri`. Used to recover from `ALREADY_EXISTS` on create. Matches client-side over
-   * the DataProvider's uploads (bounded per DataProvider); no `done_blob_uri` filter exists on the
-   * API.
+   * Finds the existing `RawImpressionUpload` for the exact done-object version. Used to recover
+   * from `ALREADY_EXISTS` on create.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun findUploadByDoneBlobUri(doneBlobPath: String): RawImpressionUpload? =
+  private suspend fun findUploadByDoneBlob(
+    doneBlobPath: String,
+    generation: Long,
+  ): RawImpressionUpload? =
     rawImpressionUploadStub
       .listResources { pageToken: String ->
         val response =
@@ -357,6 +366,7 @@ class VidLabelingDispatcher(
               rawImpressionUploadStub.listRawImpressionUploads(
                 listRawImpressionUploadsRequest {
                   parent = dataProviderName
+                  filter = rawUploadFilter { doneBlobUri = doneBlobPath }
                   if (pageToken.isNotEmpty()) {
                     this.pageToken = pageToken
                   }
@@ -369,7 +379,7 @@ class VidLabelingDispatcher(
         ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
       }
       .flattenConcat()
-      .firstOrNull { it.doneBlobUri == doneBlobPath }
+      .firstOrNull { it.doneBlobGeneration == generation }
 
   private fun LocalDate.toProtoDate(): Date = date {
     year = this@toProtoDate.year
@@ -397,10 +407,22 @@ class VidLabelingDispatcher(
       // BatchCreate writes below stay serial on purpose: they all write interleaved children of the
       // same RawImpressionUpload row, so parallelizing them would only force Spanner to
       // lock-serialize (or abort-retry) the writes.
-      val eventDatesByBlobKey: Map<String, LocalDate> = coroutineScope {
+      val fileMetadataByBlobKey: Map<String, RawImpressionUploadFileMetadata> = coroutineScope {
         chunk
           .associate { blob ->
-            blob.blobKey to async { readSemaphore.withPermit { readEventDate(blob.blobKey) } }
+            blob.blobKey to
+              async {
+                readSemaphore.withPermit {
+                  val metadata = readBlobMetadata(blob.blobKey)
+                  val blobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
+                  RawImpressionUploadFileMetadata(
+                    eventDate =
+                      readEventDate(generationMatchedBlobUri(blobUri, metadata.generation)),
+                    generation = metadata.generation,
+                    sizeBytes = metadata.sizeBytes,
+                  )
+                }
+              }
           }
           .mapValues { (_, deferred) -> deferred.await() }
       }
@@ -409,15 +431,14 @@ class VidLabelingDispatcher(
         parent = uploadName
         for (blob in chunk) {
           val fileBlobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey)
+          val fileMetadata = fileMetadataByBlobKey.getValue(blob.blobKey)
           requests += createRawImpressionUploadFileRequest {
             parent = uploadName
-            // size_bytes (REQUIRED) is the GCS object size from the directory listing (the Phase-1
-            // last-out bin-packer batches files by it). event_date (REQUIRED) is read from the
-            // file's plaintext Parquet footer so consumers can reconcile registered files by date.
             rawImpressionUploadFile = rawImpressionUploadFile {
               blobUri = fileBlobUri
-              sizeBytes = blob.size
-              this.eventDate = eventDatesByBlobKey.getValue(blob.blobKey).toProtoDate()
+              blobGeneration = fileMetadata.generation
+              sizeBytes = fileMetadata.sizeBytes
+              eventDate = fileMetadata.eventDate.toProtoDate()
             }
             requestId = RequestIds.forRawImpressionUploadFile(uploadName, fileBlobUri)
           }
@@ -519,4 +540,12 @@ class VidLabelingDispatcher(
       return true
     }
   }
+
+  private data class RawImpressionUploadFileMetadata(
+    val eventDate: LocalDate,
+    val generation: Long,
+    val sizeBytes: Long,
+  )
 }
+
+data class RawImpressionBlobMetadata(val generation: Long, val sizeBytes: Long)

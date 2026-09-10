@@ -14,7 +14,9 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
+import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
 import java.util.UUID
@@ -67,6 +69,14 @@ class SpannerRawImpressionUploadService(
       throw RequiredFieldNotSetException("raw_impression_upload.done_blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.rawImpressionUpload.doneBlobGeneration == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload.done_blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.rawImpressionUpload.doneBlobGeneration < 0L) {
+      throw InvalidFieldValueException("raw_impression_upload.done_blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val requestId: String = request.requestId
     if (requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
@@ -83,44 +93,68 @@ class SpannerRawImpressionUploadService(
       databaseClient.readWriteTransaction(Options.tag("action=createRawImpressionUpload"))
 
     val result: RawImpressionUpload =
-      transactionRunner.run { txn ->
-        val existing: RawImpressionUploadResult? =
-          txn.findUploadByCreateRequestId(request.dataProviderResourceId, requestId)
-        if (existing != null) {
-          if (existing.rawImpressionUpload.doneBlobUri != request.rawImpressionUpload.doneBlobUri) {
-            throw RawImpressionUploadAlreadyExistsException(
-                request.dataProviderResourceId,
-                requestId,
-                existing.rawImpressionUpload.doneBlobUri,
-                request.rawImpressionUpload.doneBlobUri,
-              )
-              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      try {
+        transactionRunner.run { txn ->
+          val existing: RawImpressionUploadResult? =
+            txn.findUploadByCreateRequestId(request.dataProviderResourceId, requestId)
+          if (existing != null) {
+            if (
+              existing.rawImpressionUpload.doneBlobUri != request.rawImpressionUpload.doneBlobUri ||
+                existing.rawImpressionUpload.doneBlobGeneration !=
+                  request.rawImpressionUpload.doneBlobGeneration
+            ) {
+              throw RawImpressionUploadAlreadyExistsException(
+                  request.dataProviderResourceId,
+                  requestId,
+                  existing.rawImpressionUpload.doneBlobUri,
+                  request.rawImpressionUpload.doneBlobUri,
+                  existing.rawImpressionUpload.doneBlobGeneration,
+                  request.rawImpressionUpload.doneBlobGeneration,
+                )
+                .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+            }
+            return@run existing.rawImpressionUpload
           }
-          return@run existing.rawImpressionUpload
-        }
 
-        val rawImpressionUploadId: Long =
-          idGenerator.generateNewId { id ->
-            txn.rawImpressionUploadExists(request.dataProviderResourceId, id)
+          val rawImpressionUploadId: Long =
+            idGenerator.generateNewId { id ->
+              txn.rawImpressionUploadExists(request.dataProviderResourceId, id)
+            }
+
+          val resolvedResourceId: String = "rawImpressionUpload-${UUID.randomUUID()}"
+
+          txn.insertRawImpressionUpload(
+            rawImpressionUploadId,
+            request.dataProviderResourceId,
+            resolvedResourceId,
+            request.rawImpressionUpload.doneBlobUri,
+            requestId,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+            request.rawImpressionUpload.doneBlobGeneration,
+          )
+
+          rawImpressionUpload {
+            dataProviderResourceId = request.dataProviderResourceId
+            rawImpressionUploadResourceId = resolvedResourceId
+            doneBlobUri = request.rawImpressionUpload.doneBlobUri
+            doneBlobGeneration = request.rawImpressionUpload.doneBlobGeneration
+            state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
           }
-
-        val resolvedResourceId: String = "rawImpressionUpload-${UUID.randomUUID()}"
-
-        txn.insertRawImpressionUpload(
-          rawImpressionUploadId,
-          request.dataProviderResourceId,
-          resolvedResourceId,
-          request.rawImpressionUpload.doneBlobUri,
-          requestId,
-          RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
-        )
-
-        rawImpressionUpload {
-          dataProviderResourceId = request.dataProviderResourceId
-          rawImpressionUploadResourceId = resolvedResourceId
-          doneBlobUri = request.rawImpressionUpload.doneBlobUri
-          state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
         }
+      } catch (e: SpannerException) {
+        if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
+          throw RawImpressionUploadAlreadyExistsException(
+              request.dataProviderResourceId,
+              requestId,
+              request.rawImpressionUpload.doneBlobUri,
+              request.rawImpressionUpload.doneBlobUri,
+              request.rawImpressionUpload.doneBlobGeneration,
+              request.rawImpressionUpload.doneBlobGeneration,
+              e,
+            )
+            .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        }
+        throw e
       }
 
     if (result.hasCreateTime()) {
