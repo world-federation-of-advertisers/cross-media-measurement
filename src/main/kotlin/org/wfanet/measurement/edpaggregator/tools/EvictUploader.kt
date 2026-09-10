@@ -294,9 +294,7 @@ class EvictUploader(
               val upload = uploadsByName.getValue(entry.uploadName)
               latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
             }
-          val orderedActions =
-            actionHeads.filter { it.uploadName in requestedNames } +
-              actionHeads.filter { it.uploadName !in requestedNames }
+          val orderedActions = actionHeads
           if (orderedActions.isEmpty()) return@flatMap emptyList()
 
           val firstAction = orderedActions.first()
