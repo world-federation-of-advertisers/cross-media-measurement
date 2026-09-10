@@ -119,9 +119,9 @@ typealias ParquetUndigestedEvent = UndigestedEvent<Map<String, ParquetValue>>
  *
  * Input files are discovered by listing the [rawImpressionUpload]'s `RawImpressionUploadFile`s via
  * [rawImpressionUploadFilesStub] (`ListRawImpressionUploadFiles`, paginated). Each file's
- * `blob_uri` is a full Cloud Storage URI handed straight to [parquetStorageClient]
- * ([ParquetStorageClient] resolves an absolute URI to itself, so the client's root is irrelevant
- * for the read).
+ * `blob_uri` and `blob_generation` are handed to [parquetStorageClient]. For GCS, the generation is
+ * encoded for [GenerationMatchedGoogleHadoopFileSystem], which applies `ifGenerationMatch` to the
+ * actual Parquet range reads so an overwritten URI cannot silently supply different bytes.
  *
  * ## Encryption
  *
@@ -286,30 +286,31 @@ class RawImpressionSource<E : ParquetRawEvent>(
    */
   suspend fun validateSchema(columnKinds: Map<String, Set<ParquetValue.KindCase>>) {
     if (columnKinds.isEmpty()) return
-    val firstUri = discoverBlobUris().firstOrNull() ?: return
+    val firstBlob = discoverBlobs().firstOrNull() ?: return
     val parquetBlob =
-      parquetStorageClient.getBlob(firstUri) ?: error("Raw-impression blob not found: $firstUri")
+      parquetStorageClient.getBlob(firstBlob.generationMatchedBlobUri)
+        ?: error("Raw-impression blob not found: ${firstBlob.blobUri}")
     val schema: Map<String, ParquetValue.KindCase> = parquetBlob.readSchema()
     require(schema.isNotEmpty()) {
-      "Raw-impression file '$firstUri' for upload $rawImpressionUpload is empty (0 rows): cannot " +
-        "validate the labeler-input schema and there is nothing to process."
+      "Raw-impression file '${firstBlob.blobUri}' for upload $rawImpressionUpload is empty " +
+        "(0 rows): cannot validate the labeler-input schema and there is nothing to process."
     }
     validateColumnsAgainstSchema(
       columnKinds,
       schema,
-      "upload $rawImpressionUpload (file $firstUri)",
+      "upload $rawImpressionUpload (file ${firstBlob.blobUri})",
     )
   }
 
   suspend fun streamBlobs(
     openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink<E>
   ) {
-    val blobUris = discoverBlobUris()
+    val blobs = discoverBlobs()
     logger.info(
-      "Starting raw-impression read of ${blobUris.size} file(s) for shard " +
+      "Starting raw-impression read of ${blobs.size} file(s) for shard " +
         "$shardIndex/$totalShards of upload $rawImpressionUpload"
     )
-    val progress = ProgressTracker(blobUris.size)
+    val progress = ProgressTracker(blobs.size)
     val openFiles = Semaphore(maxOpenFiles)
     // Per-call (not instance fields): the shared CPU cap and the read-ahead bound.
     // Scoping them here keeps each streamBlobs call self-contained — a failed run
@@ -318,9 +319,9 @@ class RawImpressionSource<E : ParquetRawEvent>(
     val cpuDispatcher: CoroutineDispatcher = workerDispatcher.limitedParallelism(workers)
     val inFlight = Semaphore(maxInFlightBatches)
     coroutineScope {
-      for (blobUri in blobUris) {
+      for (blob in blobs) {
         launch(readDispatcher) {
-          openFiles.withPermit { processBlob(blobUri, openSink, cpuDispatcher, inFlight, progress) }
+          openFiles.withPermit { processBlob(blob, openSink, cpuDispatcher, inFlight, progress) }
         }
       }
     }
@@ -333,16 +334,18 @@ class RawImpressionSource<E : ParquetRawEvent>(
    * completion), then commits and always closes.
    */
   private suspend fun processBlob(
-    blobUri: String,
+    blob: RawImpressionBlob,
     openSink: suspend (blobUri: String, footerMetadata: Map<String, String>) -> BlobSink<E>,
     cpuDispatcher: CoroutineDispatcher,
     inFlight: Semaphore,
     progress: ProgressTracker,
   ) {
+    val blobUri = blob.blobUri
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
     logger.fine { "Reading raw-impression file $blobUri" }
     val parquetBlob =
-      parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
+      parquetStorageClient.getBlob(blob.generationMatchedBlobUri)
+        ?: error("Raw-impression blob not found: $blobUri")
     // Read the file's plaintext footer key-value metadata once and hand it to the sink factory; the
     // Phase-2 sink derives its entity keys from it ("Option Y"). Phase-0/1 sinks ignore it.
     val sink = openSink(blobUri, parquetBlob.readKeyValueMetadata())
@@ -447,12 +450,12 @@ class RawImpressionSource<E : ParquetRawEvent>(
   }
 
   /**
-   * Returns the Cloud Storage `blob_uri`s to read. In file-list mode ([inputFiles] non-null),
-   * resolves exactly those `RawImpressionUploadFile` resource names to their `blob_uri`s by name
-   * (no whole-upload listing). Otherwise lists all of the [rawImpressionUpload]'s files via the
-   * metadata service (paginated) and returns their `blob_uri`s.
+   * Returns the Cloud Storage objects to read, including their registered generations. In file-list
+   * mode ([inputFiles] non-null), resolves exactly those `RawImpressionUploadFile` resource names
+   * by name (no whole-upload listing). Otherwise lists all of the [rawImpressionUpload]'s files via
+   * the metadata service (paginated).
    */
-  private suspend fun discoverBlobUris(): List<String> {
+  private suspend fun discoverBlobs(): List<RawImpressionBlob> {
     if (inputFiles != null) {
       // Resolve the file-list -> blob_uri lookups with bounded concurrency, collecting BY INDEX
       // (awaitAll) so the resolved order is identical to the serial order. This is a separate,
@@ -471,7 +474,7 @@ class RawImpressionSource<E : ParquetRawEvent>(
                         getRawImpressionUploadFileRequest { name = fileName }
                       )
                     }
-                    .blobUri
+                    .toRawImpressionBlob()
                 } catch (e: StatusException) {
                   throw Exception("Error getting RawImpressionUploadFile $fileName", e)
                 }
@@ -481,7 +484,7 @@ class RawImpressionSource<E : ParquetRawEvent>(
           .awaitAll()
       }
     }
-    val blobUris = mutableListOf<String>()
+    val blobs = mutableListOf<RawImpressionBlob>()
     rawImpressionUploadFilesStub
       .listResources { pageToken: String ->
         val response =
@@ -500,9 +503,12 @@ class RawImpressionSource<E : ParquetRawEvent>(
           }
         ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
       }
-      .collect { page -> page.forEach { blobUris.add(it.blobUri) } }
-    return blobUris
+      .collect { page -> page.forEach { blobs.add(it.toRawImpressionBlob()) } }
+    return blobs
   }
+
+  private fun org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
+    .toRawImpressionBlob(): RawImpressionBlob = RawImpressionBlob(blobUri, blobGeneration)
 
   /**
    * Reads the [eventIdColumn] from [row] as bytes. Parquet may surface it either as a

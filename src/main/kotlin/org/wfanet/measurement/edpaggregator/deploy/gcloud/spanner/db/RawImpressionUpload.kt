@@ -50,6 +50,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadByResourceId(
       RawImpressionUploadId,
       RawImpressionUploadResourceId,
       DoneBlobUri,
+      DoneBlobGeneration,
       State,
       CreateTime,
       UpdateTime,
@@ -91,6 +92,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
       RawImpressionUploadId,
       RawImpressionUploadResourceId,
       DoneBlobUri,
+      DoneBlobGeneration,
       State,
       CreateTime,
       UpdateTime,
@@ -134,6 +136,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
   doneBlobUri: String,
   createRequestId: String,
   state: RawImpressionUploadState,
+  doneBlobGeneration: Long,
 ) {
   bufferInsertMutation("RawImpressionUpload") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -143,6 +146,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
       set("CreateRequestId").to(createRequestId)
     }
     set("DoneBlobUri").to(doneBlobUri)
+    set("DoneBlobGeneration").to(doneBlobGeneration)
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -164,6 +168,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
         RawImpressionUploadId,
         RawImpressionUploadResourceId,
         DoneBlobUri,
+        DoneBlobGeneration,
         State,
         CreateTime,
         UpdateTime,
@@ -187,6 +192,10 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
       if (filter.createTimeIn.hasEndTime()) {
         conjuncts.add("CreateTime < @createTimeEnd")
       }
+    }
+
+    if (filter.doneBlobUri.isNotEmpty()) {
+      conjuncts.add("DoneBlobUri = @doneBlobUri")
     }
 
     if (after != null) {
@@ -218,6 +227,10 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
         }
       }
 
+      if (filter.doneBlobUri.isNotEmpty()) {
+        bind("doneBlobUri").to(filter.doneBlobUri)
+      }
+
       if (after != null) {
         bind("afterRawImpressionUploadResourceId").to(after.rawImpressionUploadResourceId)
         bind("afterCreateTime").to(after.createTime.toGcloudTimestamp())
@@ -235,6 +248,9 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
       dataProviderResourceId = struct.getString("DataProviderResourceId")
       rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
       doneBlobUri = struct.getString("DoneBlobUri")
+      if (!struct.isNull("DoneBlobGeneration")) {
+        doneBlobGeneration = struct.getLong("DoneBlobGeneration")
+      }
       state = struct.getProtoEnum("State", RawImpressionUploadState::forNumber)
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
