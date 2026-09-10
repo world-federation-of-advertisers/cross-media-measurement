@@ -68,8 +68,7 @@ A successfully repaired inconsistency does not cause a nonzero exit.
 
 The `recover_missing_impression_metadata_image` target publishes the
 `edp-aggregator/recover-missing-impression-metadata` image. The EDP Aggregator GKE configuration
-stages `recover-missing-impression-metadata-edp7-cronjob` suspended until the durable
-sync-completion protection in the follow-up PR lands. The complete stack enables it with:
+deploys and enables `recover-missing-impression-metadata-edp7-cronjob` with:
 
 - schedule `0 6 * * 0` (Sunday at 06:00 UTC);
 - `concurrencyPolicy: Forbid`;
