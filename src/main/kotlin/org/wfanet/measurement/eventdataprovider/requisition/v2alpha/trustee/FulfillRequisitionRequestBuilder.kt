@@ -51,6 +51,11 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
  * @param fulfillmentDetails Values to send alongside the frequency vector. Only valid for a
  *   `TrusTeeV2` requisition. Encrypted with the payload's Data Encryption Key when the payload is
  *   encrypted, and sent in plaintext when it is not.
+ *
+ * The caller is responsible for the [frequencyVector] matching the `MeasurementSpec`. A `TrusTeeV2`
+ * `Requisition` carries a `MultiMeasurementSpec`, whose vector is built uncapped; this class does
+ * not check the pairing.
+ *
  * @throws IllegalArgumentException if the requisition is malformed or the frequency vector is empty
  * @throws GeneralSecurityException if a cryptographic error happens
  */
@@ -185,21 +190,26 @@ class FulfillRequisitionRequestBuilder(
   /**
    * Encrypts [details] with the payload's Data Encryption Key, so that they carry the same
    * protection as the frequency vector they accompany.
+   *
+   * The type URL is used as associated data, which the reader must supply to decrypt. The frequency
+   * vector is encrypted under the same key with no associated data, so the two ciphertexts cannot
+   * be substituted for one another.
    */
   private fun encryptFulfillmentDetails(
     dekHandle: KeysetHandle,
     details: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails,
   ): EncryptedMessage {
+    val messageTypeUrl: String = ProtoReflection.getTypeUrl(details.descriptorForType)
     val ciphertextChunks: Sequence<ByteString> =
       StreamingEncryption.encryptChunked(
         dekHandle,
         details.toByteString(),
-        null,
-        RPC_CHUNK_SIZE_BYTES,
+        ByteString.copyFromUtf8(messageTypeUrl),
+        DETAILS_CHUNK_SIZE_BYTES,
       )
     return encryptedMessage {
       ciphertext = ciphertextChunks.fold(ByteString.EMPTY) { acc, chunk -> acc.concat(chunk) }
-      typeUrl = ProtoReflection.getTypeUrl(details.descriptorForType)
+      typeUrl = messageTypeUrl
     }
   }
 
@@ -248,6 +258,9 @@ class FulfillRequisitionRequestBuilder(
   companion object {
     private const val KEY_TEMPLATE = "AES256_GCM_HKDF_1MB"
     private const val RPC_CHUNK_SIZE_BYTES = 32 * 1024 // 32 KiB
+    // The details are held in a single field rather than streamed, so the chunk size only bounds
+    // the working buffer.
+    private const val DETAILS_CHUNK_SIZE_BYTES = 4 * 1024 // 4 KiB
 
     init {
       AeadConfig.register()

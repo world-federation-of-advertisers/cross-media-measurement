@@ -110,8 +110,9 @@ class FrequencyVectorBuilder(
       } else if (measurementSpec.hasReach()) {
         resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1
       } else if (measurementSpec.hasMulti()) {
-        // A multimeasurement carries no frequency cap. The TEE folds the histogram downstream, so
-        // the vector is built uncapped and only the cell width binds.
+        // A MultiMeasurementSpec carries no frequency cap. The TEE folds the histogram downstream,
+        // so the only bound is the cell: a frequency saturates at the largest signed byte, since a
+        // larger value would reach the TEE negative and be rejected.
         Byte.MAX_VALUE.toInt()
       } else {
         1

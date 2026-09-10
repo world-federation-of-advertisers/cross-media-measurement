@@ -310,6 +310,22 @@ class FrequencyVectorBuilderTest {
   }
 
   @Test
+  fun `build saturates a multi measurement frequency at the largest signed byte`() {
+    val multiMeasurementSpec = measurementSpec {
+      vidSamplingInterval = FULL_SAMPLING_INTERVAL
+      multi = multiMeasurementSpec {}
+    }
+
+    val frequencyVector =
+      FrequencyVectorBuilder.build(SMALL_POPULATION_SPEC, multiMeasurementSpec) {
+        incrementBy(SMALL_POPULATION_VID_INDEX_MAP[STARTING_VID], 200)
+      }
+
+    // A larger value would reach the TEE as a negative byte.
+    assertThat(frequencyVector.dataList[0]).isEqualTo(Byte.MAX_VALUE.toInt())
+  }
+
+  @Test
   fun `build returns a frequency vector for reach over partial interval`() {
     val builder =
       FrequencyVectorBuilder(

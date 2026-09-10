@@ -299,8 +299,10 @@ class FulfillRequisitionRequestBuilderTest {
       FulfillRequisitionRequestBuilder.buildUnencrypted(V2_REQUISITION, NONCE, inputFrequencyVector)
         .toList()
 
+    val v1BodyChunks = v1Requests.filter { it.hasBodyChunk() }
+    assertThat(v1BodyChunks).isNotEmpty()
     assertThat(v2Requests.filter { it.hasBodyChunk() })
-      .containsExactlyElementsIn(v1Requests.filter { it.hasBodyChunk() })
+      .containsExactlyElementsIn(v1BodyChunks)
       .inOrder()
   }
 
@@ -344,11 +346,65 @@ class FulfillRequisitionRequestBuilderTest {
     val dekStreamingAead = dekKeysetHandle.getPrimitive(StreamingAead::class.java)
     val plaintext =
       dekStreamingAead
-        .newDecryptingStream(encryptedDetails.ciphertext.newInput(), byteArrayOf())
+        .newDecryptingStream(
+          encryptedDetails.ciphertext.newInput(),
+          encryptedDetails.typeUrl.toByteArray(),
+        )
         .use { it.readAllBytes() }
 
     assertThat(FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails.parseFrom(plaintext))
       .isEqualTo(FULFILLMENT_DETAILS)
+  }
+
+  @Test
+  fun `buildEncrypted leaves FulfillmentDetails unset when none are supplied`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildEncrypted(
+          V2_REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+          ENCRYPTED_PARAMS,
+        )
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    assertThat(header.hasTrusTeeV2()).isTrue()
+    assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
+    assertThat(header.trusTeeV2.hasEncryptedFulfillmentDetails()).isFalse()
+    assertThat(header.trusTeeV2.trusTee.dataFormat)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR)
+    assertThat(header.trusTeeV2.trusTee.envelopeEncryption.hasEncryptedDek()).isTrue()
+  }
+
+  @Test
+  fun `encrypted FulfillmentDetails cannot be decrypted as the payload`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildEncrypted(
+          V2_REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+          ENCRYPTED_PARAMS,
+          FULFILLMENT_DETAILS,
+        )
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    val kekAead = KMS_CLIENT.getAead(KEK_URI)
+    val encryptedDek: ByteString = header.trusTeeV2.trusTee.envelopeEncryption.encryptedDek.data
+    val dekKeysetHandle =
+      KeysetHandle.read(BinaryKeysetReader.withInputStream(encryptedDek.newInput()), kekAead)
+    val dekStreamingAead = dekKeysetHandle.getPrimitive(StreamingAead::class.java)
+
+    // The payload is encrypted with no associated data, so the details ciphertext cannot stand in
+    // for it.
+    assertFailsWith<GeneralSecurityException> {
+      dekStreamingAead
+        .newDecryptingStream(
+          header.trusTeeV2.encryptedFulfillmentDetails.ciphertext.newInput(),
+          byteArrayOf(),
+        )
+        .use { it.readAllBytes() }
+    }
   }
 
   @Test
