@@ -314,6 +314,58 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `constructor rejects empty mapped model line list`() {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    assertFailsWith<IllegalArgumentException> {
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap =
+          mapOf("modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA" to emptyList()),
+        errorIfGapsExist = true,
+      )
+    }
+  }
+
+  @Test
+  fun `sync does not publish when no availability entries are computed`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenReturn(computeModelLineBoundsResponse {})
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    assertFailsWith<IllegalStateException> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    }
+
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    val doneMetadata = storageClient.blobMetadata.getValue("${folderPrefix}done")
+    assertThat(doneMetadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneMetadata)
+      .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+  }
+
+  @Test
   fun `sync updates availability for existing and new model lines`() {
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))

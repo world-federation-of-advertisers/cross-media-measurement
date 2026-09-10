@@ -133,6 +133,9 @@ class DataAvailabilitySync(
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
+    require(modelLineMap.values.all { it.isNotEmpty() }) {
+      "modelLineMap entries must contain at least one model line"
+    }
   }
 
   /**
@@ -229,6 +232,9 @@ class DataAvailabilitySync(
             }
           }
         }
+      check(availabilityEntries.isNotEmpty()) {
+        "No data availability intervals were computed for $dataProviderName"
+      }
 
       // Check, per model line present in this batch, for date gaps or in-range unfinalized
       // dates before updating availability intervals. Done locally via
@@ -291,30 +297,28 @@ class DataAvailabilitySync(
           return
         }
       }
-      if (availabilityEntries.isNotEmpty()) {
-        throttler.onReady {
-          try {
-            dataProvidersStub.replaceDataAvailabilityIntervals(
-              replaceDataAvailabilityIntervalsRequest {
-                name = dataProviderName
-                dataAvailabilityIntervals += availabilityEntries
-              }
-            )
-          } catch (e: StatusException) {
-            // Record CMMS RPC error
-            metrics.cmmsRpcErrorsCounter.add(
-              1,
-              Attributes.of(
-                DATA_PROVIDER_KEY_ATTR,
-                dataProviderName,
-                RPC_METHOD_ATTR,
-                RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS,
-                STATUS_CODE_ATTR,
-                e.status.code.name,
-              ),
-            )
-            throw Exception("Error replacing DataAvailability intervals", e)
-          }
+      throttler.onReady {
+        try {
+          dataProvidersStub.replaceDataAvailabilityIntervals(
+            replaceDataAvailabilityIntervalsRequest {
+              name = dataProviderName
+              dataAvailabilityIntervals += availabilityEntries
+            }
+          )
+        } catch (e: StatusException) {
+          // Record CMMS RPC error
+          metrics.cmmsRpcErrorsCounter.add(
+            1,
+            Attributes.of(
+              DATA_PROVIDER_KEY_ATTR,
+              dataProviderName,
+              RPC_METHOD_ATTR,
+              RPC_METHOD_REPLACE_DATA_AVAILABILITY_INTERVALS,
+              STATUS_CODE_ATTR,
+              e.status.code.name,
+            ),
+          )
+          throw Exception("Error replacing DataAvailability intervals", e)
         }
       }
 
