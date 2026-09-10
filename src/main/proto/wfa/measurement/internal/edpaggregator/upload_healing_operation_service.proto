@@ -16,7 +16,6 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
-import "google/protobuf/field_mask.proto";
 import "wfa/measurement/internal/edpaggregator/upload_healing_operation.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -28,7 +27,7 @@ service UploadHealingOperationService {
       returns (UploadHealingOperation);
   rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
       returns (UploadHealingOperation);
-  rpc UpdateUploadHealingStep(UpdateUploadHealingStepRequest)
+  rpc AdvanceUploadHealingStep(AdvanceUploadHealingStepRequest)
       returns (UploadHealingStep);
 }
 
@@ -44,10 +43,20 @@ message GetUploadHealingOperationRequest {
   string upload_healing_operation_id = 2;
 }
 
-message UpdateUploadHealingStepRequest {
+message AdvanceUploadHealingStepRequest {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    CONFIRM_EVICTION = 1;
+    RECORD_RECOVERY = 2;
+    CONFIRM_REPLACEMENT = 3;
+  }
+
   string data_provider_resource_id = 1;
   string upload_healing_operation_id = 2;
-  UploadHealingStep upload_healing_step = 3;
-  google.protobuf.FieldMask update_mask = 4;
-  string request_id = 5;
+  int64 upload_healing_step_id = 3;
+  string etag = 4;
+  Action action = 5;
+  string replacement_raw_impression_upload_resource_id = 6;
+  int64 recovery_done_blob_generation = 7;
+  string request_id = 8;
 }

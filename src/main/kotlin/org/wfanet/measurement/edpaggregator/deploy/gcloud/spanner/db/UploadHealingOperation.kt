@@ -148,6 +148,7 @@ fun AsyncDatabaseClient.TransactionContext.updateUploadHealingStep(
   dataProviderResourceId: String,
   uploadHealingOperationId: String,
   uploadHealingStepId: Long,
+  previousState: UploadHealingStep.State,
   state: UploadHealingStep.State,
   replacementRawImpressionUploadResourceId: String,
   recoveryDoneBlobGeneration: Long,
@@ -162,12 +163,13 @@ fun AsyncDatabaseClient.TransactionContext.updateUploadHealingStep(
         set("EvictionCompleteTime").to(Value.COMMIT_TIMESTAMP)
       }
       UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED -> {
-        set("EvictionCompleteTime").to(Value.COMMIT_TIMESTAMP)
         set("RecoveryStartTime").to(Value.COMMIT_TIMESTAMP)
         set("RecoveryDoneBlobGeneration").to(recoveryDoneBlobGeneration)
       }
       UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE -> {
-        set("EvictionCompleteTime").to(Value.COMMIT_TIMESTAMP)
+        if (previousState == UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION) {
+          set("EvictionCompleteTime").to(Value.COMMIT_TIMESTAMP)
+        }
         set("CompleteTime").to(Value.COMMIT_TIMESTAMP)
       }
       UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION,
