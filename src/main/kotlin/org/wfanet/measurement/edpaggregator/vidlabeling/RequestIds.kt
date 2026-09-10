@@ -114,6 +114,10 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineFailed(modelLineName: String, etag: String): String =
     fromKey("markRawImpressionUploadModelLineFailed:$modelLineName:$etag")
 
+  /** `request_id` for invalidating a model line during operator eviction. */
+  fun forEvictRawImpressionUploadModelLine(modelLineName: String, etag: String): String =
+    fromKey("evictRawImpressionUploadModelLine:$modelLineName:$etag")
+
   /** `request_id` for retrying a specific model-line failure at Phase 0. */
   fun forHealingRetryPoolAssigning(modelLineName: String, failureAttemptId: String): String =
     fromKey("healingRetryPoolAssigning:$modelLineName:$failureAttemptId")

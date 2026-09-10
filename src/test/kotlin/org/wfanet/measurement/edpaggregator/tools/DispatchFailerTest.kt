@@ -86,7 +86,9 @@ class DispatchFailerTest {
     verifyBlocking(modelLineService) {
       markRawImpressionUploadModelLineFailed(
         argThat {
-          name == "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1" && errorMessage == REASON
+          name == "$UPLOAD_NAME/rawImpressionUploadModelLines/rml1" &&
+            errorMessage == REASON &&
+            failureReason == RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
         }
       )
     }
@@ -95,6 +97,8 @@ class DispatchFailerTest {
       markRawImpressionUploadModelLineFailed(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    assertThat(requestCaptor.firstValue.failureReason)
+      .isEqualTo(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
   }
 
   @Test

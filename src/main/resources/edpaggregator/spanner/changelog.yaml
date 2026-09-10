@@ -58,3 +58,9 @@ databaseChangeLog:
   - include:
       file: drop-unlinked-client-accounts-table.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-model-line-failure-reason.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-generations.sql
+      relativeToChangeLogFile: true

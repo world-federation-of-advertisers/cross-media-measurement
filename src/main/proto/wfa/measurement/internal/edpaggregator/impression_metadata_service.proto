@@ -61,6 +61,10 @@ service ImpressionMetadataService {
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse);
 
+  // Restores multiple soft-deleted ImpressionMetadata entries.
+  rpc BatchUndeleteImpressionMetadata(BatchUndeleteImpressionMetadataRequest)
+      returns (BatchUndeleteImpressionMetadataResponse);
+
   // Computes the time bounds for all ModelLines for a DataProvider.
   rpc ComputeModelLineBounds(ComputeModelLineBoundsRequest)
       returns (ComputeModelLineBoundsResponse) {}
@@ -170,6 +174,14 @@ message BatchDeleteImpressionMetadataRequest {
 
 message BatchDeleteImpressionMetadataResponse {
   // The list of updated ImpressionMetadata, now marked as deleted.
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+message BatchUndeleteImpressionMetadataRequest {
+  repeated UndeleteImpressionMetadataRequest requests = 1;
+}
+
+message BatchUndeleteImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 }
 
