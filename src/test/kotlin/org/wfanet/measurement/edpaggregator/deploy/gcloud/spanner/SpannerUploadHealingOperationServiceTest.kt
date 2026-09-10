@@ -136,6 +136,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingStepId = 1L
           etag = created.stepsList.single().etag
           action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+          requestId = WAITING_REQUEST_ID
         }
       )
     val started =
@@ -147,6 +148,7 @@ class SpannerUploadHealingOperationServiceTest {
           etag = waiting.etag
           action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
           recoveryDoneBlobGeneration = RECOVERY_GENERATION
+          requestId = STARTED_REQUEST_ID
         }
       )
 
@@ -160,6 +162,7 @@ class SpannerUploadHealingOperationServiceTest {
             etag = started.etag
             action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
             replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
+            requestId = COMPLETE_REQUEST_ID
           }
         )
       }
@@ -224,6 +227,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingStepId = 2L
           etag = successor.etag
           action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+          requestId = WAITING_REQUEST_ID
         }
       )
 
@@ -237,6 +241,7 @@ class SpannerUploadHealingOperationServiceTest {
             etag = waiting.etag
             action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
             recoveryDoneBlobGeneration = RECOVERY_GENERATION
+            requestId = STARTED_REQUEST_ID
           }
         )
       }
@@ -281,11 +286,32 @@ class SpannerUploadHealingOperationServiceTest {
             uploadHealingStepId = 1L
             etag = created.stepsList.single().etag
             action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+            requestId = WAITING_REQUEST_ID
           }
         )
       }
 
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `advance requires request ID`() = runBlocking {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        service.advanceUploadHealingStep(
+          advanceUploadHealingStepRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            uploadHealingStepId = 1L
+            etag = "etag"
+            action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+          }
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("request_id is required")
   }
 
   private fun createRequest(memoized: Boolean) = createUploadHealingOperationRequest {

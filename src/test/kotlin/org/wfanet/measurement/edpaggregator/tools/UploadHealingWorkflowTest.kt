@@ -24,16 +24,19 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
@@ -75,7 +78,18 @@ class UploadHealingWorkflowTest {
       override suspend fun listRawImpressionUploadModelLines(
         request: ListRawImpressionUploadModelLinesRequest
       ) = listRawImpressionUploadModelLinesResponse {
-        rawImpressionUploadModelLines += modelLinesByUpload[request.parent].orEmpty()
+        val rows =
+          if (request.parent.endsWith("/rawImpressionUploads/-")) {
+            modelLinesByUpload.values.flatten()
+          } else {
+            modelLinesByUpload[request.parent].orEmpty()
+          }
+        rawImpressionUploadModelLines +=
+          rows.filter {
+            (request.filter.cmmsModelLine.isEmpty() ||
+              it.cmmsModelLine == request.filter.cmmsModelLine) &&
+              (request.filter.stateInList.isEmpty() || it.state in request.filter.stateInList)
+          }
       }
     }
   private val activeSnapshots = mutableSetOf<Pair<String, String>>()
@@ -89,6 +103,12 @@ class UploadHealingWorkflowTest {
         }
     }
   private val recoveredUploads = mutableListOf<String>()
+  private val rawImpressionUploadFileService:
+    RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
+    mockService()
+  private val impressionMetadataService:
+    ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase =
+    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -96,13 +116,42 @@ class UploadHealingWorkflowTest {
     addService(uploadsService)
     addService(modelLinesService)
     addService(rankIndexBlobsService)
+    addService(rawImpressionUploadFileService)
+    addService(impressionMetadataService)
   }
 
   @Test
   fun `resume checkpoints eviction and advances replacements oldest first`() = runBlocking {
-    for ((index, uploadName) in listOf(D2, D3, D4, D5).withIndex()) {
+    for ((index, uploadName) in listOf(D1, D2, D3, D4, D5).withIndex()) {
       uploadsByName[uploadName] = sourceUpload(uploadName, index)
+      modelLinesByUpload[uploadName] =
+        listOf(
+          rawImpressionUploadModelLine {
+            name = "$uploadName/rawImpressionUploadModelLines/ml"
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        )
+      activeSnapshots += uploadName to MODEL_LINE
     }
+    val channel = grpcTestServerRule.channel
+    val plan =
+      EvictUploader(
+          RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(channel),
+          RawImpressionUploadModelLineServiceGrpcKt
+            .RawImpressionUploadModelLineServiceCoroutineStub(channel),
+          RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
+          RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(channel),
+          ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel),
+          "gs://output/vid",
+          deleteBlob = { true },
+        )
+        .plan(listOf(D2, D4), cutoffTime = Instant.EPOCH)
+    assertThat(plan.cascade.map { it.uploadName }).containsExactly(D2, D3, D4, D5).inOrder()
+    assertThat(plan.cascade.map { it.recoveryPredecessorUploadName })
+      .containsExactly(D1, D2, D3, D4)
+      .inOrder()
+
     val evictedEntries = mutableListOf<String>()
     val workflow =
       UploadHealingWorkflow(
@@ -134,7 +183,7 @@ class UploadHealingWorkflowTest {
         },
       )
 
-    val started = workflow.start(PLAN, "bad source data", "gs://output/vid")
+    val started = workflow.start(plan, "bad source data", "gs://output/vid")
 
     assertThat(evictedEntries).containsExactly(M2, M3, M4, M5).inOrder()
     assertThat(started.operation.stepsList)
@@ -164,6 +213,17 @@ class UploadHealingWorkflowTest {
 
     assertThat(afterD3.nextAction).contains(D4)
     assertThat(recoveredUploads).containsExactly(D3)
+
+    addCompletedReplacement(D4, D4_REPLACEMENT)
+    val afterD4 = workflow.resume(started.operation.name)
+
+    assertThat(afterD4.nextAction).contains(D5)
+    assertThat(recoveredUploads).containsExactly(D3, D5).inOrder()
+
+    addCompletedReplacement(D5, D5_REPLACEMENT)
+    val completed = workflow.resume(started.operation.name)
+
+    assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
     Unit
   }
 
@@ -195,6 +255,7 @@ class UploadHealingWorkflowTest {
     doneBlobUri = "gs://input/day-$index/done"
     doneBlobGeneration = index.toLong() + 1L
     doneBlobCreateTime = Instant.ofEpochSecond(index.toLong() + 1L).toProtoTime()
+    createTime = Instant.ofEpochSecond(index.toLong() + 1L).toProtoTime()
     registrationComplete = true
   }
 
@@ -278,12 +339,15 @@ class UploadHealingWorkflowTest {
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp"
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
+    private const val D1 = "$DATA_PROVIDER/rawImpressionUploads/d1"
     private const val D2 = "$DATA_PROVIDER/rawImpressionUploads/d2"
     private const val D3 = "$DATA_PROVIDER/rawImpressionUploads/d3"
     private const val D4 = "$DATA_PROVIDER/rawImpressionUploads/d4"
     private const val D5 = "$DATA_PROVIDER/rawImpressionUploads/d5"
     private const val D2_REPLACEMENT = "$DATA_PROVIDER/rawImpressionUploads/d2-replacement"
     private const val D3_REPLACEMENT = "$DATA_PROVIDER/rawImpressionUploads/d3-replacement"
+    private const val D4_REPLACEMENT = "$DATA_PROVIDER/rawImpressionUploads/d4-replacement"
+    private const val D5_REPLACEMENT = "$DATA_PROVIDER/rawImpressionUploads/d5-replacement"
     private const val M2 = "$D2/rawImpressionUploadModelLines/ml"
     private const val M3 = "$D3/rawImpressionUploadModelLines/ml"
     private const val M4 = "$D4/rawImpressionUploadModelLines/ml"
@@ -295,62 +359,6 @@ class UploadHealingWorkflowTest {
       >(
         { it.state },
         "has state",
-      )
-    private val PLAN =
-      EvictUploader.EvictionPlan(
-        cascade =
-          listOf(
-            entry(
-              D2,
-              M2,
-              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
-              "",
-            ),
-            entry(
-              D3,
-              M3,
-              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
-              D2,
-            ),
-            entry(
-              D4,
-              M4,
-              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
-              D3,
-            ),
-            entry(
-              D5,
-              M5,
-              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
-              D4,
-            ),
-          ),
-        extraUploads = listOf(D3, D5),
-        memoizedModelLines = setOf(MODEL_LINE),
-        nonMemoizedModelLines = emptySet(),
-        badUploads = listOf(D2, D4),
-        cutoffTime = Instant.EPOCH,
-        evictionOperationId = "11111111-1111-4111-8111-111111111111",
-        recoveryTargets =
-          listOf(
-            EvictUploader.RecoveryTarget(D3, listOf(MODEL_LINE)),
-            EvictUploader.RecoveryTarget(D5, listOf(MODEL_LINE)),
-          ),
-      )
-
-    private fun entry(
-      upload: String,
-      row: String,
-      action: RawImpressionUploadModelLine.RecoveryAction,
-      predecessor: String,
-    ) =
-      EvictUploader.CascadeEntry(
-        uploadName = upload,
-        modelLineName = row,
-        cmmsModelLine = MODEL_LINE,
-        memoized = true,
-        recoveryAction = action,
-        recoveryPredecessorUploadName = predecessor,
       )
   }
 }
