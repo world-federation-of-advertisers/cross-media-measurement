@@ -109,6 +109,10 @@ class FrequencyVectorBuilder(
         measurementSpec.impression.maximumFrequencyPerUser
       } else if (measurementSpec.hasReach()) {
         resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1
+      } else if (measurementSpec.hasMulti()) {
+        // A multimeasurement carries no frequency cap. The TEE folds the histogram downstream, so
+        // the vector is built uncapped and only the cell width binds.
+        Byte.MAX_VALUE.toInt()
       } else {
         1
       }
