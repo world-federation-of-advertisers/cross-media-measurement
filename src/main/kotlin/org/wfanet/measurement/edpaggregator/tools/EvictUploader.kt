@@ -92,7 +92,7 @@ class EvictUploader(
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   labeledImpressionsBlobPrefix: String,
   private val deleteBlob: suspend (String) -> Boolean,
-) {
+) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
 
   init {
@@ -385,7 +385,13 @@ class EvictUploader(
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
    * carrying the resource ID treats the already-deleted row as an idempotent `NOT_FOUND`.
    */
-  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
+  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult = evict(plan, reason) {}
+
+  override suspend fun evict(
+    plan: EvictionPlan,
+    reason: String,
+    onEntryEvicted: suspend (CascadeEntry) -> Unit,
+  ): EvictionResult {
     val dataProvider = dataProviderOf(plan.badUploads.first())
     uploadsStub.acquireRawImpressionUploadEvictionFence(
       acquireRawImpressionUploadEvictionFenceRequest {
@@ -407,12 +413,16 @@ class EvictUploader(
       }
       throw e
     }
-    val result = executeEviction(plan, reason)
+    val result = executeEviction(plan, reason, onEntryEvicted)
     releaseEvictionFence(dataProvider, plan.evictionOperationId)
     return result
   }
 
-  private suspend fun executeEviction(plan: EvictionPlan, reason: String): EvictionResult {
+  private suspend fun executeEviction(
+    plan: EvictionPlan,
+    reason: String,
+    onEntryEvicted: suspend (CascadeEntry) -> Unit,
+  ): EvictionResult {
     val failed = mutableListOf<String>()
     var deleted = 0
     var deletedMetadata = 0
@@ -458,6 +468,7 @@ class EvictUploader(
       val outputCleanup = cleanLabeledOutputs(entry, cleanedMetadataNames, cleanedBlobUris)
       deletedMetadata += outputCleanup.deletedMetadata
       deletedOutputBlobs += outputCleanup.deletedBlobs
+      onEntryEvicted(entry)
     }
     return EvictionResult(failed, deleted, deletedMetadata, deletedOutputBlobs)
   }
