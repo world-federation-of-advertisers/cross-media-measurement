@@ -2,6 +2,15 @@ load("@pip//:requirements.bzl", "requirement")
 load("@rules_python//python:defs.bzl", "py_test")
 
 py_test(
+    name = "potential_direct_result_minimum_thresholds_test",
+    srcs = ["potential_direct_result_minimum_thresholds_test.py"],
+    deps = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/noiseninja",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:potential_direct_result_minimum_thresholds",
+    ],
+)
+
+py_test(
     name = "post_process_origin_report_test",
     srcs = ["post_process_origin_report_test.py"],
     data = [":sample_reports"],
@@ -19,6 +28,7 @@ py_test(
     deps = [
         "//src/main/proto/wfa/measurement/internal/reporting/postprocessing:report_summary_v2_py_pb2",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_summary_v2",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:potential_direct_result_minimum_thresholds",
         requirement("protobuf"),
     ],
 )
@@ -63,6 +73,7 @@ py_test(
     data = [":sample_reports"],
     deps = [
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_result",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:potential_direct_result_minimum_thresholds",
         requirement("absl-py"),
         requirement("google-api-core"),
         requirement("protobuf"),
