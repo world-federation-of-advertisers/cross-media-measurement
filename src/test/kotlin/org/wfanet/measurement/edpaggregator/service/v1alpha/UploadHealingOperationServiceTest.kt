@@ -136,6 +136,33 @@ class UploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `create requires request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService().createUploadHealingOperation(validCreateRequest(requestId = ""))
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `advance requires request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .advanceUploadHealingStep(
+            advanceUploadHealingStepRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/steps/1"
+              etag = "etag"
+              action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `create translates internal errors`() = runBlocking {
     org.mockito.kotlin
       .whenever(internalService.createUploadHealingOperation(org.mockito.kotlin.any()))
@@ -183,6 +210,7 @@ class UploadHealingOperationServiceTest {
               name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/steps/1"
               etag = "etag"
               action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+              requestId = REQUEST_ID
             }
           )
       }
@@ -196,24 +224,26 @@ class UploadHealingOperationServiceTest {
       InternalServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(grpcTestServerRule.channel)
     )
 
-  private fun validCreateRequest() = createUploadHealingOperationRequest {
-    parent = DATA_PROVIDER
-    uploadHealingOperationId = OPERATION_ID
-    requestId = REQUEST_ID
-    uploadHealingOperation = uploadHealingOperation {
-      reason = "bad data"
-      labeledImpressionsBlobPrefix = "gs://output/vid"
-      badRawImpressionUploads += UPLOAD
-      cutoffTime = timestamp { seconds = 100L }
-      steps += uploadHealingStep {
-        sequenceNumber = 0L
-        sourceRawImpressionUpload = UPLOAD
-        rawImpressionUploadModelLine = MODEL_LINE_ROW
-        cmmsModelLine = CMMS_MODEL_LINE
-        recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+  private fun validCreateRequest(requestId: String = REQUEST_ID) =
+    createUploadHealingOperationRequest {
+      parent = DATA_PROVIDER
+      uploadHealingOperationId = OPERATION_ID
+      this.requestId = requestId
+      uploadHealingOperation = uploadHealingOperation {
+        reason = "bad data"
+        labeledImpressionsBlobPrefix = "gs://output/vid"
+        badRawImpressionUploads += UPLOAD
+        cutoffTime = timestamp { seconds = 100L }
+        steps += uploadHealingStep {
+          sequenceNumber = 0L
+          sourceRawImpressionUpload = UPLOAD
+          rawImpressionUploadModelLine = MODEL_LINE_ROW
+          cmmsModelLine = CMMS_MODEL_LINE
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+        }
       }
     }
-  }
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp"
