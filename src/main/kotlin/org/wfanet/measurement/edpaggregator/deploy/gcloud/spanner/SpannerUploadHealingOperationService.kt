@@ -105,7 +105,7 @@ class SpannerUploadHealingOperationService(
     requireNotBlank(request.uploadHealingOperationId, "upload_healing_operation_id")
     require(request.uploadHealingStepId > 0L) { "upload_healing_step_id must be positive" }
     requireNotBlank(request.etag, "etag")
-    if (request.requestId.isNotEmpty()) requireUuid(request.requestId, "request_id")
+    requireUuid(request.requestId, "request_id")
     require(
       request.action != AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED &&
         request.action != AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED

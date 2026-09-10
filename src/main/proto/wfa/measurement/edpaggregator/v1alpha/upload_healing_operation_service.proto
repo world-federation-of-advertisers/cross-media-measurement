@@ -60,10 +60,13 @@ message CreateUploadHealingOperationRequest {
     (google.api.field_info).format = UUID4
   ];
 
-  // Optional UUID that makes creation retry-safe. The operation ID is used
-  // when this is omitted.
+  // UUID4 deterministically derived from `upload_healing_operation_id` so
+  // creation can be retried safely.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is required for retry-safe creation.
+  //     --)
   string request_id = 4 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 }
@@ -119,9 +122,10 @@ message AdvanceUploadHealingStepRequest {
   int64 recovery_done_blob_generation = 5
       [(google.api.field_behavior) = OPTIONAL];
 
-  // Optional UUID that makes this transition retry-safe.
+  // UUID4 deterministically derived from the step name, target checkpoint,
+  // and any replacement or generation evidence.
   string request_id = 6 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 }
