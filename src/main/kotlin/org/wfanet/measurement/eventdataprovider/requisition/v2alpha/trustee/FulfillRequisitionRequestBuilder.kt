@@ -24,15 +24,19 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import java.io.ByteArrayOutputStream
 import org.wfanet.frequencycount.FrequencyVector
+import org.wfanet.measurement.api.v2alpha.EncryptedMessage
 import org.wfanet.measurement.api.v2alpha.EncryptionKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTee
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.HeaderKt.trusTeeV2
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.bodyChunk
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt.header
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.encryptedMessage
 import org.wfanet.measurement.api.v2alpha.encryptionKey
 import org.wfanet.measurement.api.v2alpha.fulfillRequisitionRequest
+import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.crypto.tink.StreamingEncryption
 import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFingerprint
 
@@ -44,6 +48,9 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
  * @param frequencyVector The payload for the fulfillment
  * @param encryptionParams The parameters for encryption. If null, the payload will not be
  *   encrypted.
+ * @param fulfillmentDetails Values to send alongside the frequency vector. Only valid for a
+ *   `TrusTeeV2` requisition. Encrypted with the payload's Data Encryption Key when the payload is
+ *   encrypted, and sent in plaintext when it is not.
  * @throws IllegalArgumentException if the requisition is malformed or the frequency vector is empty
  * @throws GeneralSecurityException if a cryptographic error happens
  */
@@ -53,6 +60,8 @@ class FulfillRequisitionRequestBuilder(
   // TODO(world-federation-of-advertisers/cross-media-measurement#2705): make it ByteArray
   private val frequencyVector: FrequencyVector,
   private val encryptionParams: EncryptionParams?,
+  private val fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? =
+    null,
 ) {
   /**
    * Parameters for optional encryption
@@ -75,12 +84,22 @@ class FulfillRequisitionRequestBuilder(
 
   private val frequencyVectorBytes: ByteArray
 
-  init {
-    val trusTeeProtocolList =
-      requisition.protocolConfig.protocolsList.filter { it.hasTrusTee() }.map { it.trusTee }
+  /** Whether this fulfills a `TrusTeeV2` [Requisition] rather than a `TrusTee` one. */
+  private val isTrusTeeV2: Boolean
 
-    require(trusTeeProtocolList.size == 1) {
-      "Expected to find exactly one config for TrusTee. Found: ${trusTeeProtocolList.size}"
+  init {
+    val trusTeeProtocolCount = requisition.protocolConfig.protocolsList.count { it.hasTrusTee() }
+    val trusTeeV2ProtocolCount =
+      requisition.protocolConfig.protocolsList.count { it.hasTrusTeeV2() }
+
+    require(trusTeeProtocolCount + trusTeeV2ProtocolCount == 1) {
+      "Expected to find exactly one config for TrusTee or TrusTeeV2. Found: " +
+        "${trusTeeProtocolCount + trusTeeV2ProtocolCount}"
+    }
+    isTrusTeeV2 = trusTeeV2ProtocolCount == 1
+
+    require(fulfillmentDetails == null || isTrusTeeV2) {
+      "fulfillmentDetails may only be set for a TrusTeeV2 Requisition"
     }
 
     require(frequencyVector.dataCount > 0) { "FrequencyVector must have size > 0" }
@@ -113,7 +132,9 @@ class FulfillRequisitionRequestBuilder(
     } else {
       val dekHandle = KeysetHandle.generateNew(KeyTemplates.get(KEY_TEMPLATE))
       val encryptedDek = encryptDek(dekHandle)
-      val headerRequest = buildEncryptedHeader(encryptedDek)
+      val encryptedDetails: EncryptedMessage? =
+        fulfillmentDetails?.let { encryptFulfillmentDetails(dekHandle, it) }
+      val headerRequest = buildEncryptedHeader(encryptedDek, encryptedDetails)
       yield(headerRequest)
 
       val bodyChunkRequests: Sequence<FulfillRequisitionRequest> =
@@ -137,44 +158,88 @@ class FulfillRequisitionRequestBuilder(
   }
 
   private fun buildUnencryptedHeader(): FulfillRequisitionRequest {
+    val trusTeeParams = trusTee {
+      dataFormat = FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR
+    }
+    val details = fulfillmentDetails
     return fulfillRequisitionRequest {
       header = header {
         name = requisition.name
         requisitionFingerprint = computeRequisitionFingerprint(requisition)
         nonce = requisitionNonce
         protocolConfig = requisition.protocolConfig
-        trusTee = trusTee {
-          dataFormat = FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR
+        if (isTrusTeeV2) {
+          trusTeeV2 = trusTeeV2 {
+            trusTee = trusTeeParams
+            if (details != null) {
+              fulfillmentDetails = details
+            }
+          }
+        } else {
+          trusTee = trusTeeParams
         }
       }
     }
   }
 
-  private fun buildEncryptedHeader(encryptedDek: ByteString): FulfillRequisitionRequest {
+  /**
+   * Encrypts [details] with the payload's Data Encryption Key, so that they carry the same
+   * protection as the frequency vector they accompany.
+   */
+  private fun encryptFulfillmentDetails(
+    dekHandle: KeysetHandle,
+    details: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails,
+  ): EncryptedMessage {
+    val ciphertextChunks: Sequence<ByteString> =
+      StreamingEncryption.encryptChunked(
+        dekHandle,
+        details.toByteString(),
+        null,
+        RPC_CHUNK_SIZE_BYTES,
+      )
+    return encryptedMessage {
+      ciphertext = ciphertextChunks.fold(ByteString.EMPTY) { acc, chunk -> acc.concat(chunk) }
+      typeUrl = ProtoReflection.getTypeUrl(details.descriptorForType)
+    }
+  }
+
+  private fun buildEncryptedHeader(
+    encryptedDek: ByteString,
+    encryptedDetails: EncryptedMessage?,
+  ): FulfillRequisitionRequest {
+    val trusTeeParams = trusTee {
+      dataFormat = FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
+      envelopeEncryption =
+        FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption {
+          this.encryptedDek = encryptionKey {
+            format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
+            data = encryptedDek
+          }
+          kmsKekUri = encryptionParams!!.kmsKekUri
+          workloadIdentityProvider = encryptionParams.workloadIdentityProvider
+          impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
+          if (encryptionParams.awsKmsParams != null) {
+            awsKmsParams = encryptionParams.awsKmsParams
+          }
+        }
+      // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
+      // populationSpec fingerprint
+    }
     return fulfillRequisitionRequest {
       header = header {
         name = requisition.name
         requisitionFingerprint = computeRequisitionFingerprint(requisition)
         nonce = requisitionNonce
         protocolConfig = requisition.protocolConfig
-        trusTee = trusTee {
-          dataFormat =
-            FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR
-          envelopeEncryption =
-            FulfillRequisitionRequestKt.HeaderKt.TrusTeeKt.envelopeEncryption {
-              this.encryptedDek = encryptionKey {
-                format = EncryptionKey.Format.TINK_ENCRYPTED_KEYSET
-                data = encryptedDek
-              }
-              kmsKekUri = encryptionParams!!.kmsKekUri
-              workloadIdentityProvider = encryptionParams.workloadIdentityProvider
-              impersonatedServiceAccount = encryptionParams.impersonatedServiceAccount
-              if (encryptionParams.awsKmsParams != null) {
-                awsKmsParams = encryptionParams.awsKmsParams
-              }
+        if (isTrusTeeV2) {
+          trusTeeV2 = trusTeeV2 {
+            trusTee = trusTeeParams
+            if (encryptedDetails != null) {
+              encryptedFulfillmentDetails = encryptedDetails
             }
-          // TODO(world-federation-of-advertisers/cross-media-measurement#2624): generate
-          // populationSpec fingerprint
+          }
+        } else {
+          trusTee = trusTeeParams
         }
       }
     }
@@ -195,12 +260,14 @@ class FulfillRequisitionRequestBuilder(
       requisitionNonce: Long,
       frequencyVector: FrequencyVector,
       encryptionParams: EncryptionParams,
+      fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
     ): Sequence<FulfillRequisitionRequest> {
       return FulfillRequisitionRequestBuilder(
           requisition,
           requisitionNonce,
           frequencyVector,
           encryptionParams,
+          fulfillmentDetails,
         )
         .build()
     }
@@ -210,7 +277,15 @@ class FulfillRequisitionRequestBuilder(
       requisition: Requisition,
       requisitionNonce: Long,
       frequencyVector: FrequencyVector,
+      fulfillmentDetails: FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails? = null,
     ): Sequence<FulfillRequisitionRequest> =
-      FulfillRequisitionRequestBuilder(requisition, requisitionNonce, frequencyVector, null).build()
+      FulfillRequisitionRequestBuilder(
+          requisition,
+          requisitionNonce,
+          frequencyVector,
+          null,
+          fulfillmentDetails,
+        )
+        .build()
   }
 }
