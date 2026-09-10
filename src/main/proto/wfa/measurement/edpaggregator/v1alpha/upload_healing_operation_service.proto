@@ -1,0 +1,99 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "google/protobuf/field_mask.proto";
+import "wfa/measurement/edpaggregator/v1alpha/upload_healing_operation.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "UploadHealingOperationServiceProto";
+
+// Service for persisting and resuming VID-labeling upload healing workflows.
+service UploadHealingOperationService {
+  // Creates a healing operation and all of its ordered steps atomically.
+  rpc CreateUploadHealingOperation(CreateUploadHealingOperationRequest)
+      returns (UploadHealingOperation) {}
+
+  // Retrieves a healing operation and its ordered steps.
+  rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
+      returns (UploadHealingOperation) {}
+
+  // Updates the mutable checkpoint fields of one healing step.
+  rpc UpdateUploadHealingStep(UpdateUploadHealingStepRequest)
+      returns (UploadHealingStep) {}
+}
+
+// Request message for `CreateUploadHealingOperation`.
+message CreateUploadHealingOperationRequest {
+  // Parent data provider resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+
+  // Operation and planned steps to persist.
+  UploadHealingOperation upload_healing_operation = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Client-assigned UUID used as the operation resource ID.
+  string upload_healing_operation_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+
+  // Optional UUID that makes creation retry-safe. The operation ID is used
+  // when this is omitted.
+  string request_id = 4 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `GetUploadHealingOperation`.
+message GetUploadHealingOperationRequest {
+  // Resource name of the operation.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+}
+
+// Request message for `UpdateUploadHealingStep`.
+message UpdateUploadHealingStepRequest {
+  // Step containing its name, etag, and requested checkpoint fields.
+  UploadHealingStep upload_healing_step = 1
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Fields to update. Supported paths are `state`,
+  // `replacement_raw_impression_upload`, and `recovery_done_blob_generation`.
+  google.protobuf.FieldMask update_mask = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Optional UUID that makes this checkpoint update retry-safe.
+  string request_id = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_info).format = UUID4
+  ];
+}

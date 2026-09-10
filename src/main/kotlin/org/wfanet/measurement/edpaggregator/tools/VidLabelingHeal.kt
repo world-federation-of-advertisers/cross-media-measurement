@@ -33,6 +33,7 @@ import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -41,7 +42,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -54,6 +57,7 @@ import picocli.CommandLine
 import picocli.CommandLine.Command
 import picocli.CommandLine.Mixin
 import picocli.CommandLine.Option
+import picocli.CommandLine.Parameters
 
 /**
  * Operator tool to recover the VID labeling pipeline from failure states.
@@ -73,6 +77,7 @@ import picocli.CommandLine.Option
       RetryFailedCommand::class,
       BackfillModelLineCommand::class,
       EvictUploadsCommand::class,
+      ResumeHealingCommand::class,
       RecoverUploadCommand::class,
       RedeliverDlqCommand::class,
       // TODO(world-federation-of-advertisers/cross-media-measurement#4223): add
@@ -509,6 +514,36 @@ class RecoverUploadCommand : EdpaApiCommand() {
       doneBlobUri: String,
       expectedGeneration: Long,
       metadata: Map<String, String>,
+    ): Long =
+      writeDoneBlob(
+        storage,
+        doneBlobUri,
+        expectedGeneration,
+        metadata,
+        reuseMatchingRecoveryGeneration = false,
+      )
+
+    /** Resumes a workflow rewrite without producing another matching recovery generation. */
+    fun resumeDoneBlob(
+      storage: Storage,
+      doneBlobUri: String,
+      expectedGeneration: Long,
+      metadata: Map<String, String>,
+    ): Long =
+      writeDoneBlob(
+        storage,
+        doneBlobUri,
+        expectedGeneration,
+        metadata,
+        reuseMatchingRecoveryGeneration = true,
+      )
+
+    private fun writeDoneBlob(
+      storage: Storage,
+      doneBlobUri: String,
+      expectedGeneration: Long,
+      metadata: Map<String, String>,
+      reuseMatchingRecoveryGeneration: Boolean,
     ): Long {
       val blobUri = SelectedStorageClient.parseBlobUri(doneBlobUri)
       require(blobUri.scheme == "gs") { "done blob must use gs://, got $doneBlobUri" }
@@ -522,6 +557,9 @@ class RecoverUploadCommand : EdpaApiCommand() {
       require(current.generation == expectedGeneration || isRetryableRecoveryGeneration) {
         "$doneBlobUri is at generation ${current.generation}, not source generation " +
           "$expectedGeneration, and does not carry the same recovery metadata"
+      }
+      if (reuseMatchingRecoveryGeneration && isRetryableRecoveryGeneration) {
+        return current.generation
       }
       val blobInfo = BlobInfo.newBuilder(blobId).setMetadata(currentMetadata + metadata).build()
       return storage
@@ -604,44 +642,12 @@ class EvictUploadsCommand : EdpaApiCommand() {
     }
     require(retentionDays > 0) { "--retention-days must be positive; got $retentionDays" }
     val outputPrefixBlobUri = parseLabeledImpressionsBlobPrefix(labeledImpressionsBlobPrefix)
-    val normalizedOutputPrefix =
-      "gs://${outputPrefixBlobUri.bucket}" +
-        outputPrefixBlobUri.key.takeIf { it.isNotEmpty() }?.let { "/$it" }.orEmpty()
+    val normalizedOutputPrefix = normalizedBlobPrefix(outputPrefixBlobUri)
     val channel: ManagedChannel = buildEdpaChannel()
     try {
       runBlocking {
-        val outputStorageClients = ConcurrentHashMap<Pair<String, String>, StorageClient>()
-        outputStorageClients[outputPrefixBlobUri.scheme to outputPrefixBlobUri.bucket] =
-          SelectedStorageClient(
-              blobUri = outputPrefixBlobUri,
-              projectId = gcsProject.ifEmpty { null },
-            )
-            .underlyingClient
-        val deleteBlob: suspend (String) -> Boolean = { blobPath ->
-          val blobUri = SelectedStorageClient.parseBlobUri(blobPath)
-          val storageClient =
-            outputStorageClients.computeIfAbsent(blobUri.scheme to blobUri.bucket) {
-              SelectedStorageClient(blobUri = blobUri, projectId = gcsProject.ifEmpty { null })
-                .underlyingClient
-            }
-          val blob = storageClient.getBlob(blobUri.key)
-          if (blob == null) {
-            false
-          } else {
-            blob.delete()
-            true
-          }
-        }
         val evictUploader =
-          EvictUploader(
-            RawImpressionUploadServiceCoroutineStub(channel),
-            RawImpressionUploadModelLineServiceCoroutineStub(channel),
-            RankIndexBlobServiceCoroutineStub(channel),
-            RawImpressionUploadFileServiceCoroutineStub(channel),
-            ImpressionMetadataServiceCoroutineStub(channel),
-            normalizedOutputPrefix,
-            deleteBlob,
-          )
+          newEvictUploader(channel, outputPrefixBlobUri, normalizedOutputPrefix, gcsProject)
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
         val plan = evictUploader.plan(badUploads, cutoffTime)
 
@@ -658,6 +664,10 @@ class EvictUploadsCommand : EdpaApiCommand() {
             "NOTE: uploads created after the bad one(s) will also be evicted: ${plan.extraUploads}"
           )
         }
+        val operationName =
+          "${requireNotNull(RawImpressionUploadKey.fromName(plan.badUploads.first())).parentKey.toName()}" +
+            "/uploadHealingOperations/${plan.evictionOperationId}"
+        println("Healing operation after confirmation: $operationName")
 
         // Require explicit operator confirmation before any mutation.
         print(
@@ -671,44 +681,24 @@ class EvictUploadsCommand : EdpaApiCommand() {
           return@runBlocking
         }
 
-        val result = evictUploader.evict(plan, reason)
-        println(
-          "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
-            "${result.deletedSnapshots} snapshot(s) and ${result.deletedImpressionMetadata} " +
-            "ImpressionMetadata row(s), and removed ${result.deletedOutputBlobs} generated output " +
-            "blob(s). Raw impression objects were retained. Re-trigger the corrected uploads by " +
-            "writing new done blobs. Do not use retry-failed for these model lines."
-        )
-        if (plan.recoveryTargets.isNotEmpty()) {
+        val progress =
+          newUploadHealingWorkflow(channel, evictUploader, gcsProject)
+            .start(plan, reason, normalizedOutputPrefix)
+        progress.evictionResult?.let { result ->
           println(
-            "After corrected bad uploads have completed, run these memoized recovery commands " +
-              "in order:"
+            "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
+              "${result.deletedSnapshots} snapshot(s) and ${result.deletedImpressionMetadata} " +
+              "ImpressionMetadata row(s), and removed ${result.deletedOutputBlobs} generated " +
+              "output blob(s). Raw impression objects were retained."
           )
-          for (target in plan.recoveryTargets) {
-            println(recoveryCommand(target))
-          }
         }
+        println("Healing operation: ${progress.operation.name}")
+        println(progress.nextAction)
       }
     } finally {
       channel.shutdown()
       channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
     }
-  }
-
-  private fun recoveryCommand(target: EvictUploader.RecoveryTarget): String {
-    val arguments = buildList {
-      add("vid-labeling-heal")
-      add("recover-upload")
-      add("--raw-impression-upload=${target.uploadName}")
-      add("--model-lines=${target.cmmsModelLines.joinToString(",")}")
-      add("--edpa-public-api-target=$edpaPublicApiTarget")
-      edpaPublicApiCertHost?.let { add("--edpa-public-api-cert-host=$it") }
-      add("--tls-cert-file=${tlsFlags.certFile.path}")
-      add("--tls-key-file=${tlsFlags.privateKeyFile.path}")
-      tlsFlags.certCollectionFile?.let { add("--cert-collection-file=${it.path}") }
-      if (gcsProject.isNotEmpty()) add("--gcs-project=$gcsProject")
-    }
-    return arguments.joinToString(separator = " ") { shellQuote(it) }
   }
 
   companion object {
@@ -732,8 +722,131 @@ class EvictUploadsCommand : EdpaApiCommand() {
   }
 }
 
-/** Quotes one command-line argument for a POSIX-compatible shell. */
-private fun shellQuote(value: String): String = "'${value.replace("'", "'\"'\"'")}'"
+/** Resumes a persisted upload-healing operation and prints the next required action. */
+@Command(
+  name = "resume",
+  description = ["Resumes an interrupted upload eviction and ordered replacement workflow."],
+  mixinStandardHelpOptions = true,
+)
+class ResumeHealingCommand : EdpaApiCommand() {
+  @Parameters(index = "0", description = ["UploadHealingOperation name printed by evict-uploads."])
+  private lateinit var operationName: String
+
+  @Option(
+    names = ["--gcs-project"],
+    description = ["Google Cloud project used to access upload and VID-labeled output buckets."],
+    required = false,
+  )
+  private var gcsProject: String = ""
+
+  override fun run() {
+    val channel = buildEdpaChannel()
+    try {
+      runBlocking {
+        val operationsStub = UploadHealingOperationServiceCoroutineStub(channel)
+        val operation =
+          operationsStub.getUploadHealingOperation(
+            getUploadHealingOperationRequest { name = operationName }
+          )
+        val outputPrefixBlobUri =
+          EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
+            operation.labeledImpressionsBlobPrefix
+          )
+        val evictUploader =
+          newEvictUploader(
+            channel,
+            outputPrefixBlobUri,
+            normalizedBlobPrefix(outputPrefixBlobUri),
+            gcsProject,
+          )
+        val progress =
+          newUploadHealingWorkflow(channel, evictUploader, gcsProject).resume(operation.name)
+        progress.evictionResult?.let { result ->
+          println(
+            "Resumed eviction: marked ${result.failedModelLines.size} model line(s) FAILED, " +
+              "soft-deleted ${result.deletedSnapshots} snapshot(s) and " +
+              "${result.deletedImpressionMetadata} ImpressionMetadata row(s), and removed " +
+              "${result.deletedOutputBlobs} generated output blob(s)."
+          )
+        }
+        println(progress.nextAction)
+      }
+    } finally {
+      channel.shutdown()
+      channel.awaitTermination(SHUTDOWN_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+    }
+  }
+}
+
+private fun newEvictUploader(
+  channel: ManagedChannel,
+  outputPrefixBlobUri: BlobUri,
+  normalizedOutputPrefix: String,
+  gcsProject: String,
+): EvictUploader {
+  val outputStorageClients = ConcurrentHashMap<Pair<String, String>, StorageClient>()
+  outputStorageClients[outputPrefixBlobUri.scheme to outputPrefixBlobUri.bucket] =
+    SelectedStorageClient(blobUri = outputPrefixBlobUri, projectId = gcsProject.ifEmpty { null })
+      .underlyingClient
+  val deleteBlob: suspend (String) -> Boolean = { blobPath ->
+    val blobUri = SelectedStorageClient.parseBlobUri(blobPath)
+    val storageClient =
+      outputStorageClients.computeIfAbsent(blobUri.scheme to blobUri.bucket) {
+        SelectedStorageClient(blobUri = blobUri, projectId = gcsProject.ifEmpty { null })
+          .underlyingClient
+      }
+    val blob = storageClient.getBlob(blobUri.key)
+    if (blob == null) {
+      false
+    } else {
+      blob.delete()
+      true
+    }
+  }
+  return EvictUploader(
+    RawImpressionUploadServiceCoroutineStub(channel),
+    RawImpressionUploadModelLineServiceCoroutineStub(channel),
+    RankIndexBlobServiceCoroutineStub(channel),
+    RawImpressionUploadFileServiceCoroutineStub(channel),
+    ImpressionMetadataServiceCoroutineStub(channel),
+    normalizedOutputPrefix,
+    deleteBlob,
+  )
+}
+
+private fun newUploadHealingWorkflow(
+  channel: ManagedChannel,
+  evictUploader: EvictUploader,
+  gcsProject: String,
+): UploadHealingWorkflow {
+  val uploadsStub = RawImpressionUploadServiceCoroutineStub(channel)
+  val modelLinesStub = RawImpressionUploadModelLineServiceCoroutineStub(channel)
+  val rankIndexBlobsStub = RankIndexBlobServiceCoroutineStub(channel)
+  val storage =
+    if (gcsProject.isEmpty()) {
+      StorageOptions.getDefaultInstance().service
+    } else {
+      StorageOptions.newBuilder().setProjectId(gcsProject).build().service
+    }
+  val recoverUploader =
+    RecoverUploader(uploadsStub, modelLinesStub, rankIndexBlobsStub) {
+      doneBlobUri,
+      expectedGeneration,
+      metadata ->
+      RecoverUploadCommand.resumeDoneBlob(storage, doneBlobUri, expectedGeneration, metadata)
+    }
+  return UploadHealingWorkflow(
+    UploadHealingOperationServiceCoroutineStub(channel),
+    uploadsStub,
+    modelLinesStub,
+    rankIndexBlobsStub,
+    evictUploader,
+    recoverUploader,
+  )
+}
+
+private fun normalizedBlobPrefix(blobUri: BlobUri): String =
+  "gs://${blobUri.bucket}" + blobUri.key.takeIf { it.isNotEmpty() }?.let { "/$it" }.orEmpty()
 
 /**
  * Returns true iff [answer] is an affirmative confirmation — "y" or "yes" (case-insensitive,
