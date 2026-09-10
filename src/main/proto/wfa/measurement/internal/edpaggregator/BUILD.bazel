@@ -248,8 +248,8 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_model_line_failure_reason_proto",
-        ":raw_impression_upload_model_line_recovery_action_proto",
         ":raw_impression_upload_model_line_proto",
+        ":raw_impression_upload_model_line_recovery_action_proto",
         ":raw_impression_upload_model_line_state_proto",
         "@com_google_googleapis//google/type:interval_proto",
         "@com_google_protobuf//:timestamp_proto",
