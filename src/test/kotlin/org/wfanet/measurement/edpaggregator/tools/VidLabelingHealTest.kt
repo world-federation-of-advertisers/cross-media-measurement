@@ -148,7 +148,6 @@ class VidLabelingHealTest {
     whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
       .thenReturn(created)
     whenever(created.generation).thenReturn(12L)
-
     val generation =
       RecoverUploadCommand.rewriteDoneBlob(
         storage,
@@ -163,6 +162,32 @@ class VidLabelingHealTest {
     verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
     assertThat(blobInfo.firstValue.metadata).containsAtLeastEntriesIn(metadata)
     assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(9L))
+  }
+
+  @Test
+  fun `resumeDoneBlob reuses an existing matching recovery generation`() {
+    val storage = mock<Storage>()
+    val current = mock<Blob>()
+    val metadata =
+      mapOf(
+        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
+        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
+      )
+    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
+    whenever(current.generation).thenReturn(9L)
+    whenever(current.metadata).thenReturn(metadata)
+
+    val generation =
+      RecoverUploadCommand.resumeDoneBlob(
+        storage,
+        "gs://bucket/path/done",
+        expectedGeneration = 10L,
+        metadata = metadata,
+      )
+
+    assertThat(generation).isEqualTo(9L)
+    verify(storage, org.mockito.kotlin.never())
+      .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
   }
 
   @Test
