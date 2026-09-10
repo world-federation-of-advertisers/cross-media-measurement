@@ -25,6 +25,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
@@ -36,7 +37,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.UpdateUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
@@ -232,20 +232,33 @@ class UploadHealingWorkflowTest {
       request: GetUploadHealingOperationRequest
     ): UploadHealingOperation = requireNotNull(operation)
 
-    override suspend fun updateUploadHealingStep(
-      request: UpdateUploadHealingStepRequest
+    override suspend fun advanceUploadHealingStep(
+      request: AdvanceUploadHealingStepRequest
     ): UploadHealingStep {
       val current = requireNotNull(operation)
       val updatedSteps =
         current.stepsList.map { step ->
-          if (step.name != request.uploadHealingStep.name) {
+          if (step.name != request.name) {
             step
           } else {
             step.copy {
-              state = request.uploadHealingStep.state
-              replacementRawImpressionUpload =
-                request.uploadHealingStep.replacementRawImpressionUpload
-              recoveryDoneBlobGeneration = request.uploadHealingStep.recoveryDoneBlobGeneration
+              state =
+                when (request.action) {
+                  AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION ->
+                    if (step.recoveryTarget) {
+                      UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+                    } else {
+                      UploadHealingStep.State.COMPLETE
+                    }
+                  AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY ->
+                    UploadHealingStep.State.RECOVERY_STARTED
+                  AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT ->
+                    UploadHealingStep.State.COMPLETE
+                  AdvanceUploadHealingStepRequest.Action.ACTION_UNSPECIFIED,
+                  AdvanceUploadHealingStepRequest.Action.UNRECOGNIZED -> error("action is required")
+                }
+              replacementRawImpressionUpload = request.replacementRawImpressionUpload
+              recoveryDoneBlobGeneration = request.recoveryDoneBlobGeneration
               etag = "etag-${++etagSequence}"
             }
           }
@@ -258,7 +271,7 @@ class UploadHealingWorkflowTest {
             state = UploadHealingOperation.State.COMPLETE
           }
         }
-      return operation!!.stepsList.single { it.name == request.uploadHealingStep.name }
+      return operation!!.stepsList.single { it.name == request.name }
     }
   }
 

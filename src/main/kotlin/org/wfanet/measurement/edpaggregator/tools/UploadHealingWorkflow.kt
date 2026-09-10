@@ -16,13 +16,13 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
-import com.google.protobuf.FieldMask
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingStepKey
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -34,13 +34,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.updateUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -199,8 +199,7 @@ class UploadHealingWorkflow(
             }
           } else {
             val startedGeneration =
-              group.firstOrNull { it.recoveryDoneBlobGeneration > 0L }
-                ?.recoveryDoneBlobGeneration
+              group.firstOrNull { it.recoveryDoneBlobGeneration > 0L }?.recoveryDoneBlobGeneration
                 ?: error("Recovery for $source started without a done-object generation")
             for (step in
               group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
@@ -244,21 +243,33 @@ class UploadHealingWorkflow(
     replacementUploadName: String = "",
     recoveryDoneBlobGeneration: Long = step.recoveryDoneBlobGeneration,
   ): UploadHealingOperation {
-    operationsStub.updateUploadHealingStep(
-      updateUploadHealingStepRequest {
-        uploadHealingStep = uploadHealingStep {
-          name = step.name
-          this.state = state
+    val action =
+      when (state) {
+        UploadHealingStep.State.WAITING_FOR_REPLACEMENT ->
+          AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+        UploadHealingStep.State.RECOVERY_STARTED ->
+          AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
+        UploadHealingStep.State.COMPLETE ->
+          if (replacementUploadName.isEmpty()) {
+            AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+          } else {
+            AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
+          }
+        UploadHealingStep.State.PENDING_EVICTION,
+        UploadHealingStep.State.STATE_UNSPECIFIED,
+        UploadHealingStep.State.UNRECOGNIZED -> error("Unsupported checkpoint state: $state")
+      }
+    operationsStub.advanceUploadHealingStep(
+      advanceUploadHealingStepRequest {
+        name = step.name
+        etag = step.etag
+        this.action = action
+        if (replacementUploadName.isNotEmpty()) {
           replacementRawImpressionUpload = replacementUploadName
-          this.recoveryDoneBlobGeneration = recoveryDoneBlobGeneration
-          etag = step.etag
         }
-        updateMask =
-          FieldMask.newBuilder()
-            .addPaths("state")
-            .addPaths("replacement_raw_impression_upload")
-            .addPaths("recovery_done_blob_generation")
-            .build()
+        if (recoveryDoneBlobGeneration > 0L) {
+          this.recoveryDoneBlobGeneration = recoveryDoneBlobGeneration
+        }
         requestId =
           RequestIds.forUploadHealingStep(
             step.name,
