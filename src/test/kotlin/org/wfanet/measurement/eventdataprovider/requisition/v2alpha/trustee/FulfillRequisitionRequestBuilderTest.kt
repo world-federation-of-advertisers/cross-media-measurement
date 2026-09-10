@@ -26,6 +26,7 @@ import com.google.protobuf.ByteString
 import java.io.IOException
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -46,6 +47,15 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionRequestBuilderTest {
+  /**
+   * Restores the KEK [Aead], which the tests covering encryption failures replace with a throwing
+   * mock on the shared [KMS_CLIENT].
+   */
+  @Before
+  fun restoreKekAead() {
+    KMS_CLIENT.setAead(KEK_URI, KEK_AEAD)
+  }
+
   @Test
   fun `buildEncrypted fails when requisition has no TrusTee config`() {
     val exception =
@@ -445,12 +455,14 @@ class FulfillRequisitionRequestBuilderTest {
   companion object {
     private val KMS_CLIENT = FakeKmsClient()
     private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    private val KEK_AEAD: Aead
 
     init {
       AeadConfig.register()
       StreamingAeadConfig.register()
       val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
-      KMS_CLIENT.setAead(KEK_URI, kmsKeyHandle.getPrimitive(Aead::class.java))
+      KEK_AEAD = kmsKeyHandle.getPrimitive(Aead::class.java)
+      KMS_CLIENT.setAead(KEK_URI, KEK_AEAD)
     }
 
     private const val NONCE = 12345L
