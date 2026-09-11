@@ -372,8 +372,8 @@ private suspend fun InternalRequisition.toTracedRequisition(): Requisition {
         .put(ReportTraceAttributes.MEASUREMENT_NAME, measurementName)
         .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
         .put(ReportTraceAttributes.REQUISITION_STATE, state.name)
-        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_creation")
-        .put(ReportTraceAttributes.OUTCOME, "returned")
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_available")
+        .put(ReportTraceAttributes.OUTCOME, "succeeded")
         .build(),
   ) {
     toRequisition()

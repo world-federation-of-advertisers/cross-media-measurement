@@ -923,15 +923,31 @@ class MetricsService(
         getCmmsMeasurements(internalMeasurements, measurementConsumerCreds).transform { measurements
           ->
           for (measurement in measurements) {
-            Span.current()
-              .addEvent(
-                "reporting.kingdom_measurement.observed",
+            ReportTracing.traceSuspending(
+              spanName = "reporting.kingdom_measurement.observed",
+              attributes =
                 Attributes.builder()
+                  .putAll(
+                    ReportTraceAttributes.fromMeasurementSpec(measurement.measurementSpec.unpack())
+                  )
+                  .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_measurement_sync")
                   .put(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
                   .put(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
+                  .put(
+                    ReportTraceAttributes.OUTCOME,
+                    when (measurement.state) {
+                      Measurement.State.SUCCEEDED -> "succeeded"
+                      Measurement.State.CANCELLED,
+                      Measurement.State.FAILED -> "failed"
+                      Measurement.State.COMPUTING,
+                      Measurement.State.AWAITING_REQUISITION_FULFILLMENT -> "in_progress"
+                      Measurement.State.STATE_UNSPECIFIED,
+                      Measurement.State.UNRECOGNIZED -> "unknown"
+                    },
+                  )
                   .build(),
-              )
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
+            ) {}
+            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
             when (measurement.state) {
               Measurement.State.SUCCEEDED -> emit(measurement)
               Measurement.State.CANCELLED,
@@ -2185,19 +2201,45 @@ class MetricsService(
         }
       }
       for (metric in publicMetrics) {
-        Span.current()
-          .addEvent(
-            "reporting.metric.returned",
+        ReportTracing.traceSuspending(
+          spanName = "reporting.metric.result_synchronized",
+          attributes =
             Attributes.builder()
+              .put(ReportTraceAttributes.LIFECYCLE_STAGE, "metric_result_sync")
               .put(ReportTraceAttributes.METRIC_NAME, metric.name)
               .put(ReportTraceAttributes.METRIC_STATE, metric.state.name)
+              .put(
+                ReportTraceAttributes.OUTCOME,
+                when (metric.state) {
+                  Metric.State.SUCCEEDED -> "succeeded"
+                  Metric.State.FAILED,
+                  Metric.State.INVALID -> "failed"
+                  Metric.State.RUNNING -> "in_progress"
+                  Metric.State.STATE_UNSPECIFIED,
+                  Metric.State.UNRECOGNIZED -> "unknown"
+                },
+              )
+              .also { builder ->
+                if (metric.basicReport.isNotBlank()) {
+                  builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, metric.basicReport)
+                }
+                if (metric.containingReport.isNotBlank()) {
+                  builder.put(ReportTraceAttributes.REPORT_NAME, metric.containingReport)
+                }
+              }
               .build(),
-          )
+        ) {}
       }
       Span.current()
         .setAttribute(
           ReportTraceAttributes.OUTCOME,
-          if (publicMetrics.any { it.state == Metric.State.FAILED }) "failed" else "synchronized",
+          when {
+            publicMetrics.any {
+              it.state == Metric.State.FAILED || it.state == Metric.State.INVALID
+            } -> "failed"
+            publicMetrics.all { it.state == Metric.State.SUCCEEDED } -> "succeeded"
+            else -> "in_progress"
+          },
         )
       publicMetrics
     }

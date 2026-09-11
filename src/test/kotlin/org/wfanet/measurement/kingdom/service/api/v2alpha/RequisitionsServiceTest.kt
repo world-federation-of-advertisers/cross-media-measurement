@@ -273,8 +273,10 @@ class RequisitionsServiceTest {
       .containsExactly("kingdom.requisition.available", "kingdom.requisition.available")
     assertThat(spans.map { it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) })
       .containsExactly(REQUISITION_NAME, REQUISITION_NAME)
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) })
+      .containsExactly("requisition_available", "requisition_available")
     assertThat(spans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) })
-      .containsExactly("returned", "returned")
+      .containsExactly("succeeded", "succeeded")
   }
 
   @Test

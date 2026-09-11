@@ -9243,6 +9243,25 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
+      val measurementSpan =
+        spanExporter.finishedSpanItems.single {
+          it.name == "reporting.kingdom_measurement.observed"
+        }
+      assertThat(measurementSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+        .isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name)
+      assertThat(measurementSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_STATE))
+        .isEqualTo(Measurement.State.SUCCEEDED.name)
+      assertThat(measurementSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+        .isEqualTo("succeeded")
+
+      val metricSpan =
+        spanExporter.finishedSpanItems.single { it.name == "reporting.metric.result_synchronized" }
+      assertThat(metricSpan.attributes.get(ReportTraceAttributes.METRIC_NAME))
+        .isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name)
+      assertThat(metricSpan.attributes.get(ReportTraceAttributes.METRIC_STATE))
+        .isEqualTo(Metric.State.SUCCEEDED.name)
+      assertThat(metricSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+
       // Verify proto argument of internal
       // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =

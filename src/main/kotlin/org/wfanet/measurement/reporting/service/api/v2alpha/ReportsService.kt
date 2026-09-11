@@ -344,9 +344,9 @@ class ReportsService(
       .setAttribute(
         ReportTraceAttributes.OUTCOME,
         when (report.state) {
-          Report.State.SUCCEEDED -> "results_available"
+          Report.State.SUCCEEDED -> "succeeded"
           Report.State.FAILED -> "failed"
-          else -> "pending"
+          else -> "in_progress"
         },
       )
       .addEvent(
@@ -357,9 +357,9 @@ class ReportsService(
           .put(
             ReportTraceAttributes.OUTCOME,
             when (report.state) {
-              Report.State.SUCCEEDED -> "results_available"
+              Report.State.SUCCEEDED -> "succeeded"
               Report.State.FAILED -> "failed"
-              else -> "pending"
+              else -> "in_progress"
             },
           )
           .build(),
@@ -571,7 +571,11 @@ class ReportsService(
       }
 
     // Convert the internal report to public and return.
-    return convertInternalReportToPublic(updatedInternalReport, externalIdToMetricMap)
+    val report = convertInternalReportToPublic(updatedInternalReport, externalIdToMetricMap)
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REPORT_STATE, report.state.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+    return report
   }
 
   /** Returns a map of external IDs to [InternalMetricCalculationSpec]. */

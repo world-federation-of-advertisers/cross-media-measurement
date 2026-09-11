@@ -221,6 +221,60 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main collects telemetry when BasicReport resolution fails`() {
+    val output = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("resolver-failure").toPath()
+    val basicReportName = "measurementConsumers/mc-1/basicReports/report-a"
+    var loggingCorrelationValues: Collection<String> = emptyList()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            loggingCorrelationValues = correlationValues
+            listOf(
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW,
+                service = "reporting",
+                severity = "ERROR",
+                trace = null,
+                message =
+                  "xmm.basic_report.name=$basicReportName " +
+                    "xmm.lifecycle.stage=report_creation xmm.outcome=failed",
+              )
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { error("Reporting database unavailable") },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$basicReportName",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(loggingCorrelationValues).containsExactly(basicReportName)
+    val artifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
+    assertThat(artifact).contains("Collection completeness: PARTIAL")
+    assertThat(artifact).contains("Resource resolution")
+    assertThat(artifact).contains("IllegalStateException")
+    assertThat(artifact).contains("xmm.lifecycle.stage=report_creation")
+  }
+
+  @Test
   fun `buildLogFilters chunks large identifier sets`() {
     val filters =
       ReportTraceOutput.buildLogFilters(
@@ -286,7 +340,7 @@ class ReportTraceTest {
               attributes =
                 mapOf(
                   "xmm.requisition.name" to "requisitions/r1",
-                  "xmm.lifecycle.stage" to "requisition_creation",
+                  "xmm.lifecycle.stage" to "requisition_available",
                   "xmm.outcome" to "failed",
                   "exception.type" to "IllegalStateException",
                   "exception.message" to "credential=secret",
@@ -311,14 +365,17 @@ class ReportTraceTest {
       listOf(
         "basic_report_creation",
         "report_creation",
+        "metric_creation",
         "measurement_creation",
-        "requisition_creation",
+        "requisition_available",
         "requisition_dispatch",
         "results_fulfillment",
         "kingdom_result_acceptance",
+        "kingdom_measurement_sync",
         "metric_result_sync",
         "report_result_assembly",
         "noise_correction",
+        "processed_result_writeback",
         "duchy_computation",
       )
     val spans =
@@ -332,7 +389,7 @@ class ReportTraceTest {
           service = "test-service",
           startTime = NOW.plusSeconds(index.toLong()),
           endTime = NOW.plusSeconds(index.toLong() + 1),
-          attributes = mapOf("xmm.lifecycle.stage" to stage),
+          attributes = mapOf("xmm.lifecycle.stage" to stage, "xmm.outcome" to "succeeded"),
         )
       }
 
@@ -348,7 +405,7 @@ class ReportTraceTest {
 
     assertThat(output).contains("Collection completeness: COMPLETE")
     assertThat(output).contains("Execution outcome: SUCCEEDED")
-    assertThat(output).contains("| duchy_computation | OBSERVED |")
+    assertThat(output).contains("| duchy_computation | SUCCEEDED |")
     assertThat(output).doesNotContain("| basic_report_api_fetch | MISSING |")
   }
 
@@ -597,6 +654,99 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main expands identifiers and trace IDs discovered from logs`() {
+    val output = StringWriter()
+    val logQueries = mutableListOf<Collection<String>>()
+    val traceIdQueries = mutableListOf<Collection<String>>()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val workItemName = "workItems/work-item-1"
+    val computationName = "computations/computation-1"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            logQueries += correlationValues.toList()
+            when {
+              reportName in correlationValues ->
+                listOf(
+                  ReportTraceLogEntry(
+                    sourceProject = project,
+                    timestamp = NOW,
+                    service = "requisition-fetcher",
+                    severity = "INFO",
+                    trace = null,
+                    message = "xmm.work_item.name=$workItemName",
+                  )
+                )
+              workItemName in correlationValues ->
+                listOf(
+                  ReportTraceLogEntry(
+                    sourceProject = project,
+                    timestamp = NOW.plusSeconds(1),
+                    service = "results-fulfiller",
+                    severity = "INFO",
+                    trace = "projects/test/traces/trace-2",
+                    message = "xmm.computation.name=$computationName",
+                  )
+                )
+              computationName in correlationValues ->
+                listOf(
+                  ReportTraceLogEntry(
+                    sourceProject = project,
+                    timestamp = NOW.plusSeconds(2),
+                    service = "duchy",
+                    severity = "ERROR",
+                    trace = null,
+                    message =
+                      "xmm.computation.name=$computationName xmm.outcome=failed " +
+                        "xmm.error.type=IllegalStateException",
+                  )
+                )
+              else -> emptyList()
+            }
+          }
+        },
+        spanReaderFactory = {
+          ReportTraceSpanReader { project, _, traceIds, _, _, _ ->
+            traceIdQueries += traceIds.toList()
+            if ("trace-2" in traceIds) {
+              listOf(
+                traceSpan("duchy-span", NOW.plusSeconds(2))
+                  .copy(sourceProject = project, traceId = "trace-2", service = "duchy")
+              )
+            } else {
+              emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(logQueries)
+      .containsExactly(listOf(reportName), listOf(workItemName), listOf(computationName))
+      .inOrder()
+    assertThat(traceIdQueries.flatten()).contains("trace-2")
+    assertThat(output.toString()).contains("xmm.error.type=IllegalStateException")
+  }
+
+  @Test
   fun `render separates collection completeness from refused execution outcome`() {
     val context = reportTraceContext().copy(basicReportName = null, basicReportState = null)
     val span =
@@ -622,19 +772,117 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `render lets terminal Report failure override transitional BasicReport state`() {
+    val context = reportTraceContext().copy(basicReportState = "REPORT_CREATED")
+    val reportFailure =
+      traceSpan("report-failed", NOW)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.report.name" to context.reportName,
+              "xmm.report.state" to "FAILED",
+              "xmm.lifecycle.stage" to "report_result_assembly",
+              "xmm.outcome" to "failed",
+            )
+        )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = listOf(reportFailure),
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("Execution outcome: FAILED")
+  }
+
+  @Test
+  fun `render uses latest durable Report state after a retry`() {
+    val context = reportTraceContext().copy(basicReportName = null, basicReportState = null)
+    val failedAttempt =
+      traceSpan("failed-attempt", NOW)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.report.name" to context.reportName,
+              "xmm.report.state" to "FAILED",
+              "xmm.lifecycle.stage" to "report_result_assembly",
+              "xmm.outcome" to "failed",
+            )
+        )
+    val successfulRetry =
+      traceSpan("successful-retry", NOW.plusSeconds(1))
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.report.name" to context.reportName,
+              "xmm.report.state" to "SUCCEEDED",
+              "xmm.lifecycle.stage" to "report_result_assembly",
+              "xmm.outcome" to "succeeded",
+            )
+        )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = listOf(failedAttempt, successfulRetry),
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("Execution outcome: SUCCEEDED")
+  }
+
+  @Test
+  fun `render does not promote one successful child to report success`() {
+    val context = reportTraceContext().copy(basicReportName = null, basicReportState = null)
+    val childSuccess =
+      traceSpan("metric-success", NOW)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.metric.name" to "measurementConsumers/mc-1/metrics/metric-1",
+              "xmm.metric.state" to "SUCCEEDED",
+              "xmm.lifecycle.stage" to "metric_result_sync",
+              "xmm.outcome" to "succeeded",
+            )
+        )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = listOf(childSuccess),
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("Execution outcome: UNKNOWN")
+  }
+
+  @Test
   fun `started lifecycle evidence is not terminally complete`() {
     val stages =
       listOf(
         "basic_report_creation",
         "report_creation",
+        "metric_creation",
         "measurement_creation",
-        "requisition_creation",
+        "requisition_available",
         "requisition_dispatch",
         "results_fulfillment",
         "kingdom_result_acceptance",
+        "kingdom_measurement_sync",
         "metric_result_sync",
         "report_result_assembly",
         "noise_correction",
+        "processed_result_writeback",
       )
     val spans =
       stages.mapIndexed { index, stage ->

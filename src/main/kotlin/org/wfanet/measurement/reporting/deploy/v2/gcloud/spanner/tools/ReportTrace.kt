@@ -43,6 +43,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -318,9 +319,10 @@ internal class GoogleCloudReportTraceSpanReader(
     credentials.refreshIfExpired()
     val entries = mutableListOf<ReportTraceSpan>()
     for (correlationValue in correlationValues.distinct()) {
-      val traceAttribute = traceAttributeFor(correlationValue) ?: continue
-      entries +=
-        listTraces(project, "+$traceAttribute:\"$correlationValue\"", startTime, endTime, limit)
+      for (traceAttribute in traceAttributesFor(correlationValue)) {
+        entries +=
+          listTraces(project, "+$traceAttribute:\"$correlationValue\"", startTime, endTime, limit)
+      }
     }
     for (traceId in traceIds.map { it.substringAfterLast('/') }.distinct()) {
       readTrace(project, traceId)?.let { entries += it }
@@ -391,18 +393,25 @@ internal class GoogleCloudReportTraceSpanReader(
     private const val REPORT_TRACE_ATTRIBUTE = "xmm.report.name"
     private const val METRIC_TRACE_ATTRIBUTE = "xmm.metric.name"
     private const val MEASUREMENT_TRACE_ATTRIBUTE = "xmm.measurement.name"
+    private const val REQUISITION_TRACE_ATTRIBUTE = "xmm.requisition.name"
+    private const val GROUP_TRACE_ATTRIBUTE = "xmm.edpa.group_id"
+    private const val WORK_ITEM_TRACE_ATTRIBUTE = "xmm.work_item.name"
+    private const val COMPUTATION_TRACE_ATTRIBUTE = "xmm.computation.name"
     private const val MAX_TRACE_PAGE_SIZE = 1000
     private val HTTP_REQUEST_TIMEOUT: Duration = Duration.ofSeconds(30)
 
     private fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
 
-    private fun traceAttributeFor(value: String): String? {
+    private fun traceAttributesFor(value: String): List<String> {
       return when {
-        "/basicReports/" in value -> BASIC_REPORT_TRACE_ATTRIBUTE
-        "/reports/" in value -> REPORT_TRACE_ATTRIBUTE
-        "/metrics/" in value -> METRIC_TRACE_ATTRIBUTE
-        "/measurements/" in value -> MEASUREMENT_TRACE_ATTRIBUTE
-        else -> null
+        "/basicReports/" in value -> listOf(BASIC_REPORT_TRACE_ATTRIBUTE)
+        "/reports/" in value -> listOf(REPORT_TRACE_ATTRIBUTE)
+        "/metrics/" in value -> listOf(METRIC_TRACE_ATTRIBUTE)
+        "/measurements/" in value -> listOf(MEASUREMENT_TRACE_ATTRIBUTE)
+        "/requisitions/" in value -> listOf(REQUISITION_TRACE_ATTRIBUTE)
+        value.startsWith("workItems/") -> listOf(WORK_ITEM_TRACE_ATTRIBUTE)
+        value.startsWith("computations/") -> listOf(COMPUTATION_TRACE_ATTRIBUTE)
+        else -> listOf(GROUP_TRACE_ATTRIBUTE)
       }
     }
 
@@ -725,6 +734,10 @@ internal object ReportTraceOutput {
           "log ${entry.service}" to fields["xmm.outcome"]
       }
     }
+    if (context.basicReportState?.uppercase() == "SUCCEEDED") {
+      observed.getOrPut("basic_report_available") { mutableListOf() } +=
+        "durable BasicReport state SUCCEEDED" to "succeeded"
+    }
     val expectedStages = expectedStages(context)
     return (expectedStages + observed.keys.filterNot { it in expectedStages }.sorted()).map { stage
       ->
@@ -740,6 +753,7 @@ internal object ReportTraceOutput {
             "refused" in outcomes -> "REFUSED"
             outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> "SUCCEEDED"
             outcomes.any { it in IN_PROGRESS_OUTCOMES } -> "IN_PROGRESS"
+            "unknown" in outcomes -> "UNKNOWN"
             evidence.isNotEmpty() -> "OBSERVED"
             stage in expectedStages -> "MISSING"
             else -> "OPTIONAL"
@@ -764,7 +778,9 @@ internal object ReportTraceOutput {
     }
     return if (
       sourceStatuses.any { it.status in setOf("FAILED", "PARTIAL", "TRUNCATED") } ||
-        lifecycleCoverage.any { it.status in setOf("MISSING", "IN_PROGRESS") }
+        lifecycleCoverage.any {
+          it.status in setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN")
+        }
     ) {
       ReportTraceArtifactStatus.PARTIAL
     } else {
@@ -781,30 +797,84 @@ internal object ReportTraceOutput {
       "SUCCEEDED" -> return ReportTraceExecutionOutcome.SUCCEEDED
       "FAILED",
       "INVALID" -> return ReportTraceExecutionOutcome.FAILED
-      "CREATED",
-      "REPORT_CREATED",
-      "UNPROCESSED_RESULTS_READY",
-      "RUNNING" -> return ReportTraceExecutionOutcome.IN_PROGRESS
+    }
+
+    val reportStates =
+      latestResourceStates(spans, logEntries, "xmm.report.name", "xmm.report.state")
+    val metricStates =
+      latestResourceStates(spans, logEntries, "xmm.metric.name", "xmm.metric.state")
+    val measurementStates =
+      latestResourceStates(spans, logEntries, "xmm.measurement.name", "xmm.measurement.state")
+    val requisitionStates =
+      latestResourceStates(spans, logEntries, "xmm.requisition.name", "xmm.requisition.state")
+    if (
+      reportStates.any { it == "FAILED" } ||
+        metricStates.any { it in setOf("FAILED", "INVALID") } ||
+        measurementStates.any { it in setOf("FAILED", "CANCELLED") }
+    ) {
+      return ReportTraceExecutionOutcome.FAILED
+    }
+    if (requisitionStates.any { it == "REFUSED" }) {
+      return ReportTraceExecutionOutcome.REFUSED
     }
 
     val outcomes = buildList {
       spans.mapNotNullTo(this) { it.attributes["xmm.outcome"]?.lowercase() }
       logEntries.mapNotNullTo(this) { safeTextFields(it.message)["xmm.outcome"]?.lowercase() }
     }
+    if ("refused" in outcomes) {
+      return ReportTraceExecutionOutcome.REFUSED
+    }
+    if ("report_failed" in outcomes) {
+      return ReportTraceExecutionOutcome.FAILED
+    }
+    if (
+      context.basicReportState?.uppercase() in
+        setOf("CREATED", "REPORT_CREATED", "UNPROCESSED_RESULTS_READY", "RUNNING")
+    ) {
+      return ReportTraceExecutionOutcome.IN_PROGRESS
+    }
     return when {
-      outcomes.any { it == "failed" || it.startsWith("failed_") || it == "report_failed" } ->
-        ReportTraceExecutionOutcome.FAILED
-      "refused" in outcomes -> ReportTraceExecutionOutcome.REFUSED
+      reportStates.isNotEmpty() && reportStates.all { it == "SUCCEEDED" } ->
+        ReportTraceExecutionOutcome.SUCCEEDED
       outcomes.any { it in IN_PROGRESS_OUTCOMES } -> ReportTraceExecutionOutcome.IN_PROGRESS
-      outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> ReportTraceExecutionOutcome.SUCCEEDED
       else -> ReportTraceExecutionOutcome.UNKNOWN
     }
   }
 
-  fun discoveredCorrelationValues(spans: Collection<ReportTraceSpan>): Set<String> {
-    return spans
-      .flatMap { span ->
-        DISCOVERABLE_IDENTIFIER_ATTRIBUTES.mapNotNull { attribute -> span.attributes[attribute] }
+  private fun latestResourceStates(
+    spans: Collection<ReportTraceSpan>,
+    logEntries: Collection<ReportTraceLogEntry>,
+    resourceAttribute: String,
+    stateAttribute: String,
+  ): Collection<String> {
+    val latestStates = mutableMapOf<String, String>()
+    val evidence = buildList {
+      spans.mapTo(this) { it.startTime to it.attributes }
+      logEntries.mapTo(this) { it.timestamp to safeTextFields(it.message) }
+    }
+    for ((_, fields) in evidence.sortedBy { it.first }) {
+      val resource = fields[resourceAttribute] ?: continue
+      val state = fields[stateAttribute] ?: continue
+      latestStates[resource] = state.uppercase()
+    }
+    return latestStates.values
+  }
+
+  fun discoveredCorrelationValues(
+    spans: Collection<ReportTraceSpan>,
+    logEntries: Collection<ReportTraceLogEntry>,
+  ): Set<String> {
+    return buildSet {
+        for (span in spans) {
+          DISCOVERABLE_IDENTIFIER_ATTRIBUTES.mapNotNullTo(this) { attribute ->
+            span.attributes[attribute]
+          }
+        }
+        for (entry in logEntries) {
+          val fields = safeTextFields(entry.message)
+          DISCOVERABLE_IDENTIFIER_ATTRIBUTES.mapNotNullTo(this) { attribute -> fields[attribute] }
+        }
       }
       .filter(String::isNotBlank)
       .toSet()
@@ -826,15 +896,21 @@ internal object ReportTraceOutput {
   private fun expectedStages(context: ReportTraceContext): List<String> = buildList {
     if (context.basicReportName != null) add("basic_report_creation")
     add("report_creation")
+    add("metric_creation")
     add("measurement_creation")
-    add("requisition_creation")
+    add("requisition_available")
     add("requisition_dispatch")
     add("results_fulfillment")
     add("kingdom_result_acceptance")
+    add("kingdom_measurement_sync")
     add("metric_result_sync")
     add("report_result_assembly")
     if (context.basicReportName != null) {
       add("noise_correction")
+      if (context.basicReportState?.uppercase() == "SUCCEEDED") {
+        add("processed_result_writeback")
+        add("basic_report_available")
+      }
     }
   }
 
@@ -902,11 +978,22 @@ internal object ReportTraceOutput {
       "xmm.lifecycle.stage",
       "xmm.outcome",
       "xmm.error.type",
+      "xmm.error.retryable",
+      "xmm.operation.result",
     )
   private val DISCOVERABLE_IDENTIFIER_ATTRIBUTES =
     setOf("xmm.requisition.name", "xmm.edpa.group_id", "xmm.work_item.name", "xmm.computation.name")
-  private val TERMINAL_SUCCESS_OUTCOMES = setOf("succeeded", "accepted", "returned")
-  private val IN_PROGRESS_OUTCOMES = setOf("started", "in_progress", "pending")
+  private val TERMINAL_SUCCESS_OUTCOMES =
+    setOf(
+      "succeeded",
+      "accepted",
+      "returned",
+      "results_available",
+      "synchronized",
+      "no_update_required",
+      "already_completed",
+    )
+  private val IN_PROGRESS_OUTCOMES = setOf("started", "in_progress", "pending", "retryable_failure")
   private val SAFE_TRACE_ATTRIBUTES =
     setOf("error", "service.name", "g.co/agent/name", "/http/host")
   private val SECRET_PATTERNS =
@@ -1099,7 +1186,14 @@ internal class ReportTrace(
           measurementNames = emptyList(),
           createTime = null,
         )
-      val collection = collectTimeline(context, explicitStartTime, parsedEndTime, entryLimit)
+      val collection =
+        collectTimeline(
+          context,
+          explicitStartTime,
+          parsedEndTime,
+          entryLimit,
+          resolutionFailure = null,
+        )
       spec
         .commandLine()
         .out
@@ -1175,8 +1269,24 @@ internal class ReportTrace(
 
       val fileName = outputFileName(basicReportKey)
       try {
-        val context = resolver.resolve(basicReportKey)
-        val collection = collectTimeline(context, explicitStartTime, endTime, entryLimit)
+        val resolution: Pair<ReportTraceContext, String?> =
+          try {
+            resolver.resolve(basicReportKey) to null
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            ReportTraceContext(
+              basicReportName = basicReportKey.toName(),
+              basicReportState = null,
+              reportName = REPORT_NOT_CREATED,
+              metricNames = emptyList(),
+              measurementNames = emptyList(),
+              createTime = null,
+            ) to failureDescription(e)
+          }
+        val (context, resolutionFailure) = resolution
+        val collection =
+          collectTimeline(context, explicitStartTime, endTime, entryLimit, resolutionFailure)
         val outputPath =
           writeArtifact(
             outputDirectory,
@@ -1218,6 +1328,7 @@ internal class ReportTrace(
     explicitStartTime: Instant?,
     endTime: Instant,
     entryLimit: Int,
+    resolutionFailure: String?,
   ): TimelineCollection {
     val startTime =
       explicitStartTime
@@ -1230,6 +1341,9 @@ internal class ReportTrace(
       )
     }
     val warnings = mutableListOf<String>()
+    if (resolutionFailure != null) {
+      warnings += "Reporting resource resolution failed: $resolutionFailure"
+    }
     val spanEntries = mutableListOf<ReportTraceSpan>()
     val logEntries = mutableListOf<ReportTraceLogEntry>()
     val traceFailures = mutableMapOf<String, MutableList<String>>()
@@ -1239,6 +1353,7 @@ internal class ReportTrace(
     val traceFetchedCounts = mutableMapOf<String, Int>()
     val logFetchedCounts = mutableMapOf<String, Int>()
     val projects = observabilityProjects.distinct()
+    val queriedLogCorrelationValues = context.correlationValues.toMutableSet()
     for (project in projects) {
       try {
         val projectLogEntries =
@@ -1266,6 +1381,8 @@ internal class ReportTrace(
       listOfNotNull(
         context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
       )
+    val queriedTraceCorrelationValues = primaryCorrelationValues.toMutableSet()
+    val queriedTraceIds = logTraceIds.toMutableSet()
     for (project in projects) {
       try {
         val projectSpans =
@@ -1296,6 +1413,7 @@ internal class ReportTrace(
     val spanTraceIds = spanEntries.map { it.traceId }.distinct()
     val newlyDiscoveredTraceIds = spanTraceIds - logTraceIds.toSet()
     if (newlyDiscoveredTraceIds.isNotEmpty()) {
+      queriedTraceIds += newlyDiscoveredTraceIds
       for (project in projects) {
         try {
           val projectSpans =
@@ -1332,6 +1450,7 @@ internal class ReportTrace(
           it.status == "MISSING"
         }
     ) {
+      queriedTraceCorrelationValues += fallbackCorrelationValues
       for (project in projects) {
         try {
           val projectSpans =
@@ -1359,33 +1478,89 @@ internal class ReportTrace(
       }
     }
 
-    // Some downstream services can be searched only by an identifier assigned after the Reporting
-    // resource chain crosses a process boundary. Pivot back into Logging with those span labels so
-    // that v1-invisible exception details are included in the artifact.
-    val discoveredCorrelationValues =
-      ReportTraceOutput.discoveredCorrelationValues(spanEntries) - context.correlationValues.toSet()
-    if (discoveredCorrelationValues.isNotEmpty()) {
+    // Follow identifiers and trace IDs across process boundaries until no new correlation key is
+    // found. A fixed round limit bounds request growth for cyclic or unexpectedly large graphs.
+    var expansionRounds = 0
+    var expansionTruncated = false
+    while (true) {
+      val knownCorrelationValues =
+        context.correlationValues +
+          ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries)
+      val pendingLogCorrelationValues = knownCorrelationValues.toSet() - queriedLogCorrelationValues
+      val pendingTraceCorrelationValues =
+        knownCorrelationValues.toSet() - queriedTraceCorrelationValues
+      val pendingTraceIds =
+        (spanEntries.map { it.traceId } +
+            logEntries.mapNotNull { it.trace?.substringAfterLast('/') })
+          .toSet() - queriedTraceIds
+      if (
+        pendingLogCorrelationValues.isEmpty() &&
+          pendingTraceCorrelationValues.isEmpty() &&
+          pendingTraceIds.isEmpty()
+      ) {
+        break
+      }
+      if (expansionRounds == MAX_CORRELATION_EXPANSION_ROUNDS) {
+        expansionTruncated = true
+        warnings += "Correlation expansion stopped after $MAX_CORRELATION_EXPANSION_ROUNDS rounds"
+        break
+      }
+      expansionRounds++
+      queriedLogCorrelationValues += pendingLogCorrelationValues
+      queriedTraceCorrelationValues += pendingTraceCorrelationValues
+      queriedTraceIds += pendingTraceIds
+
       for (project in projects) {
-        try {
-          val projectLogEntries =
-            logReaders
-              .getOrPut(project to includeRawPayloads) {
-                logReaderFactory(project, includeRawPayloads)
-              }
-              .read(discoveredCorrelationValues, startTime, endTime, entryLimit)
-          if (projectLogEntries.size > entryLimit) {
-            logTruncatedProjects += project
+        if (pendingLogCorrelationValues.isNotEmpty()) {
+          try {
+            val projectLogEntries =
+              logReaders
+                .getOrPut(project to includeRawPayloads) {
+                  logReaderFactory(project, includeRawPayloads)
+                }
+                .read(pendingLogCorrelationValues, startTime, endTime, entryLimit)
+            if (projectLogEntries.size > entryLimit) {
+              logTruncatedProjects += project
+              warnings +=
+                "Cloud Logging correlation-expansion results were truncated for project " +
+                  "$project at $entryLimit entries"
+            }
+            logFetchedCounts[project] =
+              logFetchedCounts.getOrDefault(project, 0) + projectLogEntries.size
+            logEntries += retainLogEntries(projectLogEntries, entryLimit)
+          } catch (e: Exception) {
+            val failure = failureDescription(e)
+            logFailures.getOrPut(project) { mutableListOf() } += failure
             warnings +=
-              "Cloud Logging identifier-pivot results were truncated for project $project at " +
-                "$entryLimit entries"
+              "Cloud Logging correlation-expansion query failed for project $project: $failure"
           }
-          logFetchedCounts[project] =
-            logFetchedCounts.getOrDefault(project, 0) + projectLogEntries.size
-          logEntries += retainLogEntries(projectLogEntries, entryLimit)
-        } catch (e: Exception) {
-          val failure = failureDescription(e)
-          logFailures.getOrPut(project) { mutableListOf() } += failure
-          warnings += "Cloud Logging identifier-pivot query failed for project $project: $failure"
+        }
+        if (pendingTraceCorrelationValues.isNotEmpty() || pendingTraceIds.isNotEmpty()) {
+          try {
+            val projectSpans =
+              spanReader.read(
+                project,
+                pendingTraceCorrelationValues,
+                pendingTraceIds,
+                startTime,
+                endTime,
+                entryLimit,
+              )
+            if (projectSpans.size > entryLimit) {
+              traceTruncatedProjects += project
+              warnings +=
+                "Cloud Trace correlation-expansion results were truncated for project " +
+                  "$project at $entryLimit spans"
+            }
+            traceFetchedCounts[project] =
+              traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
+            spanEntries += retainSpans(projectSpans, entryLimit)
+          } catch (e: Exception) {
+            val failure = failureDescription(e)
+            traceFailures.getOrPut(project) { mutableListOf() } += failure
+            warnings +=
+              "Cloud Trace correlation-expansion query failed for project $project: $failure"
+          }
         }
       }
     }
@@ -1401,6 +1576,30 @@ internal class ReportTrace(
     val retainedSpans = retainSpans(distinctSpans, entryLimit)
     val retainedLogEntries = retainLogEntries(distinctLogEntries, entryLimit)
     val sourceStatuses = buildList {
+      if (resolutionFailure != null) {
+        add(
+          ReportTraceSourceStatus(
+            project = "reporting",
+            source = "Resource resolution",
+            status = "FAILED",
+            fetched = 0,
+            retained = 0,
+            note = resolutionFailure,
+          )
+        )
+      }
+      if (expansionTruncated) {
+        add(
+          ReportTraceSourceStatus(
+            project = "collector",
+            source = "Correlation expansion",
+            status = "TRUNCATED",
+            fetched = expansionRounds,
+            retained = expansionRounds,
+            note = "Stopped at the configured round limit",
+          )
+        )
+      }
       for (project in projects) {
         add(
           buildSourceStatus(
@@ -1601,6 +1800,7 @@ internal class ReportTrace(
   companion object {
     private val DEFAULT_LEAD_TIME: Duration = Duration.ofMinutes(5)
     private val DEFAULT_LOOKBACK: Duration = Duration.ofDays(7)
+    private const val MAX_CORRELATION_EXPANSION_ROUNDS = 4
   }
 }
 

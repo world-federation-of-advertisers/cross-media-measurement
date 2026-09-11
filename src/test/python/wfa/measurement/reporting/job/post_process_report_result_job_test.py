@@ -258,6 +258,33 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_post_processor.process.assert_not_called()
         self.mock_report_results_stub.AddProcessedResultValues.assert_not_called()
 
+    @mock.patch.object(logging, "info", autospec=True)
+    def test_no_update_logs_noise_correction_succeeded(self, mock_logging):
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_1",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]
+            )
+        )
+        self.mock_post_processor.process.return_value = None
+
+        result = self.job.execute()
+
+        self.assertTrue(result)
+        self.assertTrue(
+            any(
+                call.args[0]
+                == "xmm.lifecycle.stage=noise_correction "
+                "xmm.outcome=succeeded "
+                "xmm.operation.result=no_update_required"
+                for call in mock_logging.call_args_list
+            )
+        )
+
     @mock.patch.object(logging, "warning", autospec=True)
     def test_execute_with_failure(self, mock_logging):
         # Sets up mock objects.
@@ -361,6 +388,13 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertTrue(result)
         # The BasicReport must NOT be marked FAILED.
         self.mock_basic_reports_stub.FailBasicReport.assert_not_called()
+        self.assertTrue(
+            any(
+                "xmm.outcome=succeeded "
+                "xmm.operation.result=already_completed" in call.args[0]
+                for call in mock_logging.call_args_list
+            )
+        )
 
     def test_execute_fails_basic_report_on_other_failed_precondition(self):
         """When AddProcessedResultValues returns FAILED_PRECONDITION for a

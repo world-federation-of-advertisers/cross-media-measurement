@@ -259,9 +259,13 @@ class PostProcessReportResultJob:
         if not add_processed_result_values_request:
             logging.info(
                 "xmm.lifecycle.stage=noise_correction "
-                "xmm.outcome=no_update_required"
+                "xmm.outcome=succeeded xmm.operation.result=no_update_required"
             )
             return succeeded
+
+        logging.info(
+            "xmm.lifecycle.stage=noise_correction xmm.outcome=succeeded"
+        )
 
         logging.info(
             "xmm.lifecycle.stage=processed_result_writeback "
@@ -286,7 +290,9 @@ class PostProcessReportResultJob:
                 if advanced_state is not None:
                     logging.info(
                         "xmm.lifecycle.stage=processed_result_writeback "
-                        "xmm.outcome=already_completed Skipping BasicReport %s "
+                        "xmm.outcome=succeeded "
+                        "xmm.operation.result=already_completed "
+                        "Skipping BasicReport %s "
                         "for MeasurementConsumer %s:"
                         " already advanced past UNPROCESSED_RESULTS_READY"
                         " (now %s)",
@@ -319,7 +325,8 @@ class PostProcessReportResultJob:
             # mark it FAILED.
             logging.warning(
                 "xmm.lifecycle.stage=processed_result_writeback "
-                "xmm.outcome=retryable_failure Transient failure (%s) updating "
+                "xmm.outcome=in_progress xmm.error.retryable=true "
+                "Transient failure (%s) updating "
                 "ReportResult for BasicReport"
                 " %s, MeasurementConsumer %s; will retry next tick",
                 e.code().name,

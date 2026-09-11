@@ -88,10 +88,11 @@ The stage-by-stage playbook below gives idle-friendly example queries (a bare
 
 The `ReportTrace` operator CLI resolves a BasicReport to its generated Report,
 metrics, and Kingdom measurements. It searches Cloud Trace and Cloud Logging
-using that resource chain, then makes a bounded second Logging pass with
-Requisition, EDPA group, WorkItem, and Duchy computation identifiers discovered
-on spans. It writes matching spans and log entries in timestamp order, which is
-usually the fastest first step before using the stage-specific queries below.
+using that resource chain, then performs bounded correlation-expansion rounds
+with Requisition, EDPA group, WorkItem, and Duchy computation identifiers found
+in spans or structured logs. It writes matching spans and log entries in
+timestamp order, which is usually the fastest first step before using the
+stage-specific queries below.
 
 Run it from an environment with Application Default Credentials for a
 least-privilege operator service account. The identity needs permission to read
@@ -152,6 +153,11 @@ Duchy/EDPA branch as required versus `NOT_APPLICABLE`. Protocol-dependent stages
 are therefore best-effort evidence, and the artifact must not be treated as
 proof that every child resource completed.
 
+If durable resource resolution fails after the CLI validates the BasicReport
+name, the CLI records the Reporting resolver as a failed source and still
+queries Trace and Logging using the requested BasicReport name. Any recovered
+evidence is written to a `PARTIAL` artifact instead of being discarded.
+
 If the BasicReport database is unavailable but the generated Report name is
 known, direct mode needs only observability permissions:
 
@@ -174,7 +180,9 @@ RequisitionFetcher also persists W3C trace context in the WorkItem so the TEE
 processing span can continue the fetcher's trace across the durable queue
 boundary. Herald and all mills, including HMSS and TrusTEE, recover the
 identifiers from the computation's serialized `MeasurementSpec` and label their
-processing spans with `xmm.lifecycle.stage=duchy_computation`. The
+spans. Herald uses `xmm.lifecycle.stage=duchy_computation` for durable
+computation status, while mills use `xmm.lifecycle.stage=duchy_stage_attempt`
+for an individual stage-processing attempt. The
 post-processing/noise-correction job prefixes its logs while processing a
 BasicReport with `xmm.basic_report.name`, `xmm.report.name`, lifecycle stage, and
 outcome.
@@ -187,12 +195,13 @@ best-effort evidence, but the CLI cannot present that route as one causally
 continuous trace.
 
 The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
-Report, Metric, and Measurement identifiers. Trace IDs found in logs or in one
-project are then fetched from every configured observability project so remote
-spans without a searchable BasicReport label can still be included. Finally, a
-second Logging query uses Requisition, group, WorkItem, and computation labels
-discovered from those spans. If one API or project is unavailable, the artifact
-records the missing coverage and the command fails unless `--allow-partial` was
+Report, Metric, and Measurement identifiers. It then performs up to four
+correlation-expansion rounds: allowlisted Requisition, group, WorkItem, and
+computation identifiers found in either spans or structured logs are queried in
+both systems, and newly found trace IDs are fetched from every configured
+observability project. Cycles are de-duplicated. Reaching the round limit marks
+the artifact partial. If one API or project is unavailable, the artifact records
+the missing coverage and the command fails unless `--allow-partial` was
 explicitly specified.
 
 ## Lifecycle overview
