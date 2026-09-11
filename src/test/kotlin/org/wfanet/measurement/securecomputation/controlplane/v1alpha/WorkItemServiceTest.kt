@@ -19,6 +19,7 @@ package org.wfanet.measurement.securecomputation.controlplane.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.StringValue
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -217,7 +218,11 @@ class WorkItemServiceTest {
 
   @Test
   fun `getWorkItem returns WorkItem`() = runBlocking {
-    val internalWorkItem = internalWorkItem { workItemResourceId = "workItem" }
+    val workItemParams = Any.pack(StringValue.of("params"))
+    val internalWorkItem = internalWorkItem {
+      workItemResourceId = "workItem"
+      this.workItemParams = workItemParams
+    }
     internalServiceMock.stub { onBlocking { getWorkItem(any()) } doReturn internalWorkItem }
 
     val request = getWorkItemRequest { name = "workItems/${internalWorkItem.workItemResourceId}" }
@@ -233,7 +238,12 @@ class WorkItemServiceTest {
 
     assertThat(response)
       .ignoringFields(WorkItem.CREATE_TIME_FIELD_NUMBER, WorkItem.UPDATE_TIME_FIELD_NUMBER)
-      .isEqualTo(workItem { name = request.name })
+      .isEqualTo(
+        workItem {
+          name = request.name
+          this.workItemParams = workItemParams
+        }
+      )
   }
 
   @Test

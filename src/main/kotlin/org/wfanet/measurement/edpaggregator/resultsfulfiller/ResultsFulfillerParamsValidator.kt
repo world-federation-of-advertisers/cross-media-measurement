@@ -116,11 +116,20 @@ object ResultsFulfillerParamsValidator {
     require(params.multiPartyConfig.supportedNoiseTypesList.all { it.isSupported() }) {
       "Unsupported multi-party noise type in results_fulfiller_params"
     }
+
+    for ((kekUri, keyName) in params.trusteeParams.kekUriToKeyNameMap) {
+      require(TRUSTEE_KEY_NAME_PATTERN.matches(keyName)) {
+        "Invalid key name format in results_fulfiller_params.trustee_params: '$keyName' for URI " +
+          "'$kekUri'. Key name must match pattern [a-zA-Z0-9_-]{1,63}"
+      }
+    }
   }
 
   private fun NoiseType.isSupported(): Boolean {
     return this != NoiseType.UNSPECIFIED && this != NoiseType.UNRECOGNIZED
   }
+
+  private val TRUSTEE_KEY_NAME_PATTERN = Regex("[a-zA-Z0-9_-]{1,63}")
 }
 
 /**

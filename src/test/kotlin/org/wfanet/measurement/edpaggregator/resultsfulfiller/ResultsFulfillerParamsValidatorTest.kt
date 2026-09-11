@@ -68,6 +68,27 @@ class ResultsFulfillerParamsValidatorTest {
     assertThat(exception).hasMessageThat().contains("Unsupported noise type")
   }
 
+  @Test
+  fun `invalid TrusTee key mapping is rejected`() {
+    val invalidParams =
+      VALID_PARAMS.copy {
+        trusteeParams =
+          ResultsFulfillerParams.TrusTeeParams.newBuilder()
+            .putKekUriToKeyName(
+              "gcp-kms://projects/project/locations/global/keyRings/ring/cryptoKeys/key",
+              "invalid/key",
+            )
+            .build()
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("Invalid key name format")
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp1"
     private val VALID_PARAMS: ResultsFulfillerParams = resultsFulfillerParams {
