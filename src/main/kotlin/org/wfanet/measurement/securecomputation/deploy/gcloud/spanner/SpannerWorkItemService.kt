@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failActiveWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
@@ -232,13 +233,16 @@ class SpannerWorkItemsService(
           val state =
             when (result.workItem.state) {
               WorkItem.State.FAILED -> txn.retryWorkItem(result.workItemId)
+              WorkItem.State.RUNNING -> {
+                txn.failActiveWorkItemAttempts(result.workItemId)
+                txn.retryWorkItem(result.workItemId)
+              }
               WorkItem.State.QUEUED -> {
                 if (!txn.workItemPublicationExists(result.workItemId)) {
                   txn.insertWorkItemPublication(result.workItemId)
                 }
                 WorkItem.State.QUEUED
               }
-              WorkItem.State.RUNNING,
               WorkItem.State.SUCCEEDED,
               WorkItem.State.STATE_UNSPECIFIED,
               WorkItem.State.UNRECOGNIZED ->

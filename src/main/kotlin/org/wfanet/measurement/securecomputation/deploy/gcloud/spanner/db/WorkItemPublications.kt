@@ -91,7 +91,8 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
     if (workItemId != null) {
       appendLine("  AND WorkItemPublications.WorkItemId = @workItemId")
     }
-    appendLine("ORDER BY WorkItemPublications.CreateTime ASC, WorkItemPublications.WorkItemId ASC")
+    appendLine("ORDER BY WorkItemPublications.AttemptCount ASC,")
+    appendLine("  WorkItemPublications.CreateTime ASC, WorkItemPublications.WorkItemId ASC")
     appendLine("LIMIT 1")
   }
   val row: Struct =
