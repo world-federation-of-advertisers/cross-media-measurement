@@ -246,7 +246,7 @@ class RankAllocatorTest {
     assertThat(allocator.get(1L, 0)).isEqualTo(0) // cumulative gets a fresh free rank instead
     assertThat(allocator.allocated).isEqualTo(1)
     assertThat(allocator.backfillReusedOldRank).isEqualTo(1)
-    assertThat(allocator.backfillRankCollisions).isEqualTo(0) // not in the latest snapshot
+    assertThat(allocator.backfillRankCollisions).isEqualTo(1)
   }
 
   @Test
