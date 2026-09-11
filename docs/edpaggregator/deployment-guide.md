@@ -210,9 +210,9 @@ A Cloud Function triggered by **Cloud Scheduler**. It retrieves requisitions fro
 public API, writes each grouped payload to `EDPA_STORAGE_BUCKET`, creates its RequisitionMetadata,
 and submits a deterministic WorkItem to the Secure Computation API. Before submission, it records
 the WorkItem name and `QUEUED` state on every metadata row in the group. A retry checks for the
-deterministic WorkItem before creating it. If ResultsFulfiller exhausts its queue retries and the
-control plane marks that WorkItem `FAILED`, a later fetch retries the same WorkItem and preserves
-the durable group payload, including rows already in `PROCESSING`.
+deterministic WorkItem before creating it. If ResultsFulfiller exhausts its queue retries, the
+control plane leaves the WorkItem `FAILED` for operator investigation; scheduled fetches do not
+restart its dead-letter cycle. Rows already in `PROCESSING` remain discoverable for that recovery.
 
 The function runs with `max_instances = 1` and a `timeout_seconds` that exceeds the
 internal drain ticker interval (default `600` / 10 min in test environments; raise
@@ -856,6 +856,10 @@ Use this staged cutover:
 7. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
    and are processed once by ResultsFulfiller.
 
+After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
+failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
+that its worker has stopped; retrying it fails the active attempt before republishing the item.
+
 For rollback, pause the scheduler first and drain or repair all groups already in `STORED`,
 `QUEUED`, or `PROCESSING`; their original object-finalize events will not be replayed automatically.
 Then remove `work_item_dispatch`, redeploy RequisitionFetcher, restore and deploy the legacy
@@ -1097,9 +1101,24 @@ Secure Computation API binary. A mixed-version rollout can therefore leave a Wor
 outbox row that the new publication runner needs. Treat the following as a mandatory, quiesced
 rollout:
 
-1. Pause every WorkItem producer and wait for the configured Pub/Sub subscriptions to drain.
-2. Apply the Secure Computation Spanner migrations.
-3. Roll out every Secure Computation API replica and verify that no old replica remains:
+1. Pause every WorkItem producer.
+2. Let each configured Pub/Sub subscription drain, then wait until there are no active attempts:
+
+   ```bash
+   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
+     --instance=SPANNER_INSTANCE \
+     --project=PROJECT_ID \
+     --sql='SELECT COUNT(*) AS ActiveAttemptCount
+       FROM WorkItemAttempts
+       WHERE State = 1'
+   ```
+
+   `WorkItemAttempt.State.ACTIVE` is stored as `1`. Do not proceed until the query returns zero.
+3. Stop every consumer of the affected WorkItem queues. For ResultsFulfiller, set the managed
+   instance group's target size and autoscaler minimum to zero through the deployment configuration,
+   then verify that no ResultsFulfiller worker instance remains.
+4. Apply the Secure Computation Spanner migrations.
+5. Roll out every Secure Computation API replica and verify that no old replica remains:
 
    ```bash
    kubectl rollout status deployment/SECURE_COMPUTATION_API_DEPLOYMENT
@@ -1107,13 +1126,14 @@ rollout:
      -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
    ```
 
-4. With producers still paused and subscriptions drained, list `QUEUED` WorkItems that have no
-   pending publication and no active attempt:
+6. With producers and consumers still stopped, capture one immutable snapshot of `QUEUED` WorkItem
+   IDs that have no pending publication and no active attempt:
 
    ```bash
    gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
      --instance=SPANNER_INSTANCE \
      --project=PROJECT_ID \
+     --format='value(WorkItemResourceId)' \
      --sql='SELECT WorkItemResourceId
        FROM WorkItems AS W
        WHERE W.State = 1
@@ -1122,13 +1142,14 @@ rollout:
            WHERE P.WorkItemId = W.WorkItemId)
          AND NOT EXISTS (
            SELECT 1 FROM WorkItemAttempts AS A
-           WHERE A.WorkItemId = W.WorkItemId AND A.State = 1)'
+           WHERE A.WorkItemId = W.WorkItemId AND A.State = 1)' \
+     > missing-work-item-publications.txt
    ```
 
-   `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty result
-   means no repair is needed.
-5. For each returned ID, call `RetryWorkItem`. The operation recreates a missing publication for a
-   `QUEUED` WorkItem and also supports recovery of a `FAILED` WorkItem:
+   `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty file
+   means no repair is needed. Keep this file unchanged for the remainder of the rollout.
+7. For each ID in that snapshot, call `RetryWorkItem` exactly once. The operation recreates a
+   missing publication for a `QUEUED` WorkItem:
 
    ```bash
    grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
@@ -1138,12 +1159,22 @@ rollout:
      wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
    ```
 
-6. Repeat the query until it returns no rows, then resume WorkItem producers.
+   Do not rerun the snapshot predicate: with consumers stopped, a successfully republished WorkItem
+   remains `QUEUED` and would match again.
+8. Restart the consumers and verify that every ID in `missing-work-item-publications.txt` leaves
+   `QUEUED`. Investigate any ID that remains queued before resuming WorkItem producers.
 
-Do not run the repair query while producers or subscribers are active: a WorkItem that was just
-published but has not yet started an attempt is temporarily indistinguishable from a pre-migration
-gap and could be published twice. Duplicate queue delivery is tolerated, but a quiesced rollout
-avoids creating it deliberately.
+Do not capture the repair snapshot while producers or subscribers are active: a WorkItem that was
+just published but has not yet started an attempt is temporarily indistinguishable from a
+pre-migration gap and could be published twice. Duplicate queue delivery is tolerated, but a
+quiesced rollout avoids creating it deliberately.
+
+#### Recovering an abandoned running WorkItem
+
+`RetryWorkItem` can also recover a `RUNNING` WorkItem after its worker exits without completing or
+failing the active attempt. The operation marks the active attempt `FAILED`, returns the WorkItem to
+`QUEUED`, and publishes it again. Use this only after confirming that the original worker has
+stopped; forcing a live WorkItem back to the queue can run its external effects twice.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

@@ -34,7 +34,11 @@ service WorkItems {
 
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem);
 
-  // Retries a FAILED WorkItem or repairs publication for a QUEUED WorkItem.
+  // Retries a FAILED or RUNNING WorkItem, or repairs publication for a QUEUED
+  // WorkItem.
+  //
+  // Retrying a RUNNING WorkItem fails its active attempt before returning it to
+  // the queue.
   rpc RetryWorkItem(RetryWorkItemRequest) returns (WorkItem);
 }
 
