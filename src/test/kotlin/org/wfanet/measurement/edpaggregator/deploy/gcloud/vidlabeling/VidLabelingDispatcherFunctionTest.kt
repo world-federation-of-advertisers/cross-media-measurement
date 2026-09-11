@@ -76,6 +76,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
@@ -117,6 +118,8 @@ class VidLabelingDispatcherFunctionTest {
     mockService {
       onBlocking { batchCreateRawImpressionUploadFiles(any()) }
         .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+      onBlocking { listRawImpressionUploadFiles(any()) }
+        .thenReturn(listRawImpressionUploadFilesResponse {})
     }
 
   private val rawImpressionUploadModelLineServiceMock:
