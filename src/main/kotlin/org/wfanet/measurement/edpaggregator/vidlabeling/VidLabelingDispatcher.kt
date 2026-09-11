@@ -189,6 +189,11 @@ class VidLabelingDispatcher(
         return
       }
       val exactRevision = revisions.firstOrNull { it.doneBlobGeneration == doneBlobGeneration }
+      if (exactRevision != null && isRegistrationComplete(exactRevision)) {
+        logger.info("RawImpressionUpload ${exactRevision.name} is already registered")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
       val previousRevision =
         if (exactRevision != null && exactRevision.replacesRawImpressionUpload.isNotEmpty()) {
           revisions.firstOrNull { it.name == exactRevision.replacesRawImpressionUpload }
