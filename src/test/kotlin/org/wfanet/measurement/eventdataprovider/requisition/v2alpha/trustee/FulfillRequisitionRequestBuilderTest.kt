@@ -333,6 +333,9 @@ class FulfillRequisitionRequestBuilderTest {
     assertThat(header.trusTeeV2.hasEncryptedFulfillmentDetails()).isFalse()
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4475): Pin a fixed TrusTEE v2
+  // sample payload. These cases encrypt and decrypt with the same implementation, so the Phase 2.2
+  // reader still needs a fixture written against the same bytes.
   @Test
   fun `buildEncrypted encrypts FulfillmentDetails with the payload DEK`() {
     val requests =
