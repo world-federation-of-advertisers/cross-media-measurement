@@ -33,6 +33,9 @@ service WorkItems {
   rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
 
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem);
+
+  // Retries a FAILED WorkItem or repairs publication for a QUEUED WorkItem.
+  rpc RetryWorkItem(RetryWorkItemRequest) returns (WorkItem);
 }
 
 message CreateWorkItemRequest {
@@ -70,5 +73,9 @@ message ListWorkItemsPageToken {
 }
 
 message FailWorkItemRequest {
+  string work_item_resource_id = 1;
+}
+
+message RetryWorkItemRequest {
   string work_item_resource_id = 1;
 }

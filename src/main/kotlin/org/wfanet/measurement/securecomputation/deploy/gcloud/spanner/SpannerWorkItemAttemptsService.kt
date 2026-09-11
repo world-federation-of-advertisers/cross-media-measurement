@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemAttemptResult
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.activeWorkItemAttemptExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemAttemptByResourceId
@@ -98,6 +99,12 @@ class SpannerWorkItemAttemptsService(
             }
             WorkItem.State.QUEUED,
             WorkItem.State.RUNNING -> {
+              if (txn.activeWorkItemAttemptExists(result.workItemId)) {
+                throw WorkItemInvalidStateException(
+                  result.workItem.workItemResourceId,
+                  WorkItem.State.RUNNING,
+                )
+              }
               val workItemAttemptId: Long =
                 idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
               val (attemptNumber, state) =

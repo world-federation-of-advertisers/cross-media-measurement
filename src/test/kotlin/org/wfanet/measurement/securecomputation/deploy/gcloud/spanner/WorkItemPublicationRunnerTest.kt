@@ -140,19 +140,25 @@ class WorkItemPublicationRunnerTest {
   @Test
   fun `publishPendingWorkItems skips unresolvable queue without blocking later work`() =
     runBlocking {
-      insertPendingWorkItem(WORK_ITEM_ID, "work-item-invalid", queueId = Long.MAX_VALUE)
-      insertPendingWorkItem(WORK_ITEM_ID + 1L, "work-item-valid")
+      val unresolvableCount = 61
+      repeat(unresolvableCount) { index ->
+        insertPendingWorkItem(
+          WORK_ITEM_ID + index,
+          "work-item-invalid-$index",
+          queueId = Long.MAX_VALUE,
+        )
+      }
+      insertPendingWorkItem(WORK_ITEM_ID + unresolvableCount, "work-item-valid")
       val clock = MutableClock(Instant.now().plusSeconds(10))
       val publisher = RecordingPublisher()
       val runner = newRunner(publisher, clock)
 
-      assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
-      assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+      assertThat(runner.publishPendingWorkItems(limit = unresolvableCount + 1)).isEqualTo(1)
 
       assertThat(publisher.messages).hasSize(1)
       assertThat((publisher.messages.single() as WorkItem).workItemResourceId)
         .isEqualTo("work-item-valid")
-      assertThat(publicationCount()).isEqualTo(1L)
+      assertThat(publicationCount()).isEqualTo(unresolvableCount.toLong())
     }
 
   @Test

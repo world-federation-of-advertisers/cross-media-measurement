@@ -49,9 +49,11 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkIte
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken as internalListWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest as internalListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse as internalListWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest as internalRetryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException as InternalWorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
 @RunWith(JUnit4::class)
@@ -359,6 +361,44 @@ class WorkItemServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "name"
         }
       )
+  }
+
+  @Test
+  fun `retryWorkItem returns WorkItem`() = runBlocking {
+    val internalWorkItem = internalWorkItem {
+      workItemResourceId = "work-item"
+      state = InternalWorkItem.State.QUEUED
+    }
+    internalServiceMock.stub { onBlocking { retryWorkItem(any()) } doReturn internalWorkItem }
+
+    val request = retryWorkItemRequest { name = "workItems/${internalWorkItem.workItemResourceId}" }
+    val response = service.retryWorkItem(request)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::retryWorkItem,
+      )
+      .isEqualTo(
+        internalRetryWorkItemRequest { workItemResourceId = internalWorkItem.workItemResourceId }
+      )
+    assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
+  }
+
+  @Test
+  fun `retryWorkItem throws INVALID_WORK_ITEM_STATE from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { retryWorkItem(any()) } doThrow
+        InternalWorkItemInvalidStateException("work-item", InternalWorkItem.State.RUNNING)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.retryWorkItem(retryWorkItemRequest { name = "workItems/work-item" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
   }
 
   @Test

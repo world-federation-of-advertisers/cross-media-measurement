@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.any
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -52,6 +53,15 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
     Key.of(workItemId, workItemAttemptId),
     listOf("WorkItemId", "WorkItemAttemptId"),
   ) != null
+}
+
+/** Returns whether [workItemId] has an ACTIVE attempt. */
+suspend fun AsyncDatabaseClient.ReadContext.activeWorkItemAttemptExists(workItemId: Long): Boolean {
+  return read("WorkItemAttempts", KeySet.prefixRange(Key.of(workItemId)), listOf("State")).any { row
+    ->
+    val state: WorkItemAttempt.State = row.getProtoEnum("State", WorkItemAttempt.State::forNumber)
+    state == WorkItemAttempt.State.ACTIVE
+  }
 }
 
 /**

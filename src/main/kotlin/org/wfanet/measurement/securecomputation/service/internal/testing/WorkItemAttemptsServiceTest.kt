@@ -120,6 +120,56 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
+  fun `createWorkItemAttempt rejects a second active attempt`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    createWorkItemAttempts(services.service, workItem.workItemResourceId, 1)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "duplicate-active-attempt"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
+  }
+
+  @Test
+  fun `createWorkItemAttempt allows retry after active attempt fails`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val firstAttempt =
+      createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).single()
+    services.service.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = firstAttempt.workItemResourceId
+        workItemAttemptResourceId = firstAttempt.workItemAttemptResourceId
+        errorMessage = "retryable failure"
+      }
+    )
+
+    val retryAttempt =
+      services.service.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "retry-attempt"
+          }
+        }
+      )
+
+    assertThat(retryAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(retryAttempt.attemptNumber).isEqualTo(2)
+  }
+
+  @Test
   fun `createWorkItemAttempt throws INVALID_ARGUMENT if workItemResourceId is missing`() =
     runBlocking {
       val services = initServices()
@@ -592,16 +642,28 @@ abstract class WorkItemAttemptsServiceTest {
     workItemResourceId: String,
     count: Int,
   ): List<WorkItemAttempt> {
-    return (1..count).map {
-      val workItemAttemptResourceId = "work_item_attempt_resource_id_$it"
-      service.createWorkItemAttempt(
-        createWorkItemAttemptRequest {
-          workItemAttempt = workItemAttempt {
+    return (1..count).map { attemptNumber ->
+      val workItemAttemptResourceId = "work_item_attempt_resource_id_$attemptNumber"
+      val created =
+        service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            workItemAttempt = workItemAttempt {
+              this.workItemResourceId = workItemResourceId
+              this.workItemAttemptResourceId = workItemAttemptResourceId
+            }
+          }
+        )
+      if (attemptNumber == count) {
+        created
+      } else {
+        service.failWorkItemAttempt(
+          failWorkItemAttemptRequest {
             this.workItemResourceId = workItemResourceId
             this.workItemAttemptResourceId = workItemAttemptResourceId
+            errorMessage = "Test failure"
           }
-        }
-      )
+        )
+      }
     }
   }
 

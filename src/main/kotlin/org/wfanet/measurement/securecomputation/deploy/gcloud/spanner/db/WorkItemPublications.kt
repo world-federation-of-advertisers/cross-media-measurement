@@ -37,6 +37,23 @@ data class WorkItemPublicationResult(
   val attemptCount: Long,
 )
 
+/** Returns whether [workItemId] has a pending publication. */
+suspend fun AsyncDatabaseClient.ReadContext.workItemPublicationExists(workItemId: Long): Boolean {
+  return readRow("WorkItemPublications", Key.of(workItemId), listOf("WorkItemId")) != null
+}
+
+sealed interface WorkItemPublicationClaimResult {
+  data class Claimed(val publication: WorkItemPublicationResult) : WorkItemPublicationClaimResult
+
+  data class Skipped(val workItemResourceId: String, val queueId: Long, val reason: Reason) :
+    WorkItemPublicationClaimResult {
+    enum class Reason {
+      WORK_ITEM_NOT_QUEUED,
+      QUEUE_NOT_FOUND,
+    }
+  }
+}
+
 /** Buffers an insert mutation for a pending WorkItem publication. */
 fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(workItemId: Long) {
   bufferInsertMutation("WorkItemPublications") {
@@ -67,7 +84,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
   now: Instant,
   leaseExpirationTime: Instant,
   workItemId: Long? = null,
-): WorkItemPublicationResult? {
+): WorkItemPublicationClaimResult? {
   val sql = buildString {
     appendLine(WORK_ITEM_PUBLICATION_SQL)
     appendLine("WHERE (LeaseExpirationTime IS NULL OR LeaseExpirationTime <= @now)")
@@ -90,12 +107,17 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
       .singleOrNull() ?: return null
 
   val claimedWorkItemId = row.getLong("WorkItemId")
+  val workItemResourceId = row.getString("WorkItemResourceId")
   val queueId = row.getLong("QueueId")
   val state = WorkItem.State.forNumber(row.getLong("State").toInt())
 
   if (state != WorkItem.State.QUEUED) {
     deleteWorkItemPublication(claimedWorkItemId)
-    return null
+    return WorkItemPublicationClaimResult.Skipped(
+      workItemResourceId,
+      queueId,
+      WorkItemPublicationClaimResult.Skipped.Reason.WORK_ITEM_NOT_QUEUED,
+    )
   }
 
   val attemptCount = row.getLong("AttemptCount") + 1L
@@ -108,11 +130,17 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   if (queue == null) {
-    return null
+    return WorkItemPublicationClaimResult.Skipped(
+      workItemResourceId,
+      queueId,
+      WorkItemPublicationClaimResult.Skipped.Reason.QUEUE_NOT_FOUND,
+    )
   }
 
   val result = WorkItems.buildWorkItemResult(row, queue)
-  return WorkItemPublicationResult(claimedWorkItemId, result.workItem, attemptCount)
+  return WorkItemPublicationClaimResult.Claimed(
+    WorkItemPublicationResult(claimedWorkItemId, result.workItem, attemptCount)
+  )
 }
 
 /** Removes a publication if it is still leased by [leaseOwner]. */
