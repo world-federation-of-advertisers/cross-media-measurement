@@ -1082,6 +1082,12 @@ rollout:
      -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
    ```
 
+   This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
+   as generation 1; retried terminal or abandoned WorkItems advance to generation 2 or later. Roll
+   out the API and queue consumers together before using `RetryWorkItem`. `FailWorkItem` now
+   requires the generation from the delivered WorkItem, which prevents an old dead-letter delivery
+   from failing a replacement execution.
+
 6. With producers and consumers still stopped, capture one immutable snapshot of `QUEUED` WorkItem
    IDs that have no pending publication and no active attempt:
 
@@ -1140,8 +1146,12 @@ To recover a `RUNNING` WorkItem after its worker exits without completing or fai
 first call `FailWorkItemAttempt` for the exact active attempt that was inspected. Then call
 `RetryWorkItem`; it returns a `RUNNING` WorkItem to `QUEUED` only when no active attempt remains and
 publishes it again. A stale or repeated `RetryWorkItem` call cannot fail a replacement worker's
-attempt. Do this only after confirming that the original worker has stopped because the APIs do not
-currently provide an attempt lease, expiry, heartbeat, or authoritative worker-ownership signal.
+attempt. Stale dead-letter deliveries are fenced by the WorkItem generation and are acknowledged
+without changing the replacement generation. Do this only after confirming that the original
+worker has stopped because the APIs do not currently provide an attempt lease, expiry, heartbeat,
+or authoritative worker-ownership signal. For non-ResultsFulfiller applications, also wait until
+the dead-letter listener has finished its best-effort EDPA failure propagation before retrying;
+those external resource updates are not part of the Secure Computation transaction.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

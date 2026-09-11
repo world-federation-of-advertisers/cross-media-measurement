@@ -163,7 +163,7 @@ abstract class BaseTeeApplication(
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
       try {
-        failWorkItem(workItemName)
+        failWorkItem(workItemName, body.generation.takeUnless { it == 0L } ?: 1L)
         logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
         queueMessage.ack()
       } catch (error: Throwable) {
@@ -236,10 +236,15 @@ abstract class BaseTeeApplication(
     }
   }
 
-  private suspend fun failWorkItem(workItemName: String) {
+  private suspend fun failWorkItem(workItemName: String, expectedWorkItemGeneration: Long) {
     try {
       callControlPlane {
-        workItemsStub.failWorkItem(failWorkItemRequest { this.name = workItemName })
+        workItemsStub.failWorkItem(
+          failWorkItemRequest {
+            name = workItemName
+            this.expectedWorkItemGeneration = expectedWorkItemGeneration
+          }
+        )
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed", e)

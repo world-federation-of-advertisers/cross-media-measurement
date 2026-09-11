@@ -291,7 +291,10 @@ class DeadLetterQueueListenerTest {
   @Test
   fun `test work item with full resource name is processed correctly`() = runBlocking {
     // Create a mock work item with full resource name
-    val workItem = workItem { name = workItemId }
+    val workItem = workItem {
+      name = workItemId
+      generation = 7L
+    }
 
     // Create a mock QueueMessage
     val mockQueueMessage =
@@ -329,6 +332,7 @@ class DeadLetterQueueListenerTest {
     // correctly
     verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
     assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
+    assertEquals(workItem.generation, requestCaptor.firstValue.expectedWorkItemGeneration)
 
     // Clean up
     messageChannel.close()
@@ -589,6 +593,68 @@ class DeadLetterQueueListenerTest {
     // Close the channel and cancel the job
     messageChannel.close()
     job.cancel()
+  }
+
+  @Test
+  fun `test stale work item generation is acknowledged`() = runBlocking {
+    val workItem = workItem {
+      name = workItemId
+      generation = 1L
+    }
+    val mockQueueMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+    val mockQueueSubscriber =
+      mock<QueueSubscriber> {
+        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+      }
+    val errorInfoProto =
+      com.google.rpc.errorInfo {
+        reason =
+          org.wfanet.measurement.securecomputation.service.internal.Errors.Reason
+            .WORK_ITEM_GENERATION_MISMATCH
+            .name
+        domain = org.wfanet.measurement.securecomputation.service.internal.Errors.DOMAIN
+      }
+    val statusException =
+      org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
+        Status.FAILED_PRECONDITION.withDescription("Stale WorkItem generation"),
+        errorInfoProto,
+      )
+    val mockWorkItemsStub =
+      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+      }
+    val listener =
+      deadLetterQueueListener(
+        queueSubscriber = mockQueueSubscriber,
+        workItemsStub = mockWorkItemsStub,
+      )
+    val job = launch { listener.run() }
+
+    messageChannel.send(mockQueueMessage)
+
+    verify(mockQueueMessage, timeout(5000)).ack()
+    verify(mockQueueMessage, never()).nack()
+    messageChannel.close()
+    job.cancel()
+  }
+
+  @Test
+  fun `succeeded work item is recognized as terminal`() {
+    val errorInfoProto =
+      com.google.rpc.errorInfo {
+        reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
+        domain = Errors.DOMAIN
+        metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.SUCCEEDED.name)
+      }
+    val exception =
+      org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
+        Status.FAILED_PRECONDITION.withDescription("Work item already succeeded"),
+        errorInfoProto,
+      )
+
+    assertTrue(DeadLetterQueueListener.isTerminalWorkItemError(exception))
   }
 
   @Test
