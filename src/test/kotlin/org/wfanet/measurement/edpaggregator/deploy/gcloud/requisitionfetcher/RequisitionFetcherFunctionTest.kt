@@ -77,18 +77,27 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
+  @Volatile private var createWorkItemRequest: CreateWorkItemRequest? = null
+
   /** Temp folder to store Requisitions in test. */
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
@@ -101,9 +110,54 @@ class RequisitionFetcherFunctionTest {
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listRequisitionMetadata(any()) }.thenReturn(listRequisitionMetadataResponse {})
-      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { batchCreateRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+          batchCreateRequisitionMetadataResponse {
+            requisitionMetadata +=
+              request.requestsList.mapIndexed { index, createRequest ->
+                val source = createRequest.requisitionMetadata
+                requisitionMetadata {
+                  name = "$DATA_PROVIDER_NAME/requisitionMetadata/$index"
+                  cmmsRequisition = source.cmmsRequisition
+                  blobUri = source.blobUri
+                  blobTypeUrl = source.blobTypeUrl
+                  groupId = source.groupId
+                  cmmsCreateTime = source.cmmsCreateTime
+                  report = source.report
+                  state = RequisitionMetadata.State.STORED
+                  etag = "stored-etag-$index"
+                }
+              }
+          }
+        }
+      onBlocking { queueRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<QueueRequisitionMetadataRequest>(0)
+          requisitionMetadata {
+            name = request.name
+            workItem = request.workItem
+            state = RequisitionMetadata.State.QUEUED
+            etag = "queued-etag"
+          }
+        }
       onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
     }
+
+  private val workItemsServiceMock: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService {
+    onBlocking { getWorkItem(any()) }
+      .thenAnswer { throw io.grpc.Status.NOT_FOUND.asRuntimeException() }
+    onBlocking { createWorkItem(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<CreateWorkItemRequest>(0)
+        createWorkItemRequest = request
+        workItem {
+          name = "workItems/${request.workItemId}"
+          queue = request.workItem.queue
+          workItemParams = request.workItem.workItemParams
+        }
+      }
+  }
 
   private val eventGroupsServiceMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase = mockService {
     onBlocking { getEventGroup(any()) }
@@ -157,6 +211,7 @@ class RequisitionFetcherFunctionTest {
               ),
               eventGroupsServiceMock.bindService(),
               requisitionMetadataServiceMock.bindService(),
+              workItemsServiceMock.bindService(),
             ),
         )
         .start()
@@ -175,8 +230,10 @@ class RequisitionFetcherFunctionTest {
             "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
             "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
             "METADATA_STORAGE_TARGET" to "localhost:${grpcServer.port}",
+            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "KINGDOM_CERT_HOST" to "localhost",
             "METADATA_STORAGE_CERT_HOST" to "localhost",
+            "SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
@@ -228,6 +285,10 @@ class RequisitionFetcherFunctionTest {
       .isEqualTo(EVENT_GROUP_ENTRY.value.collectionInterval.endTime)
     assertThat(groupedRequisitions.eventGroupMapList[0].details.eventGroupReferenceId)
       .isEqualTo(EVENT_GROUP_REFERENCE_ID)
+    val workItemRequest = checkNotNull(createWorkItemRequest)
+    assertThat(workItemRequest.workItemId)
+      .isEqualTo("results-fulfiller-${groupedRequisitions.groupId}")
+    assertThat(workItemRequest.workItem.queue).isEqualTo("results-fulfiller-queue")
   }
 
   @Test

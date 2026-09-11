@@ -20,6 +20,7 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import com.google.protobuf.TypeRegistry
 import io.grpc.ClientInterceptors
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -50,11 +51,14 @@ import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.SecureComputationRequisitionWorkItemDispatcher
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.withW3CTraceContext
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -74,6 +78,12 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
  *   RPCs. Default `100ms`.
+ * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required when direct WorkItem dispatch is
+ *   configured.
+ * - `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`: Optional. Server name for the Secure Computation
+ *   Control Plane TLS certificate.
+ * - `CONTROL_PLANE_REQUEST_INTERVAL`: Optional. Minimum interval between Secure Computation Control
+ *   Plane RPCs. Default `100ms`.
  * - `FLUSH_INTERVAL`: Optional. Wall-clock period between forced drains of every open report
  *   buffer; the primary dispatch trigger. Default `5m`.
  * - `MAX_TOTAL_BUFFERED_BYTES`: Optional. Global upper bound on the serialized byte total across
@@ -199,6 +209,29 @@ class RequisitionFetcherFunction : HttpFunction {
     val kingdomEventGroupThrottler =
       MinimumIntervalThrottler(Clock.systemUTC(), kingdomEventGroupRequestInterval)
     val metadataThrottler = MinimumIntervalThrottler(Clock.systemUTC(), metadataRequestInterval)
+    val workItemDispatcher =
+      if (dataProviderConfig.hasWorkItemDispatch()) {
+        val dispatchConfig = dataProviderConfig.workItemDispatch
+        val target =
+          requireNotNull(secureComputationControlPlaneTarget) {
+            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required when work_item_dispatch is set"
+          }
+        val channel =
+          createInstrumentedChannel(
+            dispatchConfig.controlPlaneConnection,
+            target,
+            secureComputationControlPlaneCertHost,
+          )
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub = WorkItemsCoroutineStub(channel),
+          queue = dispatchConfig.queue,
+          appParams = dispatchConfig.appParams,
+          controlPlaneThrottler =
+            MinimumIntervalThrottler(Clock.systemUTC(), controlPlaneRequestInterval),
+        )
+      } else {
+        null
+      }
 
     val requisitionGrouper =
       RequisitionGrouperByReportId(
@@ -219,6 +252,7 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
+      workItemDispatcher = workItemDispatcher,
       responsePageSize = pageSize,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
@@ -299,11 +333,16 @@ class RequisitionFetcherFunction : HttpFunction {
     private val metadataStorageTarget = EnvVars.checkNotNullOrEmpty("METADATA_STORAGE_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val metadataStorageCertHost: String? = System.getenv("METADATA_STORAGE_CERT_HOST")
+    private val secureComputationControlPlaneTarget: String? =
+      System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_TARGET")
+    private val secureComputationControlPlaneCertHost: String? =
+      System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
 
     private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
     private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
     private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
+    private const val DEFAULT_CONTROL_PLANE_REQUEST_INTERVAL = "100ms"
     private const val DEFAULT_FLUSH_INTERVAL = "5m"
 
     private val grpcRequestInterval: Duration =
@@ -314,6 +353,9 @@ class RequisitionFetcherFunction : HttpFunction {
         .toDuration()
     private val metadataRequestInterval: Duration =
       (System.getenv("METADATA_REQUEST_INTERVAL") ?: DEFAULT_METADATA_REQUEST_INTERVAL).toDuration()
+    private val controlPlaneRequestInterval: Duration =
+      (System.getenv("CONTROL_PLANE_REQUEST_INTERVAL") ?: DEFAULT_CONTROL_PLANE_REQUEST_INTERVAL)
+        .toDuration()
 
     private val flushInterval: Duration =
       (System.getenv("FLUSH_INTERVAL") ?: DEFAULT_FLUSH_INTERVAL).toDuration()
@@ -356,7 +398,11 @@ class RequisitionFetcherFunction : HttpFunction {
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
     private val requisitionFetcherConfig by lazy {
       runBlocking {
-        getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
+        getConfigAsProtoMessage(
+          CONFIG_BLOB_KEY,
+          RequisitionFetcherConfig.getDefaultInstance(),
+          TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
+        )
       }
     }
 
@@ -415,6 +461,29 @@ class RequisitionFetcherFunction : HttpFunction {
       }
       require(tls.certCollectionFilePath.isNotBlank()) {
         "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+      }
+
+      if (dataProviderConfig.hasWorkItemDispatch()) {
+        val dispatch = dataProviderConfig.workItemDispatch
+        require(dispatch.queue.isNotBlank()) {
+          "Missing 'queue' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(dispatch.hasAppParams()) {
+          "Missing 'app_params' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(dispatch.hasControlPlaneConnection()) {
+          "Missing 'control_plane_connection' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        val controlPlaneTls = dispatch.controlPlaneConnection
+        require(controlPlaneTls.certFilePath.isNotBlank()) {
+          "Missing 'cert_file_path' in work_item_dispatch.control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(controlPlaneTls.privateKeyFilePath.isNotBlank()) {
+          "Missing 'private_key_file_path' in work_item_dispatch.control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(controlPlaneTls.certCollectionFilePath.isNotBlank()) {
+          "Missing 'cert_collection_file_path' in work_item_dispatch.control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
       }
     }
   }

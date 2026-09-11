@@ -17,15 +17,28 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "google/protobuf/any.proto";
-import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
-import "google/protobuf/struct.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionFetcherConfigProto";
+
+// Configuration for directly dispatching grouped requisitions to Secure Computation.
+message RequisitionWorkItemDispatchConfig {
+  // How the EDP connects to the Secure Computation Control Plane Public API.
+  TransportLayerSecurityParams control_plane_connection = 1;
+
+  // Queue for ResultsFulfiller WorkItems.
+  string queue = 2 [
+    (google.api.resource_reference).type =
+        "control-plane.secure-computation.halo-cmm.org/Queue"
+  ];
+
+  // Queue-specific ResultsFulfiller application parameters.
+  google.protobuf.Any app_params = 3;
+}
 
 // Individual config per EDP.
 message DataProviderRequisitionConfig {
@@ -42,6 +55,8 @@ message DataProviderRequisitionConfig {
   string edp_private_key_path = 5;
   // How the EDP connects to the Requisition Metadata Storage Public API
   TransportLayerSecurityParams requisition_metadata_storage_connection = 6;
+  // Direct dispatch configuration. If unset, storage-event dispatch remains enabled.
+  RequisitionWorkItemDispatchConfig work_item_dispatch = 7;
 }
 
 // The Requisition Fetcher configuration

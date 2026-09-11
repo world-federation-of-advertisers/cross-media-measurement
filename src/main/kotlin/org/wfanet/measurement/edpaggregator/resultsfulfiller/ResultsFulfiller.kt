@@ -176,19 +176,19 @@ class ResultsFulfiller(
     // fulfilled or refused already
     val requisitionsMetadata: List<RequisitionMetadata> = listRequisitionMetadata()
 
-    // Empty metadata is almost always transient, not a permanent orphan. DataWatcher dispatches
-    // this work item on the blob write, but the RequisitionFetcher creates the RequisitionMetadata
-    // *after* writing the blob (writeBlob then batchCreateRequisitionMetadataForGroup), so a
-    // dispatch that wins the race against that metadata write reads zero rows here even though they
-    // land moments later. Throwing nacks the work item, which redelivers and self-heals once the
-    // metadata exists — do NOT skip-and-ack, which would abandon requisitions that are about to
-    // become fulfillable and leave the report permanently unfulfilled.
+    // Empty metadata is almost always transient, not a permanent orphan. The direct Requisition
+    // Fetcher dispatch path creates and queues metadata before creating the WorkItem, preventing
+    // this race. The legacy DataWatcher path dispatches on the blob write, however, and can still
+    // reach here before RequisitionMetadata is committed. Throwing nacks the work item, which
+    // redelivers and self-heals once the metadata exists — do NOT skip-and-ack, which would abandon
+    // requisitions that are about to become fulfillable and leave the report permanently
+    // unfulfilled.
     //
     // The genuinely-orphaned case (fetcher crashed between blob and metadata, so metadata never
     // arrives) is indistinguishable from the race at read time; it retries up to the queue's
-    // max_delivery_attempts and then dead-letters. Silencing that dead-letter noise requires gating
-    // dispatch on metadata existence (a done-marker) so empty metadata can only mean a true orphan;
-    // until then this stays a throw-and-retry. See #4119 (blocked by #4213).
+    // max_delivery_attempts and then dead-letters. Migrating the watched path to direct dispatch
+    // makes empty metadata a true orphan; until all deployments migrate, this stays a
+    // throw-and-retry. See #4119 (blocked by #4213).
     //
     // emptyMetadataRetries is the observability hook: a low steady rate is the normal race, a
     // sustained climb on the same groupId is a stuck orphan worth investigating.

@@ -131,7 +131,10 @@ locals {
       "trusted_root_ca_collection",
       "requisition_fetcher_tls_pem",
       "requisition_fetcher_tls_key",
-      "metadata_storage_root_ca"
+      "metadata_storage_root_ca",
+      "secure_computation_root_ca",
+      "data_watcher_tls_key",
+      "data_watcher_tls_pem",
     ],
     local.edp_tls_keys
   )
