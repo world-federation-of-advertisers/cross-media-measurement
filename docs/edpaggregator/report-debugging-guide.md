@@ -587,10 +587,14 @@ Trace:
    row in the group to `QUEUED`. Query the same row's `WorkItem` column and match
    it to `Created WorkItem ...` in the requisition-fetcher logs. The Secure
    Computation control plane commits the WorkItem and a pending publication
-   record atomically, then retries Pub/Sub delivery in the background. A
-   `QUEUED` WorkItem with no attempt should therefore self-heal after a transient
-   publish failure; a terminal WorkItem paired with unfinished requisition
-   metadata is an invariant violation and is surfaced by RequisitionFetcher.
+   record atomically, then retries Pub/Sub delivery in the background. A `QUEUED`
+   WorkItem created by an upgraded control-plane writer should therefore
+   self-heal after a transient publish failure. This guarantee does not apply to
+   WorkItems created before the outbox migration or by an older replica during a
+   rolling rollout; the migration procedure requires those writers to be gone
+   and existing groups to be drained or repaired first. A terminal WorkItem
+   paired with unfinished requisition metadata is surfaced by
+   RequisitionFetcher for operator recovery rather than silently replaced.
 
    During migration, a deployment may omit `work_item_dispatch` from the fetcher
    config and retain the legacy **data-watcher** Cloud Function. In that path, a

@@ -838,7 +838,9 @@ time. Both observe the same grouped-requisition blob and can create separate Wor
 
 Use this staged cutover:
 
-1. Deploy the Secure Computation control-plane version that includes durable WorkItem publication.
+1. Deploy the Secure Computation control-plane version that includes durable WorkItem publication,
+   wait for the rollout to finish, and verify that no older writer replicas remain. The migration
+   does not backfill publication records for WorkItems created by an older control-plane binary.
 2. Add the RequisitionFetcher control-plane endpoint, TLS secrets, and `work_item_dispatch`
    configuration, but do not activate that config yet.
 3. Pause the RequisitionFetcher scheduler and wait for any active invocation to finish.
