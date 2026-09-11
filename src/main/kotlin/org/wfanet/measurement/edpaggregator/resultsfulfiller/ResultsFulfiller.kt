@@ -424,7 +424,7 @@ class ResultsFulfiller(
         "Report ID is missing from requisition metadata: ${requisitionMetadata.name}"
       }
 
-    Tracing.traceSuspending(
+    return Tracing.traceSuspending(
       spanName = SPAN_REQUISITION_FULFILLMENT,
       attributes =
         Attributes.builder()

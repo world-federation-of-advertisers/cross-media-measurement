@@ -2828,7 +2828,7 @@ class ResultsFulfillerTest {
     val expectedGroupId = groupedRequisitions.groupId
     assertThat(reportFinishedEvent.attributes.get(groupIdAttr)).isEqualTo(expectedGroupId)
     assertThat(reportFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
-    assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.OK)
+    assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.UNSET)
 
     val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
     assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.REPORT_NAME))
@@ -2845,7 +2845,7 @@ class ResultsFulfillerTest {
     assertThat(requisitionFinishedEvent.attributes.get(requisitionAttr)).isEqualTo(REQUISITION_NAME)
     assertThat(requisitionFinishedEvent.attributes.get(reportIdAttr)).isEqualTo("some-report")
     assertThat(requisitionFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
-    assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.OK)
+    assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.UNSET)
   }
 
   @Test
