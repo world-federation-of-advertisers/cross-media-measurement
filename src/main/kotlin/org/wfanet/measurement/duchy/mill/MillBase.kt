@@ -253,7 +253,9 @@ abstract class MillBase(
 
   private suspend fun processComputationInTrace(token: ComputationToken) {
     if (token.attempt > maximumAttempts) {
-      failComputation(token, "Failing computation due to too many failed ComputationStageAttempts.")
+      val message = "Failing computation due to too many failed ComputationStageAttempts."
+      Span.current().setStatus(StatusCode.ERROR, message)
+      failComputation(token, message)
       return
     }
 

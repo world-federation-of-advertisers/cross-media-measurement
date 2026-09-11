@@ -119,15 +119,14 @@ object ReportTracing {
         .setSpanKind(SpanKind.INTERNAL)
         .setAllAttributes(attributes)
         .startSpan()
-    val scope = span.makeCurrent()
+    val context = Context.current().with(span)
     return try {
-      withContext(Context.current().asContextElement()) { block() }
+      withContext(context.asContextElement()) { block() }
     } catch (e: Exception) {
       span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
       span.recordException(e)
       throw e
     } finally {
-      scope.close()
       span.end()
     }
   }

@@ -104,10 +104,12 @@ class RequisitionGrouperByReportId(
     groupId: String,
   ): GroupedRequisitions {
     val firstModelLine = perRequisitionGroups.first().modelLine
-    val basicReports = perRequisitionGroups.map { it.basicReport }.distinct()
-    require(basicReports.size == 1) {
-      "Report $reportId cannot contain multiple BasicReports: $basicReports"
-    }
+    val basicReport =
+      perRequisitionGroups
+        .mapNotNull { it.basicReport.takeIf(String::isNotEmpty) }
+        .distinct()
+        .singleOrNull()
+        .orEmpty()
     val mergedRequisitions = perRequisitionGroups.flatMap { it.requisitionsList }
     val eventGroupMapEntries = buildEventGroupEntries(reportId, perRequisitionGroups)
     return groupedRequisitions {
@@ -116,7 +118,7 @@ class RequisitionGrouperByReportId(
       eventGroupMap += eventGroupMapEntries
       this.groupId = groupId
       report = reportId
-      basicReport = basicReports.single()
+      this.basicReport = basicReport
     }
   }
 

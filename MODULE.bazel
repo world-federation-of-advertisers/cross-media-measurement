@@ -53,6 +53,7 @@ bazel_dep(
     repo_name = "wfa_measurement_proto",
 )
 git_override(
+    # DO_NOT_SUBMIT(world-federation-of-advertisers/cross-media-measurement-api#301)
     module_name = "cross-media-measurement-api",
     commit = "76c7ee82d3c6b9bc73a9b7fdd629b0f8812a6ae9",
     remote = "https://github.com/world-federation-of-advertisers/cross-media-measurement-api.git",

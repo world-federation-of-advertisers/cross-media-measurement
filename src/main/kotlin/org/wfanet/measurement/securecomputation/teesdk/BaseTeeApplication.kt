@@ -21,6 +21,8 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Parser
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -123,7 +125,9 @@ abstract class BaseTeeApplication(
     val body: WorkItem = queueMessage.body
 
     if (body.name.isEmpty()) {
-      logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed. Nacking message.")
+      val error = IllegalArgumentException("WorkItem name is empty")
+      recordCurrentSpanError(error)
+      logger.log(Level.SEVERE, error) { "Cannot proceed. Nacking message." }
       queueMessage.nack()
       return
     }
@@ -147,10 +151,12 @@ abstract class BaseTeeApplication(
             logger.log(Level.WARNING, e) {
               "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
             }
+            recordCurrentSpanError(e)
             queueMessage.ack()
             return
           }
         }
+        recordCurrentSpanError(e)
         logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
         queueMessage.nack()
         return
@@ -160,34 +166,39 @@ abstract class BaseTeeApplication(
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
       runWork(queueMessage.body.workItemParams)
       logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
-      runCatching { completeWorkItemAttempt(workItemAttempt) }
-        .onFailure { error ->
-          when (error) {
-            is StatusException -> {
-              if (
-                error.status.code == Status.Code.FAILED_PRECONDITION &&
-                  error.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
-                  error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
-                    WorkItemAttempt.State.SUCCEEDED.name
-              ) {
-                logger.info(
-                  "WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}"
-                )
-                queueMessage.ack()
-                return@processMessageInContext
-              } else {
-                logger.log(Level.SEVERE, error) {
-                  "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
-                }
-                queueMessage.nack()
-                return@processMessageInContext
-              }
-            }
+      val completionError =
+        runCatching { completeWorkItemAttempt(workItemAttempt) }.exceptionOrNull()
+      if (completionError != null) {
+        val statusException =
+          when (completionError) {
+            is StatusException -> completionError
+            is ControlPlaneApiException -> completionError.cause as? StatusException
+            else -> null
           }
+        if (
+          statusException?.status?.code == Status.Code.FAILED_PRECONDITION &&
+            statusException.errorInfo?.reason ==
+              Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
+            statusException.errorInfo
+              ?.metadataMap
+              ?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
+              WorkItemAttempt.State.SUCCEEDED.name
+        ) {
+          logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
+          queueMessage.ack()
+          return
         }
+        recordCurrentSpanError(completionError)
+        logger.log(Level.SEVERE, completionError) {
+          "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
+        }
+        queueMessage.nack()
+        return
+      }
       logger.info("Successfully completed processing. Acking message ${queueMessage.ackId}")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
+      recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
       try {
         failWorkItem(workItemName)
@@ -200,6 +211,7 @@ abstract class BaseTeeApplication(
         queueMessage.nack()
       }
     } catch (e: Exception) {
+      recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
       runCatching { failWorkItemAttempt(workItemAttempt, e) }
         .onFailure { error ->
@@ -210,6 +222,11 @@ abstract class BaseTeeApplication(
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }
+  }
+
+  private fun recordCurrentSpanError(error: Throwable) {
+    Span.current().setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+    Span.current().recordException(error)
   }
 
   private suspend fun createWorkItemAttempt(

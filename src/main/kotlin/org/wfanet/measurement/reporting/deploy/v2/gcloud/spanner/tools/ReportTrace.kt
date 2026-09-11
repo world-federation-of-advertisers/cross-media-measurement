@@ -37,6 +37,9 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
+import java.nio.file.Files
+import java.nio.file.Path
+import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeParseException
@@ -196,7 +199,7 @@ internal class DatabaseBasicReportTraceResolver(
   }
 }
 
-/** Reads all matching entries with one server-side Cloud Logging filter. */
+/** Reads matching entries from Cloud Logging. */
 internal class GoogleCloudReportTraceLogReader(private val logging: Logging) :
   ReportTraceLogReader {
   override fun read(
@@ -206,17 +209,21 @@ internal class GoogleCloudReportTraceLogReader(private val logging: Logging) :
     limit: Int,
   ): List<ReportTraceLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
-    val filter = ReportTraceOutput.buildLogFilter(correlationValues, startTime, endTime)
-    return logging
-      .listLogEntries(
-        EntryListOption.filter(filter),
-        EntryListOption.pageSize(limit),
-        EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.ASCENDING),
-      )
-      .iterateAll()
-      .take(limit)
-      .map { it.toReportTraceLogEntry() }
+    return ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime)
+      .flatMap { filter ->
+        logging
+          .listLogEntries(
+            EntryListOption.filter(filter),
+            EntryListOption.pageSize(limit),
+            EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.ASCENDING),
+          )
+          .iterateAll()
+          .take(limit)
+          .map { it.toReportTraceLogEntry() }
+      }
+      .distinct()
       .sortedBy { it.timestamp }
+      .take(limit)
   }
 
   private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry {
@@ -260,38 +267,47 @@ internal class GoogleCloudReportTraceSpanReader(
       } else {
         REPORT_TRACE_ATTRIBUTE
       }
-    val filter = "+label:$traceAttribute:\"$reportName\""
-    val query =
-      mapOf(
+    val filter = "+$traceAttribute:\"$reportName\""
+    val entries = mutableListOf<ReportTraceLogEntry>()
+    var pageToken: String? = null
+    do {
+      val queryParameters =
+        mutableMapOf(
           "view" to "COMPLETE",
           "pageSize" to limit.coerceAtMost(MAX_TRACE_PAGE_SIZE).toString(),
           "startTime" to startTime.toString(),
           "endTime" to endTime.toString(),
           "filter" to filter,
         )
-        .entries
-        .joinToString("&") { (key, value) -> "$key=${urlEncode(value)}" }
-    val request =
-      HttpRequest.newBuilder()
-        .uri(URI.create("https://cloudtrace.googleapis.com/v1/projects/$project/traces?$query"))
-        .header("Authorization", "Bearer ${checkNotNull(credentials.accessToken).tokenValue}")
-        .GET()
-        .build()
-    val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-    check(response.statusCode() in 200..299) {
-      "Cloud Trace API returned HTTP ${response.statusCode()}: ${response.body().take(1000)}"
-    }
-    val root = JsonParser.parseString(response.body()).asJsonObject
-    val traces = root.getAsJsonArray("traces") ?: return emptyList()
-    return traces
-      .flatMap { traceElement ->
-        val trace = traceElement.asJsonObject
-        val traceId = trace.requiredString("traceId")
-        val spans = trace.getAsJsonArray("spans") ?: return@flatMap emptyList()
-        spans.map { spanElement -> spanElement.asJsonObject.toTraceEntry(project, traceId) }
+      if (pageToken != null) {
+        queryParameters["pageToken"] = pageToken
       }
-      .sortedBy { it.timestamp }
-      .take(limit)
+      val query =
+        queryParameters.entries.joinToString("&") { (key, value) -> "$key=${urlEncode(value)}" }
+      val request =
+        HttpRequest.newBuilder()
+          .uri(URI.create("https://cloudtrace.googleapis.com/v1/projects/$project/traces?$query"))
+          .header("Authorization", "Bearer ${checkNotNull(credentials.accessToken).tokenValue}")
+          .GET()
+          .build()
+      val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+      check(response.statusCode() in 200..299) {
+        "Cloud Trace API returned HTTP ${response.statusCode()}: ${response.body().take(1000)}"
+      }
+      val root = JsonParser.parseString(response.body()).asJsonObject
+      val traces = root.getAsJsonArray("traces")
+      if (traces != null) {
+        entries +=
+          traces.flatMap { traceElement ->
+            val trace = traceElement.asJsonObject
+            val traceId = trace.requiredString("traceId")
+            val spans = trace.getAsJsonArray("spans") ?: return@flatMap emptyList()
+            spans.map { spanElement -> spanElement.asJsonObject.toTraceEntry(project, traceId) }
+          }
+      }
+      pageToken = root.optionalString("nextPageToken")
+    } while (pageToken != null && entries.size < limit)
+    return entries.distinct().sortedBy { it.timestamp }.take(limit)
   }
 
   private fun JsonObject.toTraceEntry(project: String, traceId: String): ReportTraceLogEntry {
@@ -339,61 +355,105 @@ internal class GoogleCloudReportTraceSpanReader(
   }
 }
 
-private object ReportTraceOutput {
-  fun buildLogFilter(
+internal object ReportTraceOutput {
+  fun buildLogFilters(
     correlationValues: Collection<String>,
     startTime: Instant,
     endTime: Instant,
-  ): String {
-    val identifiers =
-      correlationValues.distinct().joinToString(" OR ") { value ->
+  ): List<String> {
+    val timeFilter = "timestamp>=\"$startTime\" AND timestamp<=\"$endTime\""
+    val identifierPredicates =
+      correlationValues.distinct().map { value ->
         val escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
-        "textPayload:\"$escaped\" OR jsonPayload.message:\"$escaped\" OR " +
+        "(textPayload:\"$escaped\" OR jsonPayload.message:\"$escaped\" OR " +
           "jsonPayload.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.attributes.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.attributes.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"edpa.report_id\"=\"$escaped\" OR " +
-          "jsonPayload.\"edpa.results_fulfiller.report_id\"=\"$escaped\""
+          "jsonPayload.\"edpa.results_fulfiller.report_id\"=\"$escaped\")"
       }
-    return "timestamp>=\"$startTime\" AND timestamp<=\"$endTime\" AND ($identifiers)"
-  }
-
-  fun render(context: ReportTraceContext, entries: List<ReportTraceLogEntry>): String =
-    buildString {
-      appendLine("Report execution trace")
-      val basicReportName = context.basicReportName
-      if (basicReportName != null) {
-        append("BasicReport: ").append(basicReportName)
-        val basicReportState = context.basicReportState
-        if (basicReportState != null) {
-          append(" [").append(basicReportState).append(']')
+    val filters = mutableListOf<String>()
+    var chunk = mutableListOf<String>()
+    for (predicate in identifierPredicates) {
+      val candidate = buildLogFilter(timeFilter, chunk + predicate)
+      if (candidate.length > MAX_LOG_FILTER_LENGTH && chunk.isNotEmpty()) {
+        filters += buildLogFilter(timeFilter, chunk)
+        require(buildLogFilter(timeFilter, listOf(predicate)).length <= MAX_LOG_FILTER_LENGTH) {
+          "One correlation value exceeds the Cloud Logging filter-size limit"
         }
-        appendLine()
-      }
-      appendLine("Report: ${context.reportName}")
-      appendLine("Metrics: ${context.metricNames.size}")
-      appendLine("Measurements: ${context.measurementNames.size}")
-      appendLine()
-      if (entries.isEmpty()) {
-        appendLine("No matching log entries were found in the selected time range.")
-        return@buildString
-      }
-      for (entry in entries.sortedBy { it.timestamp }) {
-        append(entry.timestamp)
-          .append("  ")
-          .append(entry.severity.padEnd(7))
-          .append("  [")
-          .append(entry.service)
-          .append("] ")
-          .append(entry.message.replace('\n', ' '))
-        val trace = entry.trace
-        if (trace != null) {
-          append(" (trace=").append(trace.substringAfterLast('/')).append(')')
+        chunk = mutableListOf(predicate)
+      } else {
+        require(candidate.length <= MAX_LOG_FILTER_LENGTH) {
+          "One correlation value exceeds the Cloud Logging filter-size limit"
         }
-        appendLine()
+        chunk += predicate
       }
     }
+    if (chunk.isNotEmpty()) {
+      filters += buildLogFilter(timeFilter, chunk)
+    }
+    return filters
+  }
+
+  private fun buildLogFilter(timeFilter: String, identifierPredicates: List<String>): String {
+    return "$timeFilter AND (${identifierPredicates.joinToString(" OR ")})"
+  }
+
+  fun render(
+    context: ReportTraceContext,
+    entries: List<ReportTraceLogEntry>,
+    warnings: List<String>,
+  ): String = buildString {
+    appendLine("# Report execution trace")
+    appendLine()
+    val basicReportName = context.basicReportName
+    if (basicReportName != null) {
+      append("BasicReport: ").append(basicReportName)
+      val basicReportState = context.basicReportState
+      if (basicReportState != null) {
+        append(" [").append(basicReportState).append(']')
+      }
+      appendLine()
+    }
+    appendLine("Report: ${context.reportName}")
+    appendLine("Metrics: ${context.metricNames.size}")
+    appendLine("Measurements: ${context.measurementNames.size}")
+    appendLine()
+    if (warnings.isNotEmpty()) {
+      appendLine("## Collection warnings")
+      for (warning in warnings) {
+        appendLine("- $warning")
+      }
+      appendLine()
+    }
+    appendLine("## Timeline")
+    appendLine()
+    if (entries.isEmpty()) {
+      if (warnings.isEmpty()) {
+        appendLine("No matching trace spans or log entries were found in the selected time range.")
+      } else {
+        appendLine("No timeline entries were collected; see the collection warnings above.")
+      }
+      return@buildString
+    }
+    for (entry in entries.sortedBy { it.timestamp }) {
+      append(entry.timestamp)
+        .append("  ")
+        .append(entry.severity.padEnd(7))
+        .append("  [")
+        .append(entry.service)
+        .append("] ")
+        .append(entry.message.replace('\n', ' '))
+      val trace = entry.trace
+      if (trace != null) {
+        append(" (trace=").append(trace.substringAfterLast('/')).append(')')
+      }
+      appendLine()
+    }
+  }
+
+  private const val MAX_LOG_FILTER_LENGTH = 20_000
 }
 
 @CommandLine.Command(
@@ -407,6 +467,8 @@ internal class ReportTrace(
   private val spanReaderFactory: () -> ReportTraceSpanReader,
   private val resolverFactory:
     (SpannerDatabaseConnector, PostgresDatabaseClient) -> BasicReportTraceResolver,
+  private val resolverOverride: BasicReportTraceResolver?,
+  private val clock: Clock,
 ) : Runnable {
   @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
 
@@ -446,9 +508,16 @@ internal class ReportTrace(
 
   @CommandLine.Option(
     names = ["--basic-report"],
-    description = ["BasicReport resource name. Resolves all downstream resource names."],
+    description =
+      ["BasicReport resource name. Repeat for multiple reports; resolves downstream names."],
   )
-  private var basicReportName: String? = null
+  private var basicReportNames: List<String> = emptyList()
+
+  @CommandLine.Option(
+    names = ["--output-dir"],
+    description = ["Directory for one Markdown file per BasicReport."],
+  )
+  private var outputDirectory: Path? = null
 
   @CommandLine.Option(
     names = ["--report"],
@@ -465,18 +534,40 @@ internal class ReportTrace(
 
   @CommandLine.Option(
     names = ["--end-time"],
-    description = ["Inclusive RFC 3339 end time."],
-    defaultValue = "\${CURRENT-TIME}",
+    description = ["Inclusive RFC 3339 end time. Defaults to the current time."],
   )
-  private lateinit var endTime: String
+  private var endTime: String? = null
 
   @CommandLine.Option(names = ["--limit"], defaultValue = "1000") private lateinit var limit: String
 
-  override fun run() = runBlocking {
-    if ((basicReportName == null) == (reportName == null)) {
+  override fun run() {
+    val exitCode = runBlocking { execute() }
+    if (exitCode != 0) {
+      throw CommandLine.ExecutionException(
+        spec.commandLine(),
+        "One or more BasicReport trace artifacts could not be generated",
+      )
+    }
+  }
+
+  private suspend fun execute(): Int {
+    val requestedBasicReportNames = basicReportNames.distinct()
+    if (requestedBasicReportNames.isEmpty() == (reportName == null)) {
       throw CommandLine.ParameterException(
         spec.commandLine(),
-        "Exactly one of --basic-report or --report must be specified",
+        "Exactly one mode must be specified: one or more --basic-report values, or --report",
+      )
+    }
+    if (reportName != null && outputDirectory != null) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--output-dir can only be used with --basic-report",
+      )
+    }
+    if (requestedBasicReportNames.size > 1 && outputDirectory == null) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--output-dir is required when --basic-report is specified more than once",
       )
     }
     val entryLimit = limit.toIntOrNull()
@@ -487,28 +578,24 @@ internal class ReportTrace(
       )
     }
 
-    val context =
-      if (basicReportName != null) {
-        val basicReportKey =
-          BasicReportKey.fromName(checkNotNull(basicReportName))
-            ?: throw CommandLine.ParameterException(
-              spec.commandLine(),
-              "Invalid --basic-report resource name: $basicReportName",
-            )
-        validateDatabaseFlags()
-        val postgresClient =
-          PostgresDatabaseClient.fromConnectionFactory(buildPostgresConnectionFactory())
-        spannerFlags.usingSpanner { spanner ->
-          resolverFactory(spanner, postgresClient).resolve(basicReportKey)
-        }
-      } else {
-        val directReportName = checkNotNull(reportName)
-        if (ReportKey.fromName(directReportName) == null) {
-          throw CommandLine.ParameterException(
-            spec.commandLine(),
-            "Invalid --report resource name: $directReportName",
-          )
-        }
+    val parsedEndTime = endTime?.let { parseTime("--end-time", it) } ?: clock.instant()
+    val explicitStartTime = startTime?.let { parseTime("--start-time", it) }
+    if (explicitStartTime?.isAfter(parsedEndTime) == true) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--start-time must not be after --end-time",
+      )
+    }
+
+    val directReportName = reportName
+    if (directReportName != null) {
+      if (ReportKey.fromName(directReportName) == null) {
+        throw CommandLine.ParameterException(
+          spec.commandLine(),
+          "Invalid --report resource name: $directReportName",
+        )
+      }
+      val context =
         ReportTraceContext(
           basicReportName = null,
           basicReportState = null,
@@ -517,43 +604,171 @@ internal class ReportTrace(
           measurementNames = emptyList(),
           createTime = null,
         )
+      val collection = collectTimeline(context, explicitStartTime, parsedEndTime, entryLimit)
+      spec
+        .commandLine()
+        .out
+        .print(ReportTraceOutput.render(context, collection.entries, collection.warnings))
+      return 0
+    }
+
+    val normalizedOutputDirectory =
+      outputDirectory?.toAbsolutePath()?.normalize()?.also { Files.createDirectories(it) }
+    val resolver = resolverOverride
+    if (resolver != null) {
+      return processBasicReports(
+        requestedBasicReportNames,
+        normalizedOutputDirectory,
+        resolver,
+        explicitStartTime,
+        parsedEndTime,
+        entryLimit,
+      )
+    }
+
+    validateDatabaseFlags()
+    val postgresClient =
+      PostgresDatabaseClient.fromConnectionFactory(buildPostgresConnectionFactory())
+    return spannerFlags.usingSpanner { spanner ->
+      processBasicReports(
+        requestedBasicReportNames,
+        normalizedOutputDirectory,
+        resolverFactory(spanner, postgresClient),
+        explicitStartTime,
+        parsedEndTime,
+        entryLimit,
+      )
+    }
+  }
+
+  private suspend fun processBasicReports(
+    names: List<String>,
+    outputDirectory: Path?,
+    resolver: BasicReportTraceResolver,
+    explicitStartTime: Instant?,
+    endTime: Instant,
+    entryLimit: Int,
+  ): Int {
+    var failures = 0
+    for ((index, name) in names.withIndex()) {
+      val basicReportKey = BasicReportKey.fromName(name)
+      if (basicReportKey == null) {
+        failures++
+        val outputPath =
+          writeArtifact(
+            outputDirectory,
+            "invalid-${index + 1}.md",
+            renderFailureArtifact(name, "Invalid BasicReport resource name"),
+          )
+        printBatchResult(name, "FAILED", outputPath)
+        continue
       }
 
-    val parsedEndTime = parseTime("--end-time", endTime)
-    val parsedStartTime =
-      startTime?.let { parseTime("--start-time", it) }
+      val fileName = outputFileName(basicReportKey)
+      try {
+        val context = resolver.resolve(basicReportKey)
+        val collection = collectTimeline(context, explicitStartTime, endTime, entryLimit)
+        val outputPath =
+          writeArtifact(
+            outputDirectory,
+            fileName,
+            ReportTraceOutput.render(context, collection.entries, collection.warnings),
+          )
+        printBatchResult(name, if (collection.warnings.isEmpty()) "OK" else "PARTIAL", outputPath)
+      } catch (e: Exception) {
+        failures++
+        val outputPath =
+          writeArtifact(
+            outputDirectory,
+            fileName,
+            renderFailureArtifact(name, e.message ?: e::class.java.name),
+          )
+        printBatchResult(name, "FAILED", outputPath)
+      }
+    }
+    return if (failures == 0) 0 else 1
+  }
+
+  private fun collectTimeline(
+    context: ReportTraceContext,
+    explicitStartTime: Instant?,
+    endTime: Instant,
+    entryLimit: Int,
+  ): TimelineCollection {
+    val startTime =
+      explicitStartTime
         ?: context.createTime?.minus(DEFAULT_LEAD_TIME)
-        ?: parsedEndTime.minus(DEFAULT_LOOKBACK)
-    if (parsedStartTime.isAfter(parsedEndTime)) {
+        ?: endTime.minus(DEFAULT_LOOKBACK)
+    if (startTime.isAfter(endTime)) {
       throw CommandLine.ParameterException(
         spec.commandLine(),
         "--start-time must not be after --end-time",
       )
     }
+    val warnings = mutableListOf<String>()
     val spanEntries =
       try {
         spanReaderFactory()
           .read(
             project,
             context.basicReportName ?: context.reportName,
-            parsedStartTime,
-            parsedEndTime,
+            startTime,
+            endTime,
             entryLimit,
           )
       } catch (e: Exception) {
-        spec.commandLine().err.println("Warning: unable to read Cloud Trace: ${e.message}")
+        warnings += "Cloud Trace query failed: ${e.message ?: e::class.java.name}"
         emptyList()
       }
     val logEntries =
       try {
-        logReaderFactory(project)
-          .read(context.correlationValues, parsedStartTime, parsedEndTime, entryLimit)
+        logReaderFactory(project).read(context.correlationValues, startTime, endTime, entryLimit)
       } catch (e: Exception) {
-        spec.commandLine().err.println("Warning: unable to read Cloud Logging: ${e.message}")
+        warnings += "Cloud Logging query failed: ${e.message ?: e::class.java.name}"
         emptyList()
       }
-    val entries = (spanEntries + logEntries).sortedBy { it.timestamp }.take(entryLimit)
-    spec.commandLine().out.print(ReportTraceOutput.render(context, entries))
+    return TimelineCollection(
+      entries = (spanEntries + logEntries).distinct().sortedBy { it.timestamp }.take(entryLimit),
+      warnings = warnings,
+    )
+  }
+
+  private fun writeArtifact(outputDirectory: Path?, fileName: String, contents: String): Path? {
+    if (outputDirectory == null) {
+      spec.commandLine().out.print(contents)
+      return null
+    }
+    val outputPath = outputDirectory.resolve(fileName).normalize()
+    check(outputPath.parent == outputDirectory) { "Output path escapes --output-dir" }
+    Files.writeString(outputPath, contents, StandardCharsets.UTF_8)
+    return outputPath
+  }
+
+  private fun printBatchResult(name: String, status: String, outputPath: Path?) {
+    if (outputPath != null) {
+      spec.commandLine().out.println("$status  $name -> $outputPath")
+    }
+  }
+
+  private fun outputFileName(key: BasicReportKey): String {
+    return "${safeFileNamePart(key.cmmsMeasurementConsumerId)}__" +
+      "${safeFileNamePart(key.basicReportId)}.md"
+  }
+
+  private fun safeFileNamePart(value: String): String {
+    return value
+      .map { if (it.isLetterOrDigit() || it == '-' || it == '_') it else '_' }
+      .joinToString("")
+  }
+
+  private fun renderFailureArtifact(name: String, message: String): String = buildString {
+    appendLine("# BasicReport trace")
+    appendLine()
+    appendLine("BasicReport: $name")
+    appendLine()
+    appendLine("## Collection failure")
+    appendLine()
+    appendLine(message)
   }
 
   private fun validateDatabaseFlags() {
@@ -611,6 +826,8 @@ internal class ReportTraceDependencies(
   val spanReaderFactory: () -> ReportTraceSpanReader,
   val resolverFactory:
     (SpannerDatabaseConnector, PostgresDatabaseClient) -> BasicReportTraceResolver,
+  val resolverOverride: BasicReportTraceResolver?,
+  val clock: Clock,
   val output: java.io.PrintWriter,
   val error: java.io.PrintWriter,
 )
@@ -621,6 +838,8 @@ internal fun main(args: Array<String>, dependencies: ReportTraceDependencies): I
         dependencies.logReaderFactory,
         dependencies.spanReaderFactory,
         dependencies.resolverFactory,
+        dependencies.resolverOverride,
+        dependencies.clock,
       )
     )
     .setOut(dependencies.output)
@@ -640,6 +859,13 @@ fun main(args: Array<String>) =
       resolverFactory = { spanner, postgres ->
         DatabaseBasicReportTraceResolver(spanner.databaseClient, postgres)
       },
+      resolverOverride = null,
+      clock = Clock.systemUTC(),
     ),
     args,
   )
+
+private data class TimelineCollection(
+  val entries: List<ReportTraceLogEntry>,
+  val warnings: List<String>,
+)

@@ -88,10 +88,10 @@ The stage-by-stage playbook below gives idle-friendly example queries (a bare
 ## Print a report timeline with `report-trace`
 
 The `ReportTrace` operator CLI resolves a BasicReport to its generated Report,
-metrics, and Kingdom measurements, then searches Cloud Trace and Cloud Logging
-for all of those identifiers. It prints the matching spans and log entries in
-timestamp order, which is usually the fastest first step before using the
-stage-specific queries below.
+metrics, and Kingdom measurements. It searches Cloud Trace using the BasicReport
+name and searches Cloud Logging using the full resolved identifier set. It writes
+matching spans and log entries in timestamp order, which is usually the fastest
+first step before using the stage-specific queries below.
 
 Run it from an environment with Application Default Credentials for a
 least-privilege operator service account. The identity needs permission to read
@@ -104,7 +104,9 @@ bazel run \
   //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
   -- \
   --project=<PROJECT_ID> \
-  --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID> \
+  --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID_1> \
+  --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID_2> \
+  --output-dir=/tmp/report-traces \
   --spanner-project=<PROJECT_ID> \
   --spanner-instance=<SPANNER_INSTANCE> \
   --spanner-database=reporting \
@@ -112,6 +114,11 @@ bazel run \
   --postgres-database=reporting-v2 \
   --postgres-user=<DATABASE_USER>
 ```
+
+Repeat `--basic-report` to collect a batch. `--output-dir` is required for a
+batch and produces one path-safe Markdown file per distinct BasicReport. It can
+also be used with one BasicReport. Without `--output-dir`, a single BasicReport
+is written to standard output. The default end time is the current time.
 
 If the BasicReport database is unavailable but the generated Report name is
 known, direct mode needs only observability permissions:
@@ -131,11 +138,13 @@ The stable correlation key is the full `BasicReport` resource name in
 that signed spec unchanged and includes it in the requisitions and system
 computation it creates. EDPA writes the BasicReport and Report names into each
 grouped-requisitions blob; DataWatcher also persists W3C trace context in the
-WorkItem so the TEE processing span can continue the dispatch trace. Herald and
-all mills, including HMSS and TrusTEE, recover the identifiers from the
-computation's serialized `MeasurementSpec`. The post-processing/noise-correction
-job prefixes all logs emitted while processing a BasicReport with
-`xmm.basic_report.name` and `xmm.report.name`.
+WorkItem so the TEE processing span can continue the DataWatcher dispatch trace
+when that context is available. The durable GCS boundary does not itself
+continue the RequisitionFetcher trace. Herald and all mills, including HMSS and
+TrusTEE, recover the identifiers from the computation's serialized
+`MeasurementSpec`. The post-processing/noise-correction job prefixes its logs
+while processing a BasicReport with `xmm.basic_report.name` and
+`xmm.report.name`.
 
 The CLI searches Cloud Trace by `xmm.basic_report.name` in BasicReport mode and
 uses the resolved BasicReport, Report, Metric, and Measurement identifiers for
