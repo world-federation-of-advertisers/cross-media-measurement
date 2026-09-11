@@ -29,7 +29,7 @@ rather than repeats.
 
 | Component | Runtime | Backing store | What it does |
 |-----------|---------|---------------|--------------|
-| RequisitionFetcher | HTTP Cloud Function (gen2), triggered by Cloud Scheduler | Writes GroupedRequisitions blobs to GCS; calls the RequisitionMetadata service | Streams `UNFULFILLED` requisitions from the Kingdom, groups them by report, writes one blob per group, and records `STORED` RequisitionMetadata |
+| RequisitionFetcher | HTTP Cloud Function (gen2), triggered by Cloud Scheduler | Writes GroupedRequisitions blobs to GCS; calls the RequisitionMetadata and Secure Computation APIs | Streams `UNFULFILLED` requisitions from the Kingdom, groups them by report, persists and queues their metadata, then submits one deterministic ResultsFulfiller WorkItem per group |
 | RequisitionMetadata service | gRPC service (public v1alpha + internal), in the EDPA cluster | Spanner `RequisitionMetadata` + `RequisitionMetadataActions` | Idempotent create/list/refuse/queue of per-requisition metadata; the source of truth for what the fetcher has already persisted and what the results-fulfiller should process |
 | ImpressionMetadata service | gRPC service (public v1alpha + internal), in the EDPA cluster | Spanner `ImpressionMetadata` | Records where each EDP's encrypted impression blobs live and the model line / event group / interval they cover; queried by the results-fulfiller and by data-availability |
 | data-availability-sync | HTTP Cloud Function, triggered by a `done` blob | Calls the ImpressionMetadata service | Reads `metadata*.binpb` on `done`, upserts ImpressionMetadata, and updates Kingdom data-availability intervals |
@@ -57,11 +57,21 @@ Each scheduled invocation:
      reach `MAX_TOTAL_BUFFERED_BYTES` (default 256 MiB), all buffers flush
      immediately, bounding memory between ticks.
 3. For each drained report, lists existing RequisitionMetadata for that report,
-   filters to the not-yet-recorded requisitions, validates them, splits them into
-   groups of at most `MAX_REQUISITIONS_PER_GROUP` (default 1000), and for each
-   group **writes the blob first, then creates `STORED` metadata**. Blob-first
-   ordering means a crash can only leave a recoverable orphan blob (no metadata),
-   never the wedge state (metadata without blob).
+   filters to the not-yet-recorded requisitions, validates them, and splits them
+   into groups of at most `MAX_REQUISITIONS_PER_GROUP` (default 1000).
+4. For each valid group, writes the blob, atomically creates all metadata rows in
+   `STORED`, transitions every row to `QUEUED` with the deterministic WorkItem
+   name `workItems/results-fulfiller-<group-id>`, and only then creates that
+   WorkItem through the Secure Computation API. The WorkItem carries the blob URI
+   and the configured `ResultsFulfillerParams`.
+
+This ordering makes every handoff recoverable. A crash before metadata creation
+can leave only an unreferenced blob. A crash while queueing leaves `STORED` and
+`QUEUED` rows that the next invocation finishes. A crash around WorkItem creation
+is retried safely: the fetcher first gets the deterministic WorkItem name, and it
+treats an existing WorkItem or an `ALREADY_EXISTS` creation race as success. A
+WorkItem therefore cannot run before all metadata rows for its blob are durable
+and queued.
 
 A report whose requisitions all arrive in one window becomes a single blob; a
 report straddling K drain windows (or a byte-cap flush) is split across ~K blobs.
@@ -81,6 +91,9 @@ variable (see the memory row).
 | `MAX_TOTAL_BUFFERED_BYTES` | env var | `268435456` (256 MiB) | Memory backstop across all open buffers (serialized bytes). **Set as a plain integer number of bytes** — it is parsed with `toLongOrNull()`, so a human-readable value like `256MiB` is silently ignored and falls back to the default. Lower it to drain sooner and cap heap; raise it to hold more and split less. |
 | `MAX_REQUISITIONS_PER_GROUP` | env var | `1000` | Max requisitions per blob / per metadata `BatchCreate`. Bounds the Spanner mutation count per transaction. |
 | `METADATA_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between RequisitionMetadata service RPCs. The pacing multiplier for all list/batch-create calls. |
+| `CONTROL_PLANE_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between Secure Computation WorkItems API RPCs. Each group requires a lookup and, when absent, a create. |
+| `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` | env var | none | Secure Computation Control Plane gRPC target. Required when `work_item_dispatch` is configured. |
+| `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` | env var | none | Optional server name used to verify the Control Plane TLS certificate when it differs from the target host. |
 | `GRPC_REQUEST_INTERVAL` | env var | `1s` | Minimum interval between Kingdom mutation RPCs (e.g. `refuseRequisition`). |
 | `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL` | env var | `50ms` | Minimum interval between Kingdom `getEventGroup` RPCs (called during grouping). |
 | `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried on gRPC `RESOURCE_EXHAUSTED` (surfaced by the `page_size_reductions` metric), down to a floor of 1. |
@@ -146,6 +159,11 @@ throttled RPCs). The costs that actually scale with the 5,000 total are:
    `BatchCreate` of hundreds of rows. Memory is bounded by
    `MAX_TOTAL_BUFFERED_BYTES` / `--memory`; the batch size is bounded by
    `MAX_REQUISITIONS_PER_GROUP` (see mutation limits below).
+3. **Queue and WorkItem RPCs.** Direct dispatch adds one metadata `Queue` RPC per
+   requisition and one Secure Computation `GetWorkItem` plus, for a new group,
+   one `CreateWorkItem` RPC. Metadata calls are paced by
+   `METADATA_REQUEST_INTERVAL`; control-plane calls are paced by
+   `CONTROL_PLANE_REQUEST_INTERVAL`.
 
 ### Failure modes at scale, and why they are recoverable
 
@@ -154,10 +172,12 @@ throttled RPCs). The costs that actually scale with the 5,000 total are:
 | **OOM** | Peak buffered heap exceeds `--memory` (all 5k arrive within one drain window and unpacked size exceeds the serialized cap) | Instance killed mid-run | Requisitions stay `UNFULFILLED`; re-fetched next run. Fix by raising `--memory` or lowering `MAX_TOTAL_BUFFERED_BYTES`. |
 | **Timeout** | Run exceeds `timeout_seconds` (large backlog, serial decrypt) | Instance killed mid-drain | Completed groups are consistent; incomplete work re-fetched next run. Fix by raising `timeout_seconds` toward 3600s. |
 | **Oversized metadata batch** | A single group exceeds the Spanner mutation limit | `BatchCreate` fails every run → wedge | Prevented by `MAX_REQUISITIONS_PER_GROUP` chunking; do not raise it past the safe bound. |
+| **Queue RPC failure** | Metadata service is unavailable or a row update conflicts | No WorkItem is created for the partially queued group | The next invocation lists the group, queues the remaining `STORED` rows, and then dispatches it. |
+| **WorkItem RPC failure** | Secure Computation API is unavailable, or the create response is lost | Every row remains `QUEUED`; the WorkItem may or may not exist | The next invocation gets the deterministic WorkItem name before retrying create. An existing item and an `ALREADY_EXISTS` race are success. |
 
 Every fetcher failure mode is recoverable because `UNFULFILLED` requisitions
-remain fetchable and metadata creation is idempotent (deterministic
-`request_id`), so a re-run never duplicates. The practical risk is **no forward
+remain fetchable, metadata creation uses deterministic `request_id` values, and
+WorkItem creation uses a deterministic ID. The practical risk is **no forward
 progress until tuned**, not data loss.
 
 ## ImpressionMetadata service: how it works
@@ -280,6 +300,11 @@ RequisitionFetcher (prefix `edpa.requisition_fetcher.`):
 | `storage_writes` / `storage_fails` | Grouped-requisition blobs written to / failed to write to GCS | Any sustained `storage_fails` → GCS write problem (permissions, quota, outage) blocking dispatch |
 | `fetch_latency` | Latency from fetch start to storage completion per run | Rising toward the function timeout → approaching the timeout-kill threshold; raise `timeout_seconds` |
 
+There is not currently a dedicated WorkItem-dispatch metric. For the handoff,
+inspect `RequisitionMetadata.State` / `WorkItem` and the RequisitionFetcher logs;
+the exact queries and log messages are in the
+[report debugging guide](report-debugging-guide.md#s4-a--edp-aggregator-path).
+
 Check metrics and traces before grepping logs — see the
 [report debugging guide](report-debugging-guide.md#telemetry-metrics-and-traces-check-before-grepping-logs).
 
@@ -316,6 +341,18 @@ Check metrics and traces before grepping logs — see the
   ensure `MAX_REQUISITIONS_PER_GROUP` is at its safe default (1000) and was not
   raised. On the impression side, reduce the batch size at data-availability-sync.
 
+### Requisitions remain `STORED` or `QUEUED`
+
+- A `STORED` row has not completed the direct-dispatch metadata transition.
+  Check the RequisitionFetcher logs for a queue RPC error and verify the
+  RequisitionMetadata service is reachable. The next scheduled invocation
+  retries the group.
+- A `QUEUED` row has a deterministic WorkItem name. Check that value first. If
+  all rows in the group are `QUEUED`, search the RequisitionFetcher logs for the
+  corresponding `Created WorkItem` or existing-WorkItem message, then inspect
+  that WorkItem in the Secure Computation system. Do not create a replacement
+  with a different ID; the next invocation safely retries the deterministic ID.
+
 ## Quick tuning reference
 
 | Symptom | First knob to reach for |
@@ -325,5 +362,7 @@ Check metrics and traces before grepping logs — see the
 | Timeout on large backlog | Raise `timeout_seconds` toward 3600s; widen scheduler interval |
 | Too many `buffer_splits` | Raise `MAX_TOTAL_BUFFERED_BYTES` / `--memory`, or lengthen `FLUSH_INTERVAL` |
 | Metadata RPCs too slow | Lower `METADATA_REQUEST_INTERVAL` (if the service can take the load) |
+| WorkItem API RPCs too slow | Lower `CONTROL_PLANE_REQUEST_INTERVAL` (if the Control Plane can take the load) |
+| Requisitions remain `STORED` / `QUEUED` | Check RequisitionFetcher queue/dispatch logs and the deterministic `WorkItem` value |
 | Overlapping runs | Ensure `max_instances = 1` |
 | `BatchCreate` mutation-limit failure | Keep `MAX_REQUISITIONS_PER_GROUP` at its safe default |

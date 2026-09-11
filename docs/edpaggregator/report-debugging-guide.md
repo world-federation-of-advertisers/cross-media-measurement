@@ -18,8 +18,9 @@ to find *which* stage.
 
 Two fulfillment paths exist for an EDP, and this guide covers both:
 
-- **EDP Aggregator (EDPA):** the EDP's requisitions are fulfilled by the
-  aggregator pipeline (requisition-fetcher → data-watcher → results-fulfiller).
+- **EDP Aggregator (EDPA):** the EDP's requisitions are grouped, persisted, and
+  dispatched by requisition-fetcher, then fulfilled by results-fulfiller. Older
+  deployments may still use data-watcher between storage and fulfillment.
 - **Direct EDP:** the EDP runs its own data-provider server, polls the Kingdom,
   and fulfills requisitions itself.
 
@@ -64,7 +65,7 @@ changes *how* you use every tool below:
 - **Logs still matter, but isolation is component-dependent — and harder.** Don't
   skip them (an exception stack trace is often only in the logs), but know what is
   greppable where:
-  - **requisition-fetcher, data-watcher, data-availability, cleanup** log lines
+  - **requisition-fetcher, data-availability, cleanup** log lines
     generally carry an identifier you can grep — report ID, data-provider name,
     requisition name, or blob path (e.g. the fetcher logs
     `Failed to process report <reportId> for <dp>`). Filter the log query by your
@@ -105,7 +106,7 @@ S3  Measurement → Requisitions (+ params)  [Kingdom]
                       gcp-kingdom-data-server
 
 S4  Requisitions fulfilled  (per EDP — two branches)
-      A) EDP Aggregator: requisition-fetcher → data-watcher → results-fulfiller
+      A) EDP Aggregator: requisition-fetcher → results-fulfiller
       B) Direct EDP: EDP polls Kingdom, calls FulfillDirectRequisition (direct)
          or streams FulfillRequisition to a Duchy (computed: LLv2/HMSS/TrusTEE)
 
@@ -256,9 +257,9 @@ cluster is `reporting-v2`; duchy identities are `worker1` / `worker2` /
 | Duchy | inter-duchy comms | `<duchy>-computation-control-server-container`, `<duchy>-async-computation-control-server-container` |
 | Duchy | internal computations API (duchy Spanner) | `<duchy>-internal-api-server-container` |
 | Duchy | requisition fulfillment endpoint (EDPs send fulfilled data here for computed protocols) | `<duchy>-requisition-fulfillment-server-container` |
-| EDPA | requisition-fetcher (Kingdom → GCS) | Cloud Function `requisition-fetcher` |
+| EDPA | requisition-fetcher (Kingdom → GCS + work queue) | Cloud Function `requisition-fetcher` |
 | EDPA | data-availability-sync (registers impression metadata) | Cloud Function `data-availability-sync` |
-| EDPA | data-watcher (GCS → work queue) | Cloud Function `data-watcher` |
+| EDPA | data-watcher (legacy GCS → work queue) | Cloud Function `data-watcher` |
 | EDPA | results-fulfiller (decrypt + fulfill) | `edpa.results_fulfiller` log name (GCE MIG, `gce_instance`) |
 | EDPA | requisition-/impression-metadata public API (v1alpha) | `edp-aggregator-system-api-server-container` |
 | EDPA | requisition-/impression-metadata internal API (edp-aggregator Spanner) | `edp-aggregator-internal-api-server-container` |
@@ -293,7 +294,7 @@ Useful metric families (all under the `edpa.*` namespace unless noted):
 | Fetcher throughput/health | `edpa.requisition_fetcher.requisitions_fetched`, `edpa.requisition_fetcher.storage_writes`, `edpa.requisition_fetcher.report_failures`, `edpa.requisition_fetcher.report_refusals`, `edpa.requisition_fetcher.fetch_latency` | whether S4-A stage 2 is fetching, storing, and how many reports it is failing/refusing |
 | Impression data availability | `edpa.data_availability.records_synced`, `edpa.data_availability.cmms_rpc_errors`, `edpa.data_availability.sync_duration`, `edpa.data_availability.date_count` | whether the EDP's impression metadata is being registered (a precondition for S4-A fulfillment), and Kingdom RPC errors during sync |
 | Fulfillment | `edpa.results_fulfiller.requisitions_processed` (dimensioned by `status`=`success`/`failure`), `edpa.results_fulfiller.requisition_fulfillment_latency`, `edpa.results_fulfiller.report_fulfillment_latency` | whether S4-A stage 4 is processing and succeeding (`status=failure` counts failures) |
-| Work dispatch | `edpa.data_watcher.queue_writes`, `edpa.data_watcher.processing_duration` | whether S4-A stage 3 is dispatching work items to the results-fulfiller queue |
+| Work dispatch | RequisitionFetcher logs and `RequisitionMetadata.WorkItem` | whether S4-A dispatched a WorkItem to the results-fulfiller queue; legacy deployments also expose `edpa.data_watcher.queue_writes` and `.processing_duration` |
 | Event-group sync | `edpa.event_group.sync_success`, `edpa.event_group.sync_failure`, `edpa.event_group.sync_latency` | S1 event-group registration health |
 | Duchy computation | Duchy mill emits `stage_wall_clock_duration_ms`, `crypto_wall_clock_duration_ms`, `crypto_cpu_duration_ms` | S5 stage progress / where a computation spends time or stalls |
 
@@ -441,7 +442,7 @@ requisition's EDP is on the EDP Aggregator or is a direct EDP.
 
 #### S4-A — EDP Aggregator path
 
-Pipeline: requisition-fetcher → data-watcher → results-fulfiller. Backing metadata
+Pipeline: requisition-fetcher → results-fulfiller. Backing metadata
 lives in the `edp-aggregator` Spanner database, fronted by two service layers:
 
 - **Internal** (`edp-aggregator-internal-api-server`, Spanner-backed, cluster-only)
@@ -461,7 +462,7 @@ no-data error at step 4, that registration — not the fetch — is the real gap
 (`edp-aggregator-system-api-server`) API servers are ordinary services that can be
 unhealthy for reasons unrelated to your requisition — out-of-memory, crash-looping,
 or misconfiguration — and when they are, registration and lookups silently stall
-even though the fetcher, data-watcher, and Spanner are all fine. Check them
+even though the fetcher and Spanner are fine. Check them
 directly:
 
 - **Pod health** (OOMKilled, restarts, crash-loop):
@@ -526,7 +527,7 @@ Trace:
    ```bash
    gcloud spanner databases execute-sql edp-aggregator \
      --instance=<SPANNER_INSTANCE> --project=<ENV> \
-     --sql="SELECT CmmsRequisition, State, GroupId, BlobUri, CreateTime, UpdateTime
+     --sql="SELECT CmmsRequisition, State, GroupId, BlobUri, WorkItem, CreateTime, UpdateTime
             FROM RequisitionMetadata
             WHERE CmmsRequisition = 'dataProviders/<EDP_ID>/requisitions/<REQ_ID>'"
    ```
@@ -536,13 +537,18 @@ Trace:
 
    - Row `FULFILLED (4)` but Kingdom still `UNFULFILLED` → the fulfillment RPC to
      the Kingdom/Duchy failed; check the results-fulfiller logs (step 4).
-   - Row `STORED (1)` → stored, not fulfilled; continue.
+   - Row `QUEUED (2)` → the direct-dispatch path assigned its deterministic
+     WorkItem; continue to step 3 using the `WorkItem` value.
+   - Row `STORED (1)` → the blob is registered but direct dispatch has not
+     completed its queue transition; check the fetcher. In a legacy deployment,
+     continue to the DataWatcher checks in step 3.
    - No row → the fetcher never stored it; go to step 2.
 
 2. **requisition-fetcher** (Cloud Function). It polls the Kingdom and is also
    HTTP-triggered, writing a grouped-requisitions blob to
    `<edp>/requisitions/<groupId>` and registering it via the **v1alpha
-   RequisitionMetadata service**.
+   RequisitionMetadata service**. After every row in the group is `QUEUED`, the
+   fetcher creates the deterministic ResultsFulfiller WorkItem directly.
 
    ```bash
    gcloud logging read \
@@ -555,7 +561,10 @@ Trace:
            print(l["timestamp"][:19], m[:200])'
    ```
 
-   - `Wrote grouped requisitions blob ... groupId=<X>` → stored; continue.
+   - `Created WorkItem results-fulfiller-<groupId> ...` → stored and dispatched;
+     continue to step 3.
+   - `Wrote grouped requisitions blob ... groupId=<X>` without a WorkItem log →
+     inspect the group's metadata rows and the subsequent control-plane error.
    - `Fetched N requisitions` but no "Wrote grouped" → already-stored/deduped; a
      new measurement should produce a fresh write.
    - `SEVERE: Failed to process report <reportId> for <dp>` → a fetch/registration
@@ -573,8 +582,14 @@ Trace:
    than idle, and `edpa.requisition_fetcher.report_refusals` means it is refusing
    reports it cannot satisfy.
 
-3. **data-watcher** (Cloud Function). A GCS `object.finalized` Eventarc trigger
-   fires it; it submits a work item to the results-fulfiller queue.
+3. **WorkItem dispatch.** In the current path RequisitionFetcher submits the
+   WorkItem directly after persisting the blob and transitioning every metadata
+   row in the group to `QUEUED`. Query the same row's `WorkItem` column and match
+   it to `Created WorkItem ...` in the requisition-fetcher logs.
+
+   During migration, a deployment may omit `work_item_dispatch` from the fetcher
+   config and retain the legacy **data-watcher** Cloud Function. In that path, a
+   GCS `object.finalized` Eventarc trigger submits the WorkItem:
 
    ```bash
    gcloud logging read \
@@ -593,14 +608,16 @@ Trace:
      exists and the trigger is healthy. Grep **both** `jsonPayload.message` and
      `textPayload` and widen the window before concluding "not dispatched".
 
-   Metric cross-check (Cloud Monitoring): `edpa.data_watcher.queue_writes` counts
-   work items written to the queue; if it is flat while blobs are landing, the
-   data-watcher is not dispatching (Eventarc trigger or the data-watcher itself).
+   Legacy metric cross-check (Cloud Monitoring):
+   `edpa.data_watcher.queue_writes` counts work items written to the queue; if it
+   is flat while blobs are landing, the data-watcher is not dispatching
+   (Eventarc trigger or the data-watcher itself).
 
-   **Data-watcher dead-letter queue.** The GCS-event delivery to the data-watcher
-   is itself dead-lettered: if the data-watcher repeatedly fails to process a blob,
-   the triggering event lands in the data-watcher's own DLQ (`data-watcher-dlq-sub`,
-   7-day retention) — a *separate* queue from the results-fulfiller DLQ in step 4.
+   **Legacy data-watcher dead-letter queue.** The GCS-event delivery to the
+   data-watcher is itself dead-lettered: if the data-watcher repeatedly fails to
+   process a blob, the triggering event lands in the data-watcher's own DLQ
+   (`data-watcher-dlq-sub`, 7-day retention) — a *separate* queue from the
+   results-fulfiller DLQ in step 4.
    A message here means the blob never became a work item at all. There is a
    Cloud Monitoring alert on this DLQ's `num_undelivered_messages`; check it
    directly with:
@@ -657,9 +674,8 @@ Trace:
    [MIG not scaling to demand](#mig-not-scaling-to-demand)).
 
    **On the results-fulfiller dead-letter queue** (`results-fulfiller-queue-dlq-sub`
-   — distinct from the data-watcher DLQ in step 3; this one holds work items the
-   fulfiller couldn't process, that one holds GCS events the data-watcher couldn't
-   process): a message lands in the DLQ only after the
+   — distinct from the legacy data-watcher DLQ in step 3; this one holds work items
+   the fulfiller couldn't process): a message lands in the DLQ only after the
    fulfiller has failed it `max_delivery_attempts` times (5 by default) — so a
    requisition in the DLQ is one that repeatedly failed and **will not be retried**
    again. The `CloudPubSubDeadLetterSourceDeliveryCount` attribute shows the
@@ -972,7 +988,8 @@ it belongs to a requisition created **after** your change — check the requisit
 `CreateTime` (Kingdom or EDPA) or the delivery timestamp, and match the
 `GroupId` / `CmmsRequisition` to current work rather than assuming the newest error
 reflects the current config. Conversely, when a failure mode points at
-configuration (model line, KMS type, EDPs config, data-watcher config), suspect a
+configuration (model line, KMS type, EDPs config, RequisitionFetcher WorkItem
+dispatch config, or legacy data-watcher config), suspect a
 recent config change as the root cause and compare against the last-known-good
 value rather than inventing a new one.
 

@@ -223,7 +223,7 @@ class RequisitionFetcherFunction : HttpFunction {
         SecureComputationRequisitionWorkItemDispatcher(
           workItemsStub = WorkItemsCoroutineStub(channel),
           queue = dispatchConfig.queue,
-          appParams = dispatchConfig.appParams,
+          resultsFulfillerParams = dispatchConfig.resultsFulfillerParams,
           controlPlaneThrottler =
             MinimumIntervalThrottler(Clock.systemUTC(), controlPlaneRequestInterval),
         )
@@ -462,8 +462,8 @@ class RequisitionFetcherFunction : HttpFunction {
         require(dispatch.queue.isNotBlank()) {
           "Missing 'queue' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
         }
-        require(dispatch.hasAppParams()) {
-          "Missing 'app_params' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        require(dispatch.hasResultsFulfillerParams()) {
+          "Missing 'results_fulfiller_params' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
         }
         require(dispatch.hasControlPlaneConnection()) {
           "Missing 'control_plane_connection' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."

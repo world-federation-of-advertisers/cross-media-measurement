@@ -335,7 +335,7 @@ class InProcessEdpAggregatorComponents(
             SecureComputationRequisitionWorkItemDispatcher(
               workItemsStub = workItemsClient,
               queue = FULFILLER_TOPIC_ID,
-              appParams = resultsFulfillerParamsMap.getValue(edpAggregatorShortName),
+              resultsFulfillerParams = resultsFulfillerParamsMap.getValue(edpAggregatorShortName),
               controlPlaneThrottler = FakeThrottler(),
             ),
           responsePageSize = 50,

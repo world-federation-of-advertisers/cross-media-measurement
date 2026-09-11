@@ -806,7 +806,7 @@ configs {
       cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
     }
     queue: "results-fulfiller-queue"
-    app_params {
+    results_fulfiller_params {
       data_provider: "dataProviders/DATA_PROVIDER_ID"
       storage_params {
         labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
@@ -928,7 +928,8 @@ is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
-RequisitionFetcher's typed `work_item_dispatch.app_params` is a `ResultsFulfillerParams` message
+RequisitionFetcher's `work_item_dispatch.results_fulfiller_params` is a
+`ResultsFulfillerParams` message
 (proto:
 `wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto`). Beyond the
 `data_provider`, `storage_params`, `consent_params`, and `cmms_connection` shown

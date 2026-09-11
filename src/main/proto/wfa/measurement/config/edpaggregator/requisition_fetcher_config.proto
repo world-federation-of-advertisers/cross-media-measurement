@@ -35,8 +35,9 @@ message RequisitionWorkItemDispatchConfig {
   string queue = 2 [(google.api.resource_reference).type =
                         "control-plane.secure-computation.halo-cmm.org/Queue"];
 
-  // ResultsFulfiller application parameters.
-  wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams app_params = 3;
+  // Parameters for the ResultsFulfiller application.
+  wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+      results_fulfiller_params = 3;
 }
 
 // Individual config per EDP.

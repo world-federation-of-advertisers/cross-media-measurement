@@ -24,7 +24,7 @@ configs {
       cert_collection_file_path: "src/main/k8s/testing/secretfiles/kingdom_root.pem"
     }
     queue: "results-fulfiller-queue"
-    app_params {}
+    results_fulfiller_params {}
   }
   edp_private_key_path: "src/main/k8s/testing/secretfiles/edp7_enc_private.tink"
 }

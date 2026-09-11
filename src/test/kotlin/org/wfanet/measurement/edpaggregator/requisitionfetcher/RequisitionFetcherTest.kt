@@ -381,12 +381,14 @@ class RequisitionFetcherTest {
 
   @Test
   fun `secure computation dispatcher creates deterministic WorkItem`() = runBlocking {
-    val appParams = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+    val expectedResultsFulfillerParams = resultsFulfillerParams {
+      dataProvider = TestRequisitionData.EDP_NAME
+    }
     val dispatcher =
       SecureComputationRequisitionWorkItemDispatcher(
         workItemsStub = workItemsStub,
         queue = "results-fulfiller-queue",
-        appParams = appParams,
+        resultsFulfillerParams = expectedResultsFulfillerParams,
         controlPlaneThrottler = throttler,
       )
 
@@ -397,7 +399,8 @@ class RequisitionFetcherTest {
     assertThat(request.workItemId).isEqualTo("results-fulfiller-group-id")
     assertThat(request.workItem.queue).isEqualTo("results-fulfiller-queue")
     val params = request.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    assertThat(params.appParams.unpack(ResultsFulfillerParams::class.java)).isEqualTo(appParams)
+    assertThat(params.appParams.unpack(ResultsFulfillerParams::class.java))
+      .isEqualTo(expectedResultsFulfillerParams)
     assertThat(params.dataPathParams.dataPath).isEqualTo("gs://bucket/requisitions/group-id")
     assertThat(dispatcher.workItemName("group-id"))
       .isEqualTo("workItems/results-fulfiller-group-id")
@@ -412,7 +415,8 @@ class RequisitionFetcherTest {
       SecureComputationRequisitionWorkItemDispatcher(
         workItemsStub = workItemsStub,
         queue = "results-fulfiller-queue",
-        appParams = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME },
+        resultsFulfillerParams =
+          resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME },
         controlPlaneThrottler = throttler,
       )
 

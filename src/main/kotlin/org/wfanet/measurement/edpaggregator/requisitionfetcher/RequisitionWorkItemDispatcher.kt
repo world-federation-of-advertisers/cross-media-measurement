@@ -42,7 +42,7 @@ interface RequisitionWorkItemDispatcher {
 class SecureComputationRequisitionWorkItemDispatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val queue: String,
-  private val appParams: ResultsFulfillerParams,
+  private val resultsFulfillerParams: ResultsFulfillerParams,
   private val controlPlaneThrottler: Throttler,
 ) : RequisitionWorkItemDispatcher {
 
@@ -67,7 +67,8 @@ class SecureComputationRequisitionWorkItemDispatcher(
         queue = this@SecureComputationRequisitionWorkItemDispatcher.queue
         workItemParams =
           workItemParams {
-              appParams = this@SecureComputationRequisitionWorkItemDispatcher.appParams.pack()
+              appParams =
+                this@SecureComputationRequisitionWorkItemDispatcher.resultsFulfillerParams.pack()
               dataPathParams = dataPathParams { dataPath = blobUri }
             }
             .pack()
