@@ -837,18 +837,12 @@ class RequisitionFetcher(
   private suspend fun queueAndDispatchGroup(groupId: String, metadata: List<RequisitionMetadata>) {
     val dispatcher = workItemDispatcher ?: return
     val workItemName = dispatcher.workItemName(groupId)
+
+    // Validate the whole group before changing any row. Otherwise a conflicting later row could
+    // leave earlier STORED rows QUEUED even though this invocation cannot dispatch the group.
     for (item in metadata) {
       when (item.state) {
-        RequisitionMetadata.State.STORED ->
-          metadataThrottler.onReady {
-            requisitionMetadataStub.queueRequisitionMetadata(
-              queueRequisitionMetadataRequest {
-                name = item.name
-                etag = item.etag
-                workItem = workItemName
-              }
-            )
-          }
+        RequisitionMetadata.State.STORED -> Unit
         RequisitionMetadata.State.QUEUED ->
           check(item.workItem == workItemName) {
             "Requisition metadata ${item.name} is already queued for ${item.workItem}, " +
@@ -861,6 +855,20 @@ class RequisitionFetcher(
           }
         else ->
           error("Requisition metadata ${item.name} is in non-dispatchable state ${item.state}")
+      }
+    }
+
+    for (item in metadata) {
+      if (item.state == RequisitionMetadata.State.STORED) {
+        metadataThrottler.onReady {
+          requisitionMetadataStub.queueRequisitionMetadata(
+            queueRequisitionMetadataRequest {
+              name = item.name
+              etag = item.etag
+              workItem = workItemName
+            }
+          )
+        }
       }
     }
     dispatcher.dispatch(groupId, blobUri(groupId))

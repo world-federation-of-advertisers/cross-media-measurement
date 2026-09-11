@@ -394,6 +394,52 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `direct dispatch validates whole group before queueing stored metadata`() = runBlocking {
+    val groupId = "conflicting-group-id"
+    val expectedWorkItemName = "workItems/results-fulfiller-$groupId"
+    storageClient.writeBlob("$STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stored"
+            state = RequisitionMetadata.State.STORED
+            cmmsRequisition = TestRequisitionData.REQUISITION.name
+            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            blobTypeUrl = "type.googleapis.com/test"
+            this.groupId = groupId
+            report = "some-report"
+            etag = "stored-etag"
+          }
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/conflicting"
+            state = RequisitionMetadata.State.QUEUED
+            cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/conflicting"
+            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            blobTypeUrl = "type.googleapis.com/test"
+            this.groupId = groupId
+            report = "some-report"
+            workItem = "workItems/a-different-work-item"
+          }
+        }
+      )
+    var dispatchCalled = false
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = expectedWorkItemName
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatchCalled = true
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+    assertThat(queueRequisitionMetadataRequests).isEmpty()
+    assertThat(dispatchCalled).isFalse()
+  }
+
+  @Test
   fun `secure computation dispatcher creates deterministic WorkItem`() = runBlocking {
     val expectedResultsFulfillerParams = resultsFulfillerParams {
       dataProvider = TestRequisitionData.EDP_NAME
