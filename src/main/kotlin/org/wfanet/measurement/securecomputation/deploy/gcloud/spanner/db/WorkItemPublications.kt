@@ -30,7 +30,6 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
-import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 
 data class WorkItemPublicationResult(
   val workItemId: Long,
@@ -92,24 +91,27 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
 
   val claimedWorkItemId = row.getLong("WorkItemId")
   val queueId = row.getLong("QueueId")
-  val workItemResourceId = row.getString("WorkItemResourceId")
-  val queue =
-    queueMapping.getQueueById(queueId) ?: throw QueueNotFoundForWorkItem(workItemResourceId)
-  val result = WorkItems.buildWorkItemResult(row, queue)
+  val state = WorkItem.State.forNumber(row.getLong("State").toInt())
 
-  if (result.workItem.state != WorkItem.State.QUEUED) {
+  if (state != WorkItem.State.QUEUED) {
     deleteWorkItemPublication(claimedWorkItemId)
     return null
   }
 
   val attemptCount = row.getLong("AttemptCount") + 1L
+  val queue = queueMapping.getQueueById(queueId)
   bufferUpdateMutation("WorkItemPublications") {
     set("WorkItemId").to(claimedWorkItemId)
-    set("LeaseOwner").to(leaseOwner)
+    set("LeaseOwner").to(if (queue == null) null else leaseOwner)
     set("LeaseExpirationTime").to(leaseExpirationTime.toGcloudTimestamp())
     set("AttemptCount").to(attemptCount)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  if (queue == null) {
+    return null
+  }
+
+  val result = WorkItems.buildWorkItemResult(row, queue)
   return WorkItemPublicationResult(claimedWorkItemId, result.workItem, attemptCount)
 }
 
@@ -144,7 +146,8 @@ private suspend fun AsyncDatabaseClient.ReadContext.isLeaseOwner(
   workItemId: Long,
   leaseOwner: String,
 ): Boolean {
-  val row = readRow("WorkItemPublications", Key.of(workItemId), listOf("LeaseOwner")) ?: return false
+  val row =
+    readRow("WorkItemPublications", Key.of(workItemId), listOf("LeaseOwner")) ?: return false
   return !row.isNull("LeaseOwner") && row.getString("LeaseOwner") == leaseOwner
 }
 
