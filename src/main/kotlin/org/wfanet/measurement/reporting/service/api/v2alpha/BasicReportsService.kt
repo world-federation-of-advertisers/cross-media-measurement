@@ -591,7 +591,18 @@ class BasicReportsService(
     try {
       reportsStub.withForwardedTrustedCredentials().createReport(createReportRequest)
     } catch (e: StatusException) {
-      throw Status.INTERNAL.withCause(e).asRuntimeException()
+      // Statuses that describe the request rather than a server fault are preserved. The
+      // description is not: it names fields of the Report built here, not of the BasicReport in
+      // the request.
+      throw when (e.status.code) {
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.PERMISSION_DENIED -> Status.PERMISSION_DENIED
+          else -> Status.INTERNAL
+        }
+        .withCause(e)
+        .asRuntimeException()
     }
 
     try {

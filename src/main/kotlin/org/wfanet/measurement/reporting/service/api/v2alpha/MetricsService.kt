@@ -115,6 +115,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -238,6 +239,8 @@ private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
 private const val BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
+private const val CMMS_ERROR_DOMAIN = "halo.wfanet.org"
+private const val CMMS_FIELD_NAME_KEY = "fieldName"
 
 class MetricsService(
   private val metricSpecConfig: MetricSpecConfig,
@@ -466,7 +469,16 @@ class MetricsService(
       } catch (e: StatusException) {
         throw when (e.status.code) {
             Status.Code.INVALID_ARGUMENT ->
-              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
+              // The CMMS API reports the offending field of the Measurement request in ErrorInfo
+              // metadata for REQUIRED_FIELD_NOT_SET and INVALID_FIELD_VALUE.
+              Status.INVALID_ARGUMENT.withDescription(
+                e.errorInfo
+                  ?.takeIf { it.domain == CMMS_ERROR_DOMAIN }
+                  ?.metadataMap
+                  ?.get(CMMS_FIELD_NAME_KEY)
+                  ?.let { "Required CMMS Measurement field unspecified or invalid: $it" }
+                  ?: "Required field unspecified or invalid."
+              )
             Status.Code.PERMISSION_DENIED ->
               Status.PERMISSION_DENIED.withDescription(
                 "Cannot create CMMS Measurements for another MeasurementConsumer."
