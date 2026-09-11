@@ -50,6 +50,12 @@ service WorkItems {
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "name";
   }
+
+  // Retries a failed `WorkItem` by returning it to the configured queue, or
+  // republishes a `QUEUED` `WorkItem` whose pending publication is missing.
+  rpc RetryWorkItem(RetryWorkItemRequest) returns (WorkItem) {
+    option (google.api.method_signature) = "name";
+  }
 }
 
 // Request message for `CreateWorkItem` method.
@@ -103,6 +109,16 @@ message ListWorkItemsResponse {
 
 // Request message for `FailWorkItem` method.
 message FailWorkItemRequest {
+  // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "control-plane.secure-computation.halo-cmm.org/WorkItem"
+  ];
+}
+
+// Request message for `RetryWorkItem` method.
+message RetryWorkItemRequest {
   // Resource name.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,

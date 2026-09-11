@@ -1050,6 +1050,61 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
    kubectl get services
    ```
 
+#### Rolling out durable WorkItem publication
+
+The `WorkItemPublications` migration does not backfill `QUEUED` WorkItems created by an older
+Secure Computation API binary. A mixed-version rollout can therefore leave a WorkItem without the
+outbox row that the new publication runner needs. Treat the following as a mandatory, quiesced
+rollout:
+
+1. Pause every WorkItem producer and wait for the configured Pub/Sub subscriptions to drain.
+2. Apply the Secure Computation Spanner migrations.
+3. Roll out every Secure Computation API replica and verify that no old replica remains:
+
+   ```bash
+   kubectl rollout status deployment/SECURE_COMPUTATION_API_DEPLOYMENT
+   kubectl get pods -l app=SECURE_COMPUTATION_API_APP_LABEL \
+     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
+   ```
+
+4. With producers still paused and subscriptions drained, list `QUEUED` WorkItems that have no
+   pending publication and no active attempt:
+
+   ```bash
+   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
+     --instance=SPANNER_INSTANCE \
+     --project=PROJECT_ID \
+     --sql='SELECT WorkItemResourceId
+       FROM WorkItems AS W
+       WHERE W.State = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM WorkItemPublications AS P
+           WHERE P.WorkItemId = W.WorkItemId)
+         AND NOT EXISTS (
+           SELECT 1 FROM WorkItemAttempts AS A
+           WHERE A.WorkItemId = W.WorkItemId AND A.State = 1)'
+   ```
+
+   `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty result
+   means no repair is needed.
+5. For each returned ID, call `RetryWorkItem`. The operation recreates a missing publication for a
+   `QUEUED` WorkItem and also supports recovery of a `FAILED` WorkItem:
+
+   ```bash
+   grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+     -authority SECURE_COMPUTATION_CERT_HOST \
+     -d '{"name":"workItems/WORK_ITEM_ID"}' \
+     SECURE_COMPUTATION_API_TARGET \
+     wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
+   ```
+
+6. Repeat the query until it returns no rows, then resume WorkItem producers.
+
+Do not run the repair query while producers or subscribers are active: a WorkItem that was just
+published but has not yet started an attempt is temporarily indistinguishable from a pre-migration
+gap and could be published twice. Duplicate queue delivery is tolerated, but a quiesced rollout
+avoids creating it deliberately.
+
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 
 Backed by the Spanner database created in Step 2, with the internal service account

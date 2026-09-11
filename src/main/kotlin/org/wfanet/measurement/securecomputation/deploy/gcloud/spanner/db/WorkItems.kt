@@ -59,6 +59,18 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
   return state
 }
 
+/** Buffers the state and outbox mutations needed to retry a failed WorkItem. */
+fun AsyncDatabaseClient.TransactionContext.retryWorkItem(workItemId: Long): WorkItem.State {
+  val state = WorkItem.State.QUEUED
+  bufferUpdateMutation("WorkItems") {
+    set("WorkItemId").to(workItemId)
+    set("State").to(state)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  insertWorkItemPublication(workItemId)
+  return state
+}
+
 /**
  * Buffers an insert mutation for the WorkItems table.
  *

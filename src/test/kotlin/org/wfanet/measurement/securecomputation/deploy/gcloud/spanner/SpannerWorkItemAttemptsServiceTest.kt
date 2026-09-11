@@ -16,15 +16,30 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
+import com.google.protobuf.Message
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Test
+import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
+import org.wfanet.measurement.securecomputation.service.internal.testing.TestConfig
 import org.wfanet.measurement.securecomputation.service.internal.testing.WorkItemAttemptsServiceTest
 
 class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
@@ -55,6 +70,47 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
         workItemPublicationRunner,
       ),
     )
+  }
+
+  @Test
+  fun `concurrent duplicate deliveries create only one active attempt`() = runBlocking {
+    val publisher =
+      object : WorkItemPublisher {
+        override suspend fun publishMessage(queueName: String, message: Message) {}
+      }
+    val services = initServices(TestConfig.QUEUE_MAPPING, IdGenerator.Default, publisher)
+    val workItem =
+      services.workItemsService.createWorkItem(
+        createWorkItemRequest {
+          this.workItem = workItem {
+            workItemResourceId = "duplicate-work-item"
+            queueResourceId = "test-topid-id"
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+
+    val results =
+      listOf("attempt-one", "attempt-two")
+        .map { attemptId ->
+          async(Dispatchers.Default) {
+            runCatching {
+              services.service.createWorkItemAttempt(
+                createWorkItemAttemptRequest {
+                  this.workItemAttempt = workItemAttempt {
+                    workItemResourceId = workItem.workItemResourceId
+                    workItemAttemptResourceId = attemptId
+                  }
+                }
+              )
+            }
+          }
+        }
+        .awaitAll()
+
+    assertThat(results.count { it.isSuccess }).isEqualTo(1)
+    val failure = results.single { it.isFailure }.exceptionOrNull() as StatusRuntimeException
+    assertThat(failure.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
   companion object {
