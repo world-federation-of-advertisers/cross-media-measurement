@@ -60,7 +60,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(workItemId:
     set("WorkItemId").to(workItemId)
     set("LeaseOwner").to(null as String?)
     set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
-    set("NextAttemptTime").to(null as com.google.cloud.Timestamp?)
+    set("NextAttemptTime").to(com.google.cloud.Timestamp.now())
     set("QueueResolutionFailed").to(false)
     set("AttemptCount").to(0L)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
@@ -89,15 +89,14 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
 ): WorkItemPublicationClaimResult? {
   val sql = buildString {
     appendLine(WORK_ITEM_PUBLICATION_SQL)
-    appendLine("WHERE (NextAttemptTime IS NULL OR NextAttemptTime <= @now)")
+    appendLine("WHERE NextAttemptTime <= @now")
     appendLine("  AND (LeaseExpirationTime IS NULL OR LeaseExpirationTime <= @now)")
     if (workItemId != null) {
       appendLine("  AND WorkItemPublications.WorkItemId = @workItemId")
     }
     appendLine("ORDER BY WorkItemPublications.QueueResolutionFailed ASC,")
-    appendLine(
-      "  COALESCE(WorkItemPublications.NextAttemptTime, WorkItemPublications.CreateTime) ASC,"
-    )
+    appendLine("  WorkItemPublications.NextAttemptTime ASC,")
+    appendLine("  WorkItemPublications.LeaseExpirationTime ASC,")
     appendLine("  WorkItemPublications.WorkItemId ASC")
     appendLine("LIMIT 1")
   }
@@ -200,6 +199,7 @@ private val WORK_ITEM_PUBLICATION_SQL =
     WorkItems.QueueId,
     WorkItems.State,
     WorkItems.WorkItemParams,
+    WorkItems.Generation,
     WorkItems.CreateTime,
     WorkItems.UpdateTime,
     WorkItemPublications.AttemptCount,

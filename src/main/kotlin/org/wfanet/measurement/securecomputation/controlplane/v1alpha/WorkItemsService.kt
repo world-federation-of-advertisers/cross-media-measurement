@@ -38,6 +38,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
@@ -84,6 +85,7 @@ class WorkItemsService(
             WorkItemAlreadyExistsException(request.workItem.name, e)
               .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
@@ -128,6 +130,7 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -183,25 +186,36 @@ class WorkItemsService(
       throw RequiredFieldNotSetException("name")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
     val key =
       WorkItemKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.expectedWorkItemGeneration <= 0L) {
+      throw RequiredFieldNotSetException("expected_work_item_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val internalResponse: InternalWorkItem =
       try {
         internalWorkItemsStub.failWorkItem(
-          internalFailWorkItemRequest { workItemResourceId = key.workItemId }
+          internalFailWorkItemRequest {
+            workItemResourceId = key.workItemId
+            expectedWorkItemGeneration = request.expectedWorkItemGeneration
+          }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
             WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH ->
+            WorkItemGenerationMismatchException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
+            WorkItemInvalidStateException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
-          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
@@ -245,6 +259,7 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

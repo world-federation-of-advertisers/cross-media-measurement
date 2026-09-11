@@ -39,6 +39,7 @@ object Errors {
     WORK_ITEM_ATTEMPT_NOT_FOUND,
     WORK_ITEM_ALREADY_EXISTS,
     WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+    WORK_ITEM_GENERATION_MISMATCH,
     INVALID_FIELD_VALUE,
   }
 
@@ -49,6 +50,8 @@ object Errors {
     WORK_ITEM_STATE("workItemState"),
     WORK_ITEM_ATTEMPT_RESOURCE_ID("workItemAttemptResourceId"),
     WORK_ITEM_ATTEMPT_STATE("workItemAttemptState"),
+    EXPECTED_WORK_ITEM_GENERATION("expectedWorkItemGeneration"),
+    ACTUAL_WORK_ITEM_GENERATION("actualWorkItemGeneration"),
     FIELD_NAME("fieldName");
 
     companion object {
@@ -179,6 +182,23 @@ class WorkItemInvalidStateException(
     mapOf(
       Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
       Errors.Metadata.WORK_ITEM_STATE to workItemState.name,
+    ),
+    cause,
+  )
+
+class WorkItemGenerationMismatchException(
+  workItemResourceId: String,
+  expectedGeneration: Long,
+  actualGeneration: Long,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+    "WorkItem with resource ID $workItemResourceId has generation $actualGeneration, not $expectedGeneration",
+    mapOf(
+      Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId,
+      Errors.Metadata.EXPECTED_WORK_ITEM_GENERATION to expectedGeneration.toString(),
+      Errors.Metadata.ACTUAL_WORK_ITEM_GENERATION to actualGeneration.toString(),
     ),
     cause,
   )

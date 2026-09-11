@@ -38,6 +38,8 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoun
 
 data class WorkItemResult(val workItemId: Long, val workItem: WorkItem)
 
+private const val INITIAL_WORK_ITEM_GENERATION = 1L
+
 /** @return whether a [WorkItem] with the specified [workItemId] exists. */
 suspend fun AsyncDatabaseClient.ReadContext.workItemIdExists(workItemId: Long): Boolean {
   return readRow("WorkItems", Key.of(workItemId), listOf("WorkItemId")) != null
@@ -60,11 +62,15 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
 }
 
 /** Buffers the state and outbox mutations needed to retry a failed WorkItem. */
-fun AsyncDatabaseClient.TransactionContext.retryWorkItem(workItemId: Long): WorkItem.State {
+fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
+  workItemId: Long,
+  generation: Long,
+): WorkItem.State {
   val state = WorkItem.State.QUEUED
   bufferUpdateMutation("WorkItems") {
     set("WorkItemId").to(workItemId)
     set("State").to(state)
+    set("Generation").to(generation + 1L)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   insertWorkItemPublication(workItemId)
@@ -88,6 +94,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
     set("WorkItemResourceId").to(workItemResourceId)
     set("QueueId").to(queueId)
     set("State").to(state)
+    set("Generation").to(INITIAL_WORK_ITEM_GENERATION)
     set("WorkItemParams").to(workItemParams)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
@@ -171,6 +178,7 @@ internal object WorkItems {
       QueueId,
       State,
       WorkItemParams,
+      Generation,
       CreateTime,
       UpdateTime,
     FROM
@@ -186,6 +194,12 @@ internal object WorkItems {
         queueResourceId = queue.queueResourceId
         state = row.getProtoEnum("State", WorkItem.State::forNumber)
         workItemParams = row.getProtoMessage("WorkItemParams", Any.getDefaultInstance())
+        generation =
+          if (row.isNull("Generation")) {
+            INITIAL_WORK_ITEM_GENERATION
+          } else {
+            row.getLong("Generation")
+          }
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

@@ -48,7 +48,8 @@ service WorkItems {
   //
   // Set `WorkItemAttempt`s as FAILED.
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem) {
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) =
+        "name,expected_work_item_generation";
   }
 
   // Retries a failed `WorkItem`, a `RUNNING` `WorkItem` with no active attempt,
@@ -117,6 +118,13 @@ message FailWorkItemRequest {
     (google.api.resource_reference).type =
         "control-plane.secure-computation.halo-cmm.org/WorkItem"
   ];
+
+  // Generation from the delivered `WorkItem`.
+  //
+  // This prevents a stale queue delivery from failing a newer execution of
+  // the same `WorkItem`.
+  int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Request message for `RetryWorkItem` method.

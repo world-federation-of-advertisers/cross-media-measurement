@@ -35,6 +35,7 @@ object Errors {
     WORK_ITEM_ATTEMPT_NOT_FOUND,
     WORK_ITEM_ALREADY_EXISTS,
     WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+    WORK_ITEM_GENERATION_MISMATCH,
     INVALID_FIELD_VALUE,
   }
 
@@ -43,6 +44,8 @@ object Errors {
     WORK_ITEM_ATTEMPT("workItem"),
     WORK_ITEM_ATTEMPT_STATE("workItemAttemptState"),
     WORK_ITEM_STATE("workItemState"),
+    EXPECTED_WORK_ITEM_GENERATION("expectedWorkItemGeneration"),
+    ACTUAL_WORK_ITEM_GENERATION("actualWorkItemGeneration"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -156,6 +159,42 @@ class WorkItemInvalidStateException(name: String, workItemState: String, cause: 
       return WorkItemInvalidStateException(
         workItemKey.toName(),
         internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_STATE),
+      )
+    }
+  }
+}
+
+class WorkItemGenerationMismatchException(
+  name: String,
+  expectedGeneration: String,
+  actualGeneration: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    reason,
+    "WorkItem $name has generation $actualGeneration, not $expectedGeneration",
+    mapOf(
+      Errors.Metadata.WORK_ITEM to name,
+      Errors.Metadata.EXPECTED_WORK_ITEM_GENERATION to expectedGeneration,
+      Errors.Metadata.ACTUAL_WORK_ITEM_GENERATION to actualGeneration,
+    ),
+    cause,
+  ) {
+  companion object : Factory<WorkItemGenerationMismatchException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.WORK_ITEM_GENERATION_MISMATCH
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): WorkItemGenerationMismatchException {
+      val workItemKey =
+        WorkItemKey(internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID))
+      return WorkItemGenerationMismatchException(
+        workItemKey.toName(),
+        internalMetadata.getValue(InternalErrors.Metadata.EXPECTED_WORK_ITEM_GENERATION),
+        internalMetadata.getValue(InternalErrors.Metadata.ACTUAL_WORK_ITEM_GENERATION),
+        cause,
       )
     }
   }
