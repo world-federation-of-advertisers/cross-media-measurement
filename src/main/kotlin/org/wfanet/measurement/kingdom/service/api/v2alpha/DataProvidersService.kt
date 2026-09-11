@@ -344,6 +344,7 @@ private fun InternalDataProviderCapabilities.toCapabilities(): DataProvider.Capa
     trusTeeSupported = source.trusTeeSupported
     noiseMechanismDeterministicTruncatedLaplaceSupported =
       source.noiseMechanismDeterministicTruncatedLaplaceSupported
+    trusTeeV2Supported = source.trusTeeV2Supported
   }
 }
 
@@ -354,5 +355,6 @@ private fun DataProvider.Capabilities.toInternal(): InternalDataProviderCapabili
     trusTeeSupported = source.trusTeeSupported
     noiseMechanismDeterministicTruncatedLaplaceSupported =
       source.noiseMechanismDeterministicTruncatedLaplaceSupported
+    trusTeeV2Supported = source.trusTeeV2Supported
   }
 }

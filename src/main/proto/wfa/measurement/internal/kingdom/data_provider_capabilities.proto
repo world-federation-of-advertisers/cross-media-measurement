@@ -30,4 +30,6 @@ message DataProviderCapabilities {
   bool trus_tee_supported = 2;
   // Whether the DETERMINISTIC_TRUNCATED_LAPLACE noise mechanism is supported.
   bool noise_mechanism_deterministic_truncated_laplace_supported = 4;
+  // Whether the TrusTEE multimeasurement protocol is supported.
+  bool trus_tee_v2_supported = 5;
 }

@@ -39,6 +39,33 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload resources for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse) {}
+
+  // Marks registration of an upload's files and model lines complete. Throws
+  // `ABORTED` if `etag` does not match (AIP-154).
+  rpc MarkRawImpressionUploadRegistrationComplete(
+      MarkRawImpressionUploadRegistrationCompleteRequest)
+      returns (RawImpressionUpload) {}
+}
+
+// Request message for `MarkRawImpressionUploadRegistrationComplete`.
+message MarkRawImpressionUploadRegistrationCompleteRequest {
+  // Resource name of the RawImpressionUpload.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // The etag of the `RawImpressionUpload` for optimistic locking.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // A UUID4 request ID used to make the operation idempotent. The dispatcher
+  // derives this deterministically from `name` and the observed `etag`.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for the `CreateRawImpressionUpload` method.
