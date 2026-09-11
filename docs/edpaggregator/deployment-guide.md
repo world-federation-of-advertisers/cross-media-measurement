@@ -1169,6 +1169,15 @@ just published but has not yet started an attempt is temporarily indistinguishab
 pre-migration gap and could be published twice. Duplicate queue delivery is tolerated, but a
 quiesced rollout avoids creating it deliberately.
 
+#### Recovering after correcting a queue mapping
+
+When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
+it cannot block healthy work. After correcting the Secure Computation API queue mapping, wait for
+the publication deferral interval to expire (one minute by default). If an affected WorkItem does
+not resume automatically, call `RetryWorkItem` for that WorkItem using the command in step 7 above.
+The targeted attempt bypasses the normal background priority order while still respecting an
+active publication lease.
+
 #### Recovering an abandoned running WorkItem
 
 To recover a `RUNNING` WorkItem after its worker exits without completing or failing the attempt,
