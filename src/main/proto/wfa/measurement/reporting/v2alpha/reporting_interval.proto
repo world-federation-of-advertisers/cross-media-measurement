@@ -26,10 +26,18 @@ option java_outer_classname = "ReportingIntervalProto";
 option go_package = "github.com/world-federation-of-advertisers/cross-media-measurement/reporting/apiv2alpha/reportingpb";
 
 // The time interval over which Metrics are reported.
+//
+// This is defined as an inclusive start and exclusive end. In mathematical
+// notation, `[start, end)`. For example, if the effective start is
+// `2026-05-01T06:00:00-04:00` and the effective end is
+// `2026-06-01TO6:00:00-04:00` then the reporting interval is
+// `[2026-05-01T06:00:00-04:00, 2026-06-01T06:00:00-04:00)`. This means that an
+// event at `2026-06-01T05:59:59-04:00` would be included but not an event at
+// `2026-06-01T06:00:00-04:00`.
 message ReportingInterval {
-  // The start time of the report. Required.
+  // Input for determining the effective start of the report. Required.
   oneof report_start_time {
-    // The date and time of the start of the report. The year,
+    // The date and time of the start of the report, inclusive. The year,
     // month, day, and time_offset are all required. Time has hours
     // granularity.
     //
@@ -37,13 +45,11 @@ message ReportingInterval {
     // be 24 hours based on the time of day specified here. If `time_zone` is
     // set, days will be based on the calendar and daylight savings will be
     // considered; if 5 AM is chosen, the day will start at 5 AM year-round.
-    //
-    // This side of the interval is closed.
     google.type.DateTime report_start = 1
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // The date of the start of the report. The year, month, and day are all
-    // required.
+    // The date of the start of the report, inclusive. The year, month, and day
+    // are all required.
     //
     // Server defaults will be used for the time portion if they exist. If they
     // don't, setting this field is an error.
@@ -51,7 +57,7 @@ message ReportingInterval {
         [(google.api.field_behavior) = IMMUTABLE];
   }
 
-  // The effective start time of the Report.
+  // The effective start of the report, inclusive.
   //
   // This will be the same as `report_start` if `report_start` is set. If
   // `report_start_date` is set, this will be `report_start_date` with server
@@ -67,8 +73,15 @@ message ReportingInterval {
 
   // The end date of the report.
   //
-  // The time is considered to be the same as that specified in the report
-  // start. This side of the interval is open with respect to the date specified
-  // here when taken together with the time specified by report_start.
+  // This is used to determine the (exclusive) effective report end, which is
+  // defined as the date from this field and the time from
+  // `effective_report_start`. For example, if `effective_report_start` is
+  // `2026-03-01T06:00:00-05:00`, and `report_end` is `2026-04-01` then the
+  // effective report end is `2026-04-01T06:00:00-05:00`.
+  //
+  // Note that if `effective_report_start` had a time zone of `America/New_York`
+  // specified instead of a UTC offset of `-05:00` then the effective report end
+  // would instead be `2026-04-01T06:00:00-04:00` due to daylight saving time
+  // (DST).
   google.type.Date report_end = 2 [(google.api.field_behavior) = REQUIRED];
 }
