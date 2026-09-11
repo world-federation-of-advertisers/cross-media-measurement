@@ -31,6 +31,7 @@ import com.google.protobuf.util.Timestamps
 import io.r2dbc.spi.ConnectionFactories
 import io.r2dbc.spi.ConnectionFactory
 import io.r2dbc.spi.ConnectionFactoryOptions
+import java.io.File
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -43,12 +44,19 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeParseException
+import kotlin.properties.Delegates
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
+import org.wfanet.measurement.api.withAuthenticationKey
 import org.wfanet.measurement.common.commandLineMain
+import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
@@ -570,13 +578,20 @@ internal object ReportTraceOutput {
 
   fun render(
     context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution =
+      ReportTraceRouteResolution.unresolved(
+        measurementNames = context.measurementNames,
+        edpaDataProviders = emptySet(),
+        status = "NOT_ATTEMPTED",
+        note = "Kingdom route resolution was not supplied",
+      ),
     spans: List<ReportTraceSpan>,
     logEntries: List<ReportTraceLogEntry>,
     sourceStatuses: List<ReportTraceSourceStatus>,
     warnings: List<String>,
     includeRawPayloads: Boolean,
     lifecycleCoverage: List<ReportTraceLifecycleStage> =
-      lifecycleCoverage(context, spans, logEntries),
+      lifecycleCoverage(context, routeResolution, spans, logEntries),
     artifactStatus: ReportTraceArtifactStatus =
       artifactStatus(spans, logEntries, sourceStatuses, lifecycleCoverage),
     startTime: Instant? = null,
@@ -634,6 +649,37 @@ internal object ReportTraceOutput {
         appendLine("- ${label}s: none observed")
       } else {
         names.forEach { appendLine("- $label: $it") }
+      }
+    }
+    appendLine()
+    appendLine("## Resolved execution routes")
+    appendLine()
+    appendLine("Kingdom resolution: ${routeResolution.status}")
+    appendLine("EDPA topology: ${routeResolution.topologyProvenance}")
+    if (routeResolution.edpaDataProviders.isNotEmpty()) {
+      routeResolution.edpaDataProviders.sorted().forEach { dataProvider ->
+        appendLine("- EDPA DataProvider: $dataProvider")
+      }
+    }
+    appendLine()
+    appendLine("| Measurement | State | Selected protocol | Duchy path |")
+    appendLine("| --- | --- | --- | --- |")
+    if (routeResolution.measurementRoutes.isEmpty()) {
+      appendLine("| none resolved | UNKNOWN | UNKNOWN | UNKNOWN |")
+    } else {
+      for (route in routeResolution.measurementRoutes) {
+        appendLine("| ${route.name} | ${route.state} | ${route.protocol} | ${route.route} |")
+      }
+    }
+    appendLine()
+    appendLine("| Requisition | State | DataProvider | Fulfillment route |")
+    appendLine("| --- | --- | --- | --- |")
+    val requisitionRoutes = routeResolution.measurementRoutes.flatMap { it.requisitions }
+    if (requisitionRoutes.isEmpty()) {
+      appendLine("| none resolved | UNKNOWN | UNKNOWN | UNKNOWN |")
+    } else {
+      for (route in requisitionRoutes) {
+        appendLine("| ${route.name} | ${route.state} | ${route.dataProvider} | ${route.route} |")
       }
     }
     appendLine()
@@ -717,6 +763,7 @@ internal object ReportTraceOutput {
 
   fun lifecycleCoverage(
     context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution,
     spans: List<ReportTraceSpan>,
     logEntries: List<ReportTraceLogEntry>,
   ): List<ReportTraceLifecycleStage> {
@@ -738,12 +785,13 @@ internal object ReportTraceOutput {
       observed.getOrPut("basic_report_available") { mutableListOf() } +=
         "durable BasicReport state SUCCEEDED" to "succeeded"
     }
-    val expectedStages = expectedStages(context)
-    return (expectedStages + observed.keys.filterNot { it in expectedStages }.sorted()).map { stage
-      ->
+    val expectedStages = expectedStages(context, routeResolution)
+    return (expectedStages.keys + observed.keys.filterNot { it in expectedStages }.sorted()).map {
+      stage ->
       val observedEvidence = observed[stage].orEmpty().distinct()
       val evidence = observedEvidence.map { it.first }
       val outcomes = observedEvidence.mapNotNull { it.second?.lowercase() }.toSet()
+      val requirement = expectedStages[stage]
       ReportTraceLifecycleStage(
         name = stage,
         status =
@@ -754,11 +802,24 @@ internal object ReportTraceOutput {
             outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> "SUCCEEDED"
             outcomes.any { it in IN_PROGRESS_OUTCOMES } -> "IN_PROGRESS"
             "unknown" in outcomes -> "UNKNOWN"
+            requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isEmpty() ->
+              "NOT_APPLICABLE"
+            requirement == ReportTraceStageRequirement.NOT_APPLICABLE -> "UNEXPECTED"
             evidence.isNotEmpty() -> "OBSERVED"
-            stage in expectedStages -> "MISSING"
+            requirement == ReportTraceStageRequirement.REQUIRED -> "MISSING"
+            requirement == ReportTraceStageRequirement.UNKNOWN -> "UNKNOWN"
             else -> "OPTIONAL"
           },
-        evidence = evidence.joinToString().ifEmpty { "No matching span label or structured log" },
+        evidence =
+          evidence.joinToString().ifEmpty {
+            when (requirement) {
+              ReportTraceStageRequirement.NOT_APPLICABLE ->
+                "Not applicable for the Kingdom-resolved route"
+              ReportTraceStageRequirement.UNKNOWN -> "Route applicability could not be resolved"
+              ReportTraceStageRequirement.REQUIRED,
+              null -> "No matching span label or structured log"
+            }
+          },
       )
     }
   }
@@ -779,7 +840,7 @@ internal object ReportTraceOutput {
     return if (
       sourceStatuses.any { it.status in setOf("FAILED", "PARTIAL", "TRUNCATED") } ||
         lifecycleCoverage.any {
-          it.status in setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN")
+          it.status in setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN", "UNEXPECTED")
         }
     ) {
       ReportTraceArtifactStatus.PARTIAL
@@ -893,23 +954,30 @@ internal object ReportTraceOutput {
       .sorted()
   }
 
-  private fun expectedStages(context: ReportTraceContext): List<String> = buildList {
-    if (context.basicReportName != null) add("basic_report_creation")
-    add("report_creation")
-    add("metric_creation")
-    add("measurement_creation")
-    add("requisition_available")
-    add("requisition_dispatch")
-    add("results_fulfillment")
-    add("kingdom_result_acceptance")
-    add("kingdom_measurement_sync")
-    add("metric_result_sync")
-    add("report_result_assembly")
+  private fun expectedStages(
+    context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution,
+  ): Map<String, ReportTraceStageRequirement> = buildMap {
     if (context.basicReportName != null) {
-      add("noise_correction")
+      put("basic_report_creation", ReportTraceStageRequirement.REQUIRED)
+    }
+    put("report_creation", ReportTraceStageRequirement.REQUIRED)
+    put("metric_creation", ReportTraceStageRequirement.REQUIRED)
+    put("measurement_creation", ReportTraceStageRequirement.REQUIRED)
+    put("requisition_available", ReportTraceStageRequirement.REQUIRED)
+    put("requisition_dispatch", routeResolution.requirementFor("requisition_dispatch"))
+    put("results_fulfillment", routeResolution.requirementFor("results_fulfillment"))
+    put("duchy_computation", routeResolution.requirementFor("duchy_computation"))
+    put("duchy_stage_attempt", routeResolution.requirementFor("duchy_stage_attempt"))
+    put("kingdom_result_acceptance", ReportTraceStageRequirement.REQUIRED)
+    put("kingdom_measurement_sync", ReportTraceStageRequirement.REQUIRED)
+    put("metric_result_sync", ReportTraceStageRequirement.REQUIRED)
+    put("report_result_assembly", ReportTraceStageRequirement.REQUIRED)
+    if (context.basicReportName != null) {
+      put("noise_correction", ReportTraceStageRequirement.REQUIRED)
       if (context.basicReportState?.uppercase() == "SUCCEEDED") {
-        add("processed_result_writeback")
-        add("basic_report_available")
+        put("processed_result_writeback", ReportTraceStageRequirement.REQUIRED)
+        put("basic_report_available", ReportTraceStageRequirement.REQUIRED)
       }
     }
   }
@@ -1030,6 +1098,7 @@ internal class ReportTrace(
   private val resolverFactory:
     (SpannerDatabaseConnector, PostgresDatabaseClient) -> BasicReportTraceResolver,
   private val resolverOverride: BasicReportTraceResolver?,
+  private val routeResolverOverride: ReportTraceRouteResolver?,
   private val clock: Clock,
 ) : Runnable {
   @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
@@ -1038,6 +1107,84 @@ internal class ReportTrace(
   private val logReaders = mutableMapOf<Pair<String, Boolean>, ReportTraceLogReader>()
 
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
+
+  @CommandLine.Option(
+    names = ["--kingdom-public-api-target"],
+    description = ["gRPC target (authority) of the Kingdom public API server."],
+  )
+  private var kingdomPublicApiTarget: String? = null
+
+  @CommandLine.Option(
+    names = ["--kingdom-public-api-cert-host"],
+    description =
+      [
+        "Expected hostname in the Kingdom public API TLS certificate.",
+        "Overrides derivation from --kingdom-public-api-target.",
+      ],
+  )
+  private var kingdomPublicApiCertHost: String? = null
+
+  @CommandLine.Option(
+    names = ["--kingdom-api-key"],
+    description = ["API authentication key for the MeasurementConsumer."],
+  )
+  private var kingdomApiKey: String? = null
+
+  @CommandLine.Option(
+    names = ["--tls-cert-file"],
+    description = ["MeasurementConsumer TLS certificate file for Kingdom."],
+  )
+  private var tlsCertFile: File? = null
+
+  @CommandLine.Option(
+    names = ["--tls-key-file"],
+    description = ["MeasurementConsumer TLS private key file for Kingdom."],
+  )
+  private var tlsKeyFile: File? = null
+
+  @CommandLine.Option(
+    names = ["--cert-collection-file"],
+    description = ["Trusted root certificate collection for Kingdom."],
+  )
+  private var certCollectionFile: File? = null
+
+  @CommandLine.Option(
+    names = ["--edpa-data-provider"],
+    description =
+      [
+        "DataProvider resource name managed by an EDP Aggregator.",
+        "Repeat to supply the complete deployment topology.",
+      ],
+  )
+  private var edpaDataProviders: List<String> = emptyList()
+
+  @CommandLine.Option(
+    names = ["--kingdom-resolution-timeout"],
+    defaultValue = "PT30S",
+    description = ["Maximum Kingdom route-resolution time per report."],
+  )
+  private lateinit var kingdomResolutionTimeout: Duration
+
+  @set:CommandLine.Option(
+    names = ["--kingdom-max-concurrency"],
+    defaultValue = "4",
+    description = ["Maximum concurrent Kingdom route-resolution RPCs."],
+  )
+  private var kingdomMaxConcurrency by Delegates.notNull<Int>()
+
+  @set:CommandLine.Option(
+    names = ["--kingdom-max-attempts"],
+    defaultValue = "3",
+    description = ["Maximum attempts for each retryable Kingdom RPC."],
+  )
+  private var kingdomMaxAttempts by Delegates.notNull<Int>()
+
+  @CommandLine.Option(
+    names = ["--kingdom-retry-delay"],
+    defaultValue = "PT0.2S",
+    description = ["Initial exponential-backoff delay for retryable Kingdom RPCs."],
+  )
+  private lateinit var kingdomRetryDelay: Duration
 
   @CommandLine.Option(
     names = ["--observability-project", "--project"],
@@ -1186,9 +1333,17 @@ internal class ReportTrace(
           measurementNames = emptyList(),
           createTime = null,
         )
+      val routeResolution =
+        ReportTraceRouteResolution.unresolved(
+          measurementNames = emptyList(),
+          edpaDataProviders = emptySet(),
+          status = "NOT_ATTEMPTED",
+          note = "Kingdom route resolution is unavailable in direct --report mode",
+        )
       val collection =
         collectTimeline(
           context,
+          routeResolution,
           explicitStartTime,
           parsedEndTime,
           entryLimit,
@@ -1200,6 +1355,7 @@ internal class ReportTrace(
         .print(
           ReportTraceOutput.render(
             context,
+            routeResolution,
             collection.spans,
             collection.logEntries,
             collection.sourceStatuses,
@@ -1217,19 +1373,33 @@ internal class ReportTrace(
 
     val normalizedOutputDirectory =
       outputDirectory?.toAbsolutePath()?.normalize()?.also { Files.createDirectories(it) }
+    val normalizedEdpaDataProviders = edpaDataProviders.toSet()
     val resolver = resolverOverride
     if (resolver != null) {
+      val routeResolver =
+        routeResolverOverride
+          ?: ReportTraceRouteResolver { measurementNames, topology ->
+            ReportTraceRouteResolution.unresolved(
+              measurementNames = measurementNames,
+              edpaDataProviders = topology,
+              status = "NOT_ATTEMPTED",
+              note = "Kingdom route resolver was not configured",
+            )
+          }
       return processBasicReports(
         requestedBasicReportNames,
         normalizedOutputDirectory,
         resolver,
+        routeResolver,
+        normalizedEdpaDataProviders,
         explicitStartTime,
         parsedEndTime,
         entryLimit,
       )
     }
 
-    validateDatabaseFlags()
+    validateBasicReportFlags()
+    val routeResolver = routeResolverOverride ?: buildKingdomRouteResolver()
     val postgresClient =
       PostgresDatabaseClient.fromConnectionFactory(buildPostgresConnectionFactory())
     return spannerFlags.usingSpanner { spanner ->
@@ -1237,6 +1407,8 @@ internal class ReportTrace(
         requestedBasicReportNames,
         normalizedOutputDirectory,
         resolverFactory(spanner, postgresClient),
+        routeResolver,
+        normalizedEdpaDataProviders,
         explicitStartTime,
         parsedEndTime,
         entryLimit,
@@ -1248,6 +1420,8 @@ internal class ReportTrace(
     names: List<String>,
     outputDirectory: Path?,
     resolver: BasicReportTraceResolver,
+    routeResolver: ReportTraceRouteResolver,
+    edpaDataProviders: Set<String>,
     explicitStartTime: Instant?,
     endTime: Instant,
     entryLimit: Int,
@@ -1285,14 +1459,44 @@ internal class ReportTrace(
             ) to failureDescription(e)
           }
         val (context, resolutionFailure) = resolution
+        val routeResolution =
+          if (resolutionFailure == null) {
+            try {
+              routeResolver.resolve(context.measurementNames, edpaDataProviders)
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              ReportTraceRouteResolution.unresolved(
+                measurementNames = context.measurementNames,
+                edpaDataProviders = edpaDataProviders,
+                status = "FAILED",
+                note = "Kingdom route resolution failed: ${failureDescription(e)}",
+              )
+            }
+          } else {
+            ReportTraceRouteResolution.unresolved(
+              measurementNames = context.measurementNames,
+              edpaDataProviders = edpaDataProviders,
+              status = "NOT_ATTEMPTED",
+              note = "Kingdom route resolution skipped because Reporting resolution failed",
+            )
+          }
         val collection =
-          collectTimeline(context, explicitStartTime, endTime, entryLimit, resolutionFailure)
+          collectTimeline(
+            context,
+            routeResolution,
+            explicitStartTime,
+            endTime,
+            entryLimit,
+            resolutionFailure,
+          )
         val outputPath =
           writeArtifact(
             outputDirectory,
             fileName,
             ReportTraceOutput.render(
               context,
+              routeResolution,
               collection.spans,
               collection.logEntries,
               collection.sourceStatuses,
@@ -1325,6 +1529,7 @@ internal class ReportTrace(
 
   private fun collectTimeline(
     context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution,
     explicitStartTime: Instant?,
     endTime: Instant,
     entryLimit: Int,
@@ -1344,6 +1549,7 @@ internal class ReportTrace(
     if (resolutionFailure != null) {
       warnings += "Reporting resource resolution failed: $resolutionFailure"
     }
+    warnings += routeResolution.warnings
     val spanEntries = mutableListOf<ReportTraceSpan>()
     val logEntries = mutableListOf<ReportTraceLogEntry>()
     val traceFailures = mutableMapOf<String, MutableList<String>>()
@@ -1353,7 +1559,9 @@ internal class ReportTrace(
     val traceFetchedCounts = mutableMapOf<String, Int>()
     val logFetchedCounts = mutableMapOf<String, Int>()
     val projects = observabilityProjects.distinct()
-    val queriedLogCorrelationValues = context.correlationValues.toMutableSet()
+    val correlationValues =
+      (context.correlationValues + routeResolution.correlationValues).distinct()
+    val queriedLogCorrelationValues = correlationValues.toMutableSet()
     for (project in projects) {
       try {
         val projectLogEntries =
@@ -1361,7 +1569,7 @@ internal class ReportTrace(
             .getOrPut(project to includeRawPayloads) {
               logReaderFactory(project, includeRawPayloads)
             }
-            .read(context.correlationValues, startTime, endTime, entryLimit)
+            .read(correlationValues, startTime, endTime, entryLimit)
         if (projectLogEntries.size > entryLimit) {
           logTruncatedProjects += project
           warnings +=
@@ -1443,10 +1651,10 @@ internal class ReportTrace(
 
     // Resource-name fallback can be expensive for high-cardinality reports. Use it only when the
     // primary lineage query and cross-project trace-ID expansion did not cover the lifecycle.
-    val fallbackCorrelationValues = context.correlationValues - primaryCorrelationValues.toSet()
+    val fallbackCorrelationValues = correlationValues - primaryCorrelationValues.toSet()
     if (
       fallbackCorrelationValues.isNotEmpty() &&
-        ReportTraceOutput.lifecycleCoverage(context, spanEntries, logEntries).any {
+        ReportTraceOutput.lifecycleCoverage(context, routeResolution, spanEntries, logEntries).any {
           it.status == "MISSING"
         }
     ) {
@@ -1484,8 +1692,7 @@ internal class ReportTrace(
     var expansionTruncated = false
     while (true) {
       val knownCorrelationValues =
-        context.correlationValues +
-          ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries)
+        correlationValues + ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries)
       val pendingLogCorrelationValues = knownCorrelationValues.toSet() - queriedLogCorrelationValues
       val pendingTraceCorrelationValues =
         knownCorrelationValues.toSet() - queriedTraceCorrelationValues
@@ -1588,6 +1795,16 @@ internal class ReportTrace(
           )
         )
       }
+      add(
+        ReportTraceSourceStatus(
+          project = "kingdom",
+          source = "Route resolution",
+          status = routeResolution.status,
+          fetched = routeResolution.fetchedResourceCount,
+          retained = routeResolution.fetchedResourceCount,
+          note = routeResolution.note,
+        )
+      )
       if (expansionTruncated) {
         add(
           ReportTraceSourceStatus(
@@ -1624,7 +1841,12 @@ internal class ReportTrace(
       }
     }
     val lifecycleCoverage =
-      ReportTraceOutput.lifecycleCoverage(context, retainedSpans, retainedLogEntries)
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        retainedSpans,
+        retainedLogEntries,
+      )
     val status =
       ReportTraceOutput.artifactStatus(
         retainedSpans,
@@ -1754,7 +1976,7 @@ internal class ReportTrace(
     appendLine(ReportTraceOutput.sanitize(message))
   }
 
-  private fun validateDatabaseFlags() {
+  private fun validateBasicReportFlags() {
     val missing = buildList {
       if (runCatching { spannerFlags.projectName }.isFailure) add("--spanner-project")
       if (runCatching { spannerFlags.instanceName }.isFailure) add("--spanner-instance")
@@ -1762,6 +1984,12 @@ internal class ReportTrace(
       if (postgresDatabase == null) add("--postgres-database")
       if (postgresCloudSqlConnectionName == null) add("--postgres-cloud-sql-connection-name")
       if (postgresUser == null) add("--postgres-user")
+      if (routeResolverOverride == null) {
+        if (kingdomPublicApiTarget == null) add("--kingdom-public-api-target")
+        if (kingdomApiKey == null) add("--kingdom-api-key")
+        if (tlsCertFile == null) add("--tls-cert-file")
+        if (tlsKeyFile == null) add("--tls-key-file")
+      }
     }
     if (missing.isNotEmpty()) {
       throw CommandLine.ParameterException(
@@ -1769,6 +1997,68 @@ internal class ReportTrace(
         "${missing.joinToString()} required with --basic-report",
       )
     }
+    if (kingdomResolutionTimeout.isZero || kingdomResolutionTimeout.isNegative) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--kingdom-resolution-timeout must be positive",
+      )
+    }
+    if (kingdomMaxConcurrency <= 0) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--kingdom-max-concurrency must be positive",
+      )
+    }
+    if (kingdomMaxAttempts !in 1..MAX_KINGDOM_RPC_ATTEMPTS) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--kingdom-max-attempts must be between 1 and $MAX_KINGDOM_RPC_ATTEMPTS",
+      )
+    }
+    if (kingdomRetryDelay.isNegative) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--kingdom-retry-delay must be non-negative",
+      )
+    }
+    val invalidDataProvider =
+      edpaDataProviders.firstOrNull {
+        org.wfanet.measurement.api.v2alpha.DataProviderKey.fromName(it) == null
+      }
+    if (invalidDataProvider != null) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "Invalid --edpa-data-provider resource name: $invalidDataProvider",
+      )
+    }
+  }
+
+  private fun buildKingdomRouteResolver(): ReportTraceRouteResolver {
+    val clientCerts =
+      SigningCerts.fromPemFiles(
+        certificateFile = checkNotNull(tlsCertFile),
+        privateKeyFile = checkNotNull(tlsKeyFile),
+        trustedCertCollectionFile = certCollectionFile,
+      )
+    val channel =
+      buildMutualTlsChannel(
+          target = checkNotNull(kingdomPublicApiTarget),
+          clientCerts = clientCerts,
+          hostName = kingdomPublicApiCertHost,
+        )
+        .withShutdownTimeout(CHANNEL_SHUTDOWN_TIMEOUT)
+    val apiKey = checkNotNull(kingdomApiKey)
+    return KingdomReportTraceResolver(
+      client =
+        GrpcKingdomReportTraceClient(
+          MeasurementsCoroutineStub(channel).withAuthenticationKey(apiKey),
+          RequisitionsCoroutineStub(channel).withAuthenticationKey(apiKey),
+        ),
+      perReportDeadline = kingdomResolutionTimeout,
+      maxConcurrency = kingdomMaxConcurrency,
+      maxRpcAttempts = kingdomMaxAttempts,
+      initialRetryDelay = kingdomRetryDelay,
+    )
   }
 
   private fun buildPostgresConnectionFactory(): ConnectionFactory {
@@ -1800,7 +2090,9 @@ internal class ReportTrace(
   companion object {
     private val DEFAULT_LEAD_TIME: Duration = Duration.ofMinutes(5)
     private val DEFAULT_LOOKBACK: Duration = Duration.ofDays(7)
+    private val CHANNEL_SHUTDOWN_TIMEOUT: Duration = Duration.ofSeconds(5)
     private const val MAX_CORRELATION_EXPANSION_ROUNDS = 4
+    private const val MAX_KINGDOM_RPC_ATTEMPTS = 10
   }
 }
 
@@ -1813,6 +2105,7 @@ internal class ReportTraceDependencies(
   val clock: Clock,
   val output: java.io.PrintWriter,
   val error: java.io.PrintWriter,
+  val routeResolverOverride: ReportTraceRouteResolver? = null,
 )
 
 internal fun main(args: Array<String>, dependencies: ReportTraceDependencies): Int {
@@ -1822,6 +2115,7 @@ internal fun main(args: Array<String>, dependencies: ReportTraceDependencies): I
         dependencies.spanReaderFactory,
         dependencies.resolverFactory,
         dependencies.resolverOverride,
+        dependencies.routeResolverOverride,
         dependencies.clock,
       )
     )
@@ -1845,6 +2139,7 @@ fun main(args: Array<String>) =
         DatabaseBasicReportTraceResolver(spanner.databaseClient, postgres)
       },
       resolverOverride = null,
+      routeResolverOverride = null,
       clock = Clock.systemUTC(),
     ),
     args,

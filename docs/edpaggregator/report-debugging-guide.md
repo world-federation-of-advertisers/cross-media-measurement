@@ -98,7 +98,8 @@ Run it from an environment with Application Default Credentials for a
 least-privilege operator service account. The identity needs permission to read
 Cloud Trace and Cloud Logging, read the Reporting Spanner database, connect to
 the Reporting Cloud SQL instance, and select from the Reporting Postgres
-database.
+database. The command also uses the MeasurementConsumer's mTLS identity and API
+key to read its Measurements and Requisitions from the Kingdom public API.
 
 ```bash
 bazel run \
@@ -116,7 +117,14 @@ bazel run \
   --spanner-database=reporting \
   --postgres-cloud-sql-connection-name=<PROJECT_ID>:<REGION>:<CLOUD_SQL_INSTANCE> \
   --postgres-database=reporting-v2 \
-  --postgres-user=<DATABASE_USER>
+  --postgres-user=<DATABASE_USER> \
+  --kingdom-public-api-target=<KINGDOM_PUBLIC_API_TARGET> \
+  --kingdom-public-api-cert-host=<KINGDOM_PUBLIC_API_CERT_HOST> \
+  --tls-cert-file=<MEASUREMENT_CONSUMER_TLS_CERT_FILE> \
+  --tls-key-file=<MEASUREMENT_CONSUMER_TLS_KEY_FILE> \
+  --cert-collection-file=<KINGDOM_ROOT_CERT_COLLECTION_FILE> \
+  --kingdom-api-key=<MEASUREMENT_CONSUMER_API_KEY> \
+  --edpa-data-provider=dataProviders/<EDPA_MANAGED_DATA_PROVIDER_ID>
 ```
 
 Repeat `--basic-report` to collect a batch. `--output-dir` is required for a
@@ -126,6 +134,15 @@ is written to standard output. The default end time is the current time. Repeat
 `--observability-project` for every project that receives telemetry from a
 component in the path. The legacy `--project` spelling remains an alias for a
 single centrally routed observability project; it is not the Spanner project.
+Repeat `--edpa-data-provider` for every DataProvider whose requisitions are
+fulfilled by an EDP Aggregator in this deployment. This is operator-supplied
+topology because the Kingdom knows the DataProvider and selected protocol, but
+not the implementation behind that DataProvider. If the option is omitted, the
+artifact records that provenance and leaves the EDPA-versus-direct branches
+`UNKNOWN` rather than guessing. Kingdom lookup is bounded by
+`--kingdom-resolution-timeout`, `--kingdom-max-concurrency`, and
+`--kingdom-max-attempts`; a partial or failed lookup does not prevent telemetry
+collection.
 
 By default, the artifact contains only allowlisted operational fields and
 sanitized `xmm.*` identifiers. Use `--include-raw-payloads` only for a locally
@@ -145,13 +162,14 @@ evidence are prioritized within that window, but an older error outside it may
 be omitted. Truncated output is always marked partial. Set `--limit=0` to collect
 all matching entries.
 
-The current coverage table is stage-level. The Reporting database resolves
-Metrics and Measurements, but not the expected Requisitions or the selected
-Measurement protocol/EDP route. Until those facts are resolved from Kingdom or
-persisted durably, the CLI cannot prove per-child completeness or classify every
-Duchy/EDPA branch as required versus `NOT_APPLICABLE`. Protocol-dependent stages
-are therefore best-effort evidence, and the artifact must not be treated as
-proof that every child resource completed.
+The CLI uses the Kingdom as the authoritative source for every resolved
+Measurement's state, selected protocol, and Requisitions. Its route table marks
+the Duchy path `NOT_APPLICABLE` for direct Measurements and required for MPC
+Measurements. It marks RequisitionFetcher, WorkItem, and ResultsFulfiller stages
+required only for Requisitions owned by a DataProvider supplied through
+`--edpa-data-provider`; those stages are `NOT_APPLICABLE` for direct-EDP
+Requisitions. Failed Kingdom lookups leave only the affected branches `UNKNOWN`
+and make the artifact partial.
 
 If durable resource resolution fails after the CLI validates the BasicReport
 name, the CLI records the Reporting resolver as a failed source and still
@@ -187,12 +205,9 @@ post-processing/noise-correction job prefixes its logs while processing a
 BasicReport with `xmm.basic_report.name`, `xmm.report.name`, lifecycle stage, and
 outcome.
 
-Complete EDPA trace continuity requires the direct RequisitionFetcher dispatcher
-described in the deployment guide. The legacy DataWatcher path starts a new
-trace from the storage notification and does not recover the fetcher's original
-trace context or BasicReport lineage. Its logs and spans remain useful
-best-effort evidence, but the CLI cannot present that route as one causally
-continuous trace.
+EDPA route tracing requires the direct RequisitionFetcher dispatcher described
+in the deployment guide. The legacy DataWatcher dispatch route is not supported
+by `report-trace`.
 
 The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
 Report, Metric, and Measurement identifiers. It then performs up to four
@@ -426,10 +441,9 @@ healthy right now, independent of my report?". Reporting emits
 Traces (when exported) let you follow synchronous calls without correlating
 timestamps across log streams by hand. The RequisitionFetcher-to-TEE WorkItem
 boundary in direct-dispatch deployments carries W3C trace context explicitly.
-Legacy DataWatcher dispatch starts from its storage notification and is not
-causally connected to the RequisitionFetcher span. Other durable boundaries may
-also begin a new trace, so `xmm.basic_report.name` is the cross-trace join key. The
-results-fulfiller puts the BasicReport, Report, requisition, group, lifecycle
+Other durable boundaries may begin a new trace, so `xmm.basic_report.name` is
+the cross-trace join key. The results-fulfiller puts the BasicReport, Report,
+requisition, group, lifecycle
 stage, and final outcome on span labels that the Cloud Trace v1 read API exposes.
 More detailed events remain visible only in telemetry backends that retain the
 full OpenTelemetry span model, so the CLI also collects structured logs. The

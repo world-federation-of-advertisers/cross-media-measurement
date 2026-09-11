@@ -275,6 +275,61 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main collects telemetry when Kingdom route resolution fails`() {
+    val output = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("kingdom-resolver-failure").toPath()
+    val basicReportName = "measurementConsumers/mc-1/basicReports/report-a"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            listOf(
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW,
+                service = "reporting",
+                severity = "INFO",
+                trace = null,
+                message =
+                  "xmm.basic_report.name=$basicReportName " +
+                    "xmm.lifecycle.stage=report_creation xmm.outcome=succeeded",
+              )
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            reportTraceContext().copy(basicReportName = key.toName())
+          },
+        routeResolverOverride = ReportTraceRouteResolver { _, _ -> error("Kingdom unavailable") },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$basicReportName",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    val artifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
+    assertThat(artifact).contains("Collection completeness: PARTIAL")
+    assertThat(artifact).contains("| kingdom | Route resolution | FAILED |")
+    assertThat(artifact).contains("| duchy_computation | UNKNOWN |")
+    assertThat(artifact).contains("xmm.lifecycle.stage=report_creation")
+  }
+
+  @Test
   fun `buildLogFilters chunks large identifier sets`() {
     val filters =
       ReportTraceOutput.buildLogFilters(
@@ -377,6 +432,7 @@ class ReportTraceTest {
         "noise_correction",
         "processed_result_writeback",
         "duchy_computation",
+        "duchy_stage_attempt",
       )
     val spans =
       stages.mapIndexed { index, stage ->
@@ -407,6 +463,126 @@ class ReportTraceTest {
     assertThat(output).contains("Execution outcome: SUCCEEDED")
     assertThat(output).contains("| duchy_computation | SUCCEEDED |")
     assertThat(output).doesNotContain("| basic_report_api_fetch | MISSING |")
+  }
+
+  @Test
+  fun `render marks route-specific stages not applicable for direct EDP path`() {
+    val context = reportTraceContext()
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topologyProvenance = "operator-provided --edpa-data-provider (1)",
+        edpaDataProviders = setOf("dataProviders/edpa"),
+        measurementRoutes =
+          listOf(
+            ReportTraceMeasurementRoute(
+              name = "measurementConsumers/mc-1/measurements/measurement-1",
+              state = "SUCCEEDED",
+              protocol = "DIRECT",
+              route = ReportTraceMeasurementRouteKind.DIRECT,
+              requisitions =
+                listOf(
+                  ReportTraceRequisitionRoute(
+                    name = "dataProviders/direct/requisitions/requisition-1",
+                    state = "FULFILLED",
+                    dataProvider = "dataProviders/direct",
+                    route = ReportTraceRequisitionRouteKind.DIRECT_EDP,
+                  )
+                ),
+              requisitionsResolved = true,
+            )
+          ),
+        warnings = emptyList(),
+      )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution = routeResolution,
+        spans = emptyList(),
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("| duchy_computation | NOT_APPLICABLE |")
+    assertThat(output).contains("| requisition_dispatch | NOT_APPLICABLE |")
+    assertThat(output).contains("| results_fulfillment | NOT_APPLICABLE |")
+    assertThat(output).contains("| DIRECT | DIRECT |")
+    assertThat(output).contains("| FULFILLED | dataProviders/direct | DIRECT_EDP |")
+  }
+
+  @Test
+  fun `main includes Kingdom Requisitions in initial correlation set`() {
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    var loggingCorrelationValues: Collection<String> = emptyList()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            loggingCorrelationValues = correlationValues
+            emptyList()
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            reportTraceContext().copy(basicReportName = key.toName())
+          },
+        routeResolverOverride =
+          ReportTraceRouteResolver { measurementNames, edpaDataProviders ->
+            assertThat(measurementNames)
+              .containsExactly("measurementConsumers/mc-1/measurements/measurement-1")
+            assertThat(edpaDataProviders).containsExactly("dataProviders/edpa")
+            ReportTraceRouteResolution(
+              status = "SUCCESS",
+              note = "",
+              topologyProvenance = "operator-provided --edpa-data-provider (1)",
+              edpaDataProviders = edpaDataProviders,
+              measurementRoutes =
+                listOf(
+                  ReportTraceMeasurementRoute(
+                    name = measurementNames.single(),
+                    state = "SUCCEEDED",
+                    protocol = "DIRECT",
+                    route = ReportTraceMeasurementRouteKind.DIRECT,
+                    requisitions =
+                      listOf(
+                        ReportTraceRequisitionRoute(
+                          name = requisitionName,
+                          state = "FULFILLED",
+                          dataProvider = "dataProviders/edpa",
+                          route = ReportTraceRequisitionRouteKind.EDPA,
+                        )
+                      ),
+                    requisitionsResolved = true,
+                  )
+                ),
+              warnings = emptyList(),
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-a",
+          "--edpa-data-provider=dataProviders/edpa",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(loggingCorrelationValues).contains(requisitionName)
   }
 
   @Test
@@ -1098,7 +1274,7 @@ class ReportTraceTest {
       basicReportState = "SUCCEEDED",
       reportName = "measurementConsumers/mc-1/reports/report-1",
       metricNames = emptyList(),
-      measurementNames = emptyList(),
+      measurementNames = listOf("measurementConsumers/mc-1/measurements/measurement-1"),
       createTime = NOW,
     )
   }
