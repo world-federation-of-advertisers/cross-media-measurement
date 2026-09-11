@@ -254,7 +254,10 @@ abstract class MillBase(
   private suspend fun processComputationInTrace(token: ComputationToken) {
     if (token.attempt > maximumAttempts) {
       val message = "Failing computation due to too many failed ComputationStageAttempts."
-      Span.current().setStatus(StatusCode.ERROR, message)
+      Span.current()
+        .setStatus(StatusCode.ERROR, message)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+        .setAttribute(ReportTraceAttributes.ERROR_TYPE, "AttemptsExhausted")
       failComputation(token, message)
       return
     }
@@ -271,9 +274,13 @@ abstract class MillBase(
 
     try {
       processComputationImpl(token)
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     } catch (e: Exception) {
-      Span.current().setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
-      Span.current().recordException(e)
+      Span.current()
+        .setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
+        .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+        .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
+        .recordException(e)
       handleExceptions(token, e)
     }
     logger.info("$globalId@$millId: Processed computation ")
@@ -828,8 +835,10 @@ abstract class MillBase(
         val message = "Error updating computation details"
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
-          // The mill will get the latest ComputationToken before attempting to update the details.
-          // Updating only succeeds with the latest Computation version. So it is safe to retry for
+          // The mill will get the latest ComputationToken before attempting to update the
+          // details.
+          // Updating only succeeds with the latest Computation version. So it is safe to retry
+          // for
           // DEADLINE_EXCEEDED.
           Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)

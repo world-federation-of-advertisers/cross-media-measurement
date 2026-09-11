@@ -87,10 +87,11 @@ The stage-by-stage playbook below gives idle-friendly example queries (a bare
 ## Print a report timeline with `report-trace`
 
 The `ReportTrace` operator CLI resolves a BasicReport to its generated Report,
-metrics, and Kingdom measurements. It searches Cloud Trace using the BasicReport
-name and searches Cloud Logging using the full resolved identifier set. It writes
-matching spans and log entries in timestamp order, which is usually the fastest
-first step before using the stage-specific queries below.
+metrics, and Kingdom measurements. It searches Cloud Trace and Cloud Logging
+using that resource chain, then makes a bounded second Logging pass with
+Requisition, EDPA group, WorkItem, and Duchy computation identifiers discovered
+on spans. It writes matching spans and log entries in timestamp order, which is
+usually the fastest first step before using the stage-specific queries below.
 
 Run it from an environment with Application Default Credentials for a
 least-privilege operator service account. The identity needs permission to read
@@ -130,17 +131,26 @@ sanitized `xmm.*` identifiers. Use `--include-raw-payloads` only for a locally
 controlled investigation: the resulting file is marked `RAW-SENSITIVE` and can
 contain credentials, request data, or other secrets. Review it before sharing.
 
-The artifact reports `COMPLETE`, `PARTIAL`, or `FAILED`, includes the collection
-window and resolved resource chain, and marks every expected lifecycle stage as
-observed or missing. Zero telemetry and missing stages are never reported as
-complete. Source failures and truncation also make the artifact partial or
-failed. `--allow-partial` changes only the process exit code for `PARTIAL`; it
-does not change the status written into the artifact and never masks `FAILED`.
-`--limit` controls the maximum retained spans and log entries; warnings, errors,
-and the newest terminal evidence are retained first. Set `--limit=0` to collect
-all matching entries. Protocol-dependent stages such as Duchy computation and
-conditional stages such as processed-result writeback are shown when observed,
-but their absence alone does not make an otherwise complete artifact partial.
+The artifact reports collection completeness (`COMPLETE`, `PARTIAL`, or
+`FAILED`) separately from the report's execution outcome (`SUCCEEDED`, `FAILED`,
+`REFUSED`, `IN_PROGRESS`, or `UNKNOWN`). Zero telemetry, missing stages, and a
+stage with only a `started` outcome are never reported as complete. Source
+failures and truncation also make collection partial or failed.
+`--allow-partial` changes only the process exit code for `PARTIAL`; it does not
+change the completeness written into the artifact and never masks `FAILED`.
+`--limit` controls the maximum retained spans and log entries. Each concrete
+Cloud Logging query reads only its newest bounded window; error and terminal
+evidence are prioritized within that window, but an older error outside it may
+be omitted. Truncated output is always marked partial. Set `--limit=0` to collect
+all matching entries.
+
+The current coverage table is stage-level. The Reporting database resolves
+Metrics and Measurements, but not the expected Requisitions or the selected
+Measurement protocol/EDP route. Until those facts are resolved from Kingdom or
+persisted durably, the CLI cannot prove per-child completeness or classify every
+Duchy/EDPA branch as required versus `NOT_APPLICABLE`. Protocol-dependent stages
+are therefore best-effort evidence, and the artifact must not be treated as
+proof that every child resource completed.
 
 If the BasicReport database is unavailable but the generated Report name is
 known, direct mode needs only observability permissions:
@@ -179,9 +189,11 @@ continuous trace.
 The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
 Report, Metric, and Measurement identifiers. Trace IDs found in logs or in one
 project are then fetched from every configured observability project so remote
-spans without a searchable BasicReport label can still be included. If one API
-or project is unavailable, the artifact records the missing coverage and the
-command fails unless `--allow-partial` was explicitly specified.
+spans without a searchable BasicReport label can still be included. Finally, a
+second Logging query uses Requisition, group, WorkItem, and computation labels
+discovered from those spans. If one API or project is unavailable, the artifact
+records the missing coverage and the command fails unless `--allow-partial` was
+explicitly specified.
 
 ## Lifecycle overview
 

@@ -2070,6 +2070,16 @@ class ResultsFulfillerTest {
       }
       verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
       verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+
+      val spans = collectSpans()
+      val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
+      assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
+      assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("RequisitionRefusalException.Default")
+      val processingSpan = spans.first { it.name == "requisition_processing" }
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
     }
 
   @Test
@@ -2839,6 +2849,7 @@ class ResultsFulfillerTest {
       .isEqualTo(groupedRequisitions.groupId)
     assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
       .isEqualTo("measurementConsumers/mc/basicReports/telemetry-basic-report")
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
     val requisitionFinishedEvent =
       requisitionSpan.events.first { it.name == "requisition_processing_finished" }
     val requisitionAttr = AttributeKey.stringKey("edpa.results_fulfiller.cmms_requisition")
@@ -2846,6 +2857,11 @@ class ResultsFulfillerTest {
     assertThat(requisitionFinishedEvent.attributes.get(reportIdAttr)).isEqualTo("some-report")
     assertThat(requisitionFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
     assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.UNSET)
+
+    val processingSpan = spans.first { it.name == "requisition_processing" }
+    assertThat(processingSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(processingSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
   }
 
   @Test

@@ -29,6 +29,11 @@ import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Duration
@@ -41,6 +46,7 @@ import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -130,6 +136,7 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
@@ -148,6 +155,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.common.toProtoTime
@@ -2688,9 +2696,22 @@ class MetricsServiceTest {
   }
 
   private lateinit var service: MetricsService
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun initService() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     randomMock.stub {
       on { nextInt(any()) } doReturn RANDOM_OUTPUT_INT
       on { nextLong() } doReturn RANDOM_OUTPUT_LONG
@@ -2721,6 +2742,11 @@ class MetricsServiceTest {
         POPULATION_DATA_PROVIDER_NAME,
         kingdomMeasurementBatchConcurrency = 8,
       )
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
   }
 
   @Test
@@ -5450,6 +5476,18 @@ class MetricsServiceTest {
         runBlocking { service.batchCreateMetrics(request) }
       }
 
+    val metricSpans =
+      spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.created" }
+    assertThat(metricSpans.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+      .containsExactly(
+        PENDING_INCREMENTAL_REACH_METRIC.name,
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name,
+      )
+    assertThat(metricSpans.map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) })
+      .containsExactly("metric_creation", "metric_creation")
+    assertThat(metricSpans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) })
+      .containsExactly("succeeded", "succeeded")
+
     val expected = batchCreateMetricsResponse {
       metrics += PENDING_INCREMENTAL_REACH_METRIC
       metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
@@ -6748,7 +6786,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -6821,7 +6860,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -6950,7 +6990,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -7025,7 +7066,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -7225,7 +7267,8 @@ class MetricsServiceTest {
         metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -7774,7 +7817,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -7979,7 +8023,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8152,7 +8197,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8241,7 +8287,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8324,7 +8371,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8411,7 +8459,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8940,7 +8989,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(2)) {
@@ -9193,7 +9243,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -9282,7 +9333,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -9543,7 +9595,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -10538,7 +10591,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -10679,7 +10733,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -10819,7 +10874,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -10911,7 +10967,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11006,7 +11063,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11091,7 +11149,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11164,7 +11223,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11462,7 +11522,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11948,7 +12009,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {

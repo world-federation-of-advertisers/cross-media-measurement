@@ -43,6 +43,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 
 @RunWith(JUnit4::class)
 class TracingTest {
@@ -144,6 +145,9 @@ class TracingTest {
 
     val span = spanExporter.finishedSpanItems.single()
     assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
     assertThat(span.events.map { it.name }).contains("exception")
   }
 

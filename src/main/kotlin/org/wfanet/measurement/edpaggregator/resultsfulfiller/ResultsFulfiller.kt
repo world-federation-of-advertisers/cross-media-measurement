@@ -306,17 +306,42 @@ class ResultsFulfiller(
       val outcomes =
         filteredRequisitions
           .asFlow()
-          .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
-          .flatMapMerge(concurrency = parallelism) { (req, frequencyVector) ->
+          .flatMapMerge(concurrency = parallelism) { req: Requisition ->
             flow {
               emit(
-                fulfillSingleRequisition(
-                  requisition = req,
-                  frequencyVector = frequencyVector,
-                  populationSpec = populationSpec,
-                  requisitionsMetadata = requisitionMetadataByName,
-                  kekUri = kekUri,
-                )
+                Tracing.traceSuspending(
+                  spanName = SPAN_REQUISITION_PROCESSING,
+                  attributes =
+                    Attributes.builder()
+                      .put(ReportTraceAttributes.REQUISITION_NAME, req.name)
+                      .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+                      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+                      .put(ReportTraceAttributes.OUTCOME, "started")
+                      .also { builder ->
+                        if (reportId.isNotEmpty()) {
+                          builder.put(ReportTraceAttributes.REPORT_NAME, reportId)
+                        }
+                        if (basicReportName.isNotEmpty()) {
+                          builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+                        }
+                      }
+                      .build(),
+                ) {
+                  val outcome =
+                    fulfillSingleRequisition(
+                      requisition = req,
+                      frequencyVector = frequencyVectorMap.getValue(req.name),
+                      populationSpec = populationSpec,
+                      requisitionsMetadata = requisitionMetadataByName,
+                      kekUri = kekUri,
+                    )
+                  Span.current()
+                    .setAttribute(
+                      ReportTraceAttributes.OUTCOME,
+                      if (outcome) "succeeded" else "refused",
+                    )
+                  outcome
+                }
               )
             }
           }
@@ -510,7 +535,12 @@ class ResultsFulfiller(
           throwable = e,
           requisitionMetadata = requisitionMetadata,
           requisitionName = requisition.name,
+          outcome = "refused",
         )
+        logger.log(Level.WARNING, e) {
+          "Refused requisition ${requisition.name} for report=$reportId " +
+            "groupId=${groupedRequisitions.groupId}"
+        }
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
         signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
         refuseRequisitionInCmms(requisition, e)
@@ -521,6 +551,7 @@ class ResultsFulfiller(
           throwable = t,
           requisitionMetadata = requisitionMetadata,
           requisitionName = requisition.name,
+          outcome = "failed",
         )
         throw t
       }
@@ -706,6 +737,7 @@ class ResultsFulfiller(
     requisitionProcessingTimer: TimeSource.Monotonic.ValueTimeMark,
     requisitionMetadata: RequisitionMetadata,
   ) {
+    span.setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     val requisitionProcessingDurationSeconds =
       requisitionProcessingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
     metrics.requisitionProcessingDuration.record(requisitionProcessingDurationSeconds)
@@ -731,11 +763,13 @@ class ResultsFulfiller(
     throwable: Throwable,
     requisitionMetadata: RequisitionMetadata?,
     requisitionName: String,
+    outcome: String,
   ) {
     span
       .setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "Requisition processing failed")
       .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
-      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(throwable))
     span.addEvent(
       EVENT_REQUISITION_PROCESSING_FAILED,
       Attributes.builder()
@@ -763,6 +797,7 @@ class ResultsFulfiller(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val SPAN_REQUISITION_PROCESSING = "requisition_processing"
 
     /**
      * Default maximum total attempts (first attempt + retries) per ListRequisitionMetadata page.

@@ -249,6 +249,21 @@ class Herald(
     if (state in deletableComputationStates) {
       deleteComputationAtDuchy(computation)
     }
+    Span.current()
+      .setAttribute(
+        ReportTraceAttributes.OUTCOME,
+        when (state) {
+          State.FAILED,
+          State.CANCELLED -> "failed"
+          State.SUCCEEDED -> "succeeded"
+          State.PENDING_REQUISITION_PARAMS,
+          State.PENDING_PARTICIPANT_CONFIRMATION,
+          State.PENDING_COMPUTATION,
+          State.PENDING_REQUISITION_FULFILLMENT -> "in_progress"
+          State.STATE_UNSPECIFIED,
+          State.UNRECOGNIZED -> "unknown"
+        },
+      )
   }
 
   private fun Computation.reportTraceAttributes(): Attributes {

@@ -114,6 +114,14 @@ internal enum class ReportTraceArtifactStatus {
   FAILED,
 }
 
+internal enum class ReportTraceExecutionOutcome {
+  SUCCEEDED,
+  FAILED,
+  REFUSED,
+  IN_PROGRESS,
+  UNKNOWN,
+}
+
 internal data class ReportTraceLifecycleStage(
   val name: String,
   val status: String,
@@ -509,10 +517,18 @@ internal object ReportTraceOutput {
           "jsonPayload.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.metric.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.measurement.name\"=\"$escaped\" OR " +
+          "jsonPayload.\"xmm.requisition.name\"=\"$escaped\" OR " +
+          "jsonPayload.\"xmm.edpa.group_id\"=\"$escaped\" OR " +
+          "jsonPayload.\"xmm.work_item.name\"=\"$escaped\" OR " +
+          "jsonPayload.\"xmm.computation.name\"=\"$escaped\" OR " +
           "jsonPayload.attributes.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.attributes.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.attributes.\"xmm.metric.name\"=\"$escaped\" OR " +
           "jsonPayload.attributes.\"xmm.measurement.name\"=\"$escaped\" OR " +
+          "jsonPayload.attributes.\"xmm.requisition.name\"=\"$escaped\" OR " +
+          "jsonPayload.attributes.\"xmm.edpa.group_id\"=\"$escaped\" OR " +
+          "jsonPayload.attributes.\"xmm.work_item.name\"=\"$escaped\" OR " +
+          "jsonPayload.attributes.\"xmm.computation.name\"=\"$escaped\" OR " +
           "jsonPayload.\"edpa.report_id\"=\"$escaped\" OR " +
           "jsonPayload.\"edpa.results_fulfiller.report_id\"=\"$escaped\")"
       }
@@ -557,10 +573,12 @@ internal object ReportTraceOutput {
     startTime: Instant? = null,
     endTime: Instant? = null,
     generatedAt: Instant? = null,
+    executionOutcome: ReportTraceExecutionOutcome = executionOutcome(context, spans, logEntries),
   ): String = buildString {
     appendLine("# Report execution trace")
     appendLine()
-    appendLine("Status: $artifactStatus")
+    appendLine("Collection completeness: $artifactStatus")
+    appendLine("Execution outcome: $executionOutcome")
     appendLine()
     appendLine("## Identity and collection window")
     appendLine()
@@ -594,6 +612,20 @@ internal object ReportTraceOutput {
       appendLine("- Measurements: none resolved")
     } else {
       context.measurementNames.forEach { appendLine("- Measurement: $it") }
+    }
+    val discoveredResources =
+      mapOf(
+        "Requisition" to observedAttributeValues(spans, logEntries, "xmm.requisition.name"),
+        "EDPA group" to observedAttributeValues(spans, logEntries, "xmm.edpa.group_id"),
+        "WorkItem" to observedAttributeValues(spans, logEntries, "xmm.work_item.name"),
+        "Computation" to observedAttributeValues(spans, logEntries, "xmm.computation.name"),
+      )
+    for ((label, names) in discoveredResources) {
+      if (names.isEmpty()) {
+        appendLine("- ${label}s: none observed")
+      } else {
+        names.forEach { appendLine("- $label: $it") }
+      }
     }
     appendLine()
     if (sourceStatuses.isNotEmpty()) {
@@ -679,27 +711,35 @@ internal object ReportTraceOutput {
     spans: List<ReportTraceSpan>,
     logEntries: List<ReportTraceLogEntry>,
   ): List<ReportTraceLifecycleStage> {
-    val observed = mutableMapOf<String, MutableList<String>>()
+    val observed = mutableMapOf<String, MutableList<Pair<String, String?>>>()
     for (span in spans) {
       val stage = span.attributes["xmm.lifecycle.stage"] ?: inferStage(span.name) ?: continue
-      observed.getOrPut(stage) { mutableListOf() } += "span ${span.name}"
+      observed.getOrPut(stage) { mutableListOf() } +=
+        "span ${span.name}" to span.attributes["xmm.outcome"]
     }
     for (entry in logEntries) {
-      SAFE_TEXT_FIELD_PATTERN.findAll(entry.message).forEach { match ->
-        if (match.groups[1]?.value == "xmm.lifecycle.stage") {
-          val stage = match.groups[2]?.value ?: return@forEach
-          observed.getOrPut(stage) { mutableListOf() } += "log ${entry.service}"
-        }
+      val fields = safeTextFields(entry.message)
+      val stage = fields["xmm.lifecycle.stage"]
+      if (stage != null) {
+        observed.getOrPut(stage) { mutableListOf() } +=
+          "log ${entry.service}" to fields["xmm.outcome"]
       }
     }
     val expectedStages = expectedStages(context)
     return (expectedStages + observed.keys.filterNot { it in expectedStages }.sorted()).map { stage
       ->
-      val evidence = observed[stage].orEmpty().distinct()
+      val observedEvidence = observed[stage].orEmpty().distinct()
+      val evidence = observedEvidence.map { it.first }
+      val outcomes = observedEvidence.mapNotNull { it.second?.lowercase() }.toSet()
       ReportTraceLifecycleStage(
         name = stage,
         status =
           when {
+            outcomes.any { it == "failed" || it.startsWith("failed_") || it == "report_failed" } ->
+              "FAILED"
+            "refused" in outcomes -> "REFUSED"
+            outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> "SUCCEEDED"
+            outcomes.any { it in IN_PROGRESS_OUTCOMES } -> "IN_PROGRESS"
             evidence.isNotEmpty() -> "OBSERVED"
             stage in expectedStages -> "MISSING"
             else -> "OPTIONAL"
@@ -724,12 +764,63 @@ internal object ReportTraceOutput {
     }
     return if (
       sourceStatuses.any { it.status in setOf("FAILED", "PARTIAL", "TRUNCATED") } ||
-        lifecycleCoverage.any { it.status == "MISSING" }
+        lifecycleCoverage.any { it.status in setOf("MISSING", "IN_PROGRESS") }
     ) {
       ReportTraceArtifactStatus.PARTIAL
     } else {
       ReportTraceArtifactStatus.COMPLETE
     }
+  }
+
+  fun executionOutcome(
+    context: ReportTraceContext,
+    spans: List<ReportTraceSpan>,
+    logEntries: List<ReportTraceLogEntry>,
+  ): ReportTraceExecutionOutcome {
+    when (context.basicReportState?.uppercase()) {
+      "SUCCEEDED" -> return ReportTraceExecutionOutcome.SUCCEEDED
+      "FAILED",
+      "INVALID" -> return ReportTraceExecutionOutcome.FAILED
+      "CREATED",
+      "REPORT_CREATED",
+      "UNPROCESSED_RESULTS_READY",
+      "RUNNING" -> return ReportTraceExecutionOutcome.IN_PROGRESS
+    }
+
+    val outcomes = buildList {
+      spans.mapNotNullTo(this) { it.attributes["xmm.outcome"]?.lowercase() }
+      logEntries.mapNotNullTo(this) { safeTextFields(it.message)["xmm.outcome"]?.lowercase() }
+    }
+    return when {
+      outcomes.any { it == "failed" || it.startsWith("failed_") || it == "report_failed" } ->
+        ReportTraceExecutionOutcome.FAILED
+      "refused" in outcomes -> ReportTraceExecutionOutcome.REFUSED
+      outcomes.any { it in IN_PROGRESS_OUTCOMES } -> ReportTraceExecutionOutcome.IN_PROGRESS
+      outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> ReportTraceExecutionOutcome.SUCCEEDED
+      else -> ReportTraceExecutionOutcome.UNKNOWN
+    }
+  }
+
+  fun discoveredCorrelationValues(spans: Collection<ReportTraceSpan>): Set<String> {
+    return spans
+      .flatMap { span ->
+        DISCOVERABLE_IDENTIFIER_ATTRIBUTES.mapNotNull { attribute -> span.attributes[attribute] }
+      }
+      .filter(String::isNotBlank)
+      .toSet()
+  }
+
+  private fun observedAttributeValues(
+    spans: Collection<ReportTraceSpan>,
+    logEntries: Collection<ReportTraceLogEntry>,
+    attribute: String,
+  ): List<String> {
+    return buildSet {
+        spans.mapNotNullTo(this) { it.attributes[attribute] }
+        logEntries.mapNotNullTo(this) { safeTextFields(it.message)[attribute] }
+      }
+      .filter(String::isNotBlank)
+      .sorted()
   }
 
   private fun expectedStages(context: ReportTraceContext): List<String> = buildList {
@@ -807,9 +898,15 @@ internal object ReportTraceOutput {
       "xmm.report.state",
       "xmm.metric.state",
       "xmm.measurement.state",
+      "xmm.requisition.state",
       "xmm.lifecycle.stage",
       "xmm.outcome",
+      "xmm.error.type",
     )
+  private val DISCOVERABLE_IDENTIFIER_ATTRIBUTES =
+    setOf("xmm.requisition.name", "xmm.edpa.group_id", "xmm.work_item.name", "xmm.computation.name")
+  private val TERMINAL_SUCCESS_OUTCOMES = setOf("succeeded", "accepted", "returned")
+  private val IN_PROGRESS_OUTCOMES = setOf("started", "in_progress", "pending")
   private val SAFE_TRACE_ATTRIBUTES =
     setOf("error", "service.name", "g.co/agent/name", "/http/host")
   private val SECRET_PATTERNS =
@@ -826,6 +923,12 @@ internal object ReportTraceOutput {
     )
   private val SAFE_TEXT_FIELD_PATTERN =
     Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
+
+  private fun safeTextFields(text: String): Map<String, String> {
+    return SAFE_TEXT_FIELD_PATTERN.findAll(text).associate { match ->
+      match.groupValues[1] to match.groupValues[2]
+    }
+  }
 }
 
 @CommandLine.Command(
@@ -1255,6 +1358,38 @@ internal class ReportTrace(
         }
       }
     }
+
+    // Some downstream services can be searched only by an identifier assigned after the Reporting
+    // resource chain crosses a process boundary. Pivot back into Logging with those span labels so
+    // that v1-invisible exception details are included in the artifact.
+    val discoveredCorrelationValues =
+      ReportTraceOutput.discoveredCorrelationValues(spanEntries) - context.correlationValues.toSet()
+    if (discoveredCorrelationValues.isNotEmpty()) {
+      for (project in projects) {
+        try {
+          val projectLogEntries =
+            logReaders
+              .getOrPut(project to includeRawPayloads) {
+                logReaderFactory(project, includeRawPayloads)
+              }
+              .read(discoveredCorrelationValues, startTime, endTime, entryLimit)
+          if (projectLogEntries.size > entryLimit) {
+            logTruncatedProjects += project
+            warnings +=
+              "Cloud Logging identifier-pivot results were truncated for project $project at " +
+                "$entryLimit entries"
+          }
+          logFetchedCounts[project] =
+            logFetchedCounts.getOrDefault(project, 0) + projectLogEntries.size
+          logEntries += retainLogEntries(projectLogEntries, entryLimit)
+        } catch (e: Exception) {
+          val failure = failureDescription(e)
+          logFailures.getOrPut(project) { mutableListOf() } += failure
+          warnings += "Cloud Logging identifier-pivot query failed for project $project: $failure"
+        }
+      }
+    }
+
     val distinctSpans = spanEntries.distinct()
     val distinctLogEntries = logEntries.distinct()
     if (distinctSpans.size > entryLimit) {
@@ -1273,7 +1408,7 @@ internal class ReportTrace(
             source = "Cloud Trace",
             fetched = traceFetchedCounts.getOrDefault(project, 0),
             retained = retainedSpans.count { it.sourceProject == project },
-            truncated = project in traceTruncatedProjects || distinctSpans.size > entryLimit,
+            truncated = project in traceTruncatedProjects,
             failures = traceFailures[project].orEmpty(),
           )
         )
@@ -1283,7 +1418,7 @@ internal class ReportTrace(
             source = "Cloud Logging",
             fetched = logFetchedCounts.getOrDefault(project, 0),
             retained = retainedLogEntries.count { it.sourceProject == project },
-            truncated = project in logTruncatedProjects || distinctLogEntries.size > entryLimit,
+            truncated = project in logTruncatedProjects,
             failures = logFailures[project].orEmpty(),
           )
         )
@@ -1409,6 +1544,9 @@ internal class ReportTrace(
 
   private fun renderFailureArtifact(name: String, message: String): String = buildString {
     appendLine("# BasicReport trace")
+    appendLine()
+    appendLine("Collection completeness: FAILED")
+    appendLine("Execution outcome: UNKNOWN")
     appendLine()
     appendLine("BasicReport: $name")
     appendLine()

@@ -42,8 +42,11 @@ object ReportTracing {
     return try {
       withContext(context.asContextElement()) { block() }
     } catch (e: Exception) {
-      span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
-      span.recordException(e)
+      span
+        .setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
+        .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+        .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
+        .recordException(e)
       throw e
     } finally {
       span.end()

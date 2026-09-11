@@ -51,4 +51,14 @@ class ReportTraceAttributesTest {
 
     assertThat(attributes.asMap()).isEmpty()
   }
+
+  @Test
+  fun `errorType includes enclosing class for nested exception`() {
+    assertThat(ReportTraceAttributes.errorType(TestException.Nested()))
+      .isEqualTo("TestException.Nested")
+  }
+}
+
+private sealed class TestException : Exception() {
+  class Nested : TestException()
 }

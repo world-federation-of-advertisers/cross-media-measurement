@@ -962,7 +962,8 @@ class MetricsService(
             succeededMeasurements,
             BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
             callBatchSetInternalMeasurementResultsRpc,
-            // Writes to the internal Measurements table from the read/poll path, not Kingdom, so
+            // Writes to the internal Measurements table from the read/poll path, not Kingdom,
+            // so
             // it doesn't share the Kingdom-dispatch concurrency flag.
             concurrency = 3,
           ) { _: Unit ->
@@ -1597,6 +1598,10 @@ class MetricsService(
           .asRuntimeException()
       }
 
+    Span.current()
+      .setAttribute(ReportTraceAttributes.METRIC_STATE, internalMetric.state.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+
     if (internalMetric.state == InternalMetric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(
         listOf(MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)),
@@ -1808,6 +1813,37 @@ class MetricsService(
           .withCause(e)
           .asRuntimeException()
       }
+
+    for (internalMetric in internalMetrics) {
+      ReportTracing.traceSuspending(
+        spanName = "reporting.metric.created",
+        attributes =
+          Attributes.builder()
+            .put(
+              ReportTraceAttributes.METRIC_NAME,
+              MetricKey(internalMetric.cmmsMeasurementConsumerId, internalMetric.externalMetricId)
+                .toName(),
+            )
+            .put(ReportTraceAttributes.METRIC_STATE, internalMetric.state.name)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "metric_creation")
+            .put(ReportTraceAttributes.OUTCOME, "succeeded")
+            .also { builder ->
+              if (internalMetric.details.basicReport.isNotBlank()) {
+                builder.put(
+                  ReportTraceAttributes.BASIC_REPORT_NAME,
+                  internalMetric.details.basicReport,
+                )
+              }
+              if (internalMetric.details.containingReport.isNotBlank()) {
+                builder.put(
+                  ReportTraceAttributes.REPORT_NAME,
+                  internalMetric.details.containingReport,
+                )
+              }
+            }
+            .build(),
+      ) {}
+    }
 
     val internalRunningMetrics: List<MeasurementSupplier.RunningMetric> =
       internalMetrics

@@ -75,6 +75,7 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
@@ -181,11 +182,13 @@ class RequisitionsService(
       return ListRequisitionsResponse.getDefaultInstance()
     }
 
+    val requisitions =
+      internalRequisitions.subList(0, min(internalRequisitions.size, pageSize)).map {
+        it.toTracedRequisition()
+      }
+
     return listRequisitionsResponse {
-      requisitions +=
-        internalRequisitions
-          .subList(0, min(internalRequisitions.size, pageSize))
-          .map(InternalRequisition::toRequisition)
+      this.requisitions += requisitions
 
       if (internalRequisitions.size > pageSize) {
         nextPageToken =
@@ -225,7 +228,7 @@ class RequisitionsService(
         }.toExternalStatusRuntimeException(e)
       }
 
-    return result.toRequisition()
+    return result.toTracedRequisition()
   }
 
   override suspend fun refuseRequisition(request: RefuseRequisitionRequest): Requisition {
@@ -265,7 +268,7 @@ class RequisitionsService(
         }.toExternalStatusRuntimeException(e)
       }
 
-    return result.toRequisition()
+    return result.toTracedRequisition()
   }
 
   override suspend fun fulfillDirectRequisition(
@@ -346,6 +349,37 @@ class RequisitionsService(
   }
 }
 
+/** Converts this Requisition while emitting one v1-readable availability span for this item. */
+private suspend fun InternalRequisition.toTracedRequisition(): Requisition {
+  val requisitionName =
+    CanonicalRequisitionKey(
+        externalIdToApiId(externalDataProviderId),
+        externalIdToApiId(externalRequisitionId),
+      )
+      .toName()
+  val measurementName =
+    MeasurementKey(
+        externalIdToApiId(externalMeasurementConsumerId),
+        externalIdToApiId(externalMeasurementId),
+      )
+      .toName()
+  val measurementSpec = MeasurementSpec.parseFrom(parentMeasurement.measurementSpec)
+  return ReportTracing.traceSuspending(
+    spanName = "kingdom.requisition.available",
+    attributes =
+      Attributes.builder()
+        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        .put(ReportTraceAttributes.MEASUREMENT_NAME, measurementName)
+        .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+        .put(ReportTraceAttributes.REQUISITION_STATE, state.name)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_creation")
+        .put(ReportTraceAttributes.OUTCOME, "returned")
+        .build(),
+  ) {
+    toRequisition()
+  }
+}
+
 /** Converts an internal [Requisition] to a public [Requisition]. */
 private fun InternalRequisition.toRequisition(): Requisition {
   val requisitionKey =
@@ -362,18 +396,6 @@ private fun InternalRequisition.toRequisition(): Requisition {
       }
   }
   val measurementSpec: MeasurementSpec = packedMeasurementSpec.unpack()
-  Span.current()
-    .setAllAttributes(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
-    .setAttribute(ReportTraceAttributes.REQUISITION_NAME, requisitionKey.toName())
-    .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_creation")
-    .setAttribute(ReportTraceAttributes.OUTCOME, "returned")
-    .addEvent(
-      "kingdom.requisition.returned",
-      Attributes.builder()
-        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
-        .put(ReportTraceAttributes.REQUISITION_NAME, requisitionKey.toName())
-        .build(),
-    )
   val dataProviderPublicKey = any {
     value = details.dataProviderPublicKey
     typeUrl =

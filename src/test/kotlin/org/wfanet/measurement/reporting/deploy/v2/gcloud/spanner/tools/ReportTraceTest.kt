@@ -170,7 +170,7 @@ class ReportTraceTest {
     assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
       .contains("BasicReport: measurementConsumers/mc-1/basicReports/report-a")
     assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
-      .contains("Status: PARTIAL")
+      .contains("Collection completeness: PARTIAL")
     assertThat(output.toString())
       .contains("PARTIAL  measurementConsumers/mc-1/basicReports/report-a")
   }
@@ -346,7 +346,8 @@ class ReportTraceTest {
         includeRawPayloads = false,
       )
 
-    assertThat(output).contains("Status: COMPLETE")
+    assertThat(output).contains("Collection completeness: COMPLETE")
+    assertThat(output).contains("Execution outcome: SUCCEEDED")
     assertThat(output).contains("| duchy_computation | OBSERVED |")
     assertThat(output).doesNotContain("| basic_report_api_fetch | MISSING |")
   }
@@ -522,6 +523,191 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main pivots back to logs with identifiers discovered from spans`() {
+    val output = StringWriter()
+    val logQueries = mutableListOf<Collection<String>>()
+    val workItemName = "workItems/work-item-1"
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            logQueries += correlationValues.toList()
+            if (workItemName in correlationValues) {
+              listOf(
+                ReportTraceLogEntry(
+                  sourceProject = project,
+                  timestamp = NOW,
+                  service = "results-fulfiller",
+                  severity = "ERROR",
+                  trace = null,
+                  message =
+                    "xmm.work_item.name=$workItemName xmm.outcome=failed " +
+                      "xmm.error.type=IllegalStateException",
+                )
+              )
+            } else {
+              emptyList()
+            }
+          }
+        },
+        spanReaderFactory = {
+          ReportTraceSpanReader { project, correlationValues, _, _, _, _ ->
+            if (reportName in correlationValues) {
+              listOf(
+                ReportTraceSpan(
+                  sourceProject = project,
+                  traceId = "trace-1",
+                  spanId = "span-1",
+                  parentSpanId = null,
+                  name = "work item dispatched",
+                  service = "requisition-fetcher",
+                  startTime = NOW,
+                  endTime = NOW,
+                  attributes = mapOf("xmm.work_item.name" to workItemName),
+                )
+              )
+            } else {
+              emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(logQueries).containsExactly(listOf(reportName), listOf(workItemName)).inOrder()
+    assertThat(output.toString()).contains("xmm.error.type=IllegalStateException")
+  }
+
+  @Test
+  fun `render separates collection completeness from refused execution outcome`() {
+    val context = reportTraceContext().copy(basicReportName = null, basicReportState = null)
+    val span =
+      traceSpan("span-1", NOW)
+        .copy(
+          attributes =
+            mapOf("xmm.lifecycle.stage" to "results_fulfillment", "xmm.outcome" to "refused")
+        )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = listOf(span),
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("Collection completeness: PARTIAL")
+    assertThat(output).contains("Execution outcome: REFUSED")
+    assertThat(output).contains("| results_fulfillment | REFUSED |")
+  }
+
+  @Test
+  fun `started lifecycle evidence is not terminally complete`() {
+    val stages =
+      listOf(
+        "basic_report_creation",
+        "report_creation",
+        "measurement_creation",
+        "requisition_creation",
+        "requisition_dispatch",
+        "results_fulfillment",
+        "kingdom_result_acceptance",
+        "metric_result_sync",
+        "report_result_assembly",
+        "noise_correction",
+      )
+    val spans =
+      stages.mapIndexed { index, stage ->
+        traceSpan("span-$index", NOW.plusSeconds(index.toLong()))
+          .copy(
+            attributes =
+              mapOf(
+                "xmm.lifecycle.stage" to stage,
+                "xmm.outcome" to if (stage == "results_fulfillment") "started" else "succeeded",
+              )
+          )
+      }
+
+    val output =
+      ReportTraceOutput.render(
+        context = reportTraceContext(),
+        spans = spans,
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("Collection completeness: PARTIAL")
+    assertThat(output).contains("| results_fulfillment | IN_PROGRESS |")
+  }
+
+  @Test
+  fun `aggregate truncation does not mark an empty project truncated`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { project, correlationValues, _, _, _, _ ->
+            if (project == "reporting" && reportName in correlationValues) {
+              listOf(
+                traceSpan("span-1", NOW).copy(sourceProject = project),
+                traceSpan("span-2", NOW.plusSeconds(1)).copy(sourceProject = project),
+              )
+            } else {
+              emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--observability-project=reporting",
+          "--observability-project=kingdom",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--limit=1",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString()).contains("| reporting | Cloud Trace | TRUNCATED | 2 | 1 |")
+    assertThat(output.toString()).contains("| kingdom | Cloud Trace | NO_MATCHES | 0 | 0 |")
+  }
+
+  @Test
   fun `main reports truncation as failure by default`() {
     val output = StringWriter()
     val error = StringWriter()
@@ -640,7 +826,7 @@ class ReportTraceTest {
 
     assertThat(exitCode).isEqualTo(0)
     assertThat(output.toString()).contains("Cloud Logging query failed for project test")
-    assertThat(output.toString()).contains("Status: PARTIAL")
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
     assertThat(output.toString()).contains("No matching trace spans or log entries")
   }
 

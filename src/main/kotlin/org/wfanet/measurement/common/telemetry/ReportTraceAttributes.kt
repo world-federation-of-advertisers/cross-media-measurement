@@ -34,8 +34,10 @@ object ReportTraceAttributes {
   const val REPORT_STATE_STRING = "xmm.report.state"
   const val METRIC_STATE_STRING = "xmm.metric.state"
   const val MEASUREMENT_STATE_STRING = "xmm.measurement.state"
+  const val REQUISITION_STATE_STRING = "xmm.requisition.state"
   const val LIFECYCLE_STAGE_STRING = "xmm.lifecycle.stage"
   const val OUTCOME_STRING = "xmm.outcome"
+  const val ERROR_TYPE_STRING = "xmm.error.type"
 
   val BASIC_REPORT_NAME: AttributeKey<String> = AttributeKey.stringKey(BASIC_REPORT_NAME_STRING)
   val REPORT_NAME: AttributeKey<String> = AttributeKey.stringKey(REPORT_NAME_STRING)
@@ -49,8 +51,10 @@ object ReportTraceAttributes {
   val REPORT_STATE: AttributeKey<String> = AttributeKey.stringKey(REPORT_STATE_STRING)
   val METRIC_STATE: AttributeKey<String> = AttributeKey.stringKey(METRIC_STATE_STRING)
   val MEASUREMENT_STATE: AttributeKey<String> = AttributeKey.stringKey(MEASUREMENT_STATE_STRING)
+  val REQUISITION_STATE: AttributeKey<String> = AttributeKey.stringKey(REQUISITION_STATE_STRING)
   val LIFECYCLE_STAGE: AttributeKey<String> = AttributeKey.stringKey(LIFECYCLE_STAGE_STRING)
   val OUTCOME: AttributeKey<String> = AttributeKey.stringKey(OUTCOME_STRING)
+  val ERROR_TYPE: AttributeKey<String> = AttributeKey.stringKey(ERROR_TYPE_STRING)
 
   /** Returns the reporting resource attributes embedded in [measurementSpec]. */
   fun fromMeasurementSpec(measurementSpec: MeasurementSpec): Attributes {
@@ -68,5 +72,10 @@ object ReportTraceAttributes {
         }
       }
       .build()
+  }
+
+  /** Returns a bounded, human-readable exception class name suitable for a span label. */
+  fun errorType(error: Throwable): String {
+    return error::class.java.name.substringAfterLast('.').replace('$', '.').take(200)
   }
 }

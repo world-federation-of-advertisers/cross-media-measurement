@@ -111,7 +111,11 @@ abstract class BaseTeeApplication(
       ReportTracing.traceSuspending(
         spanName = "secure_computation.work_item.process",
         attributes =
-          io.opentelemetry.api.common.Attributes.of(ReportTraceAttributes.WORK_ITEM_NAME, body.name),
+          io.opentelemetry.api.common.Attributes.builder()
+            .put(ReportTraceAttributes.WORK_ITEM_NAME, body.name)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "work_item_processing")
+            .put(ReportTraceAttributes.OUTCOME, "started")
+            .build(),
       ) {
         processMessageInContext(queueMessage)
       }
@@ -139,7 +143,8 @@ abstract class BaseTeeApplication(
         logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
         createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
       } catch (e: ControlPlaneApiException) {
-        // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid state,
+        // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid
+        // state,
         // ack the message and stop processing.
         val cause = e.cause
         if (cause is StatusException) {
@@ -185,6 +190,7 @@ abstract class BaseTeeApplication(
               WorkItemAttempt.State.SUCCEEDED.name
         ) {
           logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
+          Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
           queueMessage.ack()
           return
         }
@@ -196,6 +202,7 @@ abstract class BaseTeeApplication(
         return
       }
       logger.info("Successfully completed processing. Acking message ${queueMessage.ackId}")
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       recordCurrentSpanError(e)
@@ -225,8 +232,11 @@ abstract class BaseTeeApplication(
   }
 
   private fun recordCurrentSpanError(error: Throwable) {
-    Span.current().setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
-    Span.current().recordException(error)
+    Span.current()
+      .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .recordException(error)
   }
 
   private suspend fun createWorkItemAttempt(

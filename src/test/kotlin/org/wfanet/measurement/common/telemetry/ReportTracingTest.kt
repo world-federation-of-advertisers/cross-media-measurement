@@ -89,6 +89,9 @@ class ReportTracingTest {
 
     val span = spanExporter.finishedSpanItems.single()
     assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
     assertThat(span.events.map { it.name }).contains("exception")
   }
 }
