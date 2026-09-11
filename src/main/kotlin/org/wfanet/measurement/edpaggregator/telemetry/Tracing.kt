@@ -174,9 +174,9 @@ object Tracing {
     spanBuilder.setAllAttributes(attributes)
 
     val span = spanBuilder.startSpan()
-    val scope = span.makeCurrent()
+    val context = Context.current().with(span)
     return try {
-      val result = withContext(Context.current().asContextElement()) { block() }
+      val result = withContext(context.asContextElement()) { block() }
       span.setStatus(StatusCode.OK)
       result
     } catch (e: Exception) {
@@ -184,7 +184,6 @@ object Tracing {
       span.recordException(e)
       throw e
     } finally {
-      scope.close()
       span.end()
     }
   }
