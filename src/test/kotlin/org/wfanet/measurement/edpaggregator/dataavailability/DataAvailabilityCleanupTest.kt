@@ -85,7 +85,7 @@ class DataAvailabilityCleanupTest {
                 impressionMetadata {
                   name = RESOURCE_ID
                   modelLine = "modelLine1"
-                  blobUri = request.filter.blobUriPrefix
+                  blobUri = request.filter.blobUrisList.single()
                   interval = interval {
                     startTime = timestamp { seconds = 100 }
                     endTime = timestamp { seconds = 200 }
@@ -171,11 +171,66 @@ class DataAvailabilityCleanupTest {
       listImpressionMetadata(listCaptor.capture())
     }
     assertThat(listCaptor.firstValue.parent).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(listCaptor.firstValue.filter.blobUriPrefix).isEqualTo(BLOB_URI)
+    assertThat(listCaptor.firstValue.filter.blobUrisList).containsExactly(BLOB_URI)
+    assertThat(listCaptor.firstValue.filter.blobUriPrefix).isEmpty()
 
     // Verify delete was called with the looked-up resource ID
     val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      deleteImpressionMetadata(deleteCaptor.capture())
+    }
+    assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
+  }
+
+  @Test
+  fun `cleanup only deletes record with exact blob URI`() = runBlocking {
+    val longerResourceId = "$DATA_PROVIDER_NAME/impressionMetadata/im-longer"
+    wheneverBlocking { impressionMetadataServiceMock.listImpressionMetadata(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        val availableMetadata =
+          listOf(
+            impressionMetadata {
+              name = RESOURCE_ID
+              modelLine = "modelLine1"
+              blobUri = BLOB_URI
+              interval = interval {
+                startTime = timestamp { seconds = 100 }
+                endTime = timestamp { seconds = 200 }
+              }
+              state = ImpressionMetadata.State.ACTIVE
+            },
+            impressionMetadata {
+              name = longerResourceId
+              modelLine = "modelLine1"
+              blobUri = "$BLOB_URI-other"
+              interval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              state = ImpressionMetadata.State.ACTIVE
+            },
+          )
+        val requestedBlobUris = request.filter.blobUrisList.toSet()
+        val matchingMetadata =
+          when {
+            requestedBlobUris.isNotEmpty() ->
+              availableMetadata.filter { it.blobUri in requestedBlobUris }
+            request.filter.blobUriPrefix.isNotEmpty() ->
+              availableMetadata.filter { it.blobUri.startsWith(request.filter.blobUriPrefix) }
+            else -> availableMetadata
+          }
+        listImpressionMetadataResponse { impressionMetadata += matchingMetadata }
+      }
+
+    val dataAvailabilityCleanup =
+      DataAvailabilityCleanup(impressionMetadataStub, DATA_PROVIDER_NAME, emptyStorageClient)
+
+    val result = dataAvailabilityCleanup.cleanup(BLOB_URI, null)
+
+    assertThat(result.status).isEqualTo(DataAvailabilityCleanup.CleanupStatus.SUCCESS)
+    val deleteCaptor = argumentCaptor<DeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
       deleteImpressionMetadata(deleteCaptor.capture())
     }
     assertThat(deleteCaptor.firstValue.name).isEqualTo(RESOURCE_ID)
@@ -196,73 +251,6 @@ class DataAvailabilityCleanupTest {
 
     // Verify delete was NOT called
     verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
-  }
-
-  @Test
-  fun `cleanup throws exception and emits metric when multiple records found`() = runBlocking {
-    val firstResourceId = "$DATA_PROVIDER_NAME/impressionMetadata/im-first"
-    val secondResourceId = "$DATA_PROVIDER_NAME/impressionMetadata/im-second"
-
-    // Mock list response with multiple records
-    wheneverBlocking { impressionMetadataServiceMock.listImpressionMetadata(any()) }
-      .thenReturn(
-        listImpressionMetadataResponse {
-          impressionMetadata +=
-            listOf(
-              impressionMetadata {
-                name = firstResourceId
-                modelLine = "modelLine1"
-                blobUri = BLOB_URI
-                interval = interval {
-                  startTime = timestamp { seconds = 100 }
-                  endTime = timestamp { seconds = 200 }
-                }
-                state = ImpressionMetadata.State.ACTIVE
-              },
-              impressionMetadata {
-                name = secondResourceId
-                modelLine = "modelLine1"
-                blobUri = "$BLOB_URI-other"
-                interval = interval {
-                  startTime = timestamp { seconds = 200 }
-                  endTime = timestamp { seconds = 300 }
-                }
-                state = ImpressionMetadata.State.ACTIVE
-              },
-            )
-        }
-      )
-
-    val metricsEnv = createMetricsEnvironment()
-    try {
-      val dataAvailabilityCleanup =
-        DataAvailabilityCleanup(
-          impressionMetadataStub,
-          DATA_PROVIDER_NAME,
-          emptyStorageClient,
-          metricsEnv.metrics,
-        )
-
-      val exception =
-        assertFailsWith<IllegalStateException> { dataAvailabilityCleanup.cleanup(BLOB_URI, null) }
-
-      assertThat(exception.message).contains("Multiple ImpressionMetadata records (2) found")
-      assertThat(exception.message).contains(BLOB_URI)
-
-      // Verify delete was NOT called since exception was thrown
-      verifyBlocking(impressionMetadataServiceMock, never()) { deleteImpressionMetadata(any()) }
-
-      // Verify multiple_matches error metric was emitted
-      metricsEnv.metricReader.forceFlush()
-      val metricData: List<MetricData> = metricsEnv.metricExporter.finishedMetricItems
-      val metricByName = metricData.associateBy { it.name }
-
-      val errorPoint = metricByName.getValue(CLEANUP_ERRORS_METRIC).longSumData.points.single()
-      assertThat(errorPoint.value).isEqualTo(1)
-      assertThat(errorPoint.attributes.get(errorTypeAttributeKey)).isEqualTo("multiple_matches")
-    } finally {
-      metricsEnv.close()
-    }
   }
 
   @Test

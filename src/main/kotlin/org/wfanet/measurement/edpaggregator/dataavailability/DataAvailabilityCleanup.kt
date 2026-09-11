@@ -187,41 +187,25 @@ class DataAvailabilityCleanup(
       impressionMetadataServiceStub.listImpressionMetadata(
         listImpressionMetadataRequest {
           parent = dataProviderName
-          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = blobUri }
+          filter = ListImpressionMetadataRequestKt.filter { blobUris += blobUri }
         }
       )
 
     val results = listResponse.impressionMetadataList
-    return when {
-      results.isEmpty() -> {
-        logger.warning("No ImpressionMetadata found for blob URI: $blobUri. Skipping cleanup.")
-        metrics.cleanupErrorsCounter.add(
-          1,
-          Attributes.of(
-            DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
-            dataProviderName,
-            DataAvailabilityCleanupMetrics.ERROR_TYPE_ATTR,
-            DataAvailabilityCleanupMetrics.ERROR_TYPE_NOT_FOUND,
-          ),
-        )
-        null
-      }
-      results.size > 1 -> {
-        metrics.cleanupErrorsCounter.add(
-          1,
-          Attributes.of(
-            DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
-            dataProviderName,
-            DataAvailabilityCleanupMetrics.ERROR_TYPE_ATTR,
-            DataAvailabilityCleanupMetrics.ERROR_TYPE_MULTIPLE_MATCHES,
-          ),
-        )
-        throw IllegalStateException(
-          "Multiple ImpressionMetadata records (${results.size}) found for blob URI: $blobUri"
-        )
-      }
-      else -> results.single().name
+    if (results.isEmpty()) {
+      logger.warning("No ImpressionMetadata found for blob URI: $blobUri. Skipping cleanup.")
+      metrics.cleanupErrorsCounter.add(
+        1,
+        Attributes.of(
+          DataAvailabilityCleanupMetrics.DATA_PROVIDER_KEY_ATTR,
+          dataProviderName,
+          DataAvailabilityCleanupMetrics.ERROR_TYPE_ATTR,
+          DataAvailabilityCleanupMetrics.ERROR_TYPE_NOT_FOUND,
+        ),
+      )
+      return null
     }
+    return results.single().name
   }
 
   /**
