@@ -51,10 +51,10 @@ service WorkItems {
     option (google.api.method_signature) = "name";
   }
 
-  // Retries a failed or abandoned running `WorkItem` by returning it to the
-  // configured queue, or republishes a `QUEUED` `WorkItem` whose pending
-  // publication is missing. Retrying a `RUNNING` `WorkItem` fails its active
-  // attempt and should only be done after confirming that its worker stopped.
+  // Retries a failed `WorkItem`, a `RUNNING` `WorkItem` with no active attempt,
+  // or republishes a `QUEUED` `WorkItem` whose pending publication is missing.
+  // To recover abandoned work, first fail the exact active attempt with
+  // `FailWorkItemAttempt`, then call this method.
   rpc RetryWorkItem(RetryWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "name";
   }
