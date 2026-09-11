@@ -28,7 +28,6 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.retryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /** Dispatches a stored group of requisitions to the Secure Computation Control Plane. */
@@ -69,11 +68,6 @@ class SecureComputationRequisitionWorkItemDispatcher(
           workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
         }
       validateExistingWorkItem(existingWorkItem, requestedWorkItem)
-      if (existingWorkItem.state == WorkItem.State.FAILED) {
-        retryFailedWorkItem(existingWorkItem)
-        logger.info("Retried failed WorkItem $workItemId for requisition group $groupId")
-        return
-      }
       logger.info("WorkItem $workItemId already exists; treating dispatch as successful")
       return
     } catch (e: StatusException) {
@@ -110,32 +104,13 @@ class SecureComputationRequisitionWorkItemDispatcher(
     check(existing.workItemParams == requested.workItemParams) {
       "WorkItem ${existing.name} has parameters that do not match this requisition group"
     }
-    check(
-      existing.state == WorkItem.State.QUEUED ||
-        existing.state == WorkItem.State.RUNNING ||
-        existing.state == WorkItem.State.FAILED
-    ) {
+    check(existing.state != WorkItem.State.FAILED) {
+      "WorkItem ${existing.name} is FAILED; remediate its failure and call RetryWorkItem " +
+        "explicitly before redispatch"
+    }
+    check(existing.state == WorkItem.State.QUEUED || existing.state == WorkItem.State.RUNNING) {
       "WorkItem ${existing.name} is ${existing.state} while requisition metadata remains " +
         "unfinished"
-    }
-  }
-
-  private suspend fun retryFailedWorkItem(workItem: WorkItem) {
-    try {
-      controlPlaneThrottler.onReady {
-        workItemsStub.retryWorkItem(retryWorkItemRequest { name = workItem.name })
-      }
-    } catch (e: StatusException) {
-      if (e.status.code != Status.Code.FAILED_PRECONDITION) throw e
-
-      // Another fetcher may have won the retry race. Re-read and accept only the active states.
-      val current =
-        controlPlaneThrottler.onReady {
-          workItemsStub.getWorkItem(getWorkItemRequest { name = workItem.name })
-        }
-      check(current.state == WorkItem.State.QUEUED || current.state == WorkItem.State.RUNNING) {
-        "WorkItem ${current.name} is ${current.state} after a concurrent retry"
-      }
     }
   }
 

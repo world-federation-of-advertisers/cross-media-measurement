@@ -468,8 +468,8 @@ class RequisitionFetcher(
    * 1. List existing [RequisitionMetadata] for the report.
    * 2. For a group whose metadata is `STORED` (or `QUEUED`/`PROCESSING` when direct dispatch is
    *    enabled), rebuild a missing blob from the matching requisitions. A complete group with a
-   *    blob is dispatched directly when [workItemDispatcher] is configured. Dispatch retries a
-   *    failed WorkItem using the same durable payload.
+   *    blob is dispatched directly when [workItemDispatcher] is configured. A failed WorkItem is
+   *    surfaced for explicit operator recovery rather than retried automatically.
    * 3. For requisitions that are not yet recorded in metadata, validate them as a group (model-line
    *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
    *    Kingdom and persist `REFUSED` metadata.

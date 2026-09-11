@@ -210,9 +210,9 @@ A Cloud Function triggered by **Cloud Scheduler**. It retrieves requisitions fro
 public API, writes each grouped payload to `EDPA_STORAGE_BUCKET`, creates its RequisitionMetadata,
 and submits a deterministic WorkItem to the Secure Computation API. Before submission, it records
 the WorkItem name and `QUEUED` state on every metadata row in the group. A retry checks for the
-deterministic WorkItem before creating it. If ResultsFulfiller exhausts its queue retries and the
-control plane marks that WorkItem `FAILED`, a later fetch retries the same WorkItem and preserves
-the durable group payload, including rows already in `PROCESSING`.
+deterministic WorkItem before creating it. If ResultsFulfiller exhausts its queue retries, the
+control plane leaves the WorkItem `FAILED` for operator investigation; scheduled fetches do not
+restart its dead-letter cycle. Rows already in `PROCESSING` remain discoverable for that recovery.
 
 The function runs with `max_instances = 1` and a `timeout_seconds` that exceeds the
 internal drain ticker interval (default `600` / 10 min in test environments; raise
@@ -855,6 +855,10 @@ Use this staged cutover:
    resume its scheduler.
 7. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
    and are processed once by ResultsFulfiller.
+
+After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
+failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
+that its worker has stopped; retrying it fails the active attempt before republishing the item.
 
 For rollback, pause the scheduler first and drain or repair all groups already in `STORED`,
 `QUEUED`, or `PROCESSING`; their original object-finalize events will not be replayed automatically.

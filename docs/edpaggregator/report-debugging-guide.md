@@ -540,8 +540,9 @@ Trace:
    - Row `QUEUED (2)` → the direct-dispatch path assigned its deterministic
      WorkItem; continue to step 3 using the `WorkItem` value.
    - Row `PROCESSING (3)` while the associated WorkItem is `FAILED (4)` → a
-     ResultsFulfiller attempt failed after claiming the metadata. Trigger the
-     RequisitionFetcher again; it detects `PROCESSING` rows and retries that WorkItem.
+     ResultsFulfiller attempt failed after claiming the metadata. Inspect the
+     ResultsFulfiller failure or dead-letter message, remediate it, and then have an
+     operator call `RetryWorkItem`. RequisitionFetcher does not restart a dead-letter cycle.
    - Row `STORED (1)` → the blob is registered but direct dispatch has not
      completed its queue transition; check the fetcher. In a legacy deployment,
      continue to the DataWatcher checks in step 3.
@@ -597,10 +598,12 @@ Trace:
    rolling rollout; follow the
    [durable WorkItem publication rollout](deployment-guide.md#rolling-out-durable-workitem-publication)
    before enabling direct dispatch. When a deterministic WorkItem is `FAILED` while associated
-   metadata remains `QUEUED` or `PROCESSING`, a later RequisitionFetcher invocation calls
-   `RetryWorkItem`. The control plane atomically returns the WorkItem to `QUEUED`, recreates its
-   outbox row, and republishes it. A `SUCCEEDED` WorkItem paired with unfinished metadata is
-   inconsistent and still requires investigation rather than automatic replay.
+   metadata remains `QUEUED` or `PROCESSING`, RequisitionFetcher reports the inconsistency but does
+   not retry it. After remediation, an operator can call `RetryWorkItem`; the control plane
+   atomically returns the WorkItem to `QUEUED`, recreates its outbox row, and republishes it. The
+   same operation can recover an abandoned `RUNNING` WorkItem by failing its active attempt first,
+   but only use it after confirming that the original worker has stopped. A `SUCCEEDED` WorkItem
+   paired with unfinished metadata is inconsistent and still requires investigation.
 
    During migration, a deployment may omit `work_item_dispatch` from the fetcher
    config and retain the legacy **data-watcher** Cloud Function. In that path, a
@@ -693,7 +696,7 @@ Trace:
    the fulfiller couldn't process): a message lands in the DLQ only after the
    fulfiller has failed it `max_delivery_attempts` times (5 by default) — so a
    requisition in the DLQ is one that repeatedly failed and **will not be retried**
-   again. The `CloudPubSubDeadLetterSourceDeliveryCount` attribute shows the
+   automatically. The `CloudPubSubDeadLetterSourceDeliveryCount` attribute shows the
    attempt count. Match a DLQ message to your requisition by its work-item payload
    (it carries the requisitions blob path / groupId). If your requisition is in the
    DLQ, the fulfiller logs from those attempt windows hold the actual error
@@ -703,7 +706,8 @@ Trace:
    and failures appear as `requisitions_processed{status=failure}`. To see the
    failing fulfiller type / model line, open the `requisition_processing_failed`
    span event in Cloud Trace — those breakdowns are span attributes, not metric
-   dimensions.
+   dimensions. After fixing the cause, call `RetryWorkItem` for the existing deterministic
+   WorkItem; do not create a replacement WorkItem with a different ID.
 
 #### S4-B — Direct EDP path
 
