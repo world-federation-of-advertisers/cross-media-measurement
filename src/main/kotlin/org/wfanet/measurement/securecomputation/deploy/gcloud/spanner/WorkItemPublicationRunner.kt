@@ -83,7 +83,16 @@ class WorkItemPublicationRunner(
           return publishedCount
         } ?: return publishedCount
 
-      if (publishClaimedWorkItem(publication)) {
+      val published =
+        try {
+          publishClaimedWorkItem(publication)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          logger.log(Level.WARNING, "Unable to update WorkItem publication bookkeeping", e)
+          false
+        }
+      if (published) {
         publishedCount++
       }
     }
@@ -93,7 +102,13 @@ class WorkItemPublicationRunner(
   /** Continuously publishes pending outbox records until the coroutine is cancelled. */
   suspend fun run() {
     while (currentCoroutineContext().isActive) {
-      publishPendingWorkItems()
+      try {
+        publishPendingWorkItems()
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        logger.log(Level.WARNING, "Unable to process the current WorkItem publication batch", e)
+      }
       delay(pollInterval.toMillis())
     }
   }
@@ -103,28 +118,23 @@ class WorkItemPublicationRunner(
   ): WorkItemPublicationResult? {
     val now = clock.instant()
     val publication: Optional<WorkItemPublicationResult> =
-      databaseClient
-        .readWriteTransaction()
-        .run { transaction ->
-          Optional.fromNullable(
-            transaction.claimWorkItemPublication(
-              queueMapping = queueMapping,
-              leaseOwner = leaseOwner,
-              now = now,
-              leaseExpirationTime = now.plus(leaseDuration),
-              workItemId = workItemId,
-            )
+      databaseClient.readWriteTransaction().run { transaction ->
+        Optional.fromNullable(
+          transaction.claimWorkItemPublication(
+            queueMapping = queueMapping,
+            leaseOwner = leaseOwner,
+            now = now,
+            leaseExpirationTime = now.plus(leaseDuration),
+            workItemId = workItemId,
           )
-        }
+        )
+      }
     return publication.orNull()
   }
 
   private suspend fun publishClaimedWorkItem(publication: WorkItemPublicationResult): Boolean {
     try {
-      workItemPublisher.publishMessage(
-        publication.workItem.queueResourceId,
-        publication.workItem,
-      )
+      workItemPublisher.publishMessage(publication.workItem.queueResourceId, publication.workItem)
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
@@ -137,25 +147,21 @@ class WorkItemPublicationRunner(
       return false
     }
 
-    databaseClient
-      .readWriteTransaction()
-      .run { transaction ->
-        transaction.completeWorkItemPublication(publication.workItemId, leaseOwner)
-      }
+    databaseClient.readWriteTransaction().run { transaction ->
+      transaction.completeWorkItemPublication(publication.workItemId, leaseOwner)
+    }
     return true
   }
 
   private suspend fun scheduleRetry(publication: WorkItemPublicationResult) {
     val retryDelay = retryDelay(publication.attemptCount)
-    databaseClient
-      .readWriteTransaction()
-      .run { transaction ->
-        transaction.retryWorkItemPublication(
-          publication.workItemId,
-          leaseOwner,
-          clock.instant().plus(retryDelay),
-        )
-      }
+    databaseClient.readWriteTransaction().run { transaction ->
+      transaction.retryWorkItemPublication(
+        publication.workItemId,
+        leaseOwner,
+        clock.instant().plus(retryDelay),
+      )
+    }
   }
 
   private fun retryDelay(attemptCount: Long): Duration {

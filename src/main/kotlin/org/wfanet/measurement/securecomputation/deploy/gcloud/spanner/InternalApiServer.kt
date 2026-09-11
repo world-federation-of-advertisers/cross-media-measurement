@@ -250,7 +250,7 @@ class InternalApiServer : Runnable {
           services.workItems as? SpannerWorkItemsService
             ?: throw RuntimeException("Failed to get work items service")
 
-        val serverJob = async { server.start().blockUntilShutdown() }
+        val serverJob = async(Dispatchers.IO) { server.start().blockUntilShutdown() }
         val workItemPublicationJob = async { internalApiServices.workItemPublicationRunner.run() }
 
         // A single in-process server + channel + WorkItems stub is shared by every DLQ listener:
