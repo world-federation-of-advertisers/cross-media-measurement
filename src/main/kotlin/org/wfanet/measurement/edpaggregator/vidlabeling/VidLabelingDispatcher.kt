@@ -460,15 +460,19 @@ class VidLabelingDispatcher(
   ): Boolean = readBlobMetadata(doneBlobUri.key).generation == expectedGeneration
 
   private suspend fun markRegistrationComplete(upload: RawImpressionUpload) {
-    rpcThrottlers.metadataWrite.onReady {
-      rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
-        markRawImpressionUploadRegistrationCompleteRequest {
-          name = upload.name
-          etag = upload.etag
-          requestId =
-            RequestIds.forRawImpressionUploadRegistrationComplete(upload.name, upload.etag)
-        }
-      )
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            name = upload.name
+            etag = upload.etag
+            requestId =
+              RequestIds.forRawImpressionUploadRegistrationComplete(upload.name, upload.etag)
+          }
+        )
+      }
+    } catch (e: StatusException) {
+      throw Exception("Error marking RawImpressionUpload ${upload.name} registration complete", e)
     }
   }
 

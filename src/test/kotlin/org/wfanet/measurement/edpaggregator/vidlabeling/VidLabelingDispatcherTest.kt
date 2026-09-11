@@ -543,6 +543,24 @@ class VidLabelingDispatcherTest {
     }
 
   @Test
+  fun `upload wraps registration completion RPC failure`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(modelLinesService.listModelLines(any())).thenReturn(listModelLinesResponse {})
+    whenever(rawImpressionUploadService.markRawImpressionUploadRegistrationComplete(any()))
+      .thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("metadata store unavailable"))
+      }
+
+    val exception =
+      assertFailsWith<Exception> { createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION) }
+
+    assertThat(exception).hasMessageThat().contains("Error marking RawImpressionUpload")
+    assertThat(exception).hasCauseThat().isInstanceOf(StatusException::class.java)
+  }
+
+  @Test
   fun `upload excludes done marker from file list`() = runBlocking {
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
     val doneBlob = createMockBlob("$FOLDER_PREFIX/done")
