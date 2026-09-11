@@ -23,11 +23,11 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.time.Duration
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -60,6 +60,16 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLet
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import picocli.CommandLine
+
+/** Runs a blocking gRPC server alongside suspending background jobs. */
+internal suspend fun runInternalApiServerJobs(
+  blockingServer: () -> Unit,
+  backgroundJobs: List<suspend () -> Unit>,
+) = coroutineScope {
+  val serverJob = async(Dispatchers.IO) { blockingServer() }
+  val jobs = backgroundJobs.map { backgroundJob -> async { backgroundJob() } }
+  awaitAll(serverJob, *jobs.toTypedArray())
+}
 
 /**
  * Internal API Server for the Secure Computation system.
@@ -250,18 +260,14 @@ class InternalApiServer : Runnable {
           services.workItems as? SpannerWorkItemsService
             ?: throw RuntimeException("Failed to get work items service")
 
-        val serverJob = async(Dispatchers.IO) { server.start().blockUntilShutdown() }
-        val workItemPublicationJob = async { internalApiServices.workItemPublicationRunner.run() }
-
         // A single in-process server + channel + WorkItems stub is shared by every DLQ listener:
         // they all route to the same SpannerWorkItemsService, so one loopback server suffices, and
         // it is shut down below instead of leaking one server per subscription.
         val (inProcessServer, inProcessChannel) = createInProcessServer(spannerWorkItemsService)
         val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(inProcessChannel)
         try {
-          // Run one DLQ listener per dead-letter subscription (e.g. one per phase queue), each in
-          // its own coroutine.
-          val deadLetterListenerJobs: List<Deferred<Unit>> =
+          // Run one DLQ listener per dead-letter subscription (e.g. one per phase queue).
+          val deadLetterListenerJobs: List<suspend () -> Unit> =
             deadLetterSubscriptionIds.map { subscriptionId ->
               val subscriber =
                 Subscriber(
@@ -282,7 +288,7 @@ class InternalApiServer : Runnable {
                   edpaStubs = checkNotNull(edpaConnection).stubs,
                   rpcThrottlers = rpcThrottlers,
                 )
-              async {
+              suspend {
                 try {
                   deadLetterListener.run()
                 } finally {
@@ -291,7 +297,12 @@ class InternalApiServer : Runnable {
               }
             }
 
-          awaitAll(serverJob, workItemPublicationJob, *deadLetterListenerJobs.toTypedArray())
+          runInternalApiServerJobs(
+            blockingServer = { server.start().blockUntilShutdown() },
+            backgroundJobs =
+              listOf<suspend () -> Unit>({ internalApiServices.workItemPublicationRunner.run() }) +
+                deadLetterListenerJobs,
+          )
         } finally {
           inProcessChannel.shutdown()
           inProcessServer.shutdown()

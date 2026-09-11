@@ -7,13 +7,16 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 kt_jvm_test(
     name = "InternalApiServerTest",
     srcs = ["InternalApiServerTest.kt"],
+    associates = [
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:internal_api_server",
+    ],
     test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.InternalApiServerTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:internal_api_server",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
     ],
 )
 
