@@ -26,9 +26,11 @@ import java.time.Duration
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.selects.select
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
@@ -64,11 +66,21 @@ import picocli.CommandLine
 /** Runs a blocking gRPC server alongside suspending background jobs. */
 internal suspend fun runInternalApiServerJobs(
   blockingServer: () -> Unit,
+  shutdownServer: () -> Unit,
   backgroundJobs: List<suspend () -> Unit>,
 ) = coroutineScope {
-  val serverJob = async(Dispatchers.IO) { blockingServer() }
+  val serverJob = async { runInterruptible(Dispatchers.IO) { blockingServer() } }
   val jobs = backgroundJobs.map { backgroundJob -> async { backgroundJob() } }
-  awaitAll(serverJob, *jobs.toTypedArray())
+  try {
+    select<Unit> {
+      serverJob.onAwait {}
+      jobs.forEach { job -> job.onAwait {} }
+    }
+  } finally {
+    shutdownServer()
+    serverJob.cancelAndJoin()
+    jobs.forEach { job -> job.cancelAndJoin() }
+  }
 }
 
 /**
@@ -299,6 +311,7 @@ class InternalApiServer : Runnable {
 
           runInternalApiServerJobs(
             blockingServer = { server.start().blockUntilShutdown() },
+            shutdownServer = { server.shutdown() },
             backgroundJobs =
               listOf<suspend () -> Unit>({ internalApiServices.workItemPublicationRunner.run() }) +
                 deadLetterListenerJobs,

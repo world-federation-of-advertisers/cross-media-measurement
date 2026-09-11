@@ -20,6 +20,7 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -30,6 +31,7 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -96,6 +98,7 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   retried, down to a floor of 1.
  */
 class RequisitionFetcherFunction : HttpFunction {
+  private val channels = ConcurrentHashMap<ChannelKey, Channel>()
 
   override fun service(request: HttpRequest, response: HttpResponse) =
     withW3CTraceContext(request) { handleRequest(response) }
@@ -310,13 +313,21 @@ class RequisitionFetcherFunction : HttpFunction {
     tlsParams: TransportLayerSecurityParams,
     target: String,
     certHost: String?,
-  ): io.grpc.Channel {
-    val signingCerts = loadSigningCerts(tlsParams)
-    val channel =
-      buildMutualTlsChannel(target, signingCerts, certHost)
-        .withShutdownTimeout(channelShutdownDuration)
-    return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+  ): Channel {
+    return channels.computeIfAbsent(ChannelKey(tlsParams, target, certHost)) { key ->
+      val signingCerts = loadSigningCerts(key.tlsParams)
+      val channel =
+        buildMutualTlsChannel(key.target, signingCerts, key.certHost)
+          .withShutdownTimeout(channelShutdownDuration)
+      ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+    }
   }
+
+  private data class ChannelKey(
+    val tlsParams: TransportLayerSecurityParams,
+    val target: String,
+    val certHost: String?,
+  )
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

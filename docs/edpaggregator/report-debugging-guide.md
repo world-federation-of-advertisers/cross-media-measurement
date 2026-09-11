@@ -643,6 +643,9 @@ Trace:
      the Kingdom/Duchy failed; check the results-fulfiller logs (step 4).
    - Row `QUEUED (2)` → the direct-dispatch path assigned its deterministic
      WorkItem; continue to step 3 using the `WorkItem` value.
+   - Row `PROCESSING (3)` while the associated WorkItem is `FAILED (4)` → a
+     ResultsFulfiller attempt failed after claiming the metadata. Trigger the
+     RequisitionFetcher again; it detects `PROCESSING` rows and retries that WorkItem.
    - Row `STORED (1)` → the blob is registered but direct dispatch has not
      completed its queue transition; check the fetcher. In a legacy deployment,
      continue to the DataWatcher checks in step 3.
@@ -695,10 +698,13 @@ Trace:
    WorkItem created by an upgraded control-plane writer should therefore
    self-heal after a transient publish failure. This guarantee does not apply to
    WorkItems created before the outbox migration or by an older replica during a
-   rolling rollout; the migration procedure requires those writers to be gone
-   and existing groups to be drained or repaired first. A terminal WorkItem
-   paired with unfinished requisition metadata is surfaced by
-   RequisitionFetcher for operator recovery rather than silently replaced.
+   rolling rollout; follow the
+   [durable WorkItem publication rollout](deployment-guide.md#rolling-out-durable-workitem-publication)
+   before enabling direct dispatch. When a deterministic WorkItem is `FAILED` while associated
+   metadata remains `QUEUED` or `PROCESSING`, a later RequisitionFetcher invocation calls
+   `RetryWorkItem`. The control plane atomically returns the WorkItem to `QUEUED`, recreates its
+   outbox row, and republishes it. A `SUCCEEDED` WorkItem paired with unfinished metadata is
+   inconsistent and still requires investigation rather than automatic replay.
 
    During migration, a deployment may omit `work_item_dispatch` from the fetcher
    config and retain the legacy **data-watcher** Cloud Function. In that path, a

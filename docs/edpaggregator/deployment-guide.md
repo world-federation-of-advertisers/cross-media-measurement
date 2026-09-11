@@ -210,7 +210,9 @@ A Cloud Function triggered by **Cloud Scheduler**. It retrieves requisitions fro
 public API, writes each grouped payload to `EDPA_STORAGE_BUCKET`, creates its RequisitionMetadata,
 and submits a deterministic WorkItem to the Secure Computation API. Before submission, it records
 the WorkItem name and `QUEUED` state on every metadata row in the group. A retry checks for the
-deterministic WorkItem before creating it, so interruption at any handoff step is recoverable.
+deterministic WorkItem before creating it. If ResultsFulfiller exhausts its queue retries and the
+control plane marks that WorkItem `FAILED`, a later fetch retries the same WorkItem and preserves
+the durable group payload, including rows already in `PROCESSING`.
 
 The function runs with `max_instances = 1` and a `timeout_seconds` that exceeds the
 internal drain ticker interval (default `600` / 10 min in test environments; raise
@@ -838,14 +840,15 @@ time. Both observe the same grouped-requisition blob and can create separate Wor
 
 Use this staged cutover:
 
-1. Deploy the Secure Computation control-plane version that includes durable WorkItem publication,
-   wait for the rollout to finish, and verify that no older writer replicas remain. The migration
-   does not backfill publication records for WorkItems created by an older control-plane binary.
+1. Complete the mandatory
+   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication), including its
+   quiesced reconciliation. The migration does not backfill publication records for WorkItems
+   created by an older control-plane binary.
 2. Add the RequisitionFetcher control-plane endpoint, TLS secrets, and `work_item_dispatch`
    configuration, but do not activate that config yet.
 3. Pause the RequisitionFetcher scheduler and wait for any active invocation to finish.
 4. Drain the legacy results-fulfiller queue and account for every existing requisition blob. Resolve
-   any `STORED` or `QUEUED` metadata before proceeding.
+   any `STORED`, `QUEUED`, or `PROCESSING` metadata before proceeding.
 5. Remove the DataWatcher `results-fulfiller` watched path and deploy the DataWatcher configuration.
    Verify that the new revision is serving before continuing.
 6. Activate the RequisitionFetcher config containing `work_item_dispatch`, deploy the function, and
@@ -853,11 +856,11 @@ Use this staged cutover:
 7. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
    and are processed once by ResultsFulfiller.
 
-For rollback, pause the scheduler first and drain or repair all groups already in `STORED` or
-`QUEUED`; their original object-finalize events will not be replayed automatically. Then remove
-`work_item_dispatch`, redeploy RequisitionFetcher, restore and deploy the legacy DataWatcher watched
-path, and resume the scheduler. If an emergency rollback leaves an undispatched blob, re-finalize
-only that verified blob after the legacy watcher is active; replaying a blob whose WorkItem is
+For rollback, pause the scheduler first and drain or repair all groups already in `STORED`,
+`QUEUED`, or `PROCESSING`; their original object-finalize events will not be replayed automatically.
+Then remove `work_item_dispatch`, redeploy RequisitionFetcher, restore and deploy the legacy
+DataWatcher watched path, and resume the scheduler. If an emergency rollback leaves an undispatched
+blob, re-finalize only that verified blob after the legacy watcher is active; replaying a blob whose WorkItem is
 already `RUNNING` or terminal can duplicate processing.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
@@ -1086,6 +1089,61 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
    kubectl get deployments
    kubectl get services
    ```
+
+#### Rolling out durable WorkItem publication
+
+The `WorkItemPublications` migration does not backfill `QUEUED` WorkItems created by an older
+Secure Computation API binary. A mixed-version rollout can therefore leave a WorkItem without the
+outbox row that the new publication runner needs. Treat the following as a mandatory, quiesced
+rollout:
+
+1. Pause every WorkItem producer and wait for the configured Pub/Sub subscriptions to drain.
+2. Apply the Secure Computation Spanner migrations.
+3. Roll out every Secure Computation API replica and verify that no old replica remains:
+
+   ```bash
+   kubectl rollout status deployment/SECURE_COMPUTATION_API_DEPLOYMENT
+   kubectl get pods -l app=SECURE_COMPUTATION_API_APP_LABEL \
+     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
+   ```
+
+4. With producers still paused and subscriptions drained, list `QUEUED` WorkItems that have no
+   pending publication and no active attempt:
+
+   ```bash
+   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
+     --instance=SPANNER_INSTANCE \
+     --project=PROJECT_ID \
+     --sql='SELECT WorkItemResourceId
+       FROM WorkItems AS W
+       WHERE W.State = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM WorkItemPublications AS P
+           WHERE P.WorkItemId = W.WorkItemId)
+         AND NOT EXISTS (
+           SELECT 1 FROM WorkItemAttempts AS A
+           WHERE A.WorkItemId = W.WorkItemId AND A.State = 1)'
+   ```
+
+   `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty result
+   means no repair is needed.
+5. For each returned ID, call `RetryWorkItem`. The operation recreates a missing publication for a
+   `QUEUED` WorkItem and also supports recovery of a `FAILED` WorkItem:
+
+   ```bash
+   grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+     -authority SECURE_COMPUTATION_CERT_HOST \
+     -d '{"name":"workItems/WORK_ITEM_ID"}' \
+     SECURE_COMPUTATION_API_TARGET \
+     wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
+   ```
+
+6. Repeat the query until it returns no rows, then resume WorkItem producers.
+
+Do not run the repair query while producers or subscribers are active: a WorkItem that was just
+published but has not yet started an attempt is temporarily indistinguishable from a pre-migration
+gap and could be published twice. Duplicate queue delivery is tolerated, but a quiesced rollout
+avoids creating it deliberately.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

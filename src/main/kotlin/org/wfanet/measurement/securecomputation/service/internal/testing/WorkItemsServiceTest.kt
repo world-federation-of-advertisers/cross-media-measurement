@@ -19,6 +19,7 @@ package org.wfanet.measurement.securecomputation.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.Message
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -56,6 +57,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
@@ -406,6 +408,130 @@ abstract class WorkItemsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
         }
       )
+  }
+
+  @Test
+  fun `retryWorkItem returns failed WorkItem to queue`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val attempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "attempt"
+          }
+        }
+      )
+    services.service.failWorkItem(
+      failWorkItemRequest { workItemResourceId = created.workItemResourceId }
+    )
+
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(publicationCount).isEqualTo(2)
+    assertThat(
+        services.workItemAttemptsService
+          .getWorkItemAttempt(
+            org.wfanet.measurement.internal.securecomputation.controlplane
+              .getWorkItemAttemptRequest {
+                workItemResourceId = attempt.workItemResourceId
+                workItemAttemptResourceId = attempt.workItemAttemptResourceId
+              }
+          )
+          .state
+      )
+      .isEqualTo(WorkItemAttempt.State.FAILED)
+  }
+
+  @Test
+  fun `retryWorkItem republishes queued WorkItem with missing outbox record`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+
+    val repaired =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(repaired.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `retryWorkItem rejects running WorkItem`() = runBlocking {
+    val services = initServices()
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+
+    services.workItemAttemptsService.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        workItemAttempt = workItemAttempt {
+          workItemResourceId = created.workItemResourceId
+          workItemAttemptResourceId = "active-attempt"
+        }
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.retryWorkItem(
+          retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
   }
 
   @Test

@@ -27,6 +27,7 @@ import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationClaimResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemPublication
@@ -58,8 +59,14 @@ class WorkItemPublicationRunner(
   /** Attempts to publish the pending outbox record for [workItemId]. */
   suspend fun publishWorkItem(workItemId: Long): Boolean {
     return try {
-      val publication = claimWorkItemPublication(workItemId) ?: return false
-      publishClaimedWorkItem(publication)
+      when (val claim = claimWorkItemPublication(workItemId)) {
+        is WorkItemPublicationClaimResult.Claimed -> publishClaimedWorkItem(claim.publication)
+        is WorkItemPublicationClaimResult.Skipped -> {
+          logSkippedPublication(claim)
+          false
+        }
+        null -> false
+      }
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
@@ -73,7 +80,7 @@ class WorkItemPublicationRunner(
     require(limit > 0) { "limit must be positive" }
     var publishedCount = 0
     repeat(limit) {
-      val publication =
+      val claim =
         try {
           claimWorkItemPublication()
         } catch (e: CancellationException) {
@@ -83,9 +90,15 @@ class WorkItemPublicationRunner(
           return publishedCount
         } ?: return publishedCount
 
+      if (claim is WorkItemPublicationClaimResult.Skipped) {
+        logSkippedPublication(claim)
+        return@repeat
+      }
+      check(claim is WorkItemPublicationClaimResult.Claimed)
+
       val published =
         try {
-          publishClaimedWorkItem(publication)
+          publishClaimedWorkItem(claim.publication)
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
@@ -115,9 +128,9 @@ class WorkItemPublicationRunner(
 
   private suspend fun claimWorkItemPublication(
     workItemId: Long? = null
-  ): WorkItemPublicationResult? {
+  ): WorkItemPublicationClaimResult? {
     val now = clock.instant()
-    val publication: Optional<WorkItemPublicationResult> =
+    val publication: Optional<WorkItemPublicationClaimResult> =
       databaseClient.readWriteTransaction().run { transaction ->
         Optional.fromNullable(
           transaction.claimWorkItemPublication(
@@ -130,6 +143,15 @@ class WorkItemPublicationRunner(
         )
       }
     return publication.orNull()
+  }
+
+  private fun logSkippedPublication(claim: WorkItemPublicationClaimResult.Skipped) {
+    if (claim.reason == WorkItemPublicationClaimResult.Skipped.Reason.QUEUE_NOT_FOUND) {
+      logger.warning(
+        "Deferring WorkItem ${claim.workItemResourceId}: queue ID ${claim.queueId} is not in the " +
+          "configured queue mapping"
+      )
+    }
   }
 
   private suspend fun publishClaimedWorkItem(publication: WorkItemPublicationResult): Boolean {

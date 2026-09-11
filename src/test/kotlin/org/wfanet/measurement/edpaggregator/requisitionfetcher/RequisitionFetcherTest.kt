@@ -89,10 +89,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RetryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.retryWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -107,6 +109,7 @@ class RequisitionFetcherTest {
   private val refuseRequisitionMetadataRequests = mutableListOf<RefuseRequisitionMetadataRequest>()
   private val queueRequisitionMetadataRequests = mutableListOf<QueueRequisitionMetadataRequest>()
   private val createWorkItemRequests = mutableListOf<CreateWorkItemRequest>()
+  private val retryWorkItemRequests = mutableListOf<RetryWorkItemRequest>()
 
   private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
     mockService {
@@ -152,6 +155,15 @@ class RequisitionFetcherTest {
           name = "workItems/${request.workItemId}"
           queue = request.workItem.queue
           workItemParams = request.workItem.workItemParams
+        }
+      }
+    onBlocking { retryWorkItem(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<RetryWorkItemRequest>(0)
+        retryWorkItemRequests += request
+        workItem {
+          name = request.name
+          state = WorkItem.State.QUEUED
         }
       }
   }
@@ -443,7 +455,7 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `secure computation dispatcher rejects terminal existing WorkItem`() = runBlocking {
+  fun `secure computation dispatcher retries failed existing WorkItem`() = runBlocking {
     whenever(workItemsServiceMock.getWorkItem(any()))
       .thenReturn(
         workItem {
@@ -457,6 +469,39 @@ class RequisitionFetcherTest {
               }
               .pack()
           state = WorkItem.State.FAILED
+        }
+      )
+    val dispatcher =
+      SecureComputationRequisitionWorkItemDispatcher(
+        workItemsStub = workItemsStub,
+        queue = "results-fulfiller-queue",
+        resultsFulfillerParams =
+          resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME },
+        controlPlaneThrottler = throttler,
+      )
+
+    dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+
+    assertThat(retryWorkItemRequests)
+      .containsExactly(retryWorkItemRequest { name = "workItems/results-fulfiller-group-id" })
+      .inOrder()
+  }
+
+  @Test
+  fun `secure computation dispatcher rejects succeeded existing WorkItem`() = runBlocking {
+    whenever(workItemsServiceMock.getWorkItem(any()))
+      .thenReturn(
+        workItem {
+          name = "workItems/results-fulfiller-group-id"
+          queue = "results-fulfiller-queue"
+          workItemParams =
+            workItemParams {
+                appParams =
+                  resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }.pack()
+                dataPathParams = dataPathParams { dataPath = "gs://bucket/requisitions/group-id" }
+              }
+              .pack()
+          state = WorkItem.State.SUCCEEDED
         }
       )
     val dispatcher =
@@ -729,22 +774,137 @@ class RequisitionFetcherTest {
             }
           }
         )
-      var dispatched = false
-      val dispatcher =
-        object : RequisitionWorkItemDispatcher {
-          override fun workItemName(groupId: String): String = workItemName
-
-          override suspend fun dispatch(groupId: String, blobUri: String) {
-            dispatched = true
+      val expectedParams = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+      whenever(workItemsServiceMock.getWorkItem(any()))
+        .thenReturn(
+          workItem {
+            name = workItemName
+            queue = "results-fulfiller-queue"
+            workItemParams =
+              workItemParams {
+                  appParams = expectedParams.pack()
+                  dataPathParams = dataPathParams {
+                    dataPath = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+                  }
+                }
+                .pack()
+            state = WorkItem.State.FAILED
           }
-        }
+        )
+      val dispatcher =
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub = workItemsStub,
+          queue = "results-fulfiller-queue",
+          resultsFulfillerParams = expectedParams,
+          controlPlaneThrottler = throttler,
+        )
 
       createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
 
-      assertThat(dispatched).isTrue()
+      assertThat(retryWorkItemRequests)
+        .containsExactly(retryWorkItemRequest { name = workItemName })
       assertThat(queueRequisitionMetadataRequests).isEmpty()
       assertThat(createRequisitionMetadataRequests).isEmpty()
     }
+
+  @Test
+  fun `direct dispatch retries all PROCESSING rows`() = runBlocking {
+    val groupId = "processing-group-id"
+    val workItemName = "workItems/results-fulfiller-$groupId"
+    storageClient.writeBlob("$STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/processing"
+            state = RequisitionMetadata.State.PROCESSING
+            cmmsRequisition = TestRequisitionData.REQUISITION.name
+            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            blobTypeUrl = "type"
+            this.groupId = groupId
+            report = "some-report"
+            workItem = workItemName
+          }
+        }
+      )
+    val expectedParams = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
+    whenever(workItemsServiceMock.getWorkItem(any()))
+      .thenReturn(
+        workItem {
+          name = workItemName
+          queue = "results-fulfiller-queue"
+          workItemParams =
+            workItemParams {
+                appParams = expectedParams.pack()
+                dataPathParams = dataPathParams {
+                  dataPath = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+                }
+              }
+              .pack()
+          state = WorkItem.State.FAILED
+        }
+      )
+    val dispatcher =
+      SecureComputationRequisitionWorkItemDispatcher(
+        workItemsStub = workItemsStub,
+        queue = "results-fulfiller-queue",
+        resultsFulfillerParams = expectedParams,
+        controlPlaneThrottler = throttler,
+      )
+
+    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+    assertThat(retryWorkItemRequests).containsExactly(retryWorkItemRequest { name = workItemName })
+    assertThat(queueRequisitionMetadataRequests).isEmpty()
+  }
+
+  @Test
+  fun `direct dispatch retries mixed terminal PROCESSING and QUEUED rows`() = runBlocking {
+    val groupId = "mixed-processing-group-id"
+    val workItemName = "workItems/results-fulfiller-$groupId"
+    storageClient.writeBlob("$STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.FULFILLED
+            cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/fulfilled"
+            this.groupId = groupId
+            report = "some-report"
+          }
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/processing"
+            state = RequisitionMetadata.State.PROCESSING
+            cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/processing"
+            this.groupId = groupId
+            report = "some-report"
+            workItem = workItemName
+          }
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/queued"
+            state = RequisitionMetadata.State.QUEUED
+            cmmsRequisition = TestRequisitionData.REQUISITION.name
+            this.groupId = groupId
+            report = "some-report"
+            workItem = workItemName
+          }
+        }
+      )
+    var dispatched = false
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = workItemName
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatched = true
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+    assertThat(dispatched).isTrue()
+    assertThat(queueRequisitionMetadataRequests).isEmpty()
+  }
 
   @Test
   fun `existing blob is not rewritten and metadata for that requisition is skipped`() =

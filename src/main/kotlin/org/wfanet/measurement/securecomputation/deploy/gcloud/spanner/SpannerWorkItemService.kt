@@ -34,6 +34,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkIte
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.RetryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
@@ -47,13 +48,16 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertW
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
 class SpannerWorkItemsService(
@@ -211,6 +215,49 @@ class SpannerWorkItemsService(
         }
       }
     val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    return result
+  }
+
+  override suspend fun retryWorkItem(request: RetryWorkItemRequest): WorkItem {
+    if (request.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=retryWorkItem"))
+    val (workItemId, workItem) =
+      transactionRunner.run { txn ->
+        try {
+          val result = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
+          val state =
+            when (result.workItem.state) {
+              WorkItem.State.FAILED -> txn.retryWorkItem(result.workItemId)
+              WorkItem.State.QUEUED -> {
+                if (!txn.workItemPublicationExists(result.workItemId)) {
+                  txn.insertWorkItemPublication(result.workItemId)
+                }
+                WorkItem.State.QUEUED
+              }
+              WorkItem.State.RUNNING,
+              WorkItem.State.SUCCEEDED,
+              WorkItem.State.STATE_UNSPECIFIED,
+              WorkItem.State.UNRECOGNIZED ->
+                throw WorkItemInvalidStateException(
+                  result.workItem.workItemResourceId,
+                  result.workItem.state,
+                )
+            }
+          result.workItemId to result.workItem.copy { this.state = state }
+        } catch (e: WorkItemNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: QueueNotFoundForWorkItem) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: WorkItemInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+      }
+    val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    workItemPublicationRunner.publishWorkItem(workItemId)
     return result
   }
 
