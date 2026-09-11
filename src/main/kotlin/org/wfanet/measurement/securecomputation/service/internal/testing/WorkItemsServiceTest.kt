@@ -51,6 +51,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsG
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
@@ -533,6 +534,13 @@ abstract class WorkItemsServiceTest {
           }
         }
       )
+    services.workItemAttemptsService.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = abandonedAttempt.workItemResourceId
+        workItemAttemptResourceId = abandonedAttempt.workItemAttemptResourceId
+        errorMessage = "Worker confirmed stopped"
+      }
+    )
 
     val retried =
       services.service.retryWorkItem(
@@ -559,6 +567,80 @@ abstract class WorkItemsServiceTest {
     assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
     assertThat(replacementAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
     assertThat(replacementAttempt.attemptNumber).isEqualTo(2)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `stale retry does not fail replacement attempt`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val abandonedAttempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "abandoned-attempt"
+          }
+        }
+      )
+    services.workItemAttemptsService.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = abandonedAttempt.workItemResourceId
+        workItemAttemptResourceId = abandonedAttempt.workItemAttemptResourceId
+      }
+    )
+    services.service.retryWorkItem(
+      retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+    )
+    val replacementAttempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "replacement-attempt"
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.retryWorkItem(
+          retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(
+        services.workItemAttemptsService
+          .getWorkItemAttempt(
+            org.wfanet.measurement.internal.securecomputation.controlplane
+              .getWorkItemAttemptRequest {
+                workItemResourceId = replacementAttempt.workItemResourceId
+                workItemAttemptResourceId = replacementAttempt.workItemAttemptResourceId
+              }
+          )
+          .state
+      )
+      .isEqualTo(WorkItemAttempt.State.ACTIVE)
     assertThat(publicationCount).isEqualTo(2)
   }
 

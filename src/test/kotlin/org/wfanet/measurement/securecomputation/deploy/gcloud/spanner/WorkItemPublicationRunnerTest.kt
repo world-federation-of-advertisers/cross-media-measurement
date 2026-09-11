@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import com.google.cloud.Timestamp as CloudTimestamp
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Message
@@ -33,6 +34,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -164,6 +166,23 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `eligible retry is not starved by newer unattempted rows`() = runBlocking {
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-retry")
+    markPublicationAsRetry(WORK_ITEM_ID, Instant.EPOCH)
+    val publisher = RecordingPublisher()
+    val runner = newRunner(publisher, clock)
+    repeat(100) { index ->
+      val workItemId = WORK_ITEM_ID + index + 1
+      insertPendingWorkItem(workItemId, "work-item-new-$index")
+    }
+
+    assertThat(runner.publishPendingWorkItems(limit = 1)).isEqualTo(1)
+    assertThat((publisher.messages.single() as WorkItem).workItemResourceId)
+      .isEqualTo("work-item-retry")
+  }
+
+  @Test
   fun `starting a WorkItem attempt removes its pending publication`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
@@ -216,6 +235,19 @@ class WorkItemPublicationRunnerTest {
         .executeQuery(statement("SELECT COUNT(*) AS PublicationCount FROM WorkItemPublications"))
         .single()
         .getLong("PublicationCount")
+    }
+  }
+
+  private suspend fun markPublicationAsRetry(workItemId: Long, nextAttemptTime: Instant) {
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.bufferUpdateMutation("WorkItemPublications") {
+        set("WorkItemId").to(workItemId)
+        set("NextAttemptTime")
+          .to(
+            CloudTimestamp.ofTimeSecondsAndNanos(nextAttemptTime.epochSecond, nextAttemptTime.nano)
+          )
+        set("AttemptCount").to(1L)
+      }
     }
   }
 
