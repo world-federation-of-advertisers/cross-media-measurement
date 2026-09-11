@@ -399,6 +399,7 @@ class VidLabelingMonitorTest {
     rawImpressionUpload {
       name = "$DATA_PROVIDER/rawImpressionUploads/$id"
       this.state = state
+      registrationComplete = true
       createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
       doneBlobUri = "gs://raw-bucket/edp7/2026-06-01/done"
     }
