@@ -25,6 +25,7 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import java.time.Clock
+import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -44,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
@@ -59,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFil
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
@@ -89,7 +92,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
  * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
  *   footer (no decryption needed).
- * @param readBlobMetadata reads the storage generation and size for a raw-impression file in one
+ * @param readBlobMetadata reads the storage generation, size, and creation time for a blob in one
  *   metadata lookup.
  * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock for determining active model line windows.
@@ -121,8 +124,8 @@ class VidLabelingDispatcher(
    *
    * @param doneBlobPath the full storage URI of the "done" blob that triggered this upload.
    * @param doneBlobGeneration GCS object generation number of the done blob. Used to produce
-   *   idempotent request IDs that handle both Pub/Sub redelivery (same generation = same ID) and
-   *   EDP re-uploads to the same path (new generation = new ID).
+   *   idempotent request IDs that handle both DataWatcher redelivery (same generation = same ID)
+   *   and EDP re-uploads to the same path (new generation = new ID).
    * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme or
    *   [doneBlobGeneration] is null.
    */
@@ -131,11 +134,26 @@ class VidLabelingDispatcher(
 
     try {
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
-      val folderPrefix: String = doneBlobUri.key.substringBeforeLast("/")
+      val folderPrefix: String =
+        doneBlobUri.key.substringBeforeLast("/", missingDelimiterValue = "")
+      val listingPrefix = if (folderPrefix.isEmpty()) "" else "$folderPrefix/"
+
+      val doneBlobMetadata = readBlobMetadata(doneBlobUri.key)
+      if (doneBlobMetadata.generation != doneBlobGeneration) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       val blobs: List<StorageClient.Blob> =
-        storageClient.listBlobs(folderPrefix).filter { !isDoneMarker(it.blobKey) }.toList()
+        storageClient.listBlobs(listingPrefix).filter { !isDoneMarker(it.blobKey) }.toList()
       val blobKeys: List<String> = blobs.map { it.blobKey }
+
+      if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       if (blobKeys.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
@@ -148,19 +166,33 @@ class VidLabelingDispatcher(
         Attributes.of(DATA_PROVIDER_ATTR, dataProviderName),
       )
 
-      val rawImpressionUpload = createRawImpressionUpload(doneBlobPath, doneBlobGeneration)
+      val rawImpressionUpload =
+        createRawImpressionUpload(doneBlobPath, doneBlobGeneration, doneBlobMetadata.createTime)
+      if (rawImpressionUpload == null) {
+        logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+
+      if (rawImpressionUpload.registrationComplete) {
+        logger.info("RawImpressionUpload ${rawImpressionUpload.name} is already registered")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobs, doneBlobUri)
 
       val resolvedModelLineNames = resolveModelLines()
 
       if (resolvedModelLineNames.isEmpty()) {
+        markRegistrationComplete(rawImpressionUpload)
         logger.info("No active model lines resolved for $modelSuiteName")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
 
       createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLineNames)
+      markRegistrationComplete(rawImpressionUpload)
 
       logger.info(
         "Registered upload ${rawImpressionUpload.name} with ${blobKeys.size} files and " +
@@ -304,8 +336,8 @@ class VidLabelingDispatcher(
    * Creates a `RawImpressionUpload` resource to track this upload.
    *
    * Uses the done blob path and GCS generation number to produce an idempotent request ID. Same
-   * (path, generation) → same request ID → idempotent on Pub/Sub redelivery. New generation at the
-   * same path → new request ID → new upload for EDP re-uploads.
+   * (path, generation) → same request ID → idempotent on DataWatcher redelivery. New generation at
+   * the same path → new request ID → new upload for EDP re-uploads.
    *
    * On `ALREADY_EXISTS` (redelivery after the AIP-155 idempotency cache has expired, so the server
    * returns the error rather than the cached resource), looks up and returns the existing upload so
@@ -319,12 +351,14 @@ class VidLabelingDispatcher(
   private suspend fun createRawImpressionUpload(
     doneBlobPath: String,
     generation: Long,
-  ): RawImpressionUpload {
+    createTime: Instant,
+  ): RawImpressionUpload? {
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
       rawImpressionUpload = rawImpressionUpload {
         doneBlobUri = doneBlobPath
         doneBlobGeneration = generation
+        doneBlobCreateTime = createTime.toProtoTime()
       }
       requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
     }
@@ -341,11 +375,22 @@ class VidLabelingDispatcher(
       // deterministic-UUID collision in RequestIds.forRawImpressionUpload) also surfaces as
       // ALREADY_EXISTS, yet findUploadByDoneBlobUri returns null for it — log that collision
       // explicitly (logger.severe) and rethrow instead of the opaque IllegalStateException below.
-      findUploadByDoneBlob(doneBlobPath, generation)
-        ?: throw IllegalStateException(
-          "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
-            doneBlobPath
-        )
+      val matchingUpload = findUploadByDoneBlob(doneBlobPath, generation)
+      if (matchingUpload != null) {
+        return matchingUpload
+      }
+      val latestUpload = findLatestUploadByDoneBlob(doneBlobPath)
+      if (
+        latestUpload != null &&
+          latestUpload.hasDoneBlobCreateTime() &&
+          Timestamps.compare(latestUpload.doneBlobCreateTime, createTime.toProtoTime()) >= 0
+      ) {
+        return null
+      }
+      throw IllegalStateException(
+        "createRawImpressionUpload returned ALREADY_EXISTS but no RawImpressionUpload matches " +
+          doneBlobPath
+      )
     }
   }
 
@@ -380,6 +425,56 @@ class VidLabelingDispatcher(
       }
       .flattenConcat()
       .firstOrNull { it.doneBlobGeneration == generation }
+
+  /** Finds the latest registered revision at [doneBlobPath]. */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun findLatestUploadByDoneBlob(doneBlobPath: String): RawImpressionUpload? =
+    rawImpressionUploadStub
+      .listResources { pageToken: String ->
+        val response =
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadStub.listRawImpressionUploads(
+                listRawImpressionUploadsRequest {
+                  parent = dataProviderName
+                  filter = rawUploadFilter { doneBlobUri = doneBlobPath }
+                  if (pageToken.isNotEmpty()) this.pageToken = pageToken
+                }
+              )
+            }
+          } catch (e: StatusException) {
+            throw Exception("Error listing RawImpressionUploads for $dataProviderName", e)
+          }
+        ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
+      .filter { it.hasDoneBlobCreateTime() }
+      .maxWithOrNull { left, right ->
+        Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+      }
+
+  private suspend fun isCurrentDoneBlobGeneration(
+    doneBlobUri: BlobUri,
+    expectedGeneration: Long,
+  ): Boolean = readBlobMetadata(doneBlobUri.key).generation == expectedGeneration
+
+  private suspend fun markRegistrationComplete(upload: RawImpressionUpload) {
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            name = upload.name
+            etag = upload.etag
+            requestId =
+              RequestIds.forRawImpressionUploadRegistrationComplete(upload.name, upload.etag)
+          }
+        )
+      }
+    } catch (e: StatusException) {
+      throw Exception("Error marking RawImpressionUpload ${upload.name} registration complete", e)
+    }
+  }
 
   private fun LocalDate.toProtoDate(): Date = date {
     year = this@toProtoDate.year
@@ -548,4 +643,8 @@ class VidLabelingDispatcher(
   )
 }
 
-data class RawImpressionBlobMetadata(val generation: Long, val sizeBytes: Long)
+data class RawImpressionBlobMetadata(
+  val generation: Long,
+  val sizeBytes: Long,
+  val createTime: Instant,
+)
