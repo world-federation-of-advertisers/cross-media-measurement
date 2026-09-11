@@ -644,56 +644,48 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `upload with same generation succeeds when registration is already complete`() =
+  fun `redelivery of complete same-generation upload skips file inspection`() =
     runBlocking<Unit> {
       val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-      stubRawImpressionUploadCreation()
-      stubFullResolutionChain(MODEL_LINE_1)
       val uploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
-      whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
         .thenReturn(
-          RawImpressionUpload.newBuilder()
-            .setName(uploadName)
-            .setDoneBlobUri(DONE_BLOB_PATH)
-            .setDoneBlobGeneration(123L)
-            .setEtag(UPLOAD_ETAG)
-            .build(),
-          RawImpressionUpload.newBuilder()
-            .setName(uploadName)
-            .setDoneBlobUri(DONE_BLOB_PATH)
-            .setDoneBlobGeneration(123L)
-            .setRegistrationComplete(true)
-            .setEtag("completed-$UPLOAD_ETAG")
-            .build(),
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads +=
+              RawImpressionUpload.newBuilder()
+                .setName(uploadName)
+                .setDoneBlobUri(DONE_BLOB_PATH)
+                .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+                .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
+                .setRegistrationComplete(true)
+                .setEtag("completed-$UPLOAD_ETAG")
+                .build()
+          }
         )
 
+      var rawBlobMetadataReads = 0
       val dispatcher =
         createDispatcher(
-          readDoneBlobMetadata = { RawImpressionBlobMetadata(123L, 0L, DONE_BLOB_CREATE_TIME) }
+          readBlobMetadata = {
+            rawBlobMetadataReads++
+            RawImpressionBlobMetadata(RAW_BLOB_GENERATION, 100L, RAW_BLOB_CREATE_TIME)
+          }
         )
-      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
-      // DataWatcher redelivers the same done-object generation after the first invocation has
-      // completed registration.
-      dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
+      dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
-      val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
-      verifyBlocking(rawImpressionUploadService, times(2)) {
-        createRawImpressionUpload(requestCaptor.capture())
+      assertThat(rawBlobMetadataReads).isEqualTo(0)
+      verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+      verifyBlocking(rawImpressionUploadFileService, never()) {
+        listRawImpressionUploadFiles(any())
       }
-      assertThat(requestCaptor.allValues[0].requestId)
-        .isEqualTo(requestCaptor.allValues[1].requestId)
-      assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobGeneration })
-        .containsExactly(123L, 123L)
-      assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobCreateTime })
-        .containsExactly(DONE_BLOB_CREATE_TIME.toProtoTime(), DONE_BLOB_CREATE_TIME.toProtoTime())
-      verifyBlocking(rawImpressionUploadFileService, times(1)) {
+      verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
       }
-      verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
         batchCreateRawImpressionUploadModelLines(any())
       }
-      verifyBlocking(rawImpressionUploadService, times(1)) {
+      verifyBlocking(rawImpressionUploadService, never()) {
         markRawImpressionUploadRegistrationComplete(any())
       }
     }
@@ -1273,6 +1265,7 @@ class VidLabelingDispatcherTest {
                 .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
                 .setDoneBlobUri(DONE_BLOB_PATH)
                 .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+                .setState(RawImpressionUpload.State.CREATED)
                 .setEtag(UPLOAD_ETAG)
                 .build()
           }
