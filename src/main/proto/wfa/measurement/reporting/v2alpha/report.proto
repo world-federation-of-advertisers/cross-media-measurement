@@ -84,8 +84,8 @@ message Report {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The interval over which Metrics are generated. This interval is
-  // closed on both sides.
+  // The interval over which Metrics are generated. The start is inclusive and
+  // the end is exclusive.
   message ReportingInterval {
     // The date and time of the start of the report. The year,
     // month, day, and time_offset are all required.
@@ -99,8 +99,12 @@ message Report {
       (google.api.field_behavior) = IMMUTABLE
     ];
 
-    // The end date of the report. The time is considered to be the same as
-    // that specified in the report start. This side of the interval is closed.
+    // The date used to construct the exclusive end instant of the report.
+    //
+    // The end instant has the same time of day and `time_offset` setting as
+    // `report_start`, but uses this date. Events at or after the end instant
+    // are excluded. The resulting report interval is half-open:
+    // [`report_start`, end).
     google.type.Date report_end = 2 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
