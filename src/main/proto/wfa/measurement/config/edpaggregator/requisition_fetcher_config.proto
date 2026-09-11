@@ -25,16 +25,15 @@ option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
 option java_outer_classname = "RequisitionFetcherConfigProto";
 
-// Configuration for directly dispatching grouped requisitions to Secure Computation.
+// Configuration for directly dispatching grouped requisitions to Secure
+// Computation.
 message RequisitionWorkItemDispatchConfig {
   // How the EDP connects to the Secure Computation Control Plane Public API.
   TransportLayerSecurityParams control_plane_connection = 1;
 
   // Queue for ResultsFulfiller WorkItems.
-  string queue = 2 [
-    (google.api.resource_reference).type =
-        "control-plane.secure-computation.halo-cmm.org/Queue"
-  ];
+  string queue = 2 [(google.api.resource_reference).type =
+                        "control-plane.secure-computation.halo-cmm.org/Queue"];
 
   // ResultsFulfiller application parameters.
   wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams app_params = 3;
@@ -55,7 +54,8 @@ message DataProviderRequisitionConfig {
   string edp_private_key_path = 5;
   // How the EDP connects to the Requisition Metadata Storage Public API
   TransportLayerSecurityParams requisition_metadata_storage_connection = 6;
-  // Direct dispatch configuration. If unset, storage-event dispatch remains enabled.
+  // Direct dispatch configuration. If unset, storage-event dispatch remains
+  // enabled.
   RequisitionWorkItemDispatchConfig work_item_dispatch = 7;
 }
 
