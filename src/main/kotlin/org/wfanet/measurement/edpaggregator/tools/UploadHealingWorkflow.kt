@@ -241,7 +241,7 @@ class UploadHealingWorkflow(
     step: UploadHealingStep,
     state: UploadHealingStep.State,
     replacementUploadName: String = "",
-    recoveryDoneBlobGeneration: Long = step.recoveryDoneBlobGeneration,
+    recoveryDoneBlobGeneration: Long = 0L,
   ): UploadHealingOperation {
     val action =
       when (state) {
