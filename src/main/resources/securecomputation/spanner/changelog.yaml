@@ -16,3 +16,6 @@ databaseChangeLog:
   - include:
       file: create-securecomputation-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-publications.sql
+      relativeToChangeLogFile: true

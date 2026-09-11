@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import java.time.Duration
 import kotlin.coroutines.CoroutineContext
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -30,11 +31,22 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublish
  * management operations.
  */
 class InternalApiServices(
-  private val workItemPublisher: WorkItemPublisher,
+  workItemPublisher: WorkItemPublisher,
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator = IdGenerator.Default,
+  workItemPublicationPollInterval: Duration = WorkItemPublicationRunner.DEFAULT_POLL_INTERVAL,
+  workItemPublicationLeaseDuration: Duration = WorkItemPublicationRunner.DEFAULT_LEASE_DURATION,
 ) {
+  val workItemPublicationRunner =
+    WorkItemPublicationRunner(
+      databaseClient,
+      queueMapping,
+      workItemPublisher,
+      pollInterval = workItemPublicationPollInterval,
+      leaseDuration = workItemPublicationLeaseDuration,
+    )
+
   /**
    * Builds the core internal API services.
    *
@@ -48,7 +60,7 @@ class InternalApiServices(
         databaseClient,
         queueMapping,
         idGenerator,
-        workItemPublisher,
+        workItemPublicationRunner,
         coroutineContext,
       ),
       SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator, coroutineContext),
