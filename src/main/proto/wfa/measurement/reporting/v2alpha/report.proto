@@ -102,9 +102,8 @@ message Report {
     // The date used to construct the exclusive end instant of the report.
     //
     // The end instant has the same time of day and `time_offset` setting as
-    // `report_start`, but uses this date. Events at or after the end instant
-    // are excluded. The resulting report interval is half-open:
-    // [`report_start`, end).
+    // `report_start`, but uses this date. Only times before the end instant are
+    // included in the report.
     google.type.Date report_end = 2 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
