@@ -20,6 +20,7 @@ import io.grpc.StatusException
 import io.grpc.serviceconfig.MethodConfigKt
 import io.grpc.serviceconfig.methodConfig
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.time.Clock
 import java.util.logging.Level
 import java.util.logging.Logger
