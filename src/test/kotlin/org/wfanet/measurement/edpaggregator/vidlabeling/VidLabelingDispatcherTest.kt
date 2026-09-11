@@ -1325,7 +1325,8 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
       }
-      assertThat(metadataRead.onReadyCalls).isEqualTo(2)
+      // Initial revision discovery plus exact/latest ALREADY_EXISTS recovery lookups.
+      assertThat(metadataRead.onReadyCalls).isEqualTo(3)
     }
 
   @Test
