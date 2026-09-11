@@ -62,10 +62,12 @@ message WorkItem {
     DataPathParams data_path_params = 2
         [(google.api.field_behavior) = IMMUTABLE];
 
-    // Optional W3C Trace Context fields propagated across the asynchronous
-    // queue boundary. Empty when no upstream trace context is available.
-    map<string, string> trace_context = 3
-        [(google.api.field_behavior) = IMMUTABLE];
+    // W3C Trace Context fields propagated across the asynchronous queue
+    // boundary. Empty when no upstream trace context is available.
+    map<string, string> trace_context = 3 [
+      (google.api.field_behavior) = OPTIONAL,
+      (google.api.field_behavior) = IMMUTABLE
+    ];
   }
   // The parameters to be delivered to the TEE application.
   google.protobuf.Any work_item_params = 3

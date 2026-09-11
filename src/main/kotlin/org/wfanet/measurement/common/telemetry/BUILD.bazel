@@ -4,7 +4,11 @@ package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
     name = "report_tracing",
-    srcs = ["ReportTracing.kt"],
+    srcs = [
+        "ReportTraceAttributes.kt",
+        "ReportTracing.kt",
+        "W3CTraceContext.kt",
+    ],
     deps = [
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
