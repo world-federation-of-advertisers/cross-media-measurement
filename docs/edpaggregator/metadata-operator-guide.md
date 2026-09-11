@@ -68,10 +68,13 @@ Each scheduled invocation:
 This ordering makes every handoff recoverable. A crash before metadata creation
 can leave only an unreferenced blob. A crash while queueing leaves `STORED` and
 `QUEUED` rows that the next invocation finishes. A crash around WorkItem creation
-is retried safely: the fetcher first gets the deterministic WorkItem name, and it
-treats an existing WorkItem or an `ALREADY_EXISTS` creation race as success. A
-WorkItem therefore cannot run before all metadata rows for its blob are durable
-and queued.
+is retried safely: the fetcher first gets the deterministic WorkItem name and
+validates an existing WorkItem before accepting it. The Secure Computation
+control plane persists the WorkItem and its pending publication atomically, then
+retries Pub/Sub publication until it is acknowledged. A WorkItem therefore
+cannot run before all metadata rows for its blob are durable and queued, and a
+successful create cannot be stranded between its database commit and queue
+publication.
 
 A report whose requisitions all arrive in one window becomes a single blob; a
 report straddling K drain windows (or a byte-cap flush) is split across ~K blobs.
@@ -348,10 +351,14 @@ Check metrics and traces before grepping logs — see the
   RequisitionMetadata service is reachable. The next scheduled invocation
   retries the group.
 - A `QUEUED` row has a deterministic WorkItem name. Check that value first. If
-  all rows in the group are `QUEUED`, search the RequisitionFetcher logs for the
-  corresponding `Created WorkItem` or existing-WorkItem message, then inspect
-  that WorkItem in the Secure Computation system. Do not create a replacement
-  with a different ID; the next invocation safely retries the deterministic ID.
+  any unfinished row in the group is `QUEUED`, search the RequisitionFetcher
+  logs for the corresponding `Created WorkItem` or existing-WorkItem message,
+  then inspect that WorkItem in the Secure Computation system. Mixed terminal
+  and `STORED`/`QUEUED` rows are retried using only the unfinished rows. Do not
+  create a replacement with a different ID; the next invocation safely retries
+  the deterministic ID. A terminal WorkItem with unfinished metadata is an
+  invariant violation and requires operator investigation rather than automatic
+  redispatch.
 
 ## Quick tuning reference
 

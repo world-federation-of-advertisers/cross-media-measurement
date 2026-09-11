@@ -112,6 +112,7 @@ class ResultsFulfillerApp(
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
     val fulfillerParams = workItemParams.appParams.unpack(ResultsFulfillerParams::class.java)
+    ResultsFulfillerParamsValidator.validate(fulfillerParams)
     val requisitionsBlobUri = workItemParams.dataPathParams.dataPath
 
     val storageParams = fulfillerParams.storageParams
@@ -172,15 +173,6 @@ class ResultsFulfillerApp(
 
     val resultMinimumThresholds: ResultMinimumThresholds? =
       if (fulfillerParams.hasKAnonymityParams()) {
-        require(fulfillerParams.kAnonymityParams.minUsers > 0) {
-          "Result minimum thresholds minUsers must be greater than 0, got ${fulfillerParams.kAnonymityParams.minUsers}"
-        }
-        require(fulfillerParams.kAnonymityParams.minImpressions > 0) {
-          "Result minimum thresholds minImpressions must be greater than 0, got ${fulfillerParams.kAnonymityParams.minImpressions}"
-        }
-        require(fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser > 0) {
-          "Result minimum thresholds reachMaxFrequencyPerUser must be greater than 0, got ${fulfillerParams.kAnonymityParams.reachMaxFrequencyPerUser}"
-        }
         ResultMinimumThresholds(
           minUsers = fulfillerParams.kAnonymityParams.minUsers,
           minImpressions = fulfillerParams.kAnonymityParams.minImpressions,
@@ -189,18 +181,6 @@ class ResultsFulfillerApp(
       } else {
         null
       }
-
-    require(
-      fulfillerParams.impressionMaxFrequencyPerUser >= -1 &&
-        fulfillerParams.impressionMaxFrequencyPerUser <= Byte.MAX_VALUE
-    ) {
-      "impressionMaxFrequencyPerUser must be between -1 and ${Byte.MAX_VALUE}, got ${fulfillerParams.impressionMaxFrequencyPerUser}"
-    }
-
-    requireCapMatchesMode(
-      fulfillerParams.impressionCapMode,
-      fulfillerParams.impressionMaxFrequencyPerUser,
-    )
 
     // Get TrusTeeConfig for this data provider if available
     val trusTeeConfig: TrusTeeConfig? = trusTeeConfigs[fulfillerParams.dataProvider]

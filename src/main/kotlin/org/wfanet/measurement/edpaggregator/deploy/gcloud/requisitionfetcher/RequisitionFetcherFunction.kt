@@ -51,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetche
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SecureComputationRequisitionWorkItemDispatcher
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.withW3CTraceContext
@@ -465,6 +466,10 @@ class RequisitionFetcherFunction : HttpFunction {
         require(dispatch.hasResultsFulfillerParams()) {
           "Missing 'results_fulfiller_params' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
         }
+        ResultsFulfillerParamsValidator.validate(
+          dispatch.resultsFulfillerParams,
+          dataProviderConfig.dataProvider,
+        )
         require(dispatch.hasControlPlaneConnection()) {
           "Missing 'control_plane_connection' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
         }

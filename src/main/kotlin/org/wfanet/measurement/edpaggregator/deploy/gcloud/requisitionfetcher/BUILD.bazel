@@ -17,6 +17,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_grouper_by_report_id",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_work_item_dispatcher",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_params_validator",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:requisition_fetcher_config_kt_jvm_proto",
