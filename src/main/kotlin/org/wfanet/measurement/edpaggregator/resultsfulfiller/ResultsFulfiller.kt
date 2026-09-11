@@ -37,7 +37,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -154,6 +153,7 @@ class ResultsFulfiller(
       attributes =
         Attributes.builder()
           .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
           .also { builder ->
             if (groupedRequisitions.report.isNotBlank()) {
               builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
@@ -272,6 +272,7 @@ class ResultsFulfiller(
         Attributes.builder()
           .put(ReportTraceAttributes.REPORT_NAME, reportId)
           .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
           .also { builder ->
             if (basicReportName.isNotBlank()) {
               builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
@@ -302,32 +303,43 @@ class ResultsFulfiller(
           .build(),
       )
 
-      filteredRequisitions
-        .asFlow()
-        .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
-        .flatMapMerge(concurrency = parallelism) { (req, frequencyVector) ->
-          flow {
-            fulfillSingleRequisition(
-              requisition = req,
-              frequencyVector = frequencyVector,
-              populationSpec = populationSpec,
-              requisitionsMetadata = requisitionMetadataByName,
-              kekUri = kekUri,
-            )
-            emit(Unit)
+      val outcomes =
+        filteredRequisitions
+          .asFlow()
+          .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
+          .flatMapMerge(concurrency = parallelism) { (req, frequencyVector) ->
+            flow {
+              emit(
+                fulfillSingleRequisition(
+                  requisition = req,
+                  frequencyVector = frequencyVector,
+                  populationSpec = populationSpec,
+                  requisitionsMetadata = requisitionMetadataByName,
+                  kekUri = kekUri,
+                )
+              )
+            }
           }
-        }
-        .collect()
+          .toList()
 
-      recordReportCompletion(
-        span = span,
-        requisitionCount = filteredRequisitions.size,
-        modelLine = modelLine,
-        processingTimer = reportProcessingTimer,
-        earliestCreateTime = earliestCreateTime,
-        groupId = groupedRequisitions.groupId,
-        reportId = reportId,
-      )
+      if (outcomes.all { it }) {
+        recordReportCompletion(
+          span = span,
+          requisitionCount = filteredRequisitions.size,
+          modelLine = modelLine,
+          processingTimer = reportProcessingTimer,
+          earliestCreateTime = earliestCreateTime,
+          groupId = groupedRequisitions.groupId,
+          reportId = reportId,
+        )
+      } else {
+        span
+          .setStatus(
+            io.opentelemetry.api.trace.StatusCode.ERROR,
+            "One or more requisitions refused",
+          )
+          .setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      }
     }
   }
 
@@ -385,7 +397,7 @@ class ResultsFulfiller(
     populationSpec: PopulationSpec,
     requisitionsMetadata: Map<String, RequisitionMetadata>,
     kekUri: String?,
-  ) {
+  ): Boolean {
 
     val requisitionProcessingTimer = TimeSource.Monotonic.markNow()
     // Update the Requisition status on the ImpressionMetadataStorage
@@ -419,6 +431,7 @@ class ResultsFulfiller(
           .put(ReportTraceAttributes.REPORT_NAME, reportId)
           .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
           .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
           .also { builder ->
             val basicReportName = measurementSpec.reportingMetadata.basicReport
             if (basicReportName.isNotBlank()) {
@@ -490,6 +503,7 @@ class ResultsFulfiller(
           requisitionProcessingTimer = requisitionProcessingTimer,
           requisitionMetadata = requisitionMetadata,
         )
+        true
       } catch (e: RequisitionRefusalException) {
         recordRequisitionFailure(
           span = span,
@@ -500,6 +514,7 @@ class ResultsFulfiller(
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
         signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
         refuseRequisitionInCmms(requisition, e)
+        false
       } catch (t: Throwable) {
         recordRequisitionFailure(
           span = span,
@@ -654,6 +669,9 @@ class ResultsFulfiller(
     groupId: String,
     reportId: String,
   ) {
+    span
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     span.addEvent(
       EVENT_REQUISITIONS_FULFILLMENT_FINISHED,
       Attributes.builder()
@@ -714,6 +732,10 @@ class ResultsFulfiller(
     requisitionMetadata: RequisitionMetadata?,
     requisitionName: String,
   ) {
+    span
+      .setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "Requisition processing failed")
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
     span.addEvent(
       EVENT_REQUISITION_PROCESSING_FAILED,
       Attributes.builder()

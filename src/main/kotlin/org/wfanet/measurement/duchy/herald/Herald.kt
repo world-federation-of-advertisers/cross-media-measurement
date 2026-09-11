@@ -252,7 +252,10 @@ class Herald(
   }
 
   private fun Computation.reportTraceAttributes(): Attributes {
-    val builder = Attributes.builder().put(ReportTraceAttributes.COMPUTATION_NAME, name)
+    val builder =
+      Attributes.builder()
+        .put(ReportTraceAttributes.COMPUTATION_NAME, name)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_computation")
     runCatching { MeasurementSpec.parseFrom(measurementSpec) }
       .getOrNull()
       ?.let { builder.putAll(ReportTraceAttributes.fromMeasurementSpec(it)) }

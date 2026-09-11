@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.time.Duration
@@ -37,6 +38,7 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.internal.kingdom.GetMeasurementByComputationIdRequest
 import org.wfanet.measurement.internal.kingdom.Measurement
 import org.wfanet.measurement.internal.kingdom.MeasurementsGrpcKt.MeasurementsCoroutineStub
@@ -137,6 +139,11 @@ class ComputationsService(
       grpcRequireNotNull(ComputationKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
+    val span =
+      Span.current()
+        .setAttribute(ReportTraceAttributes.COMPUTATION_NAME, request.name)
+        .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_result_acceptance")
+        .setAttribute(ReportTraceAttributes.OUTCOME, "started")
     grpcRequire(request.publicApiVersion.isNotEmpty()) { "public_api_version unspecified" }
 
     // This assumes that the Certificate resource name is compatible with public API version
@@ -162,8 +169,12 @@ class ComputationsService(
       publicApiVersion = request.publicApiVersion
     }
     try {
-      return measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
+      val computation =
+        measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
+      span.setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      return computation
     } catch (e: StatusException) {
+      span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
       throw when (e.status.code) {
           Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
           Status.Code.CANCELLED -> Status.CANCELLED

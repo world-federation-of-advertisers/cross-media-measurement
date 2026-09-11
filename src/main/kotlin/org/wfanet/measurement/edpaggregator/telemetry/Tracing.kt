@@ -125,9 +125,7 @@ object Tracing {
     val span = spanBuilder.startSpan()
     val scope = span.makeCurrent()
     try {
-      val result = block()
-      span.setStatus(StatusCode.OK)
-      return result
+      return block()
     } catch (e: Exception) {
       span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
       span.recordException(e)
@@ -176,9 +174,7 @@ object Tracing {
     val span = spanBuilder.startSpan()
     val context = Context.current().with(span)
     return try {
-      val result = withContext(context.asContextElement()) { block() }
-      span.setStatus(StatusCode.OK)
-      result
+      withContext(context.asContextElement()) { block() }
     } catch (e: Exception) {
       span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
       span.recordException(e)

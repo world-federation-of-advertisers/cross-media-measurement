@@ -54,15 +54,13 @@ changes *how* you use every tool below:
     `ExternalRequisitionId`s.
   - EDPA: the requisition resource name (`CmmsRequisition`) and its `GroupId`.
   - Reporting: the report / metric name and the `CmmsMeasurementId` link.
-- **Prefer traces for the results-fulfiller.** The results-fulfiller is almost
-  entirely instrumented with OpenTelemetry **span events**, not log lines (see
-  [Telemetry](#telemetry-metrics-and-traces-check-before-grepping-logs)). Its span
-  events carry `edpa.results_fulfiller.cmms_requisition`, `.group_id`,
-  `.report_id`, `.model_line`, `.error_type`, and `.status` as attributes — so in
-  Cloud Trace you can filter to exactly your requisition's fulfillment span among
-  thousands and read the failure reason directly. At high volume this is a useful
-  way to isolate one requisition when the deployment exports and samples the
-  relevant spans. A missing span is not proof that the stage did not run.
+- **Use trace labels and structured logs together.** The Cloud Trace v1 read API
+  returns spans and their searchable labels, but not OpenTelemetry span events or
+  status. ResultsFulfiller therefore puts durable correlation and final outcome
+  fields such as `xmm.requisition.name`, `xmm.edpa.group_id`,
+  `xmm.lifecycle.stage`, and `xmm.outcome` on the span itself. Structured logs
+  provide the detailed chronological evidence. A missing span is not proof that a
+  stage did not run because export and sampling still apply.
 - **Logs still matter, but isolation is component-dependent — and harder.** Don't
   skip them (an exception stack trace is often only in the logs), but know what is
   greppable where:
@@ -79,8 +77,8 @@ changes *how* you use every tool below:
     WorkItem name / processing time from the trace (or its `GroupId`/blob path from
     Spanner), then narrow the log query to that WorkItem name or to a tight
     **time window** around when it was processed, and match on the error signature.
-    Treat log-only isolation as best-effort corroboration; the trace is the
-    dependable index.
+    Treat either source alone as incomplete evidence; use resource IDs to join
+    trace labels, logs, and persisted state.
 
 The stage-by-stage playbook below gives idle-friendly example queries (a bare
 `ORDER BY CreateTime DESC` to eyeball a fresh run); in production, always add the
@@ -132,11 +130,17 @@ sanitized `xmm.*` identifiers. Use `--include-raw-payloads` only for a locally
 controlled investigation: the resulting file is marked `RAW-SENSITIVE` and can
 contain credentials, request data, or other secrets. Review it before sharing.
 
-The command detects source failures and result truncation. Either condition
-marks the artifact partial and makes the process exit non-zero. Use
-`--allow-partial` only when a best-effort artifact is acceptable. `--limit`
-controls the maximum retained spans and log entries; errors and the newest
-terminal evidence are retained first when the result must be bounded.
+The artifact reports `COMPLETE`, `PARTIAL`, or `FAILED`, includes the collection
+window and resolved resource chain, and marks every expected lifecycle stage as
+observed or missing. Zero telemetry and missing stages are never reported as
+complete. Source failures and truncation also make the artifact partial or
+failed. `--allow-partial` changes only the process exit code for `PARTIAL`; it
+does not change the status written into the artifact and never masks `FAILED`.
+`--limit` controls the maximum retained spans and log entries; warnings, errors,
+and the newest terminal evidence are retained first. Set `--limit=0` to collect
+all matching entries. Protocol-dependent stages such as Duchy computation and
+conditional stages such as processed-result writeback are shown when observed,
+but their absence alone does not make an otherwise complete artifact partial.
 
 If the BasicReport database is unavailable but the generated Report name is
 known, direct mode needs only observability permissions:
@@ -159,7 +163,8 @@ grouped-requisitions payload. In the direct-dispatch configuration,
 RequisitionFetcher also persists W3C trace context in the WorkItem so the TEE
 processing span can continue the fetcher's trace across the durable queue
 boundary. Herald and all mills, including HMSS and TrusTEE, recover the
-identifiers from the computation's serialized `MeasurementSpec`. The
+identifiers from the computation's serialized `MeasurementSpec` and label their
+processing spans with `xmm.lifecycle.stage=duchy_computation`. The
 post-processing/noise-correction job prefixes its logs while processing a
 BasicReport with `xmm.basic_report.name`, `xmm.report.name`, lifecycle stage, and
 outcome.
@@ -403,12 +408,13 @@ boundary in direct-dispatch deployments carries W3C trace context explicitly.
 Legacy DataWatcher dispatch starts from its storage notification and is not
 causally connected to the RequisitionFetcher span. Other durable boundaries may
 also begin a new trace, so `xmm.basic_report.name` is the cross-trace join key. The
-results-fulfiller records per-requisition span events (for example,
-`requisition_processing_failed`) carrying the BasicReport, Report, requisition,
-group, fulfiller type, model line, status, and error type. The Herald and mill
-spans carry the BasicReport, Report, Metric, and computation names. Metrics only
-show aggregate success-versus-failure counts; use spans and logs for a specific
-report.
+results-fulfiller puts the BasicReport, Report, requisition, group, lifecycle
+stage, and final outcome on span labels that the Cloud Trace v1 read API exposes.
+More detailed events remain visible only in telemetry backends that retain the
+full OpenTelemetry span model, so the CLI also collects structured logs. The
+Herald and mill spans carry the BasicReport, Report, Metric, and computation
+names. Metrics only show aggregate success-versus-failure counts; use spans and
+logs for a specific report.
 
 ## The playbook
 
@@ -740,12 +746,12 @@ Trace:
    event; read its logs above for
    the error. (The delete path has its own `data-watcher-delete-dlq-sub`.)
 
-4. **results-fulfiller** (GCE MIG). This component is trace-first: most
-   per-requisition detail is in Cloud Trace span events, not logs (see
+4. **results-fulfiller** (GCE MIG). Use trace labels together with logs (see
    [Debugging in production](#debugging-in-production-many-requisitions-in-flight)).
-   To isolate your requisition at volume, filter Cloud Trace by the
-   `edpa.results_fulfiller.cmms_requisition` (or `.group_id` / `.report_id`)
-   attribute and read its span's `.status` / `.error_type` directly.
+   To isolate your requisition at volume, filter Cloud Trace by
+   `xmm.requisition.name` (or `xmm.edpa.group_id` / `xmm.report.name`). Use the
+   `xmm.outcome` label for the handled outcome. Cloud Trace v1 does not return
+   OpenTelemetry event payloads or span status through its read API.
 
    The logs are sparser. A broad severity/stack-trace scan still surfaces the
    exception (the content is in `textPayload`):

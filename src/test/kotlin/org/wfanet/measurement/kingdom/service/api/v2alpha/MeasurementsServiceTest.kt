@@ -61,6 +61,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -393,6 +394,41 @@ class MeasurementsServiceTest {
           requestId = request.requestId
         }
       )
+  }
+
+  @Test
+  fun `createMeasurement rejects reporting lineage from another MeasurementConsumer`() {
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        measurementSpec =
+          measurementSpec.copy {
+            setMessage(
+              MEASUREMENT_SPEC.copy {
+                  reportingMetadata = reportingMetadata {
+                    basicReport = "measurementConsumers/different/basicReports/basic-report"
+                    report = "measurementConsumers/different/reports/report"
+                    metric = "measurementConsumers/different/metrics/metric"
+                  }
+                }
+                .pack()
+            )
+          }
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

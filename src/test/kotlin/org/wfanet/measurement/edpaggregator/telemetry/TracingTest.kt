@@ -85,7 +85,7 @@ class TracingTest {
     val span = spanExporter.finishedSpanItems.single()
     assertThat(span.attributes.get(attributeKey)).isEqualTo("test-value")
     assertThat(spanContext.spanId).isEqualTo(span.spanId)
-    assertThat(span.status.statusCode).isEqualTo(StatusCode.OK)
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.UNSET)
   }
 
   @Test
@@ -145,5 +145,16 @@ class TracingTest {
     val span = spanExporter.finishedSpanItems.single()
     assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
     assertThat(span.events.map { it.name }).contains("exception")
+  }
+
+  @Test
+  fun `traceSuspending preserves error status set by a handled failure`() = runBlocking {
+    Tracing.traceSuspending(spanName = "handled-failure") {
+      Span.current().setStatus(StatusCode.ERROR, "handled refusal")
+    }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
+    assertThat(span.status.description).isEqualTo("handled refusal")
   }
 }

@@ -457,6 +457,7 @@ class RequisitionFetcher(
             .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
             .put(ATTR_REPORT_ID_KEY, unit.reportId)
             .put(ReportTraceAttributes.REPORT_NAME, unit.reportId)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_dispatch")
             .also { builder ->
               if (unit.identifiers.basicReportName.isNotBlank()) {
                 builder.put(
@@ -468,6 +469,7 @@ class RequisitionFetcher(
             .build(),
       ) {
         processReportInner(unit, pendingRecovery, metadataCache)
+        Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       }
     } catch (e: CancellationException) {
       throw e

@@ -230,6 +230,7 @@ class BasicReportsReportsJob(
                         cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
                         externalBasicReportId = basicReport.externalBasicReportId,
                       )
+                      span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
                       return@trace
                     }
 
@@ -251,6 +252,7 @@ class BasicReportsReportsJob(
                       .put(ReportTraceAttributes.OUTCOME, "succeeded")
                       .build(),
                   )
+                  span.setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
                 }
                 Report.State.FAILED -> {
                   failBasicReport(
@@ -261,6 +263,7 @@ class BasicReportsReportsJob(
                     "reporting.basic_report.failed",
                     Attributes.of(ReportTraceAttributes.OUTCOME, "report_failed"),
                   )
+                  span.setAttribute(ReportTraceAttributes.OUTCOME, "report_failed")
                 }
 
                 Report.State.STATE_UNSPECIFIED,

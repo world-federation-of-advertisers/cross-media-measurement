@@ -691,7 +691,11 @@ class MeasurementsService(
           .asRuntimeException()
       }
     measurementSpec.validate()
+    measurementSpec.validateReportingMetadata(parentKey)
     Span.current()
+      .setAllAttributes(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
       .addEvent(
         "kingdom.measurement.accepted",
         ReportTraceAttributes.fromMeasurementSpec(measurementSpec),
@@ -731,6 +735,26 @@ class MeasurementsService(
       this.requestId = requestId
     }
   }
+}
+
+private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementConsumerKey) {
+  val metadata = reportingMetadata
+  fun requireChildResource(name: String, collection: String, fieldName: String) {
+    if (name.isEmpty()) return
+    val parts = name.split('/')
+    grpcRequire(
+      parts.size == 4 &&
+        parts[0] == "measurementConsumers" &&
+        parts[1] == parentKey.measurementConsumerId &&
+        parts[2] == collection &&
+        parts[3].isNotEmpty()
+    ) {
+      "measurement_spec.reporting_metadata.$fieldName is invalid or has incorrect parent"
+    }
+  }
+  requireChildResource(metadata.basicReport, "basicReports", "basic_report")
+  requireChildResource(metadata.report, "reports", "report")
+  requireChildResource(metadata.metric, "metrics", "metric")
 }
 
 private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {

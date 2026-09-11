@@ -2724,6 +2724,23 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `createMetric rejects BasicReport from another MeasurementConsumer`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          basicReport = "measurementConsumers/different/basicReports/basic-report"
+        }
+      metricId = METRIC_ID
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createMetric(request) } }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createMetric creates CMMS measurements for incremental reach`() {
     val basicReportName =
       "measurementConsumers/${MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId}/" +
@@ -5387,6 +5404,27 @@ class MetricsServiceTest {
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
       assertThat(exception).hasMessageThat().contains("certificates/")
     }
+
+  @Test
+  fun `batchCreateMetrics rejects BasicReport from another MeasurementConsumer`() {
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        metric =
+          REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+            basicReport = "measurementConsumers/different/basicReports/basic-report"
+          }
+        metricId = "metric-id1"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.batchCreateMetrics(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   @Test
   fun `batchCreateMetrics creates CMMS measurements`() = runBlocking {

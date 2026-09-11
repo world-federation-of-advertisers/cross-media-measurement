@@ -1492,6 +1492,7 @@ class MetricsService(
       }
     val measurementConsumerName: String = parentKey.toName()
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
+    validateBasicReport(request.metric.basicReport, parentKey, "metric.basic_report")
     if (request.metricId.isNotBlank()) {
       Span.current()
         .setAttribute(
@@ -1499,6 +1500,7 @@ class MetricsService(
           MetricKey(parentKey.measurementConsumerId, request.metricId).toName(),
         )
         .setAttribute(ReportTraceAttributes.REPORT_NAME, request.metric.containingReport)
+        .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "metric_creation")
         .also { span ->
           if (request.metric.basicReport.isNotBlank()) {
             span.setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.metric.basicReport)
@@ -1614,6 +1616,18 @@ class MetricsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
       }
+    grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
+    grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) {
+      "At most $MAX_BATCH_SIZE requests can be supported in a batch."
+    }
+    request.requestsList.forEachIndexed { index, createMetricRequest ->
+      grpcRequire(createMetricRequest.hasMetric()) { "Metric is not specified." }
+      validateBasicReport(
+        createMetricRequest.metric.basicReport,
+        parentKey,
+        "requests[$index].metric.basic_report",
+      )
+    }
 
     request.requestsList
       .map { it.metric.basicReport }
@@ -1696,11 +1710,6 @@ class MetricsService(
       }
     }
     authorization.check(measurementConsumerName, requiredPermissionIds)
-
-    grpcRequire(request.requestsList.isNotEmpty()) { "Requests is empty." }
-    grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) {
-      "At most $MAX_BATCH_SIZE requests can be supported in a batch."
-    }
 
     val metricIds = request.requestsList.map { it.metricId }
     grpcRequire(metricIds.size == metricIds.distinct().size) {
@@ -2061,6 +2070,7 @@ class MetricsService(
       spanName = "reporting.metrics.sync_results",
       attributes = traceAttributes,
     ) {
+      Span.current().setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "metric_result_sync")
       for (internalMetric in internalMetrics) {
         Span.current()
           .addEvent(
@@ -2148,6 +2158,11 @@ class MetricsService(
               .build(),
           )
       }
+      Span.current()
+        .setAttribute(
+          ReportTraceAttributes.OUTCOME,
+          if (publicMetrics.any { it.state == Metric.State.FAILED }) "failed" else "synchronized",
+        )
       publicMetrics
     }
   }
@@ -2244,6 +2259,17 @@ class MetricsService(
         Metric.State.UNRECOGNIZED -> {}
       }
     }
+  }
+
+  private fun validateBasicReport(
+    basicReportName: String,
+    parentKey: MeasurementConsumerKey,
+    fieldName: String,
+  ) {
+    if (basicReportName.isBlank()) return
+    val basicReportKey =
+      grpcRequireNotNull(BasicReportKey.fromName(basicReportName)) { "$fieldName is invalid" }
+    grpcRequire(basicReportKey.parentKey == parentKey) { "$fieldName has incorrect parent" }
   }
 
   object Permission {

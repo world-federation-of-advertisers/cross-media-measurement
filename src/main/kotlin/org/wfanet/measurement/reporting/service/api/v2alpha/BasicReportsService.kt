@@ -579,6 +579,10 @@ class BasicReportsService(
 
     val basicReportName =
       BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
+    Span.current()
+      .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_creation")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     val report: Report =
       try {
         buildReport(
@@ -761,6 +765,7 @@ class BasicReportsService(
 
     Span.current()
       .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.name)
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_api_fetch")
       .addEvent(
         "reporting.basic_report.fetch_started",
         io.opentelemetry.api.common.Attributes.of(
@@ -804,6 +809,7 @@ class BasicReportsService(
       internalBasicReport.toBasicReport(!request.excludeDeprecatedEventGroupSummaries)
     Span.current()
       .setAttribute(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       .addEvent(
         "reporting.basic_report.returned",
         io.opentelemetry.api.common.Attributes.builder()

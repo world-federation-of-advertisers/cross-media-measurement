@@ -239,6 +239,7 @@ class ReportsService(
 
     Span.current()
       .setAttribute(ReportTraceAttributes.REPORT_NAME, request.name)
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "report_result_assembly")
       .addEvent(
         "reporting.report.fetch_started",
         io.opentelemetry.api.common.Attributes.of(
@@ -340,6 +341,14 @@ class ReportsService(
     val report = convertInternalReportToPublic(internalReport, externalIdToMetricMap)
     Span.current()
       .setAttribute(ReportTraceAttributes.REPORT_STATE, report.state.name)
+      .setAttribute(
+        ReportTraceAttributes.OUTCOME,
+        when (report.state) {
+          Report.State.SUCCEEDED -> "results_available"
+          Report.State.FAILED -> "failed"
+          else -> "pending"
+        },
+      )
       .addEvent(
         "reporting.report.returned",
         io.opentelemetry.api.common.Attributes.builder()
@@ -392,12 +401,23 @@ class ReportsService(
 
     grpcRequire(request.hasReport()) { "Report is not specified." }
     grpcRequire(request.reportId.matches(RESOURCE_ID_REGEX)) { "Report ID is invalid." }
+    if (request.report.basicReport.isNotBlank()) {
+      val basicReportKey =
+        grpcRequireNotNull(BasicReportKey.fromName(request.report.basicReport)) {
+          "report.basic_report is invalid"
+        }
+      grpcRequire(basicReportKey.parentKey == parentKey) {
+        "report.basic_report has incorrect parent"
+      }
+    }
 
     Span.current()
       .setAttribute(
         ReportTraceAttributes.REPORT_NAME,
         ReportKey(parentKey.measurementConsumerId, request.reportId).toName(),
       )
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "report_creation")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "started")
       .also { span ->
         if (request.report.basicReport.isNotBlank()) {
           span.setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.report.basicReport)

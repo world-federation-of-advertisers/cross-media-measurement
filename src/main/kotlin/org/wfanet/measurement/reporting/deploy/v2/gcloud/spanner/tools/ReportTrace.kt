@@ -95,14 +95,7 @@ internal data class ReportTraceLogEntry(
   val message: String,
 )
 
-/** An annotated event recorded within a Cloud Trace span. */
-internal data class ReportTraceEvent(
-  val timestamp: Instant,
-  val name: String,
-  val attributes: Map<String, String>,
-)
-
-/** A complete Cloud Trace span retained separately from Cloud Logging entries. */
+/** A Cloud Trace v1 span. The read API exposes span labels, but not OTel events or status. */
 internal data class ReportTraceSpan(
   val sourceProject: String,
   val traceId: String,
@@ -112,10 +105,19 @@ internal data class ReportTraceSpan(
   val service: String,
   val startTime: Instant,
   val endTime: Instant?,
-  val statusCode: String?,
-  val statusMessage: String?,
   val attributes: Map<String, String>,
-  val events: List<ReportTraceEvent>,
+)
+
+internal enum class ReportTraceArtifactStatus {
+  COMPLETE,
+  PARTIAL,
+  FAILED,
+}
+
+internal data class ReportTraceLifecycleStage(
+  val name: String,
+  val status: String,
+  val evidence: String,
 )
 
 internal data class ReportTraceSourceStatus(
@@ -251,16 +253,16 @@ internal class GoogleCloudReportTraceLogReader(
         logging
           .listLogEntries(
             EntryListOption.filter(filter),
-            EntryListOption.pageSize((limit + 1).coerceAtMost(MAX_LOG_PAGE_SIZE)),
-            EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.ASCENDING),
+            EntryListOption.pageSize(readLimit(limit).coerceAtMost(MAX_LOG_PAGE_SIZE)),
+            EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.DESCENDING),
           )
           .iterateAll()
-          .take(limit + 1)
+          .take(readLimit(limit))
           .map { it.toReportTraceLogEntry() }
       }
       .distinct()
-      .sortedBy { it.timestamp }
-      .take(limit + 1)
+      .sortedByDescending { it.timestamp }
+      .take(readLimit(limit))
   }
 
   private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry {
@@ -281,6 +283,8 @@ internal class GoogleCloudReportTraceLogReader(
 
   companion object {
     private const val MAX_LOG_PAGE_SIZE = 1000
+
+    private fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
   }
 }
 
@@ -313,7 +317,7 @@ internal class GoogleCloudReportTraceSpanReader(
     for (traceId in traceIds.map { it.substringAfterLast('/') }.distinct()) {
       readTrace(project, traceId)?.let { entries += it }
     }
-    return entries.distinct().sortedBy { it.startTime }.take(limit + 1)
+    return entries.distinct().sortedBy { it.startTime }.take(readLimit(limit))
   }
 
   private fun listTraces(
@@ -329,7 +333,7 @@ internal class GoogleCloudReportTraceSpanReader(
       val queryParameters =
         mutableMapOf(
           "view" to "COMPLETE",
-          "pageSize" to limit.coerceAtMost(MAX_TRACE_PAGE_SIZE).toString(),
+          "pageSize" to readLimit(limit).coerceAtMost(MAX_TRACE_PAGE_SIZE).toString(),
           "startTime" to startTime.toString(),
           "endTime" to endTime.toString(),
           "filter" to filter,
@@ -343,25 +347,17 @@ internal class GoogleCloudReportTraceSpanReader(
         HttpRequest.newBuilder()
           .uri(URI.create("https://cloudtrace.googleapis.com/v1/projects/$project/traces?$query"))
           .header("Authorization", "Bearer ${checkNotNull(credentials.accessToken).tokenValue}")
+          .timeout(HTTP_REQUEST_TIMEOUT)
           .GET()
           .build()
       val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
       check(response.statusCode() in 200..299) {
-        "Cloud Trace API returned HTTP ${response.statusCode()}: ${response.body().take(1000)}"
+        "Cloud Trace API returned HTTP ${response.statusCode()}"
       }
       val root = JsonParser.parseString(response.body()).asJsonObject
-      val traces = root.getAsJsonArray("traces")
-      if (traces != null) {
-        entries +=
-          traces.flatMap { traceElement ->
-            val trace = traceElement.asJsonObject
-            val traceId = trace.requiredString("traceId")
-            val spans = trace.getAsJsonArray("spans") ?: return@flatMap emptyList()
-            spans.map { spanElement -> spanElement.asJsonObject.toTraceSpan(project, traceId) }
-          }
-      }
+      entries += parseCloudTraceV1Response(project, response.body())
       pageToken = root.optionalString("nextPageToken")
-    } while (pageToken != null && entries.size <= limit)
+    } while (pageToken != null && entries.size < readLimit(limit))
     return entries
   }
 
@@ -370,87 +366,16 @@ internal class GoogleCloudReportTraceSpanReader(
       HttpRequest.newBuilder()
         .uri(URI.create("https://cloudtrace.googleapis.com/v1/projects/$project/traces/$traceId"))
         .header("Authorization", "Bearer ${checkNotNull(credentials.accessToken).tokenValue}")
+        .timeout(HTTP_REQUEST_TIMEOUT)
         .GET()
         .build()
     val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
     if (response.statusCode() == 404) return null
     check(response.statusCode() in 200..299) {
-      "Cloud Trace API returned HTTP ${response.statusCode()}: ${response.body().take(1000)}"
+      "Cloud Trace API returned HTTP ${response.statusCode()}"
     }
-    val trace = JsonParser.parseString(response.body()).asJsonObject
-    val responseTraceId = trace.optionalString("traceId") ?: traceId
-    val spans = trace.getAsJsonArray("spans") ?: return emptyList()
-    return spans.map { it.asJsonObject.toTraceSpan(project, responseTraceId) }
+    return parseCloudTraceV1Response(project, response.body(), traceId)
   }
-
-  private fun JsonObject.toTraceSpan(project: String, traceId: String): ReportTraceSpan {
-    val labels = getAsJsonObject("labels")
-    val service =
-      labels?.optionalString("g.co/agent/name")
-        ?: labels?.optionalString("service.name")
-        ?: labels?.optionalString("/http/host")
-        ?: "unknown-service"
-    val endTimeValue = optionalString("endTime")
-    val endTime = if (endTimeValue == null) null else Instant.parse(endTimeValue)
-    val startTime = Instant.parse(requiredString("startTime"))
-    val status = getAsJsonObject("status")
-    return ReportTraceSpan(
-      sourceProject = project,
-      traceId = traceId,
-      spanId = requiredString("spanId"),
-      parentSpanId = optionalString("parentSpanId"),
-      name = requiredString("name"),
-      service = service,
-      startTime = startTime,
-      endTime = endTime,
-      statusCode = status?.optionalString("code"),
-      statusMessage = status?.optionalString("message"),
-      attributes = labels?.stringValues().orEmpty(),
-      events = parseEvents(),
-    )
-  }
-
-  private fun JsonObject.parseEvents(): List<ReportTraceEvent> {
-    val timeEvents = getAsJsonObject("timeEvents") ?: return emptyList()
-    val events = timeEvents.getAsJsonArray("timeEvent") ?: return emptyList()
-    return events.mapNotNull { eventElement ->
-      val event = eventElement.asJsonObject
-      val timestamp = event.optionalString("time")?.let(Instant::parse) ?: return@mapNotNull null
-      val annotation = event.getAsJsonObject("annotation") ?: return@mapNotNull null
-      val attributes =
-        annotation.getAsJsonObject("attributes")?.getAsJsonObject("attributeMap")?.attributeValues()
-          ?: emptyMap()
-      ReportTraceEvent(
-        timestamp = timestamp,
-        name = annotation.optionalString("description") ?: "annotation",
-        attributes = attributes,
-      )
-    }
-  }
-
-  private fun JsonObject.stringValues(): Map<String, String> {
-    return entrySet()
-      .mapNotNull { (key, value) -> if (value.isJsonPrimitive) key to value.asString else null }
-      .toMap()
-  }
-
-  private fun JsonObject.attributeValues(): Map<String, String> {
-    return entrySet()
-      .mapNotNull { (key, value) ->
-        val attribute = value.takeIf { it.isJsonObject }?.asJsonObject ?: return@mapNotNull null
-        val rendered =
-          listOf("stringValue", "intValue", "boolValue").firstNotNullOfOrNull {
-            attribute.optionalString(it)
-          } ?: return@mapNotNull null
-        key to rendered
-      }
-      .toMap()
-  }
-
-  private fun JsonObject.requiredString(name: String): String = get(name).asString
-
-  private fun JsonObject.optionalString(name: String): String? =
-    get(name)?.takeUnless { it.isJsonNull }?.asString
 
   companion object {
     private const val TRACE_READ_SCOPE = "https://www.googleapis.com/auth/trace.readonly"
@@ -459,6 +384,9 @@ internal class GoogleCloudReportTraceSpanReader(
     private const val METRIC_TRACE_ATTRIBUTE = "xmm.metric.name"
     private const val MEASUREMENT_TRACE_ATTRIBUTE = "xmm.measurement.name"
     private const val MAX_TRACE_PAGE_SIZE = 1000
+    private val HTTP_REQUEST_TIMEOUT: Duration = Duration.ofSeconds(30)
+
+    private fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
 
     private fun traceAttributeFor(value: String): String? {
       return when {
@@ -474,13 +402,60 @@ internal class GoogleCloudReportTraceSpanReader(
   }
 }
 
+/** Parses the documented Cloud Trace v1 Trace/Traces response shape. */
+internal fun parseCloudTraceV1Response(
+  project: String,
+  body: String,
+  fallbackTraceId: String? = null,
+): List<ReportTraceSpan> {
+  val root = JsonParser.parseString(body).asJsonObject
+  val traces = root.getAsJsonArray("traces")?.map { it.asJsonObject } ?: listOf(root)
+  return traces.flatMap { trace ->
+    val traceId = trace.optionalString("traceId") ?: fallbackTraceId ?: return@flatMap emptyList()
+    trace.getAsJsonArray("spans")?.map { spanElement ->
+      val span = spanElement.asJsonObject
+      val labels = span.getAsJsonObject("labels")
+      val service =
+        labels?.optionalString("g.co/agent/name")
+          ?: labels?.optionalString("service.name")
+          ?: labels?.optionalString("/http/host")
+          ?: "unknown-service"
+      ReportTraceSpan(
+        sourceProject = project,
+        traceId = traceId,
+        spanId = span.requiredString("spanId"),
+        parentSpanId = span.optionalString("parentSpanId"),
+        name = span.requiredString("name"),
+        service = service,
+        startTime = Instant.parse(span.requiredString("startTime")),
+        endTime = span.optionalString("endTime")?.let(Instant::parse),
+        attributes = labels?.stringValues().orEmpty(),
+      )
+    } ?: emptyList()
+  }
+}
+
+private fun JsonObject.stringValues(): Map<String, String> {
+  return entrySet()
+    .mapNotNull { (key, value) -> if (value.isJsonPrimitive) key to value.asString else null }
+    .toMap()
+}
+
+private fun JsonObject.requiredString(name: String): String = get(name).asString
+
+private fun JsonObject.optionalString(name: String): String? =
+  get(name)?.takeUnless { it.isJsonNull }?.asString
+
 internal object ReportTraceOutput {
   fun renderLogPayload(payload: Payload<*>?, includeRawPayloads: Boolean): String {
     if (payload == null) return ""
     if (includeRawPayloads) return payload.toString()
     if (payload.type == Payload.Type.STRING) {
       val text = (payload as Payload.StringPayload).data
-      val safeFields = SAFE_TEXT_FIELD_PATTERN.findAll(text).map { sanitize(it.value) }.toList()
+      val safeFields =
+        SAFE_TEXT_FIELD_PATTERN.findAll(text)
+          .map { match -> "${match.groupValues[1]}=${sanitize(match.groupValues[2])}" }
+          .toList()
       return if (safeFields.isEmpty()) {
         "[string payload omitted]"
       } else {
@@ -494,17 +469,22 @@ internal object ReportTraceOutput {
     val values = (payload as Payload.JsonPayload).dataAsMap
     val safeValues = mutableMapOf<String, String>()
     for (key in SAFE_LOG_FIELDS) {
-      val value = values[key]
-      if (value != null) {
-        safeValues[key] = sanitize(value.toString())
+      values[key]?.let { value -> safeScalar(value)?.let { safeValues[key] = it } }
+    }
+    val message = values["message"]?.toString()
+    if (message != null) {
+      SAFE_TEXT_FIELD_PATTERN.findAll(message).forEach { match ->
+        val key = match.groups[1]?.value ?: return@forEach
+        val value = match.groups[2]?.value ?: return@forEach
+        safeValues[key] = sanitize(value)
       }
     }
     val nestedAttributes = values["attributes"] as? Map<*, *>
     if (nestedAttributes != null) {
       for ((key, value) in nestedAttributes) {
         val keyString = key as? String ?: continue
-        if (keyString in SAFE_LOG_FIELDS || keyString.startsWith("xmm.")) {
-          safeValues[keyString] = sanitize(value?.toString().orEmpty())
+        if (keyString in SAFE_LOG_FIELDS && value != null) {
+          safeScalar(value)?.let { safeValues[keyString] = it }
         }
       }
     }
@@ -570,8 +550,19 @@ internal object ReportTraceOutput {
     sourceStatuses: List<ReportTraceSourceStatus>,
     warnings: List<String>,
     includeRawPayloads: Boolean,
+    lifecycleCoverage: List<ReportTraceLifecycleStage> =
+      lifecycleCoverage(context, spans, logEntries),
+    artifactStatus: ReportTraceArtifactStatus =
+      artifactStatus(spans, logEntries, sourceStatuses, lifecycleCoverage),
+    startTime: Instant? = null,
+    endTime: Instant? = null,
+    generatedAt: Instant? = null,
   ): String = buildString {
     appendLine("# Report execution trace")
+    appendLine()
+    appendLine("Status: $artifactStatus")
+    appendLine()
+    appendLine("## Identity and collection window")
     appendLine()
     val basicReportName = context.basicReportName
     if (basicReportName != null) {
@@ -583,11 +574,26 @@ internal object ReportTraceOutput {
       appendLine()
     }
     appendLine("Report: ${context.reportName}")
-    appendLine("Metrics: ${context.metricNames.size}")
-    appendLine("Measurements: ${context.measurementNames.size}")
+    if (startTime != null) appendLine("Collection start: $startTime")
+    if (endTime != null) appendLine("Collection end: $endTime")
+    if (generatedAt != null) appendLine("Generated at: $generatedAt")
     appendLine("Payload policy: ${if (includeRawPayloads) "RAW-SENSITIVE" else "REDACTED"}")
     if (includeRawPayloads) {
       appendLine("WARNING: This artifact contains raw log payloads and may contain secrets.")
+    }
+    appendLine()
+    appendLine("## Resolved resource chain")
+    appendLine()
+    appendLine("- Report: ${context.reportName}")
+    if (context.metricNames.isEmpty()) {
+      appendLine("- Metrics: none resolved")
+    } else {
+      context.metricNames.forEach { appendLine("- Metric: $it") }
+    }
+    if (context.measurementNames.isEmpty()) {
+      appendLine("- Measurements: none resolved")
+    } else {
+      context.measurementNames.forEach { appendLine("- Measurement: $it") }
     }
     appendLine()
     if (sourceStatuses.isNotEmpty()) {
@@ -604,93 +610,178 @@ internal object ReportTraceOutput {
       }
       appendLine()
     }
-    if (warnings.isNotEmpty()) {
-      appendLine("## Collection warnings")
-      for (warning in warnings) {
-        appendLine("- $warning")
-      }
-      appendLine()
+    appendLine("## Lifecycle coverage")
+    appendLine()
+    appendLine("| Stage | Status | Evidence |")
+    appendLine("| --- | --- | --- |")
+    for (stage in lifecycleCoverage) {
+      appendLine("| ${stage.name} | ${stage.status} | ${sanitize(stage.evidence)} |")
     }
-    appendLine("## Timeline")
+    appendLine()
+    appendLine("## Chronological timeline")
     appendLine()
     if (spans.isEmpty() && logEntries.isEmpty()) {
-      if (warnings.isEmpty()) {
-        appendLine("No matching trace spans or log entries were found in the selected time range.")
-      } else {
-        appendLine("No timeline entries were collected; see the collection warnings above.")
-      }
-      return@buildString
-    }
-    val timeline = buildList {
-      for (entry in logEntries) {
-        add(
-          RenderedTimelineEntry(
-            timestamp = entry.timestamp,
-            text =
-              "LOG ${entry.severity.padEnd(7)} [${entry.sourceProject}/${entry.service}] " +
-                entry.message.replace('\n', ' ') +
-                (entry.trace?.let { " trace=${it.substringAfterLast('/')}" } ?: ""),
-          )
-        )
-      }
-      for (span in spans) {
-        val duration = span.endTime?.let { Duration.between(span.startTime, it).toMillis() }
-        val status =
-          listOfNotNull(span.statusCode, span.statusMessage?.let(ReportTraceOutput::sanitize))
-            .joinToString(":")
-        val attributes = formatAttributes(span.attributes)
-        add(
-          RenderedTimelineEntry(
-            timestamp = span.startTime,
-            text =
-              buildString {
-                append("SPAN [${span.sourceProject}/${span.service}] ${span.name}")
-                append(" trace=${span.traceId} span=${span.spanId}")
-                if (span.parentSpanId != null) append(" parent=${span.parentSpanId}")
-                if (duration != null) append(" duration_ms=$duration")
-                if (status.isNotEmpty()) append(" status=$status")
-                if (attributes.isNotEmpty()) append(" ").append(attributes)
-              },
-          )
-        )
-        for (event in span.events) {
+      appendLine("No matching trace spans or log entries were found in the selected time range.")
+    } else {
+      val timeline = buildList {
+        for (entry in logEntries) {
           add(
             RenderedTimelineEntry(
-              timestamp = event.timestamp,
+              timestamp = entry.timestamp,
               text =
-                "EVENT [${span.sourceProject}/${span.service}] ${event.name}" +
-                  " trace=${span.traceId} span=${span.spanId}" +
-                  formatAttributes(event.attributes).let { if (it.isEmpty()) "" else " $it" },
+                "LOG ${entry.severity.padEnd(7)} [${entry.sourceProject}/${entry.service}] " +
+                  entry.message.replace('\n', ' ') +
+                  (entry.trace?.let { " trace=${it.substringAfterLast('/')}" } ?: ""),
+            )
+          )
+        }
+        for (span in spans) {
+          val duration = span.endTime?.let { Duration.between(span.startTime, it).toMillis() }
+          val attributes = formatAttributes(span.attributes)
+          add(
+            RenderedTimelineEntry(
+              timestamp = span.startTime,
+              text =
+                buildString {
+                  append("SPAN [${span.sourceProject}/${span.service}] ${span.name}")
+                  append(" trace=${span.traceId} span=${span.spanId}")
+                  if (span.parentSpanId != null) append(" parent=${span.parentSpanId}")
+                  if (duration != null) append(" duration_ms=$duration")
+                  if (attributes.isNotEmpty()) append(" ").append(attributes)
+                },
             )
           )
         }
       }
+      for (entry in timeline.sortedBy { it.timestamp }) {
+        append(entry.timestamp).append("  ").appendLine(entry.text)
+      }
     }
-    for (entry in timeline.sortedBy { it.timestamp }) {
-      append(entry.timestamp).append("  ").appendLine(entry.text)
+    appendLine()
+    appendLine("## Errors and warnings")
+    appendLine()
+    if (warnings.isEmpty()) {
+      appendLine("None.")
+    } else {
+      for (warning in warnings) {
+        appendLine("- ${sanitize(warning)}")
+      }
+    }
+    appendLine()
+    appendLine("## Collection metadata")
+    appendLine()
+    appendLine("- Tool: report-trace")
+    appendLine("- Trace API: Cloud Trace v1 (span labels only; events and status are unavailable)")
+  }
+
+  fun lifecycleCoverage(
+    context: ReportTraceContext,
+    spans: List<ReportTraceSpan>,
+    logEntries: List<ReportTraceLogEntry>,
+  ): List<ReportTraceLifecycleStage> {
+    val observed = mutableMapOf<String, MutableList<String>>()
+    for (span in spans) {
+      val stage = span.attributes["xmm.lifecycle.stage"] ?: inferStage(span.name) ?: continue
+      observed.getOrPut(stage) { mutableListOf() } += "span ${span.name}"
+    }
+    for (entry in logEntries) {
+      SAFE_TEXT_FIELD_PATTERN.findAll(entry.message).forEach { match ->
+        if (match.groups[1]?.value == "xmm.lifecycle.stage") {
+          val stage = match.groups[2]?.value ?: return@forEach
+          observed.getOrPut(stage) { mutableListOf() } += "log ${entry.service}"
+        }
+      }
+    }
+    val expectedStages = expectedStages(context)
+    return (expectedStages + observed.keys.filterNot { it in expectedStages }.sorted()).map { stage
+      ->
+      val evidence = observed[stage].orEmpty().distinct()
+      ReportTraceLifecycleStage(
+        name = stage,
+        status =
+          when {
+            evidence.isNotEmpty() -> "OBSERVED"
+            stage in expectedStages -> "MISSING"
+            else -> "OPTIONAL"
+          },
+        evidence = evidence.joinToString().ifEmpty { "No matching span label or structured log" },
+      )
     }
   }
 
+  fun artifactStatus(
+    spans: List<ReportTraceSpan>,
+    logEntries: List<ReportTraceLogEntry>,
+    sourceStatuses: List<ReportTraceSourceStatus>,
+    lifecycleCoverage: List<ReportTraceLifecycleStage>,
+  ): ReportTraceArtifactStatus {
+    if (spans.isEmpty() && logEntries.isEmpty()) {
+      return if (sourceStatuses.isNotEmpty() && sourceStatuses.all { it.status == "FAILED" }) {
+        ReportTraceArtifactStatus.FAILED
+      } else {
+        ReportTraceArtifactStatus.PARTIAL
+      }
+    }
+    return if (
+      sourceStatuses.any { it.status in setOf("FAILED", "PARTIAL", "TRUNCATED") } ||
+        lifecycleCoverage.any { it.status == "MISSING" }
+    ) {
+      ReportTraceArtifactStatus.PARTIAL
+    } else {
+      ReportTraceArtifactStatus.COMPLETE
+    }
+  }
+
+  private fun expectedStages(context: ReportTraceContext): List<String> = buildList {
+    if (context.basicReportName != null) add("basic_report_creation")
+    add("report_creation")
+    add("measurement_creation")
+    add("requisition_creation")
+    add("requisition_dispatch")
+    add("results_fulfillment")
+    add("kingdom_result_acceptance")
+    add("metric_result_sync")
+    add("report_result_assembly")
+    if (context.basicReportName != null) {
+      add("noise_correction")
+    }
+  }
+
+  private fun inferStage(spanName: String): String? =
+    when {
+      "requisition_fetcher" in spanName -> "requisition_dispatch"
+      "results_fulfiller" in spanName || "report_fulfillment" in spanName -> "results_fulfillment"
+      "sync_results" in spanName -> "report_result_sync"
+      "assemble_results" in spanName -> "report_result_assembly"
+      else -> null
+    }
+
   private fun formatAttributes(attributes: Map<String, String>): String {
     return attributes
-      .filterKeys { key ->
-        key.startsWith("xmm.") ||
-          key.startsWith("edpa.") ||
-          key in SAFE_TRACE_ATTRIBUTES ||
-          key.startsWith("exception.")
-      }
+      .filterKeys { key -> key in SAFE_LOG_FIELDS || key in SAFE_TRACE_ATTRIBUTES }
       .entries
       .sortedBy { it.key }
       .joinToString(" ") { (key, value) -> "$key=${sanitize(value)}" }
   }
 
-  private fun sanitize(value: String): String {
+  fun sanitize(value: String): String {
     var sanitized = value.replace('\n', ' ').replace('\r', ' ')
     for (pattern in SECRET_PATTERNS) {
-      sanitized = pattern.replace(sanitized, "$1[REDACTED]")
+      sanitized =
+        pattern.replace(sanitized) { match ->
+          "${match.groupValues.getOrNull(1).orEmpty()}[REDACTED]"
+        }
     }
     return sanitized.take(MAX_RENDERED_VALUE_LENGTH)
   }
+
+  private fun safeScalar(value: Any): String? =
+    when (value) {
+      is String,
+      is Number,
+      is Boolean -> sanitize(value.toString())
+      else -> null
+    }
 
   private data class RenderedTimelineEntry(val timestamp: Instant, val text: String)
 
@@ -698,14 +789,12 @@ internal object ReportTraceOutput {
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val SAFE_LOG_FIELDS =
     setOf(
-      "message",
       "event",
       "stage",
       "status",
       "state",
       "error_type",
       "exception.type",
-      "exception.message",
       "xmm.basic_report.name",
       "xmm.report.name",
       "xmm.metric.name",
@@ -714,6 +803,12 @@ internal object ReportTraceOutput {
       "xmm.edpa.group_id",
       "xmm.work_item.name",
       "xmm.computation.name",
+      "xmm.basic_report.state",
+      "xmm.report.state",
+      "xmm.metric.state",
+      "xmm.measurement.state",
+      "xmm.lifecycle.stage",
+      "xmm.outcome",
     )
   private val SAFE_TRACE_ATTRIBUTES =
     setOf("error", "service.name", "g.co/agent/name", "/http/host")
@@ -722,14 +817,15 @@ internal object ReportTraceOutput {
       Regex("(?i)(bearer\\s+)[A-Za-z0-9._~+/=-]+"),
       Regex(
         "(?i)((?:authorization|cookie|set-cookie|x-api-key|api[_-]?key|access[_-]?token|" +
-          "refresh[_-]?token|client[_-]?secret|private[_-]?key)\\s*[:=]\\s*)[^\\s,;]+"
+          "refresh[_-]?token|client[_-]?secret|private[_-]?key|password|passwd|credential|" +
+          "session[_-]?(?:id|token))\\s*[:=]\\s*)[^\\s,;]+"
       ),
+      Regex("(?i)(https?://[^\\s?]+\\?)[^\\s]+"),
+      Regex("(?<![A-Za-z0-9_-])[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?![A-Za-z0-9_-])"),
       Regex("(?is)(-----BEGIN [^-]*PRIVATE KEY-----).*?(-----END [^-]*PRIVATE KEY-----)"),
     )
   private val SAFE_TEXT_FIELD_PATTERN =
-    Regex(
-      "(?:xmm\\.[a-zA-Z0-9_.-]+|edpa\\.[a-zA-Z0-9_.-]+|error_type|status|state|event|stage)=[^\\s]+"
-    )
+    Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
 }
 
 @CommandLine.Command(
@@ -747,6 +843,9 @@ internal class ReportTrace(
   private val clock: Clock,
 ) : Runnable {
   @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
+
+  private val spanReader: ReportTraceSpanReader by lazy(spanReaderFactory)
+  private val logReaders = mutableMapOf<Pair<String, Boolean>, ReportTraceLogReader>()
 
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
@@ -766,7 +865,8 @@ internal class ReportTrace(
 
   @CommandLine.Option(
     names = ["--allow-partial"],
-    description = ["Exit successfully when an observability source fails or output is truncated."],
+    description =
+      ["Exit successfully for a PARTIAL artifact. FAILED artifacts still return a failure."],
   )
   private var allowPartial: Boolean = false
 
@@ -827,7 +927,12 @@ internal class ReportTrace(
   )
   private var endTime: String? = null
 
-  @CommandLine.Option(names = ["--limit"], defaultValue = "1000") private lateinit var limit: String
+  @CommandLine.Option(
+    names = ["--limit"],
+    defaultValue = "1000",
+    description = ["Maximum retained spans and logs. Set to 0 to collect without a limit."],
+  )
+  private lateinit var limit: String
 
   override fun run() {
     val exitCode = runBlocking { execute() }
@@ -859,13 +964,11 @@ internal class ReportTrace(
         "--output-dir is required when --basic-report is specified more than once",
       )
     }
-    val entryLimit = limit.toIntOrNull()
-    if (entryLimit == null || entryLimit !in 1..MAX_ENTRIES) {
-      throw CommandLine.ParameterException(
-        spec.commandLine(),
-        "--limit must be between 1 and $MAX_ENTRIES",
-      )
+    val configuredLimit = limit.toIntOrNull()
+    if (configuredLimit == null || configuredLimit < 0) {
+      throw CommandLine.ParameterException(spec.commandLine(), "--limit must be non-negative")
     }
+    val entryLimit = if (configuredLimit == 0) Int.MAX_VALUE else configuredLimit
 
     val parsedEndTime = endTime?.let { parseTime("--end-time", it) } ?: clock.instant()
     val explicitStartTime = startTime?.let { parseTime("--start-time", it) }
@@ -905,9 +1008,14 @@ internal class ReportTrace(
             collection.sourceStatuses,
             collection.warnings,
             includeRawPayloads,
+            collection.lifecycleCoverage,
+            collection.status,
+            collection.startTime,
+            collection.endTime,
+            collection.generatedAt,
           )
         )
-      return if (collection.warnings.isEmpty() || allowPartial) 0 else 1
+      return exitCode(collection.status)
     }
 
     val normalizedOutputDirectory =
@@ -977,10 +1085,15 @@ internal class ReportTrace(
               collection.sourceStatuses,
               collection.warnings,
               includeRawPayloads,
+              collection.lifecycleCoverage,
+              collection.status,
+              collection.startTime,
+              collection.endTime,
+              collection.generatedAt,
             ),
           )
-        printBatchResult(name, if (collection.warnings.isEmpty()) "OK" else "PARTIAL", outputPath)
-        if (collection.warnings.isNotEmpty() && !allowPartial) {
+        printBatchResult(name, collection.status.name, outputPath)
+        if (exitCode(collection.status) != 0) {
           failures++
         }
       } catch (e: Exception) {
@@ -989,7 +1102,7 @@ internal class ReportTrace(
           writeArtifact(
             outputDirectory,
             fileName,
-            renderFailureArtifact(name, e.message ?: e::class.java.name),
+            renderFailureArtifact(name, failureDescription(e)),
           )
         printBatchResult(name, "FAILED", outputPath)
       }
@@ -1020,33 +1133,42 @@ internal class ReportTrace(
     val logFailures = mutableMapOf<String, MutableList<String>>()
     val traceTruncatedProjects = mutableSetOf<String>()
     val logTruncatedProjects = mutableSetOf<String>()
-    val spanReader = spanReaderFactory()
+    val traceFetchedCounts = mutableMapOf<String, Int>()
+    val logFetchedCounts = mutableMapOf<String, Int>()
     val projects = observabilityProjects.distinct()
     for (project in projects) {
       try {
         val projectLogEntries =
-          logReaderFactory(project, includeRawPayloads)
+          logReaders
+            .getOrPut(project to includeRawPayloads) {
+              logReaderFactory(project, includeRawPayloads)
+            }
             .read(context.correlationValues, startTime, endTime, entryLimit)
         if (projectLogEntries.size > entryLimit) {
           logTruncatedProjects += project
           warnings +=
             "Cloud Logging results were truncated for project $project at $entryLimit entries"
         }
+        logFetchedCounts[project] = projectLogEntries.size
         logEntries += retainLogEntries(projectLogEntries, entryLimit)
       } catch (e: Exception) {
-        val failure = e.message ?: e::class.java.name
+        val failure = failureDescription(e)
         logFailures.getOrPut(project) { mutableListOf() } += failure
         warnings += "Cloud Logging query failed for project $project: $failure"
       }
     }
 
     val logTraceIds = logEntries.mapNotNull { it.trace?.substringAfterLast('/') }.distinct()
+    val primaryCorrelationValues =
+      listOfNotNull(
+        context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
+      )
     for (project in projects) {
       try {
         val projectSpans =
           spanReader.read(
             project,
-            context.correlationValues,
+            primaryCorrelationValues,
             logTraceIds,
             startTime,
             endTime,
@@ -1056,9 +1178,11 @@ internal class ReportTrace(
           traceTruncatedProjects += project
           warnings += "Cloud Trace results were truncated for project $project at $entryLimit spans"
         }
+        traceFetchedCounts[project] =
+          traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
         spanEntries += retainSpans(projectSpans, entryLimit)
       } catch (e: Exception) {
-        val failure = e.message ?: e::class.java.name
+        val failure = failureDescription(e)
         traceFailures.getOrPut(project) { mutableListOf() } += failure
         warnings += "Cloud Trace query failed for project $project: $failure"
       }
@@ -1085,11 +1209,49 @@ internal class ReportTrace(
             warnings +=
               "Cloud Trace ID results were truncated for project $project at $entryLimit spans"
           }
+          traceFetchedCounts[project] =
+            traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
           spanEntries += retainSpans(projectSpans, entryLimit)
         } catch (e: Exception) {
-          val failure = e.message ?: e::class.java.name
+          val failure = failureDescription(e)
           traceFailures.getOrPut(project) { mutableListOf() } += failure
           warnings += "Cloud Trace ID lookup failed for project $project: $failure"
+        }
+      }
+    }
+
+    // Resource-name fallback can be expensive for high-cardinality reports. Use it only when the
+    // primary lineage query and cross-project trace-ID expansion did not cover the lifecycle.
+    val fallbackCorrelationValues = context.correlationValues - primaryCorrelationValues.toSet()
+    if (
+      fallbackCorrelationValues.isNotEmpty() &&
+        ReportTraceOutput.lifecycleCoverage(context, spanEntries, logEntries).any {
+          it.status == "MISSING"
+        }
+    ) {
+      for (project in projects) {
+        try {
+          val projectSpans =
+            spanReader.read(
+              project,
+              fallbackCorrelationValues,
+              emptyList(),
+              startTime,
+              endTime,
+              entryLimit,
+            )
+          if (projectSpans.size > entryLimit) {
+            traceTruncatedProjects += project
+            warnings +=
+              "Cloud Trace fallback results were truncated for project $project at $entryLimit spans"
+          }
+          traceFetchedCounts[project] =
+            traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
+          spanEntries += retainSpans(projectSpans, entryLimit)
+        } catch (e: Exception) {
+          val failure = failureDescription(e)
+          traceFailures.getOrPut(project) { mutableListOf() } += failure
+          warnings += "Cloud Trace fallback query failed for project $project: $failure"
         }
       }
     }
@@ -1105,23 +1267,21 @@ internal class ReportTrace(
     val retainedLogEntries = retainLogEntries(distinctLogEntries, entryLimit)
     val sourceStatuses = buildList {
       for (project in projects) {
-        val projectSpans = distinctSpans.count { it.sourceProject == project }
         add(
           buildSourceStatus(
             project = project,
             source = "Cloud Trace",
-            fetched = projectSpans,
+            fetched = traceFetchedCounts.getOrDefault(project, 0),
             retained = retainedSpans.count { it.sourceProject == project },
             truncated = project in traceTruncatedProjects || distinctSpans.size > entryLimit,
             failures = traceFailures[project].orEmpty(),
           )
         )
-        val projectLogEntries = distinctLogEntries.count { it.sourceProject == project }
         add(
           buildSourceStatus(
             project = project,
             source = "Cloud Logging",
-            fetched = projectLogEntries,
+            fetched = logFetchedCounts.getOrDefault(project, 0),
             retained = retainedLogEntries.count { it.sourceProject == project },
             truncated = project in logTruncatedProjects || distinctLogEntries.size > entryLimit,
             failures = logFailures[project].orEmpty(),
@@ -1129,11 +1289,25 @@ internal class ReportTrace(
         )
       }
     }
+    val lifecycleCoverage =
+      ReportTraceOutput.lifecycleCoverage(context, retainedSpans, retainedLogEntries)
+    val status =
+      ReportTraceOutput.artifactStatus(
+        retainedSpans,
+        retainedLogEntries,
+        sourceStatuses,
+        lifecycleCoverage,
+      )
     return TimelineCollection(
       spans = retainedSpans,
       logEntries = retainedLogEntries,
       sourceStatuses = sourceStatuses,
       warnings = warnings,
+      status = status,
+      lifecycleCoverage = lifecycleCoverage,
+      startTime = startTime,
+      endTime = endTime,
+      generatedAt = clock.instant(),
     )
   }
 
@@ -1169,7 +1343,10 @@ internal class ReportTrace(
 
   private fun retainSpans(spans: List<ReportTraceSpan>, limit: Int): List<ReportTraceSpan> {
     if (spans.size <= limit) return spans.sortedBy { it.startTime }
-    val errors = spans.filter { it.statusCode != null && it.statusCode != "0" }
+    val errors =
+      spans.filter {
+        it.attributes["xmm.outcome"]?.lowercase() in setOf("failed", "failure", "refused", "error")
+      }
     return (errors + spans.sortedByDescending { it.startTime }).distinct().take(limit).sortedBy {
       it.startTime
     }
@@ -1180,7 +1357,8 @@ internal class ReportTrace(
     limit: Int,
   ): List<ReportTraceLogEntry> {
     if (entries.size <= limit) return entries.sortedBy { it.timestamp }
-    val errors = entries.filter { it.severity == "ERROR" || it.severity == "CRITICAL" }
+    val errors =
+      entries.filter { it.severity in setOf("WARNING", "ERROR", "CRITICAL", "ALERT", "EMERGENCY") }
     return (errors + entries.sortedByDescending { it.timestamp }).distinct().take(limit).sortedBy {
       it.timestamp
     }
@@ -1203,6 +1381,21 @@ internal class ReportTrace(
     }
   }
 
+  private fun exitCode(status: ReportTraceArtifactStatus): Int =
+    when (status) {
+      ReportTraceArtifactStatus.COMPLETE -> 0
+      ReportTraceArtifactStatus.PARTIAL -> if (allowPartial) 0 else 1
+      ReportTraceArtifactStatus.FAILED -> 1
+    }
+
+  private fun failureDescription(exception: Exception): String {
+    return if (includeRawPayloads) {
+      ReportTraceOutput.sanitize(exception.message ?: exception::class.java.name)
+    } else {
+      exception::class.java.simpleName
+    }
+  }
+
   private fun outputFileName(key: BasicReportKey): String {
     return "${safeFileNamePart(key.cmmsMeasurementConsumerId)}__" +
       "${safeFileNamePart(key.basicReportId)}.md"
@@ -1221,7 +1414,7 @@ internal class ReportTrace(
     appendLine()
     appendLine("## Collection failure")
     appendLine()
-    appendLine(message)
+    appendLine(ReportTraceOutput.sanitize(message))
   }
 
   private fun validateDatabaseFlags() {
@@ -1270,7 +1463,6 @@ internal class ReportTrace(
   companion object {
     private val DEFAULT_LEAD_TIME: Duration = Duration.ofMinutes(5)
     private val DEFAULT_LOOKBACK: Duration = Duration.ofDays(7)
-    private const val MAX_ENTRIES = 1000
   }
 }
 
@@ -1325,4 +1517,9 @@ private data class TimelineCollection(
   val logEntries: List<ReportTraceLogEntry>,
   val sourceStatuses: List<ReportTraceSourceStatus>,
   val warnings: List<String>,
+  val status: ReportTraceArtifactStatus,
+  val lifecycleCoverage: List<ReportTraceLifecycleStage>,
+  val startTime: Instant,
+  val endTime: Instant,
+  val generatedAt: Instant,
 )

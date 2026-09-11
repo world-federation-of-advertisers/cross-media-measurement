@@ -298,6 +298,11 @@ class RequisitionsService(
     if (key.parentKey != authenticatedPrincipal.resourceKey) {
       throw Permission.FULFILL.deniedStatus(request.name).asRuntimeException()
     }
+    val span =
+      Span.current()
+        .setAttribute(ReportTraceAttributes.REQUISITION_NAME, request.name)
+        .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_result_acceptance")
+        .setAttribute(ReportTraceAttributes.OUTCOME, "started")
 
     val fulfillRequest = fulfillRequisitionRequest {
       externalRequisitionId = apiIdToExternalId(key.requisitionId)
@@ -326,7 +331,9 @@ class RequisitionsService(
     }
     try {
       internalRequisitionStub.fulfillRequisition(fulfillRequest)
+      span.setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
     } catch (e: StatusException) {
+      span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
       throw when (e.status.code) {
         Status.Code.NOT_FOUND -> Status.NOT_FOUND
         Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
@@ -356,6 +363,10 @@ private fun InternalRequisition.toRequisition(): Requisition {
   }
   val measurementSpec: MeasurementSpec = packedMeasurementSpec.unpack()
   Span.current()
+    .setAllAttributes(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+    .setAttribute(ReportTraceAttributes.REQUISITION_NAME, requisitionKey.toName())
+    .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_creation")
+    .setAttribute(ReportTraceAttributes.OUTCOME, "returned")
     .addEvent(
       "kingdom.requisition.returned",
       Attributes.builder()
