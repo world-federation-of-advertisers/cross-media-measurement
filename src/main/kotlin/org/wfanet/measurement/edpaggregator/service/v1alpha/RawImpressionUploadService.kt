@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import java.io.IOException
@@ -23,6 +24,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.edpaggregator.service.EtagMismatchException
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadNotFoundException
@@ -32,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadReq
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -45,6 +48,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest as internalCreateUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest as internalGetUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest as internalListUploadsRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadRegistrationCompleteRequest as internalMarkRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
 
 class RawImpressionUploadService(
@@ -74,6 +78,21 @@ class RawImpressionUploadService(
       throw RequiredFieldNotSetException("raw_impression_upload.done_blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.rawImpressionUpload.doneBlobGeneration == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload.done_blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.rawImpressionUpload.doneBlobGeneration < 0L) {
+      throw InvalidFieldValueException("raw_impression_upload.done_blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      request.rawImpressionUpload.hasDoneBlobCreateTime() &&
+        !Timestamps.isValid(request.rawImpressionUpload.doneBlobCreateTime)
+    ) {
+      throw InvalidFieldValueException("raw_impression_upload.done_blob_create_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
@@ -93,6 +112,10 @@ class RawImpressionUploadService(
             dataProviderResourceId = dataProviderKey.dataProviderId
             rawImpressionUpload = internalRawImpressionUpload {
               doneBlobUri = request.rawImpressionUpload.doneBlobUri
+              doneBlobGeneration = request.rawImpressionUpload.doneBlobGeneration
+              if (request.rawImpressionUpload.hasDoneBlobCreateTime()) {
+                doneBlobCreateTime = request.rawImpressionUpload.doneBlobCreateTime
+              }
             }
             requestId = request.requestId
           }
@@ -103,7 +126,6 @@ class RawImpressionUploadService(
           InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
           InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
           InternalErrors.Reason.IMPRESSION_METADATA_STATE_INVALID,
-          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND,
           InternalErrors.Reason.REQUISITION_METADATA_NOT_FOUND_BY_CMMS_REQUISITION,
           InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS,
@@ -131,6 +153,10 @@ class RawImpressionUploadService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+            Status.NOT_FOUND.withDescription("RawImpressionUpload not found")
+              .withCause(e)
+              .asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS ->
             Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
         }
@@ -203,6 +229,64 @@ class RawImpressionUploadService(
     return internalResponse.toPublic()
   }
 
+  override suspend fun markRawImpressionUploadRegistrationComplete(
+    request: MarkRawImpressionUploadRegistrationCompleteRequest
+  ): RawImpressionUpload {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val uploadKey =
+      RawImpressionUploadKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.etag.isEmpty()) {
+      throw RequiredFieldNotSetException("etag")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(request.requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    return try {
+      internalUploadStub
+        .markRawImpressionUploadRegistrationComplete(
+          internalMarkRegistrationCompleteRequest {
+            dataProviderResourceId = uploadKey.dataProviderId
+            rawImpressionUploadResourceId = uploadKey.rawImpressionUploadId
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+        .toPublic()
+    } catch (e: StatusException) {
+      throw when (InternalErrors.getReason(e)) {
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+          RawImpressionUploadNotFoundException(request.name, e)
+            .asStatusRuntimeException(Status.Code.NOT_FOUND)
+        InternalErrors.Reason.ETAG_MISMATCH ->
+          EtagMismatchException.fromInternal(e).asStatusRuntimeException(Status.Code.ABORTED)
+        null ->
+          if (
+            e.status.code == Status.Code.ALREADY_EXISTS ||
+              e.status.code == Status.Code.FAILED_PRECONDITION
+          ) {
+            e.status.withCause(e).asRuntimeException()
+          } else {
+            Status.INTERNAL.withCause(e).asRuntimeException()
+          }
+        else -> Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    }
+  }
+
   override suspend fun listRawImpressionUploads(
     request: ListRawImpressionUploadsRequest
   ): ListRawImpressionUploadsResponse {
@@ -268,6 +352,7 @@ class RawImpressionUploadService(
                   if (request.filter.hasCreateTimeIn()) {
                     createTimeIn = request.filter.createTimeIn
                   }
+                  doneBlobUri = request.filter.doneBlobUri
                 }
             }
           }
@@ -333,8 +418,22 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
         .toName()
     state = source.state.toPublic()
     doneBlobUri = source.doneBlobUri
+    doneBlobGeneration = source.doneBlobGeneration
+    if (source.hasDoneBlobCreateTime()) {
+      doneBlobCreateTime = source.doneBlobCreateTime
+    }
+    registrationComplete = source.registrationComplete
+    if (source.replacesRawImpressionUploadResourceId.isNotEmpty()) {
+      replacesRawImpressionUpload =
+        RawImpressionUploadKey(
+            source.dataProviderResourceId,
+            source.replacesRawImpressionUploadResourceId,
+          )
+          .toName()
+    }
     createTime = source.createTime
     updateTime = source.updateTime
+    etag = source.etag
   }
 }
 

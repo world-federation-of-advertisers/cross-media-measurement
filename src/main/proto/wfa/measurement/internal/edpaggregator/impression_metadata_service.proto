@@ -61,6 +61,10 @@ service ImpressionMetadataService {
   rpc BatchDeleteImpressionMetadata(BatchDeleteImpressionMetadataRequest)
       returns (BatchDeleteImpressionMetadataResponse);
 
+  // Restores multiple soft-deleted ImpressionMetadata entries.
+  rpc BatchUndeleteImpressionMetadata(BatchUndeleteImpressionMetadataRequest)
+      returns (BatchUndeleteImpressionMetadataResponse);
+
   // Computes the time bounds for all ModelLines for a DataProvider.
   rpc ComputeModelLineBounds(ComputeModelLineBoundsRequest)
       returns (ComputeModelLineBoundsResponse) {}
@@ -113,7 +117,7 @@ message ListImpressionMetadataRequest {
   // The maximum number of results to return.
   //
   // If unspecified, at most 50 results will be returned. The maximum value is
-  // 100; values above this will be coerced to the maximum value.
+  // 1000; values above this will be coerced to the maximum value.
   int32 page_size = 2;
   ListImpressionMetadataPageToken page_token = 3;
 
@@ -146,6 +150,8 @@ message ListImpressionMetadataPageToken {
   message After {
     google.protobuf.Timestamp create_time = 1;
     string impression_metadata_resource_id = 2;
+    // The last blob URI returned when filtering by `blob_uri_prefix`.
+    string blob_uri = 3;
   }
   After after = 2;
 }
@@ -168,6 +174,14 @@ message BatchDeleteImpressionMetadataRequest {
 
 message BatchDeleteImpressionMetadataResponse {
   // The list of updated ImpressionMetadata, now marked as deleted.
+  repeated ImpressionMetadata impression_metadata = 1;
+}
+
+message BatchUndeleteImpressionMetadataRequest {
+  repeated UndeleteImpressionMetadataRequest requests = 1;
+}
+
+message BatchUndeleteImpressionMetadataResponse {
   repeated ImpressionMetadata impression_metadata = 1;
 }
 

@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetada
 import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteImpressionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.batchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsRequest
 import org.wfanet.measurement.internal.edpaggregator.computeModelLineBoundsResponse
@@ -945,6 +946,95 @@ abstract class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `undeleteImpressionMetadata restores a deleted resource`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
+    service.deleteImpressionMetadata(
+      deleteImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+      }
+    )
+
+    val restored =
+      service.undeleteImpressionMetadata(
+        undeleteImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+        }
+      )
+
+    assertThat(restored.state).isEqualTo(State.IMPRESSION_METADATA_STATE_ACTIVE)
+  }
+
+  @Test
+  fun `undeleteImpressionMetadata throws ALREADY_EXISTS for active resource`() = runBlocking {
+    service.createImpressionMetadata(
+      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.undeleteImpressionMetadata(
+          undeleteImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `batchUndeleteImpressionMetadata restores deleted resources`() = runBlocking {
+    val created =
+      service
+        .batchCreateImpressionMetadata(
+          batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+            requests += createImpressionMetadataRequest {
+              impressionMetadata = IMPRESSION_METADATA_2
+            }
+          }
+        )
+        .impressionMetadataList
+    service.batchDeleteImpressionMetadata(
+      batchDeleteImpressionMetadataRequest {
+        requests +=
+          created.map {
+            deleteImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              impressionMetadataResourceId = it.impressionMetadataResourceId
+            }
+          }
+      }
+    )
+
+    val restored =
+      service.batchUndeleteImpressionMetadata(
+        batchUndeleteImpressionMetadataRequest {
+          requests +=
+            created.map {
+              undeleteImpressionMetadataRequest {
+                dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+                impressionMetadataResourceId = it.impressionMetadataResourceId
+              }
+            }
+        }
+      )
+
+    assertThat(restored.impressionMetadataList.map { it.state })
+      .containsExactly(
+        State.IMPRESSION_METADATA_STATE_ACTIVE,
+        State.IMPRESSION_METADATA_STATE_ACTIVE,
+      )
+      .inOrder()
+  }
+
+  @Test
   fun `deleteImpressionMetadata throws INVALID_ARGUMENT when dataProviderResourceId is missing`() =
     runBlocking {
       val request = deleteImpressionMetadataRequest { impressionMetadataResourceId = "not-found" }
@@ -1813,6 +1903,123 @@ abstract class ImpressionMetadataServiceTest {
 
     assertThat(response)
       .isEqualTo(listImpressionMetadataResponse { impressionMetadata += expected })
+  }
+
+  @Test
+  fun `listImpressionMetadata paginates blobUriPrefix filter by blob URI`(): Unit = runBlocking {
+    val created = createBlobUriPaginationMetadata().sortedBy { it.blobUri }
+
+    val firstResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 2
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(firstResponse)
+      .isEqualTo(
+        listImpressionMetadataResponse {
+          impressionMetadata += created.take(2)
+          nextPageToken = listImpressionMetadataPageToken {
+            after =
+              ListImpressionMetadataPageTokenKt.after {
+                impressionMetadataResourceId = created[1].impressionMetadataResourceId
+                blobUri = created[1].blobUri
+              }
+          }
+        }
+      )
+
+    val secondResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 2
+          pageToken = firstResponse.nextPageToken
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(secondResponse)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created.last() })
+  }
+
+  @Test
+  fun `listImpressionMetadata accepts legacy page token with blobUriPrefix`(): Unit = runBlocking {
+    val created = createBlobUriPaginationMetadata().sortedBy { it.impressionMetadataResourceId }
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 1
+          pageToken = listImpressionMetadataPageToken {
+            after =
+              ListImpressionMetadataPageTokenKt.after {
+                impressionMetadataResourceId = created.first().impressionMetadataResourceId
+              }
+          }
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(response)
+      .isEqualTo(
+        listImpressionMetadataResponse {
+          impressionMetadata += created[1]
+          nextPageToken = listImpressionMetadataPageToken {
+            after =
+              ListImpressionMetadataPageTokenKt.after {
+                impressionMetadataResourceId = created[1].impressionMetadataResourceId
+              }
+          }
+        }
+      )
+
+    val finalResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          pageSize = 1
+          pageToken = response.nextPageToken
+          filter = ListImpressionMetadataRequestKt.filter { blobUriPrefix = "folder/" }
+        }
+      )
+
+    assertThat(finalResponse)
+      .isEqualTo(listImpressionMetadataResponse { impressionMetadata += created.last() })
+  }
+
+  private suspend fun createBlobUriPaginationMetadata(): List<ImpressionMetadata> {
+    return service
+      .batchCreateImpressionMetadata(
+        batchCreateImpressionMetadataRequest {
+          requests += createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA_2.copy {
+                impressionMetadataResourceId = "impression-metadata-z"
+                blobUri = "folder/a"
+              }
+          }
+          requests += createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA_3.copy {
+                impressionMetadataResourceId = "impression-metadata-a"
+                blobUri = "folder/c"
+              }
+          }
+          requests += createImpressionMetadataRequest {
+            impressionMetadata =
+              IMPRESSION_METADATA_4.copy {
+                impressionMetadataResourceId = "impression-metadata-m"
+                blobUri = "folder/b"
+              }
+          }
+        }
+      )
+      .impressionMetadataList
   }
 
   @Test

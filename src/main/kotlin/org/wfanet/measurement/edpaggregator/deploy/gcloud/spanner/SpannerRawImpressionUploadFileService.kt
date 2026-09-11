@@ -94,6 +94,14 @@ class SpannerRawImpressionUploadFileService(
       throw RequiredFieldNotSetException("raw_impression_upload_file.blob_uri")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (file.blobGeneration == 0L) {
+      throw RequiredFieldNotSetException("raw_impression_upload_file.blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (file.blobGeneration < 0L) {
+      throw InvalidFieldValueException("raw_impression_upload_file.blob_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     if (!file.hasEventDate()) {
       throw RequiredFieldNotSetException("raw_impression_upload_file.event_date")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -122,7 +130,9 @@ class SpannerRawImpressionUploadFileService(
               listOf(requestId),
             )
           if (existingByRequestId.containsKey(requestId)) {
-            return@run existingByRequestId.getValue(requestId).rawImpressionUploadFile
+            val existing = existingByRequestId.getValue(requestId).rawImpressionUploadFile
+            validateIdempotentCreate(existing, file)
+            return@run existing
           }
           val fileId: Long =
             idGenerator.generateNewId { id ->
@@ -142,12 +152,14 @@ class SpannerRawImpressionUploadFileService(
             file.sizeBytes,
             file.eventDate,
             requestId,
+            file.blobGeneration,
           )
           rawImpressionUploadFile {
             dataProviderResourceId = file.dataProviderResourceId
             rawImpressionUploadResourceId = file.rawImpressionUploadResourceId
             this.fileResourceId = fileResourceId
             blobUri = file.blobUri
+            blobGeneration = file.blobGeneration
             sizeBytes = file.sizeBytes
             eventDate = file.eventDate
           }
@@ -213,6 +225,18 @@ class SpannerRawImpressionUploadFileService(
         throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file.blob_uri")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+      if (file.blobGeneration == 0L) {
+        throw RequiredFieldNotSetException(
+            "requests.$index.raw_impression_upload_file.blob_generation"
+          )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (file.blobGeneration < 0L) {
+        throw InvalidFieldValueException(
+            "requests.$index.raw_impression_upload_file.blob_generation"
+          )
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
       if (!file.hasEventDate()) {
         throw RequiredFieldNotSetException("requests.$index.raw_impression_upload_file.event_date")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -252,7 +276,10 @@ class SpannerRawImpressionUploadFileService(
               subRequest.requestId.isNotEmpty() &&
                 existingByRequestId.containsKey(subRequest.requestId)
             ) {
-              return@map existingByRequestId.getValue(subRequest.requestId).rawImpressionUploadFile
+              val existing =
+                existingByRequestId.getValue(subRequest.requestId).rawImpressionUploadFile
+              validateIdempotentCreate(existing, subRequest.rawImpressionUploadFile)
+              return@map existing
             }
             val blobUri: String = subRequest.rawImpressionUploadFile.blobUri
             val sizeBytes: Long = subRequest.rawImpressionUploadFile.sizeBytes
@@ -275,12 +302,14 @@ class SpannerRawImpressionUploadFileService(
               sizeBytes,
               fileProto.eventDate,
               subRequest.requestId,
+              fileProto.blobGeneration,
             )
             rawImpressionUploadFile {
               dataProviderResourceId = request.dataProviderResourceId
               rawImpressionUploadResourceId = request.rawImpressionUploadResourceId
               this.fileResourceId = fileResourceId
               this.blobUri = blobUri
+              blobGeneration = fileProto.blobGeneration
               this.sizeBytes = sizeBytes
               eventDate = fileProto.eventDate
             }
@@ -308,6 +337,21 @@ class SpannerRawImpressionUploadFileService(
             }
           }
         }
+    }
+  }
+
+  private fun validateIdempotentCreate(
+    existing: RawImpressionUploadFile,
+    requested: RawImpressionUploadFile,
+  ) {
+    if (
+      existing.blobUri != requested.blobUri ||
+        existing.blobGeneration != requested.blobGeneration ||
+        existing.sizeBytes != requested.sizeBytes ||
+        existing.eventDate != requested.eventDate
+    ) {
+      throw RawImpressionUploadFileAlreadyExistsException()
+        .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     }
   }
 

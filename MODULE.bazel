@@ -39,14 +39,13 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.153.0",
+    version = "0.154.0",
     repo_name = "wfa_common_jvm",
 )
-
-# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#413): Remove after validation.
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#415): Remove after validation.
 git_override(
     module_name = "common-jvm",
-    commit = "b8571f2cde2c211d91dcee390fc6fcc4da8e8490",
+    commit = "92e661523a3ac3b3e159c3ed69ab66d5770c885e",
     remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
 )
 
@@ -57,7 +56,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.101.0",
+    version = "0.102.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -87,19 +86,18 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-common",
-    version = "0.5.0",
+    version = "0.10.0",
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
     name = "virtual-people-core-serving",
-    version = "0.4.0",
+    version = "0.6.0",
     repo_name = "wfa_virtual_people_core_serving",
 )
 bazel_dep(
     name = "grpc_ecosystem_grpc_gateway",
     version = "2.26.0.bzlmod.1",
 )
-
 # Must also be updated in src/main/k8s/local/BUILD.bazel
 bazel_dep(
     name = "cloud-spanner-emulator-bin",
@@ -148,7 +146,6 @@ bazel_dep(
     name = "rules_java",
     version = "8.15.2",
 )
-
 # TODO(world-federation-of-advertisers/cross-media-measurement#4271): Update after upstream issues are fixed.
 bazel_dep(
     name = "rules_jvm_external",
@@ -158,13 +155,11 @@ bazel_dep(
     name = "rules_python",
     version = "1.7.0",
 )
-
 # TODO(world-federation-of-advertisers/cross-media-measurement#4272): Update after upstream issue is fixed.
 bazel_dep(
     name = "grpc",
     version = "1.74.1",
 )
-
 # Must be compatible with the protobuf version declared in requirements.txt
 bazel_dep(
     name = "protobuf",
@@ -214,7 +209,6 @@ single_version_override(
         "//build/cosign/patches:sign_dot_bzl.patch",
     ],
 )
-
 bazel_dep(
     name = "rules_multirun",
     version = "0.12.0",

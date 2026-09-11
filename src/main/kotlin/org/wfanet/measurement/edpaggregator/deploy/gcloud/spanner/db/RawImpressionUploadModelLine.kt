@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
@@ -86,6 +87,29 @@ suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadModelLineExists(
     Key.of(dataProviderResourceId, rawImpressionUploadId, rawImpressionUploadModelLineId),
     listOf("RawImpressionUploadModelLineId"),
   ) != null
+}
+
+/** Returns whether [rawImpressionUploadId] has any registered model-line children. */
+suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadHasModelLines(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+): Boolean {
+  val sql =
+    """
+    SELECT RawImpressionUploadModelLineId
+    FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadId
+    LIMIT 1
+    """
+      .trimIndent()
+  return executeQuery(
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("rawImpressionUploadId").to(rawImpressionUploadId)
+      }
+    )
+    .singleOrNullIfEmpty() != null
 }
 
 /**
@@ -478,6 +502,7 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.MarkLabelingRequestId,
       RawImpressionUploadModelLine.MarkCompletedRequestId,
       RawImpressionUploadModelLine.MarkFailedRequestId,
+      RawImpressionUploadModelLine.FailureReason,
     FROM
       RawImpressionUploadModelLine
     """
@@ -511,6 +536,14 @@ private object RawImpressionUploadModelLineEntity {
         if (!struct.isNull("EncryptedMergedDek")) {
           encryptedMergedDek =
             struct.getProtoMessage("EncryptedMergedDek", EncryptedDek.getDefaultInstance())
+        }
+        failureAttemptId = markId("MarkFailedRequestId")
+        if (!struct.isNull("FailureReason")) {
+          failureReason =
+            struct.getProtoEnum(
+              "FailureReason",
+              RawImpressionUploadModelLineFailureReason::forNumber,
+            )
         }
       },
       struct.getLong("RawImpressionUploadId"),

@@ -49,11 +49,23 @@ message RawImpressionUploadModelLine {
     RANKING = 3;
     // VID labeling (Phase 2) is in progress.
     LABELING = 4;
-    // All phases completed successfully. Terminal state.
+    // All phases completed successfully. Operator eviction may transition this
+    // state to `FAILED` when the completed output is invalid.
     COMPLETED = 5;
-    // Processing failed. Not terminal — operator can retry after
-    // fixing the root cause.
+    // Processing failed or completed output was invalidated. Only failed
+    // processing attempts may be retried; invalidated output requires a
+    // replacement upload.
     FAILED = 6;
+  }
+
+  // Reason that the model line entered the `FAILED` state.
+  enum FailureReason {
+    // The failure reason is unspecified.
+    FAILURE_REASON_UNSPECIFIED = 0;
+    // Pipeline processing failed and may be retried after its cause is fixed.
+    PROCESSING_FAILURE = 1;
+    // Output was invalidated by an operator and must be replaced, not retried.
+    EVICTED_OUTPUT = 2;
   }
 
   // Resource name.
@@ -110,4 +122,13 @@ message RawImpressionUploadModelLine {
   // generated DEK.
   wfa.measurement.securecomputation.impressions.EncryptedDek
       encrypted_merged_dek = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Identifier of the most recent transition to `FAILED`. Remains set until a
+  // later failure replaces it so clients can recognize retries of that
+  // failure after this resource transitions back to an active state.
+  string failure_attempt_id = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Reason for the most recent transition to `FAILED`. Remains set until a
+  // later failure replaces it.
+  FailureReason failure_reason = 12 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
