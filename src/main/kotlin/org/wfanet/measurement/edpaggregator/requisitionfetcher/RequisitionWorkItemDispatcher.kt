@@ -16,12 +16,12 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import com.google.protobuf.Any
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -42,7 +42,7 @@ interface RequisitionWorkItemDispatcher {
 class SecureComputationRequisitionWorkItemDispatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val queue: String,
-  private val appParams: Any,
+  private val appParams: ResultsFulfillerParams,
   private val controlPlaneThrottler: Throttler,
 ) : RequisitionWorkItemDispatcher {
 
@@ -67,7 +67,7 @@ class SecureComputationRequisitionWorkItemDispatcher(
         queue = this@SecureComputationRequisitionWorkItemDispatcher.queue
         workItemParams =
           workItemParams {
-              appParams = this@SecureComputationRequisitionWorkItemDispatcher.appParams
+              appParams = this@SecureComputationRequisitionWorkItemDispatcher.appParams.pack()
               dataPathParams = dataPathParams { dataPath = blobUri }
             }
             .pack()

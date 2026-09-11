@@ -67,7 +67,6 @@ import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.identity.withPrincipalName
-import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
@@ -336,7 +335,7 @@ class InProcessEdpAggregatorComponents(
             SecureComputationRequisitionWorkItemDispatcher(
               workItemsStub = workItemsClient,
               queue = FULFILLER_TOPIC_ID,
-              appParams = resultsFulfillerParamsMap.getValue(edpAggregatorShortName).pack(),
+              appParams = resultsFulfillerParamsMap.getValue(edpAggregatorShortName),
               controlPlaneThrottler = FakeThrottler(),
             ),
           responsePageSize = 50,

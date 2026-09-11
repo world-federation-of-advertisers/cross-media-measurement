@@ -78,9 +78,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -379,7 +381,7 @@ class RequisitionFetcherTest {
 
   @Test
   fun `secure computation dispatcher creates deterministic WorkItem`() = runBlocking {
-    val appParams = Any.pack(StringValue.of("app-config"))
+    val appParams = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }
     val dispatcher =
       SecureComputationRequisitionWorkItemDispatcher(
         workItemsStub = workItemsStub,
@@ -395,7 +397,7 @@ class RequisitionFetcherTest {
     assertThat(request.workItemId).isEqualTo("results-fulfiller-group-id")
     assertThat(request.workItem.queue).isEqualTo("results-fulfiller-queue")
     val params = request.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    assertThat(params.appParams).isEqualTo(appParams)
+    assertThat(params.appParams.unpack(ResultsFulfillerParams::class.java)).isEqualTo(appParams)
     assertThat(params.dataPathParams.dataPath).isEqualTo("gs://bucket/requisitions/group-id")
     assertThat(dispatcher.workItemName("group-id"))
       .isEqualTo("workItems/results-fulfiller-group-id")
@@ -410,7 +412,7 @@ class RequisitionFetcherTest {
       SecureComputationRequisitionWorkItemDispatcher(
         workItemsStub = workItemsStub,
         queue = "results-fulfiller-queue",
-        appParams = Any.pack(StringValue.of("app-config")),
+        appParams = resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME },
         controlPlaneThrottler = throttler,
       )
 

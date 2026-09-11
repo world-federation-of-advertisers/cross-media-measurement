@@ -807,24 +807,22 @@ configs {
     }
     queue: "results-fulfiller-queue"
     app_params {
-      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams] {
-        data_provider: "dataProviders/DATA_PROVIDER_ID"
-        storage_params {
-          labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
-          gcs_project_id: "PROJECT_ID"
-        }
-        consent_params {
-          result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
-          result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
-          private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
-          edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
-        }
-        cmms_connection {
-          client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
-          client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
-        }
-        noise_params { noise_type: CONTINUOUS_GAUSSIAN }
+      data_provider: "dataProviders/DATA_PROVIDER_ID"
+      storage_params {
+        labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
+        gcs_project_id: "PROJECT_ID"
       }
+      consent_params {
+        result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
+        result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
+        private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
+        edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
+      }
+      cmms_connection {
+        client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
+        client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
+      }
+      noise_params { noise_type: CONTINUOUS_GAUSSIAN }
     }
   }
 }
@@ -930,7 +928,7 @@ is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
-RequisitionFetcher's `work_item_dispatch.app_params` carries a `ResultsFulfillerParams` message
+RequisitionFetcher's typed `work_item_dispatch.app_params` is a `ResultsFulfillerParams` message
 (proto:
 `wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto`). Beyond the
 `data_provider`, `storage_params`, `consent_params`, and `cmms_connection` shown

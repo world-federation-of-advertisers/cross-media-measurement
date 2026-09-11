@@ -20,7 +20,6 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
-import com.google.protobuf.TypeRegistry
 import io.grpc.ClientInterceptors
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -56,7 +55,6 @@ import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.withW3CTraceContext
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
@@ -398,11 +396,7 @@ class RequisitionFetcherFunction : HttpFunction {
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
     private val requisitionFetcherConfig by lazy {
       runBlocking {
-        getConfigAsProtoMessage(
-          CONFIG_BLOB_KEY,
-          RequisitionFetcherConfig.getDefaultInstance(),
-          TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build(),
-        )
+        getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
       }
     }
 
