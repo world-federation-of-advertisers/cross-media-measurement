@@ -509,14 +509,11 @@ class RequisitionFetcher(
       metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
     val recoverableByGroupId =
       existingMetadata
-        .groupBy { it.groupId }
-        .filterValues { metadataList ->
-          metadataList.isNotEmpty() &&
-            metadataList.all {
-              it.state == RequisitionMetadata.State.STORED ||
-                (workItemDispatcher != null && it.state == RequisitionMetadata.State.QUEUED)
-            }
+        .filter {
+          it.state == RequisitionMetadata.State.STORED ||
+            (workItemDispatcher != null && it.state == RequisitionMetadata.State.QUEUED)
         }
+        .groupBy { it.groupId }
 
     for ((existingGroupId, metadataList) in recoverableByGroupId) {
       val blobKey = blobKey(existingGroupId)

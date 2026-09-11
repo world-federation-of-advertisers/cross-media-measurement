@@ -44,6 +44,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWor
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
@@ -54,13 +55,12 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundFo
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
 class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
-  private val workItemPublisher: WorkItemPublisher,
+  private val workItemPublicationRunner: WorkItemPublicationRunner,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : WorkItemsCoroutineImplBase(coroutineContext) {
 
@@ -90,7 +90,7 @@ class SpannerWorkItemsService(
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
-    val workItem =
+    val (workItemId, workItem) =
       try {
         transactionRunner.run { txn ->
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
@@ -102,8 +102,9 @@ class SpannerWorkItemsService(
               queue.queueId,
               request.workItem.workItemParams,
             )
+          txn.insertWorkItemPublication(workItemId)
 
-          request.workItem.copy { this.state = state }
+          Pair(workItemId, request.workItem.copy { this.state = state })
         }
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
@@ -121,11 +122,7 @@ class SpannerWorkItemsService(
         updateTime = commitTimestamp
       }
 
-    try {
-      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem)
-    } catch (e: Exception) {
-      throw Status.INTERNAL.withCause(e).asRuntimeException()
-    }
+    workItemPublicationRunner.publishWorkItem(workItemId)
 
     return result
   }

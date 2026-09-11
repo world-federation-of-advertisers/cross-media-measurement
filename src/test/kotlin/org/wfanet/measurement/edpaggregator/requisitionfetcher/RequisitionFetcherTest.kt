@@ -90,6 +90,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.StorageClient
@@ -139,6 +141,7 @@ class RequisitionFetcherTest {
           name = request.name
           queue = createRequest.workItem.queue
           workItemParams = createRequest.workItem.workItemParams
+          state = WorkItem.State.QUEUED
         }
       }
     onBlocking { createWorkItem(any()) }
@@ -423,7 +426,8 @@ class RequisitionFetcherTest {
 
   @Test
   fun `secure computation dispatcher treats existing WorkItem as success`() = runBlocking {
-    whenever(workItemsServiceMock.createWorkItem(any())).thenAnswer {
+    whenever(workItemsServiceMock.createWorkItem(any())).thenAnswer { invocation ->
+      createWorkItemRequests += invocation.getArgument<CreateWorkItemRequest>(0)
       throw Status.ALREADY_EXISTS.asRuntimeException()
     }
     val dispatcher =
@@ -436,6 +440,40 @@ class RequisitionFetcherTest {
       )
 
     dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+  }
+
+  @Test
+  fun `secure computation dispatcher rejects terminal existing WorkItem`() = runBlocking {
+    whenever(workItemsServiceMock.getWorkItem(any()))
+      .thenReturn(
+        workItem {
+          name = "workItems/results-fulfiller-group-id"
+          queue = "results-fulfiller-queue"
+          workItemParams =
+            workItemParams {
+                appParams =
+                  resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME }.pack()
+                dataPathParams = dataPathParams { dataPath = "gs://bucket/requisitions/group-id" }
+              }
+              .pack()
+          state = WorkItem.State.FAILED
+        }
+      )
+    val dispatcher =
+      SecureComputationRequisitionWorkItemDispatcher(
+        workItemsStub = workItemsStub,
+        queue = "results-fulfiller-queue",
+        resultsFulfillerParams =
+          resultsFulfillerParams { dataProvider = TestRequisitionData.EDP_NAME },
+        controlPlaneThrottler = throttler,
+      )
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+      }
+
+    assertThat(exception).hasMessageThat().contains("metadata remains unfinished")
   }
 
   @Test
@@ -626,6 +664,87 @@ class RequisitionFetcherTest {
     val rebuildsValue = (rebuildsMetric!!.longSumData.points.first() as LongPointData).value
     assertThat(rebuildsValue).isEqualTo(1)
   }
+
+  @Test
+  fun `recovery rebuilds STORED rows in a group that also has terminal metadata`() = runBlocking {
+    val groupId = "mixed-state-group-id"
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.FULFILLED
+            cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/already-fulfilled"
+            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            blobTypeUrl = "type"
+            this.groupId = groupId
+            report = "some-report"
+          }
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsRequisition = TestRequisitionData.REQUISITION.name
+            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            blobTypeUrl = "type"
+            this.groupId = groupId
+            report = "some-report"
+          }
+        }
+      )
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    val recoveredBlob = storageClient.getBlob("$STORAGE_PATH_PREFIX/$groupId")
+    assertThat(recoveredBlob).isNotNull()
+    val parsed =
+      Any.parseFrom(recoveredBlob!!.read().flatten()).unpack(GroupedRequisitions::class.java)
+    assertThat(parsed.requisitionsList).hasSize(1)
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+  }
+
+  @Test
+  fun `direct dispatch retries QUEUED rows in a group that also has terminal metadata`() =
+    runBlocking {
+      val groupId = "mixed-state-group-id"
+      val workItemName = "workItems/results-fulfiller-$groupId"
+      storageClient.writeBlob("$STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.FULFILLED
+              cmmsRequisition = "${TestRequisitionData.EDP_NAME}/requisitions/already-fulfilled"
+              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+              blobTypeUrl = "type"
+              this.groupId = groupId
+              report = "some-report"
+            }
+            requisitionMetadata += requisitionMetadata {
+              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/queued"
+              state = RequisitionMetadata.State.QUEUED
+              cmmsRequisition = TestRequisitionData.REQUISITION.name
+              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+              blobTypeUrl = "type"
+              this.groupId = groupId
+              report = "some-report"
+              workItem = workItemName
+            }
+          }
+        )
+      var dispatched = false
+      val dispatcher =
+        object : RequisitionWorkItemDispatcher {
+          override fun workItemName(groupId: String): String = workItemName
+
+          override suspend fun dispatch(groupId: String, blobUri: String) {
+            dispatched = true
+          }
+        }
+
+      createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+      assertThat(dispatched).isTrue()
+      assertThat(queueRequisitionMetadataRequests).isEmpty()
+      assertThat(createRequisitionMetadataRequests).isEmpty()
+    }
 
   @Test
   fun `existing blob is not rewritten and metadata for that requisition is skipped`() =

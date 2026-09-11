@@ -67,6 +67,15 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "results_fulfiller_params_validator",
+    srcs = ["ResultsFulfillerParamsValidator.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "noiser_selector",
     srcs = ["NoiserSelector.kt"],
     deps = [
@@ -336,6 +345,7 @@ kt_jvm_library(
         ":pipeline_configuration",
         ":requisition_stub_factory",
         ":results_fulfiller",
+        ":results_fulfiller_params_validator",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",

@@ -23,6 +23,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
@@ -52,10 +53,23 @@ class SecureComputationRequisitionWorkItemDispatcher(
   override suspend fun dispatch(groupId: String, blobUri: String) {
     val workItemId = workItemId(groupId)
     val workItemName = workItemName(groupId)
+    val requestedWorkItem = workItem {
+      queue = this@SecureComputationRequisitionWorkItemDispatcher.queue
+      workItemParams =
+        workItemParams {
+            appParams =
+              this@SecureComputationRequisitionWorkItemDispatcher.resultsFulfillerParams.pack()
+            dataPathParams = dataPathParams { dataPath = blobUri }
+            traceContext.putAll(W3CTraceContext.inject())
+          }
+          .pack()
+    }
     try {
-      controlPlaneThrottler.onReady {
-        workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
-      }
+      val existingWorkItem =
+        controlPlaneThrottler.onReady {
+          workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
+        }
+      validateExistingWorkItem(existingWorkItem, requestedWorkItem)
       logger.info("WorkItem $workItemId already exists; treating dispatch as successful")
       return
     } catch (e: StatusException) {
@@ -64,22 +78,17 @@ class SecureComputationRequisitionWorkItemDispatcher(
 
     val request = createWorkItemRequest {
       this.workItemId = workItemId
-      workItem = workItem {
-        queue = this@SecureComputationRequisitionWorkItemDispatcher.queue
-        workItemParams =
-          workItemParams {
-              appParams =
-                this@SecureComputationRequisitionWorkItemDispatcher.resultsFulfillerParams.pack()
-              dataPathParams = dataPathParams { dataPath = blobUri }
-              traceContext.putAll(W3CTraceContext.inject())
-            }
-            .pack()
-      }
+      workItem = requestedWorkItem
     }
     try {
       controlPlaneThrottler.onReady { workItemsStub.createWorkItem(request) }
     } catch (e: StatusException) {
       if (e.status.code == Status.Code.ALREADY_EXISTS) {
+        val existingWorkItem =
+          controlPlaneThrottler.onReady {
+            workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
+          }
+        validateExistingWorkItem(existingWorkItem, requestedWorkItem)
         logger.info(
           "WorkItem $workItemId was created concurrently; treating dispatch as successful"
         )
@@ -88,6 +97,24 @@ class SecureComputationRequisitionWorkItemDispatcher(
       throw e
     }
     logger.info("Created WorkItem $workItemId for requisition group $groupId")
+  }
+
+  private fun validateExistingWorkItem(existing: WorkItem, requested: WorkItem) {
+    check(existing.queue == requested.queue) {
+      "WorkItem ${existing.name} uses queue ${existing.queue}, not ${requested.queue}"
+    }
+    val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val requestedParams = requested.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    check(
+      existingParams.appParams == requestedParams.appParams &&
+        existingParams.dataPathParams == requestedParams.dataPathParams
+    ) {
+      "WorkItem ${existing.name} has parameters that do not match this requisition group"
+    }
+    check(existing.state == WorkItem.State.QUEUED || existing.state == WorkItem.State.RUNNING) {
+      "WorkItem ${existing.name} is ${existing.state} while requisition metadata remains " +
+        "unfinished"
+    }
   }
 
   private fun workItemId(groupId: String): String = "$WORK_ITEM_ID_PREFIX-$groupId"

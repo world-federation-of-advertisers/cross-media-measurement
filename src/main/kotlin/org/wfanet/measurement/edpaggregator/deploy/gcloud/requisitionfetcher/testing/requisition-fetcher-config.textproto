@@ -24,7 +24,23 @@ configs {
       cert_collection_file_path: "src/main/k8s/testing/secretfiles/kingdom_root.pem"
     }
     queue: "results-fulfiller-queue"
-    results_fulfiller_params {}
+    results_fulfiller_params {
+      data_provider: "dataProviders/edp7"
+      storage_params {
+        labeled_impressions_blob_details_uri_prefix: "gs://test-bucket"
+      }
+      consent_params {
+        result_cs_cert_der_resource_path: "edp7_cs_cert.der"
+        result_cs_private_key_der_resource_path: "edp7_cs_private.der"
+        private_encryption_key_resource_path: "edp7_enc_private.tink"
+        edp_certificate_name: "dataProviders/edp7/certificates/cert1"
+      }
+      cmms_connection {
+        client_cert_resource_path: "edp7_tls.pem"
+        client_private_key_resource_path: "edp7_tls.key"
+      }
+      noise_params { noise_type: CONTINUOUS_GAUSSIAN }
+    }
   }
   edp_private_key_path: "src/main/k8s/testing/secretfiles/edp7_enc_private.tink"
 }

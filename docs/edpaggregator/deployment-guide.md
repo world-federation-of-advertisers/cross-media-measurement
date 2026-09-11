@@ -770,9 +770,7 @@ watched_paths {
 }
 ```
 
-Repeat the two watched paths per EDP. Remove the legacy `results-fulfiller` watched path when
-enabling direct dispatch in RequisitionFetcher; leaving both enabled can create duplicate
-WorkItems for a requisition blob. The DataWatcherDelete config
+Repeat the two watched paths per EDP. The DataWatcherDelete config
 (`data_watcher_delete_config`) uses the same proto with a `data-availability-cleanup`
 identifier whose `endpoint_uri` points at the DataAvailabilityCleanup function.
 
@@ -832,6 +830,33 @@ configs {
 storage-event behavior and the DataWatcher `results-fulfiller` watched path must remain configured.
 When it is present, also set `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
+
+#### Migrating from DataWatcher dispatch
+
+Do not run the legacy requisition watched path and direct RequisitionFetcher dispatch at the same
+time. Both observe the same grouped-requisition blob and can create separate WorkItems.
+
+Use this staged cutover:
+
+1. Deploy the Secure Computation control-plane version that includes durable WorkItem publication.
+2. Add the RequisitionFetcher control-plane endpoint, TLS secrets, and `work_item_dispatch`
+   configuration, but do not activate that config yet.
+3. Pause the RequisitionFetcher scheduler and wait for any active invocation to finish.
+4. Drain the legacy results-fulfiller queue and account for every existing requisition blob. Resolve
+   any `STORED` or `QUEUED` metadata before proceeding.
+5. Remove the DataWatcher `results-fulfiller` watched path and deploy the DataWatcher configuration.
+   Verify that the new revision is serving before continuing.
+6. Activate the RequisitionFetcher config containing `work_item_dispatch`, deploy the function, and
+   resume its scheduler.
+7. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
+   and are processed once by ResultsFulfiller.
+
+For rollback, pause the scheduler first and drain or repair all groups already in `STORED` or
+`QUEUED`; their original object-finalize events will not be replayed automatically. Then remove
+`work_item_dispatch`, redeploy RequisitionFetcher, restore and deploy the legacy DataWatcher watched
+path, and resume the scheduler. If an emergency rollback leaves an undispatched blob, re-finalize
+only that verified blob after the legacy watcher is active; replaying a blob whose WorkItem is
+already `RUNNING` or terminal can duplicate processing.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 

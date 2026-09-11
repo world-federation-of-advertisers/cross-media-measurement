@@ -55,6 +55,7 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
     set("State").to(state)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  deleteWorkItemPublication(workItemId)
   return state
 }
 
@@ -149,7 +150,7 @@ fun AsyncDatabaseClient.ReadContext.readWorkItems(
   }
 }
 
-private object WorkItems {
+internal object WorkItems {
   val BASE_SQL =
     """
     SELECT

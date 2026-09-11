@@ -51,3 +51,23 @@ spanner_emulator_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
     ],
 )
+
+spanner_emulator_test(
+    name = "WorkItemPublicationRunnerTest",
+    srcs = ["WorkItemPublicationRunnerTest.kt"],
+    test_class = "org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.WorkItemPublicationRunnerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner:services",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal/testing:test_config",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+        "@wfa_common_jvm//src/main/proto/wfa/measurement/queue/testing:test_work_kt_jvm_proto",
+    ],
+)

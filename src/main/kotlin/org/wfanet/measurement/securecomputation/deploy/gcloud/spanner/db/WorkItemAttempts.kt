@@ -84,6 +84,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
     set("State").to(WorkItem.State.RUNNING)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  deleteWorkItemPublication(workItemId)
   return Pair(attemptNumber, workItemAttemptState)
 }
 
