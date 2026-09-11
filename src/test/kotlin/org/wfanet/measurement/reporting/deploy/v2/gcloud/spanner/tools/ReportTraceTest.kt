@@ -515,6 +515,43 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Kingdom terminal child state overrides transitional BasicReport state`() {
+    val context = reportTraceContext().copy(basicReportState = "REPORT_CREATED")
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topologyProvenance = "not supplied; EDPA ownership is unknown",
+        edpaDataProviders = emptySet(),
+        measurementRoutes =
+          listOf(
+            ReportTraceMeasurementRoute(
+              name = context.measurementNames.single(),
+              state = "FAILED",
+              protocol = "DIRECT",
+              route = ReportTraceMeasurementRouteKind.DIRECT,
+              requisitions = emptyList(),
+              requisitionsResolved = true,
+            )
+          ),
+        warnings = emptyList(),
+      )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution = routeResolution,
+        spans = emptyList(),
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("Execution outcome: FAILED")
+  }
+
+  @Test
   fun `main includes Kingdom Requisitions in initial correlation set`() {
     val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
     var loggingCorrelationValues: Collection<String> = emptyList()

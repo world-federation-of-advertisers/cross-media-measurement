@@ -597,7 +597,8 @@ internal object ReportTraceOutput {
     startTime: Instant? = null,
     endTime: Instant? = null,
     generatedAt: Instant? = null,
-    executionOutcome: ReportTraceExecutionOutcome = executionOutcome(context, spans, logEntries),
+    executionOutcome: ReportTraceExecutionOutcome =
+      executionOutcome(context, routeResolution, spans, logEntries),
   ): String = buildString {
     appendLine("# Report execution trace")
     appendLine()
@@ -851,6 +852,7 @@ internal object ReportTraceOutput {
 
   fun executionOutcome(
     context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution,
     spans: List<ReportTraceSpan>,
     logEntries: List<ReportTraceLogEntry>,
   ): ReportTraceExecutionOutcome {
@@ -865,9 +867,13 @@ internal object ReportTraceOutput {
     val metricStates =
       latestResourceStates(spans, logEntries, "xmm.metric.name", "xmm.metric.state")
     val measurementStates =
-      latestResourceStates(spans, logEntries, "xmm.measurement.name", "xmm.measurement.state")
+      latestResourceStates(spans, logEntries, "xmm.measurement.name", "xmm.measurement.state") +
+        routeResolution.measurementRoutes.map { it.state.uppercase() }
     val requisitionStates =
-      latestResourceStates(spans, logEntries, "xmm.requisition.name", "xmm.requisition.state")
+      latestResourceStates(spans, logEntries, "xmm.requisition.name", "xmm.requisition.state") +
+        routeResolution.measurementRoutes.flatMap { measurement ->
+          measurement.requisitions.map { it.state.uppercase() }
+        }
     if (
       reportStates.any { it == "FAILED" } ||
         metricStates.any { it in setOf("FAILED", "INVALID") } ||
