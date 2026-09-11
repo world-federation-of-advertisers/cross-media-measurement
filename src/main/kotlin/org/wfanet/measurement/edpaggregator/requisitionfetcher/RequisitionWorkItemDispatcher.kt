@@ -20,6 +20,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
@@ -70,6 +71,7 @@ class SecureComputationRequisitionWorkItemDispatcher(
               appParams =
                 this@SecureComputationRequisitionWorkItemDispatcher.resultsFulfillerParams.pack()
               dataPathParams = dataPathParams { dataPath = blobUri }
+              traceContext.putAll(W3CTraceContext.inject())
             }
             .pack()
       }

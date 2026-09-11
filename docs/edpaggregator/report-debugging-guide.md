@@ -137,11 +137,11 @@ The stable correlation key is the full `BasicReport` resource name in
 `Metric` into `MeasurementSpec.ReportingMetadata.basic_report`. Kingdom stores
 that signed spec unchanged and includes it in the requisitions and system
 computation it creates. EDPA writes the BasicReport and Report names into each
-grouped-requisitions blob; DataWatcher also persists W3C trace context in the
-WorkItem so the TEE processing span can continue the DataWatcher dispatch trace
-when that context is available. The durable GCS boundary does not itself
-continue the RequisitionFetcher trace. Herald and all mills, including HMSS and
-TrusTEE, recover the identifiers from the computation's serialized
+grouped-requisitions blob; RequisitionFetcher also persists W3C trace context in
+the WorkItem so the TEE processing span can continue the fetcher's trace across
+the durable GCS and queue boundaries. Legacy deployments using DataWatcher also
+persist its active context in the WorkItem. Herald and all mills, including HMSS
+and TrusTEE, recover the identifiers from the computation's serialized
 `MeasurementSpec`. The post-processing/noise-correction job prefixes its logs
 while processing a BasicReport with `xmm.basic_report.name` and
 `xmm.report.name`.
@@ -371,8 +371,9 @@ healthy right now, independent of my report?". Reporting emits
 `reporting.unreachable_basic_reports` for BasicReports it cannot advance.
 
 Traces (when exported) let you follow synchronous calls without correlating
-timestamps across log streams by hand. The DataWatcher-to-TEE WorkItem boundary
-also carries W3C trace context explicitly. Other durable boundaries may begin a
+timestamps across log streams by hand. The RequisitionFetcher-to-TEE WorkItem
+boundary carries W3C trace context explicitly; legacy DataWatcher dispatch does
+the same. Other durable boundaries may begin a
 new trace, so `xmm.basic_report.name` is the cross-trace join key. The
 results-fulfiller records per-requisition span events (for example,
 `requisition_processing_failed`) carrying the BasicReport, Report, requisition,
@@ -1058,9 +1059,9 @@ it belongs to a requisition created **after** your change — check the requisit
 `GroupId` / `CmmsRequisition` to current work rather than assuming the newest error
 reflects the current config. Conversely, when a failure mode points at
 configuration (model line, KMS type, EDPs config, RequisitionFetcher WorkItem
-dispatch config, or legacy data-watcher config), suspect a
-recent config change as the root cause and compare against the last-known-good
-value rather than inventing a new one.
+dispatch config, or a legacy data-watcher config), suspect a recent config change
+as the root cause and compare against the last-known-good value rather than
+inventing a new one.
 
 ## Anti-patterns
 

@@ -24,6 +24,10 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanContext
+import io.opentelemetry.api.trace.TraceFlags
+import io.opentelemetry.api.trace.TraceState
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.LongPointData
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
@@ -392,7 +396,16 @@ class RequisitionFetcherTest {
         controlPlaneThrottler = throttler,
       )
 
-    dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+    val spanContext =
+      SpanContext.create(
+        "0123456789abcdef0123456789abcdef",
+        "0123456789abcdef",
+        TraceFlags.getSampled(),
+        TraceState.getDefault(),
+      )
+    Span.wrap(spanContext).makeCurrent().use {
+      dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
+    }
     dispatcher.dispatch("group-id", "gs://bucket/requisitions/group-id")
 
     val request = createWorkItemRequests.single()
@@ -402,6 +415,8 @@ class RequisitionFetcherTest {
     assertThat(params.appParams.unpack(ResultsFulfillerParams::class.java))
       .isEqualTo(expectedResultsFulfillerParams)
     assertThat(params.dataPathParams.dataPath).isEqualTo("gs://bucket/requisitions/group-id")
+    assertThat(params.traceContextMap)
+      .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
     assertThat(dispatcher.workItemName("group-id"))
       .isEqualTo("workItems/results-fulfiller-group-id")
   }
