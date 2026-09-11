@@ -412,7 +412,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             val request =
               HttpRequest.newBuilder()
                 .uri(URI.create(requisitionFetcherEndpoint))
-                .timeout(Duration.ofSeconds(120))
+                // The fetcher streams every UNFULFILLED requisition for its data provider on
+                // each invocation with no persisted cursor, so its response time scales with
+                // however large that data provider's backlog happens to be, not with the
+                // handful of requisitions this test just created.
+                .timeout(Duration.ofSeconds(REQUISITION_FETCHER_HTTP_TIMEOUT_SECONDS))
                 .header("Authorization", "Bearer $jwt")
                 .GET()
                 .build()
@@ -486,6 +490,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     companion object {
       private const val REQUISITIONS_SYNC_TIMEOUT = 60_000L * 5
+      private const val REQUISITION_FETCHER_HTTP_TIMEOUT_SECONDS = 300L
       private const val REQUISITIONS_SYNC_POLLING_INTERVAL = 5000L
 
       private val channels = mutableListOf<ManagedChannel>()

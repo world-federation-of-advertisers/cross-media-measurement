@@ -342,6 +342,12 @@ module "requisition_fetcher_cloud_function" {
   # rather than firing rejected requests mid-drain.
   timeout_seconds = 600
   max_instances   = 1
+  # 512MB (the module default) suffices for a small, steady-state UNFULFILLED backlog, but this
+  # data provider has accumulated a large one (see cross-media-measurement#4298 investigation),
+  # and every invocation streams the *entire* UNFULFILLED backlog with no persisted cursor before
+  # any of it is dropped from the buffer. Raised to give that streaming/grouping headroom; revisit
+  # downward once the backlog is drained and stays small, or raise further if it recurs.
+  memory = "2048MB"
 }
 
 module "requisition_fetcher_cloud_scheduler" {

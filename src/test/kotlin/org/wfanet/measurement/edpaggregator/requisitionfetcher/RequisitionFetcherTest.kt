@@ -181,6 +181,7 @@ class RequisitionFetcherTest {
     maxTotalBufferedBytes: Long = RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
     maxRequisitionsPerGroup: Int = RequisitionFetcher.DEFAULT_MAX_REQUISITIONS_PER_GROUP,
     metadataThrottler: Throttler = this.throttler,
+    responsePageSize: Int? = null,
   ): RequisitionFetcher {
     val validator =
       RequisitionsValidator(
@@ -208,6 +209,7 @@ class RequisitionFetcherTest {
       maxTotalBufferedBytes = maxTotalBufferedBytes,
       maxRequisitionsPerGroup = maxRequisitionsPerGroup,
       metrics = metrics,
+      responsePageSize = responsePageSize,
     )
   }
 
@@ -699,7 +701,7 @@ class RequisitionFetcherTest {
         listRequisitionsResponse { requisitions += r1 }
       }
 
-      createFetcher().fetchAndStoreRequisitions()
+      createFetcher(responsePageSize = 10).fetchAndStoreRequisitions()
 
       assertThat(captured).hasSize(4)
       assertThat(captured[0]).isEqualTo(10)
@@ -742,7 +744,7 @@ class RequisitionFetcherTest {
       }
     }
 
-    createFetcher().fetchAndStoreRequisitions()
+    createFetcher(responsePageSize = 10).fetchAndStoreRequisitions()
 
     assertThat(captured).containsExactly(10, 5, 5).inOrder()
   }
