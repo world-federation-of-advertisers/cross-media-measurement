@@ -759,6 +759,16 @@ class BasicReportsService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
+    Span.current()
+      .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.name)
+      .addEvent(
+        "reporting.basic_report.fetch_started",
+        io.opentelemetry.api.common.Attributes.of(
+          ReportTraceAttributes.LIFECYCLE_STAGE,
+          "basic_report_api_fetch",
+        ),
+      )
+
     authorization.check(listOf(request.name, measurementConsumerKey.toName()), Permission.GET)
 
     val internalBasicReport: InternalBasicReport =
@@ -790,7 +800,19 @@ class BasicReportsService(
         }
       }
 
-    return internalBasicReport.toBasicReport(!request.excludeDeprecatedEventGroupSummaries)
+    val basicReport =
+      internalBasicReport.toBasicReport(!request.excludeDeprecatedEventGroupSummaries)
+    Span.current()
+      .setAttribute(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+      .addEvent(
+        "reporting.basic_report.returned",
+        io.opentelemetry.api.common.Attributes.builder()
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_api_fetch")
+          .put(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+          .put(ReportTraceAttributes.OUTCOME, "succeeded")
+          .build(),
+      )
+    return basicReport
   }
 
   override suspend fun listBasicReports(

@@ -228,7 +228,9 @@ class PostProcessReportResultJob:
 
         try:
             logging.info(
-                "Processing report %s", basic_report.external_report_result_id
+                "xmm.lifecycle.stage=noise_correction xmm.outcome=started "
+                "Processing ReportResult %s",
+                basic_report.external_report_result_id,
             )
             add_processed_result_values_request = self._post_processor.process(
                 basic_report.cmms_measurement_consumer_id,
@@ -240,6 +242,7 @@ class PostProcessReportResultJob:
             # BasicReport cannot be processed; mark it FAILED so downstream
             # consumers don't wait forever.
             logging.warning(
+                "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
                 "Failed to process BasicReport %s for MeasurementConsumer %s",
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
@@ -254,10 +257,15 @@ class PostProcessReportResultJob:
             return False
 
         if not add_processed_result_values_request:
+            logging.info(
+                "xmm.lifecycle.stage=noise_correction "
+                "xmm.outcome=no_update_required"
+            )
             return succeeded
 
         logging.info(
-            "Updating ReportResult %s",
+            "xmm.lifecycle.stage=processed_result_writeback "
+            "xmm.outcome=started Updating ReportResult %s",
             basic_report.external_report_result_id,
         )
         try:
@@ -277,7 +285,9 @@ class PostProcessReportResultJob:
                 advanced_state = _basic_report_state_past_unprocessed(e)
                 if advanced_state is not None:
                     logging.info(
-                        "Skipping BasicReport %s for MeasurementConsumer %s:"
+                        "xmm.lifecycle.stage=processed_result_writeback "
+                        "xmm.outcome=already_completed Skipping BasicReport %s "
+                        "for MeasurementConsumer %s:"
                         " already advanced past UNPROCESSED_RESULTS_READY"
                         " (now %s)",
                         basic_report.external_basic_report_id,
@@ -288,7 +298,8 @@ class PostProcessReportResultJob:
                 # State precondition was NOT the cause -- fall through to
                 # treat as a real failure (e.g. missing ReportingSetResult).
                 logging.warning(
-                    "AddProcessedResultValues failed for BasicReport %s,"
+                    "xmm.lifecycle.stage=processed_result_writeback "
+                    "xmm.outcome=failed AddProcessedResultValues failed for BasicReport %s,"
                     " MeasurementConsumer %s with FAILED_PRECONDITION but"
                     " state has not advanced; marking FAILED",
                     basic_report.external_basic_report_id,
@@ -307,7 +318,9 @@ class PostProcessReportResultJob:
             # UNPROCESSED_RESULTS_READY so the next tick can retry; do not
             # mark it FAILED.
             logging.warning(
-                "Transient failure (%s) updating ReportResult for BasicReport"
+                "xmm.lifecycle.stage=processed_result_writeback "
+                "xmm.outcome=retryable_failure Transient failure (%s) updating "
+                "ReportResult for BasicReport"
                 " %s, MeasurementConsumer %s; will retry next tick",
                 e.code().name,
                 basic_report.external_basic_report_id,
@@ -316,7 +329,10 @@ class PostProcessReportResultJob:
             )
             return False
 
-        logging.info("Finished post-processing BasicReport")
+        logging.info(
+            "xmm.lifecycle.stage=processed_result_writeback "
+            "xmm.outcome=succeeded Finished post-processing BasicReport"
+        )
         return succeeded
 
     def execute(self) -> bool:

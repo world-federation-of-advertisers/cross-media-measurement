@@ -10,6 +10,7 @@ kt_jvm_test(
     associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.ReportTraceTest",
     deps = [
+        "//imports/java/com/google/cloud/logging",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
     ],

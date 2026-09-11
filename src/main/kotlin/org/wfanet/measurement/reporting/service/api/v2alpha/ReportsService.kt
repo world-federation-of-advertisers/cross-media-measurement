@@ -237,6 +237,16 @@ class ReportsService(
       }
     val parent: String = reportKey.parentKey.toName()
 
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REPORT_NAME, request.name)
+      .addEvent(
+        "reporting.report.fetch_started",
+        io.opentelemetry.api.common.Attributes.of(
+          ReportTraceAttributes.LIFECYCLE_STAGE,
+          "report_result_assembly",
+        ),
+      )
+
     authorization.check(listOf(request.name, parent), Permission.GET)
 
     val internalReport =
@@ -258,6 +268,22 @@ class ReportsService(
           .withDescription("Unable to get Report.")
           .asRuntimeException()
       }
+
+    Span.current().also { span ->
+      if (internalReport.details.basicReport.isNotBlank()) {
+        span.setAttribute(
+          ReportTraceAttributes.BASIC_REPORT_NAME,
+          internalReport.details.basicReport,
+        )
+      }
+      span.addEvent(
+        "reporting.report.loaded",
+        io.opentelemetry.api.common.Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "report_result_assembly")
+          .build(),
+      )
+    }
 
     // Get metrics.
     val metricNames: Flow<String> = flow {
@@ -290,6 +316,14 @@ class ReportsService(
     val callRpc: suspend (List<String>) -> BatchGetMetricsResponse = { items ->
       batchGetMetrics(parent, items)
     }
+    Span.current()
+      .addEvent(
+        "reporting.metrics.fetch_started",
+        io.opentelemetry.api.common.Attributes.of(
+          ReportTraceAttributes.LIFECYCLE_STAGE,
+          "metric_result_sync",
+        ),
+      )
     val externalIdToMetricMap: Map<String, Metric> = buildMap {
       submitBatchRequests(metricNames, BATCH_GET_METRICS_LIMIT, callRpc, concurrency = 3) { response
           ->
@@ -303,7 +337,25 @@ class ReportsService(
     }
 
     // Convert the internal report to public and return.
-    return convertInternalReportToPublic(internalReport, externalIdToMetricMap)
+    val report = convertInternalReportToPublic(internalReport, externalIdToMetricMap)
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REPORT_STATE, report.state.name)
+      .addEvent(
+        "reporting.report.returned",
+        io.opentelemetry.api.common.Attributes.builder()
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "report_result_assembly")
+          .put(ReportTraceAttributes.REPORT_STATE, report.state.name)
+          .put(
+            ReportTraceAttributes.OUTCOME,
+            when (report.state) {
+              Report.State.SUCCEEDED -> "results_available"
+              Report.State.FAILED -> "failed"
+              else -> "pending"
+            },
+          )
+          .build(),
+      )
+    return report
   }
 
   private suspend fun batchGetMetrics(

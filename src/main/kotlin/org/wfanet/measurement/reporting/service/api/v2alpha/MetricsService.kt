@@ -26,6 +26,7 @@ import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.io.File
 import java.security.PrivateKey
@@ -121,6 +122,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
@@ -906,12 +908,29 @@ class MetricsService(
     ): Boolean {
       val failedMeasurements: MutableList<Measurement> = mutableListOf()
 
+      Span.current()
+        .addEvent(
+          "reporting.kingdom_measurements.fetch_started",
+          Attributes.builder()
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_measurement_sync")
+            .put("xmm.measurement.count", internalMeasurements.size.toLong())
+            .build(),
+        )
+
       // Most Measurements are expected to be SUCCEEDED so SUCCEEDED Measurements will be collected
       // via a Flow.
       val succeededMeasurements: Flow<Measurement> =
         getCmmsMeasurements(internalMeasurements, measurementConsumerCreds).transform { measurements
           ->
           for (measurement in measurements) {
+            Span.current()
+              .addEvent(
+                "reporting.kingdom_measurement.observed",
+                Attributes.builder()
+                  .put(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
+                  .put(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
+                  .build(),
+              )
             @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
             when (measurement.state) {
               Measurement.State.SUCCEEDED -> emit(measurement)
@@ -953,6 +972,11 @@ class MetricsService(
 
       if (count > 0) {
         anyUpdate = true
+        Span.current()
+          .addEvent(
+            "reporting.measurement_results.persisted",
+            Attributes.of(ReportTraceAttributes.OUTCOME, "succeeded"),
+          )
       }
 
       if (failedMeasurements.isNotEmpty()) {
@@ -975,6 +999,11 @@ class MetricsService(
           .collect {}
 
         anyUpdate = true
+        Span.current()
+          .addEvent(
+            "reporting.measurement_failures.persisted",
+            Attributes.of(ReportTraceAttributes.OUTCOME, "failed_measurement_recorded"),
+          )
       }
 
       return anyUpdate
@@ -2002,67 +2031,124 @@ class MetricsService(
     metricsByState: Map<InternalMetric.State, List<InternalMetric>>,
     measurementConsumerCreds: MeasurementConsumerCredentials,
   ): List<Metric> {
-    // Only syncs pending measurements which can only be in metrics that are still running.
-    val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-      if (metricsByState.containsKey(InternalMetric.State.RUNNING)) {
-        metricsByState
-          .getValue(InternalMetric.State.RUNNING)
-          .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
-          .map { weightedMeasurement -> weightedMeasurement.measurement }
-          .filter { internalMeasurement ->
-            internalMeasurement.state == InternalMeasurement.State.PENDING
-          }
-      } else {
-        emptyList()
-      }
-
-    val anyMeasurementUpdated: Boolean =
-      measurementSupplier.syncInternalMeasurements(
-        toBeSyncedInternalMeasurements,
-        measurementConsumerCreds,
-      )
-
-    return buildList {
-      for (state in metricsByState.keys) {
-        when (state) {
-          InternalMetric.State.SUCCEEDED,
-          InternalMetric.State.FAILED,
-          InternalMetric.State.INVALID ->
-            addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
-          InternalMetric.State.RUNNING -> {
-            if (anyMeasurementUpdated) {
-              val updatedInternalMetrics =
-                try {
-                  batchGetInternalMetrics(
-                    measurementConsumerCreds.resourceKey.measurementConsumerId,
-                    metricsByState.getValue(InternalMetric.State.RUNNING).map {
-                      it.externalMetricId
-                    },
-                  )
-                } catch (e: StatusException) {
-                  throw Status.INTERNAL.withDescription("Unable to get internal Metrics")
-                    .withCause(e)
-                    .asRuntimeException()
-                }
-              addAll(updatedInternalMetrics.map { it.toMetric(variances) })
-            } else {
-              addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
-            }
-          }
-          InternalMetric.State.STATE_UNSPECIFIED -> {
-            // Metrics created before state was tracked in the database will have the state be
-            // unspecified. This calculates the correct state for those metrics.
-            addAll(
-              metricsByState.getValue(state).map { internalMetric ->
-                internalMetric
-                  .copy { this.state = internalMetric.calculateState() }
-                  .toMetric(variances)
-              }
+    val internalMetrics = metricsByState.values.flatten()
+    val traceAttributes =
+      Attributes.builder()
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "metric_result_sync")
+        .also { builder ->
+          internalMetrics
+            .map { it.details.basicReport }
+            .filter(String::isNotBlank)
+            .distinct()
+            .singleOrNull()
+            ?.let { builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, it) }
+          internalMetrics
+            .map { it.details.containingReport }
+            .filter(String::isNotBlank)
+            .distinct()
+            .singleOrNull()
+            ?.let { builder.put(ReportTraceAttributes.REPORT_NAME, it) }
+          internalMetrics.singleOrNull()?.let {
+            builder.put(
+              ReportTraceAttributes.METRIC_NAME,
+              MetricKey(it.cmmsMeasurementConsumerId, it.externalMetricId).toName(),
             )
           }
-          InternalMetric.State.UNRECOGNIZED -> error("Invalid Metric State")
+        }
+        .build()
+
+    return ReportTracing.traceSuspending(
+      spanName = "reporting.metrics.sync_results",
+      attributes = traceAttributes,
+    ) {
+      for (internalMetric in internalMetrics) {
+        Span.current()
+          .addEvent(
+            "reporting.metric.observed",
+            Attributes.builder()
+              .put(
+                ReportTraceAttributes.METRIC_NAME,
+                MetricKey(internalMetric.cmmsMeasurementConsumerId, internalMetric.externalMetricId)
+                  .toName(),
+              )
+              .put(ReportTraceAttributes.METRIC_STATE, internalMetric.state.name)
+              .build(),
+          )
+      }
+
+      // Only syncs pending measurements which can only be in metrics that are still running.
+      val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
+        if (metricsByState.containsKey(InternalMetric.State.RUNNING)) {
+          metricsByState
+            .getValue(InternalMetric.State.RUNNING)
+            .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
+            .map { weightedMeasurement -> weightedMeasurement.measurement }
+            .filter { internalMeasurement ->
+              internalMeasurement.state == InternalMeasurement.State.PENDING
+            }
+        } else {
+          emptyList()
+        }
+
+      val anyMeasurementUpdated: Boolean =
+        measurementSupplier.syncInternalMeasurements(
+          toBeSyncedInternalMeasurements,
+          measurementConsumerCreds,
+        )
+
+      val publicMetrics = buildList {
+        for (state in metricsByState.keys) {
+          when (state) {
+            InternalMetric.State.SUCCEEDED,
+            InternalMetric.State.FAILED,
+            InternalMetric.State.INVALID ->
+              addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+            InternalMetric.State.RUNNING -> {
+              if (anyMeasurementUpdated) {
+                val updatedInternalMetrics =
+                  try {
+                    batchGetInternalMetrics(
+                      measurementConsumerCreds.resourceKey.measurementConsumerId,
+                      metricsByState.getValue(InternalMetric.State.RUNNING).map {
+                        it.externalMetricId
+                      },
+                    )
+                  } catch (e: StatusException) {
+                    throw Status.INTERNAL.withDescription("Unable to get internal Metrics")
+                      .withCause(e)
+                      .asRuntimeException()
+                  }
+                addAll(updatedInternalMetrics.map { it.toMetric(variances) })
+              } else {
+                addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
+              }
+            }
+            InternalMetric.State.STATE_UNSPECIFIED -> {
+              // Metrics created before state was tracked in the database will have the state be
+              // unspecified. This calculates the correct state for those metrics.
+              addAll(
+                metricsByState.getValue(state).map { internalMetric ->
+                  internalMetric
+                    .copy { this.state = internalMetric.calculateState() }
+                    .toMetric(variances)
+                }
+              )
+            }
+            InternalMetric.State.UNRECOGNIZED -> error("Invalid Metric State")
+          }
         }
       }
+      for (metric in publicMetrics) {
+        Span.current()
+          .addEvent(
+            "reporting.metric.returned",
+            Attributes.builder()
+              .put(ReportTraceAttributes.METRIC_NAME, metric.name)
+              .put(ReportTraceAttributes.METRIC_STATE, metric.state.name)
+              .build(),
+          )
+      }
+      publicMetrics
     }
   }
 

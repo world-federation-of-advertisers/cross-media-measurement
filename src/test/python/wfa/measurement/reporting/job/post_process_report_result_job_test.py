@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from absl import logging
+import logging as stdlib_logging
 import unittest
 from unittest import mock
 import grpc
@@ -33,6 +34,38 @@ BasicReport = basic_report_pb2.BasicReport
 
 
 class PostProcessReportResultJobTest(unittest.TestCase):
+
+    def test_report_trace_filter_adds_basic_report_and_report_names(self):
+        basic_report = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_basic_report_id="basic_report_1",
+            external_report_id="report_1",
+        )
+        record = stdlib_logging.LogRecord(
+            name="test",
+            level=stdlib_logging.INFO,
+            pathname=__file__,
+            lineno=1,
+            msg="xmm.lifecycle.stage=noise_correction xmm.outcome=started",
+            args=(),
+            exc_info=None,
+        )
+
+        with post_process_report_result_job._report_trace_logging_context(
+            basic_report
+        ):
+            post_process_report_result_job._ReportTraceFilter().filter(record)
+
+        self.assertIn(
+            "xmm.basic_report.name=measurementConsumers/mc_id_1/"
+            "basicReports/basic_report_1",
+            record.getMessage(),
+        )
+        self.assertIn(
+            "xmm.report.name=measurementConsumers/mc_id_1/reports/report_1",
+            record.getMessage(),
+        )
+        self.assertIn("xmm.lifecycle.stage=noise_correction", record.getMessage())
 
     @staticmethod
     def _make_rpc_error_with_error_info(
@@ -273,6 +306,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
+            "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
             "Failed to process BasicReport %s for MeasurementConsumer %s",
             "basic_report_1",
             "mc_id_1",

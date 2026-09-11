@@ -60,8 +60,9 @@ changes *how* you use every tool below:
   events carry `edpa.results_fulfiller.cmms_requisition`, `.group_id`,
   `.report_id`, `.model_line`, `.error_type`, and `.status` as attributes — so in
   Cloud Trace you can filter to exactly your requisition's fulfillment span among
-  thousands and read the failure reason directly. At high volume this is the most
-  reliable way to isolate one requisition.
+  thousands and read the failure reason directly. At high volume this is a useful
+  way to isolate one requisition when the deployment exports and samples the
+  relevant spans. A missing span is not proof that the stage did not run.
 - **Logs still matter, but isolation is component-dependent — and harder.** Don't
   skip them (an exception stack trace is often only in the logs), but know what is
   greppable where:
@@ -103,7 +104,10 @@ database.
 bazel run \
   //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
   -- \
-  --project=<PROJECT_ID> \
+  --observability-project=<REPORTING_PROJECT_ID> \
+  --observability-project=<KINGDOM_PROJECT_ID> \
+  --observability-project=<EDPA_PROJECT_ID> \
+  --observability-project=<DUCHY_PROJECT_ID> \
   --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID_1> \
   --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID_2> \
   --output-dir=/tmp/report-traces \
@@ -118,7 +122,21 @@ bazel run \
 Repeat `--basic-report` to collect a batch. `--output-dir` is required for a
 batch and produces one path-safe Markdown file per distinct BasicReport. It can
 also be used with one BasicReport. Without `--output-dir`, a single BasicReport
-is written to standard output. The default end time is the current time.
+is written to standard output. The default end time is the current time. Repeat
+`--observability-project` for every project that receives telemetry from a
+component in the path. The legacy `--project` spelling remains an alias for a
+single centrally routed observability project; it is not the Spanner project.
+
+By default, the artifact contains only allowlisted operational fields and
+sanitized `xmm.*` identifiers. Use `--include-raw-payloads` only for a locally
+controlled investigation: the resulting file is marked `RAW-SENSITIVE` and can
+contain credentials, request data, or other secrets. Review it before sharing.
+
+The command detects source failures and result truncation. Either condition
+marks the artifact partial and makes the process exit non-zero. Use
+`--allow-partial` only when a best-effort artifact is acceptable. `--limit`
+controls the maximum retained spans and log entries; errors and the newest
+terminal evidence are retained first when the result must be bounded.
 
 If the BasicReport database is unavailable but the generated Report name is
 known, direct mode needs only observability permissions:
@@ -127,7 +145,7 @@ known, direct mode needs only observability permissions:
 bazel run \
   //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
   -- \
-  --project=<PROJECT_ID> \
+  --observability-project=<PROJECT_ID> \
   --report=measurementConsumers/<MC_ID>/reports/<REPORT_ID> \
   --start-time=<RFC3339_START_TIME>
 ```
@@ -137,19 +155,28 @@ The stable correlation key is the full `BasicReport` resource name in
 `Metric` into `MeasurementSpec.ReportingMetadata.basic_report`. Kingdom stores
 that signed spec unchanged and includes it in the requisitions and system
 computation it creates. EDPA writes the BasicReport and Report names into each
-grouped-requisitions blob; RequisitionFetcher also persists W3C trace context in
-the WorkItem so the TEE processing span can continue the fetcher's trace across
-the durable GCS and queue boundaries. Legacy deployments using DataWatcher also
-persist its active context in the WorkItem. Herald and all mills, including HMSS
-and TrusTEE, recover the identifiers from the computation's serialized
-`MeasurementSpec`. The post-processing/noise-correction job prefixes its logs
-while processing a BasicReport with `xmm.basic_report.name` and
-`xmm.report.name`.
+grouped-requisitions payload. In the direct-dispatch configuration,
+RequisitionFetcher also persists W3C trace context in the WorkItem so the TEE
+processing span can continue the fetcher's trace across the durable queue
+boundary. Herald and all mills, including HMSS and TrusTEE, recover the
+identifiers from the computation's serialized `MeasurementSpec`. The
+post-processing/noise-correction job prefixes its logs while processing a
+BasicReport with `xmm.basic_report.name`, `xmm.report.name`, lifecycle stage, and
+outcome.
 
-The CLI searches Cloud Trace by `xmm.basic_report.name` in BasicReport mode and
-uses the resolved BasicReport, Report, Metric, and Measurement identifiers for
-Cloud Logging. It continues with whichever observability source is available if
-one API is disabled or the operator lacks permission.
+Complete EDPA trace continuity requires the direct RequisitionFetcher dispatcher
+described in the deployment guide. The legacy DataWatcher path starts a new
+trace from the storage notification and does not recover the fetcher's original
+trace context or BasicReport lineage. Its logs and spans remain useful
+best-effort evidence, but the CLI cannot present that route as one causally
+continuous trace.
+
+The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
+Report, Metric, and Measurement identifiers. Trace IDs found in logs or in one
+project are then fetched from every configured observability project so remote
+spans without a searchable BasicReport label can still be included. If one API
+or project is unavailable, the artifact records the missing coverage and the
+command fails unless `--allow-partial` was explicitly specified.
 
 ## Lifecycle overview
 
@@ -372,9 +399,10 @@ healthy right now, independent of my report?". Reporting emits
 
 Traces (when exported) let you follow synchronous calls without correlating
 timestamps across log streams by hand. The RequisitionFetcher-to-TEE WorkItem
-boundary carries W3C trace context explicitly; legacy DataWatcher dispatch does
-the same. Other durable boundaries may begin a
-new trace, so `xmm.basic_report.name` is the cross-trace join key. The
+boundary in direct-dispatch deployments carries W3C trace context explicitly.
+Legacy DataWatcher dispatch starts from its storage notification and is not
+causally connected to the RequisitionFetcher span. Other durable boundaries may
+also begin a new trace, so `xmm.basic_report.name` is the cross-trace join key. The
 results-fulfiller records per-requisition span events (for example,
 `requisition_processing_failed`) carrying the BasicReport, Report, requisition,
 group, fulfiller type, model line, status, and error type. The Herald and mill
