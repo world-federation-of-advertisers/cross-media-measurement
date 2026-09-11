@@ -487,6 +487,121 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `upload throttles registered-file existence check`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val currentUpload =
+      RawImpressionUpload.newBuilder()
+        .setName("$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID")
+        .setDoneBlobUri(DONE_BLOB_PATH)
+        .setDoneBlobGeneration(DONE_BLOB_GENERATION)
+        .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.toProtoTime())
+        .setState(RawImpressionUpload.State.CREATED)
+        .setEtag(UPLOAD_ETAG)
+        .build()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += currentUpload })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+      if (request.parent.endsWith("/-")) {
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$DATA_PROVIDER_NAME/rawImpressionUploads/historical/files/file"
+            this.blobUri = blobUri
+            blobGeneration = RAW_BLOB_GENERATION
+          }
+        }
+      } else {
+        listRawImpressionUploadFilesResponse {}
+      }
+    }
+    val metadataRead = RecordingThrottler()
+
+    createDispatcher(
+        rpcThrottlers =
+          VidLabelingRpcThrottlers(
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().kingdom,
+            metadataRead,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().metadataWrite,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().controlPlane,
+          )
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(metadataRead.onReadyCalls).isEqualTo(5)
+    val requestCaptor = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService, times(3)) {
+      listRawImpressionUploadFiles(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.allValues.count { it.parent == currentUpload.name }).isEqualTo(1)
+  }
+
+  @Test
+  fun `upload throttles every page of chunked historical-file lookups`() = runBlocking {
+    val blobs = (1..101).map { createMockBlob("$FOLDER_PREFIX/file$it.parquet") }
+    val previousUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/previous"
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(*blobs.toTypedArray()))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            RawImpressionUpload.newBuilder()
+              .setName(previousUploadName)
+              .setDoneBlobUri(DONE_BLOB_PATH)
+              .setDoneBlobGeneration(100L)
+              .setDoneBlobCreateTime(DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime())
+              .setState(RawImpressionUpload.State.COMPLETED)
+              .build()
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+      if (request.pageToken.isEmpty()) {
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles +=
+            request.filter.blobUriInList.mapIndexed { index, uri ->
+              rawImpressionUploadFile {
+                name = "$previousUploadName/files/file-$index"
+                blobUri = uri
+                blobGeneration = RAW_BLOB_GENERATION
+              }
+            }
+          nextPageToken = "next"
+        }
+      } else {
+        listRawImpressionUploadFilesResponse {}
+      }
+    }
+    val metadataRead = RecordingThrottler()
+
+    createDispatcher(
+        rpcThrottlers =
+          VidLabelingRpcThrottlers(
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().kingdom,
+            metadataRead,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().metadataWrite,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().controlPlane,
+          )
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(metadataRead.onReadyCalls).isEqualTo(5)
+    val requestCaptor = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService, times(4)) {
+      listRawImpressionUploadFiles(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.allValues.map { it.pageToken })
+      .containsExactly("", "next", "", "next")
+      .inOrder()
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
   fun `upload reads footer from captured blob generation`() = runBlocking {
     val blobKey = "edp1/2024-01-15/file1.parquet"
     val doneBlobPath = "gs://test-bucket/edp1/2024-01-15/done"
@@ -1318,8 +1433,8 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
       }
-      // Initial revision discovery plus exact/latest ALREADY_EXISTS recovery lookups.
-      assertThat(metadataRead.onReadyCalls).isEqualTo(3)
+      // Initial revision discovery, file-version lookup, and exact/latest ALREADY_EXISTS recovery.
+      assertThat(metadataRead.onReadyCalls).isEqualTo(4)
     }
 
   @Test

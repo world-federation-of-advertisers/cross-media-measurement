@@ -603,12 +603,14 @@ class VidLabelingDispatcher(
 
   private suspend fun hasRegisteredFiles(uploadName: String): Boolean {
     val response =
-      rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
-        listRawImpressionUploadFilesRequest {
-          parent = uploadName
-          pageSize = 1
-        }
-      )
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+          listRawImpressionUploadFilesRequest {
+            parent = uploadName
+            pageSize = 1
+          }
+        )
+      }
     return response.rawImpressionUploadFilesCount > 0
   }
 
@@ -652,14 +654,16 @@ class VidLabelingDispatcher(
       rawImpressionUploadFilesStub
         .listResources { pageToken: String ->
           val response =
-            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
-              listRawImpressionUploadFilesRequest {
-                parent = "$dataProviderName/rawImpressionUploads/-"
-                filter = rawUploadFileFilter { blobUriIn += chunk.map { it.blobUri } }
-                showDeleted = true
-                if (pageToken.isNotEmpty()) this.pageToken = pageToken
-              }
-            )
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+                listRawImpressionUploadFilesRequest {
+                  parent = "$dataProviderName/rawImpressionUploads/-"
+                  filter = rawUploadFileFilter { blobUriIn += chunk.map { it.blobUri } }
+                  showDeleted = true
+                  if (pageToken.isNotEmpty()) this.pageToken = pageToken
+                }
+              )
+            }
           ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
         }
         .flattenConcat()
