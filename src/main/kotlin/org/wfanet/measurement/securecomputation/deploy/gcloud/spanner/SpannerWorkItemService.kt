@@ -41,7 +41,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failActiveWorkItemAttempts
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.activeWorkItemAttemptExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
@@ -234,7 +234,12 @@ class SpannerWorkItemsService(
             when (result.workItem.state) {
               WorkItem.State.FAILED -> txn.retryWorkItem(result.workItemId)
               WorkItem.State.RUNNING -> {
-                txn.failActiveWorkItemAttempts(result.workItemId)
+                if (txn.activeWorkItemAttemptExists(result.workItemId)) {
+                  throw WorkItemInvalidStateException(
+                    result.workItem.workItemResourceId,
+                    result.workItem.state,
+                  )
+                }
                 txn.retryWorkItem(result.workItemId)
               }
               WorkItem.State.QUEUED -> {

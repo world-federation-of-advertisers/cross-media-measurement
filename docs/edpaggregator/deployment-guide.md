@@ -1127,10 +1127,12 @@ quiesced rollout avoids creating it deliberately.
 
 #### Recovering an abandoned running WorkItem
 
-`RetryWorkItem` can also recover a `RUNNING` WorkItem after its worker exits without completing or
-failing the active attempt. The operation marks the active attempt `FAILED`, returns the WorkItem to
-`QUEUED`, and publishes it again. Use this only after confirming that the original worker has
-stopped; forcing a live WorkItem back to the queue can run its external effects twice.
+To recover a `RUNNING` WorkItem after its worker exits without completing or failing the attempt,
+first call `FailWorkItemAttempt` for the exact active attempt that was inspected. Then call
+`RetryWorkItem`; it returns a `RUNNING` WorkItem to `QUEUED` only when no active attempt remains and
+publishes it again. A stale or repeated `RetryWorkItem` call cannot fail a replacement worker's
+attempt. Do this only after confirming that the original worker has stopped because the APIs do not
+currently provide an attempt lease, expiry, heartbeat, or authoritative worker-ownership signal.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 
