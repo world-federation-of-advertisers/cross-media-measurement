@@ -344,6 +344,40 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_library(
+    name = "upload_healing_operation_proto",
+    srcs = ["upload_healing_operation.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":raw_impression_upload_model_line_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "upload_healing_operation_kt_jvm_proto",
+    deps = [":upload_healing_operation_proto"],
+)
+
+proto_library(
+    name = "upload_healing_operation_service_proto",
+    srcs = ["upload_healing_operation_service.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":upload_healing_operation_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "upload_healing_operation_service_kt_jvm_grpc_proto",
+    deps = [":upload_healing_operation_service_proto"],
+)
+
+proto_library(
     name = "raw_impression_upload_file_proto",
     srcs = ["raw_impression_upload_file.proto"],
     strip_import_prefix = _IMPORT_PREFIX,

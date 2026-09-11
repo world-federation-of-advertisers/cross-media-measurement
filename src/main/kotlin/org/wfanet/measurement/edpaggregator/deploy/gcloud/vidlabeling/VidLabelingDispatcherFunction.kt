@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFoot
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
@@ -107,6 +108,10 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `X-Override-Model-Lines`: Optional. Comma-separated list of model line resource names to use
  *   instead of querying the VID Repository API. Supports backfilling past data where the model line
  *   may no longer be in the active window.
+ * - `X-Recovery-Source-Upload`: Optional. Evicted source upload that authorizes an override
+ *   forwarded from done-object recovery metadata.
+ * - `X-Eviction-Operation-Id`: Optional. Eviction operation that authorizes the recovery. Required
+ *   together with `X-Recovery-Source-Upload`.
  */
 class VidLabelingDispatcherFunction : HttpFunction {
   init {
@@ -140,6 +145,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
           .getFirstHeader(OVERRIDE_MODEL_LINES_HEADER)
           .map { header -> header.split(",").map { it.trim() }.filter { it.isNotEmpty() } }
           .orElse(emptyList())
+      val recoverySourceUpload = request.getFirstHeader(RECOVERY_SOURCE_UPLOAD_HEADER).orElse(null)
+      val evictionOperationId = request.getFirstHeader(EVICTION_OPERATION_ID_HEADER).orElse(null)
 
       val config: VidLabelingConfig =
         vidLabelingConfigsByDataProvider[dispatcherParams.dataProvider]
@@ -202,6 +209,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
         RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
           rawImpressionUploadChannel
         )
+      val rankIndexBlobStub =
+        RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(rawImpressionUploadChannel)
       // PoolAssignmentJobService is served by the same RawImpressionMetadata storage deployment.
       val poolAssignmentJobStub =
         PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
@@ -258,23 +267,26 @@ class VidLabelingDispatcherFunction : HttpFunction {
         VidLabelingDispatcher(
           storageClient = storageClient,
           readEventDate = { blobUri ->
-            val blobPath =
+            val parquetBlobPath =
               if (fileSystemPath.isNullOrEmpty()) {
                 blobUri
               } else {
                 SelectedStorageClient.parseBlobUri(blobUri).key
               }
-            readEventDateFromFooter(parquetStorageClient, blobPath)
+            readEventDateFromFooter(parquetStorageClient, parquetBlobPath)
           },
           readBlobMetadata = readBlobMetadata,
           rawImpressionUploadStub = rawImpressionUploadStub,
           rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
           rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+          rankIndexBlobStub = rankIndexBlobStub,
           modelLinesStub = modelLinesStub,
           dispatchSequencer = dispatchSequencer,
           dataProviderName = config.dataProvider,
           modelSuiteName = config.modelSuite,
           overrideModelLines = overrideModelLines,
+          recoverySourceUpload = recoverySourceUpload,
+          recoveryOperationId = evictionOperationId,
           modelLineConfigs = modelLineConfigs,
           rpcThrottlers = rpcThrottlers,
         )
@@ -300,6 +312,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
+    private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
+    private const val EVICTION_OPERATION_ID_HEADER: String = "X-Eviction-Operation-Id"
     private const val GOOGLE_PROJECT_ID_ENV = "GOOGLE_PROJECT_ID"
 
     private val modelLinesTarget: String = EnvVars.checkNotNullOrEmpty("MODEL_LINES_TARGET")

@@ -64,6 +64,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek as InternalEncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase as InternalModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as InternalModelLineState
@@ -1006,6 +1007,172 @@ class RawImpressionUploadModelLineServiceTest {
   }
 
   @Test
+  fun `markRawImpressionUploadModelLineFailed forwards evicted output recovery fields`() =
+    runBlocking {
+      val completed = createCompletedModelLineForMark()
+      val failureAttemptId = UUID.randomUUID().toString()
+      val evictionOperationId = UUID.randomUUID().toString()
+
+      val failed =
+        service.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            name = completed.name
+            etag = completed.etag
+            errorMessage = "Evicted corrupted output"
+            requestId = failureAttemptId
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            this.evictionOperationId = evictionOperationId
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            recoveryPredecessorRawImpressionUpload = UPLOAD_KEY_2.toName()
+          }
+        )
+
+      assertThat(failed.state).isEqualTo(RawImpressionUploadModelLine.State.FAILED)
+      assertThat(failed.failureReason)
+        .isEqualTo(RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT)
+      assertThat(failed.evictionOperationId).isEqualTo(evictionOperationId)
+      assertThat(failed.recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+      assertThat(failed.recoveryPredecessorRawImpressionUpload).isEqualTo(UPLOAD_KEY_2.toName())
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed validates evicted output recovery fields`() =
+    runBlocking {
+      val created = createModelLineForMark()
+      val evictionOperationId = UUID.randomUUID().toString()
+      val requests =
+        listOf(
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            },
+            Errors.Reason.REQUIRED_FIELD_NOT_SET,
+            "eviction_operation_id",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = "not-a-uuid"
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            },
+            Errors.Reason.INVALID_FIELD_VALUE,
+            "eviction_operation_id",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+            },
+            Errors.Reason.REQUIRED_FIELD_NOT_SET,
+            "recovery_action",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+            },
+            Errors.Reason.REQUIRED_FIELD_NOT_SET,
+            "recovery_predecessor_raw_impression_upload",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              recoveryPredecessorRawImpressionUpload = "malformed"
+            },
+            Errors.Reason.INVALID_FIELD_VALUE,
+            "recovery_predecessor_raw_impression_upload",
+          ),
+          Triple(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              this.evictionOperationId = evictionOperationId
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+              recoveryPredecessorRawImpressionUpload =
+                "dataProviders/other/rawImpressionUploads/upload-2"
+            },
+            Errors.Reason.INVALID_FIELD_VALUE,
+            "recovery_predecessor_raw_impression_upload",
+          ),
+        )
+
+      for ((request, reason, fieldName) in requests) {
+        val exception =
+          assertFailsWith<StatusRuntimeException> {
+            service.markRawImpressionUploadModelLineFailed(request)
+          }
+        assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+        assertThat(exception.errorInfo)
+          .isEqualTo(
+            errorInfo {
+              domain = Errors.DOMAIN
+              this.reason = reason.name
+              metadata[Errors.Metadata.FIELD_NAME.key] = fieldName
+            }
+          )
+      }
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed rejects recovery fields for processing failure`() =
+    runBlocking {
+      val created = createModelLineForMark()
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineFailed(
+            markRawImpressionUploadModelLineFailedRequest {
+              name = created.name
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+              failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+              evictionOperationId = UUID.randomUUID().toString()
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "recovery_action"
+          }
+        )
+    }
+
+  @Test
   fun `markRawImpressionUploadModelLineFailed throws INVALID_ARGUMENT for empty name`() =
     runBlocking {
       val exception =
@@ -1238,6 +1405,41 @@ class RawImpressionUploadModelLineServiceTest {
     )
   }
 
+  private suspend fun createCompletedModelLineForMark(): RawImpressionUploadModelLine {
+    val created = createModelLineForMark()
+    val poolAssigning =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          name = created.name
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val ranking =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          name = created.name
+          etag = poolAssigning.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          name = created.name
+          etag = ranking.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    return service.markRawImpressionUploadModelLineCompleted(
+      markRawImpressionUploadModelLineCompletedRequest {
+        name = created.name
+        etag = labeling.etag
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+  }
+
   private fun assertMissingRequestId(exception: StatusRuntimeException) {
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.errorInfo)
@@ -1439,7 +1641,11 @@ class RawImpressionUploadModelLineServiceTest {
       state = InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
       failureAttemptId = "failure-attempt-1"
       failureReason =
-        InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
+        InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+      evictionOperationId = "123e4567-e89b-42d3-a456-426614174000"
+      recoveryAction =
+        InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+      recoveryPredecessorRawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_ID_2
       poolOffsets += listOf(0L, 5L, 10L)
       maxEventDate = date {
         year = 2026
@@ -1459,7 +1665,13 @@ class RawImpressionUploadModelLineServiceTest {
     assertThat(publicModelLine.poolOffsetsList).containsExactly(0L, 5L, 10L).inOrder()
     assertThat(publicModelLine.failureAttemptId).isEqualTo("failure-attempt-1")
     assertThat(publicModelLine.failureReason)
-      .isEqualTo(RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE)
+      .isEqualTo(RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT)
+    assertThat(publicModelLine.evictionOperationId)
+      .isEqualTo("123e4567-e89b-42d3-a456-426614174000")
+    assertThat(publicModelLine.recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+    assertThat(publicModelLine.recoveryPredecessorRawImpressionUpload)
+      .isEqualTo(UPLOAD_KEY_2.toName())
     assertThat(publicModelLine.maxEventDate)
       .isEqualTo(
         date {

@@ -49,16 +49,21 @@ Run the command with:
 
 Review the printed plan before entering `yes`. Non-memoized model lines include only the selected
 uploads. Memoized model lines include the selected uploads and every later upload that depends on
-their cumulative rank-index state.
+their cumulative rank-index state. The command refuses to evict a superseded upload revision while
+a completed replacement owns the current deterministic output; select the replacement revision if
+it is also invalid. The command prints the future `UploadHealingOperation` name with the plan; after
+confirmation, it persists the complete plan before advancing the workflow.
 
 ## What eviction changes
 
 For every planned upload/model-line pair, the command:
 
-1. marks the `RawImpressionUploadModelLine` `FAILED`;
-2. soft-deletes cumulative rank-index snapshots for memoized model lines;
-3. soft-deletes the matching `ImpressionMetadata`;
-4. permanently deletes the fetched generations of the generated VID-labeled blob and its
+1. checkpoints the operation and its ordered steps in Spanner before changing pipeline data;
+2. marks the `RawImpressionUploadModelLine` `FAILED` and records the eviction operation, required
+   recovery action, and predecessor upload;
+3. soft-deletes cumulative rank-index snapshots for memoized model lines;
+4. soft-deletes the matching `ImpressionMetadata`;
+5. permanently deletes the fetched generations of the generated VID-labeled blob and its
    `.metadata.binpb` sidecar.
 
 Raw impression objects and `RawImpressionUploadFile` history are retained. Metadata is deleted
@@ -75,11 +80,81 @@ of every raw-impression object currently present in the directory. Unchanged obj
 be uploaded again, but the pipeline processes them again together with changed and added objects.
 Objects removed from the directory are excluded from the replacement upload.
 
-For a memoized cascade, re-trigger every evicted date in chronological order, beginning with the
-earliest corrected date. Keep dispatch ordered so each cumulative rank-index snapshot is rebuilt
-from its corrected predecessor. The normal labeling and data-availability flows regenerate output,
-restore matching soft-deleted metadata, and publish availability to Kingdom. Do not run
-`retry-failed` for rows evicted because their original jobs describe the invalid attempt.
+For explicitly selected bad uploads, the EDP writes corrected data and a new `done` generation in
+chronological order. That normal path recreates every applicable memoized and non-memoized model
+line. Give the EDP the
+[Reference VID impression upload guide](../edpaggregator/reference-vid-impression-upload-guide.md)
+and confirm that eviction completed before the EDP changes the directory or writes the new `done`
+generation.
+
+Later uploads pulled into the eviction only by a memoized cascade do not need their raw data
+re-uploaded. Run `resume` with the operation name printed by `evict-uploads` whenever the requested
+next action has finished:
+
+```shell
+vid-labeling-heal resume \
+  dataProviders/DP/uploadHealingOperations/OPERATION_ID \
+  --edpa-public-api-target=EDPA_TARGET \
+  --tls-cert-file=TLS_CERT \
+  --tls-key-file=TLS_KEY \
+  --cert-collection-file=ROOT_CERTS \
+  --gcs-project=GCS_PROJECT
+```
+
+Each invocation verifies persisted predecessors and replacement output, advances every step that
+is currently safe, checkpoints its progress, prints the exact next action, and exits. It can be run
+from a different machine and safely repeated after an interruption; it does not need to remain
+running while the EDP corrects data or while workers process a replacement. For an operator
+recovery step, it writes a new generation of the existing empty `done` object. The new object
+carries the selected model lines, source upload, and eviction operation as recovery metadata;
+DataWatcher forwards them in `X-Override-Model-Lines`,
+`X-Recovery-Source-Upload`, and `X-Eviction-Operation-Id`. Before honoring the override,
+VidLabelingDispatcher independently verifies that the source is the latest revision for that done
+path, that every selected row belongs to that eviction operation and is marked for operator
+recovery, and that its predecessor has a completed replacement with a live snapshot. It then
+creates a replacement upload for only those model lines.
+
+### Example: D2 and D4 contain bad data
+
+Assume D1 through D5 completed for one memoized model line, `ML_MEMO`, and one non-memoized
+model line, `ML_DIRECT`. The EDP reports that D2 and D4 contain bad data, so the operator passes the
+D2 and D4 upload resources to `evict-uploads`.
+
+The eviction plan contains:
+
+* D2 and D4 for `ML_DIRECT`, because non-memoized uploads are independent; and
+* D2, D3, D4, and D5 for `ML_MEMO`, because each later cumulative snapshot depends on D2.
+
+The tool persists recovery steps for D3 and D5. D2 and D4 remain EDP-correction steps because the
+EDP must correct those explicitly selected bad uploads.
+
+Recovery proceeds as follows:
+
+1. The EDP corrects the D2 directory and writes a new `done` generation. The pipeline regenerates
+   D2 for both `ML_DIRECT` and `ML_MEMO`; the memoized path rebuilds its cumulative state from D1.
+2. The operator reruns `resume`. It verifies D2, starts the D3 memoized recovery, checkpoints that
+   action, and tells the operator to wait for D3 processing.
+3. After D3 completes, the operator reruns `resume`. It verifies D3 and tells the operator to ask
+   the EDP to correct D4 and write a new `done` generation.
+4. After D4 completes, the operator reruns `resume`. It verifies D4, starts D5 recovery, and tells
+   the operator to wait.
+5. After D5 completes, the operator reruns `resume`; the command verifies the final snapshot and
+   marks the operation complete. The final result has regenerated D2 and D4 for both model lines
+   and regenerated D2 through D5 for `ML_MEMO`. The EDP never needs to re-upload D3 or D5.
+
+The persisted workflow enforces oldest-to-newest recovery, so every cumulative rank-index snapshot
+is rebuilt from its corrected predecessor. Both normal EDP corrections and operator recovery events
+are rejected until their persisted predecessor dependency is complete. The normal
+labeling and data-availability flows regenerate output, restore matching soft-deleted metadata, and
+publish availability to Kingdom. Do not run `retry-failed` for rows evicted because their original
+jobs describe the invalid attempt. Recovery dispatch failures are returned by DataWatcher so the
+Eventarc subscription retries them and ultimately preserves exhausted deliveries in its DLQ. A
+same-generation retry resumes an already partially registered replacement. If the CLI is
+interrupted after writing the recovery object but before checkpointing it, rerunning `resume`
+recognizes the matching recovery generation without writing a duplicate generation.
+
+The standalone `recover-upload` command remains available as a break-glass tool. Prefer `resume`
+for a planned eviction because it enforces the complete dependency graph and persists checkpoints.
 
 Before replacement processing begins, the eviction operation is safe to repeat after a partial
 failure. It skips rows already marked `FAILED`, already-deleted metadata, and output blobs that are
