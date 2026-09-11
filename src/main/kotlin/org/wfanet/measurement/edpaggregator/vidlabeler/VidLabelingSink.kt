@@ -23,7 +23,6 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.opentelemetry.api.common.Attributes
-import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -39,7 +38,6 @@ import kotlinx.coroutines.flow.consumeAsFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.crypto.tink.withEnvelopeEncryption
 import org.wfanet.measurement.edpaggregator.EncryptedStorage
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -274,8 +272,13 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     private var latest: Timestamp? = null
     private val entityIdsByType = LinkedHashMap<String, LinkedHashSet<String>>()
 
-    private val blobKey = outputBlobKey(key)
-    private val outputBlobUri = "${outputStorageParams.impressionsBlobPrefix}/$blobKey"
+    private val outputBlobUri =
+      LabeledImpressionsBlobKeys.forInputUri(
+        outputStorageParams.impressionsBlobPrefix,
+        inputBlobUri,
+        key.modelLine,
+        fileMetadata.eventDate,
+      )
     private lateinit var outputEncryptedDek: EncryptedDek
 
     /** The draining/writing coroutine. Started eagerly so the blob is opened as records arrive. */
@@ -375,8 +378,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
           }
       }
 
-      val metadataKey = "$blobKey.metadata.binpb"
-      val metadataUri = "${outputStorageParams.impressionsBlobPrefix}/$metadataKey"
+      val metadataUri = "$outputBlobUri.metadata.binpb"
       // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
       // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
       // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
@@ -404,27 +406,6 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
       .put(VidLabelerMetrics.MODEL_LINE_KEY, modelLine)
       .put(VidLabelerMetrics.DROP_REASON_KEY, reason)
       .build()
-
-  /**
-   * Deterministic output blob key for [key] under this input file:
-   * `model-line/<modelLineId>/<YYYY-MM-DD>/<sha256>`. The `model-line/<id>/<date>/` layout is what
-   * `DataAvailabilitySync` crawls to classify finalized dates; the date is the file's event date
-   * ([RawImpressionFileMetadata.eventDate], read from the footer, UTC; a raw file holds one day).
-   * The trailing SHA of (input file, model line) keeps the key deterministic, so a retried input
-   * file overwrites its previous output instead of duplicating it.
-   */
-  private fun outputBlobKey(key: OutputGroupKey): String {
-    val modelLineId =
-      requireNotNull(ModelLineKey.fromName(key.modelLine)) {
-          "model line is not a valid ModelLine resource name: ${key.modelLine}"
-        }
-        .modelLineId
-    val digest =
-      MessageDigest.getInstance("SHA-256")
-        .digest("$inputBlobUri|${key.modelLine}".toByteArray(Charsets.UTF_8))
-    val sha = digest.joinToString("") { "%02x".format(it) }
-    return "model-line/$modelLineId/${fileMetadata.eventDate}/$sha"
-  }
 
   private val Timestamp.epochNanos: Long
     get() = seconds * NANOS_PER_SECOND + nanos
