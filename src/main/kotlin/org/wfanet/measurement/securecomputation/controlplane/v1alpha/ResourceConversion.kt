@@ -51,6 +51,7 @@ fun InternalWorkItem.toWorkItem(): WorkItem {
     if (source.hasWorkItemParams()) {
       workItemParams = source.workItemParams
     }
+    generation = source.generation
     createTime = source.createTime
     updateTime = source.updateTime
   }

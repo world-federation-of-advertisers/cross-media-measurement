@@ -42,12 +42,11 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.activeWorkItemAttemptExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failActiveWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
@@ -58,6 +57,7 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundEx
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
@@ -109,7 +109,13 @@ class SpannerWorkItemsService(
             )
           txn.insertWorkItemPublication(workItemId)
 
-          Pair(workItemId, request.workItem.copy { this.state = state })
+          Pair(
+            workItemId,
+            request.workItem.copy {
+              this.state = state
+              generation = INITIAL_GENERATION
+            },
+          )
         }
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
@@ -195,6 +201,14 @@ class SpannerWorkItemsService(
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.expectedWorkItemGeneration < 0L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=failWorkItem"))
@@ -203,16 +217,36 @@ class SpannerWorkItemsService(
       transactionRunner.run { txn ->
         try {
           val workItemResult = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
-          val state = txn.failWorkItem(workItemResult.workItemId)
-          txn.readWorkItemAttempts(MAX_PAGE_SIZE, request.workItemResourceId).collect {
-            workItemAttempt ->
-            txn.failWorkItemAttempt(workItemResult.workItemId, workItemAttempt.workItemAttemptId)
+          if (workItemResult.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              workItemResult.workItem.workItemResourceId,
+              expectedGeneration,
+              workItemResult.workItem.generation,
+            )
           }
+          when (workItemResult.workItem.state) {
+            WorkItem.State.QUEUED,
+            WorkItem.State.RUNNING -> Unit
+            WorkItem.State.FAILED,
+            WorkItem.State.SUCCEEDED,
+            WorkItem.State.STATE_UNSPECIFIED,
+            WorkItem.State.UNRECOGNIZED ->
+              throw WorkItemInvalidStateException(
+                workItemResult.workItem.workItemResourceId,
+                workItemResult.workItem.state,
+              )
+          }
+          txn.failActiveWorkItemAttempts(workItemResult.workItemId)
+          val state = txn.failWorkItem(workItemResult.workItemId)
           workItemResult.workItem.copy { this.state = state }
         } catch (e: WorkItemNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         } catch (e: QueueNotFoundForWorkItem) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: WorkItemGenerationMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
       }
     val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
@@ -232,7 +266,7 @@ class SpannerWorkItemsService(
           val result = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
           val state =
             when (result.workItem.state) {
-              WorkItem.State.FAILED -> txn.retryWorkItem(result.workItemId)
+              WorkItem.State.FAILED,
               WorkItem.State.RUNNING -> {
                 if (txn.activeWorkItemAttemptExists(result.workItemId)) {
                   throw WorkItemInvalidStateException(
@@ -240,7 +274,7 @@ class SpannerWorkItemsService(
                     result.workItem.state,
                   )
                 }
-                txn.retryWorkItem(result.workItemId)
+                txn.retryWorkItem(result.workItemId, result.workItem.generation)
               }
               WorkItem.State.QUEUED -> {
                 if (!txn.workItemPublicationExists(result.workItemId)) {
@@ -256,7 +290,15 @@ class SpannerWorkItemsService(
                   result.workItem.state,
                 )
             }
-          result.workItemId to result.workItem.copy { this.state = state }
+          result.workItemId to
+            result.workItem.copy {
+              this.state = state
+              if (
+                state == WorkItem.State.QUEUED && result.workItem.state != WorkItem.State.QUEUED
+              ) {
+                generation = result.workItem.generation + 1L
+              }
+            }
         } catch (e: WorkItemNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         } catch (e: QueueNotFoundForWorkItem) {
@@ -283,5 +325,6 @@ class SpannerWorkItemsService(
   companion object {
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
+    private const val INITIAL_GENERATION = 1L
   }
 }

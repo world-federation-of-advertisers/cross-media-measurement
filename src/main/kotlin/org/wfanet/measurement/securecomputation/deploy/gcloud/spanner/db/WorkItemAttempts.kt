@@ -64,6 +64,24 @@ suspend fun AsyncDatabaseClient.ReadContext.activeWorkItemAttemptExists(workItem
   }
 }
 
+/** Buffers a FAILED state update for every ACTIVE attempt belonging to [workItemId]. */
+suspend fun AsyncDatabaseClient.TransactionContext.failActiveWorkItemAttempts(workItemId: Long) {
+  executeUpdate(
+    statement(
+      """
+      UPDATE WorkItemAttempts
+      SET State = @failedState, UpdateTime = PENDING_COMMIT_TIMESTAMP()
+      WHERE WorkItemId = @workItemId AND State = @activeState
+      """
+        .trimIndent()
+    ) {
+      bind("workItemId").to(workItemId)
+      bind("activeState").to(WorkItemAttempt.State.ACTIVE.number.toLong())
+      bind("failedState").to(WorkItemAttempt.State.FAILED.number.toLong())
+    }
+  )
+}
+
 /**
  * Buffers an insert mutation for the WorkItemAttempts table.
  *

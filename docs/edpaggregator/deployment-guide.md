@@ -844,28 +844,39 @@ Use this staged cutover:
    [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication), including its
    quiesced reconciliation. The migration does not backfill publication records for WorkItems
    created by an older control-plane binary.
-2. Add the RequisitionFetcher control-plane endpoint, TLS secrets, and `work_item_dispatch`
+2. Roll out every Secure Computation public and internal API replica from this release while direct
+   dispatch remains disabled. Verify that no older replica remains. `CreateWorkItem` idempotency in
+   the next steps depends on `GetWorkItem` returning `work_item_params`; do not activate direct
+   dispatch during a mixed-version rollout.
+3. Add the RequisitionFetcher control-plane endpoint, TLS secrets, and `work_item_dispatch`
    configuration, but do not activate that config yet.
-3. Pause the RequisitionFetcher scheduler and wait for any active invocation to finish.
-4. Drain the legacy results-fulfiller queue and account for every existing requisition blob. Resolve
-   any `STORED`, `QUEUED`, or `PROCESSING` metadata before proceeding.
+4. Pause the RequisitionFetcher scheduler and wait for any active invocation to finish.
 5. Remove the DataWatcher `results-fulfiller` watched path and deploy the DataWatcher configuration.
-   Verify that the new revision is serving before continuing.
-6. Activate the RequisitionFetcher config containing `work_item_dispatch`, deploy the function, and
+   Keep the storage trigger itself enabled for its other watched paths. Verify that the new revision
+   receives 100% of traffic, then wait at least the configured DataWatcher invocation timeout (540
+   seconds by default) for an invocation on the old revision to finish. Confirm that no old-revision
+   invocation is active and that no new ResultsFulfiller WorkItem appears from the legacy path
+   during that interval.
+6. Drain the legacy results-fulfiller queue and account for every existing requisition blob after
+   the DataWatcher barrier. Resolve any `STORED`, `QUEUED`, or `PROCESSING` metadata before
+   proceeding.
+7. Activate the RequisitionFetcher config containing `work_item_dispatch`, deploy the function, and
    resume its scheduler.
-7. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
+8. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
    and are processed once by ResultsFulfiller.
 
 After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
 failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
-that its worker has stopped; retrying it fails the active attempt before republishing the item.
+that its worker has stopped, call `FailWorkItemAttempt` for the exact active attempt, and then call
+`RetryWorkItem`. `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains.
 
-For rollback, pause the scheduler first and drain or repair all groups already in `STORED`,
-`QUEUED`, or `PROCESSING`; their original object-finalize events will not be replayed automatically.
-Then remove `work_item_dispatch`, redeploy RequisitionFetcher, restore and deploy the legacy
-DataWatcher watched path, and resume the scheduler. If an emergency rollback leaves an undispatched
-blob, re-finalize only that verified blob after the legacy watcher is active; replaying a blob whose WorkItem is
-already `RUNNING` or terminal can duplicate processing.
+For rollback, pause the scheduler first and wait for every active RequisitionFetcher invocation to
+finish. Drain or repair all groups already in `STORED`, `QUEUED`, or `PROCESSING`; their original
+object-finalize events will not be replayed automatically. Then remove `work_item_dispatch`,
+redeploy RequisitionFetcher, restore and deploy the legacy DataWatcher watched path, verify that the
+new revisions are serving, and resume the scheduler. If an emergency rollback leaves an
+undispatched blob, re-finalize only that verified blob after the legacy watcher is active; replaying
+a blob whose WorkItem is already `RUNNING` or terminal can duplicate processing.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
@@ -1126,6 +1137,12 @@ rollout:
      -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
    ```
 
+   This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
+   as generation 1; retried terminal or abandoned WorkItems advance to generation 2 or later. Roll
+   out the API and queue consumers together before using `RetryWorkItem`. `FailWorkItem` now
+   requires the generation from the delivered WorkItem, which prevents an old dead-letter delivery
+   from failing a replacement execution.
+
 6. With producers and consumers still stopped, capture one immutable snapshot of `QUEUED` WorkItem
    IDs that have no pending publication and no active attempt:
 
@@ -1184,8 +1201,12 @@ To recover a `RUNNING` WorkItem after its worker exits without completing or fai
 first call `FailWorkItemAttempt` for the exact active attempt that was inspected. Then call
 `RetryWorkItem`; it returns a `RUNNING` WorkItem to `QUEUED` only when no active attempt remains and
 publishes it again. A stale or repeated `RetryWorkItem` call cannot fail a replacement worker's
-attempt. Do this only after confirming that the original worker has stopped because the APIs do not
-currently provide an attempt lease, expiry, heartbeat, or authoritative worker-ownership signal.
+attempt. Stale dead-letter deliveries are fenced by the WorkItem generation and are acknowledged
+without changing the replacement generation. Do this only after confirming that the original
+worker has stopped because the APIs do not currently provide an attempt lease, expiry, heartbeat,
+or authoritative worker-ownership signal. For non-ResultsFulfiller applications, also wait until
+the dead-letter listener has finished its best-effort EDPA failure propagation before retrying;
+those external resource updates are not part of the Secure Computation transaction.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

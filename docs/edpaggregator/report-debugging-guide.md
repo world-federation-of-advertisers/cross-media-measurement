@@ -740,9 +740,11 @@ Trace:
    metadata remains `QUEUED` or `PROCESSING`, RequisitionFetcher reports the inconsistency but does
    not retry it. After remediation, an operator can call `RetryWorkItem`; the control plane
    atomically returns the WorkItem to `QUEUED`, recreates its outbox row, and republishes it. The
-   same operation can recover an abandoned `RUNNING` WorkItem by failing its active attempt first,
-   but only use it after confirming that the original worker has stopped. A `SUCCEEDED` WorkItem
-   paired with unfinished metadata is inconsistent and still requires investigation.
+   recovery sequence for an abandoned `RUNNING` WorkItem is different: confirm that the original
+   worker has stopped, call `FailWorkItemAttempt` for the exact active attempt, and only then call
+   `RetryWorkItem`. `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains. A
+   `SUCCEEDED` WorkItem paired with unfinished metadata is inconsistent and still requires
+   investigation.
 
    During migration, a deployment may omit `work_item_dispatch` from the fetcher
    config and retain the legacy **data-watcher** Cloud Function. In that path, a

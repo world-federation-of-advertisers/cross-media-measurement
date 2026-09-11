@@ -309,14 +309,19 @@ class WorkItemServiceTest {
     val internalWorkItem = internalWorkItem {
       workItemResourceId = "workItem"
       state = InternalWorkItem.State.FAILED
+      generation = 2L
     }
     internalServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn internalWorkItem }
 
-    val request = failWorkItemRequest { name = "workItems/${internalWorkItem.workItemResourceId}" }
+    val request = failWorkItemRequest {
+      name = "workItems/${internalWorkItem.workItemResourceId}"
+      expectedWorkItemGeneration = 2L
+    }
     val response = service.failWorkItem(request)
 
     val internalRequest = internalFailWorkItemRequest {
       workItemResourceId = internalWorkItem.workItemResourceId
+      expectedWorkItemGeneration = request.expectedWorkItemGeneration
     }
     verifyProtoArgument(
         internalServiceMock,
@@ -325,6 +330,7 @@ class WorkItemServiceTest {
       .isEqualTo(internalRequest)
 
     assertThat(response.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(response.generation).isEqualTo(internalWorkItem.generation)
   }
 
   @Test
@@ -359,6 +365,24 @@ class WorkItemServiceTest {
           domain = Errors.DOMAIN
           reason = Errors.Reason.INVALID_FIELD_VALUE.name
           metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `failWorkItem throws REQUIRED_FIELD_NOT_SET when generation is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.failWorkItem(failWorkItemRequest { name = "workItems/work-item" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
         }
       )
   }
@@ -407,7 +431,10 @@ class WorkItemServiceTest {
       onBlocking { failWorkItem(any()) } doThrow
         WorkItemNotFoundException("workItem").asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
-    val request = failWorkItemRequest { name = "workItems/workItem" }
+    val request = failWorkItemRequest {
+      name = "workItems/workItem"
+      expectedWorkItemGeneration = 1L
+    }
     val exception = assertFailsWith<StatusRuntimeException> { service.failWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
