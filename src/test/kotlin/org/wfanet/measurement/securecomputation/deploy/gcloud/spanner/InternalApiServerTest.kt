@@ -17,7 +17,11 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.CountDownLatch
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -63,5 +67,29 @@ class InternalApiServerTest {
       }
 
     assertThat(exception).hasMessageThat().contains("positive human-readable duration")
+  }
+
+  @Test
+  fun `publication runner executes while server wait blocks`() = runBlocking {
+    val stopServer = CountDownLatch(1)
+    val serverStarted = CompletableDeferred<Unit>()
+    var publicationRunnerExecuted = false
+
+    withTimeout(5_000) {
+      runInternalApiServerJobs(
+        blockingServer = {
+          serverStarted.complete(Unit)
+          stopServer.await()
+        },
+        backgroundJobs =
+          listOf {
+            serverStarted.await()
+            publicationRunnerExecuted = true
+            stopServer.countDown()
+          },
+      )
+    }
+
+    assertThat(publicationRunnerExecuted).isTrue()
   }
 }
