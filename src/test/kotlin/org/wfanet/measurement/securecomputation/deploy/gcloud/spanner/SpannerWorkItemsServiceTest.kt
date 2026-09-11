@@ -39,12 +39,14 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
     workItemPublisher: WorkItemPublisher,
   ): Services {
     val serviceDispatcher = Dispatchers.Default
+    val workItemPublicationRunner =
+      WorkItemPublicationRunner(spannerDatabase.databaseClient, queueMapping, workItemPublisher)
     return Services(
       SpannerWorkItemsService(
         spannerDatabase.databaseClient,
         queueMapping,
         idGenerator,
-        workItemPublisher,
+        workItemPublicationRunner,
       ),
       SpannerWorkItemAttemptsService(
         spannerDatabase.databaseClient,

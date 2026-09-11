@@ -73,9 +73,10 @@ import picocli.CommandLine
  * ## Lifecycle:
  * 1. Server initialization reads configuration and sets up dependencies
  * 2. Main gRPC server starts in an async coroutine
- * 3. If configured, one DLQ listener per dead-letter subscription starts in its own async coroutine
- * 4. All components run until shutdown is requested
- * 5. Graceful shutdown ensures all components clean up properly
+ * 3. The WorkItem publication runner starts in its own async coroutine
+ * 4. If configured, one DLQ listener per dead-letter subscription starts in its own async coroutine
+ * 5. All components run until shutdown is requested
+ * 6. Graceful shutdown ensures all components clean up properly
  */
 @CommandLine.Command(name = InternalApiServer.SERVER_NAME)
 class InternalApiServer : Runnable {
@@ -196,6 +197,22 @@ class InternalApiServer : Runnable {
   )
   private lateinit var controlPlaneRpcMinInterval: Duration
 
+  @CommandLine.Option(
+    names = ["--work-item-publication-poll-interval"],
+    defaultValue = "1s",
+    description = ["How often to poll for pending WorkItem publications."],
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var workItemPublicationPollInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--work-item-publication-lease-duration"],
+    defaultValue = "1m",
+    description = ["How long a WorkItem publication is leased to one server replica."],
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var workItemPublicationLeaseDuration: Duration
+
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
@@ -219,7 +236,13 @@ class InternalApiServer : Runnable {
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
 
         val internalApiServices =
-          InternalApiServices(workItemPublisher, databaseClient, queueMapping)
+          InternalApiServices(
+            workItemPublisher,
+            databaseClient,
+            queueMapping,
+            workItemPublicationPollInterval = workItemPublicationPollInterval,
+            workItemPublicationLeaseDuration = workItemPublicationLeaseDuration,
+          )
         val services = internalApiServices.build(serviceFlags.executor.asCoroutineDispatcher())
         val servicesList: List<BindableService> = services.toList()
         val server = createMainServer(servicesList)
@@ -228,6 +251,7 @@ class InternalApiServer : Runnable {
             ?: throw RuntimeException("Failed to get work items service")
 
         val serverJob = async { server.start().blockUntilShutdown() }
+        val workItemPublicationJob = async { internalApiServices.workItemPublicationRunner.run() }
 
         // A single in-process server + channel + WorkItems stub is shared by every DLQ listener:
         // they all route to the same SpannerWorkItemsService, so one loopback server suffices, and
@@ -267,7 +291,7 @@ class InternalApiServer : Runnable {
               }
             }
 
-          awaitAll(serverJob, *deadLetterListenerJobs.toTypedArray())
+          awaitAll(serverJob, workItemPublicationJob, *deadLetterListenerJobs.toTypedArray())
         } finally {
           inProcessChannel.shutdown()
           inProcessServer.shutdown()

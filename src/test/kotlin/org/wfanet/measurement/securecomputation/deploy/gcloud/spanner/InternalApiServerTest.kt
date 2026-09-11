@@ -54,4 +54,14 @@ class InternalApiServerTest {
 
     assertThat(exception).hasMessageThat().contains("complete human-readable duration")
   }
+
+  @Test
+  fun `command line rejects zero WorkItem publication interval`() {
+    val exception =
+      assertFailsWith<CommandLine.ParameterException> {
+        CommandLine(InternalApiServer()).parseArgs("--work-item-publication-poll-interval=0s")
+      }
+
+    assertThat(exception).hasMessageThat().contains("positive human-readable duration")
+  }
 }
