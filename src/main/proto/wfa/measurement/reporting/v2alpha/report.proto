@@ -84,8 +84,9 @@ message Report {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The interval over which Metrics are generated. The start is inclusive and
-  // the end is exclusive.
+  // The interval over which Metrics are generated. Its bounds are instants:
+  // `report_start` is inclusive, and the instant constructed from `report_end`
+  // is exclusive.
   message ReportingInterval {
     // The date and time of the start of the report. The year,
     // month, day, and time_offset are all required.
@@ -93,17 +94,20 @@ message Report {
     // be 24 hours based on the time of day specified here. If `time_zone` is
     // set, days will be based on the calendar and daylight savings will be
     // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
-    // This side of the interval is closed.
+    // This instant is included in the report.
     google.type.DateTime report_start = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];
 
-    // The date used to construct the exclusive end instant of the report.
+    // Date used to construct the report's exclusive end instant.
     //
-    // The end instant has the same time of day and `time_offset` setting as
-    // `report_start`, but uses this date. Only times before the end instant are
-    // included in the report.
+    // This is not an inclusive calendar date. The server combines this date
+    // with the time of day and `time_offset` from `report_start`.
+    //
+    // For example, if `report_start` is May 1 at 06:00 and `report_end` is May
+    // 2, timestamps before May 2 at 06:00 are included, while timestamps at or
+    // after that instant are excluded.
     google.type.Date report_end = 2 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
