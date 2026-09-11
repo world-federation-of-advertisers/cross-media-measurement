@@ -466,9 +466,10 @@ class RequisitionFetcher(
    *
    * ### High-Level Flow
    * 1. List existing [RequisitionMetadata] for the report.
-   * 2. For a group whose metadata is `STORED` (or `QUEUED` when direct dispatch is enabled),
-   *    rebuild a missing blob from the matching requisitions. A complete group with a blob is
-   *    dispatched directly when [workItemDispatcher] is configured.
+   * 2. For a group whose metadata is `STORED` (or `QUEUED`/`PROCESSING` when direct dispatch is
+   *    enabled), rebuild a missing blob from the matching requisitions. A complete group with a
+   *    blob is dispatched directly when [workItemDispatcher] is configured. Dispatch retries a
+   *    failed WorkItem using the same durable payload.
    * 3. For requisitions that are not yet recorded in metadata, validate them as a group (model-line
    *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
    *    Kingdom and persist `REFUSED` metadata.
@@ -488,7 +489,9 @@ class RequisitionFetcher(
       existingMetadata
         .filter {
           it.state == RequisitionMetadata.State.STORED ||
-            (workItemDispatcher != null && it.state == RequisitionMetadata.State.QUEUED)
+            (workItemDispatcher != null &&
+              (it.state == RequisitionMetadata.State.QUEUED ||
+                it.state == RequisitionMetadata.State.PROCESSING))
         }
         .groupBy { it.groupId }
 
@@ -849,6 +852,11 @@ class RequisitionFetcher(
         RequisitionMetadata.State.QUEUED ->
           check(item.workItem == workItemName) {
             "Requisition metadata ${item.name} is already queued for ${item.workItem}, " +
+              "not $workItemName"
+          }
+        RequisitionMetadata.State.PROCESSING ->
+          check(item.workItem == workItemName) {
+            "Requisition metadata ${item.name} is being processed by ${item.workItem}, " +
               "not $workItemName"
           }
         else ->

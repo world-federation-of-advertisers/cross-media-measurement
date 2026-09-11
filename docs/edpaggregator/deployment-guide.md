@@ -210,7 +210,9 @@ A Cloud Function triggered by **Cloud Scheduler**. It retrieves requisitions fro
 public API, writes each grouped payload to `EDPA_STORAGE_BUCKET`, creates its RequisitionMetadata,
 and submits a deterministic WorkItem to the Secure Computation API. Before submission, it records
 the WorkItem name and `QUEUED` state on every metadata row in the group. A retry checks for the
-deterministic WorkItem before creating it, so interruption at any handoff step is recoverable.
+deterministic WorkItem before creating it. If ResultsFulfiller exhausts its queue retries and the
+control plane marks that WorkItem `FAILED`, a later fetch retries the same WorkItem and preserves
+the durable group payload, including rows already in `PROCESSING`.
 
 The function runs with `max_instances = 1` and a `timeout_seconds` that exceeds the
 internal drain ticker interval (default `600` / 10 min in test environments; raise
@@ -838,14 +840,15 @@ time. Both observe the same grouped-requisition blob and can create separate Wor
 
 Use this staged cutover:
 
-1. Deploy the Secure Computation control-plane version that includes durable WorkItem publication,
-   wait for the rollout to finish, and verify that no older writer replicas remain. The migration
-   does not backfill publication records for WorkItems created by an older control-plane binary.
+1. Complete the mandatory
+   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication), including its
+   quiesced reconciliation. The migration does not backfill publication records for WorkItems
+   created by an older control-plane binary.
 2. Add the RequisitionFetcher control-plane endpoint, TLS secrets, and `work_item_dispatch`
    configuration, but do not activate that config yet.
 3. Pause the RequisitionFetcher scheduler and wait for any active invocation to finish.
 4. Drain the legacy results-fulfiller queue and account for every existing requisition blob. Resolve
-   any `STORED` or `QUEUED` metadata before proceeding.
+   any `STORED`, `QUEUED`, or `PROCESSING` metadata before proceeding.
 5. Remove the DataWatcher `results-fulfiller` watched path and deploy the DataWatcher configuration.
    Verify that the new revision is serving before continuing.
 6. Activate the RequisitionFetcher config containing `work_item_dispatch`, deploy the function, and
@@ -853,11 +856,11 @@ Use this staged cutover:
 7. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
    and are processed once by ResultsFulfiller.
 
-For rollback, pause the scheduler first and drain or repair all groups already in `STORED` or
-`QUEUED`; their original object-finalize events will not be replayed automatically. Then remove
-`work_item_dispatch`, redeploy RequisitionFetcher, restore and deploy the legacy DataWatcher watched
-path, and resume the scheduler. If an emergency rollback leaves an undispatched blob, re-finalize
-only that verified blob after the legacy watcher is active; replaying a blob whose WorkItem is
+For rollback, pause the scheduler first and drain or repair all groups already in `STORED`,
+`QUEUED`, or `PROCESSING`; their original object-finalize events will not be replayed automatically.
+Then remove `work_item_dispatch`, redeploy RequisitionFetcher, restore and deploy the legacy
+DataWatcher watched path, and resume the scheduler. If an emergency rollback leaves an undispatched
+blob, re-finalize only that verified blob after the legacy watcher is active; replaying a blob whose WorkItem is
 already `RUNNING` or terminal can duplicate processing.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
