@@ -121,6 +121,41 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `publishPendingWorkItems continues after retry bookkeeping failure`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
+    val clock = FailOnceClock(Instant.now().plusSeconds(10), failOnCall = 2)
+    val publisher = RecordingPublisher(fail = true)
+    val runner = newRunner(publisher, clock)
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+    assertThat(publicationCount()).isEqualTo(1L)
+
+    publisher.fail = false
+    clock.advance(Duration.ofMinutes(1).plusSeconds(1))
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+    assertThat(publicationCount()).isEqualTo(0L)
+  }
+
+  @Test
+  fun `publishPendingWorkItems skips unresolvable queue without blocking later work`() =
+    runBlocking {
+      insertPendingWorkItem(WORK_ITEM_ID, "work-item-invalid", queueId = Long.MAX_VALUE)
+      insertPendingWorkItem(WORK_ITEM_ID + 1L, "work-item-valid")
+      val clock = MutableClock(Instant.now().plusSeconds(10))
+      val publisher = RecordingPublisher()
+      val runner = newRunner(publisher, clock)
+
+      assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+      assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+
+      assertThat(publisher.messages).hasSize(1)
+      assertThat((publisher.messages.single() as WorkItem).workItemResourceId)
+        .isEqualTo("work-item-valid")
+      assertThat(publicationCount()).isEqualTo(1L)
+    }
+
+  @Test
   fun `starting a WorkItem attempt removes its pending publication`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
@@ -148,11 +183,19 @@ class WorkItemPublicationRunnerTest {
 
   private suspend fun insertPendingWorkItem(workItemId: Long, workItemResourceId: String) {
     val queue = checkNotNull(TestConfig.QUEUE_MAPPING.getQueueByResourceId(QUEUE_RESOURCE_ID))
+    insertPendingWorkItem(workItemId, workItemResourceId, queue.queueId)
+  }
+
+  private suspend fun insertPendingWorkItem(
+    workItemId: Long,
+    workItemResourceId: String,
+    queueId: Long,
+  ) {
     spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
       transaction.insertWorkItem(
         workItemId,
         workItemResourceId,
-        queue.queueId,
+        queueId,
         Any.pack(testWork { userName = "UserName" }),
       )
       transaction.insertWorkItemPublication(workItemId)
@@ -210,6 +253,27 @@ class WorkItemPublicationRunnerTest {
     override fun withZone(zone: ZoneId): Clock = this
 
     override fun instant(): Instant = currentInstant
+
+    fun advance(duration: Duration) {
+      currentInstant = currentInstant.plus(duration)
+    }
+  }
+
+  private class FailOnceClock(private var currentInstant: Instant, private val failOnCall: Int) :
+    Clock() {
+    private var callCount = 0
+
+    override fun getZone(): ZoneId = ZoneOffset.UTC
+
+    override fun withZone(zone: ZoneId): Clock = this
+
+    override fun instant(): Instant {
+      callCount++
+      if (callCount == failOnCall) {
+        error("Clock failure")
+      }
+      return currentInstant
+    }
 
     fun advance(duration: Duration) {
       currentInstant = currentInstant.plus(duration)
