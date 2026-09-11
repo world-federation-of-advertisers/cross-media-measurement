@@ -42,6 +42,13 @@ bazel_dep(
     version = "0.154.0",
     repo_name = "wfa_common_jvm",
 )
+# DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#415): Remove after validation.
+git_override(
+    module_name = "common-jvm",
+    commit = "0d2701b4fe3411a0bc9197a242bfe9e2fb069336",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
