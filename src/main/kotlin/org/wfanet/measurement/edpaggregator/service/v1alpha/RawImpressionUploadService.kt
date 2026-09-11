@@ -154,11 +154,9 @@ class RawImpressionUploadService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
-            RawImpressionUploadNotFoundException(
-                request.rawImpressionUpload.replacesRawImpressionUpload,
-                e,
-              )
-              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+            Status.NOT_FOUND.withDescription("RawImpressionUpload not found")
+              .withCause(e)
+              .asRuntimeException()
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS ->
             Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
         }

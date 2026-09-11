@@ -124,8 +124,8 @@ class VidLabelingDispatcher(
    *
    * @param doneBlobPath the full storage URI of the "done" blob that triggered this upload.
    * @param doneBlobGeneration GCS object generation number of the done blob. Used to produce
-   *   idempotent request IDs that handle both Pub/Sub redelivery (same generation = same ID) and
-   *   EDP re-uploads to the same path (new generation = new ID).
+   *   idempotent request IDs that handle both DataWatcher redelivery (same generation = same ID)
+   *   and EDP re-uploads to the same path (new generation = new ID).
    * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme or
    *   [doneBlobGeneration] is null.
    */
@@ -170,6 +170,12 @@ class VidLabelingDispatcher(
         createRawImpressionUpload(doneBlobPath, doneBlobGeneration, doneBlobMetadata.createTime)
       if (rawImpressionUpload == null) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+
+      if (rawImpressionUpload.registrationComplete) {
+        logger.info("RawImpressionUpload ${rawImpressionUpload.name} is already registered")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
@@ -330,8 +336,8 @@ class VidLabelingDispatcher(
    * Creates a `RawImpressionUpload` resource to track this upload.
    *
    * Uses the done blob path and GCS generation number to produce an idempotent request ID. Same
-   * (path, generation) → same request ID → idempotent on Pub/Sub redelivery. New generation at the
-   * same path → new request ID → new upload for EDP re-uploads.
+   * (path, generation) → same request ID → idempotent on DataWatcher redelivery. New generation at
+   * the same path → new request ID → new upload for EDP re-uploads.
    *
    * On `ALREADY_EXISTS` (redelivery after the AIP-155 idempotency cache has expired, so the server
    * returns the error rather than the cached resource), looks up and returns the existing upload so
@@ -426,13 +432,19 @@ class VidLabelingDispatcher(
     rawImpressionUploadStub
       .listResources { pageToken: String ->
         val response =
-          rawImpressionUploadStub.listRawImpressionUploads(
-            listRawImpressionUploadsRequest {
-              parent = dataProviderName
-              filter = rawUploadFilter { doneBlobUri = doneBlobPath }
-              if (pageToken.isNotEmpty()) this.pageToken = pageToken
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadStub.listRawImpressionUploads(
+                listRawImpressionUploadsRequest {
+                  parent = dataProviderName
+                  filter = rawUploadFilter { doneBlobUri = doneBlobPath }
+                  if (pageToken.isNotEmpty()) this.pageToken = pageToken
+                }
+              )
             }
-          )
+          } catch (e: StatusException) {
+            throw Exception("Error listing RawImpressionUploads for $dataProviderName", e)
+          }
         ResourceList(response.rawImpressionUploadsList, response.nextPageToken)
       }
       .flattenConcat()
@@ -448,13 +460,16 @@ class VidLabelingDispatcher(
   ): Boolean = readBlobMetadata(doneBlobUri.key).generation == expectedGeneration
 
   private suspend fun markRegistrationComplete(upload: RawImpressionUpload) {
-    rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
-      markRawImpressionUploadRegistrationCompleteRequest {
-        name = upload.name
-        etag = upload.etag
-        requestId = RequestIds.forRawImpressionUploadRegistrationComplete(upload.name, upload.etag)
-      }
-    )
+    rpcThrottlers.metadataWrite.onReady {
+      rawImpressionUploadStub.markRawImpressionUploadRegistrationComplete(
+        markRawImpressionUploadRegistrationCompleteRequest {
+          name = upload.name
+          etag = upload.etag
+          requestId =
+            RequestIds.forRawImpressionUploadRegistrationComplete(upload.name, upload.etag)
+        }
+      )
+    }
   }
 
   private fun LocalDate.toProtoDate(): Date = date {

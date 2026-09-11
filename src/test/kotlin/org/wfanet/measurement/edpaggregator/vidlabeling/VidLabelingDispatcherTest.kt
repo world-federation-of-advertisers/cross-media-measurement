@@ -522,8 +522,13 @@ class VidLabelingDispatcherTest {
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
       stubRawImpressionUploadCreation()
       whenever(modelLinesService.listModelLines(any())).thenReturn(listModelLinesResponse {})
+      val metadataWrite = RecordingThrottler()
 
-      val dispatcher = createDispatcher()
+      val dispatcher =
+        createDispatcher(
+          rpcThrottlers =
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().copy(metadataWrite = metadataWrite)
+        )
       dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
       verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
@@ -534,6 +539,7 @@ class VidLabelingDispatcherTest {
       verifyBlocking(rawImpressionUploadService) {
         markRawImpressionUploadRegistrationComplete(any())
       }
+      assertThat(metadataWrite.onReadyCalls).isEqualTo(3)
     }
 
   @Test
@@ -601,20 +607,37 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
-  fun `upload with same generation produces same request ID`() =
+  fun `upload with same generation succeeds when registration is already complete`() =
     runBlocking<Unit> {
       val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
       whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
       stubRawImpressionUploadCreation()
       stubFullResolutionChain(MODEL_LINE_1)
+      val uploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+      whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+        .thenReturn(
+          RawImpressionUpload.newBuilder()
+            .setName(uploadName)
+            .setDoneBlobUri(DONE_BLOB_PATH)
+            .setDoneBlobGeneration(123L)
+            .setEtag(UPLOAD_ETAG)
+            .build(),
+          RawImpressionUpload.newBuilder()
+            .setName(uploadName)
+            .setDoneBlobUri(DONE_BLOB_PATH)
+            .setDoneBlobGeneration(123L)
+            .setRegistrationComplete(true)
+            .setEtag("completed-$UPLOAD_ETAG")
+            .build(),
+        )
 
       val dispatcher =
         createDispatcher(
           readDoneBlobMetadata = { RawImpressionBlobMetadata(123L, 0L, DONE_BLOB_CREATE_TIME) }
         )
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
-
-      whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+      // DataWatcher redelivers the same done-object generation after the first invocation has
+      // completed registration.
       dispatcher.upload(DONE_BLOB_PATH, doneBlobGeneration = 123L)
 
       val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
@@ -627,6 +650,15 @@ class VidLabelingDispatcherTest {
         .containsExactly(123L, 123L)
       assertThat(requestCaptor.allValues.map { it.rawImpressionUpload.doneBlobCreateTime })
         .containsExactly(DONE_BLOB_CREATE_TIME.toProtoTime(), DONE_BLOB_CREATE_TIME.toProtoTime())
+      verifyBlocking(rawImpressionUploadFileService, times(1)) {
+        batchCreateRawImpressionUploadFiles(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
+        batchCreateRawImpressionUploadModelLines(any())
+      }
+      verifyBlocking(rawImpressionUploadService, times(1)) {
+        markRawImpressionUploadRegistrationComplete(any())
+      }
     }
 
   @Test
@@ -847,12 +879,18 @@ class VidLabelingDispatcherTest {
                 .build()
           },
         )
+      val metadataRead = RecordingThrottler()
 
-      createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      createDispatcher(
+          rpcThrottlers =
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().copy(metadataRead = metadataRead)
+        )
+        .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
       verifyBlocking(rawImpressionUploadFileService, never()) {
         batchCreateRawImpressionUploadFiles(any())
       }
+      assertThat(metadataRead.onReadyCalls).isEqualTo(2)
     }
 
   @Test
