@@ -41,15 +41,17 @@ val PopulationSpec.size: Long
  * [PopulationSpec] and that it is being used to determine indexes provided to the [increment] and
  * [incrementAll] methods.
  *
- * The [MeasurementSpec] is used in several ways. First, it must specify either a Reach or
- * ReachAndFrequency measurement. In the case of Reach, the FrequencyVectorBuilder will clamp all
- * frequency values at maximum of 1. In the case of a ReachAndFrequency measurement, the max
- * frequency parameter is used to clamp the frequency value. In both cases the vidSamplingInterval
- * is used to appropriately size the output vector and if the client does not do its own filtering,
- * filter the inputs to [increment] and [incrementAll].
+ * The [MeasurementSpec] is used in several ways. First, it must specify a Reach, ReachAndFrequency,
+ * or Multi measurement. In the case of Reach, the FrequencyVectorBuilder will clamp all frequency
+ * values at maximum of 1. In the case of a ReachAndFrequency measurement, the max frequency
+ * parameter is used to clamp the frequency value. A Multi measurement carries no frequency cap of
+ * its own, so values saturate at the largest signed 8-bit value the wire format holds. In every
+ * case the vidSamplingInterval is used to appropriately size the output vector and if the client
+ * does not do its own filtering, filter the inputs to [increment] and [incrementAll].
  *
  * @param populationSpec specification of the population being measured
- * @param measurementSpec a [MeasurementSpec] that specifies a Reach or ReachAndFrequency
+ * @param measurementSpec a [MeasurementSpec] that specifies a Reach, ReachAndFrequency, or Multi
+ *   measurement
  * @param strict If false the various increment methods ignore indexes that are out of bounds. If
  *   true, an out of bounds index will result in an exception being thrown. It is normal for indexes
  *   to be out of bounds of a given vid interval.
@@ -109,6 +111,11 @@ class FrequencyVectorBuilder(
         measurementSpec.impression.maximumFrequencyPerUser
       } else if (measurementSpec.hasReach()) {
         resultMinimumThresholds?.reachMaxFrequencyPerUser ?: 1
+      } else if (measurementSpec.hasMulti()) {
+        // A MultiMeasurementSpec carries no frequency cap. The TEE folds the histogram downstream,
+        // so the only bound is the cell: a frequency saturates at the largest signed byte, since a
+        // larger value would reach the TEE negative and be rejected.
+        Byte.MAX_VALUE.toInt()
       } else {
         1
       }

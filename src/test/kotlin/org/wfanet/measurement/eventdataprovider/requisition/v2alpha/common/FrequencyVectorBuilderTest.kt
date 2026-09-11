@@ -21,6 +21,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.multiMeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
@@ -281,6 +282,47 @@ class FrequencyVectorBuilderTest {
 
     assertThat(frequencyVector)
       .isEqualTo(frequencyVector { data += listOf<Int>(3, 2, 0, 0, 0, 0, 0, 0, 3, 0) })
+  }
+
+  @Test
+  fun `build does not cap a frequency vector for a multi measurement`() {
+    val multiMeasurementSpec = measurementSpec {
+      vidSamplingInterval = FULL_SAMPLING_INTERVAL
+      multi = multiMeasurementSpec {}
+    }
+
+    val frequencyVector =
+      FrequencyVectorBuilder.build(SMALL_POPULATION_SPEC, multiMeasurementSpec) {
+        listOf(
+            STARTING_VID,
+            STARTING_VID,
+            STARTING_VID,
+            STARTING_VID + 1,
+            STARTING_VID + 8,
+            STARTING_VID + 8,
+          )
+          .map { incrementBy(SMALL_POPULATION_VID_INDEX_MAP[it], 2) }
+      }
+
+    // The same increments cap to 3 under a reachAndFrequency spec with maximumFrequency 3.
+    assertThat(frequencyVector)
+      .isEqualTo(frequencyVector { data += listOf<Int>(6, 2, 0, 0, 0, 0, 0, 0, 4, 0) })
+  }
+
+  @Test
+  fun `build saturates a multi measurement frequency at the largest signed byte`() {
+    val multiMeasurementSpec = measurementSpec {
+      vidSamplingInterval = FULL_SAMPLING_INTERVAL
+      multi = multiMeasurementSpec {}
+    }
+
+    val frequencyVector =
+      FrequencyVectorBuilder.build(SMALL_POPULATION_SPEC, multiMeasurementSpec) {
+        incrementBy(SMALL_POPULATION_VID_INDEX_MAP[STARTING_VID], 200)
+      }
+
+    // A larger value would reach the TEE as a negative byte.
+    assertThat(frequencyVector.dataList[0]).isEqualTo(Byte.MAX_VALUE.toInt())
   }
 
   @Test

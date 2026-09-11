@@ -23,8 +23,10 @@ import com.google.crypto.tink.StreamingAead
 import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
+import java.io.IOException
 import java.security.GeneralSecurityException
 import kotlin.test.assertFailsWith
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -34,6 +36,8 @@ import org.mockito.kotlin.whenever
 import org.wfanet.frequencycount.FrequencyVector
 import org.wfanet.frequencycount.frequencyVector
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequestKt
+import org.wfanet.measurement.api.v2alpha.MeasurementKt
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.protocolConfig
@@ -43,6 +47,15 @@ import org.wfanet.measurement.consent.client.dataprovider.computeRequisitionFing
 
 @RunWith(JUnit4::class)
 class FulfillRequisitionRequestBuilderTest {
+  /**
+   * Restores the KEK [Aead], which the tests covering encryption failures replace with a throwing
+   * mock on the shared [KMS_CLIENT].
+   */
+  @Before
+  fun restoreKekAead() {
+    KMS_CLIENT.setAead(KEK_URI, KEK_AEAD)
+  }
+
   @Test
   fun `buildEncrypted fails when requisition has no TrusTee config`() {
     val exception =
@@ -272,15 +285,187 @@ class FulfillRequisitionRequestBuilderTest {
     assertThat(payloadIntegers).isEqualTo(inputFrequencyVector.dataList)
   }
 
+  @Test
+  fun `buildUnencrypted sets TrusTeeV2 header for TrusTeeV2 Requisition`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildUnencrypted(V2_REQUISITION, NONCE, FREQUENCY_VECTOR)
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    assertThat(header.hasTrusTeeV2()).isTrue()
+    assertThat(header.hasTrusTee()).isFalse()
+    assertThat(header.trusTeeV2.trusTee.dataFormat)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.FREQUENCY_VECTOR)
+    assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
+  }
+
+  @Test
+  fun `buildUnencrypted produces same payload for TrusTee and TrusTeeV2`() {
+    val inputFrequencyVector = frequencyVector { data += listOf(1, 8, 27) }
+
+    val v1Requests =
+      FulfillRequisitionRequestBuilder.buildUnencrypted(REQUISITION, NONCE, inputFrequencyVector)
+        .toList()
+    val v2Requests =
+      FulfillRequisitionRequestBuilder.buildUnencrypted(V2_REQUISITION, NONCE, inputFrequencyVector)
+        .toList()
+
+    val v1BodyChunks = v1Requests.filter { it.hasBodyChunk() }
+    assertThat(v1BodyChunks).isNotEmpty()
+    assertThat(v2Requests.filter { it.hasBodyChunk() })
+      .containsExactlyElementsIn(v1BodyChunks)
+      .inOrder()
+  }
+
+  @Test
+  fun `buildUnencrypted sets plaintext FulfillmentDetails`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildUnencrypted(
+          V2_REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+          FULFILLMENT_DETAILS,
+        )
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    assertThat(header.trusTeeV2.fulfillmentDetails).isEqualTo(FULFILLMENT_DETAILS)
+    assertThat(header.trusTeeV2.hasEncryptedFulfillmentDetails()).isFalse()
+  }
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4475): Pin a fixed TrusTEE v2
+  // sample payload. These cases encrypt and decrypt with the same implementation, so the Phase 2.2
+  // reader still needs a fixture written against the same bytes.
+  @Test
+  fun `buildEncrypted encrypts FulfillmentDetails with the payload DEK`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildEncrypted(
+          V2_REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+          ENCRYPTED_PARAMS,
+          FULFILLMENT_DETAILS,
+        )
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
+    val encryptedDetails = header.trusTeeV2.encryptedFulfillmentDetails
+    assertThat(encryptedDetails.typeUrl).endsWith("FulfillmentDetails")
+
+    val kekAead = KMS_CLIENT.getAead(KEK_URI)
+    val encryptedDek: ByteString = header.trusTeeV2.trusTee.envelopeEncryption.encryptedDek.data
+    val dekKeysetHandle =
+      KeysetHandle.read(BinaryKeysetReader.withInputStream(encryptedDek.newInput()), kekAead)
+    val dekStreamingAead = dekKeysetHandle.getPrimitive(StreamingAead::class.java)
+    val plaintext =
+      dekStreamingAead
+        .newDecryptingStream(
+          encryptedDetails.ciphertext.newInput(),
+          encryptedDetails.typeUrl.toByteArray(),
+        )
+        .use { it.readAllBytes() }
+
+    assertThat(FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails.parseFrom(plaintext))
+      .isEqualTo(FULFILLMENT_DETAILS)
+  }
+
+  @Test
+  fun `buildEncrypted leaves FulfillmentDetails unset when none are supplied`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildEncrypted(
+          V2_REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+          ENCRYPTED_PARAMS,
+        )
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    assertThat(header.hasTrusTeeV2()).isTrue()
+    assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
+    assertThat(header.trusTeeV2.hasEncryptedFulfillmentDetails()).isFalse()
+    assertThat(header.trusTeeV2.trusTee.dataFormat)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR)
+    assertThat(header.trusTeeV2.trusTee.envelopeEncryption.hasEncryptedDek()).isTrue()
+  }
+
+  @Test
+  fun `encrypted FulfillmentDetails cannot be decrypted as the payload`() {
+    val requests =
+      FulfillRequisitionRequestBuilder.buildEncrypted(
+          V2_REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+          ENCRYPTED_PARAMS,
+          FULFILLMENT_DETAILS,
+        )
+        .toList()
+
+    val header = requests.first { it.hasHeader() }.header
+    val kekAead = KMS_CLIENT.getAead(KEK_URI)
+    val encryptedDek: ByteString = header.trusTeeV2.trusTee.envelopeEncryption.encryptedDek.data
+    val dekKeysetHandle =
+      KeysetHandle.read(BinaryKeysetReader.withInputStream(encryptedDek.newInput()), kekAead)
+    val dekStreamingAead = dekKeysetHandle.getPrimitive(StreamingAead::class.java)
+
+    // The payload is encrypted with no associated data, so the details ciphertext cannot stand in
+    // for it. Tink surfaces the failed segment authentication as an IOException from the read.
+    assertFailsWith<IOException> {
+      dekStreamingAead
+        .newDecryptingStream(
+          header.trusTeeV2.encryptedFulfillmentDetails.ciphertext.newInput(),
+          byteArrayOf(),
+        )
+        .use { it.readAllBytes() }
+    }
+  }
+
+  @Test
+  fun `build fails when FulfillmentDetails set for a TrusTee Requisition`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FulfillRequisitionRequestBuilder.buildUnencrypted(
+          REQUISITION,
+          NONCE,
+          FREQUENCY_VECTOR,
+          FULFILLMENT_DETAILS,
+        )
+      }
+
+    assertThat(exception.message).contains("fulfillmentDetails")
+  }
+
+  @Test
+  fun `build fails when Requisition has both TrusTee and TrusTeeV2 configs`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        FulfillRequisitionRequestBuilder.buildUnencrypted(
+          REQUISITION.copy {
+            protocolConfig =
+              protocolConfig.copy {
+                protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+              }
+          },
+          NONCE,
+          FREQUENCY_VECTOR,
+        )
+      }
+
+    assertThat(exception.message).contains("Found: 2")
+  }
+
   companion object {
     private val KMS_CLIENT = FakeKmsClient()
     private const val KEK_URI = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    private val KEK_AEAD: Aead
 
     init {
       AeadConfig.register()
       StreamingAeadConfig.register()
       val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES256_GCM"))
-      KMS_CLIENT.setAead(KEK_URI, kmsKeyHandle.getPrimitive(Aead::class.java))
+      KEK_AEAD = kmsKeyHandle.getPrimitive(Aead::class.java)
+      KMS_CLIENT.setAead(KEK_URI, KEK_AEAD)
     }
 
     private const val NONCE = 12345L
@@ -293,6 +478,16 @@ class FulfillRequisitionRequestBuilderTest {
         protocols += ProtocolConfigKt.protocol { trusTee = ProtocolConfigKt.trusTee {} }
       }
     }
+    private val V2_REQUISITION = requisition {
+      name = "requisitions/test"
+      protocolConfig = protocolConfig {
+        protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+      }
+    }
+    private val FULFILLMENT_DETAILS =
+      FulfillRequisitionRequestKt.HeaderKt.TrusTeeV2Kt.fulfillmentDetails {
+        impression = MeasurementKt.ResultKt.impression { value = 1234L }
+      }
     private val ENCRYPTED_PARAMS =
       FulfillRequisitionRequestBuilder.EncryptionParams(
         kmsClient = KMS_CLIENT,
