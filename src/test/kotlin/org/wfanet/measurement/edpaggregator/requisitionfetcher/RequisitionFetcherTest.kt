@@ -648,6 +648,70 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `secure computation dispatcher preserves trace context on idempotent retry`() = runBlocking {
+    val requests = mutableListOf<EnsureWorkItemRequest>()
+    val resultsFulfillerParams = resultsFulfillerParams {
+      dataProvider = TestRequisitionData.EDP_NAME
+    }
+    whenever(workItemsServiceMock.ensureWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<EnsureWorkItemRequest>(0)
+      requests += request
+      if (requests.size == 1) {
+        throw Status.ALREADY_EXISTS.asRuntimeException()
+      }
+      workItem {
+        name = "workItems/${request.workItemId}"
+        queue = request.workItem.queue
+        workItemParams = request.workItem.workItemParams
+        state = WorkItem.State.QUEUED
+      }
+    }
+    whenever(workItemsServiceMock.getWorkItem(any()))
+      .thenReturn(
+        workItem {
+          name = "workItems/results-fulfiller-group-id"
+          queue = "results-fulfiller-queue"
+          workItemParams =
+            workItemParams {
+                appParams = resultsFulfillerParams.pack()
+                dataPathParams = dataPathParams {
+                  dataPath = "gs://bucket/requisitions-v2/group-id"
+                }
+                traceContext["traceparent"] =
+                  "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+              }
+              .pack()
+        }
+      )
+    val dispatcher =
+      SecureComputationRequisitionWorkItemDispatcher(
+        workItemsStub = workItemsStub,
+        queue = "results-fulfiller-queue",
+        resultsFulfillerParams = resultsFulfillerParams,
+        controlPlaneThrottler = throttler,
+      )
+    val currentSpan =
+      Span.wrap(
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      )
+
+    currentSpan.makeCurrent().use {
+      dispatcher.dispatch("group-id", "gs://bucket/requisitions-v2/group-id")
+    }
+
+    assertThat(requests).hasSize(2)
+    val retriedParams =
+      requests.last().workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    assertThat(retriedParams.traceContextMap)
+      .containsEntry("traceparent", "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01")
+  }
+
+  @Test
   fun `secure computation dispatcher treats running WorkItem as success`() = runBlocking {
     whenever(workItemsServiceMock.ensureWorkItem(any()))
       .thenReturn(workItem { state = WorkItem.State.RUNNING })
