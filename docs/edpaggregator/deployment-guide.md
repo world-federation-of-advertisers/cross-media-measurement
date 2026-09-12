@@ -1137,11 +1137,12 @@ rollout:
    ```
 
    This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
-   as generation 1; retried terminal or abandoned WorkItems advance to generation 2 or later. Roll
-   out the API and queue consumers together before using `RetryWorkItem`. `CreateWorkItemAttempt`
-   and `FailWorkItem` now require the generation from the delivered WorkItem. The former prevents
-   an old ordinary queue delivery from starting work for a replacement execution; the latter
-   prevents an old dead-letter delivery from failing it.
+   as generation 1, including requests from older consumers that omit the generation. Retried
+   terminal or abandoned WorkItems advance to generation 2 or later. Do not use `RetryWorkItem`
+   until every API replica and queue consumer understands generations: an old API does not fence a
+   generation-2 request, while an old consumer omits the generation and is correctly rejected as a
+   stale generation-1 delivery by a new API. Generation checks prevent stale ordinary and
+   dead-letter deliveries from changing a replacement execution.
 
 6. With producers and consumers still stopped, capture one immutable snapshot of `QUEUED` WorkItem
    IDs that have no pending publication and no active attempt:
