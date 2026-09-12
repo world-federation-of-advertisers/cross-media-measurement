@@ -829,6 +829,7 @@ internal object ReportTraceOutput {
           description = "span ${span.name}",
           outcome = span.attributes["xmm.outcome"],
           attributes = span.attributes,
+          timestamp = span.startTime,
         )
     }
     for (entry in logEntries) {
@@ -840,6 +841,7 @@ internal object ReportTraceOutput {
             description = "log ${entry.service}",
             outcome = fields["xmm.outcome"],
             attributes = fields,
+            timestamp = entry.timestamp,
           )
       }
     }
@@ -849,6 +851,7 @@ internal object ReportTraceOutput {
           description = "durable BasicReport state SUCCEEDED",
           outcome = "succeeded",
           attributes = mapOf("xmm.basic_report.name" to checkNotNull(context.basicReportName)),
+          timestamp = Instant.MAX,
         )
     }
     linkComputationEvidenceToMeasurements(observed)
@@ -1011,7 +1014,7 @@ internal object ReportTraceOutput {
     hasUnattributedEvidence: Boolean,
   ): ReportTraceLifecycleStage {
     val evidence = matchingEvidence.map { it.description }
-    val outcomes = matchingEvidence.mapNotNull { it.outcome?.lowercase() }.toSet()
+    val latestOutcome = matchingEvidence.maxByOrNull { it.timestamp }?.outcome?.lowercase()
     val requirement = operation.requirement
     return ReportTraceLifecycleStage(
       name = operation.stage,
@@ -1020,12 +1023,13 @@ internal object ReportTraceOutput {
         when {
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isNotEmpty() ->
             "UNEXPECTED"
-          outcomes.any { it == "failed" || it.startsWith("failed_") || it == "report_failed" } ->
-            "FAILED"
-          "refused" in outcomes -> "REFUSED"
-          outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> "SUCCEEDED"
-          outcomes.any { it in IN_PROGRESS_OUTCOMES } -> "IN_PROGRESS"
-          "unknown" in outcomes -> "UNKNOWN"
+          latestOutcome?.let {
+            it == "failed" || it.startsWith("failed_") || it == "report_failed"
+          } == true -> "FAILED"
+          latestOutcome == "refused" -> "REFUSED"
+          latestOutcome != null && latestOutcome in TERMINAL_SUCCESS_OUTCOMES -> "SUCCEEDED"
+          latestOutcome != null && latestOutcome in IN_PROGRESS_OUTCOMES -> "IN_PROGRESS"
+          latestOutcome == "unknown" -> "UNKNOWN"
           evidence.isNotEmpty() -> "OBSERVED"
           hasUnattributedEvidence -> "UNKNOWN"
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE -> "NOT_APPLICABLE"
@@ -1267,12 +1271,15 @@ internal object ReportTraceOutput {
     }
 
     fun hasFailedEvidence(stage: String, resourceAttribute: String, resource: String): Boolean {
-      return observed[stage].orEmpty().any { evidence ->
-        evidence.attributes[resourceAttribute] == resource &&
-          evidence.outcome?.lowercase()?.let { outcome ->
-            outcome == "failed" || outcome.startsWith("failed_") || outcome == "report_failed"
-          } == true
-      }
+      val latestEvidence =
+        observed[stage]
+          .orEmpty()
+          .filter { it.attributes[resourceAttribute] == resource }
+          .maxByOrNull { it.timestamp }
+      val outcome = latestEvidence?.outcome?.lowercase()
+      return outcome == "failed" ||
+        outcome?.startsWith("failed_") == true ||
+        outcome == "report_failed"
     }
 
     val basicReportFailed = context.basicReportState?.uppercase() in setOf("FAILED", "INVALID")
@@ -1641,6 +1648,7 @@ internal object ReportTraceOutput {
     val description: String,
     val outcome: String?,
     val attributes: Map<String, String>,
+    val timestamp: Instant,
   )
 
   private data class ExpectedLifecycleOperation(

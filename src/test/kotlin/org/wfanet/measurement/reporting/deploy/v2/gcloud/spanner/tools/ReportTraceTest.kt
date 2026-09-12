@@ -2121,6 +2121,7 @@ class ReportTraceTest {
       )
 
     assertThat(output).contains("Execution outcome: SUCCEEDED")
+    assertThat(output).contains("| report_result_assembly | ${context.reportName} | SUCCEEDED |")
   }
 
   @Test
