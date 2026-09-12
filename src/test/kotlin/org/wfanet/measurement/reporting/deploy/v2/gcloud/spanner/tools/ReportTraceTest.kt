@@ -437,7 +437,7 @@ class ReportTraceTest {
         "metric_creation" to ("xmm.metric.name" to context.metricNames.single()),
         "measurement_creation" to ("xmm.measurement.name" to context.measurementNames.single()),
         "requisition_available" to ("xmm.requisition.name" to requisitionName),
-        "kingdom_result_acceptance" to ("xmm.requisition.name" to requisitionName),
+        "kingdom_requisition_result_acceptance" to ("xmm.requisition.name" to requisitionName),
         "kingdom_measurement_sync" to ("xmm.measurement.name" to context.measurementNames.single()),
         "metric_result_sync" to ("xmm.metric.name" to context.metricNames.single()),
         "report_result_assembly" to ("xmm.report.name" to context.reportName),
@@ -528,32 +528,55 @@ class ReportTraceTest {
         requisitionName,
         ReportTraceRequisitionRouteKind.EDPA,
       )
-    val stageResources =
+    val groupId = "group-1"
+    val workItemName = "workItems/results-fulfiller-$groupId"
+    val computationName = "computations/computation-1"
+    val commonStageResources =
       listOf(
-        "basic_report_creation" to ("xmm.basic_report.name" to context.basicReportName!!),
-        "report_creation" to ("xmm.report.name" to context.reportName),
-        "metric_creation" to ("xmm.metric.name" to context.metricNames.single()),
-        "measurement_creation" to ("xmm.measurement.name" to measurementName),
-        "requisition_available" to ("xmm.requisition.name" to requisitionName),
-        "requisition_dispatch" to ("xmm.requisition.name" to requisitionName),
-        "results_fulfillment" to ("xmm.requisition.name" to requisitionName),
-        "kingdom_result_acceptance" to ("xmm.requisition.name" to requisitionName),
-        "kingdom_measurement_sync" to ("xmm.measurement.name" to measurementName),
-        "duchy_computation" to ("xmm.measurement.name" to measurementName),
-        "duchy_stage_attempt" to ("xmm.measurement.name" to measurementName),
-        "metric_result_sync" to ("xmm.metric.name" to context.metricNames.single()),
-        "report_result_assembly" to ("xmm.report.name" to context.reportName),
-        "noise_correction" to ("xmm.basic_report.name" to context.basicReportName!!),
-        "processed_result_writeback" to ("xmm.basic_report.name" to context.basicReportName!!),
+        "basic_report_creation" to mapOf("xmm.basic_report.name" to context.basicReportName!!),
+        "report_creation" to mapOf("xmm.report.name" to context.reportName),
+        "metric_creation" to mapOf("xmm.metric.name" to context.metricNames.single()),
+        "measurement_creation" to mapOf("xmm.measurement.name" to measurementName),
+        "requisition_available" to mapOf("xmm.requisition.name" to requisitionName),
+        "requisition_dispatch" to
+          mapOf(
+            "xmm.requisition.name" to requisitionName,
+            "xmm.edpa.group_id" to groupId,
+            "xmm.work_item.name" to workItemName,
+          ),
+        "work_item_processing" to mapOf("xmm.work_item.name" to workItemName),
+        "results_fulfillment" to
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to groupId),
+        "kingdom_computation_result_acceptance" to
+          mapOf(
+            "xmm.measurement.name" to measurementName,
+            "xmm.computation.name" to computationName,
+          ),
+        "kingdom_measurement_sync" to mapOf("xmm.measurement.name" to measurementName),
+        "metric_result_sync" to mapOf("xmm.metric.name" to context.metricNames.single()),
+        "report_result_assembly" to mapOf("xmm.report.name" to context.reportName),
+        "noise_correction" to mapOf("xmm.basic_report.name" to context.basicReportName!!),
+        "processed_result_writeback" to mapOf("xmm.basic_report.name" to context.basicReportName!!),
       )
+    val duchyStageResources =
+      listOf("aggregator", "worker1").flatMap { duchyId ->
+        listOf("duchy_computation", "duchy_stage_attempt").map { stage ->
+          stage to
+            mapOf(
+              "xmm.measurement.name" to measurementName,
+              "xmm.computation.name" to computationName,
+              "xmm.duchy.id" to duchyId,
+            )
+        }
+      }
 
     val output =
       ReportTraceOutput.render(
         context = context,
         routeResolution = routeResolution,
         spans =
-          stageResources.map { (stage, resource) ->
-            lifecycleSpan(stage, resource.first, resource.second)
+          (commonStageResources + duchyStageResources).map { (stage, attributes) ->
+            lifecycleSpan(stage, attributes)
           },
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
@@ -562,8 +585,137 @@ class ReportTraceTest {
       )
 
     assertThat(output).contains("Collection completeness: COMPLETE")
-    assertThat(output).contains("| duchy_computation | $measurementName | SUCCEEDED |")
+    assertThat(output)
+      .contains("| duchy_computation | $measurementName @ duchy worker1 | SUCCEEDED |")
     assertThat(output).contains("| results_fulfillment | $requisitionName | SUCCEEDED |")
+  }
+
+  @Test
+  fun `EDPA lifecycle is partial when its WorkItem evidence is missing`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val dispatch =
+      lifecycleSpan(
+        "requisition_dispatch",
+        mapOf(
+          "xmm.requisition.name" to requisitionName,
+          "xmm.edpa.group_id" to "group-1",
+          "xmm.work_item.name" to "workItems/results-fulfiller-group-1",
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, listOf(dispatch), emptyList())
+
+    assertThat(
+        coverage
+          .single { it.name == "work_item_processing" && it.resource == requisitionName }
+          .status
+      )
+      .isEqualTo("MISSING")
+    assertThat(
+        ReportTraceOutput.artifactStatus(listOf(dispatch), emptyList(), emptyList(), coverage)
+      )
+      .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `dispatch evidence is evaluated independently for each Requisition`() {
+    val context = reportTraceContext()
+    val requisition1 = "dataProviders/edpa/requisitions/requisition-1"
+    val requisition2 = "dataProviders/edpa/requisitions/requisition-2"
+    val baseRoute =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisition1,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val routeResolution =
+      baseRoute.copy(
+        measurementRoutes =
+          listOf(
+            baseRoute.measurementRoutes
+              .single()
+              .copy(
+                requisitions =
+                  baseRoute.measurementRoutes.single().requisitions +
+                    ReportTraceRequisitionRoute(
+                      name = requisition2,
+                      state = "FULFILLED",
+                      dataProvider = "dataProviders/edpa",
+                      route = ReportTraceRequisitionRouteKind.EDPA,
+                    )
+              )
+          )
+      )
+    val dispatch =
+      lifecycleSpan(
+        "requisition_dispatch",
+        mapOf(
+          "xmm.requisition.name" to requisition1,
+          "xmm.edpa.group_id" to "group-1",
+          "xmm.work_item.name" to "workItems/results-fulfiller-group-1",
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, listOf(dispatch), emptyList())
+
+    assertThat(
+        coverage.single { it.name == "requisition_dispatch" && it.resource == requisition1 }.status
+      )
+      .isEqualTo("SUCCEEDED")
+    assertThat(
+        coverage.single { it.name == "requisition_dispatch" && it.resource == requisition2 }.status
+      )
+      .isEqualTo("MISSING")
+  }
+
+  @Test
+  fun `one Duchy participant does not satisfy another expected participant`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val aggregatorEvidence =
+      lifecycleSpan(
+        "duchy_computation",
+        mapOf("xmm.measurement.name" to measurementName, "xmm.duchy.id" to "aggregator"),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(aggregatorEvidence),
+        emptyList(),
+      )
+
+    assertThat(
+        coverage
+          .single { it.name == "duchy_computation" && it.resource.endsWith("duchy aggregator") }
+          .status
+      )
+      .isEqualTo("SUCCEEDED")
+    assertThat(
+        coverage
+          .single { it.name == "duchy_computation" && it.resource.endsWith("duchy worker1") }
+          .status
+      )
+      .isEqualTo("MISSING")
   }
 
   @Test
@@ -592,9 +744,13 @@ class ReportTraceTest {
         emptyList(),
       )
 
-    assertThat(coverage.single { it.name == "duchy_computation" }.status).isEqualTo("UNKNOWN")
-    assertThat(coverage.single { it.name == "duchy_computation" }.evidence)
-      .contains("did not identify")
+    assertThat(coverage.filter { it.name == "duchy_computation" }.map { it.status })
+      .containsExactly("UNKNOWN", "UNKNOWN")
+    assertThat(coverage.filter { it.name == "duchy_computation" }.map { it.evidence })
+      .containsExactly(
+        "Stage evidence did not identify this resource",
+        "Stage evidence did not identify this resource",
+      )
   }
 
   @Test
@@ -1156,6 +1312,7 @@ class ReportTraceTest {
               "xmm.lifecycle.stage" to "results_fulfillment",
               "xmm.outcome" to "refused",
               "xmm.requisition.name" to requisitionName,
+              "xmm.edpa.group_id" to "group-1",
             )
         )
 
@@ -1289,7 +1446,7 @@ class ReportTraceTest {
         "requisition_available",
         "requisition_dispatch",
         "results_fulfillment",
-        "kingdom_result_acceptance",
+        "kingdom_requisition_result_acceptance",
         "kingdom_measurement_sync",
         "metric_result_sync",
         "report_result_assembly",
@@ -1306,7 +1463,7 @@ class ReportTraceTest {
                 "xmm.outcome" to if (stage == "results_fulfillment") "started" else "succeeded",
               ) +
                 if (stage == "results_fulfillment") {
-                  mapOf("xmm.requisition.name" to requisitionName)
+                  mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to "group-1")
                 } else {
                   emptyMap()
                 }
@@ -1520,22 +1677,23 @@ class ReportTraceTest {
     stage: String,
     resourceAttribute: String,
     resource: String,
+  ): ReportTraceSpan = lifecycleSpan(stage, mapOf(resourceAttribute to resource))
+
+  private fun lifecycleSpan(
+    stage: String,
+    producerAttributes: Map<String, String>,
   ): ReportTraceSpan {
     return ReportTraceSpan(
       sourceProject = "test",
       traceId = "trace-1",
-      spanId = "$stage-$resource",
+      spanId = "$stage-${producerAttributes.hashCode()}",
       parentSpanId = null,
       name = stage,
       service = "test-service",
       startTime = NOW,
       endTime = NOW.plusSeconds(1),
       attributes =
-        mapOf(
-          "xmm.lifecycle.stage" to stage,
-          "xmm.outcome" to "succeeded",
-          resourceAttribute to resource,
-        ),
+        mapOf("xmm.lifecycle.stage" to stage, "xmm.outcome" to "succeeded") + producerAttributes,
     )
   }
 
@@ -1563,6 +1721,13 @@ class ReportTraceTest {
               if (measurementRoute == ReportTraceMeasurementRouteKind.DIRECT) "DIRECT"
               else "HONEST_MAJORITY_SHARE_SHUFFLE",
             route = measurementRoute,
+            duchyIds =
+              if (measurementRoute == ReportTraceMeasurementRouteKind.MPC) {
+                listOf("aggregator", "worker1")
+              } else {
+                emptyList()
+              },
+            duchyParticipantsResolved = true,
             requisitions =
               listOf(
                 ReportTraceRequisitionRoute(

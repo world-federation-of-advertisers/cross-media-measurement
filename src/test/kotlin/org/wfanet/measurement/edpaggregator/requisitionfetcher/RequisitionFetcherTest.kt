@@ -24,19 +24,25 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanContext
 import io.opentelemetry.api.trace.TraceFlags
 import io.opentelemetry.api.trace.TraceState
+import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.LongPointData
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
@@ -63,10 +69,12 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
@@ -238,13 +246,34 @@ class RequisitionFetcherTest {
   private lateinit var storageClient: FileSystemStorageClient
   private lateinit var metricReader: InMemoryMetricReader
   private lateinit var testMetrics: RequisitionFetcherMetrics
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun setUp() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     storageClient = FileSystemStorageClient(tempFolder.root)
     metricReader = InMemoryMetricReader.create()
     val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
     testMetrics = RequisitionFetcherMetrics(meterProvider.get("test"))
+  }
+
+  @After
+  fun cleanUpTelemetry() {
+    openTelemetry.close()
+    spanExporter.reset()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
   }
 
   private fun createFetcher(
@@ -375,6 +404,18 @@ class RequisitionFetcherTest {
     assertThat(dispatchedGroupId).isEqualTo(groupId)
     assertThat(dispatchedBlobUri).isEqualTo("$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId")
     assertThat(allMetadataQueuedBeforeDispatch).isTrue()
+    val dispatchSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition"
+      }
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(TestRequisitionData.REQUISITION.name)
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.GROUP_ID)).isEqualTo(groupId)
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME))
+      .isEqualTo("workItems/results-fulfiller-$groupId")
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_dispatch")
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
   }
 
   @Test

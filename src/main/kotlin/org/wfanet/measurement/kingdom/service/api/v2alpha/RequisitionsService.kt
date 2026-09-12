@@ -304,7 +304,10 @@ class RequisitionsService(
     val span =
       Span.current()
         .setAttribute(ReportTraceAttributes.REQUISITION_NAME, request.name)
-        .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_result_acceptance")
+        .setAttribute(
+          ReportTraceAttributes.LIFECYCLE_STAGE,
+          "kingdom_requisition_result_acceptance",
+        )
         .setAttribute(ReportTraceAttributes.OUTCOME, "started")
 
     val fulfillRequest = fulfillRequisitionRequest {

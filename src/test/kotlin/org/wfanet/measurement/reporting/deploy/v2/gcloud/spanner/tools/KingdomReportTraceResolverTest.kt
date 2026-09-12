@@ -53,7 +53,8 @@ class KingdomReportTraceResolverTest {
             requisitions +=
               when (request.parent) {
                 MEASUREMENT_1 -> requisition(DIRECT_REQUISITION, Requisition.State.FULFILLED)
-                MEASUREMENT_2 -> requisition(EDPA_REQUISITION, Requisition.State.UNFULFILLED)
+                MEASUREMENT_2 ->
+                  requisition(EDPA_REQUISITION, Requisition.State.UNFULFILLED, DUCHY_ONE, DUCHY_TWO)
                 else -> error("Unexpected Measurement")
               }
           }
@@ -74,6 +75,8 @@ class KingdomReportTraceResolverTest {
     assertThat(result.measurementRoutes.map { it.route })
       .containsExactly(ReportTraceMeasurementRouteKind.DIRECT, ReportTraceMeasurementRouteKind.MPC)
       .inOrder()
+    assertThat(result.measurementRoutes[1].duchyIds).containsExactly(DUCHY_ONE, DUCHY_TWO).inOrder()
+    assertThat(result.measurementRoutes[1].duchyParticipantsResolved).isTrue()
     assertThat(result.measurementRoutes.flatMap { it.requisitions }.map { it.route })
       .containsExactly(
         ReportTraceRequisitionRouteKind.DIRECT_EDP,
@@ -112,6 +115,29 @@ class KingdomReportTraceResolverTest {
       .isEqualTo(ReportTraceStageRequirement.NOT_APPLICABLE)
     assertThat(result.requirementFor("results_fulfillment"))
       .isEqualTo(ReportTraceStageRequirement.NOT_APPLICABLE)
+  }
+
+  @Test
+  fun `resolve leaves MPC Duchy participants unknown when Requisitions omit them`() = runTest {
+    val client =
+      FakeKingdomReportTraceClient(
+        batchGet = {
+          batchGetMeasurementsResponse { measurements += mpcMeasurement(MEASUREMENT_1) }
+        },
+        list = {
+          listRequisitionsResponse {
+            requisitions += requisition(EDPA_REQUISITION, Requisition.State.UNFULFILLED)
+          }
+        },
+      )
+
+    val result =
+      resolver(client)
+        .resolve(listOf(MEASUREMENT_1), topology(EDPA to ReportTraceRequisitionRouteKind.EDPA))
+
+    assertThat(result.status).isEqualTo("PARTIAL")
+    assertThat(result.measurementRoutes.single().duchyParticipantsResolved).isFalse()
+    assertThat(result.note).contains("Duchy participants")
   }
 
   @Test
@@ -157,12 +183,14 @@ class KingdomReportTraceResolverTest {
           pageTokens += request.pageToken
           if (request.pageToken.isEmpty()) {
             listRequisitionsResponse {
-              requisitions += requisition(DIRECT_REQUISITION, Requisition.State.FULFILLED)
+              requisitions +=
+                requisition(DIRECT_REQUISITION, Requisition.State.FULFILLED, DUCHY_ONE, DUCHY_TWO)
               nextPageToken = "page-2"
             }
           } else {
             listRequisitionsResponse {
-              requisitions += requisition(EDPA_REQUISITION, Requisition.State.REFUSED)
+              requisitions +=
+                requisition(EDPA_REQUISITION, Requisition.State.REFUSED, DUCHY_ONE, DUCHY_TWO)
             }
           }
         },
@@ -267,9 +295,15 @@ class KingdomReportTraceResolverTest {
     }
   }
 
-  private fun requisition(name: String, state: Requisition.State): Requisition = requisition {
+  private fun requisition(
+    name: String,
+    state: Requisition.State,
+    vararg duchyIds: String,
+  ): Requisition = requisition {
     this.name = name
     this.state = state
+    duchies +=
+      duchyIds.map { duchyId -> Requisition.DuchyEntry.newBuilder().setKey(duchyId).build() }
   }
 
   private class FakeKingdomReportTraceClient(
@@ -292,5 +326,7 @@ class KingdomReportTraceResolverTest {
     private const val EDPA = "dataProviders/edpa"
     private const val DIRECT_REQUISITION = "$DIRECT_EDP/requisitions/requisition-1"
     private const val EDPA_REQUISITION = "$EDPA/requisitions/requisition-2"
+    private const val DUCHY_ONE = "aggregator"
+    private const val DUCHY_TWO = "worker1"
   }
 }

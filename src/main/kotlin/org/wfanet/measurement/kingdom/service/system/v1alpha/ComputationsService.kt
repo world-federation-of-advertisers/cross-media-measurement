@@ -142,7 +142,10 @@ class ComputationsService(
     val span =
       Span.current()
         .setAttribute(ReportTraceAttributes.COMPUTATION_NAME, request.name)
-        .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_result_acceptance")
+        .setAttribute(
+          ReportTraceAttributes.LIFECYCLE_STAGE,
+          "kingdom_computation_result_acceptance",
+        )
         .setAttribute(ReportTraceAttributes.OUTCOME, "started")
     grpcRequire(request.publicApiVersion.isNotEmpty()) { "public_api_version unspecified" }
 
@@ -171,6 +174,7 @@ class ComputationsService(
     try {
       val computation =
         measurementsClient.setMeasurementResult(internalRequest).toSystemComputation()
+      span.setAttribute(ReportTraceAttributes.MEASUREMENT_NAME, computation.measurement)
       span.setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
       return computation
     } catch (e: StatusException) {

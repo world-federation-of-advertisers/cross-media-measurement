@@ -22,6 +22,7 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
@@ -457,7 +458,6 @@ class RequisitionFetcher(
             .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
             .put(ATTR_REPORT_ID_KEY, unit.reportId)
             .put(ReportTraceAttributes.REPORT_NAME, unit.reportId)
-            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_dispatch")
             .also { builder ->
               if (unit.identifiers.basicReportName.isNotBlank()) {
                 builder.put(
@@ -901,7 +901,46 @@ class RequisitionFetcher(
         }
       }
     }
-    dispatcher.dispatch(groupId, blobUri(groupId))
+    try {
+      dispatcher.dispatch(groupId, blobUri(groupId))
+      recordDispatchEvidence(metadata, groupId, workItemName, "succeeded")
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      recordDispatchEvidence(metadata, groupId, workItemName, "failed", e)
+      throw e
+    }
+  }
+
+  /** Emits one lifecycle span per Requisition after the group dispatch outcome is known. */
+  private suspend fun recordDispatchEvidence(
+    metadata: List<RequisitionMetadata>,
+    groupId: String,
+    workItemName: String,
+    outcome: String,
+    error: Exception? = null,
+  ) {
+    for (item in metadata) {
+      traceSuspending(
+        spanName = "edp_aggregator.requisition_fetcher.dispatch_requisition",
+        attributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.REQUISITION_NAME, item.cmmsRequisition)
+            .put(ReportTraceAttributes.GROUP_ID, groupId)
+            .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+            .put(ReportTraceAttributes.REPORT_NAME, item.report)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_dispatch")
+            .put(ReportTraceAttributes.OUTCOME, outcome)
+            .build(),
+      ) {
+        if (error != null) {
+          Span.current()
+            .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+            .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+            .recordException(error)
+        }
+      }
+    }
   }
 
   private fun blobUri(groupId: String): String = "$blobUriPrefix/$storagePathPrefix/$groupId"

@@ -191,16 +191,29 @@ be omitted. Truncated output is always marked partial. Set `--limit=0` to collec
 all matching entries.
 
 The CLI uses the Kingdom as the authoritative source for every resolved
-Measurement's state, selected protocol, and Requisitions. Its route table marks
-the Duchy path `NOT_APPLICABLE` for direct Measurements and required for MPC
-Measurements. It marks RequisitionFetcher, WorkItem, and ResultsFulfiller stages
-required only for Requisitions whose topology route is `EDPA`; those stages are
-`NOT_APPLICABLE` for `DIRECT_EDP` Requisitions. Lifecycle coverage is evaluated
-for each expected Metric, Measurement, and Requisition. Evidence for one child
-does not satisfy another child. If observed telemetry for an operation does not
-identify the child resource, that child operation is `UNKNOWN`. Failed Kingdom
-lookups and missing topology entries leave only the affected branches `UNKNOWN`
-and make the artifact partial.
+Measurement's state, selected protocol, Requisitions, and expected Duchy
+participants. Its route table marks the Duchy path `NOT_APPLICABLE` for direct
+Measurements and requires separate Herald and mill evidence for every expected
+Measurement × Duchy participant on MPC Measurements. If Kingdom does not expose
+the participant set yet, that branch is `UNKNOWN` rather than inferred from an
+observed Duchy. The CLI marks RequisitionFetcher dispatch, WorkItem processing,
+and ResultsFulfiller stages required only for Requisitions whose topology route
+is `EDPA`; those stages are `NOT_APPLICABLE` for `DIRECT_EDP` Requisitions. The
+fetcher's dispatch evidence supplies the Requisition, EDPA group, and WorkItem
+link used to attribute a WorkItem-processing span back to each Requisition in
+its group.
+
+Lifecycle coverage is evaluated for each expected Metric, Measurement,
+Requisition, and applicable Duchy participant. Direct result acceptance is
+required per Requisition at the Kingdom Requisitions API. MPC result acceptance
+is instead required once per Measurement/computation at the Kingdom system API.
+Evidence for one child does not satisfy another child. If observed telemetry for
+an operation does not identify the child resource, that child operation is
+`UNKNOWN`. Failed Kingdom lookups and missing topology entries leave only the
+affected branches `UNKNOWN` and make the artifact partial. A successful
+BasicReport's durable availability is required; an observed
+`basic_report_api_fetch` is shown as optional evidence because fetching the
+result is not part of producing it.
 
 If durable resource resolution fails after the CLI validates the BasicReport
 name, the CLI records the Reporting resolver as a failed source and still
@@ -223,15 +236,18 @@ The stable correlation key is the full `BasicReport` resource name in
 `xmm.basic_report.name`. Reporting copies it through the generated `Report` and
 `Metric` into `MeasurementSpec.ReportingMetadata.basic_report`. Kingdom stores
 that signed spec unchanged and includes it in the requisitions and system
-computation it creates. EDPA writes the BasicReport and Report names into each
-grouped-requisitions payload. In the direct-dispatch configuration,
-RequisitionFetcher also persists W3C trace context in the WorkItem so the TEE
-processing span can continue the fetcher's trace across the durable queue
-boundary. Herald and all mills, including HMSS and TrusTEE, recover the
-identifiers from the computation's serialized `MeasurementSpec` and label their
-spans. Herald uses `xmm.lifecycle.stage=duchy_computation` for durable
-computation status, while mills use `xmm.lifecycle.stage=duchy_stage_attempt`
-for an individual stage-processing attempt. The
+computation it creates. The Kingdom system `Computation` also carries the
+canonical Measurement resource name into each Duchy. EDPA writes the
+BasicReport and Report names into each grouped-requisitions payload. In the
+direct-dispatch configuration, RequisitionFetcher emits one dispatch outcome
+span per Requisition with the group and deterministic WorkItem names, and
+persists W3C trace context in the WorkItem so the TEE processing span can
+continue the fetcher's trace across the durable queue boundary. Herald and all
+mills, including HMSS and TrusTEE, label their spans with the canonical
+Measurement name, computation name, and local Duchy ID. Herald uses
+`xmm.lifecycle.stage=duchy_computation` for durable computation status, while
+mills use `xmm.lifecycle.stage=duchy_stage_attempt` for an individual
+stage-processing attempt. The
 post-processing/noise-correction job prefixes its logs while processing a
 BasicReport with `xmm.basic_report.name`, `xmm.report.name`, lifecycle stage, and
 outcome.

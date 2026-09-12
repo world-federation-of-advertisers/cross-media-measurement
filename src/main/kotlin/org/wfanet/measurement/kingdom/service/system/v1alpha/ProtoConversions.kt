@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import org.wfanet.measurement.api.Version
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.common.crypto.Hashing
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
@@ -230,6 +231,14 @@ fun InternalMeasurement.toSystemComputation(): Computation {
   val apiVersion = Version.fromString(details.apiVersion)
   return computation {
     name = ComputationKey(externalIdToApiId(externalComputationId)).toName()
+    if (externalMeasurementConsumerId != 0L && externalMeasurementId != 0L) {
+      measurement =
+        MeasurementKey(
+            externalIdToApiId(externalMeasurementConsumerId),
+            externalIdToApiId(externalMeasurementId),
+          )
+          .toName()
+    }
     publicApiVersion = details.apiVersion
     measurementSpec = details.measurementSpec
     state = source.state.toSystemComputationState()

@@ -647,6 +647,7 @@ internal object ReportTraceOutput {
         "EDPA group" to observedAttributeValues(spans, logEntries, "xmm.edpa.group_id"),
         "WorkItem" to observedAttributeValues(spans, logEntries, "xmm.work_item.name"),
         "Computation" to observedAttributeValues(spans, logEntries, "xmm.computation.name"),
+        "Duchy participant" to observedAttributeValues(spans, logEntries, "xmm.duchy.id"),
       )
     for ((label, names) in discoveredResources) {
       if (names.isEmpty()) {
@@ -666,13 +667,21 @@ internal object ReportTraceOutput {
       }
     }
     appendLine()
-    appendLine("| Measurement | State | Selected protocol | Duchy path |")
-    appendLine("| --- | --- | --- | --- |")
+    appendLine("| Measurement | State | Selected protocol | Duchy path | Expected Duchies |")
+    appendLine("| --- | --- | --- | --- | --- |")
     if (routeResolution.measurementRoutes.isEmpty()) {
-      appendLine("| none resolved | UNKNOWN | UNKNOWN | UNKNOWN |")
+      appendLine("| none resolved | UNKNOWN | UNKNOWN | UNKNOWN | UNKNOWN |")
     } else {
       for (route in routeResolution.measurementRoutes) {
-        appendLine("| ${route.name} | ${route.state} | ${route.protocol} | ${route.route} |")
+        val duchies =
+          when {
+            route.route == ReportTraceMeasurementRouteKind.DIRECT -> "NOT_APPLICABLE"
+            route.duchyParticipantsResolved -> route.duchyIds.joinToString()
+            else -> "UNKNOWN"
+          }
+        appendLine(
+          "| ${route.name} | ${route.state} | ${route.protocol} | ${route.route} | $duchies |"
+        )
       }
     }
     appendLine()
@@ -804,21 +813,34 @@ internal object ReportTraceOutput {
           attributes = mapOf("xmm.basic_report.name" to checkNotNull(context.basicReportName)),
         )
     }
+    linkWorkItemEvidenceToRequisitions(observed)
     val expectedOperations = expectedOperations(context, routeResolution)
     val expectedStageNames = expectedOperations.mapTo(mutableSetOf()) { it.stage }
     val coverage =
       expectedOperations.map { operation ->
         val stageEvidence = observed[operation.stage].orEmpty().distinct()
-        val resourceAttribute = checkNotNull(operation.resourceAttribute)
         val matchingEvidence =
           stageEvidence.filter { evidence ->
-            evidence.attributes[resourceAttribute] == operation.resource
+            operation.identifyingAttributes.all { (attribute, value) ->
+              evidence.attributes[attribute] == value
+            } && operation.requiredPresenceAttributes.all(evidence.attributes::containsKey)
           }
         lifecycleStage(
           operation = operation,
           matchingEvidence = matchingEvidence,
           hasUnattributedEvidence =
-            stageEvidence.isNotEmpty() && stageEvidence.none { resourceAttribute in it.attributes },
+            stageEvidence.any { evidence ->
+              val exactAttributesMatch =
+                operation.identifyingAttributes.all { (attribute, value) ->
+                  evidence.attributes[attribute]?.let { it == value } ?: true
+                }
+              val identityIsIncomplete =
+                (operation.identifyingAttributes.keys + operation.requiredPresenceAttributes).any {
+                  attribute ->
+                  attribute !in evidence.attributes
+                }
+              exactAttributesMatch && identityIsIncomplete
+            },
         )
       }
     val unexpected =
@@ -831,7 +853,7 @@ internal object ReportTraceOutput {
               ExpectedLifecycleOperation(
                 stage = stage,
                 resource = "(unresolved)",
-                resourceAttribute = null,
+                identifyingAttributes = emptyMap(),
                 requirement = null,
               ),
             matchingEvidence = observed.getValue(stage).distinct(),
@@ -839,6 +861,42 @@ internal object ReportTraceOutput {
           )
         }
     return coverage + unexpected
+  }
+
+  private fun linkWorkItemEvidenceToRequisitions(
+    observed: MutableMap<String, MutableList<LifecycleEvidence>>
+  ) {
+    val requisitionsByWorkItem =
+      observed["requisition_dispatch"]
+        .orEmpty()
+        .groupBy(
+          keySelector = { evidence -> evidence.attributes["xmm.work_item.name"] },
+          valueTransform = { evidence -> evidence.attributes["xmm.requisition.name"] },
+        )
+    val workItemEvidence = observed["work_item_processing"] ?: return
+    observed["work_item_processing"] =
+      workItemEvidence
+        .flatMap { evidence ->
+          if ("xmm.requisition.name" in evidence.attributes) {
+            listOf(evidence)
+          } else {
+            val requisitions =
+              requisitionsByWorkItem[evidence.attributes["xmm.work_item.name"]]
+                .orEmpty()
+                .filterNotNull()
+                .distinct()
+            if (requisitions.isEmpty()) {
+              listOf(evidence)
+            } else {
+              requisitions.map { requisition ->
+                evidence.copy(
+                  attributes = evidence.attributes + ("xmm.requisition.name" to requisition)
+                )
+              }
+            }
+          }
+        }
+        .toMutableList()
   }
 
   private fun lifecycleStage(
@@ -1026,13 +1084,41 @@ internal object ReportTraceOutput {
       stage: String,
       resource: String,
       resourceAttribute: String,
-      requirement: ReportTraceStageRequirement = ReportTraceStageRequirement.REQUIRED,
+      requirement: ReportTraceStageRequirement? = ReportTraceStageRequirement.REQUIRED,
+      requiredPresenceAttributes: Set<String> = emptySet(),
     ) {
-      add(ExpectedLifecycleOperation(stage, resource, resourceAttribute, requirement))
+      add(
+        ExpectedLifecycleOperation(
+          stage,
+          resource,
+          mapOf(resourceAttribute to resource),
+          requiredPresenceAttributes,
+          requirement,
+        )
+      )
+    }
+
+    fun add(
+      stage: String,
+      resource: String,
+      identifyingAttributes: Map<String, String>,
+      requirement: ReportTraceStageRequirement? = ReportTraceStageRequirement.REQUIRED,
+      requiredPresenceAttributes: Set<String> = emptySet(),
+    ) {
+      add(
+        ExpectedLifecycleOperation(
+          stage,
+          resource,
+          identifyingAttributes,
+          requiredPresenceAttributes,
+          requirement,
+        )
+      )
     }
 
     context.basicReportName?.let { basicReportName ->
       add("basic_report_creation", basicReportName, "xmm.basic_report.name")
+      add("basic_report_api_fetch", basicReportName, "xmm.basic_report.name", requirement = null)
     }
     add("report_creation", context.reportName, "xmm.report.name")
 
@@ -1058,14 +1144,77 @@ internal object ReportTraceOutput {
     for (measurement in routeResolution.measurementRoutes) {
       add("measurement_creation", measurement.name, "xmm.measurement.name")
       add("kingdom_measurement_sync", measurement.name, "xmm.measurement.name")
-      val duchyRequirement =
+      when (measurement.route) {
+        ReportTraceMeasurementRouteKind.DIRECT -> {
+          add(
+            "duchy_computation",
+            measurement.name,
+            "xmm.measurement.name",
+            ReportTraceStageRequirement.NOT_APPLICABLE,
+          )
+          add(
+            "duchy_stage_attempt",
+            measurement.name,
+            "xmm.measurement.name",
+            ReportTraceStageRequirement.NOT_APPLICABLE,
+          )
+        }
+        ReportTraceMeasurementRouteKind.MPC -> {
+          if (measurement.duchyParticipantsResolved) {
+            for (duchyId in measurement.duchyIds) {
+              val resource = "${measurement.name} @ duchy $duchyId"
+              val attributes =
+                mapOf("xmm.measurement.name" to measurement.name, "xmm.duchy.id" to duchyId)
+              add("duchy_computation", resource, attributes)
+              add("duchy_stage_attempt", resource, attributes)
+            }
+          } else {
+            val resource = "${measurement.name} @ unresolved Duchy participants"
+            add(
+              "duchy_computation",
+              resource,
+              mapOf("xmm.measurement.name" to measurement.name),
+              ReportTraceStageRequirement.UNKNOWN,
+              requiredPresenceAttributes = setOf("xmm.duchy.id"),
+            )
+            add(
+              "duchy_stage_attempt",
+              resource,
+              mapOf("xmm.measurement.name" to measurement.name),
+              ReportTraceStageRequirement.UNKNOWN,
+              requiredPresenceAttributes = setOf("xmm.duchy.id"),
+            )
+          }
+        }
+        ReportTraceMeasurementRouteKind.UNKNOWN -> {
+          add(
+            "duchy_computation",
+            measurement.name,
+            "xmm.measurement.name",
+            ReportTraceStageRequirement.UNKNOWN,
+          )
+          add(
+            "duchy_stage_attempt",
+            measurement.name,
+            "xmm.measurement.name",
+            ReportTraceStageRequirement.UNKNOWN,
+          )
+        }
+      }
+
+      val computationAcceptanceRequirement =
         when (measurement.route) {
           ReportTraceMeasurementRouteKind.DIRECT -> ReportTraceStageRequirement.NOT_APPLICABLE
           ReportTraceMeasurementRouteKind.MPC -> ReportTraceStageRequirement.REQUIRED
           ReportTraceMeasurementRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
         }
-      add("duchy_computation", measurement.name, "xmm.measurement.name", duchyRequirement)
-      add("duchy_stage_attempt", measurement.name, "xmm.measurement.name", duchyRequirement)
+      add(
+        "kingdom_computation_result_acceptance",
+        measurement.name,
+        "xmm.measurement.name",
+        computationAcceptanceRequirement,
+        requiredPresenceAttributes = setOf("xmm.computation.name"),
+      )
 
       if (!measurement.requisitionsResolved) {
         for (stage in REQUISITION_LIFECYCLE_STAGES) {
@@ -1086,9 +1235,39 @@ internal object ReportTraceOutput {
                 ReportTraceStageRequirement.NOT_APPLICABLE
               ReportTraceRequisitionRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
             }
-          add("requisition_dispatch", requisition.name, "xmm.requisition.name", edpaRequirement)
-          add("results_fulfillment", requisition.name, "xmm.requisition.name", edpaRequirement)
-          add("kingdom_result_acceptance", requisition.name, "xmm.requisition.name")
+          add(
+            "requisition_dispatch",
+            requisition.name,
+            "xmm.requisition.name",
+            edpaRequirement,
+            requiredPresenceAttributes = setOf("xmm.edpa.group_id", "xmm.work_item.name"),
+          )
+          add(
+            "work_item_processing",
+            requisition.name,
+            "xmm.requisition.name",
+            edpaRequirement,
+            requiredPresenceAttributes = setOf("xmm.work_item.name"),
+          )
+          add(
+            "results_fulfillment",
+            requisition.name,
+            "xmm.requisition.name",
+            edpaRequirement,
+            requiredPresenceAttributes = setOf("xmm.edpa.group_id"),
+          )
+          val requisitionAcceptanceRequirement =
+            when (measurement.route) {
+              ReportTraceMeasurementRouteKind.DIRECT -> ReportTraceStageRequirement.REQUIRED
+              ReportTraceMeasurementRouteKind.MPC -> ReportTraceStageRequirement.NOT_APPLICABLE
+              ReportTraceMeasurementRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
+            }
+          add(
+            "kingdom_requisition_result_acceptance",
+            requisition.name,
+            "xmm.requisition.name",
+            requisitionAcceptanceRequirement,
+          )
         }
       }
     }
@@ -1123,7 +1302,6 @@ internal object ReportTraceOutput {
 
   private fun inferStage(spanName: String): String? =
     when {
-      "requisition_fetcher" in spanName -> "requisition_dispatch"
       "results_fulfiller" in spanName || "report_fulfillment" in spanName -> "results_fulfillment"
       "sync_results" in spanName -> "report_result_sync"
       "assemble_results" in spanName -> "report_result_assembly"
@@ -1168,7 +1346,8 @@ internal object ReportTraceOutput {
   private data class ExpectedLifecycleOperation(
     val stage: String,
     val resource: String,
-    val resourceAttribute: String?,
+    val identifyingAttributes: Map<String, String>,
+    val requiredPresenceAttributes: Set<String> = emptySet(),
     val requirement: ReportTraceStageRequirement?,
   )
 
@@ -1180,13 +1359,15 @@ internal object ReportTraceOutput {
       "kingdom_measurement_sync",
       "duchy_computation",
       "duchy_stage_attempt",
+      "kingdom_computation_result_acceptance",
     )
   private val REQUISITION_LIFECYCLE_STAGES =
     listOf(
       "requisition_available",
       "requisition_dispatch",
+      "work_item_processing",
       "results_fulfillment",
-      "kingdom_result_acceptance",
+      "kingdom_requisition_result_acceptance",
     )
   private val SAFE_LOG_FIELDS =
     setOf(
@@ -1204,6 +1385,7 @@ internal object ReportTraceOutput {
       "xmm.edpa.group_id",
       "xmm.work_item.name",
       "xmm.computation.name",
+      "xmm.duchy.id",
       "xmm.basic_report.state",
       "xmm.report.state",
       "xmm.metric.state",

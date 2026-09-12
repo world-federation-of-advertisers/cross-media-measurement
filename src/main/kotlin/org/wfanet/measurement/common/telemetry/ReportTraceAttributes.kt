@@ -30,6 +30,7 @@ object ReportTraceAttributes {
   const val GROUP_ID_STRING = "xmm.edpa.group_id"
   const val COMPUTATION_NAME_STRING = "xmm.computation.name"
   const val WORK_ITEM_NAME_STRING = "xmm.work_item.name"
+  const val DUCHY_ID_STRING = "xmm.duchy.id"
   const val BASIC_REPORT_STATE_STRING = "xmm.basic_report.state"
   const val REPORT_STATE_STRING = "xmm.report.state"
   const val METRIC_STATE_STRING = "xmm.metric.state"
@@ -47,6 +48,7 @@ object ReportTraceAttributes {
   val GROUP_ID: AttributeKey<String> = AttributeKey.stringKey(GROUP_ID_STRING)
   val COMPUTATION_NAME: AttributeKey<String> = AttributeKey.stringKey(COMPUTATION_NAME_STRING)
   val WORK_ITEM_NAME: AttributeKey<String> = AttributeKey.stringKey(WORK_ITEM_NAME_STRING)
+  val DUCHY_ID: AttributeKey<String> = AttributeKey.stringKey(DUCHY_ID_STRING)
   val BASIC_REPORT_STATE: AttributeKey<String> = AttributeKey.stringKey(BASIC_REPORT_STATE_STRING)
   val REPORT_STATE: AttributeKey<String> = AttributeKey.stringKey(REPORT_STATE_STRING)
   val METRIC_STATE: AttributeKey<String> = AttributeKey.stringKey(METRIC_STATE_STRING)

@@ -73,6 +73,8 @@ internal data class ReportTraceMeasurementRoute(
   val state: String,
   val protocol: String,
   val route: ReportTraceMeasurementRouteKind,
+  val duchyIds: List<String> = emptyList(),
+  val duchyParticipantsResolved: Boolean = route != ReportTraceMeasurementRouteKind.MPC,
   val requisitions: List<ReportTraceRequisitionRoute>,
   val requisitionsResolved: Boolean,
 )
@@ -104,6 +106,7 @@ internal data class ReportTraceRouteResolution(
           }
         )
       "requisition_dispatch",
+      "work_item_processing",
       "results_fulfillment" ->
         aggregateRequirements(
           measurementRoutes.flatMap { measurement ->
@@ -145,6 +148,8 @@ internal data class ReportTraceRouteResolution(
               state = UNKNOWN_VALUE,
               protocol = UNKNOWN_VALUE,
               route = ReportTraceMeasurementRouteKind.UNKNOWN,
+              duchyIds = emptyList(),
+              duchyParticipantsResolved = false,
               requisitions = emptyList(),
               requisitionsResolved = false,
             )
@@ -300,6 +305,13 @@ internal class KingdomReportTraceResolver(
               val protocol = protocolRoute(measurement)
               try {
                 val requisitions = listAllRequisitions(measurement.name)
+                val duchyIds =
+                  requisitions
+                    .flatMap { requisition -> requisition.duchiesList.map { duchy -> duchy.key } }
+                    .distinct()
+                    .sorted()
+                val duchyParticipantsResolved =
+                  protocol.route != ReportTraceMeasurementRouteKind.MPC || duchyIds.isNotEmpty()
                 MeasurementRouteResult(
                   route =
                     ReportTraceMeasurementRoute(
@@ -307,11 +319,18 @@ internal class KingdomReportTraceResolver(
                       state = measurement.state.name,
                       protocol = protocol.name,
                       route = protocol.route,
+                      duchyIds = duchyIds,
+                      duchyParticipantsResolved = duchyParticipantsResolved,
                       requisitions =
                         requisitions.map { requisition -> requisitionRoute(requisition, topology) },
                       requisitionsResolved = true,
                     ),
-                  failure = null,
+                  failure =
+                    if (duchyParticipantsResolved) {
+                      null
+                    } else {
+                      "Duchy participants for ${measurement.name} could not be resolved"
+                    },
                 )
               } catch (e: CancellationException) {
                 throw e
@@ -323,6 +342,8 @@ internal class KingdomReportTraceResolver(
                       state = measurement.state.name,
                       protocol = protocol.name,
                       route = protocol.route,
+                      duchyIds = emptyList(),
+                      duchyParticipantsResolved = false,
                       requisitions = emptyList(),
                       requisitionsResolved = false,
                     ),
@@ -346,6 +367,8 @@ internal class KingdomReportTraceResolver(
             state = UNKNOWN_VALUE,
             protocol = UNKNOWN_VALUE,
             route = ReportTraceMeasurementRouteKind.UNKNOWN,
+            duchyIds = emptyList(),
+            duchyParticipantsResolved = false,
             requisitions = emptyList(),
             requisitionsResolved = false,
           )

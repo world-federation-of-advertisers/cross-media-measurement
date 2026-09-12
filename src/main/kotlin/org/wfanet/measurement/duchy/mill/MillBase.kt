@@ -296,7 +296,14 @@ abstract class MillBase(
     val builder =
       Attributes.builder()
         .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(globalComputationId).toName())
+        .put(ReportTraceAttributes.DUCHY_ID, duchyId)
         .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_stage_attempt")
+    if (computationDetails.kingdomComputation.measurement.isNotBlank()) {
+      builder.put(
+        ReportTraceAttributes.MEASUREMENT_NAME,
+        computationDetails.kingdomComputation.measurement,
+      )
+    }
     runCatching { MeasurementSpec.parseFrom(computationDetails.kingdomComputation.measurementSpec) }
       .getOrNull()
       ?.let { builder.putAll(ReportTraceAttributes.fromMeasurementSpec(it)) }
