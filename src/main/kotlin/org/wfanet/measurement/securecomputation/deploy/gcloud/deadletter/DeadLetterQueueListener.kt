@@ -127,10 +127,12 @@ class DeadLetterQueueListener(
    * Processes a message from the dead letter queue by calling the WorkItems API to mark it as
    * failed, then (best-effort) marking the EDP-Aggregator resources the WorkItem references FAILED.
    *
-   * Messages with empty work item names are acknowledged and skipped. If the work item is already
-   * in a FAILED state or not found, the message is acknowledged. Other errors result in the message
-   * being nacked for retry. The EDPA marking is best-effort and never changes the ack/nack decision
-   * (a dead-lettered message is already terminal).
+   * Messages with empty work item names are acknowledged and skipped. A same-generation redelivery
+   * of an already-FAILED WorkItem succeeds idempotently and repeats the best-effort EDPA marking.
+   * If the work item is not found, terminal for another reason, or the delivery is stale, the
+   * message is acknowledged. Other errors result in the message being nacked for retry. The EDPA
+   * marking is best-effort and never changes the ack/nack decision (a dead-lettered message is
+   * already terminal).
    *
    * @param queueMessage The message received from the dead letter queue.
    */

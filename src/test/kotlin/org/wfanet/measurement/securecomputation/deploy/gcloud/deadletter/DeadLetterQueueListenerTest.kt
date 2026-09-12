@@ -51,7 +51,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -754,7 +756,7 @@ class DeadLetterQueueListenerTest {
   }
 
   @Test
-  fun `phase-0 SubpoolAssignerParams marks pool assignment job and model line failed`() =
+  fun `same-generation failed phase-0 delivery replays EDPA failure propagation`() =
     runBlocking {
       val appParams = subpoolAssignerParams {
         rawImpressionUpload = UPLOAD
@@ -769,7 +771,11 @@ class DeadLetterQueueListenerTest {
         mock<QueueSubscriber> {
           on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
         }
-      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+      val mockWorkItemsStub =
+        mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
+          onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doReturn
+            internalWorkItem { state = InternalWorkItem.State.FAILED }
+        }
 
       val mockPoolAssignmentJobsStub =
         mock<PoolAssignmentJobServiceCoroutineStub> {

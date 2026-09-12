@@ -226,8 +226,8 @@ class SpannerWorkItemsService(
           }
           when (workItemResult.workItem.state) {
             WorkItem.State.QUEUED,
-            WorkItem.State.RUNNING -> Unit
-            WorkItem.State.FAILED,
+            WorkItem.State.RUNNING,
+            WorkItem.State.FAILED -> Unit
             WorkItem.State.SUCCEEDED,
             WorkItem.State.STATE_UNSPECIFIED,
             WorkItem.State.UNRECOGNIZED ->
