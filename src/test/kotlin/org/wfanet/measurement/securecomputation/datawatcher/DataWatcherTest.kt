@@ -230,7 +230,10 @@ class DataWatcherTest() {
 
     dataWatcher.receivePath("gs://test-bucket/requisitions-v2/group-id", emptyMap())
 
-    verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
+    val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(0)) {
+      createWorkItem(createWorkItemRequestCaptor.capture())
+    }
   }
 
   @Test

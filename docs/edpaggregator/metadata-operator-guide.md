@@ -161,11 +161,10 @@ throttled RPCs). The costs that actually scale with the 5,000 total are:
    `BatchCreate` of hundreds of rows. Memory is bounded by
    `MAX_TOTAL_BUFFERED_BYTES` / `--memory`; the batch size is bounded by
    `MAX_REQUISITIONS_PER_GROUP` (see mutation limits below).
-3. **Queue and WorkItem RPCs.** Direct dispatch adds one metadata `Queue` RPC per
-   requisition and one Secure Computation `GetWorkItem` plus, for a new group,
-   one `CreateWorkItem` RPC. Metadata calls are paced by
-   `METADATA_REQUEST_INTERVAL`; control-plane calls are paced by
-   `CONTROL_PLANE_REQUEST_INTERVAL`.
+3. **Registration and WorkItem RPCs.** Direct dispatch adds one atomic metadata
+   registration RPC and one Secure Computation `EnsureWorkItem` RPC per group.
+   Metadata calls are paced by `METADATA_REQUEST_INTERVAL`; control-plane calls
+   are paced by `CONTROL_PLANE_REQUEST_INTERVAL`.
 
 ### Failure modes at scale, and why they are recoverable
 
