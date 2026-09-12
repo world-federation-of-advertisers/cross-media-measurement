@@ -800,6 +800,9 @@ configs {
     cert_collection_file_path: "/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem"
   }
   work_item_dispatch {
+    # Dedicated namespace for directly dispatched groups. Do not match this
+    # path in the legacy DataWatcher source_path_regex.
+    storage_path_prefix: "<edp-id>/requisitions-v2"
     control_plane_connection {
       cert_file_path: "/secrets/cert/data_watcher_tls.pem"
       private_key_file_path: "/secrets/key/data_watcher_tls.key"
@@ -828,55 +831,51 @@ configs {
 }
 ```
 
-`work_item_dispatch` is optional during migration. If it is omitted, the fetcher keeps the legacy
-storage-event behavior and the DataWatcher `results-fulfiller` watched path must remain configured.
-When it is present, also set `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
+`work_item_dispatch` is optional during migration. If it is omitted, the fetcher writes the
+top-level `storage_path_prefix` and keeps the legacy storage-event behavior. When it is present, the
+fetcher writes only `work_item_dispatch.storage_path_prefix` and dispatches directly. The two
+prefixes must differ. Keep the DataWatcher `results-fulfiller` watched path restricted to the
+top-level legacy prefix throughout the rollout. Also set
+`SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
 
 #### Migrating from DataWatcher dispatch
 
-Do not run the legacy requisition watched path and direct RequisitionFetcher dispatch at the same
-time. Both observe the same grouped-requisition blob and can create separate WorkItems.
+The legacy and direct paths use separate object namespaces and may run concurrently during a
+rolling deployment. Metadata registration is the ownership boundary: the direct fetcher creates a
+group atomically in `QUEUED`, while a legacy group is created in `STORED`. Recovery uses each
+group's persisted `blob_uri`; it never moves a group between namespaces.
 
-Use this staged cutover:
+Use this rolling upgrade:
 
 1. Complete the mandatory
    [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication), including its
    quiesced reconciliation. The migration does not backfill publication records for WorkItems
    created by an older control-plane binary.
-2. Roll out every Secure Computation public and internal API replica from this release while direct
-   dispatch remains disabled. Verify that no older replica remains. `CreateWorkItem` idempotency in
-   the next steps depends on `GetWorkItem` returning `work_item_params`; do not activate direct
-   dispatch during a mixed-version rollout.
-3. Add the RequisitionFetcher control-plane endpoint, TLS secrets, and `work_item_dispatch`
-   configuration, but do not activate that config yet.
-4. Pause the RequisitionFetcher scheduler and wait for any active invocation to finish.
-5. Remove the DataWatcher `results-fulfiller` watched path and deploy the DataWatcher configuration.
-   Keep the storage trigger itself enabled for its other watched paths. Verify that the new revision
-   receives 100% of traffic, then wait at least the configured DataWatcher invocation timeout (540
-   seconds by default) for an invocation on the old revision to finish. Confirm that no old-revision
-   invocation is active and that no new ResultsFulfiller WorkItem appears from the legacy path
-   during that interval.
-6. Drain the legacy results-fulfiller queue and account for every existing requisition blob after
-   the DataWatcher barrier. Resolve any `STORED`, `QUEUED`, or `PROCESSING` metadata before
-   proceeding.
-7. Activate the RequisitionFetcher config containing `work_item_dispatch`, deploy the function, and
-   resume its scheduler.
-8. Verify that new groups transition `STORED` → `QUEUED`, receive a deterministic WorkItem name,
-   and are processed once by ResultsFulfiller.
+2. Roll out the new Secure Computation public and internal APIs and the new Requisition Metadata
+   public and internal APIs while direct dispatch remains disabled. The new fetcher operations are
+   intentionally absent from older replicas; a request routed through an old public or internal
+   replica returns `UNIMPLEMENTED` without committing partial state.
+3. Roll out the new RequisitionFetcher binary while its config still omits `work_item_dispatch`.
+   Wait until no old fetcher revision remains before publishing a textproto containing the new
+   field; an old binary may reject unknown textproto fields during a cold start.
+4. Add the RequisitionFetcher control-plane endpoint and TLS secrets. Set
+   `work_item_dispatch.storage_path_prefix` to a dedicated prefix such as
+   `<edp-id>/requisitions-v2`, then activate `work_item_dispatch`. Do not change the top-level legacy
+   `storage_path_prefix` or the DataWatcher watched-path rule.
+5. Verify that new groups are written only under the direct prefix, are registered atomically as
+   `QUEUED` with `workItems/results-fulfiller-<group-id>`, and are processed by ResultsFulfiller.
+   Legacy groups under the original prefix remain DataWatcher-owned and drain naturally.
 
 After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
 failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
 that its worker has stopped, call `FailWorkItemAttempt` for the exact active attempt, and then call
 `RetryWorkItem`. `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains.
 
-For rollback, pause the scheduler first and wait for every active RequisitionFetcher invocation to
-finish. Drain or repair all groups already in `STORED`, `QUEUED`, or `PROCESSING`; their original
-object-finalize events will not be replayed automatically. Then remove `work_item_dispatch`,
-redeploy RequisitionFetcher, restore and deploy the legacy DataWatcher watched path, verify that the
-new revisions are serving, and resume the scheduler. If an emergency rollback leaves an
-undispatched blob, re-finalize only that verified blob after the legacy watcher is active; replaying
-a blob whose WorkItem is already `RUNNING` or terminal can duplicate processing.
+For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
+the legacy DataWatcher intentionally does not watch that namespace. Then remove
+`work_item_dispatch` and redeploy RequisitionFetcher. The top-level legacy prefix and DataWatcher
+rule remain unchanged, so no DataWatcher restoration or synchronized service cutover is required.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 

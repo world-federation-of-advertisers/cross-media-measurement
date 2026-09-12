@@ -83,20 +83,22 @@ import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventG
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
-  @Volatile private var createWorkItemRequest: CreateWorkItemRequest? = null
+  @Volatile private var ensureWorkItemRequest: EnsureWorkItemRequest? = null
 
   /** Temp folder to store Requisitions in test. */
   @Rule @JvmField val tempFolder = TemporaryFolder()
@@ -131,6 +133,28 @@ class RequisitionFetcherFunctionTest {
               }
           }
         }
+      onBlocking { registerQueuedRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<RegisterQueuedRequisitionMetadataRequest>(0)
+          registerQueuedRequisitionMetadataResponse {
+            requisitionMetadata +=
+              request.requestsList.mapIndexed { index, createRequest ->
+                val source = createRequest.requisitionMetadata
+                requisitionMetadata {
+                  name = "$DATA_PROVIDER_NAME/requisitionMetadata/$index"
+                  cmmsRequisition = source.cmmsRequisition
+                  blobUri = source.blobUri
+                  blobTypeUrl = source.blobTypeUrl
+                  groupId = source.groupId
+                  cmmsCreateTime = source.cmmsCreateTime
+                  report = source.report
+                  workItem = request.workItem
+                  state = RequisitionMetadata.State.QUEUED
+                  etag = "queued-etag-$index"
+                }
+              }
+          }
+        }
       onBlocking { queueRequisitionMetadata(any()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<QueueRequisitionMetadataRequest>(0)
@@ -145,12 +169,10 @@ class RequisitionFetcherFunctionTest {
     }
 
   private val workItemsServiceMock: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService {
-    onBlocking { getWorkItem(any()) }
-      .thenAnswer { throw io.grpc.Status.NOT_FOUND.asRuntimeException() }
-    onBlocking { createWorkItem(any()) }
+    onBlocking { ensureWorkItem(any()) }
       .thenAnswer { invocation ->
-        val request = invocation.getArgument<CreateWorkItemRequest>(0)
-        createWorkItemRequest = request
+        val request = invocation.getArgument<EnsureWorkItemRequest>(0)
+        ensureWorkItemRequest = request
         workItem {
           name = "workItems/${request.workItemId}"
           queue = request.workItem.queue
@@ -195,6 +217,7 @@ class RequisitionFetcherFunctionTest {
   @Before
   fun startInfra() {
     capturedTraceparent = null
+    ensureWorkItemRequest = null
 
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
@@ -266,11 +289,11 @@ class RequisitionFetcherFunctionTest {
     logger.info("Response body: ${getResponse.body()}")
     // Verify the function worked
     assertThat(getResponse.statusCode()).isEqualTo(200)
-    val storageDir = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
+    val storageDir = tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile()
 
     val fileName: String? =
       storageDir.takeIf { it.exists() && it.isDirectory }?.listFiles()?.singleOrNull()?.name
-    val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, fileName)
+    val storedRequisitionPath = Paths.get(DIRECT_STORAGE_PATH_PREFIX, fileName)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
     assertThat(requisitionFile.exists()).isTrue()
     val anyMsg = Any.parseFrom(requisitionFile.readByteString())
@@ -285,7 +308,7 @@ class RequisitionFetcherFunctionTest {
       .isEqualTo(EVENT_GROUP_ENTRY.value.collectionInterval.endTime)
     assertThat(groupedRequisitions.eventGroupMapList[0].details.eventGroupReferenceId)
       .isEqualTo(EVENT_GROUP_REFERENCE_ID)
-    val workItemRequest = checkNotNull(createWorkItemRequest)
+    val workItemRequest = checkNotNull(ensureWorkItemRequest)
     assertThat(workItemRequest.workItemId)
       .isEqualTo("results-fulfiller-${groupedRequisitions.groupId}")
     assertThat(workItemRequest.workItem.queue).isEqualTo("results-fulfiller-queue")
@@ -442,6 +465,7 @@ class RequisitionFetcherFunctionTest {
     }
 
     private val STORAGE_PATH_PREFIX = "edp7"
+    private val DIRECT_STORAGE_PATH_PREFIX = "edp7-v2"
     private val SECRETS_DIR: Path =
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")

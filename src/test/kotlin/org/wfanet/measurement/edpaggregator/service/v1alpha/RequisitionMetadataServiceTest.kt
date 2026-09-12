@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataReq
 import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -297,6 +298,28 @@ class RequisitionMetadataServiceTest {
         response.requisitionMetadataList.all { it.state == RequisitionMetadata.State.STORED }
       )
       .isTrue()
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata returns queued RequisitionMetadata`() = runBlocking {
+    val response =
+      service.registerQueuedRequisitionMetadata(
+        registerQueuedRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          workItem = "workItems/results-fulfiller-group-id"
+          requests += createRequisitionMetadataRequest {
+            this.parent = DATA_PROVIDER_KEY.toName()
+            requisitionMetadata = REQUISITION_METADATA
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      )
+
+    assertThat(response.requisitionMetadataList).hasSize(1)
+    assertThat(response.requisitionMetadataList.single().state)
+      .isEqualTo(RequisitionMetadata.State.QUEUED)
+    assertThat(response.requisitionMetadataList.single().workItem)
+      .isEqualTo("workItems/results-fulfiller-group-id")
   }
 
   @Test

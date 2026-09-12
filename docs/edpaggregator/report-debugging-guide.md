@@ -586,16 +586,14 @@ Trace:
    than idle, and `edpa.requisition_fetcher.report_refusals` means it is refusing
    reports it cannot satisfy.
 
-3. **WorkItem dispatch.** In the current path RequisitionFetcher submits the
-   WorkItem directly after persisting the blob and transitioning every metadata
-   row in the group to `QUEUED`. Query the same row's `WorkItem` column and match
-   it to `Created WorkItem ...` in the requisition-fetcher logs. The Secure
-   Computation control plane commits the WorkItem and a pending publication
-   record atomically, then retries Pub/Sub delivery in the background. A `QUEUED`
-   WorkItem created by an upgraded control-plane writer should therefore
-   self-heal after a transient publish failure. This guarantee does not apply to
-   WorkItems created before the outbox migration or by an older replica during a
-   rolling rollout; follow the
+3. **WorkItem dispatch.** In the current path RequisitionFetcher writes the blob
+   under its dedicated direct-dispatch prefix, atomically registers every metadata
+   row in the group as `QUEUED`, and calls `EnsureWorkItem`. Query the same row's
+   `WorkItem` column and match it to `Ensured WorkItem ...` in the
+   requisition-fetcher logs. The Secure Computation control plane atomically
+   creates or reconciles the WorkItem and pending publication, then retries Pub/Sub
+   delivery in the background. A `QUEUED` WorkItem accepted by `EnsureWorkItem`
+   should therefore self-heal after a transient publish failure. Follow the
    [durable WorkItem publication rollout](deployment-guide.md#rolling-out-durable-workitem-publication)
    before enabling direct dispatch. When a deterministic WorkItem is `FAILED` while associated
    metadata remains `QUEUED` or `PROCESSING`, RequisitionFetcher reports the inconsistency but does
@@ -607,9 +605,10 @@ Trace:
    `SUCCEEDED` WorkItem paired with unfinished metadata is inconsistent and still requires
    investigation.
 
-   During migration, a deployment may omit `work_item_dispatch` from the fetcher
-   config and retain the legacy **data-watcher** Cloud Function. In that path, a
-   GCS `object.finalized` Eventarc trigger submits the WorkItem:
+   The legacy **data-watcher** remains enabled for the top-level legacy requisition
+   prefix during and after migration. It must not match the dedicated
+   `work_item_dispatch.storage_path_prefix`. For a legacy group, a GCS
+   `object.finalized` Eventarc trigger submits the WorkItem:
 
    ```bash
    gcloud logging read \

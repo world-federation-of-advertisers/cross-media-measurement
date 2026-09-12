@@ -59,22 +59,21 @@ Each scheduled invocation:
 3. For each drained report, lists existing RequisitionMetadata for that report,
    filters to the not-yet-recorded requisitions, validates them, and splits them
    into groups of at most `MAX_REQUISITIONS_PER_GROUP` (default 1000).
-4. For each valid group, writes the blob, atomically creates all metadata rows in
-   `STORED`, transitions every row to `QUEUED` with the deterministic WorkItem
-   name `workItems/results-fulfiller-<group-id>`, and only then creates that
-   WorkItem through the Secure Computation API. The WorkItem carries the blob URI
-   and the configured `ResultsFulfillerParams`.
+4. For each valid direct-dispatch group, writes the blob under the dedicated direct
+   namespace, atomically registers all metadata rows in `QUEUED` with the
+   deterministic WorkItem name `workItems/results-fulfiller-<group-id>`, and only
+   then ensures that WorkItem through the Secure Computation API. The WorkItem
+   carries the persisted blob URI and the configured `ResultsFulfillerParams`.
+   Legacy groups remain `STORED` under the original DataWatcher namespace.
 
-This ordering makes every handoff recoverable. A crash before metadata creation
-can leave only an unreferenced blob. A crash while queueing leaves `STORED` and
-`QUEUED` rows that the next invocation finishes. A crash around WorkItem creation
-is retried safely: the fetcher first gets the deterministic WorkItem name and
-validates an existing WorkItem before accepting it. The Secure Computation
-control plane persists the WorkItem and its pending publication atomically, then
-retries Pub/Sub publication until it is acknowledged. A WorkItem therefore
-cannot run before all metadata rows for its blob are durable and queued, and a
-successful create cannot be stranded between its database commit and queue
-publication.
+This ordering makes every handoff recoverable. A crash before metadata registration
+can leave only an unreferenced direct-prefix blob. A crash after registration leaves
+`QUEUED` rows that the next invocation rediscovers using their stored `blob_uri`.
+`EnsureWorkItem` atomically creates the WorkItem and pending publication, returns a
+matching queued or running WorkItem, and repairs a missing publication for a queued
+item. A WorkItem therefore cannot run before all metadata rows for its blob are
+durable and queued, and a successful dispatch cannot be stranded between its
+database commit and queue publication.
 
 A report whose requisitions all arrive in one window becomes a single blob; a
 report straddling K drain windows (or a byte-cap flush) is split across ~K blobs.
@@ -94,7 +93,7 @@ variable (see the memory row).
 | `MAX_TOTAL_BUFFERED_BYTES` | env var | `268435456` (256 MiB) | Memory backstop across all open buffers (serialized bytes). **Set as a plain integer number of bytes** — it is parsed with `toLongOrNull()`, so a human-readable value like `256MiB` is silently ignored and falls back to the default. Lower it to drain sooner and cap heap; raise it to hold more and split less. |
 | `MAX_REQUISITIONS_PER_GROUP` | env var | `1000` | Max requisitions per blob / per metadata `BatchCreate`. Bounds the Spanner mutation count per transaction. |
 | `METADATA_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between RequisitionMetadata service RPCs. The pacing multiplier for all list/batch-create calls. |
-| `CONTROL_PLANE_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between Secure Computation WorkItems API RPCs. Each group requires a lookup and, when absent, a create. |
+| `CONTROL_PLANE_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between Secure Computation WorkItems API RPCs. Each direct group requires one idempotent `EnsureWorkItem` call. |
 | `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` | env var | none | Secure Computation Control Plane gRPC target. Required when `work_item_dispatch` is configured. |
 | `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` | env var | none | Optional server name used to verify the Control Plane TLS certificate when it differs from the target host. |
 | `GRPC_REQUEST_INTERVAL` | env var | `1s` | Minimum interval between Kingdom mutation RPCs (e.g. `refuseRequisition`). |

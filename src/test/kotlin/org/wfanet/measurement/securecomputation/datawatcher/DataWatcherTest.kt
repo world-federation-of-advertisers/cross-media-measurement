@@ -202,6 +202,23 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `legacy requisition path does not match direct dispatch namespace`() = runBlocking {
+    val config = watchedPath {
+      sourcePathRegex = "gs://test-bucket/requisitions/([^/]+)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        queue = "test-topic-id"
+        appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
+      }
+    }
+    val dataWatcher =
+      DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
+
+    dataWatcher.receivePath("gs://test-bucket/requisitions-v2/group-id", emptyMap())
+
+    verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
+  }
+
+  @Test
   fun `records processing_duration metric for control plane sink`() {
     runBlocking {
       val topicId = "test-topic-id"
