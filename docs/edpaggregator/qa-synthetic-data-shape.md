@@ -329,6 +329,17 @@ The Population only affects **population measurements** (`population_size`).
 Reach, frequency and impressions come from the impression data, so an
 unattached Population makes `population_size` wrong and nothing else.
 
+### The Results Fulfiller Needs the Spec Too
+
+The fulfiller builds a `VidIndexMap` from a population spec blob to turn VIDs
+into frequency-vector slots, so the line must appear in `edpa_model_lines` and
+map to the 2026 spec in `edpa_model_line_population_spec_blob_uris`. Without the
+first it throws `NoSuchElementException`; with the wrong spec,
+`VidNotFoundException` on the first VID past the default spec's range.
+
+The blob is uploaded out of band, like the default spec it sits beside, so no
+Terraform resource tracks it — recreating the config bucket drops it silently.
+
 ## See Also
 
 *   [Deployment Guide](deployment-guide.md) — seeding and `--create-done-blobs`

@@ -28,6 +28,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flattenConcat
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.withTimeoutOrNull
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -88,6 +89,7 @@ class Qa2026BasicReportRunner(
   private val reportEnd: LocalDate,
   private val initialResultPollingDelay: Duration = Duration.ofSeconds(5),
   private val maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
+  private val completionTimeout: Duration = Duration.ofMinutes(30),
 ) {
 
   suspend fun run(runId: String) {
@@ -368,7 +370,11 @@ class Qa2026BasicReportRunner(
       .build()
   }
 
-  private suspend fun pollForCompletedBasicReport(key: BasicReportKey): BasicReport {
+  private suspend fun pollForCompletedBasicReport(key: BasicReportKey): BasicReport =
+    withTimeoutOrNull(completionTimeout) { pollUntilCompleted(key) }
+      ?: throw Exception("BasicReport ${key.toName()} still RUNNING after $completionTimeout")
+
+  private suspend fun pollUntilCompleted(key: BasicReportKey): BasicReport {
     val url =
       HttpUrl.Builder()
         .scheme(reportingGatewayScheme)

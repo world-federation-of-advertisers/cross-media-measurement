@@ -6,4 +6,11 @@ key_ring_name                                     = "test-key-ring"
 results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-dev-bucket/results_fulfiller_event_proto_descriptor.pb"
 results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
 results_fulfiller_population_spec_blob_uri        = "gs://edpa-configs-storage-dev-bucket/results-fulfiller-population-spec-small.textproto"
-edpa_model_lines                                  = ["modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A"]
+edpa_model_lines = [
+  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A",
+  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk",
+]
+edpa_model_line_population_spec_blob_uris = {
+  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A" = "gs://edpa-configs-storage-dev-bucket/results-fulfiller-population-spec-small.textproto"
+  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk" = "gs://edpa-configs-storage-dev-bucket/qa2026-population-spec.textproto"
+}

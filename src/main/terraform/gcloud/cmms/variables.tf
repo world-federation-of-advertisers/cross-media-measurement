@@ -276,6 +276,12 @@ variable "edpa_model_lines" {
   type        = list(string)
 }
 
+variable "edpa_model_line_population_spec_blob_uris" {
+  description = "Population spec blob uri by model line, for lines whose population differs from results_fulfiller_population_spec_blob_uri."
+  type        = map(string)
+  default     = {}
+}
+
 variable "duchy_worker1_id" {
   description = "ID of duchy worker 1."
   type        = string
