@@ -145,6 +145,8 @@ jobs:
           # See docs/edpaggregator/qa-synthetic-data-shape.md.
           QA2026_MODEL_LINE: ${{ vars.QA2026_MODEL_LINE }}
           QA2026_EDPS: ${{ vars.QA2026_EDPS }}
+          # PDP that owns the QA 2026 Population.
+          PDP_NAME: ${{ vars.PDP_NAME }}
         run: |
           # Storage settings live in the committed per-env tfvars (single source of truth after
           # #4168/#4227); read them here so this workflow never drifts from what Terraform deployed.
@@ -178,6 +180,7 @@ jobs:
           --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
           --test_env=QA2026_MODEL_LINE \
           --test_env=QA2026_EDPS \
+          --test_env=PDP_NAME \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
 
       - name: Upload Bazel testlogs

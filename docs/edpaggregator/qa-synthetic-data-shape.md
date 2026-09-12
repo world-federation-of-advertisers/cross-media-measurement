@@ -218,6 +218,29 @@ prefix drive the VID labeling dispatcher, while `done` markers alongside labeled
 impressions drive `DataAvailabilitySync`. Writing only the latter never wakes the
 labeling pipeline.
 
+## Which Test Owns This, and Why
+
+Two correctness tests run against a deployed environment, and they exercise
+**different data-delivery paths**. This dataset belongs to exactly one of them.
+
+| | `SyntheticGeneratorCorrectnessTest` | `EdpAggregatorCorrectnessTest` |
+| --- | --- | --- |
+| EDPs | classic simulators `edp1`–`edp6` | aggregator `edp7`, `edpa_meta`, … |
+| Data delivery | generated **in-process** by `SyntheticGeneratorEventQuery` from a spec; nothing is stored | encrypted **blobs in GCS**, read by the results fulfiller |
+| Owns this dataset | no | **yes** |
+
+The 2026 data is blob-delivered, so the simulator test has no mechanism to
+consume it — those EDPs compute events on demand rather than reading storage.
+This is also a deliberate scope boundary: expanding the classic simulators'
+volume or date coverage is explicitly out of scope, because the aggregator path
+is the one production depends on and the one that could not be validated.
+
+Within `EdpAggregatorCorrectnessTest` the QA 2026 rules are **additive**. The
+2021 fixture keeps its own config, population spec, model line, dates and event
+group reference IDs, and its assertions are untouched. Every QA 2026 rule no-ops
+unless `QA2026_MODEL_LINE` is set, so an environment opts in only once its
+ModelLine has been provisioned.
+
 ## Model Line
 
 The 2026 data uses its **own** `ModelLine` and its own Kingdom `Population`.
@@ -228,8 +251,40 @@ fixture would replace that fixture's population too. Impressions are also stored
 under `model-line/<modelLineId>/<date>/`, so a separate line keeps the two
 datasets in separate directory trees.
 
-The line's `active_start_time` must be at or before the earliest event date, or
-the correctness test's active-window check fails fast.
+### Provisioning It
+
+`active_start_time` is bounded on **both** sides:
+
+*   It must be at or before the earliest event date, or the correctness test's
+    active-window check fails fast.
+*   It must stay **after the 2021 fixture's dates**. The VID labeling dispatcher
+    decides which model lines to process purely from
+    `[active_start_time, active_end_time)`, so a 2026 line active in March 2021
+    would also be dispatched for the 2021 raw-impression upload. That line has no
+    VID model blob by design, so the work could never finish and
+    `AwaitVidLabelingRule` would time out — breaking the 2021 test.
+
+`2026-01-01` satisfies both with room to spare.
+
+Nothing in this repository creates a `ModelLine`; every `ensureModelLine` is a
+lookup that fails if absent. So the line is provisioned once per environment by
+an operator, using the `ModelRepository` tool, and referenced by resource name.
+
+`model-lines create` requires `--population`, because it creates the ModelLine, a
+`ModelRelease` and a `ModelRollout` together. Bootstrap it against any existing
+Population: `Qa2026ModelResourcesRule` then creates the correct 2026 Population
+and attaches its own release and rollout, which supersedes the bootstrap because
+the PDP resolves the **most recent** rollout on a line.
+
+That accumulation is the intended design, not a workaround — a line collects
+rollouts over time and the newest is live. The same pattern already runs in
+`SyntheticGeneratorCorrectnessTest`, whose `ensurePopulation` and
+`ensureModelRelease` this rule mirrors. Those two are wired to the 2021 spec and
+the 2021 line, which is why the logic is repeated here rather than reused.
+
+The Population only affects **population measurements** (`population_size`).
+Reach, frequency and impressions come from the impression data, so an
+unattached Population makes `population_size` wrong and nothing else.
 
 ## See Also
 

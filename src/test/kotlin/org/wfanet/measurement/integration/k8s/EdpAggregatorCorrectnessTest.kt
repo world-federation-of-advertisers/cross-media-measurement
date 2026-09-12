@@ -767,6 +767,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         modelLineProvider = { provisionModelResources.nonMemoizedModelLine },
         vidLabelerProvider = { nonMemoizedVidLabeler },
       )
+    // Ensures the QA 2026 Population exists and that the QA 2026 ModelLine has a ModelRelease and
+    // rollout pointing at it, superseding whatever Population the line was bootstrapped against.
+    // Must run before the impressions are written. No-op unless QA2026_MODEL_LINE is set.
+    private val provisionQa2026ModelResources =
+      Qa2026ModelResourcesRule(
+        populationSpecProvider = { qa2026PopulationSpec },
+        populationDataProvider = System.getenv("PDP_NAME").orEmpty(),
+        modelLineName = WriteQa2026ImpressionsRule.MODEL_LINE,
+        kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
+        kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+      )
+
     // Writes the QA 2026 dataset as pre-labeled impressions under its own model line. Additive:
     // it neither reads nor touches the 2021 fixture, and no-ops unless QA2026_MODEL_LINE is set.
     // VIDs come straight from the specs, so the deployed VID model is never consulted and the
@@ -790,6 +802,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         seedRawImpressions,
         awaitVidLabeling,
         writeReusedLabeledImpressions,
+        provisionQa2026ModelResources,
         writeQa2026Impressions,
         createDoneBlobs,
         measurementSystem,
