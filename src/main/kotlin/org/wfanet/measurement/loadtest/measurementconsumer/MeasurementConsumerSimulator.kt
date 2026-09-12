@@ -1336,6 +1336,7 @@ abstract class MeasurementConsumerSimulator(
               listEventGroupsRequest {
                 parent = measurementConsumer
                 this.pageToken = pageToken
+                pageSize = EVENT_GROUP_PAGE_SIZE
                 if (listEventGroupsEntityTypes.isNotEmpty()) {
                   filter =
                     ListEventGroupsRequestKt.filter { entityTypeIn += listEventGroupsEntityTypes }
@@ -1444,6 +1445,9 @@ abstract class MeasurementConsumerSimulator(
       start = 0.2f
       width = 0.5f
     }
+    // Maximum page size, to minimize requests against the Kingdom's rate limit.
+    private const val EVENT_GROUP_PAGE_SIZE = 500
+
     private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
