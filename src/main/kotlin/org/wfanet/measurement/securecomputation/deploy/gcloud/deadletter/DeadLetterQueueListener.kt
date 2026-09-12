@@ -18,7 +18,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 
 import com.google.protobuf.Parser
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -164,7 +164,7 @@ class DeadLetterQueueListener(
       queueMessage.ack()
     } catch (e: Exception) {
       when (e) {
-        is StatusRuntimeException -> {
+        is StatusException -> {
           if (e.status.code == Status.Code.NOT_FOUND) {
             logger.warning("Work item not found: ${workItem.name}. Acknowledging message.")
             queueMessage.ack()
@@ -491,7 +491,7 @@ class DeadLetterQueueListener(
     private val VID_LABELER_PARAMS_TYPE = VidLabelerParams.getDescriptor().fullName
 
     /** Returns whether [e] means that the WorkItem has already reached a terminal state. */
-    fun isTerminalWorkItemError(e: StatusRuntimeException): Boolean {
+    fun isTerminalWorkItemError(e: StatusException): Boolean {
       val state = e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
       return e.status.code == Status.Code.FAILED_PRECONDITION &&
         e.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
@@ -499,7 +499,7 @@ class DeadLetterQueueListener(
     }
 
     /** Returns whether [e] means that a delivery belongs to an older WorkItem generation. */
-    fun isStaleGenerationError(e: StatusRuntimeException): Boolean {
+    fun isStaleGenerationError(e: StatusException): Boolean {
       return e.status.code == Status.Code.FAILED_PRECONDITION &&
         e.errorInfo?.reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name
     }
