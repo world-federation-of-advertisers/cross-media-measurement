@@ -163,28 +163,38 @@ class WorkItemAttemptsServiceTest {
     }
 
   @Test
-  fun `createWorkItemAttempt throws INVALID_FIELD_VALUE when expected generation is missing`() =
-    runBlocking {
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          service.createWorkItemAttempt(
-            createWorkItemAttemptRequest {
-              parent = "workItems/workItem"
-              workItemAttemptId = "workItemAttempt"
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_FIELD_VALUE.name
-            metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
-          }
-        )
+  fun `createWorkItemAttempt defaults missing expected generation to one`() = runBlocking {
+    val internalWorkItemAttempt = internalWorkItemAttempt {
+      workItemResourceId = "workItem"
+      workItemAttemptResourceId = "workItemAttempt"
+      state = InternalWorkItemAttempt.State.ACTIVE
     }
+    internalServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn internalWorkItemAttempt
+    }
+
+    service.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        parent = "workItems/workItem"
+        workItemAttemptId = "workItemAttempt"
+        workItemAttempt = workItemAttempt {}
+      }
+    )
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::createWorkItemAttempt,
+      )
+      .isEqualTo(
+        internalCreateWorkItemAttemptRequest {
+          expectedWorkItemGeneration = 1L
+          workItemAttempt = internalWorkItemAttempt {
+            workItemResourceId = "workItem"
+            workItemAttemptResourceId = "workItemAttempt"
+          }
+        }
+      )
+  }
 
   @Test
   fun `createWorkItemAttempt throws INVALID_FIELD_VALUE when workItemAttemptId is malformed`() =
