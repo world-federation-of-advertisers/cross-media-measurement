@@ -21,7 +21,7 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
-import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.common.Attributes
 import java.util.AbstractMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -70,6 +70,7 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -210,7 +211,7 @@ class MeasurementsService(
         }
       }
 
-    return internalMeasurement.toMeasurement()
+    return traceMeasurementCreation(internalMeasurement.toMeasurement())
   }
 
   override suspend fun listMeasurements(
@@ -414,7 +415,9 @@ class MeasurementsService(
       }
 
     return batchCreateMeasurementsResponse {
-      measurements += internalMeasurements.map { it.toMeasurement() }
+      for (internalMeasurement in internalMeasurements) {
+        measurements += traceMeasurementCreation(internalMeasurement.toMeasurement())
+      }
     }
   }
 
@@ -692,14 +695,6 @@ class MeasurementsService(
       }
     measurementSpec.validate()
     measurementSpec.validateReportingMetadata(parentKey)
-    Span.current()
-      .setAllAttributes(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
-      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
-      .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
-      .addEvent(
-        "kingdom.measurement.accepted",
-        ReportTraceAttributes.fromMeasurementSpec(measurementSpec),
-      )
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProviderValues: Map<ExternalId, DataProviderValue> = buildMap {
@@ -734,6 +729,18 @@ class MeasurementsService(
       measurement = internalMeasurement
       this.requestId = requestId
     }
+  }
+
+  private suspend fun traceMeasurementCreation(measurement: Measurement): Measurement {
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
+    val attributes =
+      Attributes.builder()
+        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        .put(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+        .put(ReportTraceAttributes.OUTCOME, "accepted")
+        .build()
+    return ReportTracing.traceSuspending("kingdom.measurement.created", attributes) { measurement }
   }
 }
 

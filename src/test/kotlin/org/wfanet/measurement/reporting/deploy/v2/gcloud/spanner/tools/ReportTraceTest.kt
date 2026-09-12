@@ -547,11 +547,7 @@ class ReportTraceTest {
         "work_item_processing" to mapOf("xmm.work_item.name" to workItemName),
         "results_fulfillment" to
           mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to groupId),
-        "kingdom_computation_result_acceptance" to
-          mapOf(
-            "xmm.measurement.name" to measurementName,
-            "xmm.computation.name" to computationName,
-          ),
+        "kingdom_computation_result_acceptance" to mapOf("xmm.computation.name" to computationName),
         "kingdom_measurement_sync" to mapOf("xmm.measurement.name" to measurementName),
         "metric_result_sync" to mapOf("xmm.metric.name" to context.metricNames.single()),
         "report_result_assembly" to mapOf("xmm.report.name" to context.reportName),
@@ -588,6 +584,114 @@ class ReportTraceTest {
     assertThat(output)
       .contains("| duchy_computation | $measurementName @ duchy worker1 | SUCCEEDED |")
     assertThat(output).contains("| results_fulfillment | $requisitionName | SUCCEEDED |")
+  }
+
+  @Test
+  fun `failed Kingdom computation acceptance is correlated through Duchy evidence`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val computationName = "computations/computation-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val duchyEvidence =
+      lifecycleSpan(
+        "duchy_computation",
+        mapOf(
+          "xmm.measurement.name" to measurementName,
+          "xmm.computation.name" to computationName,
+          "xmm.duchy.id" to "aggregator",
+        ),
+      )
+    val failedAcceptance =
+      lifecycleSpan(
+          "kingdom_computation_result_acceptance",
+          mapOf("xmm.computation.name" to computationName),
+        )
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "kingdom_computation_result_acceptance",
+              "xmm.outcome" to "failed",
+              "xmm.computation.name" to computationName,
+            )
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(duchyEvidence, failedAcceptance),
+        emptyList(),
+      )
+
+    val acceptance = coverage.single { it.name == "kingdom_computation_result_acceptance" }
+    assertThat(acceptance.resource).isEqualTo(measurementName)
+    assertThat(acceptance.status).isEqualTo("FAILED")
+    assertThat(acceptance.evidence).contains("Measurement correlated by computation")
+  }
+
+  @Test
+  fun `EDPA evidence is unexpected for direct EDP Requisition`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val dispatch =
+      lifecycleSpan(
+        "requisition_dispatch",
+        mapOf(
+          "xmm.requisition.name" to requisitionName,
+          "xmm.edpa.group_id" to "group-1",
+          "xmm.work_item.name" to "workItems/results-fulfiller-group-1",
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, listOf(dispatch), emptyList())
+
+    assertThat(coverage.single { it.name == "requisition_dispatch" }.status).isEqualTo("UNEXPECTED")
+    assertThat(
+        ReportTraceOutput.artifactStatus(listOf(dispatch), emptyList(), emptyList(), coverage)
+      )
+      .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `Duchy evidence is unexpected for direct Measurement`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val duchyEvidence =
+      lifecycleSpan(
+        "duchy_computation",
+        mapOf("xmm.measurement.name" to measurementName, "xmm.duchy.id" to "aggregator"),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(duchyEvidence),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "duchy_computation" }.status).isEqualTo("UNEXPECTED")
   }
 
   @Test

@@ -813,6 +813,7 @@ internal object ReportTraceOutput {
           attributes = mapOf("xmm.basic_report.name" to checkNotNull(context.basicReportName)),
         )
     }
+    linkComputationEvidenceToMeasurements(observed)
     linkWorkItemEvidenceToRequisitions(observed)
     val expectedOperations = expectedOperations(context, routeResolution)
     val expectedStageNames = expectedOperations.mapTo(mutableSetOf()) { it.stage }
@@ -862,6 +863,52 @@ internal object ReportTraceOutput {
           )
         }
     return coverage + unexpected
+  }
+
+  private fun linkComputationEvidenceToMeasurements(
+    observed: MutableMap<String, MutableList<LifecycleEvidence>>
+  ) {
+    val measurementsByComputation: Map<String, List<String>> =
+      listOf("duchy_computation", "duchy_stage_attempt")
+        .flatMap { stage -> observed[stage].orEmpty() }
+        .mapNotNull { evidence ->
+          val computationName: String =
+            evidence.attributes["xmm.computation.name"] ?: return@mapNotNull null
+          val measurementName: String =
+            evidence.attributes["xmm.measurement.name"] ?: return@mapNotNull null
+          computationName to measurementName
+        }
+        .groupBy(
+          keySelector = { (computationName) -> computationName },
+          valueTransform = { (_, measurementName) -> measurementName },
+        )
+    val acceptanceEvidence: MutableList<LifecycleEvidence> =
+      observed["kingdom_computation_result_acceptance"] ?: return
+    observed["kingdom_computation_result_acceptance"] =
+      acceptanceEvidence
+        .map { evidence ->
+          if ("xmm.measurement.name" in evidence.attributes) {
+            evidence
+          } else {
+            val computationName: String? = evidence.attributes["xmm.computation.name"]
+            val measurementNames: List<String> =
+              if (computationName == null) {
+                emptyList()
+              } else {
+                measurementsByComputation[computationName].orEmpty().distinct()
+              }
+            if (measurementNames.size == 1) {
+              evidence.copy(
+                description = "${evidence.description} (Measurement correlated by computation)",
+                attributes =
+                  evidence.attributes + ("xmm.measurement.name" to measurementNames.single()),
+              )
+            } else {
+              evidence
+            }
+          }
+        }
+        .toMutableList()
   }
 
   private fun linkWorkItemEvidenceToRequisitions(
@@ -923,14 +970,14 @@ internal object ReportTraceOutput {
       resource = operation.resource,
       status =
         when {
+          requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isNotEmpty() ->
+            "UNEXPECTED"
           outcomes.any { it == "failed" || it.startsWith("failed_") || it == "report_failed" } ->
             "FAILED"
           "refused" in outcomes -> "REFUSED"
           outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> "SUCCEEDED"
           outcomes.any { it in IN_PROGRESS_OUTCOMES } -> "IN_PROGRESS"
           "unknown" in outcomes -> "UNKNOWN"
-          requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isNotEmpty() ->
-            "UNEXPECTED"
           evidence.isNotEmpty() -> "OBSERVED"
           hasUnattributedEvidence -> "UNKNOWN"
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE -> "NOT_APPLICABLE"

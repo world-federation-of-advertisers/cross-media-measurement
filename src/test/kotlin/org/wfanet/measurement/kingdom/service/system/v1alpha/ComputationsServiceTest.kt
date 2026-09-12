@@ -14,14 +14,25 @@
 
 package org.wfanet.measurement.kingdom.service.system.v1alpha
 
+import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.Timestamps
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -32,11 +43,13 @@ import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.times
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.DuchyProtocolConfigKt
@@ -329,6 +342,28 @@ class ComputationsServiceTest {
       InternalMeasurementsCoroutineStub(grpcTestServerRule.channel),
       duchyIdentityProvider = duchyIdProvider,
     )
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
+
+  @Before
+  fun initTelemetry() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+  }
 
   @Test
   fun `get llv2 computation successfully`() = runBlocking {
@@ -703,5 +738,53 @@ class ComputationsServiceTest {
           }
           .build()
       )
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation.result_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(SYSTEM_COMPUTATION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(PUBLIC_MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
+  }
+
+  @Test
+  fun `setComputationResult emits failed lifecycle span when request is invalid`() = runBlocking {
+    val request =
+      SetComputationResultRequest.newBuilder().apply { name = SYSTEM_COMPUTATION_NAME }.build()
+
+    assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(SYSTEM_COMPUTATION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
+  }
+
+  @Test
+  fun `setComputationResult emits failed lifecycle span when internal RPC fails`() = runBlocking {
+    whenever(internalMeasurementsServiceMock.setMeasurementResult(any()))
+      .thenThrow(Status.DEADLINE_EXCEEDED.asRuntimeException())
+    val request =
+      SetComputationResultRequest.newBuilder()
+        .apply {
+          name = SYSTEM_COMPUTATION_NAME
+          aggregatorCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+          resultPublicKey = RESULT_PUBLIC_KEY
+          encryptedResult = ENCRYPTED_RESULT
+          publicApiVersion = PUBLIC_API_VERSION
+        }
+        .build()
+
+    assertFailsWith<StatusRuntimeException> { service.setComputationResult(request) }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(SYSTEM_COMPUTATION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 }
