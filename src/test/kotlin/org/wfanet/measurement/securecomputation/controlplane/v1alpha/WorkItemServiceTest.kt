@@ -21,6 +21,7 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
 import com.google.rpc.errorInfo
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -156,7 +157,7 @@ class WorkItemServiceTest {
       workItem = workItem { queue = "queue-id" }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+    val exception = assertFailsWith<StatusException> { service.ensureWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
   }
