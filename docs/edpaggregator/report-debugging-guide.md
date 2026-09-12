@@ -116,7 +116,10 @@ data_provider_routes {
 ```
 
 `EDPA` means the direct RequisitionFetcher-to-Secure-Computation WorkItem path.
-The tool does not support the legacy DataWatcher dispatch path.
+There is intentionally no `LEGACY` route. The tool does not support the legacy
+DataWatcher dispatch path, and an operator must not classify a legacy EDPA as
+`EDPA`: doing so would make the tool look for direct-dispatch stages that the
+deployment cannot emit.
 
 ```bash
 bazel run \
