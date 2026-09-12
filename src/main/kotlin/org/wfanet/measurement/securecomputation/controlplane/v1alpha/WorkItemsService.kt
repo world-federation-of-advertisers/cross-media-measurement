@@ -132,6 +132,9 @@ class WorkItemsService(
           }
         )
       } catch (e: StatusException) {
+        if (e.status.code == Status.Code.UNIMPLEMENTED) {
+          throw e
+        }
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS ->
             WorkItemAlreadyExistsException("workItems/${request.workItemId}", e)
