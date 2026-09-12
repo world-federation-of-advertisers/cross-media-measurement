@@ -137,6 +137,8 @@ class KingdomReportTraceResolverTest {
 
     assertThat(result.status).isEqualTo("PARTIAL")
     assertThat(result.measurementRoutes.single().duchyParticipantsResolved).isFalse()
+    assertThat(result.requirementFor("duchy_computation"))
+      .isEqualTo(ReportTraceStageRequirement.UNKNOWN)
     assertThat(result.note).contains("Duchy participants")
   }
 

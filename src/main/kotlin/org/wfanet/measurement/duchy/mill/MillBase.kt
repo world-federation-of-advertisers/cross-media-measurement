@@ -298,7 +298,7 @@ abstract class MillBase(
         .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(globalComputationId).toName())
         .put(ReportTraceAttributes.DUCHY_ID, duchyId)
         .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_stage_attempt")
-    if (computationDetails.kingdomComputation.measurement.isNotBlank()) {
+    if (computationDetails.kingdomComputation.measurement.isNotEmpty()) {
       builder.put(
         ReportTraceAttributes.MEASUREMENT_NAME,
         computationDetails.kingdomComputation.measurement,

@@ -73,8 +73,8 @@ internal data class ReportTraceMeasurementRoute(
   val state: String,
   val protocol: String,
   val route: ReportTraceMeasurementRouteKind,
-  val duchyIds: List<String> = emptyList(),
-  val duchyParticipantsResolved: Boolean = route != ReportTraceMeasurementRouteKind.MPC,
+  val duchyIds: List<String>,
+  val duchyParticipantsResolved: Boolean,
   val requisitions: List<ReportTraceRequisitionRoute>,
   val requisitionsResolved: Boolean,
 )
@@ -100,7 +100,12 @@ internal data class ReportTraceRouteResolution(
           measurementRoutes.map { route ->
             when (route.route) {
               ReportTraceMeasurementRouteKind.DIRECT -> ReportTraceStageRequirement.NOT_APPLICABLE
-              ReportTraceMeasurementRouteKind.MPC -> ReportTraceStageRequirement.REQUIRED
+              ReportTraceMeasurementRouteKind.MPC ->
+                if (route.duchyParticipantsResolved) {
+                  ReportTraceStageRequirement.REQUIRED
+                } else {
+                  ReportTraceStageRequirement.UNKNOWN
+                }
               ReportTraceMeasurementRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
             }
           }
@@ -305,12 +310,12 @@ internal class KingdomReportTraceResolver(
               val protocol = protocolRoute(measurement)
               try {
                 val requisitions = listAllRequisitions(measurement.name)
-                val duchyIds =
+                val duchyIds: List<String> =
                   requisitions
                     .flatMap { requisition -> requisition.duchiesList.map { duchy -> duchy.key } }
                     .distinct()
                     .sorted()
-                val duchyParticipantsResolved =
+                val duchyParticipantsResolved: Boolean =
                   protocol.route != ReportTraceMeasurementRouteKind.MPC || duchyIds.isNotEmpty()
                 MeasurementRouteResult(
                   route =

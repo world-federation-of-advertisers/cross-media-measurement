@@ -804,6 +804,8 @@ class ReportTraceTest {
               state = "SUCCEEDED",
               protocol = "DIRECT",
               route = ReportTraceMeasurementRouteKind.DIRECT,
+              duchyIds = emptyList(),
+              duchyParticipantsResolved = true,
               requisitions =
                 listOf(
                   ReportTraceRequisitionRoute(
@@ -861,6 +863,8 @@ class ReportTraceTest {
               state = "FAILED",
               protocol = "DIRECT",
               route = ReportTraceMeasurementRouteKind.DIRECT,
+              duchyIds = emptyList(),
+              duchyParticipantsResolved = true,
               requisitions = emptyList(),
               requisitionsResolved = true,
             )
@@ -927,6 +931,8 @@ class ReportTraceTest {
                     state = "SUCCEEDED",
                     protocol = "DIRECT",
                     route = ReportTraceMeasurementRouteKind.DIRECT,
+                    duchyIds = emptyList(),
+                    duchyParticipantsResolved = true,
                     requisitions =
                       listOf(
                         ReportTraceRequisitionRoute(

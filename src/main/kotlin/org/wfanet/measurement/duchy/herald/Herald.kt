@@ -273,7 +273,7 @@ class Herald(
         .put(ReportTraceAttributes.COMPUTATION_NAME, name)
         .put(ReportTraceAttributes.DUCHY_ID, duchyId)
         .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_computation")
-    if (measurement.isNotBlank()) {
+    if (measurement.isNotEmpty()) {
       builder.put(ReportTraceAttributes.MEASUREMENT_NAME, measurement)
     }
     runCatching { MeasurementSpec.parseFrom(measurementSpec) }

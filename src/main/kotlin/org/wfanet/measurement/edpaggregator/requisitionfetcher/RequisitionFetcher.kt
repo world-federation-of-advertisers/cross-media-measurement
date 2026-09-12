@@ -903,7 +903,7 @@ class RequisitionFetcher(
     }
     try {
       dispatcher.dispatch(groupId, blobUri(groupId))
-      recordDispatchEvidence(metadata, groupId, workItemName, "succeeded")
+      recordDispatchEvidence(metadata, groupId, workItemName, "succeeded", null)
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
@@ -918,7 +918,7 @@ class RequisitionFetcher(
     groupId: String,
     workItemName: String,
     outcome: String,
-    error: Exception? = null,
+    error: Exception?,
   ) {
     for (item in metadata) {
       traceSuspending(
