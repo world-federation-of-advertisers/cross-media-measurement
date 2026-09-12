@@ -75,6 +75,10 @@ jobs:
           REQUISITION_FETCHER_ENDPOINT: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
           MODEL_LINE: ${{ vars.MODEL_LINE_NAME }}
+          REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
+          REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
+          ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
 
         run: |
           cat << EOF > ~/.bazelrc
@@ -86,6 +90,10 @@ jobs:
           build --define requisition_fetcher_endpoint=$REQUISITION_FETCHER_ENDPOINT
           build --define storage_bucket=$STORAGE_BUCKET
           build --define model_line=$MODEL_LINE
+          build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
+          build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
+          build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
+          build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
           test --test_output=streamed
           test --test_timeout=5400
           EOF

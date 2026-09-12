@@ -17,9 +17,11 @@
 package org.wfanet.measurement.integration.k8s
 
 import com.google.common.truth.Truth.assertThat
+import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
 import kotlinx.coroutines.runBlocking
+import org.junit.Assume.assumeTrue
 import org.junit.Test
 import org.wfanet.measurement.api.v2alpha.EventGroup
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
@@ -176,12 +178,24 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       )
     }
 
+  /** Skipped where no QA 2026 dataset is configured. */
+  @Test
+  fun `QA 2026 media type and impression qualification filter report succeeds`() = runBlocking {
+    val runner = measurementSystem.qa2026BasicReportRunner
+    assumeTrue(runner != null)
+    runner!!.run(measurementSystem.runId)
+  }
+
   interface MeasurementSystem {
     val runId: String
     val mcSimulator: MeasurementConsumerSimulator
     val publicEventGroupsStub: EventGroupsCoroutineStub
     val measurementConsumerName: String
     val apiAuthenticationKey: String
+
+    /** Null when the environment has no QA 2026 dataset configured. */
+    val qa2026BasicReportRunner: Qa2026BasicReportRunner?
+      get() = null
   }
 
   companion object {
@@ -234,6 +248,28 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       val key = secretFiles.resolve("mc_tls.key").toFile()
       SigningCerts.fromPemFiles(cert, key, trustedCerts)
     }
+
+    val REPORTING_SIGNING_CERTS: SigningCerts by lazy {
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val trustedCerts = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("mc_tls.pem").toFile()
+      val key = secretFiles.resolve("mc_tls.key").toFile()
+      SigningCerts.fromPemFiles(cert, key, trustedCerts)
+    }
+
+    val ACCESS_SIGNING_CERTS: SigningCerts by lazy {
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val trustedCerts = secretFiles.resolve("reporting_root.pem").toFile()
+      val cert = secretFiles.resolve("access_tls.pem").toFile()
+      val key = secretFiles.resolve("access_tls.key").toFile()
+      SigningCerts.fromPemFiles(cert, key, trustedCerts)
+    }
+
+    private val LOCAL_K8S_PATH: Path = Paths.get("src", "main", "k8s", "local")
+    val OPEN_ID_PROVIDERS_CONFIG_JSON_FILE: File =
+      LOCAL_K8S_PATH.resolve("open_id_providers_config.json").toFile()
+    val OPEN_ID_PROVIDERS_TINK_FILE: File =
+      SECRET_FILES_PATH.resolve("open_id_provider.tink").toFile()
 
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
 

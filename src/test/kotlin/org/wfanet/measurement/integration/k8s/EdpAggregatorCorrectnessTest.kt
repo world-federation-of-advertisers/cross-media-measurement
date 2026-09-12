@@ -18,8 +18,11 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
@@ -27,6 +30,8 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Paths
+import java.security.KeyPair
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
@@ -40,6 +45,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
+import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -59,12 +70,15 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -79,6 +93,8 @@ import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurem
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
+import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -434,6 +450,16 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
 
+    override val qa2026BasicReportRunner: Qa2026BasicReportRunner? by lazy {
+      val modelLine = WriteQa2026ImpressionsRule.MODEL_LINE
+      val referenceIds = qa2026EventGroupRefIdsByEdp.values.flatten().toSet()
+      if (modelLine.isEmpty() || referenceIds.isEmpty()) {
+        null
+      } else {
+        buildQa2026BasicReportRunner(modelLine, referenceIds)
+      }
+    }
+
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
         override fun evaluate() {
@@ -537,6 +563,106 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       )
     }
 
+    private fun buildQa2026BasicReportRunner(
+      modelLine: String,
+      eventGroupReferenceIds: Set<String>,
+    ): Qa2026BasicReportRunner {
+      val reportingServiceUrl: HttpUrl =
+        TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()
+          ?: throw IllegalArgumentException(
+            "Invalid reporting service endpoint '${TEST_CONFIG.reportingServiceEndpoint}'"
+          )
+
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val clientCertificate: X509Certificate =
+        secretFiles.resolve(MC_TLS_CERT_NAME).toFile().readText().decodeCertificatePem()
+      val privateKey =
+        readPrivateKey(
+          secretFiles.resolve(MC_TLS_KEY_NAME).toFile(),
+          clientCertificate.publicKey.algorithm,
+        )
+      val handshakeCertificates =
+        HandshakeCertificates.Builder()
+          .addTrustedCertificate(
+            secretFiles.resolve(REPORTING_ROOT_CERT_NAME).toFile().readText().decodeCertificatePem()
+          )
+          .heldCertificate(
+            HeldCertificate(KeyPair(clientCertificate.publicKey, privateKey), clientCertificate)
+          )
+          .build()
+      val okHttpReportingClient =
+        OkHttpClient.Builder()
+          .sslSocketFactory(
+            handshakeCertificates.sslSocketFactory(),
+            handshakeCertificates.trustManager,
+          )
+          .connectTimeout(REPORTING_HTTP_TIMEOUT)
+          .readTimeout(REPORTING_HTTP_TIMEOUT)
+          .writeTimeout(REPORTING_HTTP_TIMEOUT)
+          .build()
+
+      val reportingApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.reportingPublicApiTarget,
+            REPORTING_SIGNING_CERTS,
+            TEST_CONFIG.reportingPublicApiCertHost.ifEmpty { null },
+          )
+          .also { channels.add(it) }
+      val accessApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.accessPublicApiTarget,
+            ACCESS_SIGNING_CERTS,
+            TEST_CONFIG.accessPublicApiCertHost.ifEmpty { null },
+          )
+          .also { channels.add(it) }
+
+      val openIdProvidersConfig =
+        OpenIdProvidersConfig.newBuilder()
+          .also {
+            JsonFormat.parser()
+              .ignoringUnknownFields()
+              .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), it)
+          }
+          .build()
+      val principal =
+        AbstractCorrectnessTest.createAccessPrincipal(
+          TEST_CONFIG.measurementConsumer,
+          accessApiChannel,
+          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+        )
+      val getAccessToken = {
+        OpenIdProvider(
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
+          .generateCredentials(
+            audience = TEST_CONFIG.reportingTokenAudience,
+            subject = principal.user.subject,
+            scopes = REPORTING_TOKEN_SCOPES,
+            ttl = REPORTING_TOKEN_TTL,
+          )
+          .token
+      }
+
+      return Qa2026BasicReportRunner(
+        measurementConsumerName = TEST_CONFIG.measurementConsumer,
+        reportingSetsClient = ReportingSetsCoroutineStub(reportingApiChannel),
+        eventGroupsClient = ReportingEventGroupsCoroutineStub(reportingApiChannel),
+        eventGroupReferenceIds = eventGroupReferenceIds,
+        modelLineName = modelLine,
+        okHttpReportingClient = okHttpReportingClient,
+        reportingGatewayScheme = reportingServiceUrl.scheme,
+        reportingGatewayHost = reportingServiceUrl.host,
+        reportingGatewayPort = reportingServiceUrl.port,
+        getReportingAccessToken = getAccessToken,
+        reportStart = qa2026ReportDates.first(),
+        reportEnd = qa2026ReportDates.last(),
+      )
+    }
+
     private fun shutDownChannels() {
       for (channel in channels) {
         channel.shutdown()
@@ -571,6 +697,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
+    private val REPORTING_HTTP_TIMEOUT = Duration.ofSeconds(30)
+    private val REPORTING_TOKEN_TTL = Duration.ofMinutes(60)
+    private val REPORTING_TOKEN_SCOPES =
+      setOf(
+        "reporting.basicReports.create",
+        "reporting.basicReports.get",
+        "reporting.reportingSets.create",
+        "reporting.eventGroups.list",
+      )
+    private const val MC_TLS_CERT_NAME = "mc_tls.pem"
+    private const val MC_TLS_KEY_NAME = "mc_tls.key"
+    private const val REPORTING_ROOT_CERT_NAME = "reporting_root.pem"
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "edpa_correctness_test_config.textproto"
@@ -700,6 +838,14 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         }
       }
       datesByPath
+    }
+
+    /**
+     * The QA 2026 dates in ascending order, derived from the specs so the reporting interval cannot
+     * drift from the impressions.
+     */
+    val qa2026ReportDates: List<LocalDate> by lazy {
+      qa2026DatesByImpressionPath.values.flatten().distinct().sorted()
     }
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =

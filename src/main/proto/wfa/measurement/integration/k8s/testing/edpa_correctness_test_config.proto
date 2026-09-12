@@ -50,4 +50,28 @@ message EdpaCorrectnessTestConfig {
 
   // The model line to use.
   string model_line = 8;
+
+  // http endpoint of Reporting Server.
+  string reporting_service_endpoint = 9;
+
+  // jwt audience for Reporting Server.
+  string reporting_token_audience = 10;
+
+  // gRPC target of Access public API server.
+  string access_public_api_target = 11;
+
+  // Expected hostname (DNS-ID) in the access public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string access_public_api_cert_host = 12;
+
+  // gRPC target of Reporting public API server.
+  string reporting_public_api_target = 13;
+
+  // Expected hostname (DNS-ID) in the Reporting public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string reporting_public_api_cert_host = 14;
 }
