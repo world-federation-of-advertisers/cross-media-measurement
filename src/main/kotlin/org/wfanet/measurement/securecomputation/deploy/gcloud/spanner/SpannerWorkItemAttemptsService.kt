@@ -56,6 +56,7 @@ import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNo
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
@@ -80,6 +81,13 @@ class SpannerWorkItemAttemptsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.expectedWorkItemGeneration <= 0L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be positive"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
 
@@ -88,6 +96,13 @@ class SpannerWorkItemAttemptsService(
         transactionRunner.run { txn ->
           val result =
             txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
+          if (result.workItem.generation != request.expectedWorkItemGeneration) {
+            throw WorkItemGenerationMismatchException(
+              result.workItem.workItemResourceId,
+              request.expectedWorkItemGeneration,
+              result.workItem.generation,
+            )
+          }
           val workItemState = result.workItem.state
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
           when (workItemState) {
@@ -128,6 +143,8 @@ class SpannerWorkItemAttemptsService(
           throw e
         }
       } catch (e: WorkItemInvalidStateException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: WorkItemGenerationMismatchException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       } catch (e: WorkItemNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)

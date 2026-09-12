@@ -41,6 +41,7 @@ import org.wfanet.measurement.securecomputation.service.WorkItemAttemptAlreadyEx
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptKey
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
@@ -65,6 +66,12 @@ class WorkItemAttemptsService(
       throw InvalidFieldValueException("work_item_attempt_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.expectedWorkItemGeneration <= 0L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be positive"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val parentKey =
       WorkItemKey.fromName(request.parent)
@@ -75,6 +82,7 @@ class WorkItemAttemptsService(
       try {
         internalWorkItemAttemptsStub.createWorkItemAttempt(
           internalCreateWorkItemAttemptRequest {
+            expectedWorkItemGeneration = request.expectedWorkItemGeneration
             this.workItemAttempt = internalWorkItemAttempt {
               workItemResourceId = parentKey.workItemId
               workItemAttemptResourceId = request.workItemAttemptId
@@ -90,6 +98,9 @@ class WorkItemAttemptsService(
               .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
             WorkItemInvalidStateException.fromInternal(e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH ->
+            WorkItemGenerationMismatchException.fromInternal(e)
+              .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
@@ -97,7 +108,6 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
-          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

@@ -166,13 +166,18 @@ class BaseTeeApplicationTest {
     val job = launch { app.run() }
 
     val testWork = createTestWork()
-    val workItem = createWorkItem(testWork)
+    val workItem = createWorkItem(testWork, generation = 7L)
 
     publisher.publishMessage(TOPIC_ID, workItem)
 
     val processedMessage = app.messageProcessed.await()
     assertThat(processedMessage).isEqualTo(testWork)
     assertThat(controlPlaneThrottler.onReadyCalls).isEqualTo(2)
+    val createRequestCaptor = argumentCaptor<CreateWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsServiceMock, times(1)) {
+      createWorkItemAttempt(createRequestCaptor.capture())
+    }
+    assertThat(createRequestCaptor.firstValue.expectedWorkItemGeneration).isEqualTo(7L)
 
     job.cancelAndJoin()
   }
@@ -216,6 +221,45 @@ class BaseTeeApplicationTest {
     assertThat(consumer.ackCount).isEqualTo(1)
     assertThat(consumer.nackCount).isEqualTo(0)
 
+    assertThat(app.messageProcessed.isCompleted).isFalse()
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `acks stale delivery when createWorkItemAttempt reports generation mismatch`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw makeCreateAttemptGenerationMismatchException() }
+
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork(), generation = 1L),
+        consumer = consumer,
+        ackId = "some-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
   }
@@ -383,6 +427,24 @@ class BaseTeeApplicationTest {
     return StatusProto.toStatusException(status)
   }
 
+  private fun makeCreateAttemptGenerationMismatchException(): StatusException {
+    val errorInfo =
+      ErrorInfo.newBuilder()
+        .setReason(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+        .putMetadata("workItem", "workItems/workItem")
+        .putMetadata("expectedWorkItemGeneration", "1")
+        .putMetadata("actualWorkItemGeneration", "2")
+        .build()
+    val status =
+      com.google.rpc.Status.newBuilder()
+        .setCode(io.grpc.Status.Code.FAILED_PRECONDITION.value())
+        .setMessage("WorkItem generation does not match")
+        .addDetails(Any.pack(errorInfo))
+        .build()
+
+    return StatusProto.toStatusException(status)
+  }
+
   private fun createTestWork(): TestWork {
     return testWork {
       userName = "UserName"
@@ -391,11 +453,12 @@ class BaseTeeApplicationTest {
     }
   }
 
-  private fun createWorkItem(testWork: TestWork): WorkItem {
+  private fun createWorkItem(testWork: TestWork, generation: Long = 1L): WorkItem {
 
     val packedWorkItemParams = Any.pack(testWork)
     return workItem {
       name = "workItems/workItem"
+      this.generation = generation
       workItemParams = packedWorkItemParams
     }
   }

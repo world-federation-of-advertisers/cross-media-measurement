@@ -43,6 +43,7 @@ service WorkItemAttempts {
 
 message CreateWorkItemAttemptRequest {
   WorkItemAttempt work_item_attempt = 1;
+  int64 expected_work_item_generation = 2;
 }
 
 message GetWorkItemAttemptRequest {
