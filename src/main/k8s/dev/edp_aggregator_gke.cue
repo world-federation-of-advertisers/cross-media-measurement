@@ -38,6 +38,22 @@ _systemApiAddressName: "edp-aggregator-system"
 	}
 }
 
+// Bumped from the 320Mi / -Xmx64M defaults for the same reason as the system API server
+// above: the internal API server was OOMKilled (exit 137) while the VID-labeling pipeline
+// was running, so the parent RawImpressionUploadModelLine never advanced out of CREATED
+// even though all of its PoolAssignmentJobs and RankerJobs had SUCCEEDED, and the cloud
+// test hung until its 1800s timeout. At 320Mi only 64M was heap, leaving no headroom for
+// concurrent calls.
+#InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "100m"
+		memory: "1Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
 objectSets: [
 	defaultNetworkPolicies,
 	edpAggregator.serviceAccounts,
@@ -68,6 +84,10 @@ edpAggregator: #EdpAggregator & {
 
 	deployments: {
 		"edp-aggregator-internal-api-server": {
+			_container: {
+				_javaOptions: maxHeapSize: "512M"
+				resources: #InternalServerResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalEdpAggregatorServerServiceAccount
 			}
