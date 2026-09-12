@@ -64,6 +64,37 @@ object EdpAggregatorConfig {
   }
 
   /**
+   * Loads a UTF-8-encoded configuration proto when its blob exists.
+   *
+   * Storage access and parse errors are propagated. Only a missing blob produces `null`.
+   *
+   * @param configBlobKey The name of the config blob to load.
+   * @param defaultInstance A default instance of the protobuf message type to parse into.
+   * @param typeRegistry Optional registry for handling `Any` fields during parsing.
+   * @return The parsed protobuf message, or `null` when the config blob does not exist.
+   */
+  suspend fun <T : Message> getOptionalConfigAsProtoMessage(
+    configBlobKey: String,
+    defaultInstance: T,
+    typeRegistry: TypeRegistry? = null,
+  ): T? {
+    val bucket =
+      checkNotNull(System.getenv(CONFIG_STORAGE_BUCKET_ENV)) {
+          "Environment variable EDPA_CONFIG_STORAGE_BUCKET must be set."
+        }
+        .removeSuffix("/")
+    val projectId = System.getenv(GOOGLE_PROJECT_ID_ENV)
+    val loader = BlobLoader()
+    val bytes = loader.getBytesOrNull(bucket, configBlobKey, projectId) ?: return null
+    val text = bytes.toStringUtf8()
+    return if (typeRegistry != null) {
+      parseTextProto(StringReader(text), defaultInstance, typeRegistry)
+    } else {
+      parseTextProto(StringReader(text), defaultInstance)
+    }
+  }
+
+  /**
    * Fetches and returns the raw bytes of a UTF-8–encoded configuration blob from storage.
    *
    * @param projectId GCP project ID (used for GCS access; ignored for `file:` URIs).

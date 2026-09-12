@@ -219,6 +219,11 @@ locals {
     destination = "requisition-fetcher-config.textproto"
   }
 
+  requisition_fetcher_direct_dispatch_config = var.requisition_fetcher_direct_dispatch_config_file_path == null ? null : {
+    local_path  = var.requisition_fetcher_direct_dispatch_config_file_path
+    destination = "requisition-fetcher-direct-dispatch-config.textproto"
+  }
+
   edps_config = {
     local_path  = var.event_data_provider_configs_file_path
     destination = "event-data-provider-configs.textproto"
@@ -484,6 +489,7 @@ module "edp_aggregator" {
   data_watcher_config                              = local.data_watcher_config
   data_watcher_delete_config                       = local.data_watcher_delete_config
   requisition_fetcher_config                       = local.requisition_fetcher_config
+  requisition_fetcher_direct_dispatch_config       = local.requisition_fetcher_direct_dispatch_config
   edps_config                                      = local.edps_config
   event_group_sync_config                          = local.event_group_sync_config
   data_availability_sync_config                    = local.data_availability_sync_config

@@ -42,12 +42,15 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getOptionalConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
+import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherDirectDispatchConfig
+import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
@@ -79,6 +82,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
  *   RPCs. Default `100ms`.
+ * - `REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY`: Optional. Blob containing direct
+ *   dispatch configuration. Defaults to `requisition-fetcher-direct-dispatch-config.textproto`.
  * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required when direct WorkItem dispatch is
  *   configured.
  * - `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`: Optional. Server name for the Secure Computation
@@ -105,9 +110,23 @@ class RequisitionFetcherFunction : HttpFunction {
 
   private fun handleRequest(response: HttpResponse) {
     try {
+      val directDispatchConfigs: Map<String, RequisitionWorkItemDispatchConfig> =
+        try {
+          loadDirectDispatchConfigs()
+        } catch (e: Exception) {
+          val errorMessage = "Failed to load direct-dispatch configuration"
+          logger.log(Level.SEVERE, errorMessage, e)
+          response.setStatusCode(500)
+          response.writer.write(errorMessage)
+          return
+        }
       val errors = mutableListOf<String>()
       for (dataProviderConfig in requisitionFetcherConfig.configsList) {
-        val result: Result<Unit> = processDataProvider(dataProviderConfig)
+        val result: Result<Unit> =
+          processDataProvider(
+            dataProviderConfig,
+            directDispatchConfigs[dataProviderConfig.dataProvider],
+          )
         val failure = result.exceptionOrNull()
         if (failure != null) {
           val errorMsg =
@@ -138,16 +157,46 @@ class RequisitionFetcherFunction : HttpFunction {
    * Executes the requisition fetch workflow for a single data provider and aggregates telemetry.
    *
    * @param dataProviderConfig configuration for the data provider.
+   * @param dispatchConfig direct WorkItem dispatch configuration, or `null` for legacy dispatch.
    * @return a [Result] capturing success or the failure that occurred.
    */
-  private fun processDataProvider(dataProviderConfig: DataProviderRequisitionConfig): Result<Unit> =
+  private fun processDataProvider(
+    dataProviderConfig: DataProviderRequisitionConfig,
+    dispatchConfig: RequisitionWorkItemDispatchConfig?,
+  ): Result<Unit> =
     withDataProviderTelemetry(dataProviderConfig.dataProvider) {
-      validateConfig(dataProviderConfig)
-      val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
+      validateConfig(dataProviderConfig, dispatchConfig)
+      val requisitionFetcher = createRequisitionFetcher(dataProviderConfig, dispatchConfig)
       runBlocking(Context.current().asContextElement()) {
         requisitionFetcher.fetchAndStoreRequisitions()
       }
     }
+
+  private fun loadDirectDispatchConfigs(): Map<String, RequisitionWorkItemDispatchConfig> {
+    val config: RequisitionFetcherDirectDispatchConfig =
+      runBlocking {
+        getOptionalConfigAsProtoMessage(
+          directDispatchConfigBlobKey,
+          RequisitionFetcherDirectDispatchConfig.getDefaultInstance(),
+        )
+      } ?: RequisitionFetcherDirectDispatchConfig.getDefaultInstance()
+    val knownDataProviders: Set<String> =
+      requisitionFetcherConfig.configsList.mapTo(mutableSetOf()) { it.dataProvider }
+    return buildMap {
+      for (dispatchConfig in config.configsList) {
+        require(dispatchConfig.dataProvider.isNotEmpty()) {
+          "Missing 'data_provider' in direct-dispatch config."
+        }
+        require(dispatchConfig.dataProvider in knownDataProviders) {
+          "Direct-dispatch config references unknown data provider: ${dispatchConfig.dataProvider}."
+        }
+        require(dispatchConfig.dataProvider !in this) {
+          "Duplicate direct-dispatch config for data provider: ${dispatchConfig.dataProvider}."
+        }
+        put(dispatchConfig.dataProvider, dispatchConfig)
+      }
+    }
+  }
 
   private fun withDataProviderTelemetry(dataProviderName: String, block: () -> Unit): Result<Unit> =
     trace(
@@ -182,11 +231,13 @@ class RequisitionFetcherFunction : HttpFunction {
    * Creates a [RequisitionFetcher] instance for the given data provider configuration.
    *
    * @param dataProviderConfig The configuration for a single data provider.
+   * @param dispatchConfig direct WorkItem dispatch configuration, or `null` for legacy dispatch.
    * @return A fully initialized [RequisitionFetcher] ready to fetch and store requisitions for the
    *   data provider.
    */
   private fun createRequisitionFetcher(
-    dataProviderConfig: DataProviderRequisitionConfig
+    dataProviderConfig: DataProviderRequisitionConfig,
+    dispatchConfig: RequisitionWorkItemDispatchConfig?,
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
@@ -212,11 +263,10 @@ class RequisitionFetcherFunction : HttpFunction {
       MinimumIntervalThrottler(Clock.systemUTC(), kingdomEventGroupRequestInterval)
     val metadataThrottler = MinimumIntervalThrottler(Clock.systemUTC(), metadataRequestInterval)
     val workItemDispatcher =
-      if (dataProviderConfig.hasWorkItemDispatch()) {
-        val dispatchConfig = dataProviderConfig.workItemDispatch
+      if (dispatchConfig != null) {
         val target =
           requireNotNull(secureComputationControlPlaneTarget) {
-            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required when work_item_dispatch is set"
+            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required for direct dispatch"
           }
         val channel =
           createInstrumentedChannel(
@@ -250,10 +300,7 @@ class RequisitionFetcherFunction : HttpFunction {
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
-      directStoragePathPrefix =
-        dataProviderConfig.workItemDispatch.storagePathPrefix.takeIf {
-          dataProviderConfig.hasWorkItemDispatch()
-        },
+      directStoragePathPrefix = dispatchConfig?.storagePathPrefix,
       blobUriPrefix = requisitionBlobPrefix,
       requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
@@ -410,6 +457,10 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
+    private val directDispatchConfigBlobKey: String =
+      System.getenv("REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY")?.takeIf {
+        it.isNotEmpty()
+      } ?: "requisition-fetcher-direct-dispatch-config.textproto"
     private val requisitionFetcherConfig by lazy {
       runBlocking {
         getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
@@ -436,7 +487,10 @@ class RequisitionFetcherFunction : HttpFunction {
       )
     }
 
-    fun validateConfig(dataProviderConfig: DataProviderRequisitionConfig) {
+    private fun validateConfig(
+      dataProviderConfig: DataProviderRequisitionConfig,
+      dispatchConfig: RequisitionWorkItemDispatchConfig?,
+    ) {
       require(dataProviderConfig.dataProvider.isNotBlank()) { "Missing 'data_provider' in config." }
 
       require(dataProviderConfig.hasRequisitionStorage()) {
@@ -473,36 +527,35 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      if (dataProviderConfig.hasWorkItemDispatch()) {
-        val dispatch = dataProviderConfig.workItemDispatch
-        require(dispatch.storagePathPrefix.isNotBlank()) {
-          "Missing 'storage_path_prefix' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+      if (dispatchConfig != null) {
+        require(dispatchConfig.storagePathPrefix.isNotBlank()) {
+          "Missing 'storage_path_prefix' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
         }
-        require(dispatch.storagePathPrefix != dataProviderConfig.storagePathPrefix) {
-          "work_item_dispatch.storage_path_prefix must differ from the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
+        require(dispatchConfig.storagePathPrefix != dataProviderConfig.storagePathPrefix) {
+          "Direct-dispatch storage_path_prefix must differ from the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
         }
-        require(dispatch.queue.isNotBlank()) {
-          "Missing 'queue' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        require(dispatchConfig.queue.isNotBlank()) {
+          "Missing 'queue' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
         }
-        require(dispatch.hasResultsFulfillerParams()) {
-          "Missing 'results_fulfiller_params' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        require(dispatchConfig.hasResultsFulfillerParams()) {
+          "Missing 'results_fulfiller_params' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
         }
         ResultsFulfillerParamsValidator.validate(
-          dispatch.resultsFulfillerParams,
+          dispatchConfig.resultsFulfillerParams,
           dataProviderConfig.dataProvider,
         )
-        require(dispatch.hasControlPlaneConnection()) {
-          "Missing 'control_plane_connection' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        require(dispatchConfig.hasControlPlaneConnection()) {
+          "Missing 'control_plane_connection' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
         }
-        val controlPlaneTls = dispatch.controlPlaneConnection
+        val controlPlaneTls = dispatchConfig.controlPlaneConnection
         require(controlPlaneTls.certFilePath.isNotBlank()) {
-          "Missing 'cert_file_path' in work_item_dispatch.control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+          "Missing 'cert_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
         }
         require(controlPlaneTls.privateKeyFilePath.isNotBlank()) {
-          "Missing 'private_key_file_path' in work_item_dispatch.control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+          "Missing 'private_key_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
         }
         require(controlPlaneTls.certCollectionFilePath.isNotBlank()) {
-          "Missing 'cert_collection_file_path' in work_item_dispatch.control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+          "Missing 'cert_collection_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
         }
       }
     }

@@ -224,6 +224,17 @@ resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   source_md5hash = filemd5(var.requisition_fetcher_config.local_path)
 }
 
+resource "google_storage_bucket_object" "upload_requisition_fetcher_direct_dispatch_config" {
+  for_each = var.requisition_fetcher_direct_dispatch_config == null ? {} : {
+    direct_dispatch = var.requisition_fetcher_direct_dispatch_config
+  }
+
+  name           = each.value.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = each.value.local_path
+  source_md5hash = filemd5(each.value.local_path)
+}
+
 resource "google_storage_bucket_object" "upload_edps_config" {
   name   = var.edps_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
@@ -317,7 +328,11 @@ module "data_watcher_delete_cloud_function" {
 module "requisition_fetcher_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_requisition_fetcher_config,
+    google_storage_bucket_object.upload_requisition_fetcher_direct_dispatch_config,
+  ]
 
   http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
   terraform_service_account                = var.terraform_service_account

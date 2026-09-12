@@ -201,6 +201,16 @@ variable "requisition_fetcher_config" {
   })
 }
 
+variable "requisition_fetcher_direct_dispatch_config" {
+  description = "An optional object containing the local path of the requisition fetcher direct-dispatch config file and its destination path in Cloud Storage."
+  type = object({
+    local_path  = string
+    destination = string
+  })
+  nullable = true
+  default  = null
+}
+
 variable "edps_config" {
   description = "An object containing the local path of the edps config file and its destination path in Cloud Storage."
   type = object({

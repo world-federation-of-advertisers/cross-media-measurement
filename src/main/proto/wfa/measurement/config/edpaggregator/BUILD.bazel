@@ -81,7 +81,6 @@ proto_library(
     deps = [
         ":storage_params_proto",
         ":transport_layer_security_params_proto",
-        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_proto",
         "@com_google_googleapis//google/api:resource_proto",
     ],
 )
@@ -89,6 +88,22 @@ proto_library(
 kt_jvm_proto_library(
     name = "requisition_fetcher_config_kt_jvm_proto",
     deps = [":requisition_fetcher_config_proto"],
+)
+
+proto_library(
+    name = "requisition_fetcher_direct_dispatch_config_proto",
+    srcs = ["requisition_fetcher_direct_dispatch_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":transport_layer_security_params_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "requisition_fetcher_direct_dispatch_config_kt_jvm_proto",
+    deps = [":requisition_fetcher_direct_dispatch_config_proto"],
 )
 
 proto_library(
