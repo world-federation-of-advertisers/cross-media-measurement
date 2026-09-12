@@ -183,6 +183,47 @@ class BaseTeeApplicationTest {
   }
 
   @Test
+  fun `processes legacy queue message as generation one`() = runBlocking {
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        WorkItemsCoroutineStub(grpcTestServer.channel),
+        WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork(), generation = 0L),
+        consumer = consumer,
+        ackId = "legacy-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    val requestCaptor = argumentCaptor<CreateWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsServiceMock, times(1)) {
+      createWorkItemAttempt(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+    assertThat(app.messageProcessed.isCompleted).isTrue()
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    job.cancelAndJoin()
+  }
+
+  @Test
   fun `acks message when createWorkItemAttempt returns non-retriable error`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()

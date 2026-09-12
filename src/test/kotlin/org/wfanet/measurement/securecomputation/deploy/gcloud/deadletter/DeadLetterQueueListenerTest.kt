@@ -16,16 +16,21 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 
+import com.google.protobuf.Any
 import com.google.protobuf.Parser
+import com.google.rpc.ErrorInfo
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
+import io.grpc.protobuf.StatusProto
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.*
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
@@ -59,8 +64,19 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 
 class DeadLetterQueueListenerTest {
+
+  private val staleGenerationWorkItemsService =
+    object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
+      override suspend fun failWorkItem(request: FailWorkItemRequest): InternalWorkItem {
+        throw WorkItemGenerationMismatchException("work-item", 1L, 2L)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
+    }
+
+  @get:Rule val grpcTestServer = GrpcTestServerRule { addService(staleGenerationWorkItemsService) }
 
   @Test
   fun `run method verifies subscription`() = runBlocking {
@@ -504,13 +520,15 @@ class DeadLetterQueueListenerTest {
         on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
       }
 
-    // Create a mock WorkItemsStub that throws a NOT_FOUND StatusRuntimeException
-    val statusException =
-      StatusRuntimeException(Status.NOT_FOUND.withDescription("Work item not found"))
+    // Create a mock WorkItemsStub that throws a NOT_FOUND StatusException
+    val statusException = Status.NOT_FOUND.withDescription("Work item not found").asException()
 
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+          {
+            throw statusException
+          }
       }
 
     // Create the listener
@@ -565,7 +583,7 @@ class DeadLetterQueueListenerTest {
       }
 
     val statusException =
-      org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
+      statusException(
         Status.FAILED_PRECONDITION.withDescription("Work item already failed"),
         errorInfoProto,
       )
@@ -573,7 +591,10 @@ class DeadLetterQueueListenerTest {
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+          {
+            throw statusException
+          }
       }
 
     // Create the listener
@@ -603,8 +624,16 @@ class DeadLetterQueueListenerTest {
       name = workItemId
       generation = 1L
     }
+    val acknowledged = CompletableDeferred<Unit>()
     val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+      mock<QueueSubscriber.QueueMessage<WorkItem>> {
+        on { body } doReturn workItem
+        on { ack() } doAnswer
+          {
+            acknowledged.complete(Unit)
+            Unit
+          }
+      }
     val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
     val mockQueueSubscriber =
       mock<QueueSubscriber> {
@@ -618,25 +647,15 @@ class DeadLetterQueueListenerTest {
             .name
         domain = org.wfanet.measurement.securecomputation.service.internal.Errors.DOMAIN
       }
-    val statusException =
-      org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
-        Status.FAILED_PRECONDITION.withDescription("Stale WorkItem generation"),
-        errorInfoProto,
-      )
-    val mockWorkItemsStub =
-      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
-      }
+    val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServer.channel)
     val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
+      deadLetterQueueListener(queueSubscriber = mockQueueSubscriber, workItemsStub = workItemsStub)
     val job = launch { listener.run() }
 
     messageChannel.send(mockQueueMessage)
 
-    verify(mockQueueMessage, timeout(5000)).ack()
+    withTimeout(5000) { acknowledged.await() }
+    verify(mockQueueMessage).ack()
     verify(mockQueueMessage, never()).nack()
     messageChannel.close()
     job.cancel()
@@ -651,7 +670,7 @@ class DeadLetterQueueListenerTest {
         metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.SUCCEEDED.name)
       }
     val exception =
-      org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
+      statusException(
         Status.FAILED_PRECONDITION.withDescription("Work item already succeeded"),
         errorInfoProto,
       )
@@ -678,12 +697,15 @@ class DeadLetterQueueListenerTest {
       }
 
     // Create a Status with general error
-    val statusException = StatusRuntimeException(Status.INTERNAL.withDescription("Internal error"))
+    val statusException = Status.INTERNAL.withDescription("Internal error").asException()
 
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+          {
+            throw statusException
+          }
       }
 
     // Create the listener
@@ -1171,6 +1193,16 @@ class DeadLetterQueueListenerTest {
       rawImpressionUploadModelLinesStub = mock(),
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
+
+  private fun statusException(status: Status, errorInfo: ErrorInfo): StatusException {
+    val statusProto =
+      com.google.rpc.Status.newBuilder()
+        .setCode(status.code.value())
+        .setMessage(status.description.orEmpty())
+        .addDetails(Any.pack(errorInfo))
+        .build()
+    return StatusProto.toStatusException(statusProto)
+  }
 
   private fun workItemForAppParams(appParams: com.google.protobuf.Any): WorkItem = workItem {
     name = workItemId
