@@ -36,12 +36,11 @@ service WorkItems {
     option (google.api.method_signature) = "work_item,work_item_id";
   }
 
-  // Ensures that a matching `WorkItem` is durably queued.
+  // Ensures that a matching `WorkItem` exists.
   //
   // Creates the `WorkItem` and its pending publication when it does not exist.
-  // For an existing matching `QUEUED` `WorkItem`, repairs a missing pending
-  // publication. An existing matching `RUNNING` `WorkItem` is returned without
-  // being republished.
+  // An existing matching `QUEUED` or `RUNNING` `WorkItem` is returned without
+  // creating another publication.
   rpc EnsureWorkItem(EnsureWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "work_item,work_item_id";
   }

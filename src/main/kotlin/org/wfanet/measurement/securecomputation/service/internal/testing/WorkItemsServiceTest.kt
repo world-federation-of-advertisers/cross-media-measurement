@@ -215,7 +215,7 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `ensureWorkItem repairs publication for matching queued WorkItem`() = runBlocking {
+  fun `ensureWorkItem does not republish matching queued WorkItem`() = runBlocking {
     var publicationCount = 0
     val services =
       initServices(
@@ -243,7 +243,7 @@ abstract class WorkItemsServiceTest {
       )
 
     assertThat(ensured).isEqualTo(created)
-    assertThat(publicationCount).isEqualTo(2)
+    assertThat(publicationCount).isEqualTo(1)
   }
 
   @Test
