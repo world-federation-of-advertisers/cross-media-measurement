@@ -52,6 +52,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.completeWo
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
@@ -179,6 +180,159 @@ abstract class WorkItemsServiceTest {
     assertThat(createResponse).isEqualTo(workItem)
 
     deleteSubscriptionAndTopic()
+  }
+
+  @Test
+  fun `ensureWorkItem creates and publishes missing WorkItem`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val requested = workItem {
+      workItemResourceId = workItemId
+      queueResourceId = topicId
+      workItemParams = Any.pack(testWork { userName = "UserName" })
+    }
+
+    val ensured = services.service.ensureWorkItem(ensureWorkItemRequest { workItem = requested })
+
+    assertThat(ensured)
+      .ignoringFields(WorkItem.CREATE_TIME_FIELD_NUMBER, WorkItem.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        requested.copy {
+          state = WorkItem.State.QUEUED
+          generation = 1L
+        }
+      )
+    assertThat(publicationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `ensureWorkItem repairs publication for matching queued WorkItem`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created = createWorkItem(services.service)
+
+    val ensured =
+      services.service.ensureWorkItem(
+        ensureWorkItemRequest {
+          workItem =
+            created.copy {
+              clearState()
+              clearGeneration()
+              clearCreateTime()
+              clearUpdateTime()
+            }
+        }
+      )
+
+    assertThat(ensured).isEqualTo(created)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `ensureWorkItem returns matching running WorkItem without republishing`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "attempt")
+
+    val ensured =
+      services.service.ensureWorkItem(
+        ensureWorkItemRequest {
+          workItem =
+            created.copy {
+              clearState()
+              clearGeneration()
+              clearCreateTime()
+              clearUpdateTime()
+            }
+        }
+      )
+
+    assertThat(ensured.state).isEqualTo(WorkItem.State.RUNNING)
+    assertThat(publicationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `ensureWorkItem rejects conflicting immutable parameters`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItem =
+              created.copy {
+                workItemParams = Any.pack(testWork { userName = "DifferentUser" })
+                clearState()
+                clearGeneration()
+                clearCreateTime()
+                clearUpdateTime()
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.WORK_ITEM_ALREADY_EXISTS.name)
+  }
+
+  @Test
+  fun `ensureWorkItem rejects matching terminal WorkItem`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    val attempt = createWorkItemAttempt(services, created, "attempt")
+    services.workItemAttemptsService.completeWorkItemAttempt(
+      completeWorkItemAttemptRequest {
+        workItemResourceId = attempt.workItemResourceId
+        workItemAttemptResourceId = attempt.workItemAttemptResourceId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItem =
+              created.copy {
+                clearState()
+                clearGeneration()
+                clearCreateTime()
+                clearUpdateTime()
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
   }
 
   @Test
@@ -673,7 +827,7 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `stale fail does not fail replacement attempt`() = runBlocking {
+  fun `generation-less fail does not fail generation-two replacement attempt`() = runBlocking {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
     createWorkItemAttempt(services, created, "first-attempt")
@@ -692,10 +846,7 @@ abstract class WorkItemsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         services.service.failWorkItem(
-          failWorkItemRequest {
-            workItemResourceId = created.workItemResourceId
-            expectedWorkItemGeneration = created.generation
-          }
+          failWorkItemRequest { workItemResourceId = created.workItemResourceId }
         )
       }
 

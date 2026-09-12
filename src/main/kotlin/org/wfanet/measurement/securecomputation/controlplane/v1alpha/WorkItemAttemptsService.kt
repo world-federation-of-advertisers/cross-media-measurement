@@ -66,12 +66,14 @@ class WorkItemAttemptsService(
       throw InvalidFieldValueException("work_item_attempt_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.expectedWorkItemGeneration <= 0L) {
+    if (request.expectedWorkItemGeneration < 0L) {
       throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
-          "$fieldName must be positive"
+          "$fieldName must be non-negative"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val expectedGeneration =
+      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
 
     val parentKey =
       WorkItemKey.fromName(request.parent)
@@ -82,7 +84,7 @@ class WorkItemAttemptsService(
       try {
         internalWorkItemAttemptsStub.createWorkItemAttempt(
           internalCreateWorkItemAttemptRequest {
-            expectedWorkItemGeneration = request.expectedWorkItemGeneration
+            expectedWorkItemGeneration = expectedGeneration
             this.workItemAttempt = internalWorkItemAttempt {
               workItemResourceId = parentKey.workItemId
               workItemAttemptResourceId = request.workItemAttemptId
@@ -292,5 +294,6 @@ class WorkItemAttemptsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private const val INITIAL_GENERATION = 1L
   }
 }

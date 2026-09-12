@@ -44,6 +44,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem a
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest as internalEnsureWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest as internalFailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest as internalGetWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken as internalListWorkItemsPageToken
@@ -110,6 +111,40 @@ class WorkItemServiceTest {
       )
       .isEqualTo(request.workItem)
     assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
+  }
+
+  @Test
+  fun `ensureWorkItem returns matching durable WorkItem`() = runBlocking {
+    val internalWorkItem = internalWorkItem {
+      workItemResourceId = "work-item"
+      queueResourceId = "queue-id"
+      state = InternalWorkItem.State.QUEUED
+      generation = 1L
+    }
+    internalServiceMock.stub { onBlocking { ensureWorkItem(any()) } doReturn internalWorkItem }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val response = service.ensureWorkItem(request)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::ensureWorkItem,
+      )
+      .isEqualTo(
+        internalEnsureWorkItemRequest {
+          workItem = internalWorkItem {
+            workItemResourceId = "work-item"
+            queueResourceId = "queue-id"
+            workItemParams = Any.getDefaultInstance()
+          }
+        }
+      )
+    assertThat(response.name).isEqualTo("workItems/work-item")
+    assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(response.generation).isEqualTo(1L)
   }
 
   @Test
@@ -370,19 +405,24 @@ class WorkItemServiceTest {
   }
 
   @Test
-  fun `failWorkItem throws REQUIRED_FIELD_NOT_SET when generation is not set`() = runBlocking {
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        service.failWorkItem(failWorkItemRequest { name = "workItems/work-item" })
-      }
+  fun `failWorkItem defaults missing expected generation to one`() = runBlocking {
+    val internalWorkItem = internalWorkItem {
+      workItemResourceId = "work-item"
+      state = InternalWorkItem.State.FAILED
+      generation = 1L
+    }
+    internalServiceMock.stub { onBlocking { failWorkItem(any()) } doReturn internalWorkItem }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
+    service.failWorkItem(failWorkItemRequest { name = "workItems/work-item" })
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemsGrpcKt.WorkItemsCoroutineImplBase::failWorkItem,
+      )
       .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
+        internalFailWorkItemRequest {
+          workItemResourceId = "work-item"
+          expectedWorkItemGeneration = 1L
         }
       )
   }
