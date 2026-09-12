@@ -31,7 +31,7 @@ interface RequisitionWorkItemDispatcher {
   /** Returns the deterministic WorkItem resource name for [groupId]. */
   fun workItemName(groupId: String): String
 
-  /** Creates the WorkItem that will process [blobUri]. */
+  /** Ensures the WorkItem that will process [blobUri]. */
   suspend fun dispatch(groupId: String, blobUri: String)
 }
 
