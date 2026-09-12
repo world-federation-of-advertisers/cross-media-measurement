@@ -33,11 +33,13 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
@@ -184,6 +186,12 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(exception.errorInfo?.reason)
       .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+    val afterStaleDelivery =
+      services.workItemsService.getWorkItem(
+        getWorkItemRequest { workItemResourceId = replacement.workItemResourceId }
+      )
+    assertThat(afterStaleDelivery.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(afterStaleDelivery.generation).isEqualTo(replacement.generation)
     val currentAttempt =
       services.service.createWorkItemAttempt(
         createWorkItemAttemptRequest {
