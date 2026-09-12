@@ -162,11 +162,7 @@ class SpannerWorkItemsService(
             throw WorkItemAlreadyExistsException()
           }
           when (existing.workItem.state) {
-            WorkItem.State.QUEUED -> {
-              if (!txn.workItemPublicationExists(existing.workItemId)) {
-                txn.insertWorkItemPublication(existing.workItemId)
-              }
-            }
+            WorkItem.State.QUEUED -> Unit
             WorkItem.State.RUNNING -> Unit
             WorkItem.State.FAILED,
             WorkItem.State.SUCCEEDED,
