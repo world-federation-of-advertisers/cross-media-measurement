@@ -54,6 +54,7 @@ import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 
 @RunWith(JUnit4::class)
@@ -89,6 +90,7 @@ class WorkItemAttemptsServiceTest {
           "workItems/${internalWorkItemAttempt.workItemResourceId}/workItemAttempts/${internalWorkItemAttempt.workItemAttemptResourceId}"
       }
       workItemAttemptId = "workItemAttempt"
+      expectedWorkItemGeneration = 1L
     }
     val response = service.createWorkItemAttempt(request)
 
@@ -98,6 +100,7 @@ class WorkItemAttemptsServiceTest {
       )
       .isEqualTo(
         internalCreateWorkItemAttemptRequest {
+          expectedWorkItemGeneration = request.expectedWorkItemGeneration
           this.workItemAttempt = internalWorkItemAttempt {
             workItemResourceId = internalWorkItemAttempt.workItemResourceId
             workItemAttemptResourceId = request.workItemAttemptId
@@ -160,6 +163,30 @@ class WorkItemAttemptsServiceTest {
     }
 
   @Test
+  fun `createWorkItemAttempt throws INVALID_FIELD_VALUE when expected generation is missing`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createWorkItemAttempt(
+            createWorkItemAttemptRequest {
+              parent = "workItems/workItem"
+              workItemAttemptId = "workItemAttempt"
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
+          }
+        )
+    }
+
+  @Test
   fun `createWorkItemAttempt throws INVALID_FIELD_VALUE when workItemAttemptId is malformed`() =
     runBlocking {
       val exception =
@@ -199,6 +226,7 @@ class WorkItemAttemptsServiceTest {
         name = "workItems/workItem/workItemAttempts/workItemAttempt"
       }
       workItemAttemptId = "workItem"
+      expectedWorkItemGeneration = 1L
     }
 
     val exception =
@@ -230,6 +258,7 @@ class WorkItemAttemptsServiceTest {
         name = "workItems/workItem/workItemAttempts/workItemAttempt"
       }
       workItemAttemptId = "workItem"
+      expectedWorkItemGeneration = 1L
     }
 
     val exception =
@@ -243,6 +272,36 @@ class WorkItemAttemptsServiceTest {
           reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
           metadata[Errors.Metadata.WORK_ITEM.key] = "workItems/workItem"
           metadata[Errors.Metadata.WORK_ITEM_STATE.key] = "SUCCEEDED"
+        }
+      )
+  }
+
+  @Test
+  fun `createWorkItemAttempt throws WORK_ITEM_GENERATION_MISMATCH from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doThrow
+        WorkItemGenerationMismatchException("workItem", 1L, 2L)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    val request = createWorkItemAttemptRequest {
+      parent = "workItems/workItem"
+      workItemAttemptId = "workItem"
+      expectedWorkItemGeneration = 1L
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createWorkItemAttempt(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name
+          metadata[Errors.Metadata.WORK_ITEM.key] = "workItems/workItem"
+          metadata[Errors.Metadata.EXPECTED_WORK_ITEM_GENERATION.key] = "1"
+          metadata[Errors.Metadata.ACTUAL_WORK_ITEM_GENERATION.key] = "2"
         }
       )
   }

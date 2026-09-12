@@ -365,6 +365,7 @@ abstract class WorkItemsServiceTest {
 
     val createResponse: WorkItem = services.service.createWorkItem(request)
     val workItemAttemptRequest = createWorkItemAttemptRequest {
+      expectedWorkItemGeneration = createResponse.generation
       workItemAttempt = workItemAttempt {
         workItemResourceId = createResponse.workItemResourceId
         workItemAttemptResourceId = "work_item_attempt_resource_id"
@@ -392,6 +393,24 @@ abstract class WorkItemsServiceTest {
         }
       )
       .isTrue()
+  }
+
+  @Test
+  fun `failWorkItem is idempotent for the same generation`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "attempt")
+    val request = failWorkItemRequest {
+      workItemResourceId = created.workItemResourceId
+      expectedWorkItemGeneration = created.generation
+    }
+
+    val firstResponse = services.service.failWorkItem(request)
+    val secondResponse = services.service.failWorkItem(request)
+
+    assertThat(firstResponse.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(secondResponse.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(secondResponse.generation).isEqualTo(created.generation)
   }
 
   @Test
@@ -439,6 +458,7 @@ abstract class WorkItemsServiceTest {
     val attempt =
       services.workItemAttemptsService.createWorkItemAttempt(
         createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = created.generation
           workItemAttempt = workItemAttempt {
             workItemResourceId = created.workItemResourceId
             workItemAttemptResourceId = "attempt"
@@ -531,6 +551,7 @@ abstract class WorkItemsServiceTest {
     val abandonedAttempt =
       services.workItemAttemptsService.createWorkItemAttempt(
         createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = created.generation
           workItemAttempt = workItemAttempt {
             workItemResourceId = created.workItemResourceId
             workItemAttemptResourceId = "abandoned-attempt"
@@ -559,6 +580,7 @@ abstract class WorkItemsServiceTest {
     val replacementAttempt =
       services.workItemAttemptsService.createWorkItemAttempt(
         createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = retried.generation
           workItemAttempt = workItemAttempt {
             workItemResourceId = created.workItemResourceId
             workItemAttemptResourceId = "replacement-attempt"
@@ -599,6 +621,7 @@ abstract class WorkItemsServiceTest {
     val abandonedAttempt =
       services.workItemAttemptsService.createWorkItemAttempt(
         createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = created.generation
           workItemAttempt = workItemAttempt {
             workItemResourceId = created.workItemResourceId
             workItemAttemptResourceId = "abandoned-attempt"
@@ -611,12 +634,14 @@ abstract class WorkItemsServiceTest {
         workItemAttemptResourceId = abandonedAttempt.workItemAttemptResourceId
       }
     )
-    services.service.retryWorkItem(
-      retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
-    )
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
     val replacementAttempt =
       services.workItemAttemptsService.createWorkItemAttempt(
         createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = retried.generation
           workItemAttempt = workItemAttempt {
             workItemResourceId = created.workItemResourceId
             workItemAttemptResourceId = "replacement-attempt"
@@ -879,6 +904,7 @@ abstract class WorkItemsServiceTest {
   ): WorkItemAttempt {
     return services.workItemAttemptsService.createWorkItemAttempt(
       createWorkItemAttemptRequest {
+        expectedWorkItemGeneration = workItem.generation
         workItemAttempt = workItemAttempt {
           workItemResourceId = workItem.workItemResourceId
           workItemAttemptResourceId = resourceId

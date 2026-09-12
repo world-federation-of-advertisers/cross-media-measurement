@@ -86,6 +86,7 @@ abstract class WorkItemAttemptsServiceTest {
     val services = initServices()
     val workItem = createWorkItem(services.workItemsService)
     val request = createWorkItemAttemptRequest {
+      expectedWorkItemGeneration = workItem.generation
       workItemAttempt = workItemAttempt {
         workItemResourceId = workItem.workItemResourceId
         workItemAttemptResourceId = "work_item_attempt_resource_id"
@@ -129,6 +130,7 @@ abstract class WorkItemAttemptsServiceTest {
       assertFailsWith<StatusRuntimeException> {
         services.service.createWorkItemAttempt(
           createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
             workItemAttempt = workItemAttempt {
               workItemResourceId = workItem.workItemResourceId
               workItemAttemptResourceId = "duplicate-active-attempt"
@@ -158,6 +160,7 @@ abstract class WorkItemAttemptsServiceTest {
     val retryAttempt =
       services.service.createWorkItemAttempt(
         createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
           workItemAttempt = workItemAttempt {
             workItemResourceId = workItem.workItemResourceId
             workItemAttemptResourceId = "retry-attempt"
@@ -185,6 +188,31 @@ abstract class WorkItemAttemptsServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
+          }
+        )
+    }
+
+  @Test
+  fun `createWorkItemAttempt throws INVALID_ARGUMENT if expected generation is missing`() =
+    runBlocking {
+      val services = initServices()
+      val request = createWorkItemAttemptRequest {
+        workItemAttempt = workItemAttempt {
+          workItemResourceId = "work-item"
+          workItemAttemptResourceId = "work-item-attempt"
+        }
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> { services.service.createWorkItemAttempt(request) }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.INVALID_FIELD_VALUE.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
           }
         )
     }
@@ -647,6 +675,7 @@ abstract class WorkItemAttemptsServiceTest {
       val created =
         service.createWorkItemAttempt(
           createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = 1L
             workItemAttempt = workItemAttempt {
               this.workItemResourceId = workItemResourceId
               this.workItemAttemptResourceId = workItemAttemptResourceId

@@ -141,7 +141,11 @@ abstract class BaseTeeApplication(
       try {
         val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
         logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
-        createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
+        createWorkItemAttempt(
+          parent = workItemName,
+          workItemAttemptId = workItemAttemptId,
+          expectedWorkItemGeneration = body.generation.takeUnless { it == 0L } ?: 1L,
+        )
       } catch (e: ControlPlaneApiException) {
         // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid
         // state,
@@ -151,6 +155,7 @@ abstract class BaseTeeApplication(
           val reason = cause.errorInfo?.reason
           if (
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name ||
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {
             logger.log(Level.WARNING, e) {
@@ -242,6 +247,7 @@ abstract class BaseTeeApplication(
   private suspend fun createWorkItemAttempt(
     parent: String,
     workItemAttemptId: String,
+    expectedWorkItemGeneration: Long,
   ): WorkItemAttempt {
     try {
       return callControlPlane {
@@ -249,6 +255,7 @@ abstract class BaseTeeApplication(
           createWorkItemAttemptRequest {
             this.parent = parent
             this.workItemAttemptId = workItemAttemptId
+            this.expectedWorkItemGeneration = expectedWorkItemGeneration
           }
         )
       }
