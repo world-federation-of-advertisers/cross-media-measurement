@@ -210,6 +210,7 @@ kt_jvm_library(
     ],
     data = [
         "//src/main/k8s/testing/secretfiles:edp_aggregator_root.pem",
+        "//src/main/k8s/testing/secretfiles:pdp1_tls_srcs",
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
     ],
     deps = [
