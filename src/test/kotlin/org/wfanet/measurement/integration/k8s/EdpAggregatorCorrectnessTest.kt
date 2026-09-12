@@ -64,6 +64,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -106,23 +107,47 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       val eventGroupReferenceIds: Set<String>,
     )
 
+    /**
+     * Per-EDP event group blobs. The QA 2026 reference IDs are unioned into each EDP's existing set
+     * so both datasets ride the same blob: `EventGroupSync` upserts by (reference ID,
+     * MeasurementConsumer), so adding IDs registers the new groups and leaves the 2021 ones
+     * untouched. EDPs that appear only in the QA 2026 config get their own entry.
+     */
     private val edpStorageList: List<EdpStorage> =
-      listOf(
-        EdpStorage(
-          objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
-          objectKey = "edp7/event-groups/edp7-event-group.binpb",
-          blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
-          eventGroupReferenceIds =
-            setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
-              MULTI_CREATIVE_REF_IDS,
-        ),
-        EdpStorage(
-          objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
-          objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
-          blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
-          eventGroupReferenceIds = setOf(EDPA_META_EVENT_GROUP_REF_ID),
-        ),
-      )
+      buildList {
+        add(
+          EdpStorage(
+            objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
+            objectKey = "edp7/event-groups/edp7-event-group.binpb",
+            blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
+            eventGroupReferenceIds =
+              setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
+                MULTI_CREATIVE_REF_IDS +
+                qa2026EventGroupRefIdsByEdp["edp7"].orEmpty(),
+          )
+        )
+        add(
+          EdpStorage(
+            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
+            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
+            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
+            eventGroupReferenceIds =
+              setOf(EDPA_META_EVENT_GROUP_REF_ID) +
+                qa2026EventGroupRefIdsByEdp["edpa_meta"].orEmpty(),
+          )
+        )
+        for ((edpName, refIds) in qa2026EventGroupRefIdsByEdp) {
+          if (edpName == "edp7" || edpName == "edpa_meta") continue
+          add(
+            EdpStorage(
+              objectMapKey = "$edpName/event-groups-map/$edpName-event-group.binpb",
+              objectKey = "$edpName/event-groups/$edpName-event-group.binpb",
+              blobUri = "gs://$bucket/$edpName/event-groups/$edpName-event-group.binpb",
+              eventGroupReferenceIds = refIds,
+            )
+          )
+        }
+      }
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -177,8 +202,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         .writeBlob(storage.objectKey, eventGroups.asFlow().map { it.toByteString() })
     }
 
-    private fun createEventGroups(): List<EventGroup> {
-      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, config) ->
+    private fun createEventGroups(): List<EventGroup> =
+      buildEventGroups(syntheticEventGroupMap) + buildEventGroups(qa2026EventGroupMap)
+
+    private fun buildEventGroups(
+      eventGroupMap: Map<String, EventGroupConfig>
+    ): List<EventGroup> {
+      return eventGroupMap.flatMap { (eventGroupReferenceId, config) ->
         when (config) {
           is EventGroupConfig.LegacySpec ->
             buildEventGroupsFromSpec(
@@ -296,7 +326,27 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             "non-memoized model line must be a full ModelLine resource name: $modelLine"
           }
           .modelLineId
-      buildPaths(modelLineId).forEach { path ->
+      writeDoneBlobs(buildPaths(modelLineId))
+
+      // QA 2026 markers, under the 2026 model line. Additive: a distinct model line is a distinct
+      // folder, so these neither replace nor disturb the markers above. No-op when unconfigured.
+      val qa2026ModelLine = WriteQa2026ImpressionsRule.MODEL_LINE
+      if (qa2026ModelLine.isEmpty()) {
+        logger.info("No QA 2026 model line configured; skipping QA 2026 DONE blobs.")
+      } else {
+        val qa2026ModelLineId =
+          requireNotNull(ModelLineKey.fromName(qa2026ModelLine)) {
+              "QA2026_MODEL_LINE must be a full ModelLine resource name: $qa2026ModelLine"
+            }
+            .modelLineId
+        val paths = buildQa2026Paths(qa2026ModelLineId)
+        logger.info("Creating ${paths.size} QA 2026 DONE blob(s)...")
+        writeDoneBlobs(paths)
+      }
+    }
+
+    private suspend fun writeDoneBlobs(paths: List<String>) {
+      paths.forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
           SelectedStorageClient(
@@ -304,14 +354,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             rootDirectory = null,
             projectId = googleProjectId,
           )
-        logger.info("Reading DONE blob...")
         val blob = selectedStorageClient.getBlob(doneBlobUri.key)
 
         if (blob != null) {
           blob.delete()
         }
 
-        logger.info("Creating a new DONE blob at path: $path...")
         selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
       }
     }
@@ -335,6 +383,21 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // data-watcher `data-availability` regex.
       private const val EDP7_IMPRESSION_PATH = "edp/edp7"
       private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
+
+      /**
+       * `done` markers for the QA 2026 dataset, one per (EDP impression path, date), under the
+       * 2026 model line. Dates are derived from the provisioned specs rather than hardcoded, so
+       * they cannot drift from the data. No QA 2026 date is pipelined, so every date gets a
+       * test-dropped marker.
+       */
+      fun buildQa2026Paths(modelLineId: String): List<String> {
+        return qa2026DatesByImpressionPath.flatMap { (impressionPath, dates) ->
+          dates.sorted().map { date ->
+            val ds = date.format(DATE_FORMATTER)
+            "gs://$bucket/$impressionPath/model-line/$modelLineId/$ds/done"
+          }
+        }
+      }
 
       fun buildPaths(modelLineId: String): List<String> {
         return generateSequence(START_DATE) { it.plusDays(1) }
@@ -539,6 +602,110 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       )
     }
 
+    /**
+     * The QA 2026 dataset config, loaded and seeded **alongside** [IMPRESSION_TEST_DATA_CONFIG],
+     * never in place of it. The two datasets use different model lines, date windows, event group
+     * reference IDs and population specs, so they coexist and the 2021 fixture's assertions are
+     * unaffected. See `docs/edpaggregator/qa-synthetic-data-shape.md`.
+     */
+    private val QA2026_IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath("qa2026_impression_test_data_config.textproto"),
+        ImpressionTestDataConfig.getDefaultInstance(),
+      )
+    }
+
+    private val qa2026PopulationSpec: PopulationSpec by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath(
+          QA2026_IMPRESSION_TEST_DATA_CONFIG.populationSpecResourcePath
+        ),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
+      )
+    }
+
+    /**
+     * Aggregator EDPs this environment has provisioned for the QA 2026 dataset, from the
+     * `QA2026_EDPS` env var (comma-separated). The config declares all four; the two added by
+     * #4210 are only usable once registered, so this defaults to the two that already exist.
+     */
+    private val QA2026_EDP_NAMES: Set<String> =
+      System.getenv("QA2026_EDPS")
+        .orEmpty()
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toSet()
+        .ifEmpty { setOf("edp7", "edpa_meta") }
+
+    /**
+     * QA 2026 config restricted to the provisioned EDPs, and empty when no 2026 model line is
+     * configured for this environment. Empty means every QA 2026 rule below no-ops, so dev and head
+     * are unaffected until their `QA2026_MODEL_LINE` is set.
+     */
+    private val QA2026_PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {
+      if (WriteQa2026ImpressionsRule.MODEL_LINE.isEmpty()) {
+        ImpressionTestDataConfig.getDefaultInstance()
+      } else {
+        val provisioned =
+          QA2026_IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.filter {
+            it.edpName in QA2026_EDP_NAMES
+          }
+        QA2026_IMPRESSION_TEST_DATA_CONFIG.toBuilder()
+          .clearEventGroups()
+          .addAllEventGroups(provisioned)
+          .build()
+      }
+    }
+
+    /** QA 2026 event groups keyed by reference ID, empty when the dataset is not configured. */
+    val qa2026EventGroupMap: Map<String, EventGroupConfig> by lazy {
+      ImpressionTestDataConfigs.toEventGroupMap(QA2026_PROVISIONED_CONFIG)
+    }
+
+    /**
+     * QA 2026 event group reference IDs by EDP, using the same `"${entityType}-${entityId}"`
+     * derivation [UploadEventGroup] registers them under.
+     */
+    val qa2026EventGroupRefIdsByEdp: Map<String, Set<String>> by lazy {
+      QA2026_PROVISIONED_CONFIG.eventGroupsList
+        .groupBy { it.edpName }
+        .mapValues { (_, eventGroups) ->
+          eventGroups
+            .flatMap { eventGroup ->
+              eventGroup.entityKeySpecsList.map { "${it.entityType}-${it.entityId}" }
+            }
+            .toSet()
+        }
+    }
+
+    /**
+     * Every date covered by the provisioned QA 2026 specs, keyed by the EDP's `output_base_path`.
+     * Derived from the specs so the `done` markers cannot drift from the impressions they register.
+     */
+    val qa2026DatesByImpressionPath: Map<String, Set<LocalDate>> by lazy {
+      val datesByPath = mutableMapOf<String, MutableSet<LocalDate>>()
+      for (eventGroup in QA2026_PROVISIONED_CONFIG.eventGroupsList) {
+        val dates = datesByPath.getOrPut(eventGroup.outputBasePath) { mutableSetOf() }
+        for (entityKeySpec in eventGroup.entityKeySpecsList) {
+          val spec =
+            ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
+              entityKeySpec.dataSpecResourcePath
+            )
+          for (dateSpec in spec.dateSpecsList) {
+            var date = dateSpec.dateRange.start.toLocalDate()
+            val endExclusive = dateSpec.dateRange.endExclusive.toLocalDate()
+            while (date.isBefore(endExclusive)) {
+              dates.add(date)
+              date = date.plusDays(1)
+            }
+          }
+        }
+      }
+      datesByPath
+    }
+
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
       ImpressionTestDataConfigs.toEventGroupMap(IMPRESSION_TEST_DATA_CONFIG)
 
@@ -602,6 +769,17 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         modelLineProvider = { provisionModelResources.nonMemoizedModelLine },
         vidLabelerProvider = { nonMemoizedVidLabeler },
       )
+    // Writes the QA 2026 dataset as pre-labeled impressions under its own model line. Additive:
+    // it neither reads nor touches the 2021 fixture, and no-ops unless QA2026_MODEL_LINE is set.
+    // VIDs come straight from the specs, so the deployed VID model is never consulted and the
+    // labeling pipeline is never triggered for these dates.
+    private val writeQa2026Impressions =
+      WriteQa2026ImpressionsRule(
+        configProvider = { QA2026_PROVISIONED_CONFIG },
+        populationSpecProvider = { qa2026PopulationSpec },
+        bucket = TEST_CONFIG.storageBucket,
+        modelLineProvider = { WriteQa2026ImpressionsRule.MODEL_LINE.ifEmpty { null } },
+      )
     private val createDoneBlobs = CreateDoneBlobs()
     private val measurementSystem = RunningMeasurementSystem()
 
@@ -614,6 +792,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         seedRawImpressions,
         awaitVidLabeling,
         writeReusedLabeledImpressions,
+        writeQa2026Impressions,
         createDoneBlobs,
         measurementSystem,
       )

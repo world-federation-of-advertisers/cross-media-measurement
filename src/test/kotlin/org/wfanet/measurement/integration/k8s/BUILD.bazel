@@ -204,6 +204,7 @@ kt_jvm_library(
         "NonMemoizedVidLabeler.kt",
         "SeedRawImpressionsRule.kt",
         "VidLabelerModelResourcesRule.kt",
+        "WriteQa2026ImpressionsRule.kt",
         "WriteReusedLabeledImpressionsRule.kt",
     ],
     data = [
