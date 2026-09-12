@@ -217,13 +217,42 @@ def generate_population_spec():
 def generate_segment_spec(name, vid_start, vid_count, flight):
     """One SyntheticEventGroupSpec.
 
-    The VID range is split into TRANCHES blocks whose date ranges start
-    progressively later but all run to the end of the flight, so cumulative reach
-    grows week over week rather than saturating on day one. Each tranche is split
-    by media type (VIDEO / DISPLAY) and then by frequency.
+    Every vid_range_spec is exactly one population stripe. SyntheticDataGeneration
+    resolves the demographic attributes of a range by finding the single
+    subpopulation that wholly contains it, so a range spanning two stripes fails
+    with "Sub-population not found". Segment boundaries are multiples of
+    STRIPE_SIZE, so stripes tile each segment exactly.
+
+    Stripes are assigned round-robin to (tranche, frequency, media): tranches stagger
+    first exposure across the flight so cumulative reach grows week over week, the
+    frequency mix gives a non-flat monotonic K+ curve, and alternating media means
+    every segment emits both VIDEO and DISPLAY.
     """
     flight_start, flight_end = flight
     flight_days = (flight_end - flight_start).days
+
+    stripes = []
+    cursor = vid_start
+    while cursor < vid_start + vid_count:
+        end = min(cursor + STRIPE_SIZE, vid_start + vid_count)
+        # Clamp to the enclosing stripe boundary so a range never straddles two.
+        boundary = ((cursor - 1) // STRIPE_SIZE + 1) * STRIPE_SIZE + 1
+        stripes.append((cursor, min(end, boundary)))
+        cursor = stripes[-1][1]
+
+    tranche_count = min(TRANCHES, len(stripes))
+    # Expand the frequency mix into a repeating pattern of the right proportions.
+    pattern = []
+    for frequency, share in FREQUENCY_MIX:
+        pattern.extend([frequency] * max(1, round(share * 10)))
+
+    # (tranche, frequency) -> list of (start, end_exclusive, media)
+    blocks = {}
+    for i, (lo, hi) in enumerate(stripes):
+        tranche = (i * tranche_count) // len(stripes)
+        frequency = pattern[i % len(pattern)]
+        media = "video" if i % 2 == 0 else "display"
+        blocks.setdefault((tranche, frequency), []).append((lo, hi, media))
 
     out = [LICENSE, GENERATED_BY]
     out.append(
@@ -237,15 +266,13 @@ def generate_segment_spec(name, vid_start, vid_count, flight):
     )
 
     impressions = 0
-    tranche_size = vid_count // TRANCHES
-    cursor = vid_start
-    for t in range(TRANCHES):
-        # Last tranche absorbs the rounding remainder.
-        size = tranche_size if t < TRANCHES - 1 else vid_start + vid_count - cursor
+    for tranche in range(tranche_count):
         start_date = flight_start + datetime.timedelta(
-            days=(flight_days * t) // TRANCHES
+            days=(flight_days * tranche) // tranche_count
         )
-
+        frequencies = sorted(f for (t, f) in blocks if t == tranche)
+        if not frequencies:
+            continue
         out.append(
             "\ndate_specs {\n"
             "  date_range {\n"
@@ -257,74 +284,48 @@ def generate_segment_spec(name, vid_start, vid_count, flight):
             + "    }\n"
             "  }\n"
         )
-
-        # Blocks: frequency x media type. Media alternates so every segment (and so
-        # every EDP) emits both VIDEO and DISPLAY, making cross-media dedup real.
-        block_cursor = cursor
-        remaining = size
-        for f_idx, (frequency, share) in enumerate(FREQUENCY_MIX):
-            is_last_freq = f_idx == len(FREQUENCY_MIX) - 1
-            freq_size = remaining if is_last_freq else int(size * share)
-            if freq_size <= 0:
-                continue
-            remaining -= freq_size
-
-            video_size = freq_size // 2
-            display_size = freq_size - video_size
-
+        for frequency in frequencies:
             out.append(f"  frequency_specs {{\n    frequency: {frequency}\n")
-
-            if video_size > 0:
-                completed = COMPLETED_FRACTIONS[(t + f_idx) % len(COMPLETED_FRACTIONS)]
-                viewable = VIEWABLE_FRACTIONS[(t + f_idx) % len(VIEWABLE_FRACTIONS)]
+            for n, (lo, hi, media) in enumerate(blocks[(tranche, frequency)]):
                 out.append(
                     f"    vid_range_specs {{\n"
                     f"      vid_range {{\n"
-                    f"        start: {block_cursor}\n"
-                    f"        end_exclusive: {block_cursor + video_size}\n"
+                    f"        start: {lo}\n"
+                    f"        end_exclusive: {hi}\n"
                     f"      }}\n"
-                    f"      non_population_field_values {{\n"
-                    f'        key: "video.completed_fraction"\n'
-                    f"        value {{\n"
-                    f"          float_value: {completed}\n"
-                    f"        }}\n"
-                    f"      }}\n"
-                    f"      non_population_field_values {{\n"
-                    f'        key: "video.viewable_fraction"\n'
-                    f"        value {{\n"
-                    f"          float_value: {viewable}\n"
-                    f"        }}\n"
-                    f"      }}\n"
-                    f"    }}\n"
                 )
-                impressions += video_size * frequency
-                block_cursor += video_size
-
-            if display_size > 0:
-                viewable = VIEWABLE_FRACTIONS[(t + f_idx + 1) % len(VIEWABLE_FRACTIONS)]
-                out.append(
-                    f"    vid_range_specs {{\n"
-                    f"      vid_range {{\n"
-                    f"        start: {block_cursor}\n"
-                    f"        end_exclusive: {block_cursor + display_size}\n"
-                    f"      }}\n"
-                    f"      non_population_field_values {{\n"
-                    f'        key: "display.viewable_fraction"\n'
-                    f"        value {{\n"
-                    f"          float_value: {viewable}\n"
-                    f"        }}\n"
-                    f"      }}\n"
-                    f"    }}\n"
-                )
-                impressions += display_size * frequency
-                block_cursor += display_size
-
+                if media == "video":
+                    completed = COMPLETED_FRACTIONS[n % len(COMPLETED_FRACTIONS)]
+                    viewable = VIEWABLE_FRACTIONS[n % len(VIEWABLE_FRACTIONS)]
+                    out.append(
+                        f"      non_population_field_values {{\n"
+                        f'        key: "video.completed_fraction"\n'
+                        f"        value {{\n"
+                        f"          float_value: {completed}\n"
+                        f"        }}\n"
+                        f"      }}\n"
+                        f"      non_population_field_values {{\n"
+                        f'        key: "video.viewable_fraction"\n'
+                        f"        value {{\n"
+                        f"          float_value: {viewable}\n"
+                        f"        }}\n"
+                        f"      }}\n"
+                    )
+                else:
+                    viewable = VIEWABLE_FRACTIONS[(n + 1) % len(VIEWABLE_FRACTIONS)]
+                    out.append(
+                        f"      non_population_field_values {{\n"
+                        f'        key: "display.viewable_fraction"\n'
+                        f"        value {{\n"
+                        f"          float_value: {viewable}\n"
+                        f"        }}\n"
+                        f"      }}\n"
+                    )
+                out.append("    }\n")
+                impressions += (hi - lo) * frequency
             out.append("  }\n")
-
         out.append("}\n")
-        cursor += size
 
-    assert cursor == vid_start + vid_count, (name, cursor, vid_start + vid_count)
     return "".join(out), impressions
 
 

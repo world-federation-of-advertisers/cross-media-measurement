@@ -38,7 +38,7 @@ date_specs {
     vid_range_specs {
       vid_range {
         start: 5800001
-        end_exclusive: 5826667
+        end_exclusive: 5810001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -55,8 +55,38 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 5826667
-        end_exclusive: 5853334
+        start: 5810001
+        end_exclusive: 5820001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5820001
+        end_exclusive: 5830001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5830001
+        end_exclusive: 5840001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
@@ -65,13 +95,136 @@ date_specs {
         }
       }
     }
+    vid_range_specs {
+      vid_range {
+        start: 5900001
+        end_exclusive: 5910001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5910001
+        end_exclusive: 5920001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5920001
+        end_exclusive: 5930001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5930001
+        end_exclusive: 5940001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
   }
   frequency_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 5853334
-        end_exclusive: 5873333
+        start: 5840001
+        end_exclusive: 5850001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5850001
+        end_exclusive: 5860001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5860001
+        end_exclusive: 5870001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 5870001
+        end_exclusive: 5880001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5880001
+        end_exclusive: 5890001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -86,76 +239,13 @@ date_specs {
         }
       }
     }
-    vid_range_specs {
-      vid_range {
-        start: 5873333
-        end_exclusive: 5893333
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 3
-    vid_range_specs {
-      vid_range {
-        start: 5893333
-        end_exclusive: 5906666
-      }
-      non_population_field_values {
-        key: "video.completed_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 5906666
-        end_exclusive: 5919999
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 0.0
-        }
-      }
-    }
   }
   frequency_specs {
     frequency: 5
     vid_range_specs {
       vid_range {
-        start: 5919999
-        end_exclusive: 5926666
-      }
-      non_population_field_values {
-        key: "video.completed_fraction"
-        value {
-          float_value: 0.75
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 0.0
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 5926666
-        end_exclusive: 5933334
+        start: 5890001
+        end_exclusive: 5900001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
@@ -184,31 +274,61 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 5933334
-        end_exclusive: 5960000
+        start: 6000001
+        end_exclusive: 6010001
       }
       non_population_field_values {
         key: "video.completed_fraction"
         value {
-          float_value: 0.25
+          float_value: 0.0
         }
       }
       non_population_field_values {
         key: "video.viewable_fraction"
         value {
-          float_value: 0.5
+          float_value: 0.0
         }
       }
     }
     vid_range_specs {
       vid_range {
-        start: 5960000
-        end_exclusive: 5986667
+        start: 6010001
+        end_exclusive: 6020001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
           float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6020001
+        end_exclusive: 6030001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6030001
+        end_exclusive: 6040001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
         }
       }
     }
@@ -217,8 +337,38 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 5986667
-        end_exclusive: 6006666
+        start: 5940001
+        end_exclusive: 5950001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5950001
+        end_exclusive: 5960001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5960001
+        end_exclusive: 5970001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -235,23 +385,8 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 6006666
-        end_exclusive: 6026666
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 0.0
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 3
-    vid_range_specs {
-      vid_range {
-        start: 6026666
-        end_exclusive: 6039999
+        start: 6040001
+        end_exclusive: 6050001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -268,11 +403,62 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 6039999
-        end_exclusive: 6053332
+        start: 6050001
+        end_exclusive: 6060001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6060001
+        end_exclusive: 6070001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 5970001
+        end_exclusive: 5980001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 5980001
+        end_exclusive: 5990001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
         value {
           float_value: 0.5
         }
@@ -283,31 +469,13 @@ date_specs {
     frequency: 5
     vid_range_specs {
       vid_range {
-        start: 6053332
-        end_exclusive: 6059999
-      }
-      non_population_field_values {
-        key: "video.completed_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 6059999
-        end_exclusive: 6066667
+        start: 5990001
+        end_exclusive: 6000001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
-          float_value: 1.0
+          float_value: 0.5
         }
       }
     }
@@ -331,8 +499,38 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 6066667
-        end_exclusive: 6093333
+        start: 6100001
+        end_exclusive: 6110001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6110001
+        end_exclusive: 6120001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6120001
+        end_exclusive: 6130001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -349,13 +547,13 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 6093333
-        end_exclusive: 6120000
+        start: 6130001
+        end_exclusive: 6140001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
-          float_value: 0.0
+          float_value: 0.5
         }
       }
     }
@@ -364,8 +562,101 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 6120000
-        end_exclusive: 6139999
+        start: 6140001
+        end_exclusive: 6150001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6150001
+        end_exclusive: 6160001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6160001
+        end_exclusive: 6170001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6070001
+        end_exclusive: 6080001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6080001
+        end_exclusive: 6090001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6170001
+        end_exclusive: 6180001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6180001
+        end_exclusive: 6190001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -380,81 +671,30 @@ date_specs {
         }
       }
     }
-    vid_range_specs {
-      vid_range {
-        start: 6139999
-        end_exclusive: 6159999
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 3
-    vid_range_specs {
-      vid_range {
-        start: 6159999
-        end_exclusive: 6173332
-      }
-      non_population_field_values {
-        key: "video.completed_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 6173332
-        end_exclusive: 6186665
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-    }
   }
   frequency_specs {
     frequency: 5
     vid_range_specs {
       vid_range {
-        start: 6186665
-        end_exclusive: 6193332
+        start: 6090001
+        end_exclusive: 6100001
       }
       non_population_field_values {
-        key: "video.completed_fraction"
+        key: "display.viewable_fraction"
         value {
-          float_value: 0.0
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 1.0
+          float_value: 0.5
         }
       }
     }
     vid_range_specs {
       vid_range {
-        start: 6193332
-        end_exclusive: 6200000
+        start: 6190001
+        end_exclusive: 6200001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
-          float_value: 0.0
+          float_value: 1.0
         }
       }
     }
@@ -478,13 +718,13 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 6200000
-        end_exclusive: 6226666
+        start: 6200001
+        end_exclusive: 6210001
       }
       non_population_field_values {
         key: "video.completed_fraction"
         value {
-          float_value: 0.75
+          float_value: 0.0
         }
       }
       non_population_field_values {
@@ -496,8 +736,38 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 6226666
-        end_exclusive: 6253333
+        start: 6210001
+        end_exclusive: 6220001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6220001
+        end_exclusive: 6230001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6230001
+        end_exclusive: 6240001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
@@ -506,13 +776,10 @@ date_specs {
         }
       }
     }
-  }
-  frequency_specs {
-    frequency: 2
     vid_range_specs {
       vid_range {
-        start: 6253333
-        end_exclusive: 6273332
+        start: 6300001
+        end_exclusive: 6310001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -529,41 +796,8 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 6273332
-        end_exclusive: 6293332
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 3
-    vid_range_specs {
-      vid_range {
-        start: 6293332
-        end_exclusive: 6306665
-      }
-      non_population_field_values {
-        key: "video.completed_fraction"
-        value {
-          float_value: 0.0
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 6306665
-        end_exclusive: 6319998
+        start: 6310001
+        end_exclusive: 6320001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
@@ -572,13 +806,10 @@ date_specs {
         }
       }
     }
-  }
-  frequency_specs {
-    frequency: 5
     vid_range_specs {
       vid_range {
-        start: 6319998
-        end_exclusive: 6326665
+        start: 6320001
+        end_exclusive: 6330001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -595,8 +826,107 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 6326665
-        end_exclusive: 6333333
+        start: 6330001
+        end_exclusive: 6340001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 2
+    vid_range_specs {
+      vid_range {
+        start: 6240001
+        end_exclusive: 6250001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6250001
+        end_exclusive: 6260001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6260001
+        end_exclusive: 6270001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6270001
+        end_exclusive: 6280001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6280001
+        end_exclusive: 6290001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.25
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 6290001
+        end_exclusive: 6300001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
@@ -625,31 +955,61 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 6333333
-        end_exclusive: 6359999
+        start: 6400001
+        end_exclusive: 6410001
       }
       non_population_field_values {
         key: "video.completed_fraction"
         value {
-          float_value: 1.0
+          float_value: 0.0
         }
       }
       non_population_field_values {
         key: "video.viewable_fraction"
         value {
-          float_value: 0.5
+          float_value: 0.0
         }
       }
     }
     vid_range_specs {
       vid_range {
-        start: 6359999
-        end_exclusive: 6386666
+        start: 6410001
+        end_exclusive: 6420001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
           float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6420001
+        end_exclusive: 6430001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6430001
+        end_exclusive: 6440001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
         }
       }
     }
@@ -658,8 +1018,86 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 6386666
-        end_exclusive: 6406665
+        start: 6340001
+        end_exclusive: 6350001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6350001
+        end_exclusive: 6360001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6360001
+        end_exclusive: 6370001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6440001
+        end_exclusive: 6450001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.75
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6450001
+        end_exclusive: 6460001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6460001
+        end_exclusive: 6470001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -674,25 +1112,25 @@ date_specs {
         }
       }
     }
-    vid_range_specs {
-      vid_range {
-        start: 6406665
-        end_exclusive: 6426665
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 0.0
-        }
-      }
-    }
   }
   frequency_specs {
     frequency: 3
     vid_range_specs {
       vid_range {
-        start: 6426665
-        end_exclusive: 6439998
+        start: 6370001
+        end_exclusive: 6380001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6380001
+        end_exclusive: 6390001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -703,18 +1141,6 @@ date_specs {
       non_population_field_values {
         key: "video.viewable_fraction"
         value {
-          float_value: 0.0
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 6439998
-        end_exclusive: 6453331
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
           float_value: 0.5
         }
       }
@@ -724,31 +1150,13 @@ date_specs {
     frequency: 5
     vid_range_specs {
       vid_range {
-        start: 6453331
-        end_exclusive: 6459998
-      }
-      non_population_field_values {
-        key: "video.completed_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 6459998
-        end_exclusive: 6466666
+        start: 6390001
+        end_exclusive: 6400001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
-          float_value: 1.0
+          float_value: 0.5
         }
       }
     }
@@ -772,13 +1180,43 @@ date_specs {
     frequency: 1
     vid_range_specs {
       vid_range {
-        start: 6466666
-        end_exclusive: 6493333
+        start: 6500001
+        end_exclusive: 6510001
       }
       non_population_field_values {
         key: "video.completed_fraction"
         value {
           float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6510001
+        end_exclusive: 6520001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6520001
+        end_exclusive: 6530001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
         }
       }
       non_population_field_values {
@@ -790,13 +1228,13 @@ date_specs {
     }
     vid_range_specs {
       vid_range {
-        start: 6493333
-        end_exclusive: 6520000
+        start: 6530001
+        end_exclusive: 6540001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
-          float_value: 0.0
+          float_value: 0.5
         }
       }
     }
@@ -805,8 +1243,71 @@ date_specs {
     frequency: 2
     vid_range_specs {
       vid_range {
-        start: 6520000
-        end_exclusive: 6540000
+        start: 6540001
+        end_exclusive: 6550001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 0.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6550001
+        end_exclusive: 6560001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6560001
+        end_exclusive: 6570001
+      }
+      non_population_field_values {
+        key: "video.completed_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+      non_population_field_values {
+        key: "video.viewable_fraction"
+        value {
+          float_value: 1.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 3
+    vid_range_specs {
+      vid_range {
+        start: 6470001
+        end_exclusive: 6480001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6480001
+        end_exclusive: 6490001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -817,62 +1318,26 @@ date_specs {
       non_population_field_values {
         key: "video.viewable_fraction"
         value {
+          float_value: 0.5
+        }
+      }
+    }
+    vid_range_specs {
+      vid_range {
+        start: 6570001
+        end_exclusive: 6580001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
           float_value: 0.0
         }
       }
     }
     vid_range_specs {
       vid_range {
-        start: 6540000
-        end_exclusive: 6560000
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 3
-    vid_range_specs {
-      vid_range {
-        start: 6560000
-        end_exclusive: 6573333
-      }
-      non_population_field_values {
-        key: "video.completed_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-      non_population_field_values {
-        key: "video.viewable_fraction"
-        value {
-          float_value: 0.5
-        }
-      }
-    }
-    vid_range_specs {
-      vid_range {
-        start: 6573333
-        end_exclusive: 6586667
-      }
-      non_population_field_values {
-        key: "display.viewable_fraction"
-        value {
-          float_value: 1.0
-        }
-      }
-    }
-  }
-  frequency_specs {
-    frequency: 5
-    vid_range_specs {
-      vid_range {
-        start: 6586667
-        end_exclusive: 6593334
+        start: 6580001
+        end_exclusive: 6590001
       }
       non_population_field_values {
         key: "video.completed_fraction"
@@ -883,19 +1348,34 @@ date_specs {
       non_population_field_values {
         key: "video.viewable_fraction"
         value {
-          float_value: 1.0
+          float_value: 0.0
+        }
+      }
+    }
+  }
+  frequency_specs {
+    frequency: 5
+    vid_range_specs {
+      vid_range {
+        start: 6490001
+        end_exclusive: 6500001
+      }
+      non_population_field_values {
+        key: "display.viewable_fraction"
+        value {
+          float_value: 0.5
         }
       }
     }
     vid_range_specs {
       vid_range {
-        start: 6593334
+        start: 6590001
         end_exclusive: 6600001
       }
       non_population_field_values {
         key: "display.viewable_fraction"
         value {
-          float_value: 0.0
+          float_value: 1.0
         }
       }
     }

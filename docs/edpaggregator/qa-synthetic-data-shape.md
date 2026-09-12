@@ -88,6 +88,14 @@ subpopulations of 30M each, so all of VIDs 1–10.6M fall inside a single
 `MALE / YEARS_18_TO_34 / CALIFORNIA` subpopulation — zero demographic variation
 across the entire reached range.
 
+**The stripe is also the unit of every data spec's `vid_range_spec`.**
+`SyntheticDataGeneration.findSubPopulationIndex` resolves a range's demographics
+by finding the one subpopulation that *wholly contains* it, so a range spanning
+two stripes fails outright with `Sub-population not found for start: N`. Segment
+boundaries are all multiples of `STRIPE_SIZE`, so stripes tile each segment
+exactly. Tranche, frequency and media are therefore assigned **per stripe**
+rather than by carving a segment into larger blocks.
+
 ## Overlap Topology
 
 Four aggregator EDPs: `edp7`, `edpa_meta`, `edpa_video_pub`, `edpa_retail_pub`.
@@ -208,15 +216,50 @@ All four EDPs' impressions are written **already VID-labeled**. No date is route
 through the deployed VID labeling pipeline.
 
 This is a deliberate simplification. VIDs come straight from the population spec,
-so expected reach is exact rather than the output of a hash that must be replayed
-offline and that has birthday collisions by construction. It also means no VID
-model needs provisioning for this dataset, the memoized rank-index path and its
-retention constraints do not apply, and pipeline Phases 0 and 1 never run.
+so expected reach is exact rather than the output of a model that would have to be
+replayed offline.
+
+### Neither Labeling Mode Is Used
+
+A model line is either **memoized** or **non-memoized (hash-only)**, and this
+dataset deliberately uses neither, because it is never labeled at all:
+
+| | Hash-only | Memoized |
+| --- | --- | --- |
+| VID assignment | FarmHash64 + JumpConsistentHash, stateless | collision-free ranks from a persisted fingerprint→rank table |
+| Reproducible offline | yes | no |
+| Pipeline phases | Phase 2 only | Phases 0, 1 and 2 |
+
+Neither is acceptable here. **Hash-only** has birthday collisions by construction
+(`unique = P × (1 − e^(−N/P))`), and more decisively, the deployed hash-only model
+in QA has a total pool of only about **20,000 VIDs** across six demo pools — so
+routing 10.6M spec VIDs through it would collapse reach to a small fraction and
+destroy the Venn topology entirely, silently. **Memoized** is not reproducible
+offline at all, so expected values could not be computed, and it drags in the
+rank-index retention rules and the three-phase dispatch.
+
+Writing pre-labeled sidesteps both: no VID model is provisioned for the 2026 model
+line, no rank index exists, and Phases 0 and 1 never run.
 
 The two trigger paths stay separate: `done` markers under the raw-impressions
 prefix drive the VID labeling dispatcher, while `done` markers alongside labeled
 impressions drive `DataAvailabilitySync`. Writing only the latter never wakes the
 labeling pipeline.
+
+### But the 2021 Fixture's Labeling Still Gates This Data
+
+`AwaitVidLabelingRule` waits for the 2021 fixture's one pipelined date to finish
+labeling across all three `cloudtest-*` model lines, and it runs **before** the QA
+2026 rules in the same `chainRulesSequentially` chain. A stall in that path
+therefore blocks 2026 seeding even though the two share nothing.
+
+This is worth knowing because such stalls happen: a parent
+`RawImpressionUploadModelLine` can sit in `CREATED` with all of its
+`PoolAssignmentJob`s and `RankerJob`s already `SUCCEEDED`, and the
+`VidLabelingMonitorFunction` will not recover it — its checks cover parents stuck
+in `POOL_ASSIGNING`, `RANKING` or `LABELING`, not `CREATED`. The symptom is the
+cloud test failing on `Timed out after 1800s waiting for edp7 VID Labeling` with a
+last state of `{COMPLETED=2, CREATED=1}`.
 
 ## Which Test Owns This, and Why
 
