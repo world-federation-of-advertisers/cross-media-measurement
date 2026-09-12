@@ -147,14 +147,15 @@ abstract class BaseTeeApplication(
           expectedWorkItemGeneration = body.generation.takeUnless { it == 0L } ?: 1L,
         )
       } catch (e: ControlPlaneApiException) {
-        // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid
-        // state,
-        // ack the message and stop processing.
         val cause = e.cause
         if (cause is StatusException) {
           val reason = cause.errorInfo?.reason
+          val workItemState = cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
+          val invalidTerminalState =
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
           if (
-            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name ||
+            invalidTerminalState ||
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {
@@ -326,5 +327,13 @@ abstract class BaseTeeApplication(
 
   companion object {
     protected val logger = Logger.getLogger(this::class.java.name)
+
+    private val TERMINAL_OR_INVALID_WORK_ITEM_STATES =
+      setOf(
+        WorkItem.State.FAILED.name,
+        WorkItem.State.SUCCEEDED.name,
+        WorkItem.State.STATE_UNSPECIFIED.name,
+        WorkItem.State.UNRECOGNIZED.name,
+      )
   }
 }

@@ -51,6 +51,7 @@ import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorProvider
 import org.wfanet.measurement.queue.MessageConsumer
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -224,7 +225,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `acks message when createWorkItemAttempt returns non-retriable error`() = runBlocking {
+  fun `acks message when WorkItem is already terminal`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
 
@@ -235,7 +236,7 @@ class BaseTeeApplicationTest {
             any<io.grpc.Metadata>(),
           )
         )
-        .thenAnswer { throw makeCreateAttemptInvalidStateException() }
+        .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.SUCCEEDED) }
     }
 
     val fakeSubscriber = FakeQueueSubscriber()
@@ -264,6 +265,296 @@ class BaseTeeApplicationTest {
 
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
+  }
+
+  @Test
+  fun `nacks redelivery when WorkItem has an active attempt`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "redelivery-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(app.messageProcessed.isCompleted).isFalse()
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `nacks completion RPC failure and subsequent active-attempt redelivery`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val workItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
+      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+    whenever(
+        workItemAttemptsStub.completeWorkItemAttempt(
+          any<CompleteWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+      )
+    val job = launch { app.run() }
+    val workItem = createWorkItem(createTestWork())
+    val firstDelivery = TestMessageConsumer()
+    val redelivery = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = firstDelivery,
+        ackId = "first-ack-id",
+      )
+    )
+    firstDelivery.disposition.await()
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = redelivery,
+        ackId = "redelivery-ack-id",
+      )
+    )
+    redelivery.disposition.await()
+
+    assertThat(firstDelivery.ackCount).isEqualTo(0)
+    assertThat(firstDelivery.nackCount).isEqualTo(1)
+    assertThat(redelivery.ackCount).isEqualTo(0)
+    assertThat(redelivery.nackCount).isEqualTo(1)
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `acks message when completion reports attempt already succeeded`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val workItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
+    whenever(
+        workItemAttemptsStub.completeWorkItemAttempt(
+          any<CompleteWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw makeAttemptAlreadySucceededException(workItemAttempt.name) }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "some-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `nacks failure RPC failure and subsequent active-attempt redelivery`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val workItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
+      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+    whenever(
+        workItemAttemptsStub.failWorkItemAttempt(
+          any<FailWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure = IllegalStateException("worker failed"),
+      )
+    val job = launch { app.run() }
+    val workItem = createWorkItem(createTestWork())
+    val firstDelivery = TestMessageConsumer()
+    val redelivery = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = firstDelivery,
+        ackId = "first-ack-id",
+      )
+    )
+    firstDelivery.disposition.await()
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = redelivery,
+        ackId = "redelivery-ack-id",
+      )
+    )
+    redelivery.disposition.await()
+
+    assertThat(firstDelivery.ackCount).isEqualTo(0)
+    assertThat(firstDelivery.nackCount).isEqualTo(1)
+    assertThat(redelivery.ackCount).isEqualTo(0)
+    assertThat(redelivery.nackCount).isEqualTo(1)
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `concurrent duplicate remains recoverable when original worker later fails`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val workItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
+      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+    whenever(
+        workItemAttemptsStub.failWorkItemAttempt(
+          any<FailWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
+    val originalSubscriber = FakeQueueSubscriber()
+    val duplicateSubscriber = FakeQueueSubscriber()
+    val workerStarted = CompletableDeferred<Unit>()
+    val releaseWorker = CompletableDeferred<Unit>()
+    val originalApp =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = originalSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = workItemsStub,
+          workItemAttemptsStub = workItemAttemptsStub,
+        ) {
+        override suspend fun runWork(message: Any) {
+          message.unpack(TestWork::class.java)
+          workerStarted.complete(Unit)
+          releaseWorker.await()
+          error("worker failed")
+        }
+      }
+    val duplicateApp =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = duplicateSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+      )
+    val originalJob = launch { originalApp.run() }
+    val duplicateJob = launch { duplicateApp.run() }
+    val workItem = createWorkItem(createTestWork())
+    val originalDelivery = TestMessageConsumer()
+    val duplicateDelivery = TestMessageConsumer()
+
+    originalSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = originalDelivery,
+        ackId = "original-ack-id",
+      )
+    )
+    workerStarted.await()
+    duplicateSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = duplicateDelivery,
+        ackId = "duplicate-ack-id",
+      )
+    )
+    duplicateDelivery.disposition.await()
+    releaseWorker.complete(Unit)
+    originalDelivery.disposition.await()
+
+    assertThat(duplicateDelivery.ackCount).isEqualTo(0)
+    assertThat(duplicateDelivery.nackCount).isEqualTo(1)
+    assertThat(originalDelivery.ackCount).isEqualTo(0)
+    assertThat(originalDelivery.nackCount).isEqualTo(1)
+    originalJob.cancelAndJoin()
+    duplicateJob.cancelAndJoin()
   }
 
   @Test
@@ -446,14 +737,14 @@ class BaseTeeApplicationTest {
   }
 
   private fun makeCreateAttemptInvalidStateException(
-    workItemName: String = "workItems/workItem",
-    workItemState: String = "COMPLETED",
+    workItemState: WorkItem.State
   ): StatusException {
+    val workItemName = "workItems/workItem"
     val errorInfo =
       ErrorInfo.newBuilder()
         .setReason(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
-        .putMetadata("work_item", workItemName)
-        .putMetadata("work_item_state", workItemState)
+        .putMetadata(Errors.Metadata.WORK_ITEM.key, workItemName)
+        .putMetadata(Errors.Metadata.WORK_ITEM_STATE.key, workItemState.name)
         .build()
 
     val status =
@@ -483,6 +774,25 @@ class BaseTeeApplicationTest {
         .addDetails(Any.pack(errorInfo))
         .build()
 
+    return StatusProto.toStatusException(status)
+  }
+
+  private fun makeAttemptAlreadySucceededException(workItemAttemptName: String): StatusException {
+    val errorInfo =
+      ErrorInfo.newBuilder()
+        .setReason(Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name)
+        .putMetadata(Errors.Metadata.WORK_ITEM_ATTEMPT.key, workItemAttemptName)
+        .putMetadata(
+          Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key,
+          WorkItemAttempt.State.SUCCEEDED.name,
+        )
+        .build()
+    val status =
+      com.google.rpc.Status.newBuilder()
+        .setCode(io.grpc.Status.Code.FAILED_PRECONDITION.value())
+        .setMessage("WorkItemAttempt is already succeeded")
+        .addDetails(Any.pack(errorInfo))
+        .build()
     return StatusProto.toStatusException(status)
   }
 
