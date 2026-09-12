@@ -639,14 +639,6 @@ class DeadLetterQueueListenerTest {
       mock<QueueSubscriber> {
         on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
       }
-    val errorInfoProto =
-      com.google.rpc.errorInfo {
-        reason =
-          org.wfanet.measurement.securecomputation.service.internal.Errors.Reason
-            .WORK_ITEM_GENERATION_MISMATCH
-            .name
-        domain = org.wfanet.measurement.securecomputation.service.internal.Errors.DOMAIN
-      }
     val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServer.channel)
     val listener =
       deadLetterQueueListener(queueSubscriber = mockQueueSubscriber, workItemsStub = workItemsStub)
