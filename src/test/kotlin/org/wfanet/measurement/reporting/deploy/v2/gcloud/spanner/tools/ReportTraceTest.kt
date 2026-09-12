@@ -325,7 +325,11 @@ class ReportTraceTest {
     val artifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
     assertThat(artifact).contains("Collection completeness: PARTIAL")
     assertThat(artifact).contains("| kingdom | Route resolution | FAILED |")
-    assertThat(artifact).contains("| duchy_computation | UNKNOWN |")
+    assertThat(artifact)
+      .contains(
+        "| duchy_computation | measurementConsumers/mc-1/measurements/measurement-1 | " +
+          "UNKNOWN |"
+      )
     assertThat(artifact).contains("xmm.lifecycle.stage=report_creation")
   }
 
@@ -415,27 +419,33 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `render reports complete direct lifecycle and observed Duchy stage`() {
-    val stages =
+  fun `render reports complete direct lifecycle per expected child`() {
+    val context =
+      reportTraceContext().copy(metricNames = listOf("measurementConsumers/mc-1/metrics/metric-1"))
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context = context,
+        measurementRoute = ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName = requisitionName,
+        requisitionRoute = ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val stageResources =
       listOf(
-        "basic_report_creation",
-        "report_creation",
-        "metric_creation",
-        "measurement_creation",
-        "requisition_available",
-        "requisition_dispatch",
-        "results_fulfillment",
-        "kingdom_result_acceptance",
-        "kingdom_measurement_sync",
-        "metric_result_sync",
-        "report_result_assembly",
-        "noise_correction",
-        "processed_result_writeback",
-        "duchy_computation",
-        "duchy_stage_attempt",
+        "basic_report_creation" to ("xmm.basic_report.name" to context.basicReportName!!),
+        "report_creation" to ("xmm.report.name" to context.reportName),
+        "metric_creation" to ("xmm.metric.name" to context.metricNames.single()),
+        "measurement_creation" to ("xmm.measurement.name" to context.measurementNames.single()),
+        "requisition_available" to ("xmm.requisition.name" to requisitionName),
+        "kingdom_result_acceptance" to ("xmm.requisition.name" to requisitionName),
+        "kingdom_measurement_sync" to ("xmm.measurement.name" to context.measurementNames.single()),
+        "metric_result_sync" to ("xmm.metric.name" to context.metricNames.single()),
+        "report_result_assembly" to ("xmm.report.name" to context.reportName),
+        "noise_correction" to ("xmm.basic_report.name" to context.basicReportName!!),
+        "processed_result_writeback" to ("xmm.basic_report.name" to context.basicReportName!!),
       )
     val spans =
-      stages.mapIndexed { index, stage ->
+      stageResources.mapIndexed { index, (stage, resource) ->
         ReportTraceSpan(
           sourceProject = "test",
           traceId = "trace-1",
@@ -445,13 +455,19 @@ class ReportTraceTest {
           service = "test-service",
           startTime = NOW.plusSeconds(index.toLong()),
           endTime = NOW.plusSeconds(index.toLong() + 1),
-          attributes = mapOf("xmm.lifecycle.stage" to stage, "xmm.outcome" to "succeeded"),
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to stage,
+              "xmm.outcome" to "succeeded",
+              resource.first to resource.second,
+            ),
         )
       }
 
     val output =
       ReportTraceOutput.render(
-        context = reportTraceContext(),
+        context = context,
+        routeResolution = routeResolution,
         spans = spans,
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
@@ -461,8 +477,152 @@ class ReportTraceTest {
 
     assertThat(output).contains("Collection completeness: COMPLETE")
     assertThat(output).contains("Execution outcome: SUCCEEDED")
-    assertThat(output).contains("| duchy_computation | SUCCEEDED |")
+    assertThat(output)
+      .contains("| duchy_computation | ${context.measurementNames.single()} | NOT_APPLICABLE |")
+    assertThat(output).contains("| requisition_dispatch | $requisitionName | NOT_APPLICABLE |")
     assertThat(output).doesNotContain("| basic_report_api_fetch | MISSING |")
+  }
+
+  @Test
+  fun `one child evidence does not satisfy another expected child`() {
+    val metric1 = "measurementConsumers/mc-1/metrics/metric-1"
+    val metric2 = "measurementConsumers/mc-1/metrics/metric-2"
+    val context = reportTraceContext().copy(metricNames = listOf(metric1, metric2))
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context = context,
+        routeResolution =
+          ReportTraceRouteResolution.unresolved(
+            context.measurementNames,
+            ReportTraceTopology.notSupplied(),
+            "FAILED",
+            "test",
+          ),
+        spans =
+          listOf(
+            lifecycleSpan(
+              stage = "metric_creation",
+              resourceAttribute = "xmm.metric.name",
+              resource = metric1,
+            )
+          ),
+        logEntries = emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "metric_creation" && it.resource == metric1 }.status)
+      .isEqualTo("SUCCEEDED")
+    assertThat(coverage.single { it.name == "metric_creation" && it.resource == metric2 }.status)
+      .isEqualTo("MISSING")
+  }
+
+  @Test
+  fun `render reports complete MPC and EDPA lifecycle per expected child`() {
+    val context =
+      reportTraceContext().copy(metricNames = listOf("measurementConsumers/mc-1/metrics/metric-1"))
+    val measurementName = context.measurementNames.single()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val stageResources =
+      listOf(
+        "basic_report_creation" to ("xmm.basic_report.name" to context.basicReportName!!),
+        "report_creation" to ("xmm.report.name" to context.reportName),
+        "metric_creation" to ("xmm.metric.name" to context.metricNames.single()),
+        "measurement_creation" to ("xmm.measurement.name" to measurementName),
+        "requisition_available" to ("xmm.requisition.name" to requisitionName),
+        "requisition_dispatch" to ("xmm.requisition.name" to requisitionName),
+        "results_fulfillment" to ("xmm.requisition.name" to requisitionName),
+        "kingdom_result_acceptance" to ("xmm.requisition.name" to requisitionName),
+        "kingdom_measurement_sync" to ("xmm.measurement.name" to measurementName),
+        "duchy_computation" to ("xmm.measurement.name" to measurementName),
+        "duchy_stage_attempt" to ("xmm.measurement.name" to measurementName),
+        "metric_result_sync" to ("xmm.metric.name" to context.metricNames.single()),
+        "report_result_assembly" to ("xmm.report.name" to context.reportName),
+        "noise_correction" to ("xmm.basic_report.name" to context.basicReportName!!),
+        "processed_result_writeback" to ("xmm.basic_report.name" to context.basicReportName!!),
+      )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution = routeResolution,
+        spans =
+          stageResources.map { (stage, resource) ->
+            lifecycleSpan(stage, resource.first, resource.second)
+          },
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("Collection completeness: COMPLETE")
+    assertThat(output).contains("| duchy_computation | $measurementName | SUCCEEDED |")
+    assertThat(output).contains("| results_fulfillment | $requisitionName | SUCCEEDED |")
+  }
+
+  @Test
+  fun `MPC operation is unknown when Duchy evidence lacks Measurement identity`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val unscopedDuchySpan =
+      traceSpan("duchy", NOW)
+        .copy(
+          attributes =
+            mapOf("xmm.lifecycle.stage" to "duchy_computation", "xmm.outcome" to "succeeded")
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(unscopedDuchySpan),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "duchy_computation" }.status).isEqualTo("UNKNOWN")
+    assertThat(coverage.single { it.name == "duchy_computation" }.evidence)
+      .contains("did not identify")
+  }
+
+  @Test
+  fun `direct operation is unknown when Duchy evidence lacks Measurement identity`() {
+    val context = reportTraceContext()
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val unscopedDuchySpan =
+      traceSpan("duchy", NOW)
+        .copy(
+          attributes =
+            mapOf("xmm.lifecycle.stage" to "duchy_computation", "xmm.outcome" to "succeeded")
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(unscopedDuchySpan),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "duchy_computation" }.status).isEqualTo("UNKNOWN")
   }
 
   @Test
@@ -472,8 +632,15 @@ class ReportTraceTest {
       ReportTraceRouteResolution(
         status = "SUCCESS",
         note = "",
-        topologyProvenance = "operator-provided --edpa-data-provider (1)",
-        edpaDataProviders = setOf("dataProviders/edpa"),
+        topology =
+          ReportTraceTopology(
+            routes =
+              mapOf(
+                "dataProviders/edpa" to ReportTraceRequisitionRouteKind.EDPA,
+                "dataProviders/direct" to ReportTraceRequisitionRouteKind.DIRECT_EDP,
+              ),
+            provenance = "operator-provided --topology-config-file (2 DataProvider routes)",
+          ),
         measurementRoutes =
           listOf(
             ReportTraceMeasurementRoute(
@@ -507,9 +674,18 @@ class ReportTraceTest {
         includeRawPayloads = false,
       )
 
-    assertThat(output).contains("| duchy_computation | NOT_APPLICABLE |")
-    assertThat(output).contains("| requisition_dispatch | NOT_APPLICABLE |")
-    assertThat(output).contains("| results_fulfillment | NOT_APPLICABLE |")
+    assertThat(output)
+      .contains("| duchy_computation | ${context.measurementNames.single()} | NOT_APPLICABLE |")
+    assertThat(output)
+      .contains(
+        "| requisition_dispatch | dataProviders/direct/requisitions/requisition-1 | " +
+          "NOT_APPLICABLE |"
+      )
+    assertThat(output)
+      .contains(
+        "| results_fulfillment | dataProviders/direct/requisitions/requisition-1 | " +
+          "NOT_APPLICABLE |"
+      )
     assertThat(output).contains("| DIRECT | DIRECT |")
     assertThat(output).contains("| FULFILLED | dataProviders/direct | DIRECT_EDP |")
   }
@@ -521,8 +697,7 @@ class ReportTraceTest {
       ReportTraceRouteResolution(
         status = "SUCCESS",
         note = "",
-        topologyProvenance = "not supplied; EDPA ownership is unknown",
-        edpaDataProviders = emptySet(),
+        topology = ReportTraceTopology.notSupplied(),
         measurementRoutes =
           listOf(
             ReportTraceMeasurementRoute(
@@ -554,6 +729,16 @@ class ReportTraceTest {
   @Test
   fun `main includes Kingdom Requisitions in initial correlation set`() {
     val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val topologyConfigFile = temporaryFolder.newFile("report-trace-topology.textproto")
+    topologyConfigFile.writeText(
+      """
+      data_provider_routes {
+        data_provider: "dataProviders/edpa"
+        route: EDPA
+      }
+      """
+        .trimIndent()
+    )
     var loggingCorrelationValues: Collection<String> = emptyList()
     val dependencies =
       ReportTraceDependencies(
@@ -570,15 +755,15 @@ class ReportTraceTest {
             reportTraceContext().copy(basicReportName = key.toName())
           },
         routeResolverOverride =
-          ReportTraceRouteResolver { measurementNames, edpaDataProviders ->
+          ReportTraceRouteResolver { measurementNames, topology ->
             assertThat(measurementNames)
               .containsExactly("measurementConsumers/mc-1/measurements/measurement-1")
-            assertThat(edpaDataProviders).containsExactly("dataProviders/edpa")
+            assertThat(topology.routes)
+              .containsExactly("dataProviders/edpa", ReportTraceRequisitionRouteKind.EDPA)
             ReportTraceRouteResolution(
               status = "SUCCESS",
               note = "",
-              topologyProvenance = "operator-provided --edpa-data-provider (1)",
-              edpaDataProviders = edpaDataProviders,
+              topology = topology,
               measurementRoutes =
                 listOf(
                   ReportTraceMeasurementRoute(
@@ -611,7 +796,7 @@ class ReportTraceTest {
         arrayOf(
           "--project=test",
           "--basic-report=measurementConsumers/mc-1/basicReports/report-a",
-          "--edpa-data-provider=dataProviders/edpa",
+          "--topology-config-file=$topologyConfigFile",
           "--allow-partial",
           "--spanner-ready-timeout=PT10S",
         ),
@@ -962,16 +1147,28 @@ class ReportTraceTest {
   @Test
   fun `render separates collection completeness from refused execution outcome`() {
     val context = reportTraceContext().copy(basicReportName = null, basicReportState = null)
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
     val span =
       traceSpan("span-1", NOW)
         .copy(
           attributes =
-            mapOf("xmm.lifecycle.stage" to "results_fulfillment", "xmm.outcome" to "refused")
+            mapOf(
+              "xmm.lifecycle.stage" to "results_fulfillment",
+              "xmm.outcome" to "refused",
+              "xmm.requisition.name" to requisitionName,
+            )
         )
 
     val output =
       ReportTraceOutput.render(
         context = context,
+        routeResolution =
+          routeResolution(
+            context,
+            ReportTraceMeasurementRouteKind.DIRECT,
+            requisitionName,
+            ReportTraceRequisitionRouteKind.EDPA,
+          ),
         spans = listOf(span),
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
@@ -981,7 +1178,7 @@ class ReportTraceTest {
 
     assertThat(output).contains("Collection completeness: PARTIAL")
     assertThat(output).contains("Execution outcome: REFUSED")
-    assertThat(output).contains("| results_fulfillment | REFUSED |")
+    assertThat(output).contains("| results_fulfillment | $requisitionName | REFUSED |")
   }
 
   @Test
@@ -1081,6 +1278,8 @@ class ReportTraceTest {
 
   @Test
   fun `started lifecycle evidence is not terminally complete`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
     val stages =
       listOf(
         "basic_report_creation",
@@ -1105,13 +1304,25 @@ class ReportTraceTest {
               mapOf(
                 "xmm.lifecycle.stage" to stage,
                 "xmm.outcome" to if (stage == "results_fulfillment") "started" else "succeeded",
-              )
+              ) +
+                if (stage == "results_fulfillment") {
+                  mapOf("xmm.requisition.name" to requisitionName)
+                } else {
+                  emptyMap()
+                }
           )
       }
 
     val output =
       ReportTraceOutput.render(
-        context = reportTraceContext(),
+        context = context,
+        routeResolution =
+          routeResolution(
+            context,
+            ReportTraceMeasurementRouteKind.DIRECT,
+            requisitionName,
+            ReportTraceRequisitionRouteKind.EDPA,
+          ),
         spans = spans,
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
@@ -1120,7 +1331,7 @@ class ReportTraceTest {
       )
 
     assertThat(output).contains("Collection completeness: PARTIAL")
-    assertThat(output).contains("| results_fulfillment | IN_PROGRESS |")
+    assertThat(output).contains("| results_fulfillment | $requisitionName | IN_PROGRESS |")
   }
 
   @Test
@@ -1302,6 +1513,69 @@ class ReportTraceTest {
       startTime = startTime,
       endTime = null,
       attributes = emptyMap(),
+    )
+  }
+
+  private fun lifecycleSpan(
+    stage: String,
+    resourceAttribute: String,
+    resource: String,
+  ): ReportTraceSpan {
+    return ReportTraceSpan(
+      sourceProject = "test",
+      traceId = "trace-1",
+      spanId = "$stage-$resource",
+      parentSpanId = null,
+      name = stage,
+      service = "test-service",
+      startTime = NOW,
+      endTime = NOW.plusSeconds(1),
+      attributes =
+        mapOf(
+          "xmm.lifecycle.stage" to stage,
+          "xmm.outcome" to "succeeded",
+          resourceAttribute to resource,
+        ),
+    )
+  }
+
+  private fun routeResolution(
+    context: ReportTraceContext,
+    measurementRoute: ReportTraceMeasurementRouteKind,
+    requisitionName: String,
+    requisitionRoute: ReportTraceRequisitionRouteKind,
+  ): ReportTraceRouteResolution {
+    val dataProvider = requisitionName.substringBefore("/requisitions/")
+    return ReportTraceRouteResolution(
+      status = "SUCCESS",
+      note = "",
+      topology =
+        ReportTraceTopology(
+          routes = mapOf(dataProvider to requisitionRoute),
+          provenance = "operator-provided --topology-config-file (1 DataProvider route)",
+        ),
+      measurementRoutes =
+        listOf(
+          ReportTraceMeasurementRoute(
+            name = context.measurementNames.single(),
+            state = "SUCCEEDED",
+            protocol =
+              if (measurementRoute == ReportTraceMeasurementRouteKind.DIRECT) "DIRECT"
+              else "HONEST_MAJORITY_SHARE_SHUFFLE",
+            route = measurementRoute,
+            requisitions =
+              listOf(
+                ReportTraceRequisitionRoute(
+                  name = requisitionName,
+                  state = "FULFILLED",
+                  dataProvider = dataProvider,
+                  route = requisitionRoute,
+                )
+              ),
+            requisitionsResolved = true,
+          )
+        ),
+      warnings = emptyList(),
     )
   }
 

@@ -35,6 +35,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ReportTraceTopologyTest",
+    srcs = ["ReportTraceTopologyTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.ReportTraceTopologyTest",
+    deps = [
+        "//src/main/proto/wfa/measurement/config/reporting:report_trace_topology_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "GrpcKingdomReportTraceClientTest",
     srcs = ["GrpcKingdomReportTraceClientTest.kt"],
     associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],

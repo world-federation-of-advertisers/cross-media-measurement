@@ -64,6 +64,7 @@ kt_jvm_library(
     srcs = [
         "KingdomReportTraceResolver.kt",
         "ReportTrace.kt",
+        "ReportTraceTopology.kt",
     ],
     visibility = ["//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__"],
     deps = [
@@ -79,6 +80,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:report_trace_topology_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:metrics_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/reporting/v2:reports_service_kt_jvm_grpc_proto",

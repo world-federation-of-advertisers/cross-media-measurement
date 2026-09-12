@@ -57,6 +57,8 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.reporting.ReportTraceTopologyConfig
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
@@ -133,6 +135,7 @@ internal enum class ReportTraceExecutionOutcome {
 
 internal data class ReportTraceLifecycleStage(
   val name: String,
+  val resource: String,
   val status: String,
   val evidence: String,
 )
@@ -581,7 +584,7 @@ internal object ReportTraceOutput {
     routeResolution: ReportTraceRouteResolution =
       ReportTraceRouteResolution.unresolved(
         measurementNames = context.measurementNames,
-        edpaDataProviders = emptySet(),
+        topology = ReportTraceTopology.notSupplied(),
         status = "NOT_ATTEMPTED",
         note = "Kingdom route resolution was not supplied",
       ),
@@ -656,10 +659,10 @@ internal object ReportTraceOutput {
     appendLine("## Resolved execution routes")
     appendLine()
     appendLine("Kingdom resolution: ${routeResolution.status}")
-    appendLine("EDPA topology: ${routeResolution.topologyProvenance}")
-    if (routeResolution.edpaDataProviders.isNotEmpty()) {
-      routeResolution.edpaDataProviders.sorted().forEach { dataProvider ->
-        appendLine("- EDPA DataProvider: $dataProvider")
+    appendLine("DataProvider topology: ${routeResolution.topology.provenance}")
+    if (routeResolution.topology.routes.isNotEmpty()) {
+      routeResolution.topology.routes.toSortedMap().forEach { (dataProvider, route) ->
+        appendLine("- DataProvider: $dataProvider [$route]")
       }
     }
     appendLine()
@@ -700,10 +703,13 @@ internal object ReportTraceOutput {
     }
     appendLine("## Lifecycle coverage")
     appendLine()
-    appendLine("| Stage | Status | Evidence |")
-    appendLine("| --- | --- | --- |")
+    appendLine("| Stage | Resource | Status | Evidence |")
+    appendLine("| --- | --- | --- | --- |")
     for (stage in lifecycleCoverage) {
-      appendLine("| ${stage.name} | ${stage.status} | ${sanitize(stage.evidence)} |")
+      appendLine(
+        "| ${stage.name} | ${sanitize(stage.resource)} | ${stage.status} | " +
+          "${sanitize(stage.evidence)} |"
+      )
     }
     appendLine()
     appendLine("## Chronological timeline")
@@ -768,61 +774,113 @@ internal object ReportTraceOutput {
     spans: List<ReportTraceSpan>,
     logEntries: List<ReportTraceLogEntry>,
   ): List<ReportTraceLifecycleStage> {
-    val observed = mutableMapOf<String, MutableList<Pair<String, String?>>>()
+    val observed = mutableMapOf<String, MutableList<LifecycleEvidence>>()
     for (span in spans) {
       val stage = span.attributes["xmm.lifecycle.stage"] ?: inferStage(span.name) ?: continue
       observed.getOrPut(stage) { mutableListOf() } +=
-        "span ${span.name}" to span.attributes["xmm.outcome"]
+        LifecycleEvidence(
+          description = "span ${span.name}",
+          outcome = span.attributes["xmm.outcome"],
+          attributes = span.attributes,
+        )
     }
     for (entry in logEntries) {
       val fields = safeTextFields(entry.message)
       val stage = fields["xmm.lifecycle.stage"]
       if (stage != null) {
         observed.getOrPut(stage) { mutableListOf() } +=
-          "log ${entry.service}" to fields["xmm.outcome"]
+          LifecycleEvidence(
+            description = "log ${entry.service}",
+            outcome = fields["xmm.outcome"],
+            attributes = fields,
+          )
       }
     }
     if (context.basicReportState?.uppercase() == "SUCCEEDED") {
       observed.getOrPut("basic_report_available") { mutableListOf() } +=
-        "durable BasicReport state SUCCEEDED" to "succeeded"
+        LifecycleEvidence(
+          description = "durable BasicReport state SUCCEEDED",
+          outcome = "succeeded",
+          attributes = mapOf("xmm.basic_report.name" to checkNotNull(context.basicReportName)),
+        )
     }
-    val expectedStages = expectedStages(context, routeResolution)
-    return (expectedStages.keys + observed.keys.filterNot { it in expectedStages }.sorted()).map {
-      stage ->
-      val observedEvidence = observed[stage].orEmpty().distinct()
-      val evidence = observedEvidence.map { it.first }
-      val outcomes = observedEvidence.mapNotNull { it.second?.lowercase() }.toSet()
-      val requirement = expectedStages[stage]
-      ReportTraceLifecycleStage(
-        name = stage,
-        status =
+    val expectedOperations = expectedOperations(context, routeResolution)
+    val expectedStageNames = expectedOperations.mapTo(mutableSetOf()) { it.stage }
+    val coverage =
+      expectedOperations.map { operation ->
+        val stageEvidence = observed[operation.stage].orEmpty().distinct()
+        val resourceAttribute = checkNotNull(operation.resourceAttribute)
+        val matchingEvidence =
+          stageEvidence.filter { evidence ->
+            evidence.attributes[resourceAttribute] == operation.resource
+          }
+        lifecycleStage(
+          operation = operation,
+          matchingEvidence = matchingEvidence,
+          hasUnattributedEvidence =
+            stageEvidence.isNotEmpty() && stageEvidence.none { resourceAttribute in it.attributes },
+        )
+      }
+    val unexpected =
+      observed.keys
+        .filterNot { it in expectedStageNames }
+        .sorted()
+        .map { stage ->
+          lifecycleStage(
+            operation =
+              ExpectedLifecycleOperation(
+                stage = stage,
+                resource = "(unresolved)",
+                resourceAttribute = null,
+                requirement = null,
+              ),
+            matchingEvidence = observed.getValue(stage).distinct(),
+            hasUnattributedEvidence = false,
+          )
+        }
+    return coverage + unexpected
+  }
+
+  private fun lifecycleStage(
+    operation: ExpectedLifecycleOperation,
+    matchingEvidence: List<LifecycleEvidence>,
+    hasUnattributedEvidence: Boolean,
+  ): ReportTraceLifecycleStage {
+    val evidence = matchingEvidence.map { it.description }
+    val outcomes = matchingEvidence.mapNotNull { it.outcome?.lowercase() }.toSet()
+    val requirement = operation.requirement
+    return ReportTraceLifecycleStage(
+      name = operation.stage,
+      resource = operation.resource,
+      status =
+        when {
+          outcomes.any { it == "failed" || it.startsWith("failed_") || it == "report_failed" } ->
+            "FAILED"
+          "refused" in outcomes -> "REFUSED"
+          outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> "SUCCEEDED"
+          outcomes.any { it in IN_PROGRESS_OUTCOMES } -> "IN_PROGRESS"
+          "unknown" in outcomes -> "UNKNOWN"
+          requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isNotEmpty() ->
+            "UNEXPECTED"
+          evidence.isNotEmpty() -> "OBSERVED"
+          hasUnattributedEvidence -> "UNKNOWN"
+          requirement == ReportTraceStageRequirement.NOT_APPLICABLE -> "NOT_APPLICABLE"
+          requirement == ReportTraceStageRequirement.UNKNOWN -> "UNKNOWN"
+          requirement == ReportTraceStageRequirement.REQUIRED -> "MISSING"
+          else -> "OPTIONAL"
+        },
+      evidence =
+        evidence.joinToString().ifEmpty {
           when {
-            outcomes.any { it == "failed" || it.startsWith("failed_") || it == "report_failed" } ->
-              "FAILED"
-            "refused" in outcomes -> "REFUSED"
-            outcomes.any { it in TERMINAL_SUCCESS_OUTCOMES } -> "SUCCEEDED"
-            outcomes.any { it in IN_PROGRESS_OUTCOMES } -> "IN_PROGRESS"
-            "unknown" in outcomes -> "UNKNOWN"
-            requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isEmpty() ->
-              "NOT_APPLICABLE"
-            requirement == ReportTraceStageRequirement.NOT_APPLICABLE -> "UNEXPECTED"
-            evidence.isNotEmpty() -> "OBSERVED"
-            requirement == ReportTraceStageRequirement.REQUIRED -> "MISSING"
-            requirement == ReportTraceStageRequirement.UNKNOWN -> "UNKNOWN"
-            else -> "OPTIONAL"
-          },
-        evidence =
-          evidence.joinToString().ifEmpty {
-            when (requirement) {
-              ReportTraceStageRequirement.NOT_APPLICABLE ->
-                "Not applicable for the Kingdom-resolved route"
-              ReportTraceStageRequirement.UNKNOWN -> "Route applicability could not be resolved"
-              ReportTraceStageRequirement.REQUIRED,
-              null -> "No matching span label or structured log"
-            }
-          },
-      )
-    }
+            hasUnattributedEvidence -> "Stage evidence did not identify this resource"
+            requirement == ReportTraceStageRequirement.NOT_APPLICABLE ->
+              "Not applicable for the Kingdom-resolved route"
+            requirement == ReportTraceStageRequirement.UNKNOWN ->
+              "Route or resource applicability could not be resolved"
+            else -> "No matching span label or structured log"
+          }
+        },
+    )
   }
 
   fun artifactStatus(
@@ -960,30 +1018,105 @@ internal object ReportTraceOutput {
       .sorted()
   }
 
-  private fun expectedStages(
+  private fun expectedOperations(
     context: ReportTraceContext,
     routeResolution: ReportTraceRouteResolution,
-  ): Map<String, ReportTraceStageRequirement> = buildMap {
-    if (context.basicReportName != null) {
-      put("basic_report_creation", ReportTraceStageRequirement.REQUIRED)
+  ): List<ExpectedLifecycleOperation> = buildList {
+    fun add(
+      stage: String,
+      resource: String,
+      resourceAttribute: String,
+      requirement: ReportTraceStageRequirement = ReportTraceStageRequirement.REQUIRED,
+    ) {
+      add(ExpectedLifecycleOperation(stage, resource, resourceAttribute, requirement))
     }
-    put("report_creation", ReportTraceStageRequirement.REQUIRED)
-    put("metric_creation", ReportTraceStageRequirement.REQUIRED)
-    put("measurement_creation", ReportTraceStageRequirement.REQUIRED)
-    put("requisition_available", ReportTraceStageRequirement.REQUIRED)
-    put("requisition_dispatch", routeResolution.requirementFor("requisition_dispatch"))
-    put("results_fulfillment", routeResolution.requirementFor("results_fulfillment"))
-    put("duchy_computation", routeResolution.requirementFor("duchy_computation"))
-    put("duchy_stage_attempt", routeResolution.requirementFor("duchy_stage_attempt"))
-    put("kingdom_result_acceptance", ReportTraceStageRequirement.REQUIRED)
-    put("kingdom_measurement_sync", ReportTraceStageRequirement.REQUIRED)
-    put("metric_result_sync", ReportTraceStageRequirement.REQUIRED)
-    put("report_result_assembly", ReportTraceStageRequirement.REQUIRED)
-    if (context.basicReportName != null) {
-      put("noise_correction", ReportTraceStageRequirement.REQUIRED)
+
+    context.basicReportName?.let { basicReportName ->
+      add("basic_report_creation", basicReportName, "xmm.basic_report.name")
+    }
+    add("report_creation", context.reportName, "xmm.report.name")
+
+    for (metricName in context.metricNames) {
+      add("metric_creation", metricName, "xmm.metric.name")
+      add("metric_result_sync", metricName, "xmm.metric.name")
+    }
+    if (context.metricNames.isEmpty()) {
+      add(
+        "metric_creation",
+        "(unresolved Metric)",
+        "xmm.metric.name",
+        ReportTraceStageRequirement.UNKNOWN,
+      )
+      add(
+        "metric_result_sync",
+        "(unresolved Metric)",
+        "xmm.metric.name",
+        ReportTraceStageRequirement.UNKNOWN,
+      )
+    }
+
+    for (measurement in routeResolution.measurementRoutes) {
+      add("measurement_creation", measurement.name, "xmm.measurement.name")
+      add("kingdom_measurement_sync", measurement.name, "xmm.measurement.name")
+      val duchyRequirement =
+        when (measurement.route) {
+          ReportTraceMeasurementRouteKind.DIRECT -> ReportTraceStageRequirement.NOT_APPLICABLE
+          ReportTraceMeasurementRouteKind.MPC -> ReportTraceStageRequirement.REQUIRED
+          ReportTraceMeasurementRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
+        }
+      add("duchy_computation", measurement.name, "xmm.measurement.name", duchyRequirement)
+      add("duchy_stage_attempt", measurement.name, "xmm.measurement.name", duchyRequirement)
+
+      if (!measurement.requisitionsResolved) {
+        for (stage in REQUISITION_LIFECYCLE_STAGES) {
+          add(
+            stage,
+            "${measurement.name} requisitions",
+            "xmm.requisition.name",
+            ReportTraceStageRequirement.UNKNOWN,
+          )
+        }
+      } else {
+        for (requisition in measurement.requisitions) {
+          add("requisition_available", requisition.name, "xmm.requisition.name")
+          val edpaRequirement =
+            when (requisition.route) {
+              ReportTraceRequisitionRouteKind.EDPA -> ReportTraceStageRequirement.REQUIRED
+              ReportTraceRequisitionRouteKind.DIRECT_EDP ->
+                ReportTraceStageRequirement.NOT_APPLICABLE
+              ReportTraceRequisitionRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
+            }
+          add("requisition_dispatch", requisition.name, "xmm.requisition.name", edpaRequirement)
+          add("results_fulfillment", requisition.name, "xmm.requisition.name", edpaRequirement)
+          add("kingdom_result_acceptance", requisition.name, "xmm.requisition.name")
+        }
+      }
+    }
+    if (routeResolution.measurementRoutes.isEmpty()) {
+      for (stage in MEASUREMENT_LIFECYCLE_STAGES) {
+        add(
+          stage,
+          "(unresolved Measurement)",
+          "xmm.measurement.name",
+          ReportTraceStageRequirement.UNKNOWN,
+        )
+      }
+      for (stage in REQUISITION_LIFECYCLE_STAGES) {
+        add(
+          stage,
+          "(unresolved Requisition)",
+          "xmm.requisition.name",
+          ReportTraceStageRequirement.UNKNOWN,
+        )
+      }
+    }
+
+    add("report_result_assembly", context.reportName, "xmm.report.name")
+    context.basicReportName?.let { basicReportName ->
+      add("noise_correction", basicReportName, "xmm.basic_report.name")
       if (context.basicReportState?.uppercase() == "SUCCEEDED") {
-        put("processed_result_writeback", ReportTraceStageRequirement.REQUIRED)
-        put("basic_report_available", ReportTraceStageRequirement.REQUIRED)
+        add("processed_result_writeback", basicReportName, "xmm.basic_report.name")
+        add("basic_report_available", basicReportName, "xmm.basic_report.name")
       }
     }
   }
@@ -1026,8 +1159,35 @@ internal object ReportTraceOutput {
 
   private data class RenderedTimelineEntry(val timestamp: Instant, val text: String)
 
+  private data class LifecycleEvidence(
+    val description: String,
+    val outcome: String?,
+    val attributes: Map<String, String>,
+  )
+
+  private data class ExpectedLifecycleOperation(
+    val stage: String,
+    val resource: String,
+    val resourceAttribute: String?,
+    val requirement: ReportTraceStageRequirement?,
+  )
+
   private const val MAX_LOG_FILTER_LENGTH = 20_000
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
+  private val MEASUREMENT_LIFECYCLE_STAGES =
+    listOf(
+      "measurement_creation",
+      "kingdom_measurement_sync",
+      "duchy_computation",
+      "duchy_stage_attempt",
+    )
+  private val REQUISITION_LIFECYCLE_STAGES =
+    listOf(
+      "requisition_available",
+      "requisition_dispatch",
+      "results_fulfillment",
+      "kingdom_result_acceptance",
+    )
   private val SAFE_LOG_FIELDS =
     setOf(
       "event",
@@ -1155,14 +1315,15 @@ internal class ReportTrace(
   private var certCollectionFile: File? = null
 
   @CommandLine.Option(
-    names = ["--edpa-data-provider"],
+    names = ["--topology-config-file"],
     description =
       [
-        "DataProvider resource name managed by an EDP Aggregator.",
-        "Repeat to supply the complete deployment topology.",
+        "Complete DataProvider fulfillment topology as a ReportTraceTopologyConfig textproto.",
+        "An encountered DataProvider missing from the config produces a PARTIAL artifact.",
+        "Required with --basic-report.",
       ],
   )
-  private var edpaDataProviders: List<String> = emptyList()
+  private var topologyConfigFile: File? = null
 
   @CommandLine.Option(
     names = ["--kingdom-resolution-timeout"],
@@ -1342,7 +1503,7 @@ internal class ReportTrace(
       val routeResolution =
         ReportTraceRouteResolution.unresolved(
           measurementNames = emptyList(),
-          edpaDataProviders = emptySet(),
+          topology = ReportTraceTopology.notSupplied(),
           status = "NOT_ATTEMPTED",
           note = "Kingdom route resolution is unavailable in direct --report mode",
         )
@@ -1379,7 +1540,7 @@ internal class ReportTrace(
 
     val normalizedOutputDirectory =
       outputDirectory?.toAbsolutePath()?.normalize()?.also { Files.createDirectories(it) }
-    val normalizedEdpaDataProviders = edpaDataProviders.toSet()
+    val topology = topologyConfigFile?.let(::loadTopology) ?: ReportTraceTopology.notSupplied()
     val resolver = resolverOverride
     if (resolver != null) {
       val routeResolver =
@@ -1387,7 +1548,7 @@ internal class ReportTrace(
           ?: ReportTraceRouteResolver { measurementNames, topology ->
             ReportTraceRouteResolution.unresolved(
               measurementNames = measurementNames,
-              edpaDataProviders = topology,
+              topology = topology,
               status = "NOT_ATTEMPTED",
               note = "Kingdom route resolver was not configured",
             )
@@ -1397,7 +1558,7 @@ internal class ReportTrace(
         normalizedOutputDirectory,
         resolver,
         routeResolver,
-        normalizedEdpaDataProviders,
+        topology,
         explicitStartTime,
         parsedEndTime,
         entryLimit,
@@ -1414,7 +1575,7 @@ internal class ReportTrace(
         normalizedOutputDirectory,
         resolverFactory(spanner, postgresClient),
         routeResolver,
-        normalizedEdpaDataProviders,
+        topology,
         explicitStartTime,
         parsedEndTime,
         entryLimit,
@@ -1427,7 +1588,7 @@ internal class ReportTrace(
     outputDirectory: Path?,
     resolver: BasicReportTraceResolver,
     routeResolver: ReportTraceRouteResolver,
-    edpaDataProviders: Set<String>,
+    topology: ReportTraceTopology,
     explicitStartTime: Instant?,
     endTime: Instant,
     entryLimit: Int,
@@ -1468,13 +1629,13 @@ internal class ReportTrace(
         val routeResolution =
           if (resolutionFailure == null) {
             try {
-              routeResolver.resolve(context.measurementNames, edpaDataProviders)
+              routeResolver.resolve(context.measurementNames, topology)
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
               ReportTraceRouteResolution.unresolved(
                 measurementNames = context.measurementNames,
-                edpaDataProviders = edpaDataProviders,
+                topology = topology,
                 status = "FAILED",
                 note = "Kingdom route resolution failed: ${failureDescription(e)}",
               )
@@ -1482,7 +1643,7 @@ internal class ReportTrace(
           } else {
             ReportTraceRouteResolution.unresolved(
               measurementNames = context.measurementNames,
-              edpaDataProviders = edpaDataProviders,
+              topology = topology,
               status = "NOT_ATTEMPTED",
               note = "Kingdom route resolution skipped because Reporting resolution failed",
             )
@@ -1995,6 +2156,7 @@ internal class ReportTrace(
         if (kingdomApiKey == null) add("--kingdom-api-key")
         if (tlsCertFile == null) add("--tls-cert-file")
         if (tlsKeyFile == null) add("--tls-key-file")
+        if (topologyConfigFile == null) add("--topology-config-file")
       }
     }
     if (missing.isNotEmpty()) {
@@ -2027,14 +2189,17 @@ internal class ReportTrace(
         "--kingdom-retry-delay must be non-negative",
       )
     }
-    val invalidDataProvider =
-      edpaDataProviders.firstOrNull {
-        org.wfanet.measurement.api.v2alpha.DataProviderKey.fromName(it) == null
-      }
-    if (invalidDataProvider != null) {
+  }
+
+  private fun loadTopology(file: File): ReportTraceTopology {
+    return try {
+      val config = parseTextProto(file, ReportTraceTopologyConfig.getDefaultInstance())
+      ReportTraceTopology.fromConfig(config)
+    } catch (e: Exception) {
       throw CommandLine.ParameterException(
         spec.commandLine(),
-        "Invalid --edpa-data-provider resource name: $invalidDataProvider",
+        "Invalid --topology-config-file: ${e.message ?: e::class.java.simpleName}",
+        e,
       )
     }
   }

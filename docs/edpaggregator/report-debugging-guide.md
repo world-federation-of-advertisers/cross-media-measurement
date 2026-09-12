@@ -101,6 +101,23 @@ the Reporting Cloud SQL instance, and select from the Reporting Postgres
 database. The command also uses the MeasurementConsumer's mTLS identity and API
 key to read its Measurements and Requisitions from the Kingdom public API.
 
+First create a complete topology config for the deployment. Every DataProvider
+that can appear on a traced Requisition must have an explicit route:
+
+```textproto
+data_provider_routes {
+  data_provider: "dataProviders/<DIRECT_EDP_DATA_PROVIDER_ID>"
+  route: DIRECT_EDP
+}
+data_provider_routes {
+  data_provider: "dataProviders/<EDPA_DATA_PROVIDER_ID>"
+  route: EDPA
+}
+```
+
+`EDPA` means the direct RequisitionFetcher-to-Secure-Computation WorkItem path.
+The tool does not support the legacy DataWatcher dispatch path.
+
 ```bash
 bazel run \
   //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
@@ -124,7 +141,7 @@ bazel run \
   --tls-key-file=<MEASUREMENT_CONSUMER_TLS_KEY_FILE> \
   --cert-collection-file=<KINGDOM_ROOT_CERT_COLLECTION_FILE> \
   --kingdom-api-key=<MEASUREMENT_CONSUMER_API_KEY> \
-  --edpa-data-provider=dataProviders/<EDPA_MANAGED_DATA_PROVIDER_ID>
+  --topology-config-file=<REPORT_TRACE_TOPOLOGY_TEXTPROTO>
 ```
 
 Repeat `--basic-report` to collect a batch. `--output-dir` is required for a
@@ -134,12 +151,20 @@ is written to standard output. The default end time is the current time. Repeat
 `--observability-project` for every project that receives telemetry from a
 component in the path. The legacy `--project` spelling remains an alias for a
 single centrally routed observability project; it is not the Spanner project.
-Repeat `--edpa-data-provider` for every DataProvider whose requisitions are
-fulfilled by an EDP Aggregator in this deployment. This is operator-supplied
-topology because the Kingdom knows the DataProvider and selected protocol, but
-not the implementation behind that DataProvider. If the option is omitted, the
-artifact records that provenance and leaves the EDPA-versus-direct branches
-`UNKNOWN` rather than guessing. Kingdom lookup is bounded by
+`--topology-config-file` is required in BasicReport mode and supplies a
+`ReportTraceTopologyConfig` textproto. This topology is operator-supplied
+because the Kingdom knows the DataProvider and selected protocol, but not the
+implementation behind that DataProvider. `ROUTE_UNSPECIFIED`, invalid
+DataProvider resource names, and duplicate DataProvider entries are invalid and
+cause the command to fail before collection.
+
+The config is expected to describe the complete deployment topology. If an
+otherwise valid config omits a DataProvider encountered on a Kingdom
+Requisition, collection continues: the affected route and lifecycle operations
+are `UNKNOWN`, the artifact is `PARTIAL`, and the warning names the missing
+DataProvider. The command exits nonzero unless `--allow-partial` is supplied.
+This preserves the telemetry artifact without incorrectly treating an unlisted
+provider as a direct EDP. Kingdom lookup is bounded by
 `--kingdom-resolution-timeout`, `--kingdom-max-concurrency`, and
 `--kingdom-max-attempts`; a partial or failed lookup does not prevent telemetry
 collection.
@@ -166,9 +191,12 @@ The CLI uses the Kingdom as the authoritative source for every resolved
 Measurement's state, selected protocol, and Requisitions. Its route table marks
 the Duchy path `NOT_APPLICABLE` for direct Measurements and required for MPC
 Measurements. It marks RequisitionFetcher, WorkItem, and ResultsFulfiller stages
-required only for Requisitions owned by a DataProvider supplied through
-`--edpa-data-provider`; those stages are `NOT_APPLICABLE` for direct-EDP
-Requisitions. Failed Kingdom lookups leave only the affected branches `UNKNOWN`
+required only for Requisitions whose topology route is `EDPA`; those stages are
+`NOT_APPLICABLE` for `DIRECT_EDP` Requisitions. Lifecycle coverage is evaluated
+for each expected Metric, Measurement, and Requisition. Evidence for one child
+does not satisfy another child. If observed telemetry for an operation does not
+identify the child resource, that child operation is `UNKNOWN`. Failed Kingdom
+lookups and missing topology entries leave only the affected branches `UNKNOWN`
 and make the artifact partial.
 
 If durable resource resolution fails after the CLI validates the BasicReport

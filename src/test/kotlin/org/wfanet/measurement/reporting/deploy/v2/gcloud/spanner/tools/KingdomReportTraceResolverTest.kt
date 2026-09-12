@@ -61,7 +61,14 @@ class KingdomReportTraceResolverTest {
       )
     val resolver = resolver(client)
 
-    val result = resolver.resolve(listOf(MEASUREMENT_1, MEASUREMENT_2), setOf(EDPA))
+    val result =
+      resolver.resolve(
+        listOf(MEASUREMENT_1, MEASUREMENT_2),
+        topology(
+          DIRECT_EDP to ReportTraceRequisitionRouteKind.DIRECT_EDP,
+          EDPA to ReportTraceRequisitionRouteKind.EDPA,
+        ),
+      )
 
     assertThat(result.status).isEqualTo("SUCCESS")
     assertThat(result.measurementRoutes.map { it.route })
@@ -94,7 +101,12 @@ class KingdomReportTraceResolverTest {
         },
       )
 
-    val result = resolver(client).resolve(listOf(MEASUREMENT_1), setOf(EDPA))
+    val result =
+      resolver(client)
+        .resolve(
+          listOf(MEASUREMENT_1),
+          topology(DIRECT_EDP to ReportTraceRequisitionRouteKind.DIRECT_EDP),
+        )
 
     assertThat(result.requirementFor("duchy_computation"))
       .isEqualTo(ReportTraceStageRequirement.NOT_APPLICABLE)
@@ -103,7 +115,7 @@ class KingdomReportTraceResolverTest {
   }
 
   @Test
-  fun `resolve leaves EDP route unknown without operator topology`() = runTest {
+  fun `resolve leaves EDP route unknown when complete topology omits DataProvider`() = runTest {
     val client =
       FakeKingdomReportTraceClient(
         batchGet = {
@@ -116,14 +128,16 @@ class KingdomReportTraceResolverTest {
         },
       )
 
-    val result = resolver(client).resolve(listOf(MEASUREMENT_1), emptySet())
+    val result =
+      resolver(client)
+        .resolve(listOf(MEASUREMENT_1), topology(EDPA to ReportTraceRequisitionRouteKind.EDPA))
 
     assertThat(result.status).isEqualTo("PARTIAL")
     assertThat(result.measurementRoutes.single().requisitions.single().route)
       .isEqualTo(ReportTraceRequisitionRouteKind.UNKNOWN)
     assertThat(result.requirementFor("requisition_dispatch"))
       .isEqualTo(ReportTraceStageRequirement.UNKNOWN)
-    assertThat(result.topologyProvenance).contains("not supplied")
+    assertThat(result.note).contains(DIRECT_EDP)
   }
 
   @Test
@@ -154,7 +168,15 @@ class KingdomReportTraceResolverTest {
         },
       )
 
-    val result = resolver(client).resolve(listOf(MEASUREMENT_1), setOf(EDPA))
+    val result =
+      resolver(client)
+        .resolve(
+          listOf(MEASUREMENT_1),
+          topology(
+            DIRECT_EDP to ReportTraceRequisitionRouteKind.DIRECT_EDP,
+            EDPA to ReportTraceRequisitionRouteKind.EDPA,
+          ),
+        )
 
     assertThat(batchCalls).isEqualTo(2)
     assertThat(pageTokens).containsExactly("", "page-2").inOrder()
@@ -177,7 +199,11 @@ class KingdomReportTraceResolverTest {
         initialRetryDelay = Duration.ZERO,
       )
 
-    val result = resolver.resolve(listOf(MEASUREMENT_1), setOf(EDPA))
+    val result =
+      resolver.resolve(
+        listOf(MEASUREMENT_1),
+        topology(EDPA to ReportTraceRequisitionRouteKind.EDPA),
+      )
 
     assertThat(result.status).isEqualTo("FAILED")
     assertThat(result.measurementRoutes.single().route)
@@ -200,7 +226,8 @@ class KingdomReportTraceResolverTest {
         list = { listRequisitionsResponse {} },
       )
 
-    val result = resolver(client).resolve(names, setOf(EDPA))
+    val result =
+      resolver(client).resolve(names, topology(EDPA to ReportTraceRequisitionRouteKind.EDPA))
 
     assertThat(batchSizes).containsExactly(50, 1).inOrder()
     assertThat(result.measurementRoutes).hasSize(51)
@@ -215,6 +242,11 @@ class KingdomReportTraceResolverTest {
       initialRetryDelay = Duration.ZERO,
     )
   }
+
+  private fun topology(
+    vararg routes: Pair<String, ReportTraceRequisitionRouteKind>
+  ): ReportTraceTopology =
+    ReportTraceTopology(routes.toMap(), "operator-provided --topology-config-file")
 
   private fun directMeasurement(name: String): Measurement = measurement {
     this.name = name

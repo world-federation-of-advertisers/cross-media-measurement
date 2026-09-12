@@ -80,8 +80,7 @@ internal data class ReportTraceMeasurementRoute(
 internal data class ReportTraceRouteResolution(
   val status: String,
   val note: String,
-  val topologyProvenance: String,
-  val edpaDataProviders: Set<String>,
+  val topology: ReportTraceTopology,
   val measurementRoutes: List<ReportTraceMeasurementRoute>,
   val warnings: List<String>,
 ) {
@@ -131,15 +130,14 @@ internal data class ReportTraceRouteResolution(
 
     fun unresolved(
       measurementNames: Collection<String>,
-      edpaDataProviders: Set<String>,
+      topology: ReportTraceTopology,
       status: String,
       note: String,
     ): ReportTraceRouteResolution {
       return ReportTraceRouteResolution(
         status = status,
         note = note,
-        topologyProvenance = topologyProvenance(edpaDataProviders),
-        edpaDataProviders = edpaDataProviders,
+        topology = topology,
         measurementRoutes =
           measurementNames.distinct().sorted().map { name ->
             ReportTraceMeasurementRoute(
@@ -165,21 +163,13 @@ internal data class ReportTraceRouteResolution(
         else -> ReportTraceStageRequirement.NOT_APPLICABLE
       }
     }
-
-    private fun topologyProvenance(edpaDataProviders: Set<String>): String {
-      return if (edpaDataProviders.isEmpty()) {
-        "not supplied; EDPA ownership is unknown"
-      } else {
-        "operator-provided --edpa-data-provider (${edpaDataProviders.size})"
-      }
-    }
   }
 }
 
 internal fun interface ReportTraceRouteResolver {
   suspend fun resolve(
     measurementNames: Collection<String>,
-    edpaDataProviders: Set<String>,
+    topology: ReportTraceTopology,
   ): ReportTraceRouteResolution
 }
 
@@ -223,13 +213,13 @@ internal class KingdomReportTraceResolver(
 
   override suspend fun resolve(
     measurementNames: Collection<String>,
-    edpaDataProviders: Set<String>,
+    topology: ReportTraceTopology,
   ): ReportTraceRouteResolution {
     val distinctMeasurementNames = measurementNames.distinct().sorted()
     if (distinctMeasurementNames.isEmpty()) {
       return ReportTraceRouteResolution.unresolved(
         measurementNames = emptyList(),
-        edpaDataProviders = edpaDataProviders,
+        topology = topology,
         status = "NO_INPUT",
         note = "No Kingdom Measurement names were resolved from Reporting",
       )
@@ -237,12 +227,12 @@ internal class KingdomReportTraceResolver(
 
     return try {
       withTimeout(perReportDeadline.toMillis()) {
-        resolveWithinDeadline(distinctMeasurementNames, edpaDataProviders)
+        resolveWithinDeadline(distinctMeasurementNames, topology)
       }
     } catch (e: TimeoutCancellationException) {
       ReportTraceRouteResolution.unresolved(
         measurementNames = distinctMeasurementNames,
-        edpaDataProviders = edpaDataProviders,
+        topology = topology,
         status = "FAILED",
         note = "Kingdom route resolution exceeded the per-report deadline",
       )
@@ -251,7 +241,7 @@ internal class KingdomReportTraceResolver(
 
   private suspend fun resolveWithinDeadline(
     measurementNames: List<String>,
-    edpaDataProviders: Set<String>,
+    topology: ReportTraceTopology,
   ): ReportTraceRouteResolution {
     val parent =
       checkNotNull(MeasurementKey.fromName(measurementNames.first())) {
@@ -318,9 +308,7 @@ internal class KingdomReportTraceResolver(
                       protocol = protocol.name,
                       route = protocol.route,
                       requisitions =
-                        requisitions.map { requisition ->
-                          requisitionRoute(requisition, edpaDataProviders)
-                        },
+                        requisitions.map { requisition -> requisitionRoute(requisition, topology) },
                       requisitionsResolved = true,
                     ),
                   failure = null,
@@ -365,8 +353,17 @@ internal class KingdomReportTraceResolver(
       }
     val measurementRoutes =
       (resolvedRoutes.map { it.route } + unresolvedRoutes).sortedBy { it.name }
-    if (edpaDataProviders.isEmpty() && measurementRoutes.any { it.requisitions.isNotEmpty() }) {
-      failures += "No --edpa-data-provider values were supplied; EDPA ownership remains unknown"
+    val missingDataProviders =
+      measurementRoutes
+        .flatMap { it.requisitions }
+        .filter { it.route == ReportTraceRequisitionRouteKind.UNKNOWN }
+        .map { it.dataProvider }
+        .filter { it != UNKNOWN_VALUE }
+        .distinct()
+        .sorted()
+    if (missingDataProviders.isNotEmpty()) {
+      failures +=
+        "Topology config has no route for DataProviders: ${missingDataProviders.joinToString()}"
     }
 
     return ReportTraceRouteResolution(
@@ -377,13 +374,7 @@ internal class KingdomReportTraceResolver(
           else -> "SUCCESS"
         },
       note = failures.joinToString("; "),
-      topologyProvenance =
-        if (edpaDataProviders.isEmpty()) {
-          "not supplied; EDPA ownership is unknown"
-        } else {
-          "operator-provided --edpa-data-provider (${edpaDataProviders.size})"
-        },
-      edpaDataProviders = edpaDataProviders,
+      topology = topology,
       measurementRoutes = measurementRoutes,
       warnings = failures,
     )
@@ -455,16 +446,10 @@ internal class KingdomReportTraceResolver(
 
   private fun requisitionRoute(
     requisition: Requisition,
-    edpaDataProviders: Set<String>,
+    topology: ReportTraceTopology,
   ): ReportTraceRequisitionRoute {
     val dataProvider = CanonicalRequisitionKey.fromName(requisition.name)?.parentKey?.toName()
-    val route =
-      when {
-        dataProvider == null || edpaDataProviders.isEmpty() ->
-          ReportTraceRequisitionRouteKind.UNKNOWN
-        dataProvider in edpaDataProviders -> ReportTraceRequisitionRouteKind.EDPA
-        else -> ReportTraceRequisitionRouteKind.DIRECT_EDP
-      }
+    val route = dataProvider?.let(topology::routeFor) ?: ReportTraceRequisitionRouteKind.UNKNOWN
     return ReportTraceRequisitionRoute(
       name = requisition.name,
       state = requisition.state.name,
