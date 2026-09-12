@@ -55,8 +55,8 @@ import org.wfanet.measurement.common.toProtoDate
  * JUnit [TestRule] that ensures the QA 2026 [Population] exists and that the QA 2026 [ModelLine]
  * has a [ModelRelease] and rollout pointing at it.
  *
- * The ModelLine itself is **not** created here — nothing in this repository creates a ModelLine,
- * so it is provisioned once per environment by an operator and looked up by resource name. Because
+ * The ModelLine itself is **not** created here — nothing in this repository creates a ModelLine, so
+ * it is provisioned once per environment by an operator and looked up by resource name. Because
  * `model-lines create` requires a Population up front, that line is bootstrapped against whatever
  * Population is convenient; this rule then attaches the correct one. Since the PDP resolves the
  * *most recent* rollout on a line, the release created here supersedes the bootstrap.

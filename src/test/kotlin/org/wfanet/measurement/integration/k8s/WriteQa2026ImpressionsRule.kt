@@ -223,9 +223,10 @@ class WriteQa2026ImpressionsRule(
           .add(EntityKeysWithLabeledEvents(listOf(entityKey), shard.labeledEvents))
       }
     }
-    return shardsByDate.entries.asSequence().sortedBy { it.key }.map { (date, groups) ->
-      EntityKeyedLabeledEventDateShard(date, groups.asSequence())
-    }
+    return shardsByDate.entries
+      .asSequence()
+      .sortedBy { it.key }
+      .map { (date, groups) -> EntityKeyedLabeledEventDateShard(date, groups.asSequence()) }
   }
 
   private fun resolveSpec(path: String): SyntheticEventGroupSpec =

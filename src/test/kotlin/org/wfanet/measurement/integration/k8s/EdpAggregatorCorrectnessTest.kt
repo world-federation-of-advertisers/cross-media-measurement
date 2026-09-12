@@ -203,9 +203,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private fun createEventGroups(): List<EventGroup> =
       buildEventGroups(syntheticEventGroupMap) + buildEventGroups(qa2026EventGroupMap)
 
-    private fun buildEventGroups(
-      eventGroupMap: Map<String, EventGroupConfig>
-    ): List<EventGroup> {
+    private fun buildEventGroups(eventGroupMap: Map<String, EventGroupConfig>): List<EventGroup> {
       return eventGroupMap.flatMap { (eventGroupReferenceId, config) ->
         when (config) {
           is EventGroupConfig.LegacySpec ->
@@ -383,10 +381,10 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
 
       /**
-       * `done` markers for the QA 2026 dataset, one per (EDP impression path, date), under the
-       * 2026 model line. Dates are derived from the provisioned specs rather than hardcoded, so
-       * they cannot drift from the data. No QA 2026 date is pipelined, so every date gets a
-       * test-dropped marker.
+       * `done` markers for the QA 2026 dataset, one per (EDP impression path, date), under the 2026
+       * model line. Dates are derived from the provisioned specs rather than hardcoded, so they
+       * cannot drift from the data. No QA 2026 date is pipelined, so every date gets a test-dropped
+       * marker.
        */
       fun buildQa2026Paths(modelLineId: String): List<String> {
         return qa2026DatesByImpressionPath.flatMap { (impressionPath, dates) ->
@@ -625,8 +623,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     /**
      * Aggregator EDPs this environment has provisioned for the QA 2026 dataset, from the
-     * `QA2026_EDPS` env var (comma-separated). The config declares all four; the two added by
-     * #4210 are only usable once registered, so this defaults to the two that already exist.
+     * `QA2026_EDPS` env var (comma-separated). The config declares all four; the two added by #4210
+     * are only usable once registered, so this defaults to the two that already exist.
      */
     private val QA2026_EDP_NAMES: Set<String> =
       System.getenv("QA2026_EDPS")
