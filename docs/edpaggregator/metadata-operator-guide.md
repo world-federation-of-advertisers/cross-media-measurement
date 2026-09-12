@@ -359,8 +359,9 @@ Check metrics and traces before grepping logs — see the
   the deterministic ID. A terminal WorkItem with unfinished metadata is an
   invariant violation and requires operator investigation rather than automatic
   redispatch. After remediating a `FAILED` WorkItem, call `RetryWorkItem` explicitly.
-  For an abandoned `RUNNING` WorkItem, first confirm its worker has stopped; retrying
-  fails the active attempt before republishing the WorkItem.
+  For an abandoned `RUNNING` WorkItem, first confirm its worker has stopped, call
+  `FailWorkItemAttempt` for the exact active attempt, and then call `RetryWorkItem`.
+  `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains.
 
 ## Quick tuning reference
 
