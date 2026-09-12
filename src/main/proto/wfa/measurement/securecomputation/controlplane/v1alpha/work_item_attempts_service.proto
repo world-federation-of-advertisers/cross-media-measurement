@@ -35,7 +35,7 @@ service WorkItemAttempts {
   rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) =
-        "parent,work_item_attempt,work_item_attempt_id";
+        "parent,work_item_attempt,work_item_attempt_id,expected_work_item_generation";
   }
 
   // Returns the `WorkItemAttempt` with the specified resource key.
