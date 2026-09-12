@@ -252,8 +252,7 @@ class WriteQa2026ImpressionsRule(
     /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK, by KEK URI. */
     private val GCP_KMS_KEK_URI_BY_EDP: Map<String, String> =
       mapOf(
-        EDP7_NAME to
-          env("EDP7_KEK_URI").ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() }
+        EDP7_NAME to env("EDP7_KEK_URI").ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() }
       )
 
     /** EDPs whose impressions are encrypted with an AWS KMS KEK. */

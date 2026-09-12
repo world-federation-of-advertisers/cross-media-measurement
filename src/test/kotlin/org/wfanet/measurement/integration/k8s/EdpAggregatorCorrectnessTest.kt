@@ -113,41 +113,39 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
      * MeasurementConsumer), so adding IDs registers the new groups and leaves the 2021 ones
      * untouched. EDPs that appear only in the QA 2026 config get their own entry.
      */
-    private val edpStorageList: List<EdpStorage> =
-      buildList {
+    private val edpStorageList: List<EdpStorage> = buildList {
+      add(
+        EdpStorage(
+          objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
+          objectKey = "edp7/event-groups/edp7-event-group.binpb",
+          blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
+          eventGroupReferenceIds =
+            setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
+              MULTI_CREATIVE_REF_IDS +
+              qa2026EventGroupRefIdsByEdp["edp7"].orEmpty(),
+        )
+      )
+      add(
+        EdpStorage(
+          objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
+          objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
+          blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
+          eventGroupReferenceIds =
+            setOf(EDPA_META_EVENT_GROUP_REF_ID) + qa2026EventGroupRefIdsByEdp["edpa_meta"].orEmpty(),
+        )
+      )
+      for ((edpName, refIds) in qa2026EventGroupRefIdsByEdp) {
+        if (edpName == "edp7" || edpName == "edpa_meta") continue
         add(
           EdpStorage(
-            objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
-            objectKey = "edp7/event-groups/edp7-event-group.binpb",
-            blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
-            eventGroupReferenceIds =
-              setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
-                MULTI_CREATIVE_REF_IDS +
-                qa2026EventGroupRefIdsByEdp["edp7"].orEmpty(),
+            objectMapKey = "$edpName/event-groups-map/$edpName-event-group.binpb",
+            objectKey = "$edpName/event-groups/$edpName-event-group.binpb",
+            blobUri = "gs://$bucket/$edpName/event-groups/$edpName-event-group.binpb",
+            eventGroupReferenceIds = refIds,
           )
         )
-        add(
-          EdpStorage(
-            objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
-            objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
-            blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
-            eventGroupReferenceIds =
-              setOf(EDPA_META_EVENT_GROUP_REF_ID) +
-                qa2026EventGroupRefIdsByEdp["edpa_meta"].orEmpty(),
-          )
-        )
-        for ((edpName, refIds) in qa2026EventGroupRefIdsByEdp) {
-          if (edpName == "edp7" || edpName == "edpa_meta") continue
-          add(
-            EdpStorage(
-              objectMapKey = "$edpName/event-groups-map/$edpName-event-group.binpb",
-              objectKey = "$edpName/event-groups/$edpName-event-group.binpb",
-              blobUri = "gs://$bucket/$edpName/event-groups/$edpName-event-group.binpb",
-              eventGroupReferenceIds = refIds,
-            )
-          )
-        }
       }
+    }
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
