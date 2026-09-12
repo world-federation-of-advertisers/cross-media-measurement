@@ -1415,11 +1415,13 @@ class RequisitionFetcherTest {
               requisitionMetadata {
                 cmmsRequisition = r1.name
                 groupId = "group-A"
+                blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/group-A"
                 state = RequisitionMetadata.State.STORED
               },
               requisitionMetadata {
                 cmmsRequisition = r2.name
                 groupId = "group-B"
+                blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/group-B"
                 state = RequisitionMetadata.State.STORED
               },
             )
