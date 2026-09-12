@@ -147,6 +147,21 @@ class WorkItemServiceTest {
   }
 
   @Test
+  fun `ensureWorkItem preserves UNIMPLEMENTED from old internal service`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow Status.UNIMPLEMENTED.asRuntimeException()
+    }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+  }
+
+  @Test
   fun `createWorkItem throws REQUIRED_FIELD_NOT_SET when workItem is not set`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createWorkItem(createWorkItemRequest {}) }
