@@ -27,6 +27,7 @@ import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
@@ -797,6 +798,13 @@ class RequisitionsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "kingdom.requisition.refusal_acceptance" }
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_requisition_refusal_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
   }
 
   @Test
@@ -887,6 +895,13 @@ class RequisitionsServiceTest {
         )
 
       assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+      val span =
+        spanExporter.finishedSpanItems.single { it.name == "kingdom.requisition.result_acceptance" }
+      assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("kingdom_requisition_result_acceptance")
+      assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
     }
 
   @Test
@@ -1007,6 +1022,7 @@ class RequisitionsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(spanExporter.finishedSpanItems).isEmpty()
   }
 
   @Test
@@ -1042,6 +1058,7 @@ class RequisitionsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(spanExporter.finishedSpanItems).isEmpty()
   }
 
   @Test
@@ -1058,6 +1075,16 @@ class RequisitionsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "kingdom.requisition.result_acceptance" }
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_requisition_result_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
   }
 
   @Test
@@ -1066,6 +1093,7 @@ class RequisitionsServiceTest {
       val request = fulfillDirectRequisitionRequest {
         name = REQUISITION_NAME
         encryptedResult = ENCRYPTED_RESULT
+        nonce = NONCE
         certificate = "some-invalid-certificate-resource"
       }
       val exception =
@@ -1119,6 +1147,16 @@ class RequisitionsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("requisition", REQUISITION_NAME)
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "kingdom.requisition.refusal_acceptance" }
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_requisition_refusal_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
   }
 
   @Test
@@ -1213,6 +1251,16 @@ class RequisitionsServiceTest {
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("requisition", REQUISITION_NAME)
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "kingdom.requisition.result_acceptance" }
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_requisition_result_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
   }
 
   @Test

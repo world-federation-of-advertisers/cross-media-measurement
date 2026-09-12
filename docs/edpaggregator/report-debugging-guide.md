@@ -190,6 +190,13 @@ evidence are prioritized within that window, but an older error outside it may
 be omitted. Truncated output is always marked partial. Set `--limit=0` to collect
 all matching entries.
 
+`COMPLETE` describes the evidence collection, not whether the report succeeded.
+For a terminal failure or refusal, the artifact marks downstream operations that
+could not run as `SKIPPED_AFTER_FAILURE` or `SKIPPED_AFTER_REFUSAL`. A fully
+observed unsuccessful execution can therefore be `COMPLETE` with an execution
+outcome of `FAILED` or `REFUSED`; genuinely missing evidence still makes it
+`PARTIAL`.
+
 The CLI uses the Kingdom as the authoritative source for every resolved
 Measurement's state, selected protocol, Requisitions, and expected Duchy
 participants. Its route table marks the Duchy path `NOT_APPLICABLE` for direct
@@ -207,6 +214,10 @@ Lifecycle coverage is evaluated for each expected Metric, Measurement,
 Requisition, and applicable Duchy participant. Direct result acceptance is
 required per Requisition at the Kingdom Requisitions API. MPC result acceptance
 is instead required once per Measurement/computation at the Kingdom system API.
+For a refused Requisition, the separate
+`kingdom_requisition_refusal_acceptance` stage records whether the Kingdom
+accepted or rejected that refusal; direct result acceptance is then
+`SKIPPED_AFTER_REFUSAL`.
 Evidence for one child does not satisfy another child. If observed telemetry for
 an operation does not identify the child resource, that child operation is
 `UNKNOWN`. Failed Kingdom lookups and missing topology entries leave only the
@@ -214,6 +225,14 @@ affected branches `UNKNOWN` and make the artifact partial. A successful
 BasicReport's durable availability is required; an observed
 `basic_report_api_fetch` is shown as optional evidence because fetching the
 result is not part of producing it.
+
+Reporting can reuse a Metric, and its Measurements, from an older BasicReport.
+The resolver identifies this from the Metric's immutable originating
+`basic_report` (or its legacy `containing_report`). Historical creation and
+execution stages are shown as `REUSED`, rather than `MISSING` outside the new
+BasicReport's collection window. The new Report's Metric result synchronization,
+result assembly, post-processing, writeback, and durable BasicReport availability
+remain required.
 
 If durable resource resolution fails after the CLI validates the BasicReport
 name, the CLI records the Reporting resolver as a failed source and still

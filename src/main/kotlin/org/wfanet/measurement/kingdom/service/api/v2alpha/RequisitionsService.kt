@@ -236,39 +236,52 @@ class RequisitionsService(
       grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
-    grpcRequire(request.refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED) {
-      "Refusal details must be present"
-    }
-
-    val authenticatedPrincipal = principalFromCurrentContext
-    if (key.parentKey != authenticatedPrincipal.resourceKey) {
-      throw Permission.REFUSE.deniedStatus(request.name).asRuntimeException()
-    }
-
-    val refuseRequest = refuseRequisitionRequest {
-      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-      externalRequisitionId = apiIdToExternalId(key.requisitionId)
-      refusal = internalRequisitionRefusal {
-        justification = request.refusal.justification.toInternal()
-        message = request.refusal.message
-      }
-      etag = request.etag
-    }
-
-    val result =
-      try {
-        internalRequisitionStub.refuseRequisition(refuseRequest)
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          else -> Status.UNKNOWN
-        }.toExternalStatusRuntimeException(e)
+    return ReportTracing.traceSuspending(
+      spanName = "kingdom.requisition.refusal_acceptance",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REQUISITION_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_requisition_refusal_acceptance")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      grpcRequire(
+        request.refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED
+      ) {
+        "Refusal details must be present"
       }
 
-    return result.toTracedRequisition()
+      val authenticatedPrincipal = principalFromCurrentContext
+      if (key.parentKey != authenticatedPrincipal.resourceKey) {
+        throw Permission.REFUSE.deniedStatus(request.name).asRuntimeException()
+      }
+
+      val refuseRequest = refuseRequisitionRequest {
+        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        refusal = internalRequisitionRefusal {
+          justification = request.refusal.justification.toInternal()
+          message = request.refusal.message
+        }
+        etag = request.etag
+      }
+
+      val result =
+        try {
+          internalRequisitionStub.refuseRequisition(refuseRequest)
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+            Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }.toExternalStatusRuntimeException(e)
+        }
+
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      result.toTracedRequisition()
+    }
   }
 
   override suspend fun fulfillDirectRequisition(
@@ -278,77 +291,78 @@ class RequisitionsService(
       grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
-    grpcRequire(request.nonce != 0L) { "nonce unspecified" }
-    val encryptedResultCiphertext =
-      if (request.hasEncryptedResult()) {
-        grpcRequire(
-          request.encryptedResult.typeUrl ==
-            ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-        ) {
-          "encrypted_result must contain an encrypted SignedMessage"
-        }
-        request.encryptedResult.ciphertext
-      } else {
-        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
-        // field.
-        grpcRequire(!request.encryptedResultCiphertext.isEmpty) {
-          "Neither encrypted_result nor encrypted_result_ciphertext specified"
-        }
-        request.encryptedResultCiphertext
-      }
-
-    val authenticatedPrincipal = principalFromCurrentContext
-    if (key.parentKey != authenticatedPrincipal.resourceKey) {
-      throw Permission.FULFILL.deniedStatus(request.name).asRuntimeException()
-    }
-    val span =
-      Span.current()
-        .setAttribute(ReportTraceAttributes.REQUISITION_NAME, request.name)
-        .setAttribute(
-          ReportTraceAttributes.LIFECYCLE_STAGE,
-          "kingdom_requisition_result_acceptance",
-        )
-        .setAttribute(ReportTraceAttributes.OUTCOME, "started")
-
-    val fulfillRequest = fulfillRequisitionRequest {
-      externalRequisitionId = apiIdToExternalId(key.requisitionId)
-      nonce = request.nonce
-      if (request.hasFulfillmentContext()) {
-        fulfillmentContext =
-          RequisitionDetailsKt.fulfillmentContext {
-            buildLabel = request.fulfillmentContext.buildLabel
-            warnings += request.fulfillmentContext.warningsList
+    return ReportTracing.traceSuspending(
+      spanName = "kingdom.requisition.result_acceptance",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REQUISITION_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_requisition_result_acceptance")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      grpcRequire(request.nonce != 0L) { "nonce unspecified" }
+      val encryptedResultCiphertext =
+        if (request.hasEncryptedResult()) {
+          grpcRequire(
+            request.encryptedResult.typeUrl ==
+              ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+          ) {
+            "encrypted_result must contain an encrypted SignedMessage"
           }
-      }
-      directParams = directRequisitionParams {
-        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-        encryptedData = encryptedResultCiphertext
-        if (request.certificate.isNotEmpty()) {
-          val dataProviderCertificateKey =
-            DataProviderCertificateKey.fromName(request.certificate)
-              ?: throw Status.INVALID_ARGUMENT.withDescription("Invalid result certificate")
-                .asRuntimeException()
-          externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+          request.encryptedResult.ciphertext
+        } else {
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+          // field.
+          grpcRequire(!request.encryptedResultCiphertext.isEmpty) {
+            "Neither encrypted_result nor encrypted_result_ciphertext specified"
+          }
+          request.encryptedResultCiphertext
         }
-        apiVersion = Version.V2_ALPHA.string
+
+      val authenticatedPrincipal = principalFromCurrentContext
+      if (key.parentKey != authenticatedPrincipal.resourceKey) {
+        throw Permission.FULFILL.deniedStatus(request.name).asRuntimeException()
       }
 
-      etag = request.etag
-    }
-    try {
-      internalRequisitionStub.fulfillRequisition(fulfillRequest)
-      span.setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
-    } catch (e: StatusException) {
-      span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
-      throw when (e.status.code) {
-        Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
-        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
-        else -> Status.UNKNOWN
-      }.toExternalStatusRuntimeException(e)
-    }
+      val fulfillRequest = fulfillRequisitionRequest {
+        externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        nonce = request.nonce
+        if (request.hasFulfillmentContext()) {
+          fulfillmentContext =
+            RequisitionDetailsKt.fulfillmentContext {
+              buildLabel = request.fulfillmentContext.buildLabel
+              warnings += request.fulfillmentContext.warningsList
+            }
+        }
+        directParams = directRequisitionParams {
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+          encryptedData = encryptedResultCiphertext
+          if (request.certificate.isNotEmpty()) {
+            val dataProviderCertificateKey =
+              DataProviderCertificateKey.fromName(request.certificate)
+                ?: throw Status.INVALID_ARGUMENT.withDescription("Invalid result certificate")
+                  .asRuntimeException()
+            externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+          }
+          apiVersion = Version.V2_ALPHA.string
+        }
 
-    return fulfillDirectRequisitionResponse { state = State.FULFILLED }
+        etag = request.etag
+      }
+      try {
+        internalRequisitionStub.fulfillRequisition(fulfillRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
+      }
+
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      fulfillDirectRequisitionResponse { state = State.FULFILLED }
+    }
   }
 }
 

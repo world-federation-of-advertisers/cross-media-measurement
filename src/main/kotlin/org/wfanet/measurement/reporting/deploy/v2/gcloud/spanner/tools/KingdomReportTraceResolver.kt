@@ -47,6 +47,9 @@ internal enum class ReportTraceStageRequirement {
   REQUIRED,
   NOT_APPLICABLE,
   UNKNOWN,
+  REUSED,
+  SKIPPED_AFTER_FAILURE,
+  SKIPPED_AFTER_REFUSAL,
 }
 
 internal enum class ReportTraceMeasurementRouteKind {
@@ -92,47 +95,6 @@ internal data class ReportTraceRouteResolution(
   val fetchedResourceCount: Int
     get() = measurementRoutes.count { it.state != UNKNOWN_VALUE } + correlationValues.size
 
-  fun requirementFor(stage: String): ReportTraceStageRequirement {
-    return when (stage) {
-      "duchy_computation",
-      "duchy_stage_attempt" ->
-        aggregateRequirements(
-          measurementRoutes.map { route ->
-            when (route.route) {
-              ReportTraceMeasurementRouteKind.DIRECT -> ReportTraceStageRequirement.NOT_APPLICABLE
-              ReportTraceMeasurementRouteKind.MPC ->
-                if (route.duchyParticipantsResolved) {
-                  ReportTraceStageRequirement.REQUIRED
-                } else {
-                  ReportTraceStageRequirement.UNKNOWN
-                }
-              ReportTraceMeasurementRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
-            }
-          }
-        )
-      "requisition_dispatch",
-      "work_item_processing",
-      "results_fulfillment" ->
-        aggregateRequirements(
-          measurementRoutes.flatMap { measurement ->
-            if (!measurement.requisitionsResolved) {
-              listOf(ReportTraceStageRequirement.UNKNOWN)
-            } else {
-              measurement.requisitions.map { requisition ->
-                when (requisition.route) {
-                  ReportTraceRequisitionRouteKind.EDPA -> ReportTraceStageRequirement.REQUIRED
-                  ReportTraceRequisitionRouteKind.DIRECT_EDP ->
-                    ReportTraceStageRequirement.NOT_APPLICABLE
-                  ReportTraceRequisitionRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
-                }
-              }
-            }
-          }
-        )
-      else -> ReportTraceStageRequirement.REQUIRED
-    }
-  }
-
   companion object {
     private const val UNKNOWN_VALUE = "UNKNOWN"
 
@@ -161,17 +123,6 @@ internal data class ReportTraceRouteResolution(
           },
         warnings = listOf(note),
       )
-    }
-
-    private fun aggregateRequirements(
-      requirements: Collection<ReportTraceStageRequirement>
-    ): ReportTraceStageRequirement {
-      return when {
-        ReportTraceStageRequirement.REQUIRED in requirements -> ReportTraceStageRequirement.REQUIRED
-        ReportTraceStageRequirement.UNKNOWN in requirements || requirements.isEmpty() ->
-          ReportTraceStageRequirement.UNKNOWN
-        else -> ReportTraceStageRequirement.NOT_APPLICABLE
-      }
     }
   }
 }
