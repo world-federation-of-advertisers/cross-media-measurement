@@ -239,12 +239,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
             .atStartOfDay(ZONE_ID)
             .toInstant()
+        // Subtract a day rather than decrementing the day-of-month field, which underflows to 0
+        // whenever the exclusive end falls on the 1st.
         val endTime =
-          LocalDate.of(
-              dateRange.endExclusive.year,
-              dateRange.endExclusive.month,
-              dateRange.endExclusive.day - 1,
-            )
+          dateRange.endExclusive
+            .toLocalDate()
+            .minusDays(1)
             .atTime(23, 59, 59)
             .atZone(ZONE_ID)
             .toInstant()
