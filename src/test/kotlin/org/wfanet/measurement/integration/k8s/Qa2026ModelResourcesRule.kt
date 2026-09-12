@@ -165,7 +165,7 @@ class Qa2026ModelResourcesRule(
   ) {
     val modelSuiteKey = checkNotNull(ModelLineKey.fromName(modelLine.name)).parentKey
     val modelSuiteName = modelSuiteKey.toName()
-    val modelProviderName = modelSuiteKey.parentKey.toName()
+    val modelProviderName = "modelProviders/${modelSuiteKey.modelProviderId}"
     val modelReleasesStub = ModelReleasesCoroutineStub(mpChannel)
 
     val existing: List<ModelRelease> =
