@@ -36,6 +36,16 @@ service WorkItems {
     option (google.api.method_signature) = "work_item,work_item_id";
   }
 
+  // Ensures that a matching `WorkItem` is durably queued.
+  //
+  // Creates the `WorkItem` and its pending publication when it does not exist.
+  // For an existing matching `QUEUED` `WorkItem`, repairs a missing pending
+  // publication. An existing matching `RUNNING` `WorkItem` is returned without
+  // being republished.
+  rpc EnsureWorkItem(EnsureWorkItemRequest) returns (WorkItem) {
+    option (google.api.method_signature) = "work_item,work_item_id";
+  }
+
   // Returns a `WorkItem`.
   rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "name";
@@ -71,6 +81,18 @@ message CreateWorkItemRequest {
   string work_item_id = 1 [(google.api.field_behavior) = REQUIRED];
 
   // The `WorkItem` to create.
+  WorkItem work_item = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `EnsureWorkItem` method.
+message EnsureWorkItemRequest {
+  // The ID of the `WorkItem` to ensure.
+  //
+  // This must conform to RFC 1034, with the additional restriction that all
+  // letters must be lower-case.
+  string work_item_id = 1 [(google.api.field_behavior) = REQUIRED];
+
+  // The immutable `WorkItem` fields to create or match.
   WorkItem work_item = 2 [(google.api.field_behavior) = REQUIRED];
 }
 
@@ -119,12 +141,14 @@ message FailWorkItemRequest {
         "control-plane.secure-computation.halo-cmm.org/WorkItem"
   ];
 
-  // Generation from the delivered `WorkItem`.
+  // Generation from the delivered `WorkItem`. If omitted, generation 1 is
+  // used for compatibility with queue messages published before generations
+  // were added.
   //
   // This prevents a stale queue delivery from failing a newer execution of
   // the same `WorkItem`.
   int64 expected_work_item_generation = 2
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for `RetryWorkItem` method.

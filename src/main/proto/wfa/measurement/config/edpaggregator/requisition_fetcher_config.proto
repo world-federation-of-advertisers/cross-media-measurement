@@ -38,6 +38,12 @@ message RequisitionWorkItemDispatchConfig {
   // Parameters for the ResultsFulfiller application.
   wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
       results_fulfiller_params = 3;
+
+  // Storage path prefix reserved for direct WorkItem dispatch.
+  //
+  // This must differ from the legacy DataWatcher path in
+  // DataProviderRequisitionConfig.storage_path_prefix.
+  string storage_path_prefix = 4;
 }
 
 // Individual config per EDP.
@@ -47,7 +53,7 @@ message DataProviderRequisitionConfig {
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
   // Requisition storage
   StorageParams requisition_storage = 2;
-  // Storage path prefix
+  // Legacy storage path prefix watched by DataWatcher.
   string storage_path_prefix = 3;
   // How the EDP connects to the CMMS Public API
   TransportLayerSecurityParams cmms_connection = 4;

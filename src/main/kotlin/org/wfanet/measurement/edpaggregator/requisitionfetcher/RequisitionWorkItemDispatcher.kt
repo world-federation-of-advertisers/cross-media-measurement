@@ -16,19 +16,15 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-import io.grpc.Status
-import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /** Dispatches a stored group of requisitions to the Secure Computation Control Plane. */
@@ -52,7 +48,6 @@ class SecureComputationRequisitionWorkItemDispatcher(
 
   override suspend fun dispatch(groupId: String, blobUri: String) {
     val workItemId = workItemId(groupId)
-    val workItemName = workItemName(groupId)
     val requestedWorkItem = workItem {
       queue = this@SecureComputationRequisitionWorkItemDispatcher.queue
       workItemParams =
@@ -64,61 +59,14 @@ class SecureComputationRequisitionWorkItemDispatcher(
           }
           .pack()
     }
-    try {
-      val existingWorkItem =
-        controlPlaneThrottler.onReady {
-          workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
-        }
-      validateExistingWorkItem(existingWorkItem, requestedWorkItem)
-      logger.info("WorkItem $workItemId already exists; treating dispatch as successful")
-      return
-    } catch (e: StatusException) {
-      if (e.status.code != Status.Code.NOT_FOUND) throw e
-    }
-
-    val request = createWorkItemRequest {
+    val request = ensureWorkItemRequest {
       this.workItemId = workItemId
       workItem = requestedWorkItem
     }
-    try {
-      controlPlaneThrottler.onReady { workItemsStub.createWorkItem(request) }
-    } catch (e: StatusException) {
-      if (e.status.code == Status.Code.ALREADY_EXISTS) {
-        val existingWorkItem =
-          controlPlaneThrottler.onReady {
-            workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
-          }
-        validateExistingWorkItem(existingWorkItem, requestedWorkItem)
-        logger.info(
-          "WorkItem $workItemId was created concurrently; treating dispatch as successful"
-        )
-        return
-      }
-      throw e
-    }
-    logger.info("Created WorkItem $workItemId for requisition group $groupId")
-  }
-
-  private fun validateExistingWorkItem(existing: WorkItem, requested: WorkItem) {
-    check(existing.queue == requested.queue) {
-      "WorkItem ${existing.name} uses queue ${existing.queue}, not ${requested.queue}"
-    }
-    val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    val requestedParams = requested.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
-    check(
-      existingParams.appParams == requestedParams.appParams &&
-        existingParams.dataPathParams == requestedParams.dataPathParams
-    ) {
-      "WorkItem ${existing.name} has parameters that do not match this requisition group"
-    }
-    check(existing.state != WorkItem.State.FAILED) {
-      "WorkItem ${existing.name} is FAILED; remediate its failure and call RetryWorkItem " +
-        "explicitly before redispatch"
-    }
-    check(existing.state == WorkItem.State.QUEUED || existing.state == WorkItem.State.RUNNING) {
-      "WorkItem ${existing.name} is ${existing.state} while requisition metadata remains " +
-        "unfinished"
-    }
+    val ensured = controlPlaneThrottler.onReady { workItemsStub.ensureWorkItem(request) }
+    logger.info(
+      "Ensured WorkItem $workItemId for requisition group $groupId in state ${ensured.state}"
+    )
   }
 
   private fun workItemId(groupId: String): String = "$WORK_ITEM_ID_PREFIX-$groupId"

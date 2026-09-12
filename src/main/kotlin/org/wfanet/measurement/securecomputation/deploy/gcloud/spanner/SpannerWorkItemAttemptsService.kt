@@ -81,12 +81,14 @@ class SpannerWorkItemAttemptsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.expectedWorkItemGeneration <= 0L) {
+    if (request.expectedWorkItemGeneration < 0L) {
       throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
-          "$fieldName must be positive"
+          "$fieldName must be non-negative"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val expectedGeneration =
+      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
@@ -96,10 +98,10 @@ class SpannerWorkItemAttemptsService(
         transactionRunner.run { txn ->
           val result =
             txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
-          if (result.workItem.generation != request.expectedWorkItemGeneration) {
+          if (result.workItem.generation != expectedGeneration) {
             throw WorkItemGenerationMismatchException(
               result.workItem.workItemResourceId,
-              request.expectedWorkItemGeneration,
+              expectedGeneration,
               result.workItem.generation,
             )
           }
@@ -343,5 +345,6 @@ class SpannerWorkItemAttemptsService(
   companion object {
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
+    private const val INITIAL_GENERATION = 1L
   }
 }

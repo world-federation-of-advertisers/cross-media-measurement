@@ -43,6 +43,8 @@ service WorkItemAttempts {
 
 message CreateWorkItemAttemptRequest {
   WorkItemAttempt work_item_attempt = 1;
+  // Generation from the queue message. A value of 0 is interpreted as
+  // generation 1 for rolling-upgrade compatibility.
   int64 expected_work_item_generation = 2;
 }
 

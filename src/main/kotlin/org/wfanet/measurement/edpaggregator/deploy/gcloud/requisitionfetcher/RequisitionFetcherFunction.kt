@@ -250,6 +250,10 @@ class RequisitionFetcherFunction : HttpFunction {
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
+      directStoragePathPrefix =
+        dataProviderConfig.workItemDispatch.storagePathPrefix.takeIf {
+          dataProviderConfig.hasWorkItemDispatch()
+        },
       blobUriPrefix = requisitionBlobPrefix,
       requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
@@ -471,6 +475,12 @@ class RequisitionFetcherFunction : HttpFunction {
 
       if (dataProviderConfig.hasWorkItemDispatch()) {
         val dispatch = dataProviderConfig.workItemDispatch
+        require(dispatch.storagePathPrefix.isNotBlank()) {
+          "Missing 'storage_path_prefix' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(dispatch.storagePathPrefix != dataProviderConfig.storagePathPrefix) {
+          "work_item_dispatch.storage_path_prefix must differ from the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
+        }
         require(dispatch.queue.isNotBlank()) {
           "Missing 'queue' in work_item_dispatch for data provider: ${dataProviderConfig.dataProvider}."
         }

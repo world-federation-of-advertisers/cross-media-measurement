@@ -27,6 +27,9 @@ option java_outer_classname = "WorkItemsServiceProto";
 service WorkItems {
   rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem);
 
+  // Atomically creates or reconciles a durable queued WorkItem.
+  rpc EnsureWorkItem(EnsureWorkItemRequest) returns (WorkItem);
+
   rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem);
 
   // Response ordered by `create_time`, ascending.
@@ -43,6 +46,10 @@ service WorkItems {
 }
 
 message CreateWorkItemRequest {
+  WorkItem work_item = 1;
+}
+
+message EnsureWorkItemRequest {
   WorkItem work_item = 1;
 }
 

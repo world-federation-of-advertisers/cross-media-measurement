@@ -88,10 +88,12 @@ message CreateWorkItemAttemptRequest {
   WorkItemAttempt work_item_attempt = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Generation of the parent WorkItem received from the queue. The request is
-  // rejected if this does not match the WorkItem's current generation.
+  // Generation of the parent WorkItem received from the queue. If omitted,
+  // generation 1 is used for compatibility with queue messages published
+  // before generations were added. The request is rejected if the resulting
+  // generation does not match the WorkItem's current generation.
   int64 expected_work_item_generation = 4
-      [(google.api.field_behavior) = REQUIRED];
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for `GetWorkItemAttempt` method.
