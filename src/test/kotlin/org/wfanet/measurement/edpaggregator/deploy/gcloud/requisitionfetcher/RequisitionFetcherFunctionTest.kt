@@ -240,7 +240,10 @@ class RequisitionFetcherFunctionTest {
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
 
-    /** Start the RequisitionFetcherFunction process */
+    startFunction(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+  }
+
+  private fun startFunction(directDispatchConfigBlobKey: String) {
     functionProcess =
       FunctionsFrameworkInvokerProcess(
         javaBinaryPath = FETCHER_BINARY_PATH,
@@ -260,6 +263,7 @@ class RequisitionFetcherFunctionTest {
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
+            "REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY" to directDispatchConfigBlobKey,
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
             "OTEL_TRACES_EXPORTER" to "none",
@@ -277,9 +281,8 @@ class RequisitionFetcherFunctionTest {
     grpcServer.shutdown()
   }
 
-  /** Tests the RequisitionFetcherFunction as a local process. */
   @Test
-  fun `test RequisitionFetcherFunction as local process`() {
+  fun `service dispatches WorkItem when direct dispatch config exists`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
     val client = HttpClient.newHttpClient()
@@ -312,6 +315,50 @@ class RequisitionFetcherFunctionTest {
     assertThat(workItemRequest.workItemId)
       .isEqualTo("results-fulfiller-${groupedRequisitions.groupId}")
     assertThat(workItemRequest.workItem.queue).isEqualTo("results-fulfiller-queue")
+  }
+
+  @Test
+  fun `service uses legacy dispatch when direct dispatch config is absent`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    startFunction("missing-direct-dispatch-config.textproto")
+
+    val response =
+      HttpClient.newHttpClient()
+        .send(
+          HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:${functionProcess.port}"))
+            .GET()
+            .build(),
+          BodyHandlers.ofString(),
+        )
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    val storageDir = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
+    assertThat(storageDir.listFiles()).isNotEmpty()
+    assertThat(ensureWorkItemRequest).isNull()
+  }
+
+  @Test
+  fun `service fails closed when direct dispatch config names unknown data provider`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    startFunction("unknown-requisition-fetcher-direct-dispatch-config.textproto")
+
+    val response =
+      HttpClient.newHttpClient()
+        .send(
+          HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:${functionProcess.port}"))
+            .GET()
+            .build(),
+          BodyHandlers.ofString(),
+        )
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("direct-dispatch configuration")
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.listFiles()).isEmpty()
   }
 
   @Test
@@ -350,6 +397,8 @@ class RequisitionFetcherFunctionTest {
       )
     private const val GCF_TARGET =
       "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
+    private const val DIRECT_DISPATCH_CONFIG_BLOB_KEY =
+      "requisition-fetcher-direct-dispatch-config.textproto"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
 

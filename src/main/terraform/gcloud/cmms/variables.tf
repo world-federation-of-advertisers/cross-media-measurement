@@ -132,6 +132,13 @@ variable "requisition_fetcher_config_file_path" {
   nullable    = false
 }
 
+variable "requisition_fetcher_direct_dispatch_config_file_path" {
+  description = "Optional path to the requisition fetcher direct-dispatch config file."
+  type        = string
+  nullable    = true
+  default     = null
+}
+
 variable "event_data_provider_configs_file_path" {
   description = "Path to the event data provider config file for the ResultsFulfiller TEE app."
   type        = string

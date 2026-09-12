@@ -796,9 +796,11 @@ Trace:
    row in the group as `QUEUED`, and calls `EnsureWorkItem`. Query the same row's
    `WorkItem` column and match it to `Ensured WorkItem ...` in the
    requisition-fetcher logs. The Secure Computation control plane atomically
-   creates or reconciles the WorkItem and pending publication, then retries Pub/Sub
-   delivery in the background. A `QUEUED` WorkItem accepted by `EnsureWorkItem`
-   should therefore self-heal after a transient publish failure. Follow the
+   creates a new WorkItem and pending publication, then retries Pub/Sub delivery in
+   the background. `EnsureWorkItem` returns an existing matching `QUEUED` or
+   `RUNNING` WorkItem without publishing it again. A WorkItem originally created by
+   `EnsureWorkItem` therefore self-heals after a transient publish failure because
+   its pending outbox row remains durable. Follow the
    [durable WorkItem publication rollout](deployment-guide.md#rolling-out-durable-workitem-publication)
    before enabling direct dispatch. When a deterministic WorkItem is `FAILED` while associated
    metadata remains `QUEUED` or `PROCESSING`, RequisitionFetcher reports the inconsistency but does
@@ -812,7 +814,7 @@ Trace:
 
    The legacy **data-watcher** remains enabled for the top-level legacy requisition
    prefix during and after migration. It must not match the dedicated
-   `work_item_dispatch.storage_path_prefix`. For a legacy group, a GCS
+   direct-dispatch `storage_path_prefix`. For a legacy group, a GCS
    `object.finalized` Eventarc trigger submits the WorkItem:
 
    ```bash
