@@ -661,7 +661,7 @@ class WorkItemAttemptsServiceTest {
       nextPageToken = internalListWorkItemAttemptsPageToken {
         after =
           InternalListWorkItemAttemptsPageTokenKt.after {
-            workItemResourceId = "workItemTwo"
+            workItemResourceId = "workItemOne"
             workItemAttemptResourceId = "workItemAttemptTwo"
           }
       }
