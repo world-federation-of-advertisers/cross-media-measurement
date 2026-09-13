@@ -154,6 +154,8 @@ import org.wfanet.measurement.system.v1alpha.failComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.streamActiveComputationsResponse
 
 private const val PUBLIC_API_VERSION = "v2alpha"
+private const val PUBLIC_MEASUREMENT_NAME =
+  "measurementConsumers/measurement-consumer/measurements/measurement"
 private const val DUCHY_ONE = "BOHEMIA"
 private const val DUCHY_TWO = "SALZBURG"
 private const val DUCHY_THREE = "AUSTRIA"
@@ -551,10 +553,11 @@ class HeraldTest {
       REQUISITION_2.toSystemRequisition("2", Requisition.State.UNFULFILLED)
     val confirmingUnknown =
       buildComputationAtKingdom(
-        "2",
-        Computation.State.PENDING_REQUISITION_PARAMS,
-        systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
-      )
+          "2",
+          Computation.State.PENDING_REQUISITION_PARAMS,
+          systemApiRequisitions = listOf(systemApiRequisitions1, systemApiRequisitions2),
+        )
+        .copy { measurement = PUBLIC_MEASUREMENT_NAME }
     mockStreamActiveComputationsToReturn(confirmingKnown, confirmingUnknown)
 
     fakeComputationDatabase.addComputation(
@@ -596,6 +599,7 @@ class HeraldTest {
           blobsStoragePrefix = "computation-blob-storage/$AGGREGATOR_DUCHY_ID/2"
           kingdomComputation = kingdomComputationDetails {
             publicApiVersion = PUBLIC_API_VERSION
+            measurement = PUBLIC_MEASUREMENT_NAME
             measurementSpec = SERIALIZED_MEASUREMENT_SPEC
             measurementPublicKey = PUBLIC_API_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
             participantCount = 3

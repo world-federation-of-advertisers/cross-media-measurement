@@ -40,6 +40,28 @@ import org.wfanet.measurement.api.v2alpha.requisition
 @RunWith(JUnit4::class)
 class KingdomReportTraceResolverTest {
   @Test
+  fun `resolve returns no input without calling Kingdom`() = runTest {
+    var callCount = 0
+    val client =
+      FakeKingdomReportTraceClient(
+        batchGet = {
+          callCount++
+          error("BatchGetMeasurements should not be called")
+        },
+        list = {
+          callCount++
+          error("ListRequisitions should not be called")
+        },
+      )
+
+    val result = resolver(client).resolve(emptyList(), topology())
+
+    assertThat(result.status).isEqualTo("NO_INPUT")
+    assertThat(result.measurementRoutes).isEmpty()
+    assertThat(callCount).isEqualTo(0)
+  }
+
+  @Test
   fun `resolve classifies direct and MPC paths from Kingdom resources`() = runTest {
     val directMeasurement = directMeasurement(MEASUREMENT_1)
     val mpcMeasurement = mpcMeasurement(MEASUREMENT_2)
@@ -211,6 +233,50 @@ class KingdomReportTraceResolverTest {
     assertThat(batchCalls).isEqualTo(2)
     assertThat(pageTokens).containsExactly("", "page-2").inOrder()
     assertThat(result.measurementRoutes.single().requisitions).hasSize(2)
+  }
+
+  @Test
+  fun `resolve isolates permanent Requisition failure to affected Measurement`() = runTest {
+    val listCalls = mutableMapOf<String, Int>()
+    val client =
+      FakeKingdomReportTraceClient(
+        batchGet = {
+          batchGetMeasurementsResponse {
+            measurements +=
+              listOf(directMeasurement(MEASUREMENT_1), directMeasurement(MEASUREMENT_2))
+          }
+        },
+        list = { request ->
+          listCalls.compute(request.parent) { _, count -> (count ?: 0) + 1 }
+          when (request.parent) {
+            MEASUREMENT_1 ->
+              listRequisitionsResponse {
+                requisitions += requisition(DIRECT_REQUISITION, Requisition.State.FULFILLED)
+              }
+            MEASUREMENT_2 -> throw Status.PERMISSION_DENIED.asRuntimeException()
+            else -> error("Unexpected Measurement")
+          }
+        },
+      )
+
+    val result =
+      resolver(client)
+        .resolve(
+          listOf(MEASUREMENT_1, MEASUREMENT_2),
+          topology(DIRECT_EDP to ReportTraceRequisitionRouteKind.DIRECT_EDP),
+        )
+
+    assertThat(result.status).isEqualTo("PARTIAL")
+    assertThat(result.measurementRoutes.single { it.name == MEASUREMENT_1 }.requisitionsResolved)
+      .isTrue()
+    assertThat(result.measurementRoutes.single { it.name == MEASUREMENT_2 }.requisitionsResolved)
+      .isFalse()
+    assertThat(result.measurementRoutes.single { it.name == MEASUREMENT_2 }.route)
+      .isEqualTo(ReportTraceMeasurementRouteKind.DIRECT)
+    assertThat(result.requirementFor("results_fulfillment"))
+      .isEqualTo(ReportTraceStageRequirement.UNKNOWN)
+    assertThat(listCalls).containsExactly(MEASUREMENT_1, 1, MEASUREMENT_2, 1)
+    assertThat(result.note).contains("PERMISSION_DENIED")
   }
 
   @Test

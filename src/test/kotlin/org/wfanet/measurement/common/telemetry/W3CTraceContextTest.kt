@@ -42,6 +42,23 @@ class W3CTraceContextTest {
   }
 
   @Test
+  fun `inject omits headers when span context is invalid`() {
+    assertThat(W3CTraceContext.inject(Context.root())).isEmpty()
+  }
+
+  @Test
+  fun `inject and extract preserve trace state`() {
+    val traceState = TraceState.builder().put("vendor", "opaque-value").build()
+    val spanContext = SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getSampled(), traceState)
+
+    val fields = W3CTraceContext.inject(Context.root().with(Span.wrap(spanContext)))
+    val extracted = Span.fromContext(W3CTraceContext.extract(fields)).spanContext
+
+    assertThat(fields["tracestate"]).isEqualTo("vendor=opaque-value")
+    assertThat(extracted.traceState.get("vendor")).isEqualTo("opaque-value")
+  }
+
+  @Test
   fun `extract accepts case-insensitive field names`() {
     val context = W3CTraceContext.extract(mapOf("TraceParent" to TRACE_PARENT))
 
@@ -49,6 +66,13 @@ class W3CTraceContextTest {
     assertThat(spanContext.traceId).isEqualTo(TRACE_ID)
     assertThat(spanContext.spanId).isEqualTo(SPAN_ID)
     assertThat(spanContext.isSampled).isTrue()
+  }
+
+  @Test
+  fun `extract ignores malformed traceparent`() {
+    val context = W3CTraceContext.extract(mapOf("traceparent" to "not-a-traceparent"))
+
+    assertThat(Span.fromContext(context).spanContext.isValid).isFalse()
   }
 
   @Test
