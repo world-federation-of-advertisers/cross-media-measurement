@@ -17,7 +17,6 @@
 package org.wfanet.measurement.integration.k8s
 
 import com.google.common.truth.Truth.assertThat
-import com.google.common.collect.Range
 import com.google.common.truth.Truth.assertWithMessage
 import java.io.File
 import java.nio.file.Path
@@ -216,9 +215,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
       for (result in resultGroup.resultsList) {
         val label = filterLabel(result)
         val range = expectedByFilter.getValue(label)
+        val reach = reachOf(result.metricSet, resultGroup.title).toDouble()
+        assertWithMessage("${resultGroup.title}: $label reach").that(reach).isAtLeast(range.start)
         assertWithMessage("${resultGroup.title}: $label reach")
-          .that(reachOf(result.metricSet, resultGroup.title).toDouble())
-          .isIn(Range.closed(range.start, range.endInclusive))
+          .that(reach)
+          .isAtMost(range.endInclusive)
       }
     }
   }
