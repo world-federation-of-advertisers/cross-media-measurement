@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.lookupRequisitionMetadataReq
 import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.startProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -297,6 +298,93 @@ class RequisitionMetadataServiceTest {
         response.requisitionMetadataList.all { it.state == RequisitionMetadata.State.STORED }
       )
       .isTrue()
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata returns queued RequisitionMetadata`() = runBlocking {
+    val response =
+      service.registerQueuedRequisitionMetadata(
+        registerQueuedRequisitionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          workItem = "workItems/results-fulfiller-group-id"
+          requests += createRequisitionMetadataRequest {
+            this.parent = DATA_PROVIDER_KEY.toName()
+            requisitionMetadata = REQUISITION_METADATA
+            requestId = UUID.randomUUID().toString()
+          }
+        }
+      )
+
+    assertThat(response.requisitionMetadataList).hasSize(1)
+    assertThat(response.requisitionMetadataList.single().state)
+      .isEqualTo(RequisitionMetadata.State.QUEUED)
+    assertThat(response.requisitionMetadataList.single().workItem)
+      .isEqualTo("workItems/results-fulfiller-group-id")
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata rejects missing WorkItem`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.registerQueuedRequisitionMetadata(
+          registerQueuedRequisitionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item"
+        }
+      )
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata rejects malformed WorkItem`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.registerQueuedRequisitionMetadata(
+          registerQueuedRequisitionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            workItem = "not-a-work-item"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item"
+        }
+      )
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata rejects refusal message`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.registerQueuedRequisitionMetadata(
+          registerQueuedRequisitionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            workItem = "workItems/results-fulfiller-group-id"
+            requests += createRequisitionMetadataRequest {
+              this.parent = DATA_PROVIDER_KEY.toName()
+              requisitionMetadata = REQUISITION_METADATA.copy { refusalMessage = "refused" }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_FIELD_VALUE.name)
+    assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.FIELD_NAME.key))
+      .isEqualTo("requests.0.requisition_metadata.refusal_message")
   }
 
   @Test

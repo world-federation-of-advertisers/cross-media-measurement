@@ -10,7 +10,11 @@ package(
 
 filegroup(
     name = "config",
-    srcs = ["requisition-fetcher-config.textproto"],
+    srcs = [
+        "requisition-fetcher-config.textproto",
+        "requisition-fetcher-direct-dispatch-config.textproto",
+        "unknown-requisition-fetcher-direct-dispatch-config.textproto",
+    ],
 )
 
 java_binary(

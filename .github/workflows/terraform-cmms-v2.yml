@@ -69,6 +69,7 @@ jobs:
       DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
       DATA_WATCHER_DELETE_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_DELETE_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
+      REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT }}
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
       EVENT_GROUP_SYNC_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_SYNC_CONFIG_CONTENT }}
       DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
@@ -140,6 +141,7 @@ jobs:
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$DATA_WATCHER_DELETE_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-delete-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
+        echo "$REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-direct-dispatch-config.textproto"
         echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
         echo "$EVENT_GROUP_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/event-group-sync-config.textproto"
         echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
@@ -345,6 +347,7 @@ jobs:
         -var="data_watcher_config_file_path=$CONFIG_DIR/data-watcher-config.textproto"
         -var="data_watcher_delete_config_file_path=$CONFIG_DIR/data-watcher-delete-config.textproto"
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
+        -var="requisition_fetcher_direct_dispatch_config_file_path=$CONFIG_DIR/requisition-fetcher-direct-dispatch-config.textproto"
         -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
         -var="event_group_sync_config_file_path=$CONFIG_DIR/event-group-sync-config.textproto"
         -var="data_availability_sync_config_file_path=$CONFIG_DIR/data-availability-sync-config.textproto"

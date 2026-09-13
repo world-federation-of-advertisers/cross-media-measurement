@@ -20,6 +20,7 @@ import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
+import io.grpc.Channel
 import io.grpc.ClientInterceptors
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -30,6 +31,7 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -40,21 +42,27 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.tink.loadPrivateKey
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
+import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getOptionalConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toDuration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
+import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherDirectDispatchConfig
+import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.SecureComputationRequisitionWorkItemDispatcher
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.withW3CTraceContext
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -74,6 +82,14 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
  *   RPCs. Default `100ms`.
+ * - `REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY`: Optional. Blob containing direct
+ *   dispatch configuration. Defaults to `requisition-fetcher-direct-dispatch-config.textproto`.
+ * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required when direct WorkItem dispatch is
+ *   configured.
+ * - `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`: Optional. Server name for the Secure Computation
+ *   Control Plane TLS certificate.
+ * - `CONTROL_PLANE_REQUEST_INTERVAL`: Optional. Minimum interval between Secure Computation Control
+ *   Plane RPCs. Default `100ms`.
  * - `FLUSH_INTERVAL`: Optional. Wall-clock period between forced drains of every open report
  *   buffer; the primary dispatch trigger. Default `5m`.
  * - `MAX_TOTAL_BUFFERED_BYTES`: Optional. Global upper bound on the serialized byte total across
@@ -87,15 +103,30 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   retried, down to a floor of 1.
  */
 class RequisitionFetcherFunction : HttpFunction {
+  private val channels = ConcurrentHashMap<ChannelKey, Channel>()
 
   override fun service(request: HttpRequest, response: HttpResponse) =
     withW3CTraceContext(request) { handleRequest(response) }
 
   private fun handleRequest(response: HttpResponse) {
     try {
+      val directDispatchConfigs: Map<String, RequisitionWorkItemDispatchConfig> =
+        try {
+          loadDirectDispatchConfigs()
+        } catch (e: Exception) {
+          val errorMessage = "Failed to load direct-dispatch configuration"
+          logger.log(Level.SEVERE, errorMessage, e)
+          response.setStatusCode(500)
+          response.writer.write(errorMessage)
+          return
+        }
       val errors = mutableListOf<String>()
       for (dataProviderConfig in requisitionFetcherConfig.configsList) {
-        val result: Result<Unit> = processDataProvider(dataProviderConfig)
+        val result: Result<Unit> =
+          processDataProvider(
+            dataProviderConfig,
+            directDispatchConfigs[dataProviderConfig.dataProvider],
+          )
         val failure = result.exceptionOrNull()
         if (failure != null) {
           val errorMsg =
@@ -126,16 +157,46 @@ class RequisitionFetcherFunction : HttpFunction {
    * Executes the requisition fetch workflow for a single data provider and aggregates telemetry.
    *
    * @param dataProviderConfig configuration for the data provider.
+   * @param dispatchConfig direct WorkItem dispatch configuration, or `null` for legacy dispatch.
    * @return a [Result] capturing success or the failure that occurred.
    */
-  private fun processDataProvider(dataProviderConfig: DataProviderRequisitionConfig): Result<Unit> =
+  private fun processDataProvider(
+    dataProviderConfig: DataProviderRequisitionConfig,
+    dispatchConfig: RequisitionWorkItemDispatchConfig?,
+  ): Result<Unit> =
     withDataProviderTelemetry(dataProviderConfig.dataProvider) {
-      validateConfig(dataProviderConfig)
-      val requisitionFetcher = createRequisitionFetcher(dataProviderConfig)
+      validateConfig(dataProviderConfig, dispatchConfig)
+      val requisitionFetcher = createRequisitionFetcher(dataProviderConfig, dispatchConfig)
       runBlocking(Context.current().asContextElement()) {
         requisitionFetcher.fetchAndStoreRequisitions()
       }
     }
+
+  private fun loadDirectDispatchConfigs(): Map<String, RequisitionWorkItemDispatchConfig> {
+    val config: RequisitionFetcherDirectDispatchConfig =
+      runBlocking {
+        getOptionalConfigAsProtoMessage(
+          directDispatchConfigBlobKey,
+          RequisitionFetcherDirectDispatchConfig.getDefaultInstance(),
+        )
+      } ?: RequisitionFetcherDirectDispatchConfig.getDefaultInstance()
+    val knownDataProviders: Set<String> =
+      requisitionFetcherConfig.configsList.mapTo(mutableSetOf()) { it.dataProvider }
+    return buildMap {
+      for (dispatchConfig in config.configsList) {
+        require(dispatchConfig.dataProvider.isNotEmpty()) {
+          "Missing 'data_provider' in direct-dispatch config."
+        }
+        require(dispatchConfig.dataProvider in knownDataProviders) {
+          "Direct-dispatch config references unknown data provider: ${dispatchConfig.dataProvider}."
+        }
+        require(dispatchConfig.dataProvider !in this) {
+          "Duplicate direct-dispatch config for data provider: ${dispatchConfig.dataProvider}."
+        }
+        put(dispatchConfig.dataProvider, dispatchConfig)
+      }
+    }
+  }
 
   private fun withDataProviderTelemetry(dataProviderName: String, block: () -> Unit): Result<Unit> =
     trace(
@@ -170,11 +231,13 @@ class RequisitionFetcherFunction : HttpFunction {
    * Creates a [RequisitionFetcher] instance for the given data provider configuration.
    *
    * @param dataProviderConfig The configuration for a single data provider.
+   * @param dispatchConfig direct WorkItem dispatch configuration, or `null` for legacy dispatch.
    * @return A fully initialized [RequisitionFetcher] ready to fetch and store requisitions for the
    *   data provider.
    */
   private fun createRequisitionFetcher(
-    dataProviderConfig: DataProviderRequisitionConfig
+    dataProviderConfig: DataProviderRequisitionConfig,
+    dispatchConfig: RequisitionWorkItemDispatchConfig?,
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
@@ -199,6 +262,28 @@ class RequisitionFetcherFunction : HttpFunction {
     val kingdomEventGroupThrottler =
       MinimumIntervalThrottler(Clock.systemUTC(), kingdomEventGroupRequestInterval)
     val metadataThrottler = MinimumIntervalThrottler(Clock.systemUTC(), metadataRequestInterval)
+    val workItemDispatcher =
+      if (dispatchConfig != null) {
+        val target =
+          requireNotNull(secureComputationControlPlaneTarget) {
+            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required for direct dispatch"
+          }
+        val channel =
+          createInstrumentedChannel(
+            dispatchConfig.controlPlaneConnection,
+            target,
+            secureComputationControlPlaneCertHost,
+          )
+        SecureComputationRequisitionWorkItemDispatcher(
+          workItemsStub = WorkItemsCoroutineStub(channel),
+          queue = dispatchConfig.queue,
+          resultsFulfillerParams = dispatchConfig.resultsFulfillerParams,
+          controlPlaneThrottler =
+            MinimumIntervalThrottler(Clock.systemUTC(), controlPlaneRequestInterval),
+        )
+      } else {
+        null
+      }
 
     val requisitionGrouper =
       RequisitionGrouperByReportId(
@@ -215,10 +300,12 @@ class RequisitionFetcherFunction : HttpFunction {
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
+      directStoragePathPrefix = dispatchConfig?.storagePathPrefix,
       blobUriPrefix = requisitionBlobPrefix,
       requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
+      workItemDispatcher = workItemDispatcher,
       responsePageSize = pageSize,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
@@ -277,13 +364,21 @@ class RequisitionFetcherFunction : HttpFunction {
     tlsParams: TransportLayerSecurityParams,
     target: String,
     certHost: String?,
-  ): io.grpc.Channel {
-    val signingCerts = loadSigningCerts(tlsParams)
-    val channel =
-      buildMutualTlsChannel(target, signingCerts, certHost)
-        .withShutdownTimeout(channelShutdownDuration)
-    return ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+  ): Channel {
+    return channels.computeIfAbsent(ChannelKey(tlsParams, target, certHost)) { key ->
+      val signingCerts = loadSigningCerts(key.tlsParams)
+      val channel =
+        buildMutualTlsChannel(key.target, signingCerts, key.certHost)
+          .withShutdownTimeout(channelShutdownDuration)
+      ClientInterceptors.intercept(channel, grpcTelemetry.newClientInterceptor())
+    }
   }
+
+  private data class ChannelKey(
+    val tlsParams: TransportLayerSecurityParams,
+    val target: String,
+    val certHost: String?,
+  )
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
@@ -299,11 +394,16 @@ class RequisitionFetcherFunction : HttpFunction {
     private val metadataStorageTarget = EnvVars.checkNotNullOrEmpty("METADATA_STORAGE_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
     private val metadataStorageCertHost: String? = System.getenv("METADATA_STORAGE_CERT_HOST")
+    private val secureComputationControlPlaneTarget: String? =
+      System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_TARGET")
+    private val secureComputationControlPlaneCertHost: String? =
+      System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST")
     private val fileSystemPath: String? = System.getenv("REQUISITION_FILE_SYSTEM_PATH")
 
     private const val DEFAULT_GRPC_REQUEST_INTERVAL = "1s"
     private const val DEFAULT_KINGDOM_EVENT_GROUP_REQUEST_INTERVAL = "50ms"
     private const val DEFAULT_METADATA_REQUEST_INTERVAL = "100ms"
+    private const val DEFAULT_CONTROL_PLANE_REQUEST_INTERVAL = "100ms"
     private const val DEFAULT_FLUSH_INTERVAL = "5m"
 
     private val grpcRequestInterval: Duration =
@@ -314,6 +414,9 @@ class RequisitionFetcherFunction : HttpFunction {
         .toDuration()
     private val metadataRequestInterval: Duration =
       (System.getenv("METADATA_REQUEST_INTERVAL") ?: DEFAULT_METADATA_REQUEST_INTERVAL).toDuration()
+    private val controlPlaneRequestInterval: Duration =
+      (System.getenv("CONTROL_PLANE_REQUEST_INTERVAL") ?: DEFAULT_CONTROL_PLANE_REQUEST_INTERVAL)
+        .toDuration()
 
     private val flushInterval: Duration =
       (System.getenv("FLUSH_INTERVAL") ?: DEFAULT_FLUSH_INTERVAL).toDuration()
@@ -354,6 +457,10 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
+    private val directDispatchConfigBlobKey: String =
+      System.getenv("REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY")?.takeIf {
+        it.isNotEmpty()
+      } ?: "requisition-fetcher-direct-dispatch-config.textproto"
     private val requisitionFetcherConfig by lazy {
       runBlocking {
         getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
@@ -380,7 +487,10 @@ class RequisitionFetcherFunction : HttpFunction {
       )
     }
 
-    fun validateConfig(dataProviderConfig: DataProviderRequisitionConfig) {
+    private fun validateConfig(
+      dataProviderConfig: DataProviderRequisitionConfig,
+      dispatchConfig: RequisitionWorkItemDispatchConfig?,
+    ) {
       require(dataProviderConfig.dataProvider.isNotBlank()) { "Missing 'data_provider' in config." }
 
       require(dataProviderConfig.hasRequisitionStorage()) {
@@ -415,6 +525,38 @@ class RequisitionFetcherFunction : HttpFunction {
       }
       require(tls.certCollectionFilePath.isNotBlank()) {
         "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
+      }
+
+      if (dispatchConfig != null) {
+        require(dispatchConfig.storagePathPrefix.isNotBlank()) {
+          "Missing 'storage_path_prefix' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(dispatchConfig.storagePathPrefix != dataProviderConfig.storagePathPrefix) {
+          "Direct-dispatch storage_path_prefix must differ from the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(dispatchConfig.queue.isNotBlank()) {
+          "Missing 'queue' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(dispatchConfig.hasResultsFulfillerParams()) {
+          "Missing 'results_fulfiller_params' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        ResultsFulfillerParamsValidator.validate(
+          dispatchConfig.resultsFulfillerParams,
+          dataProviderConfig.dataProvider,
+        )
+        require(dispatchConfig.hasControlPlaneConnection()) {
+          "Missing 'control_plane_connection' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        val controlPlaneTls = dispatchConfig.controlPlaneConnection
+        require(controlPlaneTls.certFilePath.isNotBlank()) {
+          "Missing 'cert_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(controlPlaneTls.privateKeyFilePath.isNotBlank()) {
+          "Missing 'private_key_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
+        require(controlPlaneTls.certCollectionFilePath.isNotBlank()) {
+          "Missing 'cert_collection_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+        }
       }
     }
   }

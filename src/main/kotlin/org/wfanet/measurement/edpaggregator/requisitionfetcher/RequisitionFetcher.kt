@@ -61,7 +61,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.storage.StorageClient
 
@@ -84,10 +86,16 @@ import org.wfanet.measurement.storage.StorageClient
  * @property storageClient used to write grouped requisition blobs.
  * @property dataProviderName resource name of the data provider being fetched for.
  * @property storagePathPrefix prefix prepended to each blob key.
+ * @property directStoragePathPrefix dedicated blob-key prefix used for direct dispatch. This must
+ *   differ from [storagePathPrefix].
  * @property blobUriPrefix prefix prepended to each metadata blob URI.
  * @property requisitionValidator validates per-report requisitions before grouping.
  * @property requisitionGrouper the in-memory grouper that builds [GroupedRequisitions].
  * @property metadataThrottler throttles all Requisition Metadata Service RPCs.
+ * @property workItemDispatcher optional direct dispatcher for the Secure Computation Control Plane.
+ *   When set, the fetcher atomically registers every metadata row in a group as `QUEUED` before
+ *   ensuring a deterministic WorkItem. When unset, the legacy storage-event dispatch path is
+ *   preserved.
  * @property responsePageSize optional page size for `listRequisitions`.
  * @property metadataPageSize page size for `listRequisitionMetadata`.
  * @property flushInterval wall-clock period between forced drains of every open report buffer. This
@@ -113,10 +121,12 @@ class RequisitionFetcher(
   private val storageClient: StorageClient,
   private val dataProviderName: String,
   private val storagePathPrefix: String,
+  private val directStoragePathPrefix: String? = null,
   private val blobUriPrefix: String,
   private val requisitionValidator: RequisitionsValidator,
   private val requisitionGrouper: RequisitionGrouperByReportId,
   private val metadataThrottler: Throttler,
+  private val workItemDispatcher: RequisitionWorkItemDispatcher? = null,
   private val responsePageSize: Int? = null,
   private val metadataPageSize: Int = DEFAULT_METADATA_PAGE_SIZE,
   private val flushInterval: Duration = DEFAULT_FLUSH_INTERVAL,
@@ -142,7 +152,26 @@ class RequisitionFetcher(
     }
     require(channelCapacity > 0) { "channelCapacity must be positive, was $channelCapacity" }
     require(metadataPageSize > 0) { "metadataPageSize must be positive, was $metadataPageSize" }
+    require((workItemDispatcher == null) == (directStoragePathPrefix == null)) {
+      "directStoragePathPrefix and workItemDispatcher must either both be set or both be unset"
+    }
+    if (directStoragePathPrefix != null) {
+      require(directStoragePathPrefix != storagePathPrefix) {
+        "directStoragePathPrefix must differ from storagePathPrefix"
+      }
+    }
   }
+
+  private enum class DispatchOwnership {
+    LEGACY_DATA_WATCHER,
+    DIRECT,
+  }
+
+  private data class GroupLocation(
+    val blobUri: String,
+    val blobKey: String,
+    val ownership: DispatchOwnership,
+  )
 
   private data class ReportWorkUnit(val reportId: String, val requisitions: List<Requisition>)
 
@@ -169,6 +198,7 @@ class RequisitionFetcher(
    */
   private class PendingRecovery(
     val expected: Set<String>,
+    val metadata: List<RequisitionMetadata>,
     val collected: MutableMap<String, Requisition> = mutableMapOf(),
   )
 
@@ -460,18 +490,18 @@ class RequisitionFetcher(
    *
    * ### High-Level Flow
    * 1. List existing [RequisitionMetadata] for the report.
-   * 2. For any STORED metadata whose blob is missing in [storageClient], accumulate the matching
-   *    requisitions from this unit into [pendingRecovery] keyed by the existing `groupId`. When the
-   *    accumulator has collected every requisition the STORED group expects, rebuild the blob and
-   *    remove the entry. Partial accumulators stay until a later unit completes them, or are
-   *    surfaced as incomplete in [finalizePendingRecovery] when the channel closes.
+   * 2. For a group whose metadata is `STORED` (or `QUEUED`/`PROCESSING` when direct dispatch is
+   *    enabled), rebuild a missing blob from the matching requisitions. A complete group with a
+   *    blob is dispatched directly when [workItemDispatcher] is configured. A failed WorkItem is
+   *    surfaced for explicit operator recovery rather than retried automatically.
    * 3. For requisitions that are not yet recorded in metadata, validate them as a group (model-line
    *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
    *    Kingdom and persist `REFUSED` metadata.
-   * 4. On valid input, group the requisitions in memory and **write the blob first**, then create
-   *    `STORED` metadata for each requisition. The blob-first ordering ensures a mid-run failure
-   *    can only leave a recoverable state (blob without metadata), never the wedge state (metadata
-   *    without blob).
+   * 4. On valid input, group the requisitions in memory and write the blob. The legacy path creates
+   *    `STORED` metadata for DataWatcher; the direct path atomically registers `QUEUED` metadata
+   *    and then ensures the WorkItem. The ordering makes every interruption recoverable by a later
+   *    fetch: no WorkItem can run before its metadata exists, and deterministic identifiers make
+   *    ambiguous retries idempotent.
    */
   private suspend fun processReportInner(
     unit: ReportWorkUnit,
@@ -480,21 +510,31 @@ class RequisitionFetcher(
   ) {
     val existingMetadata =
       metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
-    val storedByGroupId =
+    val recoverableByGroupId =
       existingMetadata
-        .filter { it.state == RequisitionMetadata.State.STORED }
         .groupBy { it.groupId }
+        .filterValues { metadata -> metadata.any { it.state.isRecoverable() } }
 
-    for ((existingGroupId, metadataList) in storedByGroupId) {
-      val blobKey = blobKey(existingGroupId)
-      if (storageClient.getBlob(blobKey) != null) continue
+    for ((existingGroupId, groupMetadata) in recoverableByGroupId) {
+      val location = resolveGroupLocation(existingGroupId, groupMetadata)
+      val metadataList = groupMetadata.filter { it.state.isRecoverable() }
+      validateDispatchOwnership(location.ownership, metadataList)
+      if (storageClient.getBlob(location.blobKey) != null) {
+        if (location.ownership == DispatchOwnership.DIRECT) {
+          metadataCache.remove(unit.reportId)
+          queueAndDispatchGroup(existingGroupId, metadataList, location.blobUri)
+        }
+        continue
+      }
       val expectedNames = metadataList.mapTo(mutableSetOf()) { it.cmmsRequisition }
       val matchingHere = unit.requisitions.filter { it.name in expectedNames }
       // Always enter the wedged group into pendingRecovery so finalizePendingRecovery can surface
       // it via the recovery_skipped_incomplete counter — including the case where this run sees
       // zero matching requisitions for the group.
       val pending =
-        pendingRecovery.getOrPut(existingGroupId) { PendingRecovery(expected = expectedNames) }
+        pendingRecovery.getOrPut(existingGroupId) {
+          PendingRecovery(expected = expectedNames, metadata = metadataList)
+        }
       matchingHere.forEach { pending.collected.putIfAbsent(it.name, it) }
       if (pending.collected.isEmpty()) continue
 
@@ -515,11 +555,12 @@ class RequisitionFetcher(
             null
           }
         if (rebuilt != null) {
-          writeBlob(rebuilt)
+          writeBlob(rebuilt, location.blobKey)
           metrics.recoveryRebuilds.add(1, dataProviderAttrs)
-          // No metadata mutated on the recovery path (the blob is rebuilt for already-existing
-          // STORED rows), so the consumer-local metadataCache stays accurate and is intentionally
-          // not invalidated here.
+          if (location.ownership == DispatchOwnership.DIRECT) {
+            metadataCache.remove(unit.reportId)
+            queueAndDispatchGroup(existingGroupId, pending.metadata, location.blobUri)
+          }
         }
         pendingRecovery.remove(existingGroupId)
       }
@@ -550,7 +591,7 @@ class RequisitionFetcher(
       // already-persisted chunks (fully consistent) plus at most one benign orphan blob
       // (blob without metadata), recovered on a later run — the same recoverable state the
       // single-group path already relies on.
-      var priorBlobForReport = storedByGroupId.isNotEmpty()
+      var priorBlobForReport = recoverableByGroupId.isNotEmpty()
       for (chunk in unregistered.chunked(maxRequisitionsPerGroup)) {
         val groupId = UUID.randomUUID().toString()
         val grouped =
@@ -571,13 +612,18 @@ class RequisitionFetcher(
           metrics.bufferSplits.add(1, dataProviderAttrs)
         }
         priorBlobForReport = true
-        writeBlob(grouped)
-        // TODO(world-federation-of-advertisers/cross-media-measurement#4119): A crash between
-        //  writeBlob and this batch call leaves an orphan blob (blob present, zero metadata).
-        //  The orphan is benign for fetcher correctness but currently causes ResultsFulfiller to
-        //  fail loudly at ResultsFulfiller.kt:160 and dead-letter the work item. Downstream fix:
-        //  change ResultsFulfiller to log + skip rather than throw on the empty-metadata case.
-        batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId)
+        val newBlobKey = blobKey(newStoragePathPrefix, groupId)
+        val newBlobUri = blobUri(newStoragePathPrefix, groupId)
+        writeBlob(grouped, newBlobKey)
+        val createdMetadata =
+          if (workItemDispatcher == null) {
+            batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+          } else {
+            registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+          }
+        if (workItemDispatcher != null) {
+          queueAndDispatchGroup(groupId, createdMetadata, newBlobUri)
+        }
       }
     } finally {
       metadataCache.remove(unit.reportId)
@@ -665,7 +711,13 @@ class RequisitionFetcher(
     // fragment.
     for (chunk in requisitions.chunked(maxRequisitionsPerGroup)) {
       val groupId = UUID.randomUUID().toString()
-      val createdMetadata = batchCreateRequisitionMetadataForGroup(chunk, groupId, reportId)
+      val createdMetadata =
+        batchCreateRequisitionMetadataForGroup(
+          chunk,
+          groupId,
+          reportId,
+          blobUri(newStoragePathPrefix, groupId),
+        )
       for (metadata in createdMetadata) {
         metadataThrottler.onReady { refuseRequisitionMetadata(metadata, refusal.message) }
       }
@@ -676,8 +728,7 @@ class RequisitionFetcher(
    * Writes [grouped] to [storageClient]. Increments storage-write or storage-fail counters and
    * rethrows on failure so the consumer can surface the error.
    */
-  private suspend fun writeBlob(grouped: GroupedRequisitions) {
-    val blobKey = blobKey(grouped.groupId)
+  private suspend fun writeBlob(grouped: GroupedRequisitions, blobKey: String) {
     try {
       storageClient.writeBlob(blobKey, Any.pack(grouped).toByteString())
       metrics.storageWrites.add(1, dataProviderAttrs)
@@ -691,7 +742,8 @@ class RequisitionFetcher(
     }
   }
 
-  private fun blobKey(groupId: String): String = "$storagePathPrefix/$groupId"
+  private fun blobKey(storagePathPrefix: String, groupId: String): String =
+    "$storagePathPrefix/$groupId"
 
   /**
    * Returns the report ID embedded in [requisition]'s [MeasurementSpec], or `null` if the spec
@@ -738,18 +790,19 @@ class RequisitionFetcher(
 
   /**
    * Builds the [RequisitionMetadata] for [requisition] under [groupId] for [reportId], with a blob
-   * URI computed from [blobUriPrefix] and [storagePathPrefix]. [reportId] is passed in rather than
-   * re-derived from the requisition's [MeasurementSpec]: the producer already extracted and
-   * validated it once per requisition (see [extractReportId] in `produceWorkUnits`).
+   * URI supplied by the caller. [reportId] is passed in rather than re-derived from the
+   * requisition's [MeasurementSpec]: the producer already extracted and validated it once per
+   * requisition (see [extractReportId] in `produceWorkUnits`).
    */
   private fun buildRequisitionMetadata(
     requisition: Requisition,
     groupId: String,
     reportId: String,
+    blobUri: String,
   ): RequisitionMetadata {
     return requisitionMetadata {
       cmmsRequisition = requisition.name
-      blobUri = "$blobUriPrefix/$storagePathPrefix/$groupId"
+      this.blobUri = blobUri
       blobTypeUrl = GROUPED_REQUISITION_BLOB_TYPE_URL
       this.groupId = groupId
       cmmsCreateTime = requisition.updateTime
@@ -785,6 +838,7 @@ class RequisitionFetcher(
     requisitions: List<Requisition>,
     groupId: String,
     reportId: String,
+    blobUri: String,
   ): List<RequisitionMetadata> {
     if (requisitions.isEmpty()) return emptyList()
     val response =
@@ -796,7 +850,8 @@ class RequisitionFetcher(
               requisitions.map { requisition ->
                 createRequisitionMetadataRequest {
                   parent = dataProviderName
-                  requisitionMetadata = buildRequisitionMetadata(requisition, groupId, reportId)
+                  requisitionMetadata =
+                    buildRequisitionMetadata(requisition, groupId, reportId, blobUri)
                   // Deterministic so a same-run retry of the same batch is server-side
                   // idempotent: matching requestId returns the existing row instead of
                   // ALREADY_EXISTS on (cmmsRequisition, groupId). The server requires
@@ -811,6 +866,152 @@ class RequisitionFetcher(
         )
       }
     return response.requisitionMetadataList
+  }
+
+  /**
+   * Atomically creates `QUEUED` metadata for a directly dispatched group.
+   *
+   * This uses a distinct API operation so an older metadata-service replica returns `UNIMPLEMENTED`
+   * without creating `STORED` rows that a legacy fetcher could mistake for DataWatcher-owned work
+   * during a rolling deployment.
+   */
+  private suspend fun registerQueuedRequisitionMetadataForGroup(
+    requisitions: List<Requisition>,
+    groupId: String,
+    reportId: String,
+    blobUri: String,
+  ): List<RequisitionMetadata> {
+    if (requisitions.isEmpty()) return emptyList()
+    val dispatcher = checkNotNull(workItemDispatcher)
+    val response =
+      metadataThrottler.onReady {
+        requisitionMetadataStub.registerQueuedRequisitionMetadata(
+          registerQueuedRequisitionMetadataRequest {
+            parent = dataProviderName
+            workItem = dispatcher.workItemName(groupId)
+            requests +=
+              requisitions.map { requisition ->
+                createRequisitionMetadataRequest {
+                  parent = dataProviderName
+                  requisitionMetadata =
+                    buildRequisitionMetadata(requisition, groupId, reportId, blobUri)
+                  requestId =
+                    UUID.nameUUIDFromBytes("${requisition.name}/$groupId".toByteArray()).toString()
+                }
+              }
+          }
+        )
+      }
+    return response.requisitionMetadataList
+  }
+
+  /**
+   * Ensures that every row in [metadata] records the intended WorkItem, then dispatches the group.
+   *
+   * Recovery also accepts `STORED` direct-path rows created by an earlier rollout. A crash after
+   * queued registration is recovered by the dispatcher's deterministic ID.
+   */
+  private suspend fun queueAndDispatchGroup(
+    groupId: String,
+    metadata: List<RequisitionMetadata>,
+    blobUri: String,
+  ) {
+    val dispatcher = workItemDispatcher ?: return
+    val workItemName = dispatcher.workItemName(groupId)
+
+    // Validate the whole group before changing any row. Otherwise a conflicting later row could
+    // leave earlier STORED rows QUEUED even though this invocation cannot dispatch the group.
+    for (item in metadata) {
+      when (item.state) {
+        RequisitionMetadata.State.STORED -> Unit
+        RequisitionMetadata.State.QUEUED ->
+          check(item.workItem == workItemName) {
+            "Requisition metadata ${item.name} is already queued for ${item.workItem}, " +
+              "not $workItemName"
+          }
+        RequisitionMetadata.State.PROCESSING ->
+          check(item.workItem == workItemName) {
+            "Requisition metadata ${item.name} is being processed by ${item.workItem}, " +
+              "not $workItemName"
+          }
+        else ->
+          error("Requisition metadata ${item.name} is in non-dispatchable state ${item.state}")
+      }
+    }
+
+    for (item in metadata) {
+      if (item.state == RequisitionMetadata.State.STORED) {
+        metadataThrottler.onReady {
+          requisitionMetadataStub.queueRequisitionMetadata(
+            queueRequisitionMetadataRequest {
+              name = item.name
+              etag = item.etag
+              workItem = workItemName
+            }
+          )
+        }
+      }
+    }
+    dispatcher.dispatch(groupId, blobUri)
+  }
+
+  private fun blobUri(storagePathPrefix: String, groupId: String): String =
+    "$blobUriPrefix/$storagePathPrefix/$groupId"
+
+  private val newStoragePathPrefix: String
+    get() = directStoragePathPrefix ?: storagePathPrefix
+
+  private fun RequisitionMetadata.State.isRecoverable(): Boolean {
+    return this == RequisitionMetadata.State.STORED ||
+      this == RequisitionMetadata.State.QUEUED ||
+      this == RequisitionMetadata.State.PROCESSING
+  }
+
+  private fun resolveGroupLocation(
+    groupId: String,
+    metadata: List<RequisitionMetadata>,
+  ): GroupLocation {
+    val blobUris = metadata.mapTo(mutableSetOf()) { it.blobUri }
+    check(blobUris.size == 1) { "Requisition group $groupId has inconsistent blob URIs: $blobUris" }
+    val recordedBlobUri = blobUris.single()
+    val legacyBlobUri = blobUri(storagePathPrefix, groupId)
+    val directBlobUri = directStoragePathPrefix?.let { blobUri(it, groupId) }
+    val ownership =
+      when (recordedBlobUri) {
+        legacyBlobUri -> DispatchOwnership.LEGACY_DATA_WATCHER
+        directBlobUri -> DispatchOwnership.DIRECT
+        else ->
+          error(
+            "Requisition group $groupId has blob URI $recordedBlobUri outside the configured " +
+              "legacy and direct-dispatch namespaces"
+          )
+      }
+    val storageUriPrefix = "$blobUriPrefix/"
+    check(recordedBlobUri.startsWith(storageUriPrefix)) {
+      "Requisition group $groupId has blob URI $recordedBlobUri outside storage $blobUriPrefix"
+    }
+    return GroupLocation(
+      blobUri = recordedBlobUri,
+      blobKey = recordedBlobUri.removePrefix(storageUriPrefix),
+      ownership = ownership,
+    )
+  }
+
+  private fun validateDispatchOwnership(
+    ownership: DispatchOwnership,
+    metadata: List<RequisitionMetadata>,
+  ) {
+    when (ownership) {
+      DispatchOwnership.LEGACY_DATA_WATCHER -> {
+        check(metadata.all { it.state == RequisitionMetadata.State.STORED }) {
+          "Legacy DataWatcher-owned metadata cannot be QUEUED or PROCESSING"
+        }
+        check(metadata.all { it.workItem.isEmpty() }) {
+          "Legacy DataWatcher-owned metadata cannot reference a WorkItem"
+        }
+      }
+      DispatchOwnership.DIRECT -> checkNotNull(workItemDispatcher)
+    }
   }
 
   /**

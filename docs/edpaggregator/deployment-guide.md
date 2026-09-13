@@ -86,9 +86,8 @@ EDP uploads                          Operator services                     TEE
 event-groups/*  ── finalize ──► DataWatcher ──► EventGroupSync ──► Kingdom public API
                                                                        │
 Kingdom requisitions ◄── Cloud Scheduler ──► RequisitionFetcher ──────┘
-        writes requisitions/*
-requisitions/*  ── finalize ──► DataWatcher ──► Secure Computation API ──► Pub/Sub
-                                                                              │
+        writes requisitions/* ──► Secure Computation API ──► Pub/Sub
+                                                                  │
 edp/<edp-id>/<date>/{impressions,metadata,done}                               ▼
         done ── finalize ──► DataWatcher ──► DataAvailabilitySync ──► ResultsFulfiller MIG
                                                     │                    (Confidential Space)
@@ -148,8 +147,8 @@ material.
 * `edpa-tee-app-tls-key` / `edpa-tee-app-tls-pem` — TLS keypair used by the
   ResultsFulfiller TEE app to authenticate to the Secure Computation API. Signed by
   `securecomputation-root-ca`.
-* `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher /
-  DataWatcherDelete TLS keypair for the Secure Computation API. Signed by
+* `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher,
+  DataWatcherDelete, and RequisitionFetcher TLS keypair for the Secure Computation API. Signed by
   `securecomputation-root-ca`.
 * `edpa-requisition-fetcher-tls-key` / `edpa-requisition-fetcher-tls-pem` —
   RequisitionFetcher TLS keypair for the Metadata Storage API. Signed by the
@@ -182,12 +181,13 @@ decide whether the path matches a watched pattern, which processing flow to acti
 and which downstream API or function to call. It fans every incoming EDP file into
 the correct pipeline.
 
-The three watched-path types per EDP:
+The two watched-path types per EDP:
 
-1. **Requisition detection** — a requisition file forwards to the Secure Computation
-   API, which creates a WorkItem for the ResultsFulfiller.
-2. **Event group detection** — an event-group blob invokes EventGroupSync.
-3. **Impressions / data availability** — a `done` marker invokes DataAvailabilitySync.
+1. **Event group detection** — an event-group blob invokes EventGroupSync.
+2. **Impressions / data availability** — a `done` marker invokes DataAvailabilitySync.
+
+Requisition blobs are not watched in the recommended configuration. RequisitionFetcher creates
+their WorkItems directly after the blob and all associated metadata rows are durable.
 
 Config: [`DataWatcherConfig`](#datawatcher-config-datawatcherconfig).
 
@@ -210,9 +210,13 @@ Config: [`EventGroupSyncConfigs`](#eventgroupsync-config-eventgroupsyncconfigs).
 
 ### RequisitionFetcher
 
-A Cloud Function triggered by **Cloud Scheduler**. It retrieves requisitions from
-the Kingdom public API and writes any new requisitions to `EDPA_STORAGE_BUCKET`. The
-DataWatcher then detects those files and creates the corresponding WorkItems.
+A Cloud Function triggered by **Cloud Scheduler**. It retrieves requisitions from the Kingdom
+public API, writes each grouped payload to `EDPA_STORAGE_BUCKET`, creates its RequisitionMetadata,
+and submits a deterministic WorkItem to the Secure Computation API. Before submission, it records
+the WorkItem name and `QUEUED` state on every metadata row in the group. A retry checks for the
+deterministic WorkItem before creating it. If ResultsFulfiller exhausts its queue retries, the
+control plane leaves the WorkItem `FAILED` for operator investigation; scheduled fetches do not
+restart its dead-letter cycle. Rows already in `PROCESSING` remain discoverable for that recovery.
 
 The function runs with `max_instances = 1` and a `timeout_seconds` that exceeds the
 internal drain ticker interval (default `600` / 10 min in test environments; raise
@@ -273,17 +277,26 @@ from a Pub/Sub subscription. Inside the TEE it:
 3. Computes the requisition result, applies the configured noise / k-anonymity, signs
    the result with the EDP's consent key, and returns it to the CMMS.
 
-Its per-WorkItem parameters are carried in the DataWatcher `results-fulfiller`
-watched path as a `ResultsFulfillerParams` message; its per-EDP TLS / consent /
-KMS material is carried in the `event_data_provider_configs` file. See
+Its per-WorkItem parameters are carried in RequisitionFetcher's separate direct-dispatch
+configuration as a `ResultsFulfillerParams` message; its per-EDP TLS / consent / KMS material is
+carried in the `event_data_provider_configs` file. See
 [ResultsFulfiller parameters](#resultsfulfiller-parameters) and
 [EDP config (event_data_provider_configs)](#edp-config-event_data_provider_configs).
 
 ### Secure Computation API
 
-A gRPC service on GKE, reachable from the DataWatcher. When the DataWatcher enqueues
-a requisition it creates a WorkItem; the API routes WorkItems to the configured
+A gRPC service on GKE, reachable from RequisitionFetcher. RequisitionFetcher creates a WorkItem
+after the requisition payload and metadata are durable; the API routes WorkItems to the configured
 Pub/Sub queues. Enqueuing to a non-configured queue is an error.
+
+The Secure Computation API remains workload-agnostic:
+
+- RequisitionFetcher calls the Requisition Metadata and WorkItems APIs independently.
+- The Secure Computation API stores and republishes opaque WorkItem parameters. It does not
+  interpret `ResultsFulfillerParams`.
+- ResultsFulfiller, not the Secure Computation API, calls the Kingdom Requisition API and the
+  Requisition Metadata and Impression Metadata APIs while executing the WorkItem.
+- Do not add a Secure Computation API dependency on either metadata service.
 
 ### EDP Aggregator (Metadata Storage) API
 
@@ -507,7 +520,7 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | Function | Key variables |
 | --- | --- |
 | `data_watcher` / `data_watcher_delete` | `CERT_FILE_PATH`, `PRIVATE_KEY_FILE_PATH`, `CERT_COLLECTION_FILE_PATH`, `CONTROL_PLANE_TARGET`, `CONTROL_PLANE_CERT_HOST`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
-| `requisition_fetcher` | `KINGDOM_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `GRPC_REQUEST_INTERVAL`, `METADATA_STORAGE_TARGET` |
+| `requisition_fetcher` | `KINGDOM_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `GRPC_REQUEST_INTERVAL`, `METADATA_STORAGE_TARGET`, `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` |
 | `event_group_sync` | `KINGDOM_TARGET` |
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
@@ -526,7 +539,10 @@ file. For example, for the DataWatcher:
 And for the per-EDP TLS material referenced by EventGroupSync / DataAvailabilitySync /
 RequisitionFetcher, the mount paths must equal the `cmmsConnection.*` /
 `impressionMetadataStorageConnection.*` paths inside the DataWatcher and fetcher
-config files.
+config files. RequisitionFetcher's direct-dispatch `control_plane_connection` may reuse the
+DataWatcher client certificate already trusted by the Secure Computation API; its three paths must
+match the mounted `data_watcher_tls_key`, `data_watcher_tls_pem`, and `secure_computation_root_ca`
+secrets.
 
 > A region mismatch between a Cloud Function and the endpoint the DataWatcher calls
 > (`http_endpoint_sink.endpoint_uri`) causes an HTTP 404 at invocation time. Confirm
@@ -542,6 +558,7 @@ by the module:
 | `data_watcher_config` | `DataWatcherConfig` | DataWatcher |
 | `data_watcher_delete_config` | `DataWatcherConfig` | DataWatcherDelete |
 | `requisition_fetcher_config` | `RequisitionFetcherConfig` | RequisitionFetcher |
+| `requisition_fetcher_direct_dispatch_config` | `RequisitionFetcherDirectDispatchConfig` | RequisitionFetcher |
 | `event_group_sync_config` | `EventGroupSyncConfigs` | EventGroupSync |
 | `data_availability_sync_config` | `DataAvailabilitySyncConfigs` | DataAvailabilitySync |
 | `data_availability_monitor_config` | `DataAvailabilityMonitorConfigs` | DataAvailabilityMonitor |
@@ -753,36 +770,7 @@ watched_paths {
   }
 }
 
-# 2) Requisitions -> Secure Computation API (control-plane queue)
-watched_paths {
-  identifier: "results-fulfiller"
-  source_path_regex: "gs://EDPA_STORAGE_BUCKET/<edp-id>/requisitions/(.*)"
-  control_plane_queue_sink {
-    queue: "results-fulfiller-queue"
-    app_params {
-      [type.googleapis.com/wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams] {
-        data_provider: "dataProviders/DATA_PROVIDER_ID"
-        storage_params {
-          labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
-          gcs_project_id: "PROJECT_ID"
-        }
-        consent_params {
-          result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
-          result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
-          private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
-          edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
-        }
-        cmms_connection {
-          client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
-          client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
-        }
-        noise_params { noise_type: CONTINUOUS_GAUSSIAN }
-      }
-    }
-  }
-}
-
-# 3) Data availability -> DataAvailabilitySync (HTTP), fires on the `done` marker
+# 2) Data availability -> DataAvailabilitySync (HTTP), fires on the `done` marker
 watched_paths {
   identifier: "data-availability"
   source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/.+/done$"
@@ -798,7 +786,7 @@ watched_paths {
 }
 ```
 
-Repeat the three watched paths per EDP. The DataWatcherDelete config
+Repeat the two watched paths per EDP. The DataWatcherDelete config
 (`data_watcher_delete_config`) uses the same proto with a `data-availability-cleanup`
 identifier whose `endpoint_uri` points at the DataAvailabilityCleanup function.
 
@@ -827,6 +815,111 @@ configs {
   }
 }
 ```
+
+This legacy config remains parseable by old RequisitionFetcher revisions and is not changed to
+activate direct dispatch.
+
+### RequisitionFetcher direct-dispatch config (`RequisitionFetcherDirectDispatchConfig`)
+
+Proto:
+`wfa/measurement/config/edpaggregator/requisition_fetcher_direct_dispatch_config.proto`.
+The separate `requisition-fetcher-direct-dispatch-config.textproto` blob contains one `configs`
+entry for each EDP using direct dispatch. An absent or empty blob leaves every EDP on the legacy
+DataWatcher path. The deployment workflow writes this blob from the
+`REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT` GitHub environment variable.
+
+```textproto
+# proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_direct_dispatch_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherDirectDispatchConfig
+configs {
+  data_provider: "dataProviders/DATA_PROVIDER_ID"
+  # Dedicated namespace for directly dispatched groups. Do not match this
+  # path in the legacy DataWatcher source_path_regex.
+  storage_path_prefix: "<edp-id>/requisitions-v2"
+  control_plane_connection {
+    cert_file_path: "/secrets/cert/data_watcher_tls.pem"
+    private_key_file_path: "/secrets/key/data_watcher_tls.key"
+    cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
+  }
+  queue: "results-fulfiller-queue"
+  results_fulfiller_params {
+    data_provider: "dataProviders/DATA_PROVIDER_ID"
+    storage_params {
+      labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
+      gcs_project_id: "PROJECT_ID"
+    }
+    consent_params {
+      result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
+      result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
+      private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
+      edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
+    }
+    cmms_connection {
+      client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
+      client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
+    }
+    noise_params { noise_type: CONTINUOUS_GAUSSIAN }
+  }
+}
+```
+
+When an EDP has an entry in this file, the fetcher writes only the entry's
+`storage_path_prefix` and dispatches directly. The direct and legacy prefixes must differ. An
+entry with a missing `data_provider`, a duplicate `data_provider`, or a `data_provider` absent from
+the legacy RequisitionFetcher config fails the invocation rather than silently changing dispatch
+ownership. Keep the DataWatcher `results-fulfiller` watched path restricted to the top-level legacy
+prefix throughout the rollout. Also set
+`SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
+`SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
+
+#### Migrating from DataWatcher dispatch
+
+The legacy and direct paths use separate object namespaces. Metadata registration remains the
+ownership boundary: the direct fetcher creates a group atomically in `QUEUED`, while a legacy group
+is created in `STORED`. Recovery uses each group's persisted `blob_uri`; it never moves a group
+between namespaces. The supported rollout deliberately stops RequisitionFetcher rather than
+depending on arbitrary mixed-version execution.
+
+The separate configuration namespace prevents an old RequisitionFetcher binary from parsing a new
+field. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch when the
+blob is absent or empty and reload it on each invocation. Direct dispatch is enabled only after the
+API, worker, and DLQ prerequisites below are complete.
+
+Use this upgrade:
+
+1. Stop RequisitionFetcher and wait for active invocations to finish.
+2. Drain or explicitly account for outstanding legacy DataWatcher requisition events and their
+   WorkItems. Keep the legacy prefix and DataWatcher rule unchanged.
+3. Apply the additive Requisition Metadata and Secure Computation schema changes. Use the immutable
+   snapshot procedure in
+   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication) to identify any
+   pre-migration `QUEUED` WorkItems that need explicit repair.
+4. Roll out every Secure Computation API and Requisition Metadata API replica. Upgrade all
+   ResultsFulfiller TEE workers and the existing ResultsFulfiller DLQ consumers before enabling
+   direct dispatch.
+5. Deploy the new RequisitionFetcher binary, control-plane endpoint, TLS material, and separate
+   `requisition-fetcher-direct-dispatch-config.textproto`, then resume RequisitionFetcher. Set each
+   direct `storage_path_prefix` to a dedicated prefix such as `<edp-id>/requisitions-v2`; it must not
+   match the legacy DataWatcher `source_path_regex`.
+6. Do not call `RetryWorkItem` until step 4 is complete and all old Secure Computation API replicas
+   are gone. After that point, use it only for the explicitly identified WorkItems described in the
+   durable-publication and recovery procedures.
+
+This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
+subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
+`EnsureWorkItem` for idempotent dispatch, and `RegisterQueuedRequisitionMetadata` for atomic
+ownership registration. The existing EDPA-aware DLQ behavior predates this change and is not
+expanded for ResultsFulfiller.
+
+After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
+failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
+that its worker has stopped, call `FailWorkItemAttempt` for the exact active attempt, and then call
+`RetryWorkItem`. `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains.
+
+For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
+the legacy DataWatcher intentionally does not watch that namespace. Then remove the EDP entry from
+`requisition-fetcher-direct-dispatch-config.textproto`. No RequisitionFetcher redeployment is
+required. The legacy config, legacy prefix, and DataWatcher rule remain unchanged.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
@@ -923,8 +1016,9 @@ is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
-The DataWatcher `results-fulfiller` watched path carries a `ResultsFulfillerParams`
-message (proto:
+Each RequisitionFetcher direct-dispatch config entry's `results_fulfiller_params` is a
+`ResultsFulfillerParams` message
+(proto:
 `wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto`). Beyond the
 `data_provider`, `storage_params`, `consent_params`, and `cmms_connection` shown
 above, it supports:
@@ -1290,8 +1384,8 @@ data-availability → ResultsFulfiller → result returned to the CMMS.
 
 The test walks through: (1) event-group creation, (2) upload of the event group to
 the bucket, (3) creating a measurement request, (4) triggering the RequisitionFetcher
-to pull the new requisitions, (5) storing requisitions in the bucket — the DataWatcher
-detects them and creates a WorkItem via the Secure Computation API, (6) the Secure
+to pull the new requisitions, (5) storing requisitions and their metadata, then creating a WorkItem
+via the Secure Computation API, (6) the Secure
 Computation API persists the WorkItem in Spanner and publishes to Pub/Sub, (7) the
 ResultsFulfiller (a Pub/Sub subscriber) processes the WorkItem and fulfills the
 requisitions against the Kingdom, and (8) evaluating the results. Confirm the run
@@ -1314,9 +1408,12 @@ image is not `STABLE`). Never use a debug image in production.
 
 ## Debugging notes
 
-* **Config caching** — the ResultsFulfiller and functions read their config at
-  process start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the
-  affected MIG VMs / redeploy the function so the new config is picked up.
+* **Config caching** — the ResultsFulfiller and functions generally read their config at process
+  start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the affected MIG VMs or
+  redeploy the function so the new config is picked up. The exception is
+  `requisition-fetcher-direct-dispatch-config.textproto`: RequisitionFetcher reloads that optional
+  file on every invocation, so direct-dispatch activation and rollback do not require a function
+  redeployment. Its legacy `requisition-fetcher-config.textproto` remains process-start cached.
 * **Secret path mismatches** — the single most common failure. Every mounted secret
   path must match, character for character, the path in the config file that
   references it.

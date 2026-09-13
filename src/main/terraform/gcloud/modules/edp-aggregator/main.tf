@@ -131,7 +131,10 @@ locals {
       "trusted_root_ca_collection",
       "requisition_fetcher_tls_pem",
       "requisition_fetcher_tls_key",
-      "metadata_storage_root_ca"
+      "metadata_storage_root_ca",
+      "secure_computation_root_ca",
+      "data_watcher_tls_key",
+      "data_watcher_tls_pem",
     ],
     local.edp_tls_keys
   )
@@ -219,6 +222,17 @@ resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   bucket         = module.config_files_bucket.storage_bucket.name
   source         = var.requisition_fetcher_config.local_path
   source_md5hash = filemd5(var.requisition_fetcher_config.local_path)
+}
+
+resource "google_storage_bucket_object" "upload_requisition_fetcher_direct_dispatch_config" {
+  for_each = var.requisition_fetcher_direct_dispatch_config == null ? {} : {
+    direct_dispatch = var.requisition_fetcher_direct_dispatch_config
+  }
+
+  name           = each.value.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = each.value.local_path
+  source_md5hash = filemd5(each.value.local_path)
 }
 
 resource "google_storage_bucket_object" "upload_edps_config" {
@@ -314,7 +328,11 @@ module "data_watcher_delete_cloud_function" {
 module "requisition_fetcher_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_requisition_fetcher_config,
+    google_storage_bucket_object.upload_requisition_fetcher_direct_dispatch_config,
+  ]
 
   http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
   terraform_service_account                = var.terraform_service_account
