@@ -154,7 +154,8 @@ fun requireCapMatchesMode(impressionCapMode: ImpressionCapMode, configuredCap: I
         "impression_max_frequency_per_user is ignored under $impressionCapMode and must be unset, " +
           "got $configuredCap"
       }
-    ImpressionCapMode.UNSPECIFIED,
-    ImpressionCapMode.UNRECOGNIZED -> {}
+    ImpressionCapMode.UNSPECIFIED -> {}
+    ImpressionCapMode.UNRECOGNIZED ->
+      throw IllegalArgumentException("Unrecognized impression_cap_mode")
   }
 }

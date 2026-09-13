@@ -21,6 +21,7 @@ import com.google.cloud.spanner.KeySet
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.any
 import kotlinx.coroutines.flow.count
@@ -43,6 +44,8 @@ data class WorkItemAttemptResult(
   val workItemAttemptId: Long,
   val workItemAttempt: WorkItemAttempt,
 )
+
+data class ExpiredWorkItemAttemptKey(val workItemId: Long, val workItemAttemptId: Long)
 
 suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
   workItemId: Long,
@@ -93,6 +96,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
   workItemId: Long,
   workItemAttemptId: Long,
   workItemAttemptResourceId: String,
+  leaseExpirationTime: Instant? = null,
 ): Pair<Int, WorkItemAttempt.State> {
 
   val attemptNumber =
@@ -104,6 +108,9 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
     set("WorkItemAttemptId").to(workItemAttemptId)
     set("WorkItemAttemptResourceId").to(workItemAttemptResourceId)
     set("State").to(workItemAttemptState)
+    if (leaseExpirationTime != null) {
+      set("LeaseExpirationTime").to(leaseExpirationTime.toGcloudTimestamp())
+    }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -191,6 +198,80 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(
   return state
 }
 
+/** Extends the lease for an ACTIVE WorkItemAttempt. */
+fun AsyncDatabaseClient.TransactionContext.renewWorkItemAttemptLease(
+  workItemId: Long,
+  workItemAttemptId: Long,
+  leaseExpirationTime: Instant,
+) {
+  bufferUpdateMutation("WorkItemAttempts") {
+    set("WorkItemId").to(workItemId)
+    set("WorkItemAttemptId").to(workItemAttemptId)
+    set("LeaseExpirationTime").to(leaseExpirationTime.toGcloudTimestamp())
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Reads ACTIVE WorkItemAttempts whose leases have expired. */
+fun AsyncDatabaseClient.ReadContext.readExpiredWorkItemAttempts(
+  now: Instant,
+  limit: Int,
+): Flow<ExpiredWorkItemAttemptKey> {
+  val query =
+    statement(
+      """
+      SELECT WorkItemId, WorkItemAttemptId
+      FROM WorkItemAttempts@{FORCE_INDEX=WorkItemAttemptsByLeaseExpirationTime}
+      WHERE State = @activeState
+        AND LeaseExpirationTime IS NOT NULL
+        AND LeaseExpirationTime <= @now
+      ORDER BY LeaseExpirationTime ASC, WorkItemId ASC, WorkItemAttemptId ASC
+      LIMIT @limit
+      """
+        .trimIndent()
+    ) {
+      bind("activeState").to(WorkItemAttempt.State.ACTIVE.number.toLong())
+      bind("now").to(now.toGcloudTimestamp())
+      bind("limit").to(limit.toLong())
+    }
+  return executeQuery(query, Options.tag("action=readExpiredWorkItemAttempts")).map { row ->
+    ExpiredWorkItemAttemptKey(row.getLong("WorkItemId"), row.getLong("WorkItemAttemptId"))
+  }
+}
+
+/** Fails an expired ACTIVE attempt and transactionally queues its WorkItem for a new generation. */
+suspend fun AsyncDatabaseClient.TransactionContext.recoverExpiredWorkItemAttempt(
+  key: ExpiredWorkItemAttemptKey,
+  now: Instant,
+): Boolean {
+  val attemptRow =
+    readRow(
+      "WorkItemAttempts",
+      Key.of(key.workItemId, key.workItemAttemptId),
+      listOf("State", "LeaseExpirationTime"),
+    ) ?: return false
+  val state: WorkItemAttempt.State =
+    attemptRow.getProtoEnum("State", WorkItemAttempt.State::forNumber)
+  if (
+    state != WorkItemAttempt.State.ACTIVE ||
+      attemptRow.isNull("LeaseExpirationTime") ||
+      attemptRow.getTimestamp("LeaseExpirationTime") > now.toGcloudTimestamp()
+  ) {
+    return false
+  }
+
+  val workItemRow =
+    readRow("WorkItems", Key.of(key.workItemId), listOf("State", "Generation")) ?: return false
+  val workItemState: WorkItem.State = workItemRow.getProtoEnum("State", WorkItem.State::forNumber)
+  if (workItemState != WorkItem.State.RUNNING) {
+    return false
+  }
+  val generation = if (workItemRow.isNull("Generation")) 1L else workItemRow.getLong("Generation")
+  failWorkItemAttempt(key.workItemId, key.workItemAttemptId)
+  retryWorkItem(key.workItemId, generation)
+  return true
+}
+
 /**
  * Reads [WorkItemAttempts]s ordered by create time, work item id and work item attempt resource id.
  */
@@ -254,6 +335,7 @@ private object WorkItemAttempts {
           AND WIA.CreateTime <= WorkItemAttempts.CreateTime
       ) AS AttemptNumber,
       WorkItemAttempts.ErrorMessage,
+      WorkItemAttempts.LeaseExpirationTime,
       WorkItemAttempts.CreateTime,
       WorkItemAttempts.UpdateTime
     FROM WorkItems
@@ -271,6 +353,9 @@ private object WorkItemAttempts {
         state = row.getProtoEnum("State", WorkItemAttempt.State::forNumber)
         attemptNumber = row.getLong("AttemptNumber").toInt()
         errorMessage = row.getNullableString("ErrorMessage") ?: ""
+        if (!row.isNull("LeaseExpirationTime")) {
+          leaseExpirationTime = row.getTimestamp("LeaseExpirationTime").toProto()
+        }
         createTime = row.getTimestamp("CreateTime").toProto()
         updateTime = row.getTimestamp("UpdateTime").toProto()
       },

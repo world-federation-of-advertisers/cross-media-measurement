@@ -147,12 +147,13 @@ material.
 * `edpa-tee-app-tls-key` / `edpa-tee-app-tls-pem` — TLS keypair used by the
   ResultsFulfiller TEE app to authenticate to the Secure Computation API. Signed by
   `securecomputation-root-ca`.
-* `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher,
-  DataWatcherDelete, and RequisitionFetcher TLS keypair for the Secure Computation API. Signed by
+* `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher and
+  DataWatcherDelete TLS keypair for the Secure Computation API. Signed by
   `securecomputation-root-ca`.
 * `edpa-requisition-fetcher-tls-key` / `edpa-requisition-fetcher-tls-pem` —
-  RequisitionFetcher TLS keypair for the Metadata Storage API. Signed by the
-  Metadata Storage root CA.
+  dedicated RequisitionFetcher TLS keypair for the Metadata Storage and Secure Computation APIs.
+  Grant this identity only the methods needed by RequisitionFetcher; do not give it the
+  DataWatcher private key.
 * `edpa-data-availability-tls-key` / `edpa-data-availability-tls-pem` —
   DataAvailabilitySync / DataAvailabilityCleanup TLS keypair for the Metadata
   Storage API. Signed by the Metadata Storage root CA.
@@ -539,10 +540,10 @@ file. For example, for the DataWatcher:
 And for the per-EDP TLS material referenced by EventGroupSync / DataAvailabilitySync /
 RequisitionFetcher, the mount paths must equal the `cmmsConnection.*` /
 `impressionMetadataStorageConnection.*` paths inside the DataWatcher and fetcher
-config files. RequisitionFetcher's direct-dispatch `control_plane_connection` may reuse the
-DataWatcher client certificate already trusted by the Secure Computation API; its three paths must
-match the mounted `data_watcher_tls_key`, `data_watcher_tls_pem`, and `secure_computation_root_ca`
-secrets.
+config files. RequisitionFetcher's direct-dispatch `control_plane_connection` uses the dedicated
+RequisitionFetcher certificate rather than the DataWatcher identity. Its three paths must match the
+mounted `requisition_fetcher_tls_key`, `requisition_fetcher_tls_pem`, and
+`secure_computation_root_ca` secrets.
 
 > A region mismatch between a Cloud Function and the endpoint the DataWatcher calls
 > (`http_endpoint_sink.endpoint_uri`) causes an HTTP 404 at invocation time. Confirm
@@ -837,8 +838,8 @@ configs {
   # path in the legacy DataWatcher source_path_regex.
   storage_path_prefix: "<edp-id>/requisitions-v2"
   control_plane_connection {
-    cert_file_path: "/secrets/cert/data_watcher_tls.pem"
-    private_key_file_path: "/secrets/key/data_watcher_tls.key"
+    cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+    private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
     cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
   }
   queue: "results-fulfiller-queue"
@@ -864,12 +865,14 @@ configs {
 ```
 
 When an EDP has an entry in this file, the fetcher writes only the entry's
-`storage_path_prefix` and dispatches directly. The direct and legacy prefixes must be disjoint:
-neither may equal, contain, or be contained by the other at a path-segment boundary. An
-entry with a missing `data_provider`, a duplicate `data_provider`, or a `data_provider` absent from
-the legacy RequisitionFetcher config fails the invocation rather than silently changing dispatch
-ownership. Keep the DataWatcher `results-fulfiller` watched path restricted to the top-level legacy
-prefix throughout the rollout. Also set
+`storage_path_prefix` and dispatches directly. Every legacy and direct prefix sharing a bucket must
+be disjoint globally: no prefix may equal, contain, or be contained by another at a path-segment
+boundary, even when the prefixes belong to different data providers. The fetcher validates this
+before processing any provider. An entry with a missing `data_provider`, a duplicate
+`data_provider`, or a `data_provider` absent from the legacy RequisitionFetcher config fails the
+invocation rather than silently changing dispatch ownership. Keep the DataWatcher
+`results-fulfiller` watched path restricted to the top-level legacy prefix throughout the rollout.
+Also set
 `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
 
@@ -878,8 +881,11 @@ prefix throughout the rollout. Also set
 The legacy and direct paths use separate object namespaces. Metadata registration remains the
 ownership boundary: the direct fetcher creates a group atomically in `QUEUED`, while a legacy group
 is created in `STORED`. Recovery uses each group's persisted `blob_uri`; it never moves a group
-between namespaces. The supported rollout deliberately stops RequisitionFetcher rather than
-depending on arbitrary mixed-version execution.
+between namespaces. A legacy group with any `PROCESSING` row remains owned by its existing
+DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob,
+which could emit a duplicate storage event. It still processes newly discovered requisitions for
+the same report through the direct namespace. The supported rollout deliberately stops
+RequisitionFetcher rather than depending on arbitrary mixed-version execution.
 
 The separate configuration namespace prevents an old RequisitionFetcher binary from parsing a new
 field. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch when the
@@ -920,9 +926,10 @@ ownership registration. The existing EDPA-aware DLQ behavior predates this chang
 expanded for ResultsFulfiller.
 
 After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
-failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
-that its worker has stopped, call `FailWorkItemAttempt` for the exact active attempt, and then call
-`RetryWorkItem`. `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains.
+failure, then call `RetryWorkItem` explicitly. Upgraded workers renew their attempt leases, and the
+Secure Computation internal API automatically fails and republishes an attempt after its lease
+expires. The documented exact-attempt failure and `RetryWorkItem` procedure remains necessary for
+an attempt created by an old worker, which has no lease.
 
 For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
 the legacy DataWatcher intentionally does not watch that namespace. Then remove the EDP entry from
@@ -1247,9 +1254,10 @@ queues; no version-suffixed RPC or parallel queue infrastructure is required.
 The outbox behavior itself is unchanged by this rollout procedure: WorkItem creation writes the
 pending publication atomically, the publisher deletes that row only after Pub/Sub acknowledges the
 message, and `EnsureWorkItem` returns an existing matching WorkItem without republishing it.
-`RetryWorkItem` remains the explicit repair mechanism. This PR does not add or expand
-ResultsFulfiller-specific dead-letter behavior; the existing queue and EDPA-aware DLQ consumer are
-retained.
+`RetryWorkItem` remains the explicit repair mechanism for a `QUEUED` WorkItem. New workers renew an
+attempt lease while work is active, and the internal API automatically fails and republishes an
+attempt whose lease expires. This PR does not add or expand ResultsFulfiller-specific dead-letter
+behavior; the existing queue and EDPA-aware DLQ consumer are retained.
 
 #### Recovering after correcting a queue mapping
 
@@ -1262,8 +1270,15 @@ active publication lease.
 
 #### Recovering an abandoned running WorkItem
 
-To recover a `RUNNING` WorkItem after its worker exits without completing or failing the attempt,
-first list the WorkItem's attempts and identify the exact active attempt:
+Workers created after this rollout renew their active attempt lease. If a worker exits or can no
+longer reach the control plane, the lease expires after five minutes by default. The internal API
+then atomically fails that exact attempt, advances the WorkItem generation, returns the WorkItem to
+`QUEUED`, and creates a new outbox publication. A late heartbeat or completion from the abandoned
+worker is rejected because its attempt is no longer active.
+
+Attempts created by an old worker have no lease and cannot be recovered automatically. If one of
+those attempts remains after rollout, or if automatic recovery must be performed manually, first
+list the WorkItem's attempts and identify the exact active attempt:
 
 ```bash
 grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
@@ -1274,10 +1289,10 @@ grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
   | jq '.workItemAttempts[]? | select(.state == "ACTIVE")'
 ```
 
-If the response has `nextPageToken`, repeat the request with that value as `pageToken`. Confirm by
-external evidence that the worker for the returned attempt has stopped. The API does not currently
-provide an attempt lease, expiry, heartbeat, or authoritative worker-ownership signal. Do not fail
-an old attempt merely because it has exceeded a generic age threshold: legitimate work can be
+If the response has `nextPageToken`, repeat the request with that value as `pageToken`. A current
+attempt includes `leaseExpirationTime`; an attempt created by an old worker does not. Confirm by
+external evidence that the worker for an unleased attempt has stopped. Do not fail an unleased
+attempt merely because it has exceeded a generic age threshold: legitimate work can be
 long-running.
 
 Fail only the exact attempt that was inspected:
@@ -1302,15 +1317,14 @@ those external resource updates are not part of the Secure Computation transacti
 
 A duplicate delivery for the current generation is acknowledged while a legitimate attempt remains
 active. This prevents repeated duplicate delivery from reaching the dead-letter queue and failing
-healthy work. It also means queue redelivery does not recover an abandoned active attempt:
-operators must verify worker termination and use the exact-attempt recovery sequence above.
-Automatic recovery requires a future attempt lease or heartbeat.
+healthy work. The attempt lease, rather than queue redelivery, detects an abandoned new-worker
+attempt. The exact-attempt procedure remains necessary for legacy attempts without a lease.
 
 #### Monitoring old active attempts
 
-Alert on attempts that remain `ACTIVE` longer than the longest legitimate runtime for their queue.
-The following diagnostic query uses 30 minutes as an example threshold; choose a threshold for the
-deployed workload and run the query at a reasonable interval:
+Alert on expired leased attempts and on unleased `ACTIVE` attempts left by old workers. The internal
+API normally recovers an expired lease within its polling interval, so either result remaining for
+more than a short grace period needs investigation:
 
 ```bash
 gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
@@ -1318,20 +1332,21 @@ gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
   --project=PROJECT_ID \
   --sql='SELECT W.WorkItemResourceId,
       A.WorkItemAttemptResourceId,
-      A.CreateTime,
-      TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), A.CreateTime, SECOND) AS ActiveSeconds
+      A.LeaseExpirationTime,
+      A.CreateTime
     FROM WorkItemAttempts AS A
     JOIN WorkItems AS W USING (WorkItemId)
     WHERE A.State = 1
-      AND A.CreateTime < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 MINUTE)
-    ORDER BY A.CreateTime'
+      AND (A.LeaseExpirationTime IS NULL
+        OR A.LeaseExpirationTime < CURRENT_TIMESTAMP())
+    ORDER BY A.LeaseExpirationTime, A.CreateTime'
 ```
 
-`WorkItemAttempt.State.ACTIVE` is stored as `1`. Treat a result as an investigation signal, not
-proof that the worker is dead. Use the exact-attempt recovery procedure above only after verifying
-that the worker stopped. Workers retry transient `CompleteWorkItemAttempt` and
-`FailWorkItemAttempt` RPC failures with bounded backoff, but exhausted retries, process termination,
-or a network partition can still leave an old active attempt that requires operator recovery.
+`WorkItemAttempt.State.ACTIVE` is stored as `1`. Workers retry transient lease, completion, and
+failure RPC errors with bounded backoff. The reaper resolves a current expired lease
+transactionally with a concurrent renewal or completion, so operators should normally wait for
+automatic recovery. Use the exact-attempt recovery procedure only for an unleased legacy attempt,
+or after investigating why the reaper did not recover an expired current attempt.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

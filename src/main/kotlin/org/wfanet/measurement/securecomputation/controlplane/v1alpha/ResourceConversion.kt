@@ -66,5 +66,8 @@ fun InternalWorkItemAttempt.toWorkItemAttempt(): WorkItemAttempt {
     errorMessage = source.errorMessage
     createTime = source.createTime
     updateTime = source.updateTime
+    if (source.hasLeaseExpirationTime()) {
+      leaseExpirationTime = source.leaseExpirationTime
+    }
   }
 }

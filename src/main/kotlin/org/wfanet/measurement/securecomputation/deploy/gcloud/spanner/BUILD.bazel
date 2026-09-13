@@ -8,6 +8,7 @@ kt_jvm_library(
         "InternalApiServices.kt",
         "SpannerWorkItemAttemptsService.kt",
         "SpannerWorkItemService.kt",
+        "WorkItemAttemptLeaseReaper.kt",
         "WorkItemPublicationRunner.kt",
     ],
     visibility =

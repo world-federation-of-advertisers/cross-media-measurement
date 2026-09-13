@@ -406,6 +406,35 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `storage namespaces reject cross-provider overlap in shared storage`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        StoragePathPrefixes.requireDisjoint(
+          listOf(
+            StoragePathPrefixes.Namespace(
+              "gs://shared-bucket",
+              "provider-a/direct",
+              "provider A direct",
+            ),
+            StoragePathPrefixes.Namespace("gs://shared-bucket", "provider-a", "provider B legacy"),
+          )
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("provider A direct and provider B legacy")
+  }
+
+  @Test
+  fun `storage namespaces allow same path in separate storage`() {
+    StoragePathPrefixes.requireDisjoint(
+      listOf(
+        StoragePathPrefixes.Namespace("gs://bucket-a", "requisitions", "provider A legacy"),
+        StoragePathPrefixes.Namespace("gs://bucket-b", "requisitions", "provider B legacy"),
+      )
+    )
+  }
+
+  @Test
   fun `fetchAndStoreRequisitions writes single grouped blob and creates metadata`() = runBlocking {
     createFetcher().fetchAndStoreRequisitions()
 
@@ -592,6 +621,187 @@ class RequisitionFetcherTest {
 
     assertThat(dispatchCalled).isFalse()
     assertThat(queueRequisitionMetadataRequests).isEmpty()
+  }
+
+  @Test
+  fun `legacy STORED group rebuilds missing blob without direct dispatch`() = runBlocking {
+    val groupId = "legacy-stored-missing-blob"
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stored"
+            state = RequisitionMetadata.State.STORED
+            cmmsRequisition = TestRequisitionData.REQUISITION.name
+            blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+            this.groupId = groupId
+            report = "some-report"
+          }
+        }
+      )
+    var dispatchCalled = false
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatchCalled = true
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+    assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/$groupId")).isNotNull()
+    assertThat(dispatchCalled).isFalse()
+    assertThat(queueRequisitionMetadataRequests).isEmpty()
+    assertThat(directBlobsDir().listFiles().orEmpty()).isEmpty()
+  }
+
+  @Test
+  fun `legacy PROCESSING group is not rebuilt and new requisition is directly dispatched`() =
+    runBlocking {
+      val groupId = "legacy-processing-group"
+      val storedRequisition =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/stored"
+        }
+      val processingRequisition =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/processing"
+        }
+      val newRequisition =
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/new"
+        }
+      whenever(requisitionsServiceMock.listRequisitions(any()))
+        .thenReturn(
+          listRequisitionsResponse {
+            requisitions += listOf(storedRequisition, processingRequisition, newRequisition)
+          }
+        )
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stored"
+              state = RequisitionMetadata.State.STORED
+              cmmsRequisition = storedRequisition.name
+              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+              this.groupId = groupId
+              report = "some-report"
+            }
+            requisitionMetadata += requisitionMetadata {
+              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/processing"
+              state = RequisitionMetadata.State.PROCESSING
+              cmmsRequisition = processingRequisition.name
+              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+              this.groupId = groupId
+              report = "some-report"
+            }
+          }
+        )
+      val dispatchedGroups = mutableListOf<String>()
+      val dispatcher =
+        object : RequisitionWorkItemDispatcher {
+          override fun workItemName(groupId: String): String =
+            "workItems/results-fulfiller-$groupId"
+
+          override suspend fun dispatch(groupId: String, blobUri: String) {
+            dispatchedGroups += groupId
+          }
+        }
+
+      createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+      assertThat(storageClient.getBlob("$STORAGE_PATH_PREFIX/$groupId")).isNull()
+      assertThat(queueRequisitionMetadataRequests).isEmpty()
+      assertThat(registerQueuedRequisitionMetadataRequests).hasSize(1)
+      assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
+        .containsExactly(newRequisition.name)
+      assertThat(dispatchedGroups).hasSize(1)
+      assertThat(dispatchedGroups).doesNotContain(groupId)
+      assertThat(directBlobsDir().listFiles().orEmpty()).hasLength(1)
+    }
+
+  @Test
+  fun `direct PROCESSING group rejects empty and conflicting WorkItem references`() = runBlocking {
+    val groupId = "direct-processing-invalid-work-item"
+    val expectedWorkItem = "workItems/results-fulfiller-$groupId"
+    storageClient.writeBlob("$DIRECT_STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
+    var dispatchCount = 0
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = expectedWorkItem
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatchCount++
+        }
+      }
+
+    for (invalidWorkItem in listOf("", "workItems/a-different-work-item")) {
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/processing"
+              state = RequisitionMetadata.State.PROCESSING
+              cmmsRequisition = TestRequisitionData.REQUISITION.name
+              blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId"
+              this.groupId = groupId
+              report = "some-report"
+              workItem = invalidWorkItem
+            }
+          }
+        )
+
+      createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+    }
+
+    assertThat(dispatchCount).isEqualTo(0)
+    assertThat(queueRequisitionMetadataRequests).isEmpty()
+    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(2)
+  }
+
+  @Test
+  fun `legacy group rejects QUEUED state and nonempty WorkItem reference`() = runBlocking {
+    val groupId = "legacy-invalid-ownership"
+    val invalidRows =
+      listOf(
+        RequisitionMetadata.State.QUEUED to "",
+        RequisitionMetadata.State.PROCESSING to "workItems/data-watcher-random-id",
+      )
+    var dispatchCount = 0
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatchCount++
+        }
+      }
+
+    for ((state, workItem) in invalidRows) {
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            requisitionMetadata += requisitionMetadata {
+              name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/legacy"
+              this.state = state
+              cmmsRequisition = TestRequisitionData.REQUISITION.name
+              blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
+              this.groupId = groupId
+              report = "some-report"
+              this.workItem = workItem
+            }
+          }
+        )
+
+      createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+    }
+
+    assertThat(dispatchCount).isEqualTo(0)
+    assertThat(queueRequisitionMetadataRequests).isEmpty()
+    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(2)
   }
 
   @Test

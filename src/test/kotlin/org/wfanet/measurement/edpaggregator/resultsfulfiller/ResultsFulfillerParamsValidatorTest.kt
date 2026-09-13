@@ -198,6 +198,18 @@ class ResultsFulfillerParamsValidatorTest {
   }
 
   @Test
+  fun `unrecognized impression cap mode is rejected`() {
+    val invalidParams = VALID_PARAMS.toBuilder().setImpressionCapModeValue(999).build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("Unrecognized impression_cap_mode")
+  }
+
+  @Test
   fun `unsupported multi-party noise type is rejected`() {
     val invalidParams =
       VALID_PARAMS.copy {

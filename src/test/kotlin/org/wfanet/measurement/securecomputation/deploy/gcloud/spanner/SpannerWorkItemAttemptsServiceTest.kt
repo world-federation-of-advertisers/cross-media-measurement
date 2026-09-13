@@ -21,6 +21,11 @@ import com.google.protobuf.Any
 import com.google.protobuf.Message
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZoneOffset
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -41,6 +46,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.renewWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
@@ -80,6 +86,94 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
       ),
     )
   }
+
+  @Test
+  fun `expired attempt lease is failed and WorkItem is republished at a new generation`() =
+    runBlocking {
+      val clock = MutableClock(Instant.now().plusSeconds(10))
+      val publisher = RecordingPublisher()
+      val publicationRunner =
+        WorkItemPublicationRunner(
+          spannerDatabase.databaseClient,
+          TestConfig.QUEUE_MAPPING,
+          publisher,
+          clock = clock,
+        )
+      val attemptsService =
+        SpannerWorkItemAttemptsService(
+          spannerDatabase.databaseClient,
+          TestConfig.QUEUE_MAPPING,
+          IdGenerator.Default,
+          Dispatchers.Default,
+          clock = clock,
+          attemptLeaseDuration = Duration.ofMinutes(5),
+        )
+      val workItemsService =
+        SpannerWorkItemsService(
+          spannerDatabase.databaseClient,
+          TestConfig.QUEUE_MAPPING,
+          IdGenerator.Default,
+          publicationRunner,
+        )
+      val workItem =
+        workItemsService.createWorkItem(
+          createWorkItemRequest {
+            this.workItem = workItem {
+              workItemResourceId = "leased-work-item"
+              queueResourceId = "test-topid-id"
+              workItemParams = Any.pack(testWork { userName = "UserName" })
+            }
+          }
+        )
+      val attempt =
+        attemptsService.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "leased-attempt"
+            }
+          }
+        )
+      assertThat(attempt.leaseExpirationTime.seconds)
+        .isEqualTo(clock.instant().plus(Duration.ofMinutes(5)).epochSecond)
+
+      clock.advance(Duration.ofMinutes(4))
+      val renewed =
+        attemptsService.renewWorkItemAttempt(
+          renewWorkItemAttemptRequest {
+            workItemResourceId = attempt.workItemResourceId
+            workItemAttemptResourceId = attempt.workItemAttemptResourceId
+          }
+        )
+      assertThat(renewed.leaseExpirationTime.seconds)
+        .isEqualTo(clock.instant().plus(Duration.ofMinutes(5)).epochSecond)
+
+      val reaper = WorkItemAttemptLeaseReaper(spannerDatabase.databaseClient, clock)
+      clock.advance(Duration.ofMinutes(2))
+      assertThat(reaper.recoverExpiredAttempts()).isEqualTo(0)
+
+      clock.advance(Duration.ofMinutes(4))
+      assertThat(reaper.recoverExpiredAttempts()).isEqualTo(1)
+      val recoveredWorkItem =
+        workItemsService.getWorkItem(
+          getWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+        )
+      assertThat(recoveredWorkItem.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(recoveredWorkItem.generation).isEqualTo(workItem.generation + 1L)
+      val recoveredAttempt =
+        attemptsService.getWorkItemAttempt(
+          org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest {
+            workItemResourceId = attempt.workItemResourceId
+            workItemAttemptResourceId = attempt.workItemAttemptResourceId
+          }
+        )
+      assertThat(recoveredAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+
+      assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(1)
+      assertThat((publisher.messages.last() as WorkItem).generation)
+        .isEqualTo(workItem.generation + 1L)
+    }
 
   @Test
   fun `concurrent duplicate deliveries create only one active attempt`() = runBlocking {
@@ -216,5 +310,25 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+  }
+
+  private class RecordingPublisher : WorkItemPublisher {
+    val messages = mutableListOf<Message>()
+
+    override suspend fun publishMessage(queueName: String, message: Message) {
+      messages += message
+    }
+  }
+
+  private class MutableClock(private var currentInstant: Instant) : Clock() {
+    override fun getZone(): ZoneId = ZoneOffset.UTC
+
+    override fun withZone(zone: ZoneId): Clock = this
+
+    override fun instant(): Instant = currentInstant
+
+    fun advance(duration: Duration) {
+      currentInstant = currentInstant.plus(duration)
+    }
   }
 }

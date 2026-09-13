@@ -25,14 +25,17 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import java.time.Duration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.After
 import org.junit.Before
 import org.junit.ClassRule
@@ -41,6 +44,7 @@ import org.junit.Test
 import org.mockito.Mockito.mock
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
@@ -197,6 +201,11 @@ class BaseTeeApplicationTest {
 
     val processedMessage = app.messageProcessed.await()
     assertThat(processedMessage).isEqualTo(testWork)
+    withTimeout(5_000) {
+      while (controlPlaneThrottler.onReadyCalls < 2) {
+        delay(10)
+      }
+    }
     assertThat(controlPlaneThrottler.onReadyCalls).isEqualTo(2)
     val createRequestCaptor = argumentCaptor<CreateWorkItemAttemptRequest>()
     verifyBlocking(workItemAttemptsServiceMock, times(1)) {
@@ -243,6 +252,61 @@ class BaseTeeApplicationTest {
     }
     assertThat(requestCaptor.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
     assertThat(app.messageProcessed.isCompleted).isTrue()
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `renews active attempt lease while work is running`() = runBlocking {
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    val leaseRenewed = CompletableDeferred<Unit>()
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { renewWorkItemAttempt(any()) }
+        .thenAnswer {
+          leaseRenewed.complete(Unit)
+          testWorkItemAttempt
+        }
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val workStarted = CompletableDeferred<Unit>()
+    val releaseWork = CompletableDeferred<Unit>()
+    val app =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+          workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          attemptUpdateRetryDelay = {},
+          attemptLeaseRenewalInterval = Duration.ofMillis(1),
+        ) {
+        override suspend fun runWork(message: Any) {
+          workStarted.complete(Unit)
+          releaseWork.await()
+        }
+      }
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "heartbeat-ack-id",
+      )
+    )
+    workStarted.await()
+    withTimeout(5_000) { leaseRenewed.await() }
+    releaseWork.complete(Unit)
+    consumer.disposition.await()
+
+    verifyBlocking(workItemAttemptsServiceMock, atLeastOnce()) { renewWorkItemAttempt(any()) }
     assertThat(consumer.ackCount).isEqualTo(1)
     assertThat(consumer.nackCount).isEqualTo(0)
     job.cancelAndJoin()

@@ -23,12 +23,17 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
+import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
@@ -44,6 +49,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWor
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.renewWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
@@ -69,7 +75,14 @@ abstract class BaseTeeApplication(
   private val attemptUpdateRetryDelay: suspend (Int) -> Unit = { attempt ->
     delay(ATTEMPT_UPDATE_RETRY_BACKOFF.durationForAttempt(attempt).toMillis())
   },
+  private val attemptLeaseRenewalInterval: Duration = DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL,
 ) : AutoCloseable {
+
+  init {
+    require(attemptLeaseRenewalInterval > Duration.ZERO) {
+      "attemptLeaseRenewalInterval must be positive"
+    }
+  }
 
   /** Starts the TEE application by listening for messages on the specified queue. */
   suspend fun run() {
@@ -194,7 +207,7 @@ abstract class BaseTeeApplication(
 
     try {
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
-      runWork(queueMessage.body.workItemParams)
+      runWorkWithLeaseRenewal(workItemAttempt, queueMessage.body.workItemParams)
       logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
       val completionError =
         try {
@@ -320,6 +333,35 @@ abstract class BaseTeeApplication(
     }
   }
 
+  private suspend fun runWorkWithLeaseRenewal(workItemAttempt: WorkItemAttempt, message: Any) =
+    coroutineScope {
+      val renewalJob = launch {
+        while (isActive) {
+          delay(attemptLeaseRenewalInterval.toMillis())
+          renewWorkItemAttempt(workItemAttempt)
+        }
+      }
+      try {
+        runWork(message)
+      } finally {
+        renewalJob.cancelAndJoin()
+      }
+    }
+
+  private suspend fun renewWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
+    try {
+      retryAttemptUpdate("RenewWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.renewWorkItemAttempt(
+            renewWorkItemAttemptRequest { name = workItemAttempt.name }
+          )
+        }
+      }
+    } catch (e: StatusException) {
+      throw ControlPlaneApiException("Failed to renew WorkItemAttempt ${workItemAttempt.name}", e)
+    }
+  }
+
   private suspend fun failWorkItemAttempt(workItemAttempt: WorkItemAttempt, e: Exception) {
     try {
       retryAttemptUpdate("FailWorkItemAttempt", workItemAttempt.name) {
@@ -399,6 +441,7 @@ abstract class BaseTeeApplication(
     protected val logger = Logger.getLogger(this::class.java.name)
 
     private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
+    val DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL: Duration = Duration.ofMinutes(1)
     private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
     private val RETRYABLE_ATTEMPT_UPDATE_CODES =
       setOf(

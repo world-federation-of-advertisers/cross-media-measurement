@@ -49,6 +49,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkIte
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsPageToken as internalListWorkItemAttemptsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest as internalListWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse as internalListWorkItemAttemptsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.renewWorkItemAttemptRequest as internalRenewWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt as internalWorkItemAttempt
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
@@ -525,6 +526,35 @@ class WorkItemAttemptsServiceTest {
           metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "SUCCEEDED"
         }
       )
+  }
+
+  @Test
+  fun `renewWorkItemAttempt returns WorkItemAttempt`() = runBlocking {
+    val internalWorkItemAttempt = internalWorkItemAttempt {
+      workItemResourceId = "workItem"
+      workItemAttemptResourceId = "workItemAttempt"
+      state = InternalWorkItemAttempt.State.ACTIVE
+    }
+    internalServiceMock.stub {
+      onBlocking { renewWorkItemAttempt(any()) } doReturn internalWorkItemAttempt
+    }
+    val request = renewWorkItemAttemptRequest {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+
+    val response = service.renewWorkItemAttempt(request)
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::renewWorkItemAttempt,
+      )
+      .isEqualTo(
+        internalRenewWorkItemAttemptRequest {
+          workItemResourceId = internalWorkItemAttempt.workItemResourceId
+          workItemAttemptResourceId = internalWorkItemAttempt.workItemAttemptResourceId
+        }
+      )
+    assertThat(response.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
   }
 
   @Test

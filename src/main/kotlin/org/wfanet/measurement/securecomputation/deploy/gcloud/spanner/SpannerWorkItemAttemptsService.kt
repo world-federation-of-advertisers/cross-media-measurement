@@ -20,12 +20,15 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
+import java.time.Clock
+import java.time.Duration
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemAttemptRequest
@@ -34,6 +37,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkIte
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.RenewWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
@@ -48,6 +52,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWork
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.renewWorkItemAttemptLease
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemAttemptExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
@@ -65,7 +70,13 @@ class SpannerWorkItemAttemptsService(
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
   coroutineContext: CoroutineContext,
+  private val clock: Clock = Clock.systemUTC(),
+  private val attemptLeaseDuration: Duration = DEFAULT_ATTEMPT_LEASE_DURATION,
 ) : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase(coroutineContext) {
+
+  init {
+    require(attemptLeaseDuration > Duration.ZERO) { "attemptLeaseDuration must be positive" }
+  }
 
   override suspend fun createWorkItemAttempt(
     request: CreateWorkItemAttemptRequest
@@ -89,6 +100,7 @@ class SpannerWorkItemAttemptsService(
     }
     val expectedGeneration =
       request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
+    val leaseExpirationTime = clock.instant().plus(attemptLeaseDuration)
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
@@ -129,10 +141,12 @@ class SpannerWorkItemAttemptsService(
                   result.workItemId,
                   workItemAttemptId,
                   request.workItemAttempt.workItemAttemptResourceId,
+                  leaseExpirationTime,
                 )
               request.workItemAttempt.copy {
                 this.state = state
                 this.attemptNumber = attemptNumber
+                this.leaseExpirationTime = leaseExpirationTime.toProtoTime()
               }
             }
           }
@@ -300,6 +314,52 @@ class SpannerWorkItemAttemptsService(
     }
   }
 
+  override suspend fun renewWorkItemAttempt(request: RenewWorkItemAttemptRequest): WorkItemAttempt {
+    if (request.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.workItemAttemptResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_attempt_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val leaseExpirationTime = clock.instant().plus(attemptLeaseDuration)
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=renewWorkItemAttempt"))
+    val workItemAttempt =
+      transactionRunner.run { txn ->
+        try {
+          val result =
+            txn.getWorkItemAttemptByResourceId(
+              request.workItemResourceId,
+              request.workItemAttemptResourceId,
+            )
+          if (result.workItemAttempt.state != WorkItemAttempt.State.ACTIVE) {
+            throw WorkItemAttemptInvalidStateException(
+              result.workItemAttempt.workItemResourceId,
+              result.workItemAttempt.workItemAttemptResourceId,
+              result.workItemAttempt.state,
+            )
+          }
+          txn.renewWorkItemAttemptLease(
+            result.workItemId,
+            result.workItemAttemptId,
+            leaseExpirationTime,
+          )
+          result.workItemAttempt.copy {
+            this.leaseExpirationTime = leaseExpirationTime.toProtoTime()
+          }
+        } catch (e: WorkItemAttemptInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemAttemptNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: QueueNotFoundForWorkItem) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        }
+      }
+    return workItemAttempt.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+  }
+
   override suspend fun listWorkItemAttempts(
     request: ListWorkItemAttemptsRequest
   ): ListWorkItemAttemptsResponse {
@@ -348,5 +408,6 @@ class SpannerWorkItemAttemptsService(
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
     private const val INITIAL_GENERATION = 1L
+    val DEFAULT_ATTEMPT_LEASE_DURATION: Duration = Duration.ofMinutes(5)
   }
 }

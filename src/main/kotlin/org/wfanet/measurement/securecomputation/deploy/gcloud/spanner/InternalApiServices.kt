@@ -37,6 +37,9 @@ class InternalApiServices(
   private val idGenerator: IdGenerator = IdGenerator.Default,
   workItemPublicationPollInterval: Duration = WorkItemPublicationRunner.DEFAULT_POLL_INTERVAL,
   workItemPublicationLeaseDuration: Duration = WorkItemPublicationRunner.DEFAULT_LEASE_DURATION,
+  private val workItemAttemptLeaseDuration: Duration =
+    SpannerWorkItemAttemptsService.DEFAULT_ATTEMPT_LEASE_DURATION,
+  workItemAttemptReaperPollInterval: Duration = WorkItemAttemptLeaseReaper.DEFAULT_POLL_INTERVAL,
 ) {
   val workItemPublicationRunner =
     WorkItemPublicationRunner(
@@ -46,6 +49,9 @@ class InternalApiServices(
       pollInterval = workItemPublicationPollInterval,
       leaseDuration = workItemPublicationLeaseDuration,
     )
+
+  val workItemAttemptLeaseReaper =
+    WorkItemAttemptLeaseReaper(databaseClient, pollInterval = workItemAttemptReaperPollInterval)
 
   /**
    * Builds the core internal API services.
@@ -63,7 +69,13 @@ class InternalApiServices(
         workItemPublicationRunner,
         coroutineContext,
       ),
-      SpannerWorkItemAttemptsService(databaseClient, queueMapping, idGenerator, coroutineContext),
+      SpannerWorkItemAttemptsService(
+        databaseClient,
+        queueMapping,
+        idGenerator,
+        coroutineContext,
+        attemptLeaseDuration = workItemAttemptLeaseDuration,
+      ),
     )
   }
 }
