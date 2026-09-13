@@ -113,9 +113,12 @@ class RequisitionFetcherFunction : HttpFunction {
     try {
       val directDispatchConfigs: Map<String, RequisitionWorkItemDispatchConfig> =
         try {
-          loadDirectDispatchConfigs()
+          val configs = loadDirectDispatchConfigs()
+          validateStorageNamespaces(configs)
+          configs
         } catch (e: Exception) {
-          val errorMessage = "Failed to load direct-dispatch configuration"
+          val errorMessage =
+            "Invalid config: failed to load or validate direct-dispatch configuration"
           logger.log(Level.SEVERE, errorMessage, e)
           response.setStatusCode(500)
           response.writer.write(errorMessage)
@@ -197,6 +200,33 @@ class RequisitionFetcherFunction : HttpFunction {
         put(dispatchConfig.dataProvider, dispatchConfig)
       }
     }
+  }
+
+  private fun validateStorageNamespaces(
+    directDispatchConfigs: Map<String, RequisitionWorkItemDispatchConfig>
+  ) {
+    val namespaces = buildList {
+      for (dataProviderConfig in requisitionFetcherConfig.configsList) {
+        val storageUriPrefix = createRequisitionBlobPrefix(dataProviderConfig)
+        add(
+          StoragePathPrefixes.Namespace(
+            storageUriPrefix,
+            dataProviderConfig.storagePathPrefix,
+            "legacy DataWatcher path for ${dataProviderConfig.dataProvider}",
+          )
+        )
+        directDispatchConfigs[dataProviderConfig.dataProvider]?.let { dispatchConfig ->
+          add(
+            StoragePathPrefixes.Namespace(
+              storageUriPrefix,
+              dispatchConfig.storagePathPrefix,
+              "direct-dispatch path for ${dataProviderConfig.dataProvider}",
+            )
+          )
+        }
+      }
+    }
+    StoragePathPrefixes.requireDisjoint(namespaces)
   }
 
   private fun withDataProviderTelemetry(dataProviderName: String, block: () -> Unit): Result<Unit> =

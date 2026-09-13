@@ -490,10 +490,11 @@ class RequisitionFetcher(
    *
    * ### High-Level Flow
    * 1. List existing [RequisitionMetadata] for the report.
-   * 2. For a group whose metadata is `STORED` (or `QUEUED`/`PROCESSING` when direct dispatch is
-   *    enabled), rebuild a missing blob from the matching requisitions. A complete group with a
-   *    blob is dispatched directly when [workItemDispatcher] is configured. A failed WorkItem is
-   *    surfaced for explicit operator recovery rather than retried automatically.
+   * 2. Recover persisted groups according to the namespace recorded in `blob_uri`. A direct group
+   *    in `STORED`, `QUEUED`, or `PROCESSING` is validated and deterministically dispatched. A
+   *    legacy group containing `PROCESSING` metadata remains owned by its existing DataWatcher
+   *    WorkItem and is not rebuilt or directly dispatched. A failed WorkItem is surfaced for
+   *    explicit operator recovery rather than retried automatically.
    * 3. For requisitions that are not yet recorded in metadata, validate them as a group (model-line
    *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
    *    Kingdom and persist `REFUSED` metadata.
@@ -519,6 +520,15 @@ class RequisitionFetcher(
       val location = resolveGroupLocation(existingGroupId, groupMetadata)
       val metadataList = groupMetadata.filter { it.state.isRecoverable() }
       validateDispatchOwnership(location.ownership, metadataList)
+      if (
+        location.ownership == DispatchOwnership.LEGACY_DATA_WATCHER &&
+          metadataList.any { it.state == RequisitionMetadata.State.PROCESSING }
+      ) {
+        // A DataWatcher-created WorkItem owns the complete legacy blob. Rebuilding a missing blob
+        // could emit another storage event and create a duplicate random WorkItem. Continue so
+        // newly discovered requisitions in the same report can still use direct dispatch.
+        continue
+      }
       if (storageClient.getBlob(location.blobKey) != null) {
         if (location.ownership == DispatchOwnership.DIRECT) {
           metadataCache.remove(unit.reportId)
@@ -1003,8 +1013,13 @@ class RequisitionFetcher(
   ) {
     when (ownership) {
       DispatchOwnership.LEGACY_DATA_WATCHER -> {
-        check(metadata.all { it.state == RequisitionMetadata.State.STORED }) {
-          "Legacy DataWatcher-owned metadata cannot be QUEUED or PROCESSING"
+        check(
+          metadata.all {
+            it.state == RequisitionMetadata.State.STORED ||
+              it.state == RequisitionMetadata.State.PROCESSING
+          }
+        ) {
+          "Legacy DataWatcher-owned metadata must be STORED or PROCESSING"
         }
         check(metadata.all { it.workItem.isEmpty() }) {
           "Legacy DataWatcher-owned metadata cannot reference a WorkItem"

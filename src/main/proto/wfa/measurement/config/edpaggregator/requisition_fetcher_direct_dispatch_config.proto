@@ -43,8 +43,9 @@ message RequisitionWorkItemDispatchConfig {
 
   // Storage path prefix reserved for direct WorkItem dispatch.
   //
-  // This must differ from the legacy DataWatcher path in the matching
-  // DataProviderRequisitionConfig.storage_path_prefix.
+  // This must not overlap any legacy or direct-dispatch path prefix that uses
+  // the same storage namespace. The operator must also verify that no legacy
+  // DataWatcher source_path_regex matches this prefix.
   string storage_path_prefix = 5;
 }
 

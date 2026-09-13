@@ -147,12 +147,13 @@ material.
 * `edpa-tee-app-tls-key` / `edpa-tee-app-tls-pem` — TLS keypair used by the
   ResultsFulfiller TEE app to authenticate to the Secure Computation API. Signed by
   `securecomputation-root-ca`.
-* `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher,
-  DataWatcherDelete, and RequisitionFetcher TLS keypair for the Secure Computation API. Signed by
+* `edpa-data-watcher-tls-key` / `edpa-data-watcher-tls-pem` — DataWatcher and
+  DataWatcherDelete TLS keypair for the Secure Computation API. Signed by
   `securecomputation-root-ca`.
 * `edpa-requisition-fetcher-tls-key` / `edpa-requisition-fetcher-tls-pem` —
-  RequisitionFetcher TLS keypair for the Metadata Storage API. Signed by the
-  Metadata Storage root CA.
+  dedicated RequisitionFetcher TLS keypair for the Metadata Storage and Secure Computation APIs.
+  Grant this identity only the methods needed by RequisitionFetcher; do not give it the
+  DataWatcher private key.
 * `edpa-data-availability-tls-key` / `edpa-data-availability-tls-pem` —
   DataAvailabilitySync / DataAvailabilityCleanup TLS keypair for the Metadata
   Storage API. Signed by the Metadata Storage root CA.
@@ -539,10 +540,10 @@ file. For example, for the DataWatcher:
 And for the per-EDP TLS material referenced by EventGroupSync / DataAvailabilitySync /
 RequisitionFetcher, the mount paths must equal the `cmmsConnection.*` /
 `impressionMetadataStorageConnection.*` paths inside the DataWatcher and fetcher
-config files. RequisitionFetcher's direct-dispatch `control_plane_connection` may reuse the
-DataWatcher client certificate already trusted by the Secure Computation API; its three paths must
-match the mounted `data_watcher_tls_key`, `data_watcher_tls_pem`, and `secure_computation_root_ca`
-secrets.
+config files. RequisitionFetcher's direct-dispatch `control_plane_connection` uses the dedicated
+RequisitionFetcher certificate rather than the DataWatcher identity. Its three paths must match the
+mounted `requisition_fetcher_tls_key`, `requisition_fetcher_tls_pem`, and
+`secure_computation_root_ca` secrets.
 
 > A region mismatch between a Cloud Function and the endpoint the DataWatcher calls
 > (`http_endpoint_sink.endpoint_uri`) causes an HTTP 404 at invocation time. Confirm
@@ -837,8 +838,8 @@ configs {
   # path in the legacy DataWatcher source_path_regex.
   storage_path_prefix: "<edp-id>/requisitions-v2"
   control_plane_connection {
-    cert_file_path: "/secrets/cert/data_watcher_tls.pem"
-    private_key_file_path: "/secrets/key/data_watcher_tls.key"
+    cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+    private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
     cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
   }
   queue: "results-fulfiller-queue"
@@ -864,12 +865,14 @@ configs {
 ```
 
 When an EDP has an entry in this file, the fetcher writes only the entry's
-`storage_path_prefix` and dispatches directly. The direct and legacy prefixes must be disjoint:
-neither may equal, contain, or be contained by the other at a path-segment boundary. An
-entry with a missing `data_provider`, a duplicate `data_provider`, or a `data_provider` absent from
-the legacy RequisitionFetcher config fails the invocation rather than silently changing dispatch
-ownership. Keep the DataWatcher `results-fulfiller` watched path restricted to the top-level legacy
-prefix throughout the rollout. Also set
+`storage_path_prefix` and dispatches directly. Every legacy and direct prefix sharing a bucket must
+be disjoint globally: no prefix may equal, contain, or be contained by another at a path-segment
+boundary, even when the prefixes belong to different data providers. The fetcher validates this
+before processing any provider. An entry with a missing `data_provider`, a duplicate
+`data_provider`, or a `data_provider` absent from the legacy RequisitionFetcher config fails the
+invocation rather than silently changing dispatch ownership. Keep the DataWatcher
+`results-fulfiller` watched path restricted to the top-level legacy prefix throughout the rollout.
+Also set
 `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
 
@@ -878,8 +881,11 @@ prefix throughout the rollout. Also set
 The legacy and direct paths use separate object namespaces. Metadata registration remains the
 ownership boundary: the direct fetcher creates a group atomically in `QUEUED`, while a legacy group
 is created in `STORED`. Recovery uses each group's persisted `blob_uri`; it never moves a group
-between namespaces. The supported rollout deliberately stops RequisitionFetcher rather than
-depending on arbitrary mixed-version execution.
+between namespaces. A legacy group with any `PROCESSING` row remains owned by its existing
+DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob,
+which could emit a duplicate storage event. It still processes newly discovered requisitions for
+the same report through the direct namespace. The supported rollout deliberately stops
+RequisitionFetcher rather than depending on arbitrary mixed-version execution.
 
 The separate configuration namespace prevents an old RequisitionFetcher binary from parsing a new
 field. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch when the
@@ -920,9 +926,10 @@ ownership registration. The existing EDPA-aware DLQ behavior predates this chang
 expanded for ResultsFulfiller.
 
 After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
-failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
-that its worker has stopped, call `FailWorkItemAttempt` for the exact active attempt, and then call
-`RetryWorkItem`. `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains.
+failure, then call `RetryWorkItem` explicitly. Upgraded workers renew their attempt leases, and the
+Secure Computation internal API automatically fails and republishes an attempt after its lease
+expires. The documented exact-attempt failure and `RetryWorkItem` procedure remains necessary for
+an attempt created by an old worker, which has no lease.
 
 For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
 the legacy DataWatcher intentionally does not watch that namespace. Then remove the EDP entry from

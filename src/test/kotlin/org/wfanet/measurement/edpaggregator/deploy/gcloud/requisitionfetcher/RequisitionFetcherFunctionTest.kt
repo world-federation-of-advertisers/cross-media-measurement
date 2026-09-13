@@ -372,13 +372,39 @@ class RequisitionFetcherFunctionTest {
     functionProcess.close()
     ensureWorkItemRequest = null
     val mutableConfig = configFolder.root.toPath().resolve(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
-    mutableConfig.toFile().writeText(
-      DIRECT_DISPATCH_CONFIG_SOURCE.toFile().readText().replace(
-        DIRECT_STORAGE_PATH_PREFIX,
-        "$STORAGE_PATH_PREFIX/v2",
+    mutableConfig
+      .toFile()
+      .writeText(
+        DIRECT_DISPATCH_CONFIG_SOURCE.toFile()
+          .readText()
+          .replace(DIRECT_STORAGE_PATH_PREFIX, "$STORAGE_PATH_PREFIX/v2")
       )
-    )
     startFunction(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+
+    val response = invokeFunction()
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("Invalid config")
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.listFiles()).isEmpty()
+  }
+
+  @Test
+  fun `service fails closed when one provider direct prefix overlaps another legacy prefix`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    val legacyConfig =
+      configFolder.root.toPath().resolve("requisition-fetcher-config.textproto").toFile()
+    val originalConfig = legacyConfig.readText()
+    val secondProviderConfig =
+      originalConfig
+        .replace("dataProviders/edp7", "dataProviders/edp8")
+        .replace(
+          "storage_path_prefix: \"$STORAGE_PATH_PREFIX\"",
+          "storage_path_prefix: \"$DIRECT_STORAGE_PATH_PREFIX/legacy\"",
+        )
+    legacyConfig.writeText("$originalConfig\n$secondProviderConfig")
+    startFunction(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
 
     val response = invokeFunction()
 

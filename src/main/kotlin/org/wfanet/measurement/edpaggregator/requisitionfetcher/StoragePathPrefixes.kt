@@ -14,8 +14,10 @@
 
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
-/** Utilities for validating GCS object-key prefixes. */
+/** Utilities for validating storage-object path prefixes. */
 object StoragePathPrefixes {
+  data class Namespace(val storageUriPrefix: String, val pathPrefix: String, val owner: String)
+
   /** Whether either prefix contains the other at a path-segment boundary. */
   fun overlap(first: String, second: String): Boolean {
     fun normalize(value: String): String =
@@ -29,5 +31,18 @@ object StoragePathPrefixes {
     return normalizedFirst == normalizedSecond ||
       normalizedFirst.startsWith("$normalizedSecond/") ||
       normalizedSecond.startsWith("$normalizedFirst/")
+  }
+
+  /** Requires every path prefix in the same storage namespace to be disjoint. */
+  fun requireDisjoint(namespaces: List<Namespace>) {
+    for ((index, first) in namespaces.withIndex()) {
+      for (second in namespaces.drop(index + 1)) {
+        if (first.storageUriPrefix != second.storageUriPrefix) continue
+        require(!overlap(first.pathPrefix, second.pathPrefix)) {
+          "Storage path prefixes for ${first.owner} and ${second.owner} overlap in " +
+            "${first.storageUriPrefix}: '${first.pathPrefix}' and '${second.pathPrefix}'"
+        }
+      }
+    }
   }
 }

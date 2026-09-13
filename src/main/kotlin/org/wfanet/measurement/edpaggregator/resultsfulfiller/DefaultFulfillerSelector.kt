@@ -135,8 +135,9 @@ internal fun frequencyVectorCap(
     ImpressionCapMode.UNCAPPED,
     ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP -> null
     ImpressionCapMode.CUSTOM_CAP,
-    ImpressionCapMode.UNSPECIFIED,
-    ImpressionCapMode.UNRECOGNIZED -> overrideImpressionMaxFrequencyPerUser
+    ImpressionCapMode.UNSPECIFIED -> overrideImpressionMaxFrequencyPerUser
+    ImpressionCapMode.UNRECOGNIZED ->
+      throw IllegalArgumentException("Unrecognized impression_cap_mode")
   }
 
 /**
