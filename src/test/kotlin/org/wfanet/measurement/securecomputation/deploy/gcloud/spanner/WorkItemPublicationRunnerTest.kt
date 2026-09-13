@@ -42,6 +42,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWorkItemPublication
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.deleteWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
@@ -120,6 +121,33 @@ class WorkItemPublicationRunnerTest {
     assertThat(newRunner(publisher, clock).publishPendingWorkItems()).isEqualTo(1)
     assertThat(publisher.callCount).isEqualTo(1)
     assertThat(publicationCount()).isEqualTo(0L)
+  }
+
+  @Test
+  fun `completion of an old claim does not delete a recreated publication`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    val publisher = RecreatedPublicationPublisher()
+    val runner = newRunner(publisher, clock)
+
+    val oldPublication = async { runner.publishWorkItem(WORK_ITEM_ID) }
+    publisher.firstStarted.await()
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.deleteWorkItemPublication(WORK_ITEM_ID)
+    }
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.insertWorkItemPublication(WORK_ITEM_ID)
+    }
+    val replacementPublication = async { runner.publishWorkItem(WORK_ITEM_ID) }
+    publisher.secondStarted.await()
+
+    publisher.releaseFirst.complete(Unit)
+    assertThat(oldPublication.await()).isTrue()
+    assertThat(publicationCount()).isEqualTo(1L)
+
+    publisher.releaseSecond.complete(Unit)
+    assertThat(replacementPublication.await()).isFalse()
+    assertThat(publicationCount()).isEqualTo(1L)
   }
 
   @Test
@@ -284,6 +312,26 @@ class WorkItemPublicationRunnerTest {
       callCount++
       started.complete(Unit)
       release.await()
+    }
+  }
+
+  private class RecreatedPublicationPublisher : WorkItemPublisher {
+    val firstStarted = CompletableDeferred<Unit>()
+    val secondStarted = CompletableDeferred<Unit>()
+    val releaseFirst = CompletableDeferred<Unit>()
+    val releaseSecond = CompletableDeferred<Unit>()
+    private var callCount = 0
+
+    override suspend fun publishMessage(queueName: String, message: Message) {
+      callCount++
+      if (callCount == 1) {
+        firstStarted.complete(Unit)
+        releaseFirst.await()
+        return
+      }
+      secondStarted.complete(Unit)
+      releaseSecond.await()
+      error("Replacement publication failed")
     }
   }
 

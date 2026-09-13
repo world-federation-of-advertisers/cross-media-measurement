@@ -35,6 +35,7 @@ data class WorkItemPublicationResult(
   val workItemId: Long,
   val workItem: WorkItem,
   val attemptCount: Long,
+  val leaseToken: String,
 )
 
 /** Returns whether [workItemId] has a pending publication. */
@@ -74,7 +75,7 @@ fun AsyncDatabaseClient.TransactionContext.deleteWorkItemPublication(workItemId:
 }
 
 /**
- * Claims a pending publication for [leaseOwner].
+ * Claims a pending publication with [leaseToken].
  *
  * If [workItemId] is specified, only that WorkItem is considered. A publication for a WorkItem
  * which is no longer QUEUED is removed because queue delivery has already been demonstrated or the
@@ -82,7 +83,7 @@ fun AsyncDatabaseClient.TransactionContext.deleteWorkItemPublication(workItemId:
  */
 suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
   queueMapping: QueueMapping,
-  leaseOwner: String,
+  leaseToken: String,
   now: Instant,
   leaseExpirationTime: Instant,
   workItemId: Long? = null,
@@ -130,7 +131,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
   val queue = queueMapping.getQueueById(queueId)
   bufferUpdateMutation("WorkItemPublications") {
     set("WorkItemId").to(claimedWorkItemId)
-    set("LeaseOwner").to(if (queue == null) null else leaseOwner)
+    set("LeaseOwner").to(if (queue == null) null else leaseToken)
     set("LeaseExpirationTime").to(leaseExpirationTime.toGcloudTimestamp())
     set("QueueResolutionFailed").to(queue == null)
     if (queue == null) {
@@ -149,16 +150,16 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
 
   val result = WorkItems.buildWorkItemResult(row, queue)
   return WorkItemPublicationClaimResult.Claimed(
-    WorkItemPublicationResult(claimedWorkItemId, result.workItem, attemptCount)
+    WorkItemPublicationResult(claimedWorkItemId, result.workItem, attemptCount, leaseToken)
   )
 }
 
-/** Removes a publication if it is still leased by [leaseOwner]. */
+/** Removes a publication if it is still leased with [leaseToken]. */
 suspend fun AsyncDatabaseClient.TransactionContext.completeWorkItemPublication(
   workItemId: Long,
-  leaseOwner: String,
+  leaseToken: String,
 ) {
-  if (isLeaseOwner(workItemId, leaseOwner)) {
+  if (hasLeaseToken(workItemId, leaseToken)) {
     deleteWorkItemPublication(workItemId)
   }
 }
@@ -166,10 +167,10 @@ suspend fun AsyncDatabaseClient.TransactionContext.completeWorkItemPublication(
 /** Releases a publication lease and schedules its next attempt. */
 suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItemPublication(
   workItemId: Long,
-  leaseOwner: String,
+  leaseToken: String,
   nextAttemptTime: Instant,
 ) {
-  if (!isLeaseOwner(workItemId, leaseOwner)) {
+  if (!hasLeaseToken(workItemId, leaseToken)) {
     return
   }
   bufferUpdateMutation("WorkItemPublications") {
@@ -182,13 +183,13 @@ suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItemPublication(
   }
 }
 
-private suspend fun AsyncDatabaseClient.ReadContext.isLeaseOwner(
+private suspend fun AsyncDatabaseClient.ReadContext.hasLeaseToken(
   workItemId: Long,
-  leaseOwner: String,
+  leaseToken: String,
 ): Boolean {
   val row =
     readRow("WorkItemPublications", Key.of(workItemId), listOf("LeaseOwner")) ?: return false
-  return !row.isNull("LeaseOwner") && row.getString("LeaseOwner") == leaseOwner
+  return !row.isNull("LeaseOwner") && row.getString("LeaseOwner") == leaseToken
 }
 
 private val WORK_ITEM_PUBLICATION_SQL =

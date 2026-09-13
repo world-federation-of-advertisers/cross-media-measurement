@@ -45,7 +45,6 @@ class WorkItemPublicationRunner(
   private val leaseDuration: Duration = DEFAULT_LEASE_DURATION,
   private val initialRetryDelay: Duration = DEFAULT_INITIAL_RETRY_DELAY,
   private val maxRetryDelay: Duration = DEFAULT_MAX_RETRY_DELAY,
-  private val leaseOwner: String = UUID.randomUUID().toString(),
 ) {
   init {
     require(pollInterval > Duration.ZERO) { "pollInterval must be positive" }
@@ -130,12 +129,13 @@ class WorkItemPublicationRunner(
     workItemId: Long? = null
   ): WorkItemPublicationClaimResult? {
     val now = clock.instant()
+    val leaseToken = UUID.randomUUID().toString()
     val publication: Optional<WorkItemPublicationClaimResult> =
       databaseClient.readWriteTransaction().run { transaction ->
         Optional.fromNullable(
           transaction.claimWorkItemPublication(
             queueMapping = queueMapping,
-            leaseOwner = leaseOwner,
+            leaseToken = leaseToken,
             now = now,
             leaseExpirationTime = now.plus(leaseDuration),
             workItemId = workItemId,
@@ -170,7 +170,7 @@ class WorkItemPublicationRunner(
     }
 
     databaseClient.readWriteTransaction().run { transaction ->
-      transaction.completeWorkItemPublication(publication.workItemId, leaseOwner)
+      transaction.completeWorkItemPublication(publication.workItemId, publication.leaseToken)
     }
     return true
   }
@@ -180,7 +180,7 @@ class WorkItemPublicationRunner(
     databaseClient.readWriteTransaction().run { transaction ->
       transaction.retryWorkItemPublication(
         publication.workItemId,
-        leaseOwner,
+        publication.leaseToken,
         clock.instant().plus(retryDelay),
       )
     }

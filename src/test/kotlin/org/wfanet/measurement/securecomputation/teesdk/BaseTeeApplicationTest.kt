@@ -269,7 +269,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `nacks redelivery when WorkItem has an active attempt`() = runBlocking {
+  fun `acks redelivery when WorkItem has an active attempt`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     whenever(
@@ -301,14 +301,14 @@ class BaseTeeApplicationTest {
     )
     consumer.disposition.await()
 
-    assertThat(consumer.ackCount).isEqualTo(0)
-    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
   }
 
   @Test
-  fun `nacks completion RPC failure and subsequent active-attempt redelivery`() = runBlocking {
+  fun `acks active-attempt redelivery after completion RPC failure`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -362,8 +362,8 @@ class BaseTeeApplicationTest {
 
     assertThat(firstDelivery.ackCount).isEqualTo(0)
     assertThat(firstDelivery.nackCount).isEqualTo(1)
-    assertThat(redelivery.ackCount).isEqualTo(0)
-    assertThat(redelivery.nackCount).isEqualTo(1)
+    assertThat(redelivery.ackCount).isEqualTo(1)
+    assertThat(redelivery.nackCount).isEqualTo(0)
     job.cancelAndJoin()
   }
 
@@ -415,7 +415,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `nacks failure RPC failure and subsequent active-attempt redelivery`() = runBlocking {
+  fun `acks active-attempt redelivery after failure RPC failure`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -470,13 +470,13 @@ class BaseTeeApplicationTest {
 
     assertThat(firstDelivery.ackCount).isEqualTo(0)
     assertThat(firstDelivery.nackCount).isEqualTo(1)
-    assertThat(redelivery.ackCount).isEqualTo(0)
-    assertThat(redelivery.nackCount).isEqualTo(1)
+    assertThat(redelivery.ackCount).isEqualTo(1)
+    assertThat(redelivery.nackCount).isEqualTo(0)
     job.cancelAndJoin()
   }
 
   @Test
-  fun `concurrent duplicate remains recoverable when original worker later fails`() = runBlocking {
+  fun `acks concurrent duplicate while original worker failure remains retriable`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -550,8 +550,8 @@ class BaseTeeApplicationTest {
     releaseWorker.complete(Unit)
     originalDelivery.disposition.await()
 
-    assertThat(duplicateDelivery.ackCount).isEqualTo(0)
-    assertThat(duplicateDelivery.nackCount).isEqualTo(1)
+    assertThat(duplicateDelivery.ackCount).isEqualTo(1)
+    assertThat(duplicateDelivery.nackCount).isEqualTo(0)
     assertThat(originalDelivery.ackCount).isEqualTo(0)
     assertThat(originalDelivery.nackCount).isEqualTo(1)
     originalJob.cancelAndJoin()
