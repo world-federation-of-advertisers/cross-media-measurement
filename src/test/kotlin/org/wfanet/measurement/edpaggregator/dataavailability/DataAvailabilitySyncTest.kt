@@ -57,6 +57,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
@@ -66,6 +67,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUpdateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
@@ -141,6 +143,8 @@ class DataAvailabilitySyncTest {
               }
           }
         }
+      onBlocking { batchUndeleteImpressionMetadata(any<BatchUndeleteImpressionMetadataRequest>()) }
+        .thenAnswer { batchUndeleteImpressionMetadataResponse {} }
       onBlocking { computeModelLineBounds(any<ComputeModelLineBoundsRequest>()) }
         .thenAnswer { invocation ->
           val request = invocation.getArgument<ComputeModelLineBoundsRequest>(0)
@@ -311,6 +315,58 @@ class DataAvailabilitySyncTest {
       val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
       assertThat(availabilityKeys).containsExactlyElementsIn(mappedLines)
     }
+  }
+
+  @Test
+  fun `constructor rejects empty mapped model line list`() {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    assertFailsWith<IllegalArgumentException> {
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap =
+          mapOf("modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA" to emptyList()),
+        errorIfGapsExist = true,
+      )
+    }
+  }
+
+  @Test
+  fun `sync does not publish when no availability entries are computed`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenReturn(computeModelLineBoundsResponse {})
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    assertFailsWith<IllegalStateException> {
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    }
+
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    val doneMetadata = storageClient.blobMetadata.getValue("${folderPrefix}done")
+    assertThat(doneMetadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneMetadata)
+      .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
   }
 
   @Test
@@ -679,6 +735,134 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `sync retries Kingdom publication after metadata was persisted`(): Unit = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+      .thenAnswer { throw StatusException(Status.UNAVAILABLE) }
+
+    assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+
+    val createCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(1)) {
+      batchCreateImpressionMetadata(createCaptor.capture())
+    }
+    val persistedMetadata =
+      createCaptor.firstValue.requestsList.single().impressionMetadata.copy {
+        name = "dataProviders/dataProvider123/impressionMetadata/im-0"
+      }
+    wheneverBlocking {
+        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      }
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += persistedMetadata })
+    wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+      .thenReturn(DataProvider.getDefaultInstance())
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
+    verifyBlocking(dataProvidersServiceMock, times(2)) { replaceDataAvailabilityIntervals(any()) }
+    val doneUpdates = storageClient.updateBlobMetadataCalls.filter { it.blobKey.endsWith("/done") }
+    assertThat(doneUpdates).hasSize(5)
+    assertThat(doneUpdates.first().metadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneUpdates.first().metadata)
+      .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    assertThat(doneUpdates[1].metadata)
+      .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneUpdates[2].metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+      .isNotEqualTo(doneUpdates.first().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+    assertThat(doneUpdates[3].metadata)
+      .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneUpdates.last().metadata).doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
+    assertThat(doneUpdates.last().metadata).doesNotContainKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneUpdates.last().metadata).containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    assertThat(doneUpdates.last().metadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY])
+      .isEqualTo(doneUpdates[2].metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+  }
+
+  @Test
+  fun `sync does not let older completion mask newer attempt`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    val doneBlobKey = "${folderPrefix}done"
+    val newerSyncId = "newer-sync-id"
+    wheneverBlocking { dataProvidersServiceMock.replaceDataAvailabilityIntervals(any()) }
+      .thenAnswer {
+        storageClient.mergeBlobMetadata(
+          doneBlobKey,
+          mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to newerSyncId),
+        )
+        DataProvider.getDefaultInstance()
+      }
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/$doneBlobKey")
+
+    val doneMetadata = storageClient.blobMetadata.getValue(doneBlobKey)
+    assertThat(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isEqualTo(newerSyncId)
+    assertThat(doneMetadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY]).isNotEqualTo(newerSyncId)
+  }
+
+  @Test
+  fun `sync announces attempt before metadata persistence`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    wheneverBlocking {
+        impressionMetadataServiceMock.batchCreateImpressionMetadata(
+          any<BatchCreateImpressionMetadataRequest>()
+        )
+      }
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+
+    val doneMetadata = storageClient.blobMetadata.getValue("${folderPrefix}done")
+    assertThat(doneMetadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
+    assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+  }
+
+  @Test
   fun `sync with unchanged content skips create and update`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
@@ -824,7 +1008,8 @@ class DataAvailabilitySyncTest {
         batchCreateImpressionMetadata(captor.capture())
       }
       assertThat(captor.allValues.map { it.requestsCount }).containsExactly(2, 1).inOrder()
-      // Two list chunks (3 blob_uris chunked by batch size 2), two create batches, one availability
+      // Two list chunks (3 blob_uris chunked by batch size 2), two create batches, one
+      // availability
       // interval update.
       assertThat(recordingThrottler.onReadyCalls).isEqualTo(5)
     }
@@ -935,9 +1120,9 @@ class DataAvailabilitySyncTest {
 
     dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
 
-    // Three calls: metadata file (resource-id + synced-by), impressions file (customCreateTime
-    // only), and done blob (synced-by only).
-    assertThat(storageClient.updateBlobMetadataCalls).hasSize(3)
+    // Five calls: metadata file, impressions file, attempt start on done, metadata-store completion
+    // on done, and full availability-publication completion on done.
+    assertThat(storageClient.updateBlobMetadataCalls).hasSize(5)
 
     // Verify metadata file update (has resource ID + synced-by in metadata)
     val metadataFileUpdate =
@@ -955,12 +1140,22 @@ class DataAvailabilitySyncTest {
     assertThat(impressionsFileUpdate.blobKey).contains("some_blob_uri")
     assertThat(impressionsFileUpdate.customCreateTime).isNotNull()
 
-    // Verify done blob update (synced-by marker only, no customCreateTime, no resource ID).
-    val doneFileUpdate =
-      storageClient.updateBlobMetadataCalls.single { it.blobKey.endsWith("/done") }
-    assertThat(doneFileUpdate.metadata)
-      .containsExactly(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
-    assertThat(doneFileUpdate.customCreateTime).isNull()
+    val doneFileUpdates =
+      storageClient.updateBlobMetadataCalls.filter { it.blobKey.endsWith("/done") }
+    assertThat(doneFileUpdates).hasSize(3)
+    assertThat(doneFileUpdates.first().metadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneFileUpdates.first().metadata)
+      .doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    assertThat(doneFileUpdates[1].metadata)
+      .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+    assertThat(doneFileUpdates.last().metadata)
+      .doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
+    assertThat(doneFileUpdates.last().metadata).doesNotContainKey(DataAvailabilityBlobs.SYNC_ID_KEY)
+    assertThat(doneFileUpdates.last().metadata)
+      .containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    assertThat(doneFileUpdates.last().metadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY])
+      .isEqualTo(doneFileUpdates.first().metadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+    assertThat(doneFileUpdates.all { it.customCreateTime == null }).isTrue()
 
     // Metadata and impressions files share the same customCreateTime (interval start time).
     assertThat(metadataFileUpdate.customCreateTime)
@@ -973,7 +1168,8 @@ class DataAvailabilitySyncTest {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
       val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-      // Create a BlobDetails where blob_uri points to a path that is NOT derived from the metadata
+      // Create a BlobDetails where blob_uri points to a path that is NOT derived from the
+      // metadata
       // file name. The old implementation would have tried to infer the impressions blob key by
       // string replacement on the metadata URI.
       val customImpressionsPath = "custom/path/to/impressions_data"
@@ -1126,6 +1322,12 @@ class DataAvailabilitySyncTest {
 
       // replaceDataAvailabilityIntervals should NOT be called due to gaps
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+      assertThat(
+          storageClient.updateBlobMetadataCalls.any {
+            it.metadata.containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+          }
+        )
+        .isFalse()
     }
 
   @Test
@@ -2287,6 +2489,88 @@ class DataAvailabilitySyncTest {
       assertThat(secondRequestId).isNotEqualTo(firstRequestId)
     }
 
+  @Test
+  fun `sync restores deleted impression metadata at the same blob URI`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+
+    var updatedBeforeRestore = false
+    wheneverBlocking {
+        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+      }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        assertThat(request.showDeleted).isTrue()
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            name = "dataProviders/dataProvider123/impressionMetadata/im-deleted"
+            blobUri = "$bucket/${folderPrefix}metadata-0.binpb"
+            blobTypeUrl =
+              "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+            eventGroupReferenceId = "some-event-group-reference-id"
+            modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+            interval = interval {
+              startTime = timestamp { seconds = 200 }
+              endTime = timestamp { seconds = 300 }
+            }
+            state = org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State.DELETED
+          }
+        }
+      }
+    wheneverBlocking {
+        impressionMetadataServiceMock.batchUpdateImpressionMetadata(
+          any<BatchUpdateImpressionMetadataRequest>()
+        )
+      }
+      .thenAnswer { invocation ->
+        updatedBeforeRestore = true
+        val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
+        batchUpdateImpressionMetadataResponse {
+          impressionMetadata += request.requestsList.map { it.impressionMetadata }
+        }
+      }
+    wheneverBlocking {
+        impressionMetadataServiceMock.batchUndeleteImpressionMetadata(
+          any<BatchUndeleteImpressionMetadataRequest>()
+        )
+      }
+      .thenAnswer {
+        assertThat(updatedBeforeRestore).isTrue()
+        batchUndeleteImpressionMetadataResponse {}
+      }
+
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val undeleteCaptor = argumentCaptor<BatchUndeleteImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchUndeleteImpressionMetadata(undeleteCaptor.capture())
+    }
+    assertThat(undeleteCaptor.firstValue.namesList.single())
+      .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-deleted")
+    val updateCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchUpdateImpressionMetadata(updateCaptor.capture())
+    }
+    assertThat(
+        updateCaptor.firstValue.requestsList.single().impressionMetadata.interval.startTime.seconds
+      )
+      .isEqualTo(300)
+  }
+
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
    * written.
@@ -2502,6 +2786,11 @@ class DataAvailabilitySyncTest {
     )
 
     val updateBlobMetadataCalls = mutableListOf<UpdateBlobMetadataCall>()
+    val blobMetadata = mutableMapOf<String, MutableMap<String, String>>()
+
+    fun mergeBlobMetadata(blobKey: String, metadata: Map<String, String>) {
+      blobMetadata.getOrPut(blobKey) { mutableMapOf() }.putAll(metadata)
+    }
 
     override suspend fun updateBlobMetadata(
       blobKey: String,
@@ -2509,6 +2798,7 @@ class DataAvailabilitySyncTest {
       metadata: Map<String, String>,
     ) {
       updateBlobMetadataCalls.add(UpdateBlobMetadataCall(blobKey, customCreateTime, metadata))
+      mergeBlobMetadata(blobKey, metadata)
     }
   }
 }

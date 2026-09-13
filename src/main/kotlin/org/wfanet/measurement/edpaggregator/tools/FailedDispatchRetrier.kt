@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import io.grpc.Status
 import io.grpc.StatusException
-import java.util.UUID
 import java.util.logging.Logger
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
@@ -35,7 +34,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -43,7 +44,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /**
  * Re-triggers a `FAILED` `(upload, model line)` after the operator has resolved the root cause of a
- * dead-lettered dispatch.
+ * dead-lettered dispatch. Only `PROCESSING_FAILURE` rows are retryable; `EVICTED_OUTPUT` rows
+ * require a replacement upload.
  *
  * It re-triggers the **furthest phase the model line reached** — detected from which per-phase job
  * rows exist: `VidLabelingJob`s ⇒ Phase 2 (`LABELING`), else `RankerJob`s ⇒ Phase 1 (`RANKING`),
@@ -80,19 +82,22 @@ class FailedDispatchRetrier(
     val workItemsRepublished: Int,
     /** The phase the model line was re-triggered at. */
     val newState: RawImpressionUploadModelLine.State,
+    /** Whether this invocation found a retry that a prior invocation already started. */
+    val wasAlreadyStarted: Boolean,
   )
 
   /**
-   * Re-triggers the `FAILED` `(rawImpressionUpload, cmmsModelLine)` and transitions it out of
-   * `FAILED`. Re-triggers [fromPhase] if given, otherwise the furthest phase the model line
-   * reached.
+   * Re-triggers the `(rawImpressionUpload, cmmsModelLine)` after its latest failure. If that retry
+   * was already started, returns its current model-line state without creating more WorkItems.
+   * Otherwise, re-triggers [fromPhase] if given, or the furthest phase the model line reached.
    *
    * @param fromPhase optional override of the phase to re-trigger from (`POOL_ASSIGNING`,
    *   `RANKING`, or `LABELING`); when null the furthest reached phase is auto-detected.
-   * @throws IllegalArgumentException if the model line is missing or not `FAILED`, [fromPhase] is
-   *   not a phase state, or no jobs exist for the target phase to re-publish.
-   * @throws IllegalStateException if a job's original WorkItem no longer exists (its dispatch never
-   *   enqueued), so it cannot be re-published standalone.
+   * @throws IllegalArgumentException if the model line is missing, was not a processing failure,
+   *   has no failure-attempt identity, is neither `FAILED` nor the result of that failure's retry,
+   *   [fromPhase] is not a phase state, or no jobs exist for the target phase to re-publish.
+   * @throws IllegalStateException if the claimed model line no longer represents this retry, or a
+   *   job's original WorkItem no longer exists (its dispatch never enqueued).
    */
   suspend fun retryFailed(
     rawImpressionUpload: String,
@@ -108,37 +113,152 @@ class FailedDispatchRetrier(
         ?: throw IllegalArgumentException(
           "No RawImpressionUploadModelLine for $cmmsModelLine under $rawImpressionUpload"
         )
-    require(modelLine.state == RawImpressionUploadModelLine.State.FAILED) {
-      "${modelLine.name} is ${modelLine.state}, expected FAILED"
+    require(fromPhase == null || fromPhase in RETRY_PHASES) {
+      "--from-phase must be one of POOL_ASSIGNING, RANKING, LABELING; got $fromPhase"
+    }
+    require(modelLine.failureReason in RETRYABLE_FAILURE_REASONS) {
+      "${modelLine.name} has failure_reason ${modelLine.failureReason}; only processing failures " +
+        "can be retried"
+    }
+    require(modelLine.failureAttemptId.isNotEmpty()) {
+      "${modelLine.name} has no failure_attempt_id; expected a model line that has failed"
     }
 
-    // Re-trigger [fromPhase] if the operator specified one; otherwise the furthest phase reached
-    // (the deepest one that created job rows).
-    val phaseWorkItems =
-      if (fromPhase == null) {
-        detectFurthestPhaseWorkItems(rawImpressionUpload, cmmsModelLine)
-      } else {
-        PhaseWorkItems(
+    if (modelLine.state != RawImpressionUploadModelLine.State.FAILED) {
+      if (
+        findExistingRetryPhase(
+          rawImpressionUpload,
+          cmmsModelLine,
+          modelLine.state,
+          modelLine.failureAttemptId,
           fromPhase,
-          workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, fromPhase),
+        ) != null
+      ) {
+        return RetryResult(modelLine.name, 0, modelLine.state, wasAlreadyStarted = true)
+      }
+    }
+
+    val phaseWorkItems =
+      if (modelLine.state == RawImpressionUploadModelLine.State.FAILED) {
+        // Re-trigger [fromPhase] if specified; otherwise the furthest phase that created jobs.
+        if (fromPhase == null) {
+          detectFurthestPhaseWorkItems(rawImpressionUpload, cmmsModelLine)
+        } else {
+          PhaseWorkItems(
+            fromPhase,
+            workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, fromPhase),
+          )
+        }
+      } else {
+        // The claim may have committed before the prior CLI invocation could publish WorkItems.
+        // Replay that deterministic claim, then finish any missing publications.
+        require(
+          modelLine.state in RETRY_PHASES && (fromPhase == null || fromPhase == modelLine.state)
+        ) {
+          "${modelLine.name} is ${modelLine.state}, expected FAILED or an existing retry for " +
+            "failure_attempt_id ${modelLine.failureAttemptId}"
+        }
+        PhaseWorkItems(
+          modelLine.state,
+          workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, modelLine.state),
         )
       }
-
-    // Re-publish before transitioning, so the work exists before the line is claimed.
-    var republished = 0
+    // Validate every source before claiming the model line so a missing WorkItem cannot strand the
+    // retry in an active state with nothing runnable.
+    val sourceWorkItems = mutableMapOf<String, WorkItem>()
     for (oldId in phaseWorkItems.workItemIds) {
-      if (republishWorkItem(oldId)) republished++
+      sourceWorkItems[oldId] = getRequiredWorkItem(oldId)
     }
 
-    // If every target WorkItem already exists (a re-retry after a prior retry left them in place),
-    // do NOT advance the model line: transitioning with no fresh worker signal would masquerade as
-    // progress. Leave it FAILED so stuck-phase recovery or the operator can investigate.
-    if (republished == 0) {
-      return RetryResult(modelLine.name, 0, modelLine.state)
+    // Claim the retry before publishing. The service rejects an evicted row atomically, while the
+    // deterministic request ID lets a later invocation replay a claim whose publication crashed.
+    val updated = transition(modelLine, phaseWorkItems.phase, modelLine.failureAttemptId)
+    check(
+      updated.state == phaseWorkItems.phase && updated.failureReason in RETRYABLE_FAILURE_REASONS
+    ) {
+      "${updated.name} changed to ${updated.state} with failure_reason " +
+        "${updated.failureReason} while claiming the retry; no WorkItems were published"
+    }
+    var republished = 0
+    for ((oldId, sourceWorkItem) in sourceWorkItems) {
+      if (republishWorkItem(oldId, sourceWorkItem, modelLine.failureAttemptId)) republished++
     }
 
-    val updated = transition(modelLine, phaseWorkItems.phase)
-    return RetryResult(updated.name, republished, updated.state)
+    return RetryResult(
+      updated.name,
+      republished,
+      updated.state,
+      wasAlreadyStarted = modelLine.state != RawImpressionUploadModelLine.State.FAILED,
+    )
+  }
+
+  /** Returns the phase of an existing retry for [failureAttemptId], or `null` if none exists. */
+  private suspend fun findExistingRetryPhase(
+    uploadName: String,
+    cmmsModelLine: String,
+    currentState: RawImpressionUploadModelLine.State,
+    failureAttemptId: String,
+    fromPhase: RawImpressionUploadModelLine.State?,
+  ): RawImpressionUploadModelLine.State? {
+    val possiblePhases =
+      when (currentState) {
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+          listOf(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+        RawImpressionUploadModelLine.State.RANKING ->
+          listOf(
+            RawImpressionUploadModelLine.State.RANKING,
+            RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+          )
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.COMPLETED -> RETRY_PHASES
+        RawImpressionUploadModelLine.State.CREATED,
+        RawImpressionUploadModelLine.State.FAILED,
+        RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
+        RawImpressionUploadModelLine.State.UNRECOGNIZED -> emptyList()
+      }
+    val candidatePhases =
+      if (fromPhase == null) possiblePhases else possiblePhases.filter { it == fromPhase }
+    for (phase in candidatePhases) {
+      val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
+      if (
+        originalWorkItemIds.isNotEmpty() &&
+          originalWorkItemIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }
+      ) {
+        return phase
+      }
+    }
+    return null
+  }
+
+  private suspend fun retryWorkItemIsActiveOrSucceeded(
+    originalWorkItemId: String,
+    failureAttemptId: String,
+  ): Boolean {
+    var retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    while (true) {
+      val retryWorkItem =
+        try {
+          rpcThrottlers.controlPlane.onReady {
+            workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$retryWorkItemId" })
+          }
+        } catch (e: StatusException) {
+          if (e.status.code == Status.Code.NOT_FOUND) return false
+          throw e
+        }
+      when (retryWorkItem.state) {
+        WorkItem.State.QUEUED,
+        WorkItem.State.RUNNING,
+        WorkItem.State.SUCCEEDED -> return true
+        WorkItem.State.FAILED -> {
+          val failureVersion =
+            "${retryWorkItem.updateTime.seconds}:${retryWorkItem.updateTime.nanos}"
+          retryWorkItemId = RequestIds.forRetriedWorkItem(retryWorkItemId, failureVersion)
+        }
+        WorkItem.State.STATE_UNSPECIFIED,
+        WorkItem.State.UNRECOGNIZED ->
+          error("Retry WorkItem $retryWorkItemId has invalid state ${retryWorkItem.state}.")
+      }
+    }
   }
 
   /**
@@ -179,34 +299,29 @@ class FailedDispatchRetrier(
     uploadName: String,
     cmmsModelLine: String,
     phase: RawImpressionUploadModelLine.State,
+  ): List<String> {
+    val workItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
+    require(workItemIds.isNotEmpty()) {
+      "No jobs found for $cmmsModelLine under $uploadName; cannot retry from $phase"
+    }
+    return workItemIds
+  }
+
+  private suspend fun workItemIdsForPhaseOrEmpty(
+    uploadName: String,
+    cmmsModelLine: String,
+    phase: RawImpressionUploadModelLine.State,
   ): List<String> =
     when (phase) {
-      RawImpressionUploadModelLine.State.LABELING -> {
-        val names = listVidLabelingJobNames(uploadName, cmmsModelLine)
-        require(names.isNotEmpty()) {
-          "No VidLabelingJobs for $cmmsModelLine under $uploadName; cannot retry from LABELING"
+      RawImpressionUploadModelLine.State.LABELING ->
+        listVidLabelingJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidLabeler(it) }
+      RawImpressionUploadModelLine.State.RANKING ->
+        listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+        listPoolAssignmentJobShards(uploadName, cmmsModelLine).map {
+          WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it)
         }
-        names.map { WorkItemIds.forVidLabeler(it) }
-      }
-      RawImpressionUploadModelLine.State.RANKING -> {
-        val names = listRankerJobNames(uploadName, cmmsModelLine)
-        require(names.isNotEmpty()) {
-          "No RankerJobs for $cmmsModelLine under $uploadName; cannot retry from RANKING"
-        }
-        names.map { WorkItemIds.forVidRankBuilder(it) }
-      }
-      RawImpressionUploadModelLine.State.POOL_ASSIGNING -> {
-        val shards = listPoolAssignmentJobShards(uploadName, cmmsModelLine)
-        require(shards.isNotEmpty()) {
-          "No PoolAssignmentJobs for $cmmsModelLine under $uploadName; cannot retry from " +
-            "POOL_ASSIGNING"
-        }
-        shards.map { WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it) }
-      }
-      else ->
-        throw IllegalArgumentException(
-          "--from-phase must be one of POOL_ASSIGNING, RANKING, LABELING; got $phase"
-        )
+      else -> error("unreachable: $phase is not a retry phase")
     }
 
   private suspend fun listVidLabelingJobNames(
@@ -275,47 +390,73 @@ class FailedDispatchRetrier(
     return shards
   }
 
-  /**
-   * Re-publishes the WorkItem [oldWorkItemId] under a fresh deterministic id. Returns true if a new
-   * WorkItem was created, false if it already existed (an idempotent repeat retry).
-   */
-  private suspend fun republishWorkItem(oldWorkItemId: String): Boolean {
-    val existing =
-      try {
-        rpcThrottlers.controlPlane.onReady {
-          workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$oldWorkItemId" })
-        }
-      } catch (e: StatusException) {
-        if (e.status.code == Status.Code.NOT_FOUND) {
-          throw IllegalStateException(
-            "WorkItem workItems/$oldWorkItemId not found; its dispatch never enqueued, so it " +
-              "cannot be re-published standalone."
-          )
-        }
-        throw e
-      }
-    val newId = "rt-" + UUID.nameUUIDFromBytes("retry:$oldWorkItemId".toByteArray()).toString()
-    val republished = workItem {
-      queue = existing.queue
-      workItemParams = existing.workItemParams
-    }
-    return try {
+  private suspend fun getRequiredWorkItem(workItemId: String): WorkItem =
+    try {
       rpcThrottlers.controlPlane.onReady {
-        workItemsStub.createWorkItem(
-          createWorkItemRequest {
-            workItemId = newId
-            workItem = republished
-          }
+        workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+      }
+    } catch (e: StatusException) {
+      if (e.status.code == Status.Code.NOT_FOUND) {
+        throw IllegalStateException(
+          "WorkItem workItems/$workItemId not found; its dispatch never enqueued, so it " +
+            "cannot be re-published standalone."
         )
       }
-      logger.info("Re-published $oldWorkItemId as $newId (queue=${existing.queue}).")
-      true
-    } catch (e: StatusException) {
-      if (e.status.code == Status.Code.ALREADY_EXISTS) {
-        logger.info("Retry WorkItem $newId already exists; skipping (idempotent).")
-        false
-      } else {
-        throw e
+      throw e
+    }
+
+  /**
+   * Re-publishes [sourceWorkItem] as a retry of [oldWorkItemId] for [failureAttemptId]. Returns
+   * true if a new WorkItem was created, or false when the same retry attempt already created it.
+   */
+  private suspend fun republishWorkItem(
+    oldWorkItemId: String,
+    sourceWorkItem: WorkItem,
+    failureAttemptId: String,
+  ): Boolean {
+    var newId = RequestIds.forRetriedWorkItem(oldWorkItemId, failureAttemptId)
+    val republished = workItem {
+      queue = sourceWorkItem.queue
+      workItemParams = sourceWorkItem.workItemParams
+    }
+    while (true) {
+      try {
+        rpcThrottlers.controlPlane.onReady {
+          workItemsStub.createWorkItem(
+            createWorkItemRequest {
+              workItemId = newId
+              workItem = republished
+            }
+          )
+        }
+        logger.info("Re-published $oldWorkItemId as $newId (queue=${sourceWorkItem.queue}).")
+        return true
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+
+        val existingRetry =
+          rpcThrottlers.controlPlane.onReady {
+            workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$newId" })
+          }
+        when (existingRetry.state) {
+          WorkItem.State.QUEUED,
+          WorkItem.State.RUNNING,
+          WorkItem.State.SUCCEEDED -> {
+            logger.info(
+              "Retry WorkItem $newId already exists in ${existingRetry.state}; " +
+                "continuing the idempotent retry."
+            )
+            return false
+          }
+          WorkItem.State.FAILED -> {
+            val failureVersion =
+              "${existingRetry.updateTime.seconds}:${existingRetry.updateTime.nanos}"
+            newId = RequestIds.forRetriedWorkItem(newId, failureVersion)
+          }
+          WorkItem.State.STATE_UNSPECIFIED,
+          WorkItem.State.UNRECOGNIZED ->
+            error("Retry WorkItem $newId has invalid state ${existingRetry.state}.")
+        }
       }
     }
   }
@@ -323,12 +464,8 @@ class FailedDispatchRetrier(
   private suspend fun transition(
     modelLine: RawImpressionUploadModelLine,
     targetState: RawImpressionUploadModelLine.State,
+    failureAttemptId: String,
   ): RawImpressionUploadModelLine =
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4211): once #4211 makes
-    // request_id REQUIRED on the Mark* RPCs, set requestId on each mark below via the matching
-    // RequestIds.forMarkRawImpressionUploadModelLine<Phase>(modelLine.name) helper so a repeat
-    // retry
-    // hits the AIP-155 replay short-circuit instead of failing INVALID_ARGUMENT.
     when (targetState) {
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
         rpcThrottlers.metadataWrite.onReady {
@@ -336,6 +473,7 @@ class FailedDispatchRetrier(
             markRawImpressionUploadModelLinePoolAssigningRequest {
               name = modelLine.name
               etag = modelLine.etag
+              requestId = RequestIds.forHealingRetryPoolAssigning(modelLine.name, failureAttemptId)
             }
           )
         }
@@ -345,6 +483,7 @@ class FailedDispatchRetrier(
             markRawImpressionUploadModelLineRankingRequest {
               name = modelLine.name
               etag = modelLine.etag
+              requestId = RequestIds.forHealingRetryRanking(modelLine.name, failureAttemptId)
             }
           )
         }
@@ -354,6 +493,7 @@ class FailedDispatchRetrier(
             markRawImpressionUploadModelLineLabelingRequest {
               name = modelLine.name
               etag = modelLine.etag
+              requestId = RequestIds.forHealingRetryLabeling(modelLine.name, failureAttemptId)
             }
           )
         }
@@ -361,6 +501,18 @@ class FailedDispatchRetrier(
     }
 
   companion object {
+    private val RETRY_PHASES =
+      listOf(
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.RANKING,
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+      )
+
+    private val RETRYABLE_FAILURE_REASONS =
+      setOf(
+        RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED,
+        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
+      )
     private val logger: Logger = Logger.getLogger(FailedDispatchRetrier::class.java.name)
   }
 

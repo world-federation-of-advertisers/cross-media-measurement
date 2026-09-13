@@ -3,6 +3,42 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 package(default_testonly = True)
 
 kt_jvm_test(
+    name = "GenerationMatchedGoogleHadoopFileSystemTest",
+    srcs = ["GenerationMatchedGoogleHadoopFileSystemTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:gcs_hadoop_configuration"],
+    test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.GenerationMatchedGoogleHadoopFileSystemTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_runtime",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_blob",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_test(
+    name = "RawImpressionBlobTest",
+    srcs = ["RawImpressionBlobTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionBlobTest",
+    runtime_deps = [
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_runtime",
+    ],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:gcs_hadoop_configuration",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:raw_impression_blob",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/apache/hadoop:hadoop_client_api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "RawImpressionSourceTest",
     srcs = ["RawImpressionSourceTest.kt"],
     jvm_flags = ["-Dotel.metrics.exporter=none"],

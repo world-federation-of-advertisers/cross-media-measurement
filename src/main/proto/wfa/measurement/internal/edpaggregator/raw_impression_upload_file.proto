@@ -51,4 +51,8 @@ message RawImpressionUploadFile {
 
   // UTC calendar date of the file's impressions (one day per file).
   google.type.Date event_date = 9;
+
+  // Cloud Storage generation of the raw impression object. Zero means unknown
+  // for legacy files.
+  int64 blob_generation = 10;
 }

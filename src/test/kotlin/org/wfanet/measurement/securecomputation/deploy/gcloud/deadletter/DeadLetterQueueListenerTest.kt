@@ -734,6 +734,7 @@ class DeadLetterQueueListenerTest {
           vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
           rawImpressionUploadModelLinesStub = mockModelLinesStub,
           rpcThrottlers = recordingThrottlers.throttlers,
+          getLatestWorkItemAttemptError = { ACTIONABLE_ERROR },
         )
 
       val job = launch { listener.run() }
@@ -744,6 +745,7 @@ class DeadLetterQueueListenerTest {
         .markPoolAssignmentJobFailed(poolCaptor.capture(), any())
       assertEquals(POOL_ASSIGNMENT_JOB, poolCaptor.firstValue.name)
       assertEquals(ETAG, poolCaptor.firstValue.etag)
+      assertEquals(ACTIONABLE_ERROR, poolCaptor.firstValue.errorMessage)
       assertEquals(
         RequestIds.forMarkPoolAssignmentJobFailed(POOL_ASSIGNMENT_JOB),
         poolCaptor.firstValue.requestId,
@@ -754,8 +756,13 @@ class DeadLetterQueueListenerTest {
         .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
+      assertEquals(ACTIONABLE_ERROR, modelLineCaptor.firstValue.errorMessage)
       assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
+        modelLineCaptor.firstValue.failureReason,
+      )
+      assertEquals(
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
         modelLineCaptor.firstValue.requestId,
       )
 
@@ -838,7 +845,11 @@ class DeadLetterQueueListenerTest {
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
       assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
+        modelLineCaptor.firstValue.failureReason,
+      )
+      assertEquals(
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
         modelLineCaptor.firstValue.requestId,
       )
 
@@ -916,7 +927,11 @@ class DeadLetterQueueListenerTest {
       assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
       assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
       assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
+        modelLineCaptor.firstValue.failureReason,
+      )
+      assertEquals(
+        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
         modelLineCaptor.firstValue.requestId,
       )
 
@@ -989,7 +1004,11 @@ class DeadLetterQueueListenerTest {
     assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
     assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
     assertEquals(
-      RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME),
+      RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
+      modelLineCaptor.firstValue.failureReason,
+    )
+    assertEquals(
+      RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
       modelLineCaptor.firstValue.requestId,
     )
 
@@ -1110,5 +1129,7 @@ class DeadLetterQueueListenerTest {
     private const val RANKER_JOB = "dataProviders/dp/rawImpressionUploads/up1/rankerJobs/rj-0"
     private const val ETAG = "etag-1"
     private const val MODEL_LINE_ETAG = "etag-ml-1"
+    private const val ACTIONABLE_ERROR =
+      "Raw-impression object changed; the EDP must write a new done blob"
   }
 }

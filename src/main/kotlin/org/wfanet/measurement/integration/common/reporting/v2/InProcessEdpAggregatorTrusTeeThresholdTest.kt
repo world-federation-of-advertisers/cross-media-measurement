@@ -18,8 +18,10 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.common.testing.ProviderRule
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -45,6 +47,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
   reportingDataServicesProviderRule: ProviderRule<Services>,
   duchyNames: List<String> = ALL_DUCHY_NAMES,
   deterministicTruncatedLaplaceSupported: Boolean = false,
+  resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> = emptyMap(),
 ) :
   InProcessEdpAggregatorLifeOfAReportTest(
     kingdomDataServicesRule,
@@ -57,6 +60,7 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
     trusTeeEnabled = true,
     multiEdpDisplayNames = setOf("edp1", "edp2"),
     deterministicTruncatedLaplaceSupported = deterministicTruncatedLaplaceSupported,
+    resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
   ) {
 
   // Noisy tests use approximate assertions instead of exact equality. Subclasses override
@@ -92,6 +96,9 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
       expectedEdpSpec2Reach = EXPECTED_EDP_SPEC2_REACH,
     )
   }
+
+  /** Asserts the uncorrected results fulfilled by the EDPs. */
+  open fun assertTrusTeeMeasurementResults(measurements: List<Measurement>) {}
 
   @Test
   fun `TrusTee basic report has the expected result`() = runBlocking {
@@ -146,6 +153,8 @@ abstract class InProcessEdpAggregatorTrusTeeThresholdTest(
           .isEqualTo(expectedNoiseMechanism)
       }
     }
+
+    assertTrusTeeMeasurementResults(measurements)
 
     if (expectedTrusTeeBasicReportState == BasicReport.State.SUCCEEDED) {
       assertStructuralResults(completedBasicReport)

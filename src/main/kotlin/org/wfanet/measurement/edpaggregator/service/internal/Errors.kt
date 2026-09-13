@@ -318,13 +318,17 @@ class RawImpressionUploadAlreadyExistsException(
   requestId: String,
   existingDoneBlobUri: String,
   incomingDoneBlobUri: String,
+  existingDoneBlobGeneration: Long,
+  incomingDoneBlobGeneration: Long,
   cause: Throwable? = null,
 ) :
   ServiceException(
     Errors.Reason.RAW_IMPRESSION_UPLOAD_ALREADY_EXISTS,
     "RawImpressionUpload already exists for DataProvider $dataProviderResourceId with " +
       "request_id $requestId: existing done_blob_uri=$existingDoneBlobUri, " +
-      "incoming done_blob_uri=$incomingDoneBlobUri",
+      "incoming done_blob_uri=$incomingDoneBlobUri, " +
+      "existing done_blob_generation=$existingDoneBlobGeneration, " +
+      "incoming done_blob_generation=$incomingDoneBlobGeneration",
     mapOf(
       Errors.Metadata.DATA_PROVIDER_RESOURCE_ID to dataProviderResourceId,
       Errors.Metadata.CREATE_REQUEST_ID to requestId,

@@ -39,10 +39,9 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.153.0",
+    version = "0.154.0",
     repo_name = "wfa_common_jvm",
 )
-
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",
@@ -50,7 +49,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "cross-media-measurement-api",
-    version = "0.101.0",
+    version = "0.102.0",
     repo_name = "wfa_measurement_proto",
 )
 bazel_dep(
@@ -80,12 +79,12 @@ bazel_dep(
 )
 bazel_dep(
     name = "virtual-people-common",
-    version = "0.5.0",
+    version = "0.10.0",
     repo_name = "wfa_virtual_people_common",
 )
 bazel_dep(
     name = "virtual-people-core-serving",
-    version = "0.4.0",
+    version = "0.6.0",
     repo_name = "wfa_virtual_people_core_serving",
 )
 bazel_dep(

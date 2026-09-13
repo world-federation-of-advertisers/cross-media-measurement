@@ -1505,7 +1505,8 @@ abstract class AbstractEdpSimulator(
           }
         }
       }
-      MeasurementSpec.MeasurementTypeCase.POPULATION -> {
+      MeasurementSpec.MeasurementTypeCase.POPULATION,
+      MeasurementSpec.MeasurementTypeCase.MULTI -> {
         error("Measurement type not supported.")
       }
       MeasurementSpec.MeasurementTypeCase.REACH -> {

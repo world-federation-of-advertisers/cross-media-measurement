@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -741,16 +742,16 @@ class VidLabelerApp(
       buildParquetStorageClient(getStorageConfig(params.rawImpressionsStorageParams), kmsClient)
     return inputFiles
       .map { inputFile ->
-        val blobUri =
-          rpcThrottlers.metadataRead
-            .onReady {
-              rawImpressionUploadFilesStub.getRawImpressionUploadFile(
-                getRawImpressionUploadFileRequest { name = inputFile }
-              )
-            }
-            .blobUri
+        val inputBlob =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.getRawImpressionUploadFile(
+              getRawImpressionUploadFileRequest { name = inputFile }
+            )
+          }
+        val blobUri = inputBlob.blobUri
         val parquetBlob =
-          parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
+          parquetStorageClient.getBlob(generationMatchedBlobUri(blobUri, inputBlob.blobGeneration))
+            ?: error("Raw-impression blob not found: $blobUri")
         val eventDateString =
           requireNotNull(
             parquetBlob.readKeyValueMetadata()[RawImpressionFileMetadata.EVENT_DATE_KEY]?.takeIf {

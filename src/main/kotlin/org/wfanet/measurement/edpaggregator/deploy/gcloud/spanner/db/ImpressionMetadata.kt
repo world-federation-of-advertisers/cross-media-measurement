@@ -392,7 +392,10 @@ fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataState(
   }
 }
 
-/** Reads [ImpressionMetadata] ordered by resource ID. */
+/**
+ * Reads [ImpressionMetadata] ordered by blob URI for prefix pagination, or by resource ID
+ * otherwise.
+ */
 fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   dataProviderResourceId: String,
   filter: ListImpressionMetadataRequest.Filter,
@@ -400,16 +403,17 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   after: ListImpressionMetadataPageToken.After? = null,
 ): Flow<ImpressionMetadataResult> {
   val entityKeyFilter: List<EntityKey> = filter.entityKeysList
+  val paginateByBlobUri =
+    filter.blobUriPrefix.isNotEmpty() && (after == null || after.blobUri.isNotEmpty())
 
-  // Force the list-filter index only for the (model line + event group) shape it is designed for
-  // -- the results-fulfiller's batched path -- so a large `IN UNNEST` set is served by index seeks
-  // rather than a base-table scan. Other shapes (blob URI, entity keys, etc.) are left to the
-  // optimizer so they keep using their own more selective indexes.
+  // Force indexes for the read shapes they are designed for. Prefix queries use BlobUri ordering
+  // so each page can continue the same index range scan rather than repeatedly sorting matches.
   val tableIndexDirective =
-    if (filter.cmmsModelLine.isNotEmpty() && filter.eventGroupReferenceIdsList.isNotEmpty()) {
-      "@{FORCE_INDEX=${ImpressionMetadataEntity.LIST_FILTER_INDEX}}"
-    } else {
-      ""
+    when {
+      paginateByBlobUri -> "@{FORCE_INDEX=${ImpressionMetadataEntity.BLOB_URI_PREFIX_INDEX}}"
+      filter.cmmsModelLine.isNotEmpty() && filter.eventGroupReferenceIdsList.isNotEmpty() ->
+        "@{FORCE_INDEX=${ImpressionMetadataEntity.LIST_FILTER_INDEX}}"
+      else -> ""
     }
 
   val sql = buildString {
@@ -464,13 +468,21 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
     }
 
     if (after != null) {
-      conjuncts.add(
-        "ImpressionMetadata.ImpressionMetadataResourceId > @afterImpressionMetadataResourceId"
-      )
+      if (paginateByBlobUri) {
+        conjuncts.add("ImpressionMetadata.BlobUri > @afterBlobUri")
+      } else {
+        conjuncts.add(
+          "ImpressionMetadata.ImpressionMetadataResourceId > @afterImpressionMetadataResourceId"
+        )
+      }
     }
 
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY ImpressionMetadata.ImpressionMetadataResourceId ASC")
+    if (paginateByBlobUri) {
+      appendLine("ORDER BY ImpressionMetadata.BlobUri ASC")
+    } else {
+      appendLine("ORDER BY ImpressionMetadata.ImpressionMetadataResourceId ASC")
+    }
     appendLine("LIMIT @limit")
   }
 
@@ -518,7 +530,11 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
       }
 
       if (after != null) {
-        bind("afterImpressionMetadataResourceId").to(after.impressionMetadataResourceId)
+        if (paginateByBlobUri) {
+          bind("afterBlobUri").to(after.blobUri)
+        } else {
+          bind("afterImpressionMetadataResourceId").to(after.impressionMetadataResourceId)
+        }
       }
     }
 
@@ -668,6 +684,9 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
 }
 
 private object ImpressionMetadataEntity {
+  /** Spanner index that backs BlobUri prefix scans. */
+  const val BLOB_URI_PREFIX_INDEX = "ImpressionMetadataByBlobUriPrefix"
+
   /** Spanner index that backs the list-filter/pagination read shape. */
   const val LIST_FILTER_INDEX = "ImpressionMetadataByListFilterAndPagination"
 

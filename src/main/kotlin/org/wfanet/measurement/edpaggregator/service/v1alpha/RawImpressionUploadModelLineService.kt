@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageToken as InternalListPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse as InternalListResponse
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine as InternalRawImpressionUploadModelLine
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as InternalFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub as InternalModelLineServiceStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesRequest as internalBatchCreateRequest
@@ -468,6 +469,19 @@ class RawImpressionUploadModelLineService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     validateEtagAndRequestId(request.etag, request.requestId)
+    if (request.failureReason == RawImpressionUploadModelLine.FailureReason.UNRECOGNIZED) {
+      throw InvalidFieldValueException("failure_reason")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val failureReason =
+      if (
+        request.failureReason ==
+          RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
+      ) {
+        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+      } else {
+        request.failureReason
+      }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLineFailed(
@@ -478,6 +492,7 @@ class RawImpressionUploadModelLineService(
             etag = request.etag
             requestId = request.requestId
             errorMessage = request.errorMessage
+            this.failureReason = failureReason.toInternal()
           }
         )
       } catch (e: StatusException) {
@@ -585,6 +600,8 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
     if (source.hasEncryptedMergedDek()) {
       encryptedMergedDek = source.encryptedMergedDek.toPublic()
     }
+    failureAttemptId = source.failureAttemptId
+    failureReason = source.failureReason.toPublic()
   }
 }
 
@@ -632,5 +649,31 @@ internal fun RawImpressionUploadModelLine.State.toInternal(): RawImpressionUploa
       RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
     RawImpressionUploadModelLine.State.UNRECOGNIZED,
     RawImpressionUploadModelLine.State.STATE_UNSPECIFIED -> error("Unrecognized state")
+  }
+}
+
+/** Converts an internal failure reason to its public representation. */
+internal fun InternalFailureReason.toPublic(): RawImpressionUploadModelLine.FailureReason {
+  return when (this) {
+    InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE ->
+      RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+    InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
+      RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+    InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED ->
+      RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED
+    InternalFailureReason.UNRECOGNIZED -> error("Unrecognized failure reason")
+  }
+}
+
+/** Converts a public failure reason to its internal representation. */
+internal fun RawImpressionUploadModelLine.FailureReason.toInternal(): InternalFailureReason {
+  return when (this) {
+    RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE ->
+      InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE
+    RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT ->
+      InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+    RawImpressionUploadModelLine.FailureReason.FAILURE_REASON_UNSPECIFIED ->
+      InternalFailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_UNSPECIFIED
+    RawImpressionUploadModelLine.FailureReason.UNRECOGNIZED -> error("Unrecognized failure reason")
   }
 }

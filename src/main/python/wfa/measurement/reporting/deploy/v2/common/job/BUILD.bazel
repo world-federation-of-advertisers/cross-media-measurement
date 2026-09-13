@@ -11,6 +11,7 @@ py_binary(
     deps = [
         requirement("absl-py"),
         "//src/main/python/wfa/measurement/reporting/job:post_process_report_result_job",
+        "//src/main/python/wfa/measurement/reporting/postprocessing/tools:potential_direct_result_minimum_thresholds",
     ],
 )
 

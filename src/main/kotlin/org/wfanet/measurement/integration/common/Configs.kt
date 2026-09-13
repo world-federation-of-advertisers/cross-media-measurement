@@ -285,6 +285,7 @@ fun getResultsFulfillerParams(
   labeledImpressionBlobUriPrefix: String,
   noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
   supportedMultiPartyNoiseTypes: List<ResultsFulfillerParams.NoiseParams.NoiseType>,
+  resultMinimumThresholds: ResultsFulfillerParams.KAnonymityParams? = null,
 ): ResultsFulfillerParams {
   return resultsFulfillerParams {
     this.dataProvider = edpResourceName
@@ -308,6 +309,9 @@ fun getResultsFulfillerParams(
         edpCertificateName = edpCertificateKey.toName()
       }
     this.noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
+    if (resultMinimumThresholds != null) {
+      this.kAnonymityParams = resultMinimumThresholds
+    }
     if (supportedMultiPartyNoiseTypes.isNotEmpty()) {
       this.multiPartyConfig =
         ResultsFulfillerParamsKt.multiPartyConfig {
