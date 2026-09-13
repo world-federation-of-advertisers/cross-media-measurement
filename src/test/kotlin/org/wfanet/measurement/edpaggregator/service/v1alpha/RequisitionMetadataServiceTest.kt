@@ -323,6 +323,71 @@ class RequisitionMetadataServiceTest {
   }
 
   @Test
+  fun `registerQueuedRequisitionMetadata rejects missing WorkItem`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.registerQueuedRequisitionMetadata(
+          registerQueuedRequisitionMetadataRequest { parent = DATA_PROVIDER_KEY.toName() }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item"
+        }
+      )
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata rejects malformed WorkItem`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.registerQueuedRequisitionMetadata(
+          registerQueuedRequisitionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            workItem = "not-a-work-item"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item"
+        }
+      )
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata rejects refusal message`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.registerQueuedRequisitionMetadata(
+          registerQueuedRequisitionMetadataRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            workItem = "workItems/results-fulfiller-group-id"
+            requests += createRequisitionMetadataRequest {
+              this.parent = DATA_PROVIDER_KEY.toName()
+              requisitionMetadata = REQUISITION_METADATA.copy { refusalMessage = "refused" }
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_FIELD_VALUE.name)
+    assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.FIELD_NAME.key))
+      .isEqualTo("requests.0.requisition_metadata.refusal_message")
+  }
+
+  @Test
   fun `batchCreateRequisitionMetadata is idempotent`() = runBlocking {
     val idempotentRequest = createRequisitionMetadataRequest {
       parent = DATA_PROVIDER_KEY.toName()

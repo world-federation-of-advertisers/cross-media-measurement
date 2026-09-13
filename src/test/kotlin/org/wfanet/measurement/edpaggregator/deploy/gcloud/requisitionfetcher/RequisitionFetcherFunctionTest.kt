@@ -103,6 +103,9 @@ class RequisitionFetcherFunctionTest {
   /** Temp folder to store Requisitions in test. */
   @Rule @JvmField val tempFolder = TemporaryFolder()
 
+  /** Mutable config directory visible to the function process. */
+  @Rule @JvmField val configFolder = TemporaryFolder()
+
   /** Mock of RequisitionsService. */
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
     onBlocking { listRequisitions(any()) }
@@ -218,6 +221,9 @@ class RequisitionFetcherFunctionTest {
   fun startInfra() {
     capturedTraceparent = null
     ensureWorkItemRequest = null
+    copyConfig("requisition-fetcher-config.textproto")
+    copyConfig(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+    copyConfig("unknown-requisition-fetcher-direct-dispatch-config.textproto")
 
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
@@ -262,7 +268,7 @@ class RequisitionFetcherFunctionTest {
             "SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
-            "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
+            "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configFolder.root.toPath()}",
             "REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY" to directDispatchConfigBlobKey,
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
@@ -362,6 +368,39 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
+  fun `service reloads direct dispatch config for activation and rollback`() {
+    functionProcess.close()
+    val mutableConfig = configFolder.root.toPath().resolve(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+    mutableConfig.toFile().writeText("")
+    startFunction(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+
+    val legacyResponse = invokeFunction()
+
+    assertThat(legacyResponse.statusCode()).isEqualTo(200)
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile().listFiles())
+      .isNotEmpty()
+
+    DIRECT_DISPATCH_CONFIG_SOURCE.toFile().copyTo(mutableConfig.toFile(), overwrite = true)
+    ensureWorkItemRequest = null
+
+    val directResponse = invokeFunction()
+
+    assertThat(directResponse.statusCode()).isEqualTo(200)
+    assertThat(ensureWorkItemRequest).isNotNull()
+    assertThat(tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile().listFiles())
+      .isNotEmpty()
+
+    mutableConfig.toFile().writeText("")
+    ensureWorkItemRequest = null
+
+    val rollbackResponse = invokeFunction()
+
+    assertThat(rollbackResponse.statusCode()).isEqualTo(200)
+    assertThat(ensureWorkItemRequest).isNull()
+  }
+
+  @Test
   fun `trace context is propagated to outbound gRPC calls`() {
     val url = "http://localhost:${functionProcess.port}"
     val (expectedTraceId, traceparent) = newTraceparent()
@@ -376,6 +415,23 @@ class RequisitionFetcherFunctionTest {
     assertThat(recordedTraceparent).isNotNull()
     val propagatedTraceId = traceIdFromTraceparent(recordedTraceparent!!)
     assertThat(propagatedTraceId).isEqualTo(expectedTraceId)
+  }
+
+  private fun invokeFunction(): java.net.http.HttpResponse<String> {
+    return HttpClient.newHttpClient()
+      .send(
+        HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:${functionProcess.port}"))
+          .GET()
+          .build(),
+        BodyHandlers.ofString(),
+      )
+  }
+
+  private fun copyConfig(fileName: String) {
+    CONFIG_SOURCE_PATH.resolve(fileName)
+      .toFile()
+      .copyTo(configFolder.root.toPath().resolve(fileName).toFile(), overwrite = true)
   }
 
   companion object {
@@ -399,6 +455,8 @@ class RequisitionFetcherFunctionTest {
       "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
     private const val DIRECT_DISPATCH_CONFIG_BLOB_KEY =
       "requisition-fetcher-direct-dispatch-config.textproto"
+    private const val MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY =
+      "mutable-requisition-fetcher-direct-dispatch-config.textproto"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
 
@@ -519,8 +577,8 @@ class RequisitionFetcherFunctionTest {
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
       )!!
-    private val REQUISITION_CONFIG_FILE_SYSTEM_PATH =
-      "file://" +
+    private val CONFIG_SOURCE_PATH =
+      checkNotNull(
         getRuntimePath(
           Paths.get(
             "wfa_measurement_system",
@@ -536,7 +594,10 @@ class RequisitionFetcherFunctionTest {
             "requisitionfetcher",
             "testing",
           )
-        )!!
+        )
+      )
+    private val DIRECT_DISPATCH_CONFIG_SOURCE =
+      CONFIG_SOURCE_PATH.resolve(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),
