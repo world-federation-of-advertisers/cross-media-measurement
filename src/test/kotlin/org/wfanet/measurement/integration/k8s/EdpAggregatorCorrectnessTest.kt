@@ -727,11 +727,21 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
     private val REPORTING_HTTP_TIMEOUT = Duration.ofSeconds(30)
     private val REPORTING_TOKEN_TTL = Duration.ofMinutes(60)
+    /**
+     * Scopes for the Reporting access token.
+     *
+     * `CreateBasicReport` creates Reports, Metrics and MetricCalculationSpecs on the caller's
+     * behalf, so those scopes are required in addition to the ones for the methods called directly.
+     */
     private val REPORTING_TOKEN_SCOPES =
       setOf(
         "reporting.basicReports.create",
         "reporting.basicReports.get",
-        "reporting.reportingSets.create",
+        "reporting.reports.create",
+        "reporting.metrics.create",
+        "reporting.metricCalculationSpecs.create",
+        "reporting.reportingSets.createPrimitive",
+        "reporting.reportingSets.createComposite",
         "reporting.eventGroups.list",
       )
     private const val MC_TLS_CERT_NAME = "mc_tls.pem"
