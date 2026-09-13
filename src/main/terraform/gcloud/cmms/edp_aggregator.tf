@@ -472,6 +472,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
+  tee_consumers_enabled                            = var.tee_consumers_enabled
   requisition_fulfiller_config                     = local.requisition_fulfiller_config
   pubsub_iam_service_account_member                = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                       = var.secure_computation_storage_bucket_name

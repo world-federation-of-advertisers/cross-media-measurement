@@ -147,6 +147,95 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
+  fun `createWorkItemAttempt replaces active unleased attempt for lease capable worker`() =
+    runBlocking {
+      val services = initServices()
+      val workItem = createWorkItem(services.workItemsService)
+      val unleasedAttempt =
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "unleased-attempt"
+            }
+          }
+        )
+
+      val replacement =
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            supportsAttemptLease = true
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "leased-replacement"
+            }
+          }
+        )
+
+      val failedAttempt =
+        services.service.getWorkItemAttempt(
+          getWorkItemAttemptRequest {
+            workItemResourceId = unleasedAttempt.workItemResourceId
+            workItemAttemptResourceId = unleasedAttempt.workItemAttemptResourceId
+          }
+        )
+      val currentWorkItem =
+        services.workItemsService.getWorkItem(
+          getWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+        )
+      assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+      assertThat(replacement.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+      assertThat(replacement.hasLeaseExpirationTime()).isTrue()
+      assertThat(replacement.attemptNumber).isEqualTo(2)
+      assertThat(currentWorkItem.state).isEqualTo(WorkItem.State.RUNNING)
+      assertThat(currentWorkItem.generation).isEqualTo(workItem.generation)
+    }
+
+  @Test
+  fun `createWorkItemAttempt does not replace active leased attempt`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val leasedAttempt =
+      services.service.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          supportsAttemptLease = true
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "leased-attempt"
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            supportsAttemptLease = true
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "duplicate-leased-attempt"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val activeAttempt =
+      services.service.getWorkItemAttempt(
+        getWorkItemAttemptRequest {
+          workItemResourceId = leasedAttempt.workItemResourceId
+          workItemAttemptResourceId = leasedAttempt.workItemAttemptResourceId
+        }
+      )
+    assertThat(activeAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(activeAttempt.hasLeaseExpirationTime()).isTrue()
+  }
+
+  @Test
   fun `createWorkItemAttempt allows retry after active attempt fails`() = runBlocking {
     val services = initServices()
     val workItem = createWorkItem(services.workItemsService)

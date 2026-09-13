@@ -201,6 +201,7 @@ private val WORK_ITEM_PUBLICATION_SQL =
     WorkItems.State,
     WorkItems.WorkItemParams,
     WorkItems.Generation,
+    WorkItems.PublicationScheduledGeneration,
     WorkItems.CreateTime,
     WorkItems.UpdateTime,
     WorkItemPublications.AttemptCount,

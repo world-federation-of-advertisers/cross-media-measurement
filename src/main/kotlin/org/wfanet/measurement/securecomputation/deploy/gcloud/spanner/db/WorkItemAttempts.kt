@@ -67,6 +67,26 @@ suspend fun AsyncDatabaseClient.ReadContext.activeWorkItemAttemptExists(workItem
   }
 }
 
+/** Returns the ACTIVE attempt for [workItemId], or `null` when none exists. */
+suspend fun AsyncDatabaseClient.ReadContext.getActiveWorkItemAttempt(
+  workItemId: Long
+): WorkItemAttemptResult? {
+  val sql = buildString {
+    appendLine(WorkItemAttempts.BASE_SQL)
+    appendLine("WHERE WorkItemAttempts.WorkItemId = @workItemId")
+    appendLine("  AND WorkItemAttempts.State = @activeState")
+  }
+  return executeQuery(
+      statement(sql) {
+        bind("workItemId").to(workItemId)
+        bind("activeState").to(WorkItemAttempt.State.ACTIVE.number.toLong())
+      },
+      Options.tag("action=getActiveWorkItemAttempt"),
+    )
+    .singleOrNullIfEmpty()
+    ?.let(WorkItemAttempts::buildWorkItemAttemptResult)
+}
+
 /** Buffers a FAILED state update for every ACTIVE attempt belonging to [workItemId]. */
 suspend fun AsyncDatabaseClient.TransactionContext.failActiveWorkItemAttempts(workItemId: Long) {
   executeUpdate(

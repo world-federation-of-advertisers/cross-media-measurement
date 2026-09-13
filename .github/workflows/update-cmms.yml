@@ -83,7 +83,7 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
-  terraform:
+  terraform-quiesced:
     uses: ./.github/workflows/terraform-cmms-v2.yml
     needs: [publish-images]
     secrets: inherit
@@ -94,10 +94,11 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      tee-consumers-enabled: false
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: [publish-images, terraform]
+    needs: [publish-images, terraform-quiesced]
     secrets: inherit
     permissions:
       contents: read
@@ -121,7 +122,7 @@ jobs:
 
   update-secure-computation:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [ publish-images, terraform, update-kingdom]
+    needs: [publish-images, terraform-quiesced, update-kingdom]
     secrets: inherit
     permissions:
       contents: read
@@ -130,6 +131,19 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+
+  terraform:
+    uses: ./.github/workflows/terraform-cmms-v2.yml
+    needs: [publish-images, update-secure-computation]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      tee-consumers-enabled: true
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml

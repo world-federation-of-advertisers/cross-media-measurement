@@ -1166,108 +1166,58 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
 
 #### Rolling out durable WorkItem publication
 
-The `WorkItemPublications` migration does not backfill `QUEUED` WorkItems created by an older
-Secure Computation API binary. A mixed-version rollout can therefore leave a WorkItem without the
-outbox row that the new publication runner needs. Use the following controlled rollout for every
-queue. It reuses the existing WorkItems RPCs, queues, Pub/Sub topics, subscriptions, and dead-letter
-queues; no version-suffixed RPC or parallel queue infrastructure is required.
+Use a controlled shutdown for the upgrade: stop both Secure Computation API deployments,
+DataWatcher, RequisitionFetcher, and every WorkItem TEE consumer (ResultsFulfiller,
+SubpoolAssigner, VidRankBuilder, and VidLabeler). Allow in-flight Cloud Function invocations to
+finish before continuing. Unclaimed Pub/Sub messages may remain queued; do not drain the
+subscriptions or take a WorkItem snapshot.
 
-1. Pause every WorkItem producer and wait for active producer invocations to finish. This includes
-   DataWatcher, RequisitionFetcher, SubpoolAssigner, VidRankBuilder, VidLabeling dispatchers and
-   monitors, and manual creation or retry tools. Drain or explicitly account for every outstanding
-   legacy DataWatcher event before continuing.
-2. Drain each affected subscription and wait for every active attempt to finish before replacing
-   workers. An unclaimed Pub/Sub backlog is safe, but terminating a worker after it created an
-   `ACTIVE` attempt strands that WorkItem until explicit recovery. Verify that the active-attempt
-   count is zero:
+Run the `Update CMMS` release workflow while those components are stopped. The workflow applies
+Terraform once with every WorkItem TEE managed instance group held at zero, rolls both
+`secure-computation-internal-api-server` and `secure-computation-public-api-server` completely, and
+then applies Terraform again to enable the new TEE workers. This ordering prevents a lease-capable
+worker from reaching an API replica that does not implement lease renewal. It also ensures that no
+old TEE remains active when a new worker replaces an unleased attempt. For TEE consumers not
+managed by this workflow, keep them stopped until both API deployments have completed.
 
-   ```bash
-   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
-     --instance=SPANNER_INSTANCE \
-     --project=PROJECT_ID \
-     --sql='SELECT COUNT(*) AS ActiveAttemptCount
-       FROM WorkItemAttempts
-       WHERE State = 1'
-   ```
+After the workflow succeeds, resume DataWatcher and RequisitionFetcher if their triggers were
+paused outside Terraform. The upgraded system recovers the stopped backlog automatically:
 
-   `WorkItemAttempt.State.ACTIVE` is stored as `1`. Do not replace workers until the query returns
-   zero. If an environment cannot drain, capture every active attempt and follow the documented
-   exact-attempt recovery procedure after terminating its worker.
-3. Apply the additive Secure Computation Spanner migrations. With all producers paused, capture one
-   immutable snapshot of pre-migration `QUEUED` WorkItems that have no pending publication and no
-   active attempt:
+* The publication runner finds every `QUEUED` WorkItem whose generation has not been scheduled,
+  creates a missing outbox row, and records the scheduled generation in the same transaction.
+  This repairs WorkItems created by an older API without requiring a snapshot or `RetryWorkItem`.
+* A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
+  that legacy attempt and creates its new leased attempt at the same WorkItem generation. This is
+  safe because the controlled shutdown guarantees that the old worker is no longer running.
+* DataWatcher derives a stable WorkItem ID from the watched-path identifier, object URI, and GCS
+  generation. It uses `EnsureWorkItem`, validates an existing item when falling back to an older
+  API, and returns transient dispatch failures to Eventarc so the same event is retried.
+* Existing generation-less WorkItems and queue messages are treated as generation 1. Generation
+  checks prevent stale ordinary and dead-letter deliveries from changing replacement executions.
 
-   ```bash
-   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
-     --instance=SPANNER_INSTANCE \
-     --project=PROJECT_ID \
-     --format='value(WorkItemResourceId)' \
-     --sql='SELECT WorkItemResourceId
-       FROM WorkItems AS W
-       WHERE W.State = 1
-         AND NOT EXISTS (
-           SELECT 1 FROM WorkItemPublications AS P
-           WHERE P.WorkItemId = W.WorkItemId)
-         AND NOT EXISTS (
-           SELECT 1 FROM WorkItemAttempts AS A
-           WHERE A.WorkItemId = W.WorkItemId AND A.State = 1)' \
-     > missing-work-item-publications.txt
-   ```
-
-   `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty file
-   means no repair is needed. Keep this file unchanged for the remainder of the rollout.
-4. Roll out both Secure Computation API deployments and verify that no old replica remains. The
-   outbox publisher, generation enforcement, and existing DLQ listeners are hosted by the internal
-   deployment:
-
-   ```bash
-   kubectl rollout status deployment/secure-computation-internal-api-server
-   kubectl rollout status deployment/secure-computation-public-api-server
-   kubectl get deployments \
-     secure-computation-internal-api-server secure-computation-public-api-server \
-     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[*].image
-   ```
-
-   This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
-   as generation 1. Retried terminal or abandoned WorkItems advance to generation 2 or later.
-   Generation checks prevent stale ordinary and dead-letter deliveries from changing a replacement
-   execution.
-5. Upgrade every queue consumer before permitting a generation-advancing retry. This includes
-   ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler TEE applications. If a queue's
-   consumers are not all generation-aware, do not call `RetryWorkItem` for that queue.
-6. Do not invoke `RetryWorkItem` until steps 4 and 5 are complete for the target queue. After that
-   point, repair each ID in the immutable snapshot exactly once:
-
-   ```bash
-   grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
-     -authority SECURE_COMPUTATION_CERT_HOST \
-     -d '{"name":"workItems/WORK_ITEM_ID"}' \
-     SECURE_COMPUTATION_API_TARGET \
-     wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
-   ```
-
-   Do not rerun the snapshot predicate: a successfully published WorkItem can legitimately remain
-   `QUEUED` until a worker creates its attempt. Verify that every repaired ID subsequently leaves
-   `QUEUED`, and investigate any that does not.
-7. Resume WorkItem producers only after the API and consumer prerequisites above are complete. The
-   stacked direct-dispatch rollout documents when to deploy and activate RequisitionFetcher.
-
-The outbox behavior itself is unchanged by this rollout procedure: WorkItem creation writes the
-pending publication atomically, the publisher deletes that row only after Pub/Sub acknowledges the
-message, and `EnsureWorkItem` returns an existing matching WorkItem without republishing it.
-`RetryWorkItem` remains the explicit repair mechanism for a `QUEUED` WorkItem. New workers renew an
-attempt lease while work is active, and the internal API automatically fails and republishes an
-attempt whose lease expires. This PR does not add or expand ResultsFulfiller-specific dead-letter
-behavior; the existing queue and EDPA-aware DLQ consumer are retained.
+New WorkItem creation, `EnsureWorkItem`, and `RetryWorkItem` update the publication-generation
+marker and outbox transactionally. The publisher still deletes the outbox row only after Pub/Sub
+acknowledges the message. This reuses the existing WorkItems RPCs, queue, topic, subscription, DLQ,
+and publish-ack behavior; it introduces no version-suffixed RPC or parallel queue infrastructure.
+The Secure Computation API remains workload-agnostic: it stores and republishes opaque WorkItem
+parameters and does not call the Requisition Metadata or Impression Metadata APIs. Existing
+EDPA-aware DLQ behavior is not expanded for ResultsFulfiller.
 
 #### Recovering after correcting a queue mapping
 
 When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
 it cannot block healthy work. After correcting the Secure Computation API queue mapping, wait for
 the publication deferral interval to expire (one minute by default). If an affected WorkItem does
-not resume automatically, call `RetryWorkItem` for that WorkItem using the command in step 6 above.
-The targeted attempt bypasses the normal background priority order while still respecting an
-active publication lease.
+not resume automatically, call `RetryWorkItem` for that WorkItem. The targeted attempt bypasses
+priority order while still respecting an active publication lease:
+
+```bash
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority SECURE_COMPUTATION_CERT_HOST \
+  -d '{"name":"workItems/WORK_ITEM_ID"}' \
+  SECURE_COMPUTATION_API_TARGET \
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
+```
 
 #### Recovering an abandoned running WorkItem
 
@@ -1277,55 +1227,19 @@ then atomically fails that exact attempt, advances the WorkItem generation, retu
 `QUEUED`, and creates a new outbox publication. A late heartbeat or completion from the abandoned
 worker is rejected because its attempt is no longer active.
 
-Attempts created by an old worker have no lease and cannot be recovered automatically. If one of
-those attempts remains after rollout, or if automatic recovery must be performed manually, first
-list the WorkItem's attempts and identify the exact active attempt:
+An attempt created by an old worker has no lease. During the controlled upgrade, the stopped
+worker's Pub/Sub delivery is redelivered to a new lease-capable worker. Attempt creation then fails
+the exact unleased attempt and creates the replacement leased attempt in one Spanner transaction,
+without advancing the WorkItem generation. A leased active attempt is never replaced by a duplicate
+delivery; the duplicate is acknowledged and lease expiry remains the authoritative abandonment
+signal.
 
-```bash
-grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
-  -authority SECURE_COMPUTATION_CERT_HOST \
-  -d '{"parent":"workItems/WORK_ITEM_ID","pageSize":100}' \
-  SECURE_COMPUTATION_API_TARGET \
-  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/ListWorkItemAttempts \
-  | jq '.workItemAttempts[]? | select(.state == "ACTIVE")'
-```
+#### Monitoring active attempts
 
-If the response has `nextPageToken`, repeat the request with that value as `pageToken`. A current
-attempt includes `leaseExpirationTime`; an attempt created by an old worker does not. Confirm by
-external evidence that the worker for an unleased attempt has stopped. Do not fail an unleased
-attempt merely because it has exceeded a generic age threshold: legitimate work can be
-long-running.
-
-Fail only the exact attempt that was inspected:
-
-```bash
-grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
-  -authority SECURE_COMPUTATION_CERT_HOST \
-  -d '{"name":"workItems/WORK_ITEM_ID/workItemAttempts/ATTEMPT_ID","errorMessage":"Operator confirmed that the original worker stopped"}' \
-  SECURE_COMPUTATION_API_TARGET \
-  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/FailWorkItemAttempt
-```
-
-Calling `FailWorkItemAttempt` again for that same already-`FAILED` attempt is idempotent. Finally,
-call `RetryWorkItem` using the command in step 6. It returns a `RUNNING` WorkItem to `QUEUED` only
-when no active attempt remains and publishes it again. A stale or repeated `RetryWorkItem` call
-cannot fail a replacement worker's attempt. Stale dead-letter deliveries are fenced by the WorkItem
-generation and are acknowledged without changing the replacement generation. A same-generation
-redelivery for an already-`FAILED` WorkItem repeats the dead-letter listener's best-effort EDPA
-failure propagation, which repairs an interruption after the WorkItem transaction committed. For
-non-ResultsFulfiller applications, also wait until that propagation has finished before retrying;
-those external resource updates are not part of the Secure Computation transaction.
-
-A duplicate delivery for the current generation is acknowledged while a legitimate attempt remains
-active. This prevents repeated duplicate delivery from reaching the dead-letter queue and failing
-healthy work. The attempt lease, rather than queue redelivery, detects an abandoned new-worker
-attempt. The exact-attempt procedure remains necessary for legacy attempts without a lease.
-
-#### Monitoring old active attempts
-
-Alert on expired leased attempts and on unleased `ACTIVE` attempts left by old workers. The internal
-API normally recovers an expired lease within its polling interval, so either result remaining for
-more than a short grace period needs investigation:
+Alert on expired leased attempts and on unleased `ACTIVE` attempts. The internal API normally
+recovers an expired lease within its polling interval, and a new worker normally replaces an
+unleased attempt on redelivery after the controlled shutdown. Either result remaining for more than
+a short grace period needs investigation:
 
 ```bash
 gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
@@ -1345,9 +1259,8 @@ gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
 
 `WorkItemAttempt.State.ACTIVE` is stored as `1`. Workers retry transient lease, completion, and
 failure RPC errors with bounded backoff. The reaper resolves a current expired lease
-transactionally with a concurrent renewal or completion, so operators should normally wait for
-automatic recovery. Use the exact-attempt recovery procedure only for an unleased legacy attempt,
-or after investigating why the reaper did not recover an expired current attempt.
+transactionally with a concurrent renewal or completion. Investigate an unleased attempt that does
+not receive a replacement delivery, or an expired current attempt that the reaper does not recover.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

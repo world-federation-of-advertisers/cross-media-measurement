@@ -31,6 +31,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkIte
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemPublication
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.reconcileWorkItemPublications
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItemPublication
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
@@ -46,6 +47,8 @@ class WorkItemPublicationRunner(
   private val initialRetryDelay: Duration = DEFAULT_INITIAL_RETRY_DELAY,
   private val maxRetryDelay: Duration = DEFAULT_MAX_RETRY_DELAY,
 ) {
+  private var reconciliationComplete = false
+
   init {
     require(pollInterval > Duration.ZERO) { "pollInterval must be positive" }
     require(leaseDuration > Duration.ZERO) { "leaseDuration must be positive" }
@@ -77,6 +80,7 @@ class WorkItemPublicationRunner(
   /** Publishes up to [limit] pending outbox records. */
   suspend fun publishPendingWorkItems(limit: Int = DEFAULT_BATCH_SIZE): Int {
     require(limit > 0) { "limit must be positive" }
+    reconcileLegacyWorkItems(limit)
     var publishedCount = 0
     repeat(limit) {
       val claim =
@@ -123,6 +127,24 @@ class WorkItemPublicationRunner(
       }
       delay(pollInterval.toMillis())
     }
+  }
+
+  private suspend fun reconcileLegacyWorkItems(limit: Int) {
+    if (reconciliationComplete) {
+      return
+    }
+    val reconciled =
+      try {
+        databaseClient.readWriteTransaction().run { transaction ->
+          transaction.reconcileWorkItemPublications(limit)
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        logger.log(Level.WARNING, "Unable to reconcile legacy WorkItem publications", e)
+        return
+      }
+    reconciliationComplete = reconciled < limit
   }
 
   private suspend fun claimWorkItemPublication(
