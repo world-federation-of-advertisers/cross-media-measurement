@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.ClassRule
@@ -84,6 +85,60 @@ class DatabaseBasicReportTraceResolverTest {
           measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID },
       )
     }
+  }
+
+  @Test
+  fun `resolve returns not-created context when BasicReport has no Report linkage`() =
+    runBlocking<Unit> {
+      spannerClient.readWriteTransaction().run { transaction ->
+        transaction.insertBasicReport(
+          basicReportId = SPANNER_BASIC_REPORT_ID,
+          measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
+          basicReport =
+            basicReport {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
+            },
+          state = BasicReport.State.CREATED,
+          requestId = null,
+        )
+      }
+
+      val context =
+        DatabaseBasicReportTraceResolver(spannerClient, postgresClient)
+          .resolve(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID))
+
+      assertThat(context.reportName).isEqualTo("(not created)")
+      assertThat(context.basicReportState).isEqualTo(BasicReport.State.CREATED.name)
+      assertThat(context.reportResolvedByRequestId).isFalse()
+      assertThat(context.metricNames).isEmpty()
+      assertThat(context.measurementNames).isEmpty()
+    }
+
+  @Test
+  fun `resolve fails when associated Report is missing`() = runBlocking<Unit> {
+    spannerClient.readWriteTransaction().run { transaction ->
+      transaction.insertBasicReport(
+        basicReportId = SPANNER_BASIC_REPORT_ID,
+        measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
+        basicReport =
+          basicReport {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
+            externalReportId = "missing-report"
+          },
+        state = BasicReport.State.REPORT_CREATED,
+        requestId = null,
+      )
+    }
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        DatabaseBasicReportTraceResolver(spannerClient, postgresClient)
+          .resolve(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID))
+      }
+
+    assertThat(exception).hasMessageThat().contains("missing-report")
   }
 
   @Test

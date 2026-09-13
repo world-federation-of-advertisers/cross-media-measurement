@@ -16,6 +16,7 @@ package org.wfanet.measurement.securecomputation.teesdk
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.Empty
 import com.google.protobuf.Parser
 import com.google.protobuf.timestamp
 import com.google.rpc.ErrorInfo
@@ -151,6 +152,148 @@ class BaseTeeApplicationTest {
       emulatorClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
     }
     openTelemetry.close()
+  }
+
+  private fun assertFailedProcessingSpan(
+    workItemName: String,
+    expectedErrorType: String,
+    expectedErrorCode: String?,
+  ) {
+    val span =
+      spanExporter.finishedSpanItems.single {
+        it.name == "secure_computation.work_item.process"
+      }
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("work_item_processing")
+    assertThat(span.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isEqualTo(workItemName)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo(expectedErrorType)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo(expectedErrorCode)
+  }
+
+  @Test
+  fun `nacks empty WorkItem name and traces validation failure`() = runBlocking {
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        WorkItemsCoroutineStub(grpcTestServer.channel),
+        WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem {},
+        consumer = consumer,
+        ackId = "empty-name-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertFailedProcessingSpan(
+      workItemName = "",
+      expectedErrorType = "IllegalArgumentException",
+      expectedErrorCode = null,
+    )
+  }
+
+  @Test
+  fun `acks WorkItem not found and traces terminal failure`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw makeWorkItemNotFoundException() }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+    val workItem = createWorkItem(createTestWork())
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = consumer,
+        ackId = "not-found-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    assertFailedProcessingSpan(
+      workItemName = workItem.name,
+      expectedErrorType = "ControlPlaneApiException",
+      expectedErrorCode = "grpc.NOT_FOUND",
+    )
+  }
+
+  @Test
+  fun `acks malformed WorkItem parameters after tracing parse failure`() = runBlocking {
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub {
+      onBlocking { failWorkItem(any()) } doReturn workItem { name = "workItems/workItem" }
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        WorkItemsCoroutineStub(grpcTestServer.channel),
+        WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+    val workItem = workItem {
+      name = "workItems/workItem"
+      generation = 1L
+      workItemParams = Any.pack(Empty.getDefaultInstance())
+    }
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = consumer,
+        ackId = "malformed-params-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    assertFailedProcessingSpan(
+      workItemName = workItem.name,
+      expectedErrorType = "InvalidProtocolBufferException",
+      expectedErrorCode = null,
+    )
   }
 
   @Test
@@ -662,6 +805,11 @@ class BaseTeeApplicationTest {
     assertThat(consumer.ackCount).isEqualTo(0)
     assertThat(consumer.nackCount).isEqualTo(1)
     job.cancelAndJoin()
+    assertFailedProcessingSpan(
+      workItemName = "workItems/workItem",
+      expectedErrorType = "ControlPlaneApiException",
+      expectedErrorCode = "grpc.PERMISSION_DENIED",
+    )
   }
 
   @Test
@@ -995,6 +1143,11 @@ class BaseTeeApplicationTest {
 
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
+    assertFailedProcessingSpan(
+      workItemName = workItem.name,
+      expectedErrorType = "ControlPlaneApiException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
   }
 
   @Test
@@ -1199,6 +1352,22 @@ class BaseTeeApplicationTest {
         .addDetails(Any.pack(errorInfo))
         .build()
 
+    return StatusProto.toStatusException(status)
+  }
+
+  private fun makeWorkItemNotFoundException(): StatusException {
+    val workItemName = "workItems/workItem"
+    val errorInfo =
+      ErrorInfo.newBuilder()
+        .setReason(Errors.Reason.WORK_ITEM_NOT_FOUND.name)
+        .putMetadata(Errors.Metadata.WORK_ITEM.key, workItemName)
+        .build()
+    val status =
+      com.google.rpc.Status.newBuilder()
+        .setCode(io.grpc.Status.Code.NOT_FOUND.value())
+        .setMessage("WorkItem not found")
+        .addDetails(Any.pack(errorInfo))
+        .build()
     return StatusProto.toStatusException(status)
   }
 

@@ -221,6 +221,35 @@ class BasicReportsReportsJobTest {
       )
   }
 
+  private fun assertReportAssemblySpan(
+    basicReport: BasicReport,
+    expectedOutcome: String,
+    expectedErrorType: String?,
+    expectedErrorCode: String?,
+  ) {
+    val span =
+      spanExporter.finishedSpanItems.single {
+        it.name == "reporting.basic_report.assemble_results"
+      }
+    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo(
+        BasicReportKey(
+            basicReport.cmmsMeasurementConsumerId,
+            basicReport.externalBasicReportId,
+          )
+          .toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo(
+        ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("report_result_assembly")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo(expectedOutcome)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isEqualTo(expectedErrorType)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo(expectedErrorCode)
+  }
+
   /** Asserts that the first page of BasicReports in state REPORT_CREATED was requested. */
   private fun assertReportCreatedPageRequested() {
     val requests: List<ListBasicReportsRequest> =
@@ -2467,6 +2496,12 @@ class BasicReportsReportsJobTest {
   @Test
   fun `execute sets basic report to FAILED when report for basic report is FAILED`(): Unit =
     runBlocking {
+      val basicReport =
+        INTERNAL_BASIC_REPORT.copy {
+          externalBasicReportId = "report-failed-basic-report"
+          state = BasicReport.State.REPORT_CREATED
+        }
+      stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
       whenever(reportsMock.getReport(any())).thenReturn(REPORT.copy { state = Report.State.FAILED })
 
       job.execute()
@@ -2486,10 +2521,160 @@ class BasicReportsReportsJobTest {
         .isEqualTo(
           failBasicReportRequest {
             cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalBasicReportId = INTERNAL_BASIC_REPORT.externalBasicReportId
+            externalBasicReportId = basicReport.externalBasicReportId
           }
         )
+      assertReportAssemblySpan(
+        basicReport = basicReport,
+        expectedOutcome = "report_failed",
+        expectedErrorType = null,
+        expectedErrorCode = null,
+      )
     }
+
+  @Test
+  fun `execute traces invalid BasicReport result transformation`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "invalid-result-transformation"
+        state = BasicReport.State.REPORT_CREATED
+        details =
+          INTERNAL_BASIC_REPORT.details.copy {
+            effectiveImpressionQualificationFilters.clear()
+          }
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(
+        REPORT.copy {
+          metricCalculationResults +=
+            ReportKt.metricCalculationResult {
+              metricCalculationSpec =
+                MetricCalculationSpecKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    NON_CUMULATIVE_METRIC_CALCULATION_SPEC.externalMetricCalculationSpecId,
+                  )
+                  .toName()
+              reportingSet =
+                ReportingSetKey(
+                    CMMS_MEASUREMENT_CONSUMER_ID,
+                    COMPOSITE_REPORTING_SET.externalReportingSetId,
+                  )
+                  .toName()
+              resultAttributes +=
+                ReportKt.MetricCalculationResultKt.resultAttribute {
+                  filter = "banner_ad != null && banner_ad.viewable == true"
+                  metricSpec = metricSpec { reach = MetricSpecKt.reachParams {} }
+                  timeInterval = interval {
+                    startTime = timestamp { seconds = 1736150400 }
+                    endTime = timestamp { seconds = 1736755200 }
+                  }
+                  metricResult = metricResult { reach = MetricResultKt.reachResult { value = 1L } }
+                }
+            }
+        }
+      )
+
+    job.execute()
+
+    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::failBasicReport)
+      .isEqualTo(
+        failBasicReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalBasicReportId = basicReport.externalBasicReportId
+        }
+      )
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "InvalidBasicReportException",
+      expectedErrorCode = null,
+    )
+  }
+
+  @Test
+  fun `execute traces GetReport failure`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "get-report-failure"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportsMock.getReport(any())).thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
+  }
+
+  @Test
+  fun `execute traces CreateReportResult failure`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "create-result-failure"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportResultsMock.createReportResult(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
+  }
+
+  @Test
+  fun `execute traces BatchCreateReportingSetResults failure`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "batch-create-results-failure"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportResultsMock.batchCreateReportingSetResults(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
+  }
+
+  @Test
+  fun `execute traces failure writing report-failed BasicReport state`() = runBlocking {
+    val basicReport =
+      INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "failure-writeback"
+        state = BasicReport.State.REPORT_CREATED
+      }
+    stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
+    whenever(reportsMock.getReport(any())).thenReturn(REPORT.copy { state = Report.State.FAILED })
+    whenever(basicReportsMock.failBasicReport(any()))
+      .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+
+    job.execute()
+
+    assertReportAssemblySpan(
+      basicReport = basicReport,
+      expectedOutcome = "failed",
+      expectedErrorType = "StatusException",
+      expectedErrorCode = "grpc.FAILED_PRECONDITION",
+    )
+  }
 
   @Test
   fun `execute gets report for basic report when attempt fails for a previous basic report`():

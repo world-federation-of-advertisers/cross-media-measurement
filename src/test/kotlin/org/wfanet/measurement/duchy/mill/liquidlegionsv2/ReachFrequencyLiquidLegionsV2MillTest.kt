@@ -30,6 +30,11 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -38,6 +43,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -54,6 +60,7 @@ import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -63,6 +70,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -528,6 +536,8 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
   private lateinit var aggregatorMill: ReachFrequencyLiquidLegionsV2Mill
   private lateinit var nonAggregatorMill: ReachFrequencyLiquidLegionsV2Mill
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   private fun buildAdvanceComputationRequests(
     globalComputationId: String,
@@ -554,6 +564,17 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
   @Before
   fun initializeMill() = runBlocking {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     DuchyInfo.setForTest(setOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME, DUCHY_THREE_NAME))
     val csX509Certificate = readCertificate(CONSENT_SIGNALING_CERT_DER)
     val csSigningKey =
@@ -608,6 +629,13 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       )
   }
 
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+  }
+
   @Test
   fun `exceeding max attempt should fail the computation`() = runBlocking {
     // Stage 0. preparing the database and set up mock
@@ -628,10 +656,15 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           }
         }
         .build()
+    val measurementName = "measurementConsumers/123/measurements/$GLOBAL_ID"
+    val tracedComputationDetails =
+      initialComputationDetails.copy {
+        kingdomComputation = kingdomComputation.copy { measurement = measurementName }
+      }
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails = initialComputationDetails,
+      computationDetails = tracedComputationDetails,
       requisitions = REQUISITIONS,
     )
     // Simulate multiple attempts.
@@ -655,12 +688,25 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           computationStage = COMPLETE.toProtocolStage()
           version = 4
           computationDetails =
-            initialComputationDetails.copy { endingState = CompletedReason.FAILED }
+            tracedComputationDetails.copy { endingState = CompletedReason.FAILED }
           requisitions += REQUISITIONS
         }
       )
 
     assertThat(fakeComputationDb.claimedComputations).isEmpty()
+    val failureSpan =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("duchy_stage_attempt")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("AttemptsExhausted")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(measurementName)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(ComputationKey(GLOBAL_ID).toName())
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID))
+      .isEqualTo(DUCHY_ONE_NAME)
   }
 
   @Test

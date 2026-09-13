@@ -1564,6 +1564,38 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `refusal RPC failure is traced with Requisition identity`() = runBlocking {
+    val bad =
+      TestRequisitionData.REQUISITION.copy {
+        measurementSpec = signedMessage {
+          message = Any.pack(StringValue.newBuilder().setValue("x").build())
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += bad })
+    whenever(requisitionsServiceMock.refuseRequisition(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    val refusalSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.refuse_requisition"
+      }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(bad.name)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_refusal")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+      .isEqualTo(ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusException")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
+  }
+
+  @Test
   fun `mismatched event group selectors refuses all requisitions for the report`() = runBlocking {
     val secondEventGroupName = "${TestRequisitionData.EDP_NAME}/eventGroups/name2"
     eventGroupsServiceMock.stub {

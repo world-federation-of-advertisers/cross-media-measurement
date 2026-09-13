@@ -2314,7 +2314,7 @@ class ResultsFulfillerTest {
     }
 
   @Test
-  fun `runWork refuses TrusTee requisition and updates metadata store when multi-party noise validation fails`() =
+  fun `runWork traces failed Kingdom refusal for TrusTee requisition`() =
     runBlocking {
       val impressionsTmpPath = Files.createTempDirectory(null).toFile()
       val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -2351,7 +2351,7 @@ class ResultsFulfillerTest {
       whenever(requisitionsServiceMock.getRequisition(any()))
         .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
       whenever(requisitionsServiceMock.refuseRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.REFUSED })
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
       whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
         .thenReturn(requisitionMetadata {})
 
@@ -2426,6 +2426,21 @@ class ResultsFulfillerTest {
       }
       verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
       verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+      val refusalSpan =
+        collectSpans().single {
+          it.name == "edp_aggregator.results_fulfiller.refuse_requisition"
+        }
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("requisition_refusal")
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("StatusException")
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
+        .isEqualTo("grpc.UNAVAILABLE")
     }
 
   @Test

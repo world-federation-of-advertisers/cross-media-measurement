@@ -3825,6 +3825,182 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main retains log evidence when primary Cloud Trace query fails`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            listOf(
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW,
+                service = "reporting",
+                severity = "ERROR",
+                trace = null,
+                message =
+                  "xmm.report.name=$reportName " +
+                    "xmm.lifecycle.stage=report_result_assembly xmm.outcome=failed",
+              )
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> error("trace denied") } },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString())
+      .contains("Cloud Trace query failed for project test: IllegalStateException")
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+    assertThat(output.toString()).contains("xmm.outcome=failed")
+    assertThat(output.toString()).contains("| test | Cloud Trace | FAILED |")
+  }
+
+  @Test
+  fun `main reports Cloud Trace ID expansion failure without discarding primary span`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, traceIds, _, _, _ ->
+            when {
+              reportName in correlationValues -> listOf(traceSpan("primary-span", NOW))
+              "trace-1" in traceIds -> error("trace ID denied")
+              else -> emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString())
+      .contains("Cloud Trace ID lookup failed for project test: IllegalStateException")
+    assertThat(output.toString()).contains("SPAN [test/service] primary-span")
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `main reports Cloud Trace fallback query failure`() {
+    val output = StringWriter()
+    val context = reportTraceContext()
+    val basicReportName = checkNotNull(context.basicReportName)
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
+            if (basicReportName in correlationValues) {
+              emptyList()
+            } else {
+              error("fallback denied")
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { context },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$basicReportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString())
+      .contains("Cloud Trace fallback query failed for project test: IllegalStateException")
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `main retains healthy project spans when another Cloud Trace project fails`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { project, _, _, _, _, _ ->
+            if (project == "broken") {
+              error("trace unavailable")
+            }
+            listOf(traceSpan("healthy-span", NOW).copy(sourceProject = project))
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--observability-project=broken",
+          "--observability-project=healthy",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString())
+      .contains("Cloud Trace query failed for project broken: IllegalStateException")
+    assertThat(output.toString()).contains("SPAN [healthy/service] healthy-span")
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
   fun `main permits explicitly allowed partial output`() {
     val output = StringWriter()
     val dependencies =

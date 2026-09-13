@@ -8006,8 +8006,8 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `listMetrics throws Exception when internal batchSetMeasurementFailures throws Exception`() =
-    runBlocking {
+  fun `listMetrics throws Exception when internal batchSetMeasurementFailures throws Exception`():
+    Unit = runBlocking {
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
       } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
@@ -8036,6 +8036,37 @@ class MetricsServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+      val measurementFailures =
+        spanExporter.finishedSpanItems.filter {
+          it.name == "reporting.kingdom_measurement.sync_failed"
+        }
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
+        )
+        .containsExactly(PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name)
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet()
+        )
+        .containsExactly("failed")
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet()
+        )
+        .containsExactly("StatusRuntimeException")
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_CODE) }.toSet()
+        )
+        .containsExactly("grpc.INTERNAL")
+
+      val metricFailures =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+        .containsExactly(PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name)
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet())
+        .containsExactly("failed")
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet())
+        .containsExactly("StatusRuntimeException")
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_CODE) }.toSet())
+        .containsExactly("grpc.INTERNAL")
     }
 
   @Test
