@@ -100,6 +100,7 @@ abstract class WorkItemAttemptsServiceTest {
       .ignoringFields(
         WorkItemAttempt.CREATE_TIME_FIELD_NUMBER,
         WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
+        WorkItemAttempt.LEASE_EXPIRATION_TIME_FIELD_NUMBER,
       )
       .isEqualTo(
         request.workItemAttempt.copy {

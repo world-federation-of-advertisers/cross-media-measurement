@@ -38,6 +38,10 @@ service WorkItemAttempts {
   rpc CompleteWorkItemAttempt(CompleteWorkItemAttemptRequest)
       returns (WorkItemAttempt);
 
+  // Extends the lease for an ACTIVE attempt.
+  rpc RenewWorkItemAttempt(RenewWorkItemAttemptRequest)
+      returns (WorkItemAttempt);
+
   // Sets an ACTIVE attempt to FAILED, or returns an already-FAILED attempt
   // unchanged.
   rpc FailWorkItemAttempt(FailWorkItemAttemptRequest) returns (WorkItemAttempt);
@@ -85,6 +89,11 @@ message ListWorkItemAttemptsPageToken {
 }
 
 message CompleteWorkItemAttemptRequest {
+  string work_item_resource_id = 1;
+  string work_item_attempt_resource_id = 2;
+}
+
+message RenewWorkItemAttemptRequest {
   string work_item_resource_id = 1;
   string work_item_attempt_resource_id = 2;
 }

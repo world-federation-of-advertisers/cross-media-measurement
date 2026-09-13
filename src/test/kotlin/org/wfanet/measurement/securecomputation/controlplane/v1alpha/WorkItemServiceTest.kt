@@ -54,6 +54,8 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest as internalRetryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException as InternalQueueNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException as InternalRequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException as InternalWorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
@@ -161,6 +163,56 @@ class WorkItemServiceTest {
     val exception = assertFailsWith<StatusException> { service.ensureWorkItem(request) }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
+  }
+
+  @Test
+  fun `ensureWorkItem maps missing queue from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        InternalQueueNotFoundException("queues/missing")
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queues/missing" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.QUEUE_NOT_FOUND.name
+          metadata[Errors.Metadata.QUEUE.key] = "queues/missing"
+        }
+      )
+  }
+
+  @Test
+  fun `ensureWorkItem maps required field error from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        InternalRequiredFieldNotSetException("work_item_params")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queues/configured" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_params"
+        }
+      )
   }
 
   @Test

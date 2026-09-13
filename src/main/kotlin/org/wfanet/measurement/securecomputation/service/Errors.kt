@@ -36,6 +36,7 @@ object Errors {
     WORK_ITEM_ALREADY_EXISTS,
     WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
     WORK_ITEM_GENERATION_MISMATCH,
+    QUEUE_NOT_FOUND,
     INVALID_FIELD_VALUE,
   }
 
@@ -46,6 +47,7 @@ object Errors {
     WORK_ITEM_STATE("workItemState"),
     EXPECTED_WORK_ITEM_GENERATION("expectedWorkItemGeneration"),
     ACTUAL_WORK_ITEM_GENERATION("actualWorkItemGeneration"),
+    QUEUE("queue"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -92,7 +94,40 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
     "Required field $fieldName not set",
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
-  )
+  ) {
+  companion object : Factory<RequiredFieldNotSetException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.REQUIRED_FIELD_NOT_SET
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RequiredFieldNotSetException {
+      return RequiredFieldNotSetException(
+        internalMetadata.getValue(InternalErrors.Metadata.FIELD_NAME),
+        cause,
+      )
+    }
+  }
+}
+
+class QueueNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(reason, "Queue $name not found", mapOf(Errors.Metadata.QUEUE to name), cause) {
+  companion object : Factory<QueueNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.QUEUE_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): QueueNotFoundException {
+      return QueueNotFoundException(
+        internalMetadata.getValue(InternalErrors.Metadata.QUEUE_RESOURCE_ID),
+        cause,
+      )
+    }
+  }
+}
 
 class InvalidFieldValueException(
   fieldName: String,

@@ -30,7 +30,7 @@ service WorkItemAttempts {
   // Creates a `WorkItemAttempt`.
   //
   // Creates a new `WorkItemAttempt` with state `ACTIVE`.
-  // Set the state in the parent `WorkItem` as `CLAIMED`.
+  // Sets the state of the parent `WorkItem` to `RUNNING`.
   // Any existing `WorkItemAttempt` for the same `WorkItem` will fail.
   rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
@@ -53,6 +53,12 @@ service WorkItemAttempts {
   //
   // Update the State to `SUCCEEDED`
   rpc CompleteWorkItemAttempt(CompleteWorkItemAttemptRequest)
+      returns (WorkItemAttempt) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Renews the lease for an active `WorkItemAttempt`.
+  rpc RenewWorkItemAttempt(RenewWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) = "name";
   }
@@ -143,6 +149,16 @@ message ListWorkItemAttemptsResponse {
 // Request message for `CompleteWorkItemAttempt` method.
 message CompleteWorkItemAttemptRequest {
   // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "control-plane.secure-computation.halo-cmm.org/WorkItemAttempt"
+  ];
+}
+
+// Request message for `RenewWorkItemAttempt` method.
+message RenewWorkItemAttemptRequest {
+  // Resource name of the active `WorkItemAttempt`.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type =
