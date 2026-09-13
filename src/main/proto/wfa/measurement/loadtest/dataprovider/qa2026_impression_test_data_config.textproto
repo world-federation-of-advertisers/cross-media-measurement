@@ -1,0 +1,1018 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# GENERATED FILE - DO NOT EDIT.
+# Regenerate with:
+#   python3 src/main/python/wfa/measurement/loadtest/qa2026/generate_specs.py
+
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/impression_test_data_config.proto
+# proto-message: wfa.measurement.integration.k8s.testing.ImpressionTestDataConfig
+
+# QA 2026 dataset. Each segment is seeded on exactly the EDPs in its Venn
+# region, so selecting the whole menu realizes all 15 primitive regions.
+# Every event group carries an entity key: EventGroupSync filters its
+# existence check by entity type, so an event group without one is invisible
+# to that check and gets created again on every sync.
+
+population_spec_resource_path: "qa2026_population_spec.textproto"
+
+# e7only: edp7
+event_groups {
+  event_group_reference_id: "qa2026-e7only-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-e7only"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-e7only-edp7"
+    data_spec_resource_path: "qa2026_seg_e7only.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# metaonly: edpa_meta
+event_groups {
+  event_group_reference_id: "qa2026-metaonly-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-metaonly"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-metaonly-edpa_meta-1"
+    data_spec_resource_path: "qa2026_seg_metaonly.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-metaonly-edpa_meta-2"
+    data_spec_resource_path: "qa2026_seg_metaonly.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-metaonly-edpa_meta-3"
+    data_spec_resource_path: "qa2026_seg_metaonly.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# videoonly: edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-videoonly-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-videoonly"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-videoonly-edpa_video_pub-1"
+    data_spec_resource_path: "qa2026_seg_videoonly.textproto"
+  }
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-videoonly-edpa_video_pub-2"
+    data_spec_resource_path: "qa2026_seg_videoonly.textproto"
+  }
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-videoonly-edpa_video_pub-3"
+    data_spec_resource_path: "qa2026_seg_videoonly.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# retailonly: edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-retailonly-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-retailonly"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-retailonly-edpa_retail_pub"
+    data_spec_resource_path: "qa2026_seg_retailonly.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# e7-meta: edp7 + edpa_meta
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-e7-meta"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-e7-meta-edp7"
+    data_spec_resource_path: "qa2026_seg_e7_meta.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# e7-meta: edp7 + edpa_meta
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-e7-meta"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-e7-meta-edpa_meta"
+    data_spec_resource_path: "qa2026_seg_e7_meta.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# e7-video: edp7 + edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-video-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-e7-video"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-e7-video-edp7-1"
+    data_spec_resource_path: "qa2026_seg_e7_video.textproto"
+  }
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-e7-video-edp7-2"
+    data_spec_resource_path: "qa2026_seg_e7_video.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# e7-video: edp7 + edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-video-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-e7-video"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-e7-video-edpa_video_pub-1"
+    data_spec_resource_path: "qa2026_seg_e7_video.textproto"
+  }
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-e7-video-edpa_video_pub-2"
+    data_spec_resource_path: "qa2026_seg_e7_video.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# e7-retail: edp7 + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-retail-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-e7-retail"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-e7-retail-edp7"
+    data_spec_resource_path: "qa2026_seg_e7_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# e7-retail: edp7 + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-retail-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-e7-retail"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-e7-retail-edpa_retail_pub"
+    data_spec_resource_path: "qa2026_seg_e7_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# meta-video: edpa_meta + edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-meta-video-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-meta-video"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-meta-video-edpa_meta-1"
+    data_spec_resource_path: "qa2026_seg_meta_video.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-meta-video-edpa_meta-2"
+    data_spec_resource_path: "qa2026_seg_meta_video.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-meta-video-edpa_meta-3"
+    data_spec_resource_path: "qa2026_seg_meta_video.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# meta-video: edpa_meta + edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-meta-video-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-meta-video"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-meta-video-edpa_video_pub-1"
+    data_spec_resource_path: "qa2026_seg_meta_video.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-meta-video-edpa_video_pub-2"
+    data_spec_resource_path: "qa2026_seg_meta_video.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-meta-video-edpa_video_pub-3"
+    data_spec_resource_path: "qa2026_seg_meta_video.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# meta-retail: edpa_meta + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-meta-retail-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-meta-retail"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-meta-retail-edpa_meta"
+    data_spec_resource_path: "qa2026_seg_meta_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# meta-retail: edpa_meta + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-meta-retail-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-meta-retail"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-meta-retail-edpa_retail_pub"
+    data_spec_resource_path: "qa2026_seg_meta_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# video-retail: edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-video-retail-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-video-retail"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-video-retail-edpa_video_pub-1"
+    data_spec_resource_path: "qa2026_seg_video_retail.textproto"
+  }
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-video-retail-edpa_video_pub-2"
+    data_spec_resource_path: "qa2026_seg_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# video-retail: edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-video-retail-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-video-retail"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-video-retail-edpa_retail_pub-1"
+    data_spec_resource_path: "qa2026_seg_video_retail.textproto"
+  }
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-video-retail-edpa_retail_pub-2"
+    data_spec_resource_path: "qa2026_seg_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# e7-meta-video: edp7 + edpa_meta + edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-video-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-e7-meta-video"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-e7-meta-video-edp7"
+    data_spec_resource_path: "qa2026_seg_e7_meta_video.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# e7-meta-video: edp7 + edpa_meta + edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-video-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-e7-meta-video"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-e7-meta-video-edpa_meta"
+    data_spec_resource_path: "qa2026_seg_e7_meta_video.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# e7-meta-video: edp7 + edpa_meta + edpa_video_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-video-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-e7-meta-video"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-e7-meta-video-edpa_video_pub"
+    data_spec_resource_path: "qa2026_seg_e7_meta_video.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# e7-meta-retail: edp7 + edpa_meta + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-retail-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-e7-meta-retail"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-e7-meta-retail-edp7"
+    data_spec_resource_path: "qa2026_seg_e7_meta_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# e7-meta-retail: edp7 + edpa_meta + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-retail-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-e7-meta-retail"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-e7-meta-retail-edpa_meta"
+    data_spec_resource_path: "qa2026_seg_e7_meta_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# e7-meta-retail: edp7 + edpa_meta + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-meta-retail-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-e7-meta-retail"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-e7-meta-retail-edpa_retail_pub"
+    data_spec_resource_path: "qa2026_seg_e7_meta_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# e7-video-retail: edp7 + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-video-retail-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-e7-video-retail"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-e7-video-retail-edp7"
+    data_spec_resource_path: "qa2026_seg_e7_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# e7-video-retail: edp7 + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-video-retail-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-e7-video-retail"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-e7-video-retail-edpa_video_pub"
+    data_spec_resource_path: "qa2026_seg_e7_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# e7-video-retail: edp7 + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-e7-video-retail-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-e7-video-retail"
+  entity_key_specs {
+    entity_type: "creative-id"
+    entity_id: "qa2026-e7-video-retail-edpa_retail_pub"
+    data_spec_resource_path: "qa2026_seg_e7_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "homepage" }
+    }
+  }
+}
+
+# meta-video-retail: edpa_meta + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-meta-video-retail-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-meta-video-retail"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-meta-video-retail-edpa_meta"
+    data_spec_resource_path: "qa2026_seg_meta_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# meta-video-retail: edpa_meta + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-meta-video-retail-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-meta-video-retail"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-meta-video-retail-edpa_video_pub"
+    data_spec_resource_path: "qa2026_seg_meta_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# meta-video-retail: edpa_meta + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-meta-video-retail-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-meta-video-retail"
+  entity_key_specs {
+    entity_type: "campaign"
+    entity_id: "qa2026-meta-video-retail-edpa_retail_pub"
+    data_spec_resource_path: "qa2026_seg_meta_video_retail.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "spring-launch" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}
+
+# all4: edp7 + edpa_meta + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-all4-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-all4"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edp7-1"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edp7-2"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edp7-3"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# all4: edp7 + edpa_meta + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-all4-edpa_meta"
+  edp_name: "edpa_meta"
+  output_base_path: "edp/edpa_meta"
+  output_key: "qa2026-all4"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_meta-1"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_meta-2"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_meta-3"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# all4: edp7 + edpa_meta + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-all4-edpa_video_pub"
+  edp_name: "edpa_video_pub"
+  output_base_path: "edp/edpa_video_pub"
+  output_key: "qa2026-all4"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_video_pub-1"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_video_pub-2"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_video_pub-3"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# all4: edp7 + edpa_meta + edpa_video_pub + edpa_retail_pub
+event_groups {
+  event_group_reference_id: "qa2026-all4-edpa_retail_pub"
+  edp_name: "edpa_retail_pub"
+  output_base_path: "edp/edpa_retail_pub"
+  output_key: "qa2026-all4"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_retail_pub-1"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_retail_pub-2"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-all4-edpa_retail_pub-3"
+    data_spec_resource_path: "qa2026_seg_all4.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-a" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "always-on" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "instream" }
+    }
+  }
+}
+
+# noise: edp7
+event_groups {
+  event_group_reference_id: "qa2026-noise-edp7"
+  edp_name: "edp7"
+  output_base_path: "edp/edp7"
+  output_key: "qa2026-noise"
+  entity_key_specs {
+    entity_type: "ad_group"
+    entity_id: "qa2026-noise-edp7"
+    data_spec_resource_path: "qa2026_seg_noise.textproto"
+  }
+  entity_metadata {
+    fields {
+      key: "brand"
+      value { string_value: "brand-b" }
+    }
+    fields {
+      key: "campaign_name"
+      value { string_value: "summer-sale-promo" }
+    }
+    fields {
+      key: "placement"
+      value { string_value: "feed" }
+    }
+  }
+}

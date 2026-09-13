@@ -75,6 +75,10 @@ jobs:
           REQUISITION_FETCHER_ENDPOINT: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
           MODEL_LINE: ${{ vars.MODEL_LINE_NAME }}
+          REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
+          REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
+          ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
 
         run: |
           cat << EOF > ~/.bazelrc
@@ -86,6 +90,10 @@ jobs:
           build --define requisition_fetcher_endpoint=$REQUISITION_FETCHER_ENDPOINT
           build --define storage_bucket=$STORAGE_BUCKET
           build --define model_line=$MODEL_LINE
+          build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
+          build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
+          build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
+          build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
           test --test_output=streamed
           test --test_timeout=5400
           EOF
@@ -139,6 +147,14 @@ jobs:
           EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
           EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
           EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
+          # QA 2026 dataset. Unset disables all QA 2026 seeding, so an environment picks the
+          # dataset up only once its ModelLine has been provisioned. QA2026_EDPS is the
+          # comma-separated set of aggregator EDPs registered there, defaulting to edp7,edpa_meta.
+          # See docs/edpaggregator/qa-synthetic-data-shape.md.
+          QA2026_MODEL_LINE: ${{ vars.QA2026_MODEL_LINE }}
+          QA2026_EDPS: ${{ vars.QA2026_EDPS }}
+          # PDP that owns the QA 2026 Population.
+          PDP_NAME: ${{ vars.PDP_NAME }}
         run: |
           # Storage settings live in the committed per-env tfvars (single source of truth after
           # #4168/#4227); read them here so this workflow never drifts from what Terraform deployed.
@@ -170,6 +186,9 @@ jobs:
           --test_env=EDPA_META_AWS_ROLE_ARN \
           --test_env=EDPA_META_AWS_REGION \
           --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
+          --test_env=QA2026_MODEL_LINE \
+          --test_env=QA2026_EDPS \
+          --test_env=PDP_NAME \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
 
       - name: Upload Bazel testlogs

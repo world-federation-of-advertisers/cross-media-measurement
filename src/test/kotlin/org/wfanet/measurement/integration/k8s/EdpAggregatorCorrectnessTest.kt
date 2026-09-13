@@ -18,8 +18,11 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.crypto.tink.InsecureSecretKeyAccess
+import com.google.crypto.tink.TinkProtoKeysetFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
+import com.google.protobuf.util.JsonFormat
 import com.google.type.interval
 import io.grpc.ManagedChannel
 import java.net.URI
@@ -27,6 +30,8 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Paths
+import java.security.KeyPair
+import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
@@ -40,6 +45,12 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
+import okhttp3.OkHttpClient
+import okhttp3.tls.HandshakeCertificates
+import okhttp3.tls.HeldCertificate
+import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -59,11 +70,16 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.toLocalDate
+import org.wfanet.measurement.config.access.OpenIdProvidersConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -77,7 +93,10 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
+import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
@@ -106,23 +125,45 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       val eventGroupReferenceIds: Set<String>,
     )
 
-    private val edpStorageList: List<EdpStorage> =
-      listOf(
+    /**
+     * Per-EDP event group blobs. The QA 2026 reference IDs are unioned into each EDP's existing set
+     * so both datasets ride the same blob: `EventGroupSync` upserts by (reference ID,
+     * MeasurementConsumer), so adding IDs registers the new groups and leaves the 2021 ones
+     * untouched. EDPs that appear only in the QA 2026 config get their own entry.
+     */
+    private val edpStorageList: List<EdpStorage> = buildList {
+      add(
         EdpStorage(
           objectMapKey = "edp7/event-groups-map/edp7-event-group.binpb",
           objectKey = "edp7/event-groups/edp7-event-group.binpb",
           blobUri = "gs://$bucket/edp7/event-groups/edp7-event-group.binpb",
           eventGroupReferenceIds =
             setOf(EDP7_DIRECT_EVENT_GROUP_REF_ID, CREATIVE_ID_EVENT_GROUP_REF_ID) +
-              MULTI_CREATIVE_REF_IDS,
-        ),
+              MULTI_CREATIVE_REF_IDS +
+              qa2026EventGroupRefIdsByEdp["edp7"].orEmpty(),
+        )
+      )
+      add(
         EdpStorage(
           objectMapKey = "edpa_meta/event-groups-map/edpa_meta-event-group.binpb",
           objectKey = "edpa_meta/event-groups/edpa_meta-event-group.binpb",
           blobUri = "gs://$bucket/edpa_meta/event-groups/edpa_meta-event-group.binpb",
-          eventGroupReferenceIds = setOf(EDPA_META_EVENT_GROUP_REF_ID),
-        ),
+          eventGroupReferenceIds =
+            setOf(EDPA_META_EVENT_GROUP_REF_ID) + qa2026EventGroupRefIdsByEdp["edpa_meta"].orEmpty(),
+        )
       )
+      for ((edpName, refIds) in qa2026EventGroupRefIdsByEdp) {
+        if (edpName == "edp7" || edpName == "edpa_meta") continue
+        add(
+          EdpStorage(
+            objectMapKey = "$edpName/event-groups-map/$edpName-event-group.binpb",
+            objectKey = "$edpName/event-groups/$edpName-event-group.binpb",
+            blobUri = "gs://$bucket/$edpName/event-groups/$edpName-event-group.binpb",
+            eventGroupReferenceIds = refIds,
+          )
+        )
+      }
+    }
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -177,8 +218,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         .writeBlob(storage.objectKey, eventGroups.asFlow().map { it.toByteString() })
     }
 
-    private fun createEventGroups(): List<EventGroup> {
-      return syntheticEventGroupMap.flatMap { (eventGroupReferenceId, config) ->
+    private fun createEventGroups(): List<EventGroup> =
+      buildEventGroups(syntheticEventGroupMap) + buildEventGroups(qa2026EventGroupMap)
+
+    private fun buildEventGroups(eventGroupMap: Map<String, EventGroupConfig>): List<EventGroup> {
+      return eventGroupMap.flatMap { (eventGroupReferenceId, config) ->
         when (config) {
           is EventGroupConfig.LegacySpec ->
             buildEventGroupsFromSpec(
@@ -213,12 +257,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
             .atStartOfDay(ZONE_ID)
             .toInstant()
+        // Subtract a day rather than decrementing the day-of-month field, which underflows to 0
+        // whenever the exclusive end falls on the 1st.
         val endTime =
-          LocalDate.of(
-              dateRange.endExclusive.year,
-              dateRange.endExclusive.month,
-              dateRange.endExclusive.day - 1,
-            )
+          dateRange.endExclusive
+            .toLocalDate()
+            .minusDays(1)
             .atTime(23, 59, 59)
             .atZone(ZONE_ID)
             .toInstant()
@@ -296,7 +340,27 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             "non-memoized model line must be a full ModelLine resource name: $modelLine"
           }
           .modelLineId
-      buildPaths(modelLineId).forEach { path ->
+      writeDoneBlobs(buildPaths(modelLineId))
+
+      // QA 2026 markers, under the 2026 model line. Additive: a distinct model line is a distinct
+      // folder, so these neither replace nor disturb the markers above. No-op when unconfigured.
+      val qa2026ModelLine = WriteQa2026ImpressionsRule.MODEL_LINE
+      if (qa2026ModelLine.isEmpty()) {
+        logger.info("No QA 2026 model line configured; skipping QA 2026 DONE blobs.")
+      } else {
+        val qa2026ModelLineId =
+          requireNotNull(ModelLineKey.fromName(qa2026ModelLine)) {
+              "QA2026_MODEL_LINE must be a full ModelLine resource name: $qa2026ModelLine"
+            }
+            .modelLineId
+        val paths = buildQa2026Paths(qa2026ModelLineId)
+        logger.info("Creating ${paths.size} QA 2026 DONE blob(s)...")
+        writeDoneBlobs(paths)
+      }
+    }
+
+    private suspend fun writeDoneBlobs(paths: List<String>) {
+      paths.forEach { path ->
         val doneBlobUri = SelectedStorageClient.parseBlobUri(path)
         val selectedStorageClient =
           SelectedStorageClient(
@@ -304,14 +368,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             rootDirectory = null,
             projectId = googleProjectId,
           )
-        logger.info("Reading DONE blob...")
         val blob = selectedStorageClient.getBlob(doneBlobUri.key)
 
         if (blob != null) {
           blob.delete()
         }
 
-        logger.info("Creating a new DONE blob at path: $path...")
         selectedStorageClient.writeBlob(doneBlobUri.key, emptyFlow())
       }
     }
@@ -335,6 +397,21 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       // data-watcher `data-availability` regex.
       private const val EDP7_IMPRESSION_PATH = "edp/edp7"
       private const val EDPA_META_IMPRESSION_PATH = "edp/edpa_meta"
+
+      /**
+       * `done` markers for the QA 2026 dataset, one per (EDP impression path, date), under the 2026
+       * model line. Dates are derived from the provisioned specs rather than hardcoded, so they
+       * cannot drift from the data. No QA 2026 date is pipelined, so every date gets a test-dropped
+       * marker.
+       */
+      fun buildQa2026Paths(modelLineId: String): List<String> {
+        return qa2026DatesByImpressionPath.flatMap { (impressionPath, dates) ->
+          dates.sorted().map { date ->
+            val ds = date.format(DATE_FORMATTER)
+            "gs://$bucket/$impressionPath/model-line/$modelLineId/$ds/done"
+          }
+        }
+      }
 
       fun buildPaths(modelLineId: String): List<String> {
         return generateSequence(START_DATE) { it.plusDays(1) }
@@ -374,6 +451,47 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
+
+    override val qa2026EventGroupReferenceIds: Set<String>
+      get() = qa2026EventGroupRefIdsByEdp.values.flatten().toSet()
+
+    override val qa2026EventGroupEntityTypes: Set<String>
+      get() =
+        QA2026_PROVISIONED_CONFIG.eventGroupsList
+          .flatMap { it.entityKeySpecsList }
+          .map { it.entityType }
+          .toSet()
+
+    override val qa2026SingleEdpEventGroupReferenceIds: Set<String>
+      get() = qa2026EventGroupRefIdsByEdp.getValue(QA2026_SINGLE_EDP_NAME)
+
+    override val qa2026ExpectedReach:
+      Map<String, Map<String, ClosedFloatingPointRange<Double>>> by lazy {
+      if (WriteQa2026ImpressionsRule.MODEL_LINE.isEmpty()) {
+        emptyMap()
+      } else {
+        Qa2026ExpectedReach.computeRangesByGroupAndFilter(
+          QA2026_PROVISIONED_CONFIG,
+          QA2026_SINGLE_EDP_NAME,
+          qa2026PopulationSpec,
+          qa2026EventDates.first(),
+          qa2026EventDates.last(),
+          BASIC_REPORT_METRIC_SPEC_CONFIG,
+        )
+      }
+    }
+
+    override val qa2026ReportDates: List<LocalDate>
+      get() = qa2026EventDates
+
+    override val reportingTestHarness: ReportingUserSimulator? by lazy {
+      val modelLine = WriteQa2026ImpressionsRule.MODEL_LINE
+      if (modelLine.isEmpty() || qa2026EventGroupReferenceIds.isEmpty()) {
+        null
+      } else {
+        createReportingTestHarness(modelLine)
+      }
+    }
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -478,6 +596,101 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       )
     }
 
+    private fun createReportingTestHarness(modelLine: String): ReportingUserSimulator {
+      val reportingServiceUrl: HttpUrl =
+        TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()
+          ?: throw IllegalArgumentException(
+            "Invalid reporting service endpoint '${TEST_CONFIG.reportingServiceEndpoint}'"
+          )
+
+      val secretFiles = getRuntimePath(SECRET_FILES_PATH)
+      val clientCertificate: X509Certificate =
+        secretFiles.resolve(MC_TLS_CERT_NAME).toFile().readText().decodeCertificatePem()
+      val privateKey =
+        readPrivateKey(
+          secretFiles.resolve(MC_TLS_KEY_NAME).toFile(),
+          clientCertificate.publicKey.algorithm,
+        )
+      val handshakeCertificates =
+        HandshakeCertificates.Builder()
+          .addTrustedCertificate(
+            secretFiles.resolve(REPORTING_ROOT_CERT_NAME).toFile().readText().decodeCertificatePem()
+          )
+          .heldCertificate(
+            HeldCertificate(KeyPair(clientCertificate.publicKey, privateKey), clientCertificate)
+          )
+          .build()
+      val okHttpReportingClient =
+        OkHttpClient.Builder()
+          .sslSocketFactory(
+            handshakeCertificates.sslSocketFactory(),
+            handshakeCertificates.trustManager,
+          )
+          .connectTimeout(REPORTING_HTTP_TIMEOUT)
+          .readTimeout(REPORTING_HTTP_TIMEOUT)
+          .writeTimeout(REPORTING_HTTP_TIMEOUT)
+          .build()
+
+      val reportingApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.reportingPublicApiTarget,
+            REPORTING_SIGNING_CERTS,
+            TEST_CONFIG.reportingPublicApiCertHost.ifEmpty { null },
+          )
+          .also { channels.add(it) }
+      val accessApiChannel =
+        buildMutualTlsChannel(
+            TEST_CONFIG.accessPublicApiTarget,
+            ACCESS_SIGNING_CERTS,
+            TEST_CONFIG.accessPublicApiCertHost.ifEmpty { null },
+          )
+          .also { channels.add(it) }
+
+      val openIdProvidersConfig =
+        OpenIdProvidersConfig.newBuilder()
+          .also {
+            JsonFormat.parser()
+              .ignoringUnknownFields()
+              .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), it)
+          }
+          .build()
+      val principal =
+        AbstractCorrectnessTest.createAccessPrincipal(
+          TEST_CONFIG.measurementConsumer,
+          accessApiChannel,
+          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+        )
+      val getAccessToken = {
+        OpenIdProvider(
+            principal.user.issuer,
+            TinkProtoKeysetFormat.parseKeyset(
+              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
+              InsecureSecretKeyAccess.get(),
+            ),
+          )
+          .generateCredentials(
+            audience = TEST_CONFIG.reportingTokenAudience,
+            subject = principal.user.subject,
+            scopes = REPORTING_TOKEN_SCOPES,
+            ttl = REPORTING_TOKEN_TTL,
+          )
+          .token
+      }
+
+      return ReportingUserSimulator(
+        measurementConsumerName = TEST_CONFIG.measurementConsumer,
+        dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
+        eventGroupsClient = ReportingEventGroupsCoroutineStub(reportingApiChannel),
+        reportingSetsClient = ReportingSetsCoroutineStub(reportingApiChannel),
+        okHttpReportingClient = okHttpReportingClient,
+        reportingGatewayScheme = reportingServiceUrl.scheme,
+        reportingGatewayHost = reportingServiceUrl.host,
+        reportingGatewayPort = reportingServiceUrl.port,
+        getReportingAccessToken = getAccessToken,
+        modelLineName = modelLine,
+      )
+    }
+
     private fun shutDownChannels() {
       for (channel in channels) {
         channel.shutdown()
@@ -512,6 +725,41 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val RPC_DEADLINE_DURATION = Duration.ofSeconds(30)
+    private val REPORTING_HTTP_TIMEOUT = Duration.ofSeconds(30)
+    private val REPORTING_TOKEN_TTL = Duration.ofMinutes(60)
+    /**
+     * Scopes for the Reporting access token.
+     *
+     * `CreateBasicReport` creates Reports, Metrics and MetricCalculationSpecs on the caller's
+     * behalf, so those scopes are required in addition to the ones for the methods called directly.
+     */
+    private val REPORTING_TOKEN_SCOPES =
+      setOf(
+        "reporting.basicReports.create",
+        "reporting.basicReports.get",
+        "reporting.reports.create",
+        "reporting.metrics.create",
+        "reporting.metricCalculationSpecs.create",
+        "reporting.reportingSets.createPrimitive",
+        "reporting.reportingSets.createComposite",
+        "reporting.eventGroups.list",
+      )
+    private const val MC_TLS_CERT_NAME = "mc_tls.pem"
+    private const val MC_TLS_KEY_NAME = "mc_tls.key"
+    private const val REPORTING_ROOT_CERT_NAME = "reporting_root.pem"
+
+    /** EDP the single-EDP result group reports on. */
+    private const val QA2026_SINGLE_EDP_NAME = "edp7"
+
+    /** The metric spec config the Reporting server is deployed with. */
+    private val BASIC_REPORT_METRIC_SPEC_CONFIG: MetricSpecConfig by lazy {
+      val configFile =
+        getRuntimePath(SECRET_FILES_PATH.resolve(BASIC_REPORT_METRIC_SPEC_CONFIG_NAME)).toFile()
+      parseTextProto(configFile, MetricSpecConfig.getDefaultInstance())
+    }
+
+    private const val BASIC_REPORT_METRIC_SPEC_CONFIG_NAME =
+      "basic_report_metric_spec_config.textproto"
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "edpa_correctness_test_config.textproto"
@@ -537,6 +785,118 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         PopulationSpec.getDefaultInstance(),
         POPULATION_SPEC_TYPE_REGISTRY,
       )
+    }
+
+    /**
+     * The QA 2026 dataset config, loaded and seeded **alongside** [IMPRESSION_TEST_DATA_CONFIG],
+     * never in place of it. The two datasets use different model lines, date windows, event group
+     * reference IDs and population specs, so they coexist and the 2021 fixture's assertions are
+     * unaffected. See `docs/edpaggregator/qa-synthetic-data-shape.md`.
+     */
+    private val QA2026_IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath("qa2026_impression_test_data_config.textproto"),
+        ImpressionTestDataConfig.getDefaultInstance(),
+      )
+    }
+
+    private val qa2026PopulationSpec: PopulationSpec by lazy {
+      parseTextProto(
+        ImpressionTestDataConfigs.resolveSpecPath(
+          QA2026_IMPRESSION_TEST_DATA_CONFIG.populationSpecResourcePath
+        ),
+        PopulationSpec.getDefaultInstance(),
+        POPULATION_SPEC_TYPE_REGISTRY,
+      )
+    }
+
+    /**
+     * Aggregator EDPs this environment has provisioned for the QA 2026 dataset, from the
+     * `QA2026_EDPS` env var (comma-separated). The config declares all four; the two added by #4210
+     * are only usable once registered, so this defaults to the two that already exist.
+     */
+    private val QA2026_EDP_NAMES: Set<String> =
+      System.getenv("QA2026_EDPS")
+        .orEmpty()
+        .split(",")
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toSet()
+        .ifEmpty { setOf("edp7", "edpa_meta") }
+
+    /**
+     * QA 2026 config restricted to the provisioned EDPs, and empty when no 2026 model line is
+     * configured for this environment. Empty means every QA 2026 rule below no-ops, so dev and head
+     * are unaffected until their `QA2026_MODEL_LINE` is set.
+     */
+    private val QA2026_PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {
+      if (WriteQa2026ImpressionsRule.MODEL_LINE.isEmpty()) {
+        ImpressionTestDataConfig.getDefaultInstance()
+      } else {
+        val provisioned =
+          QA2026_IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.filter {
+            it.edpName in QA2026_EDP_NAMES
+          }
+        QA2026_IMPRESSION_TEST_DATA_CONFIG.toBuilder()
+          .clearEventGroups()
+          .addAllEventGroups(provisioned)
+          .build()
+      }
+    }
+
+    /** QA 2026 event groups keyed by reference ID, empty when the dataset is not configured. */
+    val qa2026EventGroupMap: Map<String, EventGroupConfig> by lazy {
+      ImpressionTestDataConfigs.toEventGroupMap(QA2026_PROVISIONED_CONFIG)
+    }
+
+    /**
+     * QA 2026 event group reference IDs by EDP, using the same `"${entityType}-${entityId}"`
+     * derivation [UploadEventGroup] registers them under.
+     */
+    val qa2026EventGroupRefIdsByEdp: Map<String, Set<String>> by lazy {
+      QA2026_PROVISIONED_CONFIG.eventGroupsList
+        .groupBy { it.edpName }
+        .mapValues { (_, eventGroups) ->
+          eventGroups
+            .flatMap { eventGroup ->
+              eventGroup.entityKeySpecsList.map { "${it.entityType}-${it.entityId}" }
+            }
+            .toSet()
+        }
+    }
+
+    /**
+     * Every date covered by the provisioned QA 2026 specs, keyed by the EDP's `output_base_path`.
+     * Derived from the specs so the `done` markers cannot drift from the impressions they register.
+     */
+    val qa2026DatesByImpressionPath: Map<String, Set<LocalDate>> by lazy {
+      val datesByPath = mutableMapOf<String, MutableSet<LocalDate>>()
+      for (eventGroup in QA2026_PROVISIONED_CONFIG.eventGroupsList) {
+        val dates = datesByPath.getOrPut(eventGroup.outputBasePath) { mutableSetOf() }
+        for (entityKeySpec in eventGroup.entityKeySpecsList) {
+          val spec =
+            ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
+              entityKeySpec.dataSpecResourcePath
+            )
+          for (dateSpec in spec.dateSpecsList) {
+            var date = dateSpec.dateRange.start.toLocalDate()
+            val endExclusive = dateSpec.dateRange.endExclusive.toLocalDate()
+            while (date.isBefore(endExclusive)) {
+              dates.add(date)
+              date = date.plusDays(1)
+            }
+          }
+        }
+      }
+      datesByPath
+    }
+
+    /**
+     * The QA 2026 dates in ascending order, derived from the specs so the reporting interval cannot
+     * drift from the impressions.
+     */
+    val qa2026EventDates: List<LocalDate> by lazy {
+      qa2026DatesByImpressionPath.values.flatten().distinct().sorted()
     }
 
     val syntheticEventGroupMap: Map<String, EventGroupConfig> =
@@ -602,6 +962,29 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         modelLineProvider = { provisionModelResources.nonMemoizedModelLine },
         vidLabelerProvider = { nonMemoizedVidLabeler },
       )
+    // Ensures the QA 2026 Population exists and that the QA 2026 ModelLine has a ModelRelease and
+    // rollout pointing at it, superseding whatever Population the line was bootstrapped against.
+    // Must run before the impressions are written. No-op unless QA2026_MODEL_LINE is set.
+    private val provisionQa2026ModelResources =
+      Qa2026ModelResourcesRule(
+        populationSpecProvider = { qa2026PopulationSpec },
+        populationDataProvider = System.getenv("PDP_NAME").orEmpty(),
+        modelLineName = WriteQa2026ImpressionsRule.MODEL_LINE,
+        kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
+        kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
+      )
+
+    // Writes the QA 2026 dataset as pre-labeled impressions under its own model line. Additive:
+    // it neither reads nor touches the 2021 fixture, and no-ops unless QA2026_MODEL_LINE is set.
+    // VIDs come straight from the specs, so the deployed VID model is never consulted and the
+    // labeling pipeline is never triggered for these dates.
+    private val writeQa2026Impressions =
+      WriteQa2026ImpressionsRule(
+        configProvider = { QA2026_PROVISIONED_CONFIG },
+        populationSpecProvider = { qa2026PopulationSpec },
+        bucket = TEST_CONFIG.storageBucket,
+        modelLineProvider = { WriteQa2026ImpressionsRule.MODEL_LINE.ifEmpty { null } },
+      )
     private val createDoneBlobs = CreateDoneBlobs()
     private val measurementSystem = RunningMeasurementSystem()
 
@@ -614,6 +997,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         seedRawImpressions,
         awaitVidLabeling,
         writeReusedLabeledImpressions,
+        provisionQa2026ModelResources,
+        writeQa2026Impressions,
         createDoneBlobs,
         measurementSystem,
       )

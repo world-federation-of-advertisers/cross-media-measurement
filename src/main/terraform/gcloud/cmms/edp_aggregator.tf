@@ -155,15 +155,21 @@ locals {
           "--subscription-id", "results-fulfiller-subscription",
           "--google-project-id", data.google_client_config.default.project,
         ],
-        # One --model-line group per configured model line, all
-        # sharing the same population-spec/event-descriptor blobs
-        # (those paths are not model-line-specific). Lets the
-        # results-fulfiller know about every model line whose
+        # One --model-line group per configured model line, so the
+        # results-fulfiller knows about every model line whose
         # measurements it may need to fulfill, instead of only one.
+        # A line whose population differs from the default overrides
+        # its population spec in
+        # edpa_model_line_population_spec_blob_uris; the event
+        # descriptor is shared by all lines.
         flatten([
           for model_line in var.edpa_model_lines : [
             "--model-line", model_line,
-            "--population-spec-file-blob-uri", var.results_fulfiller_population_spec_blob_uri,
+            "--population-spec-file-blob-uri", lookup(
+              var.edpa_model_line_population_spec_blob_uris,
+              model_line,
+              var.results_fulfiller_population_spec_blob_uri,
+            ),
             "--event-template-descriptor-blob-uri", var.results_fulfiller_event_proto_descriptor_blob_uri,
             "--event-template-type-name", var.results_fulfiller_event_template_type_name,
           ]
