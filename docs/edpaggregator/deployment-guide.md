@@ -289,6 +289,15 @@ A gRPC service on GKE, reachable from RequisitionFetcher. RequisitionFetcher cre
 after the requisition payload and metadata are durable; the API routes WorkItems to the configured
 Pub/Sub queues. Enqueuing to a non-configured queue is an error.
 
+The Secure Computation API remains workload-agnostic:
+
+- RequisitionFetcher calls the Requisition Metadata and WorkItems APIs independently.
+- The Secure Computation API stores and republishes opaque WorkItem parameters. It does not
+  interpret `ResultsFulfillerParams`.
+- ResultsFulfiller, not the Secure Computation API, calls the Kingdom Requisition API and the
+  Requisition Metadata and Impression Metadata APIs while executing the WorkItem.
+- Do not add a Secure Computation API dependency on either metadata service.
+
 ### EDP Aggregator (Metadata Storage) API
 
 A gRPC service on GKE, backed by Spanner, that stores impression metadata
@@ -865,35 +874,42 @@ prefix throughout the rollout. Also set
 
 #### Migrating from DataWatcher dispatch
 
-The legacy and direct paths use separate object namespaces and may run concurrently during a
-rolling deployment. Metadata registration is the ownership boundary: the direct fetcher creates a
-group atomically in `QUEUED`, while a legacy group is created in `STORED`. Recovery uses each
-group's persisted `blob_uri`; it never moves a group between namespaces.
+The legacy and direct paths use separate object namespaces. Metadata registration remains the
+ownership boundary: the direct fetcher creates a group atomically in `QUEUED`, while a legacy group
+is created in `STORED`. Recovery uses each group's persisted `blob_uri`; it never moves a group
+between namespaces. The supported rollout deliberately stops RequisitionFetcher rather than
+depending on arbitrary mixed-version execution.
 
-The separate config namespace makes RequisitionFetcher binary and configuration rollout order
-independent. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch
-when the blob is absent or empty, and reload it on each invocation. If a new fetcher reaches an old
-Metadata API replica, registration returns `UNIMPLEMENTED` without changing ownership. If metadata
-registration succeeds but a request reaches an old Secure Computation API replica, the metadata
-remains durably `QUEUED`; a later invocation retries the idempotent WorkItem operation.
+The separate configuration namespace prevents an old RequisitionFetcher binary from parsing a new
+field. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch when the
+blob is absent or empty and reload it on each invocation. Direct dispatch is enabled only after the
+API, worker, and DLQ prerequisites below are complete.
 
 Use this upgrade:
 
-1. Complete the mandatory
-   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication), including its
-   quiesced reconciliation. The migration does not backfill publication records for WorkItems
-   created by an older control-plane binary.
-2. Roll out the additive Secure Computation and Requisition Metadata APIs and the new
-   RequisitionFetcher binary. The services and fetcher revisions may be replaced in any order.
-3. Add the RequisitionFetcher control-plane endpoint and TLS secrets as part of the new binary's
-   deployment. The direct-dispatch blob may still be absent or empty.
-4. Populate `requisition-fetcher-direct-dispatch-config.textproto`. Set each direct
-   `storage_path_prefix` to a dedicated prefix such as `<edp-id>/requisitions-v2`. Do not change the
-   legacy RequisitionFetcher config or the DataWatcher watched-path rule. This config update may be
-   applied before, during, or after the binary rollout; old fetchers ignore it.
-5. Verify that new groups are written only under the direct prefix, are registered atomically as
-   `QUEUED` with `workItems/results-fulfiller-<group-id>`, and are processed by ResultsFulfiller.
-   Legacy groups under the original prefix remain DataWatcher-owned and drain naturally.
+1. Stop RequisitionFetcher and wait for active invocations to finish.
+2. Drain or explicitly account for outstanding legacy DataWatcher requisition events and their
+   WorkItems. Keep the legacy prefix and DataWatcher rule unchanged.
+3. Apply the additive Requisition Metadata and Secure Computation schema changes. Use the immutable
+   snapshot procedure in
+   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication) to identify any
+   pre-migration `QUEUED` WorkItems that need explicit repair.
+4. Roll out every Secure Computation API and Requisition Metadata API replica. Upgrade all
+   ResultsFulfiller TEE workers and the existing ResultsFulfiller DLQ consumers before enabling
+   direct dispatch.
+5. Deploy the new RequisitionFetcher binary, control-plane endpoint, TLS material, and separate
+   `requisition-fetcher-direct-dispatch-config.textproto`, then resume RequisitionFetcher. Set each
+   direct `storage_path_prefix` to a dedicated prefix such as `<edp-id>/requisitions-v2`; it must not
+   match the legacy DataWatcher `source_path_regex`.
+6. Do not call `RetryWorkItem` until step 4 is complete and all old Secure Computation API replicas
+   are gone. After that point, use it only for the explicitly identified WorkItems described in the
+   durable-publication and recovery procedures.
+
+This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
+subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
+`EnsureWorkItem` for idempotent dispatch, and `RegisterQueuedRequisitionMetadata` for atomic
+ownership registration. The existing EDPA-aware DLQ behavior predates this change and is not
+expanded for ResultsFulfiller.
 
 After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
 failure, then call `RetryWorkItem` explicitly. For an abandoned `RUNNING` WorkItem, first confirm
