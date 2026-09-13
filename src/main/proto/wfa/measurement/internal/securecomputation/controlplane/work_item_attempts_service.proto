@@ -38,6 +38,8 @@ service WorkItemAttempts {
   rpc CompleteWorkItemAttempt(CompleteWorkItemAttemptRequest)
       returns (WorkItemAttempt);
 
+  // Sets an ACTIVE attempt to FAILED, or returns an already-FAILED attempt
+  // unchanged.
   rpc FailWorkItemAttempt(FailWorkItemAttemptRequest) returns (WorkItemAttempt);
 }
 
