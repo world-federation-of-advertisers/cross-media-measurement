@@ -151,6 +151,31 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `retry of an old claim does not postpone a recreated publication`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    val failingPublisher = BlockingFailingPublisher()
+    val oldRunner = newRunner(failingPublisher, clock)
+
+    val oldPublication = async { oldRunner.publishWorkItem(WORK_ITEM_ID) }
+    failingPublisher.started.await()
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.deleteWorkItemPublication(WORK_ITEM_ID)
+    }
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.insertWorkItemPublication(WORK_ITEM_ID)
+    }
+
+    failingPublisher.release.complete(Unit)
+    assertThat(oldPublication.await()).isFalse()
+
+    val replacementPublisher = RecordingPublisher()
+    assertThat(newRunner(replacementPublisher, clock).publishWorkItem(WORK_ITEM_ID)).isTrue()
+    assertThat(replacementPublisher.callCount).isEqualTo(1)
+    assertThat(publicationCount()).isEqualTo(0L)
+  }
+
+  @Test
   fun `publishPendingWorkItems continues after retry bookkeeping failure`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     val clock = FailOnceClock(Instant.now().plusSeconds(10), failOnCall = 2)
@@ -312,6 +337,17 @@ class WorkItemPublicationRunnerTest {
       callCount++
       started.complete(Unit)
       release.await()
+    }
+  }
+
+  private class BlockingFailingPublisher : WorkItemPublisher {
+    val started = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+
+    override suspend fun publishMessage(queueName: String, message: Message) {
+      started.complete(Unit)
+      release.await()
+      error("Publication failed")
     }
   }
 
