@@ -31,9 +31,12 @@ import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.common.CompletableResultCode
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.data.SpanData
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import io.opentelemetry.sdk.trace.export.SpanExporter
 import java.io.File
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
@@ -48,7 +51,6 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -2451,6 +2453,28 @@ val SUCCEEDED_POPULATION_METRIC =
     }
   }
 
+private class ObservingSpanExporter(private val delegate: InMemorySpanExporter) : SpanExporter {
+  var onExport: (SpanData) -> Unit = {}
+
+  val finishedSpanItems: List<SpanData>
+    get() = delegate.finishedSpanItems
+
+  override fun export(spans: Collection<SpanData>): CompletableResultCode {
+    for (span in spans) {
+      onExport(span)
+    }
+    return delegate.export(spans)
+  }
+
+  override fun flush(): CompletableResultCode {
+    return delegate.flush()
+  }
+
+  override fun shutdown(): CompletableResultCode {
+    return delegate.shutdown()
+  }
+}
+
 @RunWith(JUnit4::class)
 class MetricsServiceTest {
   private val permissionsServiceMock: PermissionsGrpcKt.PermissionsCoroutineImplBase = mockService {
@@ -2704,13 +2728,13 @@ class MetricsServiceTest {
 
   private lateinit var service: MetricsService
   private lateinit var openTelemetry: OpenTelemetrySdk
-  private lateinit var spanExporter: InMemorySpanExporter
+  private lateinit var spanExporter: ObservingSpanExporter
 
   @Before
   fun initService() {
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
-    spanExporter = InMemorySpanExporter.create()
+    spanExporter = ObservingSpanExporter(InMemorySpanExporter.create())
     openTelemetry =
       OpenTelemetrySdk.builder()
         .setTracerProvider(
@@ -7824,7 +7848,22 @@ class MetricsServiceTest {
         }
       whenever(internalMetricsMock.streamMetrics(any()))
         .thenReturn(flowOf(successfulMetric, failedMetric))
-      val successfulBatchReturned = CompletableDeferred<Unit>()
+      val successfulBatchObserved = CompletableDeferred<Unit>()
+      val lastSuccessfulMeasurementName =
+        MeasurementKey(
+            measurementConsumerId,
+            successfulInternalMeasurements.last().cmmsMeasurementId,
+          )
+          .toName()
+      spanExporter.onExport = { span ->
+        if (
+          span.name == "reporting.kingdom_measurement.observed" &&
+            span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) ==
+              lastSuccessfulMeasurementName
+        ) {
+          successfulBatchObserved.complete(Unit)
+        }
+      }
       val failedMeasurementName =
         MeasurementKey(measurementConsumerId, failedInternalMeasurement.cmmsMeasurementId).toName()
       measurementsMock.stub {
@@ -7832,11 +7871,9 @@ class MetricsServiceTest {
           { invocation ->
             val request = invocation.arguments[0] as BatchGetMeasurementsRequest
             if (failedMeasurementName in request.namesList) {
-              successfulBatchReturned.await()
-              delay(100)
+              successfulBatchObserved.await()
               throw StatusRuntimeException(Status.UNAVAILABLE)
             }
-            successfulBatchReturned.complete(Unit)
             batchGetMeasurementsResponse {
               measurements +=
                 request.namesList.map { name ->
