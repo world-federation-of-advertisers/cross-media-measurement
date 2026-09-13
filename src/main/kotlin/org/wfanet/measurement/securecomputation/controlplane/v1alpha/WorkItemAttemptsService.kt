@@ -86,6 +86,7 @@ class WorkItemAttemptsService(
         internalWorkItemAttemptsStub.createWorkItemAttempt(
           internalCreateWorkItemAttemptRequest {
             expectedWorkItemGeneration = expectedGeneration
+            supportsAttemptLease = request.supportsAttemptLease
             this.workItemAttempt = internalWorkItemAttempt {
               workItemResourceId = parentKey.workItemId
               workItemAttemptResourceId = request.workItemAttemptId
@@ -222,6 +223,9 @@ class WorkItemAttemptsService(
           }
         )
       } catch (e: StatusException) {
+        if (e.status.code == Status.Code.UNIMPLEMENTED) {
+          throw e
+        }
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
             WorkItemAttemptNotFoundException(request.name, e)

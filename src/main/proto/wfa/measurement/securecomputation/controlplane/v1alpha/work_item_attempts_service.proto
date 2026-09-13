@@ -101,6 +101,11 @@ message CreateWorkItemAttemptRequest {
   // generation does not match the WorkItem's current generation.
   int64 expected_work_item_generation = 4
       [(google.api.field_behavior) = OPTIONAL];
+
+  // Whether the caller supports renewing an attempt lease. When false, the
+  // attempt is created without a lease for compatibility with workers that do
+  // not implement lease renewal.
+  bool supports_attempt_lease = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for `GetWorkItemAttempt` method.
