@@ -56,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetche
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SecureComputationRequisitionWorkItemDispatcher
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
@@ -531,8 +532,13 @@ class RequisitionFetcherFunction : HttpFunction {
         require(dispatchConfig.storagePathPrefix.isNotBlank()) {
           "Missing 'storage_path_prefix' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
         }
-        require(dispatchConfig.storagePathPrefix != dataProviderConfig.storagePathPrefix) {
-          "Direct-dispatch storage_path_prefix must differ from the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
+        require(
+          !StoragePathPrefixes.overlap(
+            dispatchConfig.storagePathPrefix,
+            dataProviderConfig.storagePathPrefix,
+          )
+        ) {
+          "Direct-dispatch storage_path_prefix must not overlap the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
         }
         require(dispatchConfig.queue.isNotBlank()) {
           "Missing 'queue' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."

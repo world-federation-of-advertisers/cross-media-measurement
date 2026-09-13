@@ -89,7 +89,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property dataProviderName resource name of the data provider being fetched for.
  * @property storagePathPrefix prefix prepended to each blob key.
  * @property directStoragePathPrefix dedicated blob-key prefix used for direct dispatch. This must
- *   differ from [storagePathPrefix].
+ *   not equal, contain, or be contained by [storagePathPrefix].
  * @property blobUriPrefix prefix prepended to each metadata blob URI.
  * @property requisitionValidator validates per-report requisitions before grouping.
  * @property requisitionGrouper the in-memory grouper that builds [GroupedRequisitions].
@@ -158,8 +158,8 @@ class RequisitionFetcher(
       "directStoragePathPrefix and workItemDispatcher must either both be set or both be unset"
     }
     if (directStoragePathPrefix != null) {
-      require(directStoragePathPrefix != storagePathPrefix) {
-        "directStoragePathPrefix must differ from storagePathPrefix"
+      require(!StoragePathPrefixes.overlap(directStoragePathPrefix, storagePathPrefix)) {
+        "directStoragePathPrefix must not overlap storagePathPrefix"
       }
     }
   }

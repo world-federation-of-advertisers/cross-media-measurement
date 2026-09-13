@@ -47,7 +47,10 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "requisition_fetcher",
-    srcs = ["RequisitionFetcher.kt"],
+    srcs = [
+        "RequisitionFetcher.kt",
+        "StoragePathPrefixes.kt",
+    ],
     deps = [
         ":requisition_fetcher_metrics",
         ":requisition_grouper_by_report_id",
