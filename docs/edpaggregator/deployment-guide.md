@@ -1401,9 +1401,12 @@ image is not `STABLE`). Never use a debug image in production.
 
 ## Debugging notes
 
-* **Config caching** — the ResultsFulfiller and functions read their config at
-  process start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the
-  affected MIG VMs / redeploy the function so the new config is picked up.
+* **Config caching** — the ResultsFulfiller and functions generally read their config at process
+  start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the affected MIG VMs or
+  redeploy the function so the new config is picked up. The exception is
+  `requisition-fetcher-direct-dispatch-config.textproto`: RequisitionFetcher reloads that optional
+  file on every invocation, so direct-dispatch activation and rollback do not require a function
+  redeployment. Its legacy `requisition-fetcher-config.textproto` remains process-start cached.
 * **Secret path mismatches** — the single most common failure. Every mounted secret
   path must match, character for character, the path in the config file that
   references it.
