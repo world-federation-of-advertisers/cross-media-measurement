@@ -45,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 
 internal enum class ReportTraceStageRequirement {
   REQUIRED,
+  OPTIONAL,
   NOT_APPLICABLE,
   UNKNOWN,
   REUSED,

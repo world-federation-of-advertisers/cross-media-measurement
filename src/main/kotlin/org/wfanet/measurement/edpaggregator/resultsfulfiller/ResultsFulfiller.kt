@@ -154,7 +154,6 @@ class ResultsFulfiller(
         attributes =
           Attributes.builder()
             .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
-            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment_group")
             .also { builder ->
               if (groupedRequisitions.report.isNotEmpty()) {
                 builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
@@ -279,7 +278,11 @@ class ResultsFulfiller(
                 .put(ReportTraceAttributes.OUTCOME, "started")
                 .build(),
           ) {
-            requisition.shouldBeProcessed(requisitionMetadataByName)
+            val shouldBeProcessed = requisition.shouldBeProcessed(requisitionMetadataByName)
+            if (shouldBeProcessed) {
+              Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared")
+            }
+            shouldBeProcessed
           }
         } catch (e: CancellationException) {
           throw e
@@ -491,15 +494,10 @@ class ResultsFulfiller(
     requisitionState: Requisition.State,
     outcome: String,
   ) {
-    Tracing.traceSuspending(
-      spanName = "edp_aggregator.results_fulfiller.requisition_no_op",
-      attributes =
-        requisitionTraceAttributes(requisitionName)
-          .toBuilder()
-          .put(ReportTraceAttributes.REQUISITION_STATE, requisitionState.name)
-          .put(ReportTraceAttributes.OUTCOME, outcome)
-          .build(),
-    ) {}
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+      .setAttribute(ReportTraceAttributes.REQUISITION_STATE, requisitionState.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
   }
 
   /**

@@ -682,7 +682,16 @@ class ReportTraceTest {
               resource.first to resource.second,
             ),
         )
-      }
+      } +
+        lifecycleSpan("basic_report_api_fetch", "xmm.basic_report.name", context.basicReportName!!)
+          .copy(
+            attributes =
+              mapOf(
+                "xmm.lifecycle.stage" to "basic_report_api_fetch",
+                "xmm.outcome" to "started",
+                "xmm.basic_report.name" to context.basicReportName,
+              )
+          )
 
     val output =
       ReportTraceOutput.render(
@@ -700,7 +709,8 @@ class ReportTraceTest {
     assertThat(output)
       .contains("| duchy_computation | ${context.measurementNames.single()} | NOT_APPLICABLE |")
     assertThat(output).contains("| requisition_dispatch | $requisitionName | NOT_APPLICABLE |")
-    assertThat(output).doesNotContain("| basic_report_api_fetch | MISSING |")
+    assertThat(output)
+      .contains("| basic_report_api_fetch | ${context.basicReportName} | OPTIONAL |")
   }
 
   @Test
@@ -948,6 +958,73 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `execution outcome uses Report span completion time`() {
+    val context = reportTraceContext().copy(basicReportState = null)
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val completedLater =
+      lifecycleSpan("report_result_assembly", "xmm.report.name", context.reportName)
+        .copy(
+          startTime = NOW,
+          endTime = NOW.plusSeconds(10),
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "report_result_assembly",
+              "xmm.outcome" to "succeeded",
+              "xmm.report.name" to context.reportName,
+              "xmm.report.state" to "SUCCEEDED",
+            ),
+        )
+    val startedLater =
+      lifecycleSpan("report_result_assembly", "xmm.report.name", context.reportName)
+        .copy(
+          startTime = NOW.plusSeconds(5),
+          endTime = NOW.plusSeconds(6),
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "report_result_assembly",
+              "xmm.outcome" to "in_progress",
+              "xmm.report.name" to context.reportName,
+              "xmm.report.state" to "RUNNING",
+            ),
+        )
+
+    assertThat(
+        ReportTraceOutput.executionOutcome(
+          context,
+          routeResolution,
+          listOf(completedLater, startedLater),
+          emptyList(),
+        )
+      )
+      .isEqualTo(ReportTraceExecutionOutcome.SUCCEEDED)
+  }
+
+  @Test
+  fun `span retention preserves all recognized failure outcomes`() {
+    val failureOutcomes =
+      listOf("failed", "failed_validation", "report_failed", "failure", "error", "refused")
+    val failures =
+      failureOutcomes.mapIndexed { index, outcome ->
+        traceSpan("failure-$index", NOW.plusSeconds(index.toLong()))
+          .copy(attributes = mapOf("xmm.outcome" to outcome))
+      }
+    val newerSuccess =
+      traceSpan("newer-success", NOW.plusSeconds(100))
+        .copy(attributes = mapOf("xmm.outcome" to "succeeded"))
+
+    val retained = retainReportTraceSpans(failures + newerSuccess, failureOutcomes.size)
+
+    assertThat(retained.map { it.attributes.getValue("xmm.outcome") })
+      .containsExactlyElementsIn(failureOutcomes)
+  }
+
+  @Test
   fun `render reports complete MPC and EDPA lifecycle per expected child`() {
     val context =
       reportTraceContext().copy(metricNames = listOf("measurementConsumers/mc-1/metrics/metric-1"))
@@ -1006,7 +1083,24 @@ class ReportTraceTest {
         spans =
           (commonStageResources + duchyStageResources).map { (stage, attributes) ->
             lifecycleSpan(stage, attributes)
-          },
+          } +
+            traceSpan("results_fulfiller.process_group", NOW.minusSeconds(3))
+              .copy(attributes = mapOf("xmm.edpa.group_id" to groupId)) +
+            lifecycleSpan(
+                "results_fulfillment",
+                mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to groupId),
+              )
+              .copy(
+                startTime = NOW.minusSeconds(2),
+                endTime = NOW.minusSeconds(1),
+                attributes =
+                  mapOf(
+                    "xmm.lifecycle.stage" to "results_fulfillment",
+                    "xmm.outcome" to "prepared",
+                    "xmm.requisition.name" to requisitionName,
+                    "xmm.edpa.group_id" to groupId,
+                  ),
+              ),
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
@@ -1017,6 +1111,44 @@ class ReportTraceTest {
     assertThat(output)
       .contains("| duchy_computation | $measurementName @ duchy worker1 | SUCCEEDED |")
     assertThat(output).contains("| results_fulfillment | $requisitionName | SUCCEEDED |")
+  }
+
+  @Test
+  fun `already fulfilled Requisition is a successful ResultsFulfiller terminal outcome`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val alreadyCompleted =
+      lifecycleSpan(
+          "results_fulfillment",
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to "group-1"),
+        )
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "results_fulfillment",
+              "xmm.outcome" to "already_completed",
+              "xmm.requisition.name" to requisitionName,
+              "xmm.requisition.state" to "FULFILLED",
+              "xmm.edpa.group_id" to "group-1",
+            )
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(alreadyCompleted),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "results_fulfillment" }.status).isEqualTo("SUCCEEDED")
   }
 
   @Test
@@ -1170,9 +1302,30 @@ class ReportTraceTest {
               )
           )
       )
+    val alreadyTerminal =
+      lifecycleSpan(
+          "results_fulfillment",
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to "group-1"),
+        )
+        .copy(
+          startTime = NOW.plusSeconds(2),
+          endTime = NOW.plusSeconds(3),
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "results_fulfillment",
+              "xmm.outcome" to "already_completed",
+              "xmm.requisition.name" to requisitionName,
+              "xmm.requisition.state" to "REFUSED",
+              "xmm.edpa.group_id" to "group-1",
+            ),
+        )
     val spans =
       refusalPropagationSpans(context, metricName, requisitionName) +
-        refusalOriginSpan(requisitionName, ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN)
+        refusalOriginSpan(
+          requisitionName,
+          ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN,
+        ) +
+        alreadyTerminal
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
     assertThat(
@@ -1289,6 +1442,23 @@ class ReportTraceTest {
         )
         .withRequisitionState("REFUSED", measurementState = "FAILED")
     val workItemName = "workItems/work-item-1"
+    val alreadyTerminal =
+      lifecycleSpan(
+          "results_fulfillment",
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to "group-1"),
+        )
+        .copy(
+          startTime = NOW.plusSeconds(2),
+          endTime = NOW.plusSeconds(3),
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "results_fulfillment",
+              "xmm.outcome" to "already_completed",
+              "xmm.requisition.name" to requisitionName,
+              "xmm.requisition.state" to "REFUSED",
+              "xmm.edpa.group_id" to "group-1",
+            ),
+        )
     val spans =
       listOf(
         lifecycleSpan(
@@ -1325,6 +1495,7 @@ class ReportTraceTest {
               )
           ),
         refusalAcceptanceSpan(requisitionName, NOW.plusSeconds(1)),
+        alreadyTerminal,
       )
 
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())

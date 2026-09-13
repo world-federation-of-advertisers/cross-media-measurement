@@ -73,6 +73,23 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import picocli.CommandLine
 
 private const val REPORT_NOT_CREATED = "(not created)"
+private val FAILURE_OUTCOMES = setOf("failed", "failure", "error", "refused", "report_failed")
+
+private fun isFailureOutcome(outcome: String?): Boolean {
+  val normalized = outcome?.lowercase() ?: return false
+  return normalized in FAILURE_OUTCOMES || normalized.startsWith("failed_")
+}
+
+internal fun retainReportTraceSpans(
+  spans: List<ReportTraceSpan>,
+  limit: Int,
+): List<ReportTraceSpan> {
+  if (spans.size <= limit) return spans.sortedBy { it.startTime }
+  val errors = spans.filter { isFailureOutcome(it.attributes["xmm.outcome"]) }
+  return (errors + spans.sortedByDescending { it.startTime }).distinct().take(limit).sortedBy {
+    it.startTime
+  }
+}
 
 /** Identifiers that connect one BasicReport to work performed by downstream services. */
 internal data class ReportTraceContext(
@@ -950,7 +967,7 @@ internal object ReportTraceOutput {
             operation.identifyingAttributes.all { (attribute, value) ->
               evidence.attributes[attribute] == value
             } &&
-              (evidence.outcome?.lowercase() == "failed" ||
+              (isFailureOutcome(evidence.outcome) ||
                 operation.requiredPresenceAttributes.all(evidence.attributes::containsKey))
           }
         lifecycleStage(
@@ -1108,17 +1125,18 @@ internal object ReportTraceOutput {
         when {
           durableTerminalStatus != null && durableTerminalEvidenceFound -> durableTerminalStatus
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE &&
-            latestOutcome?.let {
-              it == "failed" || it.startsWith("failed_") || it == "report_failed"
-            } == true -> "FAILED"
+            isFailureOutcome(latestOutcome) -> "FAILED"
           durableTerminalStatus != null -> "UNKNOWN"
-          latestOutcome?.let {
-            it == "failed" || it.startsWith("failed_") || it == "report_failed"
-          } == true -> "FAILED"
+          requirement == ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE &&
+            latestOutcome == "already_completed" -> "SKIPPED_AFTER_FAILURE"
+          requirement == ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL &&
+            latestOutcome == "already_completed" -> "SKIPPED_AFTER_REFUSAL"
+          matchingEvidence.any { it.outcome?.lowercase() == "refused" } -> "REFUSED"
+          isFailureOutcome(latestOutcome) -> "FAILED"
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isNotEmpty() ->
             "UNEXPECTED"
-          latestOutcome == "refused" -> "REFUSED"
           latestOutcome != null && latestOutcome in TERMINAL_SUCCESS_OUTCOMES -> "SUCCEEDED"
+          requirement == ReportTraceStageRequirement.OPTIONAL -> "OPTIONAL"
           latestOutcome != null && latestOutcome in IN_PROGRESS_OUTCOMES -> "IN_PROGRESS"
           latestOutcome == "unknown" -> "UNKNOWN"
           evidence.isNotEmpty() -> "OBSERVED"
@@ -1147,9 +1165,7 @@ internal object ReportTraceOutput {
               append(evidence.joinToString())
               if (
                 requirement == ReportTraceStageRequirement.NOT_APPLICABLE &&
-                  latestOutcome?.let {
-                    it == "failed" || it.startsWith("failed_") || it == "report_failed"
-                  } == true
+                  isFailureOutcome(latestOutcome)
               ) {
                 append("; operation was unexpected for the final route or durable state")
               }
@@ -1161,6 +1177,7 @@ internal object ReportTraceOutput {
                   "Not applicable for the Kingdom-resolved route"
                 requirement == ReportTraceStageRequirement.UNKNOWN ->
                   "Route or resource applicability could not be resolved"
+                requirement == ReportTraceStageRequirement.OPTIONAL -> "Optional diagnostic stage"
                 requirement == ReportTraceStageRequirement.REUSED ->
                   "Historical operation belongs to the BasicReport that created this reused resource"
                 requirement == ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE ->
@@ -1300,7 +1317,7 @@ internal object ReportTraceOutput {
   ): Map<String, String> {
     val latestStates = mutableMapOf<String, String>()
     val evidence = buildList {
-      spans.mapTo(this) { it.startTime to it.attributes }
+      spans.mapTo(this) { (it.endTime ?: it.startTime) to it.attributes }
       logEntries.mapTo(this) { it.timestamp to safeTextFields(it.message) }
     }
     for ((_, fields) in evidence.sortedBy { it.first }) {
@@ -1457,9 +1474,7 @@ internal object ReportTraceOutput {
           .filter { it.attributes[resourceAttribute] == resource }
           .maxByOrNull { it.timestamp }
       val outcome = latestEvidence?.outcome?.lowercase()
-      return outcome == "failed" ||
-        outcome?.startsWith("failed_") == true ||
-        outcome == "report_failed"
+      return outcome != "refused" && isFailureOutcome(outcome)
     }
 
     fun refusalOrigin(requisitionName: String): RequisitionRefusalOrigin {
@@ -1499,7 +1514,12 @@ internal object ReportTraceOutput {
 
     context.basicReportName?.let { basicReportName ->
       add("basic_report_creation", basicReportName, "xmm.basic_report.name")
-      add("basic_report_api_fetch", basicReportName, "xmm.basic_report.name", requirement = null)
+      add(
+        "basic_report_api_fetch",
+        basicReportName,
+        "xmm.basic_report.name",
+        requirement = ReportTraceStageRequirement.OPTIONAL,
+      )
     }
     if (context.reportName == REPORT_NOT_CREATED && context.basicReportName != null) {
       add(
@@ -1890,6 +1910,7 @@ internal object ReportTraceOutput {
 
   private fun inferStage(spanName: String): String? =
     when {
+      "results_fulfiller.process_group" in spanName -> null
       "results_fulfiller" in spanName || "report_fulfillment" in spanName -> "results_fulfillment"
       "sync_results" in spanName -> "report_result_sync"
       "assemble_results" in spanName -> "report_result_assembly"
@@ -2677,7 +2698,7 @@ internal class ReportTrace(
         }
         traceFetchedCounts[project] =
           traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
-        spanEntries += retainSpans(projectSpans, entryLimit)
+        spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
       } catch (e: Exception) {
         val failure = failureDescription(e)
         traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2709,7 +2730,7 @@ internal class ReportTrace(
           }
           traceFetchedCounts[project] =
             traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
-          spanEntries += retainSpans(projectSpans, entryLimit)
+          spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
         } catch (e: Exception) {
           val failure = failureDescription(e)
           traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2746,7 +2767,7 @@ internal class ReportTrace(
           }
           traceFetchedCounts[project] =
             traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
-          spanEntries += retainSpans(projectSpans, entryLimit)
+          spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
         } catch (e: Exception) {
           val failure = failureDescription(e)
           traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2830,7 +2851,7 @@ internal class ReportTrace(
             }
             traceFetchedCounts[project] =
               traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
-            spanEntries += retainSpans(projectSpans, entryLimit)
+            spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
           } catch (e: Exception) {
             val failure = failureDescription(e)
             traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2851,7 +2872,7 @@ internal class ReportTrace(
     if (mergedLogEntriesTruncated) {
       warnings += "Merged Cloud Logging results were truncated at $entryLimit entries"
     }
-    val retainedSpans = retainSpans(distinctSpans, entryLimit)
+    val retainedSpans = retainReportTraceSpans(distinctSpans, entryLimit)
     val retainedLogEntries = retainLogEntries(distinctLogEntries, entryLimit)
     val sourceStatuses = buildList {
       if (resolutionFailure != null) {
@@ -3002,17 +3023,6 @@ internal class ReportTrace(
       retained = retained,
       note = notes.joinToString("; "),
     )
-  }
-
-  private fun retainSpans(spans: List<ReportTraceSpan>, limit: Int): List<ReportTraceSpan> {
-    if (spans.size <= limit) return spans.sortedBy { it.startTime }
-    val errors =
-      spans.filter {
-        it.attributes["xmm.outcome"]?.lowercase() in setOf("failed", "failure", "refused", "error")
-      }
-    return (errors + spans.sortedByDescending { it.startTime }).distinct().take(limit).sortedBy {
-      it.startTime
-    }
   }
 
   private fun retainLogEntries(

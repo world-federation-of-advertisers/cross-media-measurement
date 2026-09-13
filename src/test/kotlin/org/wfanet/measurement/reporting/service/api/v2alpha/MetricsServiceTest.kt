@@ -48,6 +48,7 @@ import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -7780,6 +7781,107 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `listMetrics attributes a failed Kingdom batch only to its Measurements and Metric`(): Unit =
+    runBlocking {
+      wheneverBlocking {
+        permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+      } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
+      val measurementConsumerId = MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId
+      val successfulInternalMeasurements =
+        (1..50).map { index ->
+          INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+            cmmsMeasurementId = "successful-batch-measurement-$index"
+            cmmsCreateMeasurementRequestId = "successful-batch-request-$index"
+          }
+        }
+      val failedInternalMeasurement =
+        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+          cmmsMeasurementId = "failed-batch-measurement"
+          cmmsCreateMeasurementRequestId = "failed-batch-request"
+        }
+      val successfulMetric =
+        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          externalMetricId = "successful-batch-metric"
+          weightedMeasurements.clear()
+          weightedMeasurements +=
+            successfulInternalMeasurements.mapIndexed { index, measurement ->
+              weightedMeasurement {
+                weight = 1
+                binaryRepresentation = index + 1
+                this.measurement = measurement
+              }
+            }
+        }
+      val failedMetric =
+        INTERNAL_PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.copy {
+          externalMetricId = "failed-batch-metric"
+          weightedMeasurements.clear()
+          weightedMeasurements += weightedMeasurement {
+            weight = 1
+            binaryRepresentation = 1
+            measurement = failedInternalMeasurement
+          }
+        }
+      whenever(internalMetricsMock.streamMetrics(any()))
+        .thenReturn(flowOf(successfulMetric, failedMetric))
+      val successfulBatchReturned = CompletableDeferred<Unit>()
+      val failedMeasurementName =
+        MeasurementKey(measurementConsumerId, failedInternalMeasurement.cmmsMeasurementId).toName()
+      measurementsMock.stub {
+        onBlocking { batchGetMeasurements(any()) } doSuspendableAnswer
+          { invocation ->
+            val request = invocation.arguments[0] as BatchGetMeasurementsRequest
+            if (failedMeasurementName in request.namesList) {
+              successfulBatchReturned.await()
+              delay(100)
+              throw StatusRuntimeException(Status.UNAVAILABLE)
+            }
+            successfulBatchReturned.complete(Unit)
+            batchGetMeasurementsResponse {
+              measurements +=
+                request.namesList.map { name ->
+                  PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.copy {
+                    this.name = name
+                    state = Measurement.State.COMPUTING
+                  }
+                }
+            }
+          }
+      }
+      val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.listMetrics(request) }
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+      val measurementFailures =
+        spanExporter.finishedSpanItems.filter {
+          it.name == "reporting.kingdom_measurement.sync_failed"
+        }
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
+        )
+        .containsExactly(failedMeasurementName)
+      val observedMeasurements =
+        spanExporter.finishedSpanItems
+          .filter { it.name == "reporting.kingdom_measurement.observed" }
+          .mapNotNull { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
+      assertThat(observedMeasurements)
+        .containsExactlyElementsIn(
+          successfulInternalMeasurements.map {
+            MeasurementKey(measurementConsumerId, it.cmmsMeasurementId).toName()
+          }
+        )
+      assertThat(observedMeasurements).doesNotContain(failedMeasurementName)
+      val metricFailures =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+        .containsExactly(MetricKey(measurementConsumerId, failedMetric.externalMetricId).toName())
+    }
+
+  @Test
   fun `listMetrics does not record child failures when synchronization is cancelled`() {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -7931,6 +8033,10 @@ class MetricsServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+      val metricFailures =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
+      assertThat(metricFailures).hasSize(1)
+      assertThat(metricFailures.single().attributes.get(ReportTraceAttributes.METRIC_NAME)).isNull()
     }
 
   @Test

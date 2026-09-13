@@ -799,6 +799,11 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    val preflightSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.preflight_requisition" }
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("prepared")
   }
 
   @Test
@@ -1699,14 +1704,19 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
-    val noOpSpan =
-      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.requisition_no_op" }
-    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+    val spans = collectSpans()
+    val preflightSpan =
+      spans.single { it.name == "edp_aggregator.results_fulfiller.preflight_requisition" }
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
       .isEqualTo(REQUISITION_NAME)
-    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.REQUISITION_STATE))
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.REQUISITION_STATE))
       .isEqualTo(Requisition.State.FULFILLED.name)
-    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.OUTCOME))
       .isEqualTo("already_completed")
+    assertThat(spans.map { it.name })
+      .doesNotContain("edp_aggregator.results_fulfiller.requisition_no_op")
+    val groupSpan = spans.single { it.name == "results_fulfiller.process_group" }
+    assertThat(groupSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)).isNull()
   }
 
   @Test
