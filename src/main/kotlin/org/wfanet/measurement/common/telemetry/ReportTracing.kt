@@ -26,6 +26,23 @@ import org.wfanet.measurement.common.Instrumentation
 
 /** Creates report-correlated spans in services outside the EDPA-specific telemetry package. */
 object ReportTracing {
+  /** Records a failed operation that cannot be represented by wrapping one suspending block. */
+  fun recordFailure(spanName: String, attributes: Attributes, error: Throwable) {
+    val span =
+      Instrumentation.openTelemetry
+        .getTracer("xmm-report-tracing")
+        .spanBuilder(spanName)
+        .setSpanKind(SpanKind.INTERNAL)
+        .setAllAttributes(attributes)
+        .startSpan()
+    span
+      .setStatus(StatusCode.ERROR, error.message ?: "Unknown error")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .recordException(error)
+    span.end()
+  }
+
   suspend fun <T> traceSuspending(
     spanName: String,
     attributes: Attributes = Attributes.empty(),

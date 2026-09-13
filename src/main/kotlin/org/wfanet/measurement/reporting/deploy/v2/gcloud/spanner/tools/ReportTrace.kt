@@ -97,7 +97,9 @@ internal data class ReportTraceContext(
             add(reportName)
           }
           addAll(metricNames)
+          addAll(unresolvedMetricRequestIds)
           addAll(measurementNames)
+          addAll(unresolvedMeasurementRequestIds)
         }
         .distinct()
 }
@@ -451,7 +453,9 @@ internal class GoogleCloudReportTraceSpanReader(
     private const val BASIC_REPORT_TRACE_ATTRIBUTE = "xmm.basic_report.name"
     private const val REPORT_TRACE_ATTRIBUTE = "xmm.report.name"
     private const val METRIC_TRACE_ATTRIBUTE = "xmm.metric.name"
+    private const val METRIC_REQUEST_ID_TRACE_ATTRIBUTE = "xmm.metric.request_id"
     private const val MEASUREMENT_TRACE_ATTRIBUTE = "xmm.measurement.name"
+    private const val MEASUREMENT_REQUEST_ID_TRACE_ATTRIBUTE = "xmm.measurement.request_id"
     private const val REQUISITION_TRACE_ATTRIBUTE = "xmm.requisition.name"
     private const val GROUP_TRACE_ATTRIBUTE = "xmm.edpa.group_id"
     private const val WORK_ITEM_TRACE_ATTRIBUTE = "xmm.work_item.name"
@@ -470,7 +474,12 @@ internal class GoogleCloudReportTraceSpanReader(
         "/requisitions/" in value -> listOf(REQUISITION_TRACE_ATTRIBUTE)
         value.startsWith("workItems/") -> listOf(WORK_ITEM_TRACE_ATTRIBUTE)
         value.startsWith("computations/") -> listOf(COMPUTATION_TRACE_ATTRIBUTE)
-        else -> listOf(GROUP_TRACE_ATTRIBUTE)
+        else ->
+          listOf(
+            GROUP_TRACE_ATTRIBUTE,
+            METRIC_REQUEST_ID_TRACE_ATTRIBUTE,
+            MEASUREMENT_REQUEST_ID_TRACE_ATTRIBUTE,
+          )
       }
     }
 
@@ -854,7 +863,7 @@ internal object ReportTraceOutput {
           description = "span ${span.name}",
           outcome = span.attributes["xmm.outcome"],
           attributes = span.attributes,
-          timestamp = span.startTime,
+          timestamp = span.endTime ?: span.startTime,
         )
     }
     for (entry in logEntries) {
@@ -900,7 +909,9 @@ internal object ReportTraceOutput {
           stageEvidence.filter { evidence ->
             operation.identifyingAttributes.all { (attribute, value) ->
               evidence.attributes[attribute] == value
-            } && operation.requiredPresenceAttributes.all(evidence.attributes::containsKey)
+            } &&
+              (evidence.outcome?.lowercase() == "failed" ||
+                operation.requiredPresenceAttributes.all(evidence.attributes::containsKey))
           }
         lifecycleStage(
           operation = operation,
@@ -1440,8 +1451,18 @@ internal object ReportTraceOutput {
         } else {
           ReportTraceStageRequirement.UNKNOWN
         }
-      add("metric_creation", resource, "xmm.metric.name", unresolvedMetricRequirement)
-      add("metric_result_sync", resource, "xmm.metric.name", unresolvedMetricRequirement)
+      add(
+        "metric_creation",
+        resource,
+        mapOf("xmm.metric.request_id" to requestId),
+        unresolvedMetricRequirement,
+      )
+      add(
+        "metric_result_sync",
+        resource,
+        mapOf("xmm.metric.request_id" to requestId),
+        unresolvedMetricRequirement,
+      )
     }
     if (context.metricNames.isEmpty() && context.unresolvedMetricRequestIds.isEmpty()) {
       val unresolvedMetricRequirement =
@@ -1690,7 +1711,12 @@ internal object ReportTraceOutput {
           ReportTraceStageRequirement.UNKNOWN
         }
       for (stage in MEASUREMENT_LIFECYCLE_STAGES) {
-        add(stage, measurementResource, "xmm.measurement.name", unresolvedMeasurementRequirement)
+        add(
+          stage,
+          measurementResource,
+          mapOf("xmm.measurement.request_id" to requestId),
+          unresolvedMeasurementRequirement,
+        )
       }
       for (stage in REQUISITION_LIFECYCLE_STAGES) {
         add(stage, requisitionResource, "xmm.requisition.name", unresolvedMeasurementRequirement)
@@ -1850,7 +1876,9 @@ internal object ReportTraceOutput {
       "xmm.basic_report.name",
       "xmm.report.name",
       "xmm.metric.name",
+      "xmm.metric.request_id",
       "xmm.measurement.name",
+      "xmm.measurement.request_id",
       "xmm.requisition.name",
       "xmm.edpa.group_id",
       "xmm.work_item.name",
@@ -1879,6 +1907,7 @@ internal object ReportTraceOutput {
       "synchronized",
       "no_update_required",
       "already_completed",
+      "stale_delivery",
     )
   private val IN_PROGRESS_OUTCOMES = setOf("started", "in_progress", "pending", "retryable_failure")
   private val SAFE_TRACE_ATTRIBUTES =

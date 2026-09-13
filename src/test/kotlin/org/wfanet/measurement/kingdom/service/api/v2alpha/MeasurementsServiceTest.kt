@@ -421,12 +421,14 @@ class MeasurementsServiceTest {
         }
       )
     val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.name).isEqualTo("kingdom.measurement.created")
+    assertThat(span.name).isEqualTo("kingdom.measurement.create")
     assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
       .isEqualTo(MEASUREMENT_NAME)
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("measurement_creation")
     assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID))
+      .isEqualTo(request.requestId)
   }
 
   @Test
@@ -452,6 +454,7 @@ class MeasurementsServiceTest {
     val request = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       this.measurement = measurement
+      requestId = "invalid-lineage-request"
     }
 
     val exception =
@@ -462,7 +465,17 @@ class MeasurementsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(spanExporter.finishedSpanItems).isEmpty()
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.measurement.create")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("measurement_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID))
+      .isEqualTo(request.requestId)
+    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo("measurementConsumers/different/basicReports/basic-report")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -2492,6 +2505,7 @@ class MeasurementsServiceTest {
       parent = MEASUREMENT_CONSUMER_NAME
       requests += createMeasurementRequest {
         parent = MEASUREMENT_CONSUMER_NAME
+        requestId = "measurement-request-1"
         measurement =
           MEASUREMENT.copy {
             measurementSpec = measurementSpec.copy { setMessage(measurementSpec1.pack()) }
@@ -2499,6 +2513,7 @@ class MeasurementsServiceTest {
       }
       requests += createMeasurementRequest {
         parent = MEASUREMENT_CONSUMER_NAME
+        requestId = "measurement-request-2"
         measurement =
           MEASUREMENT.copy {
             measurementSpec = measurementSpec.copy { setMessage(measurementSpec2.pack()) }
@@ -2528,6 +2543,9 @@ class MeasurementsServiceTest {
       .containsExactly(basicReportName)
     assertThat(spans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.distinct())
       .containsExactly("accepted")
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) })
+      .containsExactly("measurement-request-1", "measurement-request-2")
+      .inOrder()
   }
 
   @Test

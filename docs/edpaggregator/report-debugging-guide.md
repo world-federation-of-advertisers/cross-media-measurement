@@ -61,6 +61,17 @@ changes *how* you use every tool below:
   `xmm.lifecycle.stage`, and `xmm.outcome` on the span itself. Structured logs
   provide the detailed chronological evidence. A missing span is not proof that a
   stage did not run because export and sampling still apply.
+- **Creation failures use the earliest stable identity.** Before a Metric or
+  Measurement resource exists, Reporting and Kingdom emit
+  `xmm.metric.request_id` or `xmm.measurement.request_id`; `report-trace` resolves
+  those request IDs from the Reporting database and uses them to attribute the
+  failed child. BasicReport creation becomes correlatable once both a valid
+  parent and non-empty BasicReport ID are present. Failures before that boundary
+  cannot be found from a BasicReport name alone.
+- **Failure labels are intentionally safe and compact.** Producer spans and
+  structured post-processing logs retain `xmm.outcome=failed` and a bounded
+  `xmm.error.type`. Exception messages and stack traces remain in the source
+  system rather than the portable artifact.
 - **Logs still matter, but isolation is component-dependent — and harder.** Don't
   skip them (an exception stack trace is often only in the logs), but know what is
   greppable where:
@@ -286,7 +297,8 @@ in the deployment guide. The legacy DataWatcher dispatch route is not supported
 by `report-trace`.
 
 The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
-Report, Metric, and Measurement identifiers. It then performs up to four
+Report, Metric, and Measurement identifiers, plus unresolved Metric and
+Measurement creation request IDs. It then performs up to four
 correlation-expansion rounds: allowlisted Requisition, group, WorkItem, and
 computation identifiers found in either spans or structured logs are queried in
 both systems, and newly found trace IDs are fetched from every configured
@@ -875,6 +887,10 @@ Trace:
    `xmm.requisition.name` (or `xmm.edpa.group_id` / `xmm.report.name`). Use the
    `xmm.outcome` label for the handled outcome. Cloud Trace v1 does not return
    OpenTelemetry event payloads or span status through its read API.
+   Worker redeliveries are not automatically failures: `in_progress` means the
+   same WorkItem generation already has an active attempt, `already_completed`
+   means it already succeeded, and `stale_delivery` means a newer generation
+   superseded the queue message.
 
    The logs are sparser. A broad severity/stack-trace scan still surfaces the
    exception (the content is in `textPayload`):

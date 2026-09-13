@@ -626,6 +626,44 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Metric creation failure resolves an unresolved request by request ID`() {
+    val requestId = "create-metric-request-2"
+    val context =
+      reportTraceContext()
+        .copy(metricNames = emptyList(), unresolvedMetricRequestIds = listOf(requestId))
+    val spans =
+      listOf(failedLifecycleSpan("metric_creation", mapOf("xmm.metric.request_id" to requestId)))
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context = context,
+        routeResolution =
+          ReportTraceRouteResolution.unresolved(
+            context.measurementNames,
+            ReportTraceTopology.notSupplied(),
+            "FAILED",
+            "test",
+          ),
+        spans = spans,
+        logEntries = emptyList(),
+      )
+
+    assertThat(
+        coverage.single {
+          it.name == "metric_creation" && it.resource == "Metric request $requestId"
+        }
+      )
+      .isEqualTo(
+        ReportTraceLifecycleStage(
+          name = "metric_creation",
+          resource = "Metric request $requestId",
+          status = "FAILED",
+          evidence = "span metric_creation",
+        )
+      )
+  }
+
+  @Test
   fun `unresolved Measurement request remains visible when another Measurement resolves`() {
     val unresolvedRequestId = "create-measurement-request-2"
     val context =
@@ -664,6 +702,99 @@ class ReportTraceTest {
       .isEqualTo("UNKNOWN")
     assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
       .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `Measurement creation failure resolves an unresolved request by request ID`() {
+    val requestId = "create-measurement-request-2"
+    val context =
+      reportTraceContext()
+        .copy(measurementNames = emptyList(), unresolvedMeasurementRequestIds = listOf(requestId))
+    val spans =
+      listOf(
+        failedLifecycleSpan(
+          "measurement_creation",
+          mapOf("xmm.measurement.request_id" to requestId),
+        )
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context = context,
+        routeResolution =
+          ReportTraceRouteResolution.unresolved(
+            context.measurementNames,
+            ReportTraceTopology.notSupplied(),
+            "FAILED",
+            "test",
+          ),
+        spans = spans,
+        logEntries = emptyList(),
+      )
+
+    assertThat(
+        coverage.single {
+          it.name == "measurement_creation" && it.resource == "Measurement request $requestId"
+        }
+      )
+      .isEqualTo(
+        ReportTraceLifecycleStage(
+          name = "measurement_creation",
+          resource = "Measurement request $requestId",
+          status = "FAILED",
+          evidence = "span measurement_creation",
+        )
+      )
+  }
+
+  @Test
+  fun `lifecycle uses completion time when an overlapping duplicate finishes first`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val workItemName = "workItems/group-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val original =
+      lifecycleSpan(
+          "work_item_processing",
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.work_item.name" to workItemName),
+        )
+        .copy(startTime = NOW, endTime = NOW.plusSeconds(10))
+    val duplicate =
+      lifecycleSpan(
+          "work_item_processing",
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.work_item.name" to workItemName),
+        )
+        .copy(
+          startTime = NOW.plusSeconds(5),
+          endTime = NOW.plusSeconds(6),
+          attributes = original.attributes + (ReportTraceAttributes.OUTCOME_STRING to "in_progress"),
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(original, duplicate),
+        emptyList(),
+      )
+
+    assertThat(
+        coverage.single { it.name == "work_item_processing" && it.resource == requisitionName }
+      )
+      .isEqualTo(
+        ReportTraceLifecycleStage(
+          name = "work_item_processing",
+          resource = requisitionName,
+          status = "SUCCEEDED",
+          evidence = "span work_item_processing, span work_item_processing",
+        )
+      )
   }
 
   @Test

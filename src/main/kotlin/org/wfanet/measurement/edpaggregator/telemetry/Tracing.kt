@@ -183,6 +183,19 @@ object Tracing {
     }
   }
 
+  /** Records a failed operation whose work was shared by multiple correlated resources. */
+  fun recordFailure(spanName: String, attributes: Attributes, error: Throwable) {
+    val span =
+      Instrumentation.openTelemetry
+        .getTracer("edpa-instrumentation")
+        .spanBuilder(spanName)
+        .setSpanKind(SpanKind.INTERNAL)
+        .setAllAttributes(attributes)
+        .startSpan()
+    recordFailure(span, error)
+    span.end()
+  }
+
   @PublishedApi
   internal fun recordFailure(span: Span, error: Throwable) {
     span

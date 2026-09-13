@@ -172,7 +172,15 @@ abstract class BaseTeeApplication(
             logger.log(Level.WARNING, e) {
               "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
             }
-            recordCurrentSpanError(e)
+            when {
+              activeAttempt ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
+              workItemState == WorkItem.State.SUCCEEDED.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "already_completed")
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "stale_delivery")
+              else -> recordCurrentSpanError(e)
+            }
             queueMessage.ack()
             return
           }

@@ -448,6 +448,45 @@ class RequisitionFetcherTest {
     createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
 
     assertThat(dispatchCalled).isFalse()
+    val failureSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" &&
+          it.attributes.get(ReportTraceAttributes.GROUP_ID) != null
+      }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(TestRequisitionData.REQUISITION.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusException")
+  }
+
+  @Test
+  fun `direct dispatch failure emits attributed Requisition failure`() = runBlocking {
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          error("dispatch failed")
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+    val failureSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" &&
+          it.attributes.get(ReportTraceAttributes.GROUP_ID) != null
+      }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(TestRequisitionData.REQUISITION.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REPORT_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
   }
 
   @Test
@@ -2046,12 +2085,32 @@ class RequisitionFetcherTest {
       throw RuntimeException("simulated storage write failure")
     }
 
-    createFetcher(storageClient = mockStorageClient).fetchAndStoreRequisitions()
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          error("dispatch must not run after a blob failure")
+        }
+      }
+
+    createFetcher(storageClient = mockStorageClient, workItemDispatcher = dispatcher)
+      .fetchAndStoreRequisitions()
 
     assertThat(counterValue("edpa.requisition_fetcher.storage_fails")).isEqualTo(1)
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
     assertThat(counterValue("edpa.requisition_fetcher.storage_writes")).isEqualTo(0)
     assertThat(createRequisitionMetadataRequests).isEmpty()
+    val failureSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" &&
+          it.attributes.get(ReportTraceAttributes.GROUP_ID) != null
+      }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(r1.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("RuntimeException")
   }
 
   @Test

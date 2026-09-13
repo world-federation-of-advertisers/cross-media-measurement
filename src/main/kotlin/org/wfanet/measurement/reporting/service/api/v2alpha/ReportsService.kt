@@ -26,6 +26,7 @@ import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.time.DateTimeException
 import java.time.LocalDate
@@ -59,6 +60,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
@@ -411,19 +413,31 @@ class ReportsService(
       }
     }
 
-    Span.current()
-      .setAttribute(
-        ReportTraceAttributes.REPORT_NAME,
-        ReportKey(parentKey.measurementConsumerId, request.reportId).toName(),
-      )
-      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "report_creation")
-      .setAttribute(ReportTraceAttributes.OUTCOME, "started")
-      .also { span ->
-        if (request.report.basicReport.isNotBlank()) {
-          span.setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.report.basicReport)
-        }
-      }
+    return ReportTracing.traceSuspending(
+      spanName = "reporting.report.create",
+      attributes =
+        Attributes.builder()
+          .put(
+            ReportTraceAttributes.REPORT_NAME,
+            ReportKey(parentKey.measurementConsumerId, request.reportId).toName(),
+          )
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "report_creation")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .also { builder ->
+            if (request.report.basicReport.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, request.report.basicReport)
+            }
+          }
+          .build(),
+    ) {
+      createReportInternal(request, parentKey)
+    }
+  }
 
+  private suspend fun createReportInternal(
+    request: CreateReportRequest,
+    parentKey: MeasurementConsumerKey,
+  ): Report {
     grpcRequire(request.report.reportingMetricEntriesList.isNotEmpty()) {
       "No ReportingMetricEntry is specified."
     }

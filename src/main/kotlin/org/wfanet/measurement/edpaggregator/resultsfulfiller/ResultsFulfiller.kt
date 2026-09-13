@@ -147,25 +147,66 @@ class ResultsFulfiller(
    * @throws IllegalArgumentException If a requisition specifies an unsupported protocol.
    * @throws Exception If decryption or RPC fulfillment fails.
    */
-  suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) =
-    Tracing.traceSuspending(
-      spanName = SPAN_PROCESS_GROUP,
-      attributes =
-        Attributes.builder()
-          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
-          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
-          .also { builder ->
-            if (groupedRequisitions.report.isNotEmpty()) {
-              builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+  suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    try {
+      Tracing.traceSuspending(
+        spanName = SPAN_PROCESS_GROUP,
+        attributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+            .also { builder ->
+              if (groupedRequisitions.report.isNotEmpty()) {
+                builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+              }
+              if (groupedRequisitions.basicReport.isNotEmpty()) {
+                builder.put(
+                  ReportTraceAttributes.BASIC_REPORT_NAME,
+                  groupedRequisitions.basicReport,
+                )
+              }
             }
-            if (groupedRequisitions.basicReport.isNotEmpty()) {
-              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
-            }
-          }
-          .build(),
-    ) {
-      fulfillRequisitionsInternal(parallelism)
+            .build(),
+      ) {
+        fulfillRequisitionsInternal(parallelism)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: RequisitionProcessingException) {
+      throw e.failure
+    } catch (e: Exception) {
+      recordSharedFailure(e)
+      throw e
     }
+  }
+
+  private fun recordSharedFailure(error: Exception) {
+    for (entry in groupedRequisitions.requisitionsList) {
+      val requisition =
+        runCatching { entry.requisition.unpack(Requisition::class.java) }.getOrNull() ?: continue
+      Tracing.recordFailure(
+        spanName = "edp_aggregator.results_fulfiller.shared_failure",
+        attributes = requisitionTraceAttributes(requisition.name),
+        error = error,
+      )
+    }
+  }
+
+  private fun requisitionTraceAttributes(requisitionName: String): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+      .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .also { builder ->
+        if (groupedRequisitions.report.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+        }
+        if (groupedRequisitions.basicReport.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
+        }
+      }
+      .build()
+  }
 
   @OptIn(ExperimentalCoroutinesApi::class)
   private suspend fun fulfillRequisitionsInternal(parallelism: Int) {
@@ -308,47 +349,56 @@ class ResultsFulfiller(
           .asFlow()
           .flatMapMerge(concurrency = parallelism) { req: Requisition ->
             flow {
-              emit(
-                Tracing.traceSuspending(
-                  spanName = SPAN_REQUISITION_PROCESSING,
-                  attributes =
-                    Attributes.builder()
-                      .put(ReportTraceAttributes.REQUISITION_NAME, req.name)
-                      .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
-                      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
-                      .put(ReportTraceAttributes.OUTCOME, "started")
-                      .also { builder ->
-                        if (reportId.isNotEmpty()) {
-                          builder.put(ReportTraceAttributes.REPORT_NAME, reportId)
+              val outcome =
+                try {
+                  Tracing.traceSuspending(
+                    spanName = SPAN_REQUISITION_PROCESSING,
+                    attributes =
+                      Attributes.builder()
+                        .put(ReportTraceAttributes.REQUISITION_NAME, req.name)
+                        .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+                        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+                        .put(ReportTraceAttributes.OUTCOME, "started")
+                        .also { builder ->
+                          if (reportId.isNotEmpty()) {
+                            builder.put(ReportTraceAttributes.REPORT_NAME, reportId)
+                          }
+                          if (basicReportName.isNotEmpty()) {
+                            builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+                          }
                         }
-                        if (basicReportName.isNotEmpty()) {
-                          builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
-                        }
-                      }
-                      .build(),
-                ) {
-                  val outcome =
-                    fulfillSingleRequisition(
-                      requisition = req,
-                      frequencyVector = frequencyVectorMap.getValue(req.name),
-                      populationSpec = populationSpec,
-                      requisitionsMetadata = requisitionMetadataByName,
-                      kekUri = kekUri,
-                    )
-                  val span = Span.current()
-                  span.setAttribute(
-                    ReportTraceAttributes.OUTCOME,
-                    if (outcome) "succeeded" else "refused",
-                  )
-                  if (!outcome) {
+                        .build(),
+                  ) {
+                    val outcome =
+                      fulfillSingleRequisition(
+                        requisition = req,
+                        frequencyVector = frequencyVectorMap.getValue(req.name),
+                        populationSpec = populationSpec,
+                        requisitionsMetadata = requisitionMetadataByName,
+                        kekUri = kekUri,
+                      )
+                    val span = Span.current()
                     span.setAttribute(
-                      ReportTraceAttributes.REFUSAL_ORIGIN,
-                      ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+                      ReportTraceAttributes.OUTCOME,
+                      if (outcome) "succeeded" else "refused",
                     )
+                    if (!outcome) {
+                      span.setAttribute(
+                        ReportTraceAttributes.REFUSAL_ORIGIN,
+                        ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+                      )
+                    }
+                    outcome
                   }
-                  outcome
+                } catch (e: CancellationException) {
+                  throw e
+                } catch (e: Exception) {
+                  // The per-Requisition span already contains the complete failure evidence. Mark
+                  // the exception so the group wrapper does not incorrectly fan this failure out
+                  // to sibling Requisitions as though shared preparation had failed.
+                  throw RequisitionProcessingException(e)
                 }
-              )
+              emit(outcome)
             }
           }
           .toList()
@@ -388,6 +438,7 @@ class ResultsFulfiller(
         if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
           signalRequisitionFulfilled(metadata)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       Requisition.State.UNFULFILLED -> {
@@ -397,6 +448,7 @@ class ResultsFulfiller(
         if (metadata.state !== RequisitionMetadata.State.WITHDRAWN) {
           signalRequisitionWithdrawn(metadata)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       Requisition.State.REFUSED -> {
@@ -404,6 +456,7 @@ class ResultsFulfiller(
           val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
           signalRequisitionRefused(metadata, refusalMessage)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       else -> {
@@ -412,6 +465,22 @@ class ResultsFulfiller(
         )
       }
     }
+  }
+
+  private suspend fun recordTerminalRequisition(
+    requisitionName: String,
+    requisitionState: Requisition.State,
+    outcome: String,
+  ) {
+    Tracing.traceSuspending(
+      spanName = "edp_aggregator.results_fulfiller.requisition_no_op",
+      attributes =
+        requisitionTraceAttributes(requisitionName)
+          .toBuilder()
+          .put(ReportTraceAttributes.REQUISITION_STATE, requisitionState.name)
+          .put(ReportTraceAttributes.OUTCOME, outcome)
+          .build(),
+    ) {}
   }
 
   /**
@@ -844,6 +913,9 @@ class ResultsFulfiller(
     )
     metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
+
+  private class RequisitionProcessingException(val failure: Exception) :
+    Exception(failure.message, failure)
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)

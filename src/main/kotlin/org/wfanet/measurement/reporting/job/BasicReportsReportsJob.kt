@@ -209,8 +209,13 @@ class BasicReportsReportsJob(
                       // ImpressionQualificationFilter information that has been fixed.
                       // BasicReports affected by the bug will be FAILED.
                     } catch (e: InvalidBasicReportException) {
-                      span.setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
-                      span.recordException(e)
+                      span
+                        .setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
+                        .setAttribute(
+                          ReportTraceAttributes.ERROR_TYPE,
+                          ReportTraceAttributes.errorType(e),
+                        )
+                        .recordException(e)
                       span.addEvent(
                         "reporting.basic_report.failed",
                         Attributes.builder()

@@ -1508,6 +1508,14 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    val noOpSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.requisition_no_op" }
+    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.REQUISITION_STATE))
+      .isEqualTo(Requisition.State.FULFILLED.name)
+    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+      .isEqualTo("already_completed")
   }
 
   @Test
@@ -1617,6 +1625,17 @@ class ResultsFulfillerTest {
     assertThat(retryPoint.value).isEqualTo(1)
     val groupIdKey = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
     assertThat(retryPoint.attributes.get(groupIdKey)).isEqualTo(groupedRequisitions.groupId)
+    val failureSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.shared_failure" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("results_fulfillment")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
   }
 
   @Test

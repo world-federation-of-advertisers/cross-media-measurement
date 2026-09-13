@@ -149,6 +149,14 @@ def _basic_report_state_past_unprocessed(
     return None
 
 
+def _error_type(error: BaseException) -> str:
+    """Returns a bounded error type suitable for structured trace output."""
+    if isinstance(error, grpc.RpcError):
+        status_code = error.code()
+        return f"grpc.{status_code.name if status_code is not None else 'UNKNOWN'}"
+    return type(error).__name__[:200]
+
+
 class PostProcessReportResultJob:
     """A job for fetching, correcting, and updating a report."""
 
@@ -237,23 +245,20 @@ class PostProcessReportResultJob:
                 basic_report.external_report_result_id,
                 self._ami_mrc_exempted_edps,
             )
-        except Exception:
+        except Exception as error:
             # The post-processor itself (solver, data parsing) failed. This
             # BasicReport cannot be processed; mark it FAILED so downstream
             # consumers don't wait forever.
             logging.warning(
                 "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
+                "xmm.error.type=%s "
                 "Failed to process BasicReport %s for MeasurementConsumer %s",
+                _error_type(error),
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
                 exc_info=True,
             )
-            self._basic_reports_stub.FailBasicReport(
-                basic_reports_service_pb2.FailBasicReportRequest(
-                    cmms_measurement_consumer_id=basic_report.cmms_measurement_consumer_id,
-                    external_basic_report_id=basic_report.external_basic_report_id,
-                )
-            )
+            self._fail_basic_report(basic_report)
             return False
 
         if not add_processed_result_values_request:
@@ -305,19 +310,16 @@ class PostProcessReportResultJob:
                 # treat as a real failure (e.g. missing ReportingSetResult).
                 logging.warning(
                     "xmm.lifecycle.stage=processed_result_writeback "
-                    "xmm.outcome=failed AddProcessedResultValues failed for BasicReport %s,"
+                    "xmm.outcome=failed xmm.error.type=%s "
+                    "AddProcessedResultValues failed for BasicReport %s,"
                     " MeasurementConsumer %s with FAILED_PRECONDITION but"
                     " state has not advanced; marking FAILED",
+                    _error_type(e),
                     basic_report.external_basic_report_id,
                     basic_report.cmms_measurement_consumer_id,
                     exc_info=True,
                 )
-                self._basic_reports_stub.FailBasicReport(
-                    basic_reports_service_pb2.FailBasicReportRequest(
-                        cmms_measurement_consumer_id=basic_report.cmms_measurement_consumer_id,
-                        external_basic_report_id=basic_report.external_basic_report_id,
-                    )
-                )
+                self._fail_basic_report(basic_report)
                 return False
             # Any other gRPC error (UNAVAILABLE, DEADLINE_EXCEEDED, etc.) is
             # treated as transient. Leave the BasicReport in
@@ -326,14 +328,29 @@ class PostProcessReportResultJob:
             logging.warning(
                 "xmm.lifecycle.stage=processed_result_writeback "
                 "xmm.outcome=in_progress xmm.error.retryable=true "
+                "xmm.error.type=%s "
                 "Transient failure (%s) updating "
                 "ReportResult for BasicReport"
                 " %s, MeasurementConsumer %s; will retry next tick",
+                _error_type(e),
                 e.code().name,
                 basic_report.external_basic_report_id,
                 basic_report.cmms_measurement_consumer_id,
                 exc_info=True,
             )
+            return False
+        except Exception as error:
+            logging.warning(
+                "xmm.lifecycle.stage=processed_result_writeback "
+                "xmm.outcome=failed xmm.error.type=%s "
+                "Non-gRPC failure updating ReportResult for BasicReport %s, "
+                "MeasurementConsumer %s; marking FAILED",
+                _error_type(error),
+                basic_report.external_basic_report_id,
+                basic_report.cmms_measurement_consumer_id,
+                exc_info=True,
+            )
+            self._fail_basic_report(basic_report)
             return False
 
         logging.info(
@@ -341,6 +358,33 @@ class PostProcessReportResultJob:
             "xmm.outcome=succeeded Finished post-processing BasicReport"
         )
         return succeeded
+
+    def _fail_basic_report(
+        self, basic_report: basic_report_pb2.BasicReport
+    ) -> bool:
+        try:
+            self._basic_reports_stub.FailBasicReport(
+                basic_reports_service_pb2.FailBasicReportRequest(
+                    cmms_measurement_consumer_id=(
+                        basic_report.cmms_measurement_consumer_id
+                    ),
+                    external_basic_report_id=(
+                        basic_report.external_basic_report_id
+                    ),
+                )
+            )
+            return True
+        except Exception as error:
+            logging.error(
+                "xmm.lifecycle.stage=basic_report_failure_writeback "
+                "xmm.outcome=failed xmm.error.type=%s "
+                "Failed to mark BasicReport %s for MeasurementConsumer %s as FAILED",
+                _error_type(error),
+                basic_report.external_basic_report_id,
+                basic_report.cmms_measurement_consumer_id,
+                exc_info=True,
+            )
+            return False
 
     def execute(self) -> bool:
         """Runs the post-processing job.

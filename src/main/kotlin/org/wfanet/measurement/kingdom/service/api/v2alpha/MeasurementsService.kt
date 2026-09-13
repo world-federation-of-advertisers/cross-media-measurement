@@ -22,6 +22,7 @@ import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.util.AbstractMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -154,6 +155,24 @@ class MeasurementsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "parent is either unspecified or invalid"
       }
+    return ReportTracing.traceSuspending(
+      spanName = "kingdom.measurement.create",
+      attributes = measurementCreationTraceAttributes(request),
+    ) {
+      val measurement = createMeasurementInternal(request, authenticatedPrincipal, parentKey)
+      Span.current()
+        .setAttribute(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
+        .setAttribute(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      measurement
+    }
+  }
+
+  private suspend fun createMeasurementInternal(
+    request: CreateMeasurementRequest,
+    authenticatedPrincipal: MeasurementPrincipal,
+    parentKey: MeasurementConsumerKey,
+  ): Measurement {
     if (parentKey != authenticatedPrincipal.resourceKey) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
@@ -211,7 +230,7 @@ class MeasurementsService(
         }
       }
 
-    return traceMeasurementCreation(internalMeasurement.toMeasurement())
+    return internalMeasurement.toMeasurement()
   }
 
   override suspend fun listMeasurements(
@@ -300,7 +319,25 @@ class MeasurementsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "parent is either unspecified or invalid"
       }
+    return try {
+      batchCreateMeasurementsInternal(request, authenticatedMeasurementConsumerKey, parentKey)
+    } catch (e: Exception) {
+      for (createMeasurementRequest in request.requestsList) {
+        ReportTracing.recordFailure(
+          spanName = "kingdom.measurement.creation_failed",
+          attributes = measurementCreationTraceAttributes(createMeasurementRequest),
+          error = e,
+        )
+      }
+      throw e
+    }
+  }
 
+  private suspend fun batchCreateMeasurementsInternal(
+    request: BatchCreateMeasurementsRequest,
+    authenticatedMeasurementConsumerKey: MeasurementConsumerKey,
+    parentKey: MeasurementConsumerKey,
+  ): BatchCreateMeasurementsResponse {
     if (parentKey != authenticatedMeasurementConsumerKey) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
@@ -415,8 +452,12 @@ class MeasurementsService(
       }
 
     return batchCreateMeasurementsResponse {
-      for (internalMeasurement in internalMeasurements) {
-        measurements += traceMeasurementCreation(internalMeasurement.toMeasurement())
+      for ((index, internalMeasurement) in internalMeasurements.withIndex()) {
+        measurements +=
+          traceMeasurementCreation(
+            internalMeasurement.toMeasurement(),
+            request.requestsList.getOrNull(index)?.requestId.orEmpty(),
+          )
       }
     }
   }
@@ -731,7 +772,27 @@ class MeasurementsService(
     }
   }
 
-  private suspend fun traceMeasurementCreation(measurement: Measurement): Measurement {
+  private fun measurementCreationTraceAttributes(request: CreateMeasurementRequest): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+      .put(ReportTraceAttributes.OUTCOME, "started")
+      .also { builder ->
+        if (request.requestId.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.MEASUREMENT_REQUEST_ID, request.requestId)
+        }
+        val measurementSpec =
+          runCatching { request.measurement.measurementSpec.unpack<MeasurementSpec>() }.getOrNull()
+        if (measurementSpec != null) {
+          builder.putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        }
+      }
+      .build()
+  }
+
+  private suspend fun traceMeasurementCreation(
+    measurement: Measurement,
+    requestId: String,
+  ): Measurement {
     val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     val attributes =
       Attributes.builder()
@@ -739,6 +800,11 @@ class MeasurementsService(
         .put(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
         .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
         .put(ReportTraceAttributes.OUTCOME, "accepted")
+        .also { builder ->
+          if (requestId.isNotEmpty()) {
+            builder.put(ReportTraceAttributes.MEASUREMENT_REQUEST_ID, requestId)
+          }
+        }
         .build()
     return ReportTracing.traceSuspending("kingdom.measurement.created", attributes) { measurement }
   }

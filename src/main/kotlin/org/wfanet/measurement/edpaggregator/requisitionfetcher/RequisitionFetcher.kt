@@ -498,6 +498,17 @@ class RequisitionFetcher(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
+      if (workItemDispatcher != null) {
+        recordDispatchEvidence(
+          requisitionNames = unit.requisitions.map { it.name },
+          reportName = unit.reportId,
+          basicReportName = unit.identifiers.basicReportName,
+          groupId = null,
+          workItemName = null,
+          outcome = "failed",
+          error = e,
+        )
+      }
       metrics.reportFailures.add(
         1,
         Attributes.builder()
@@ -547,7 +558,14 @@ class RequisitionFetcher(
       if (storageClient.getBlob(location.blobKey) != null) {
         if (location.ownership == DispatchOwnership.DIRECT) {
           metadataCache.remove(unit.reportId)
-          queueAndDispatchGroup(existingGroupId, metadataList, location.blobUri)
+          traceDispatchTransaction(
+            requisitionNames = metadataList.map { it.cmmsRequisition },
+            reportName = unit.reportId,
+            basicReportName = unit.identifiers.basicReportName,
+            groupId = existingGroupId,
+          ) {
+            queueAndDispatchGroup(existingGroupId, metadataList, location.blobUri)
+          }
         }
         continue
       }
@@ -580,11 +598,21 @@ class RequisitionFetcher(
             null
           }
         if (rebuilt != null) {
-          writeBlob(rebuilt, location.blobKey)
-          metrics.recoveryRebuilds.add(1, dataProviderAttrs)
           if (location.ownership == DispatchOwnership.DIRECT) {
-            metadataCache.remove(unit.reportId)
-            queueAndDispatchGroup(existingGroupId, pending.metadata, location.blobUri)
+            traceDispatchTransaction(
+              requisitionNames = pending.metadata.map { it.cmmsRequisition },
+              reportName = unit.reportId,
+              basicReportName = unit.identifiers.basicReportName,
+              groupId = existingGroupId,
+            ) {
+              writeBlob(rebuilt, location.blobKey)
+              metrics.recoveryRebuilds.add(1, dataProviderAttrs)
+              metadataCache.remove(unit.reportId)
+              queueAndDispatchGroup(existingGroupId, pending.metadata, location.blobUri)
+            }
+          } else {
+            writeBlob(rebuilt, location.blobKey)
+            metrics.recoveryRebuilds.add(1, dataProviderAttrs)
           }
         }
         pendingRecovery.remove(existingGroupId)
@@ -639,15 +667,21 @@ class RequisitionFetcher(
         priorBlobForReport = true
         val newBlobKey = blobKey(newStoragePathPrefix, groupId)
         val newBlobUri = blobUri(newStoragePathPrefix, groupId)
-        writeBlob(grouped, newBlobKey)
-        val createdMetadata =
-          if (workItemDispatcher == null) {
-            batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
-          } else {
-            registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+        if (workItemDispatcher == null) {
+          writeBlob(grouped, newBlobKey)
+          batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+        } else {
+          traceDispatchTransaction(
+            requisitionNames = chunk.map { it.name },
+            reportName = unit.reportId,
+            basicReportName = unit.identifiers.basicReportName,
+            groupId = groupId,
+          ) {
+            writeBlob(grouped, newBlobKey)
+            val createdMetadata =
+              registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+            queueAndDispatchGroup(groupId, createdMetadata, newBlobUri)
           }
-        if (workItemDispatcher != null) {
-          queueAndDispatchGroup(groupId, createdMetadata, newBlobUri)
         }
       }
     } finally {
@@ -982,36 +1016,75 @@ class RequisitionFetcher(
         }
       }
     }
-    try {
-      dispatcher.dispatch(groupId, blobUri)
-      recordDispatchEvidence(metadata, groupId, workItemName, "succeeded", null)
+    dispatcher.dispatch(groupId, blobUri)
+  }
+
+  private suspend fun <T> traceDispatchTransaction(
+    requisitionNames: List<String>,
+    reportName: String,
+    basicReportName: String,
+    groupId: String,
+    block: suspend () -> T,
+  ): T {
+    val workItemName = checkNotNull(workItemDispatcher).workItemName(groupId)
+    return try {
+      block().also {
+        recordDispatchEvidence(
+          requisitionNames,
+          reportName,
+          basicReportName,
+          groupId,
+          workItemName,
+          "succeeded",
+          null,
+        )
+      }
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      recordDispatchEvidence(metadata, groupId, workItemName, "failed", e)
+      recordDispatchEvidence(
+        requisitionNames,
+        reportName,
+        basicReportName,
+        groupId,
+        workItemName,
+        "failed",
+        e,
+      )
       throw e
     }
   }
 
-  /** Emits one lifecycle span per Requisition after the group dispatch outcome is known. */
+  /** Emits one lifecycle span per Requisition after the dispatch transaction outcome is known. */
   private suspend fun recordDispatchEvidence(
-    metadata: List<RequisitionMetadata>,
-    groupId: String,
-    workItemName: String,
+    requisitionNames: List<String>,
+    reportName: String,
+    basicReportName: String,
+    groupId: String?,
+    workItemName: String?,
     outcome: String,
     error: Exception?,
   ) {
-    for (item in metadata) {
+    for (requisitionName in requisitionNames) {
       traceSuspending(
         spanName = "edp_aggregator.requisition_fetcher.dispatch_requisition",
         attributes =
           Attributes.builder()
-            .put(ReportTraceAttributes.REQUISITION_NAME, item.cmmsRequisition)
-            .put(ReportTraceAttributes.GROUP_ID, groupId)
-            .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
-            .put(ReportTraceAttributes.REPORT_NAME, item.report)
+            .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+            .put(ReportTraceAttributes.REPORT_NAME, reportName)
             .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_dispatch")
             .put(ReportTraceAttributes.OUTCOME, outcome)
+            .also { builder ->
+              if (basicReportName.isNotEmpty()) {
+                builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+              }
+              if (groupId != null) {
+                builder.put(ReportTraceAttributes.GROUP_ID, groupId)
+              }
+              if (workItemName != null) {
+                builder.put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+              }
+            }
             .build(),
       ) {
         if (error != null) {

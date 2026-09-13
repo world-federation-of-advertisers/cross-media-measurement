@@ -2758,12 +2758,23 @@ class MetricsServiceTest {
           basicReport = "measurementConsumers/different/basicReports/basic-report"
         }
       metricId = METRIC_ID
+      requestId = "metric-request-id"
     }
 
     val exception =
       assertFailsWith<StatusRuntimeException> { runBlocking { service.createMetric(request) } }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val span = spanExporter.finishedSpanItems.single { it.name == "reporting.metric.create" }
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_NAME))
+      .isEqualTo(
+        MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, METRIC_ID).toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_REQUEST_ID))
+      .isEqualTo(request.requestId)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -6532,6 +6543,7 @@ class MetricsServiceTest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = "invalid" }
         metricId = "metric-id"
+        requestId = "metric-request-id"
       }
     }
 
@@ -6551,6 +6563,19 @@ class MetricsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "requests[0].metric.model_line"
         }
       )
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "reporting.metric.creation_failed" }
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_NAME))
+      .isEqualTo(
+        MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, "metric-id").toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_REQUEST_ID))
+      .isEqualTo("metric-request-id")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("metric_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -7604,6 +7629,34 @@ class MetricsServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+
+      val measurementFailures =
+        spanExporter.finishedSpanItems.filter {
+          it.name == "reporting.kingdom_measurement.sync_failed"
+        }
+      assertThat(measurementFailures).isNotEmpty()
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
+        )
+        .doesNotContain(null)
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet()
+        )
+        .containsExactly("failed")
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet()
+        )
+        .containsExactly("StatusRuntimeException")
+
+      val metricFailures =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+        .containsExactly(
+          PENDING_INCREMENTAL_REACH_METRIC.name,
+          PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name,
+        )
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet())
+        .containsExactly("failed")
     }
 
   @Test
@@ -7619,6 +7672,8 @@ class MetricsServiceTest {
             SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name to SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
             SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
               SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
+              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -7630,11 +7685,32 @@ class MetricsServiceTest {
       val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
+        assertFailsWith<Exception> {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+      assertThat(exception).hasMessageThat().contains("Unable to set measurement results")
+      val measurementFailures =
+        spanExporter.finishedSpanItems.filter {
+          it.name == "reporting.kingdom_measurement.sync_failed"
+        }
+      assertThat(measurementFailures).isNotEmpty()
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
+        )
+        .doesNotContain(null)
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet()
+        )
+        .containsExactly("Exception")
+
+      val metricFailures =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
+      assertThat(metricFailures).isNotEmpty()
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet())
+        .containsExactly("failed")
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet())
+        .containsExactly("Exception")
     }
   }
 

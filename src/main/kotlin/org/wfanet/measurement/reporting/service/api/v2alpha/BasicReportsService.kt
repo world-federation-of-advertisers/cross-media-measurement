@@ -25,6 +25,7 @@ import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -53,6 +54,7 @@ import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.cel.CelPredicates
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toTimestamp
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
@@ -215,15 +217,30 @@ class BasicReportsService(
   )
 
   override suspend fun createBasicReport(request: CreateBasicReportRequest): BasicReport {
-    MeasurementConsumerKey.fromName(request.parent)?.let { parentKey ->
-      if (request.basicReportId.isNotBlank()) {
-        Span.current()
-          .setAttribute(
-            ReportTraceAttributes.BASIC_REPORT_NAME,
-            BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName(),
-          )
-      }
+    val parentKey = MeasurementConsumerKey.fromName(request.parent)
+    if (parentKey == null || request.basicReportId.isEmpty()) {
+      return createBasicReportInternal(request)
     }
+    val basicReportName =
+      BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
+    return ReportTracing.traceSuspending(
+      spanName = "reporting.basic_report.create",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_creation")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      val basicReport = createBasicReportInternal(request)
+      Span.current()
+        .setAttribute(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+      basicReport
+    }
+  }
+
+  private suspend fun createBasicReportInternal(request: CreateBasicReportRequest): BasicReport {
     val eventTemplateFieldsByPath = eventMessageDescriptor.eventTemplateFieldsByPath
 
     // The Campaign Group is either supplied by the caller (when campaign_group is specified) or,
@@ -579,10 +596,6 @@ class BasicReportsService(
 
     val basicReportName =
       BasicReportKey(parentKey.measurementConsumerId, request.basicReportId).toName()
-    Span.current()
-      .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
-      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_creation")
-      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     val report: Report =
       try {
         buildReport(
@@ -763,17 +776,24 @@ class BasicReportsService(
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
-    Span.current()
-      .setAttribute(ReportTraceAttributes.BASIC_REPORT_NAME, request.name)
-      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_api_fetch")
-      .addEvent(
-        "reporting.basic_report.fetch_started",
-        io.opentelemetry.api.common.Attributes.of(
-          ReportTraceAttributes.LIFECYCLE_STAGE,
-          "basic_report_api_fetch",
-        ),
-      )
+    return ReportTracing.traceSuspending(
+      spanName = "reporting.basic_report.get",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.BASIC_REPORT_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_api_fetch")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      getBasicReportInternal(request, measurementConsumerKey, basicReportId)
+    }
+  }
 
+  private suspend fun getBasicReportInternal(
+    request: GetBasicReportRequest,
+    measurementConsumerKey: MeasurementConsumerKey,
+    basicReportId: String,
+  ): BasicReport {
     authorization.check(listOf(request.name, measurementConsumerKey.toName()), Permission.GET)
 
     val internalBasicReport: InternalBasicReport =

@@ -334,10 +334,41 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
             "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
+            "xmm.error.type=%s "
             "Failed to process BasicReport %s for MeasurementConsumer %s",
+            "Exception",
             "basic_report_1",
             "mc_id_1",
             exc_info=True,
+        )
+
+    @mock.patch.object(logging, "error", autospec=True)
+    def test_fail_basic_report_failure_is_structured(self, mock_error):
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_1",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]
+            )
+        )
+        self.mock_post_processor.process.side_effect = ValueError("bad input")
+        self.mock_basic_reports_stub.FailBasicReport.side_effect = RuntimeError(
+            "write failed"
+        )
+
+        result = self.job.execute()
+
+        self.assertFalse(result)
+        self.assertTrue(
+            any(
+                "xmm.lifecycle.stage=basic_report_failure_writeback "
+                "xmm.outcome=failed xmm.error.type=%s" in call.args[0]
+                and call.args[1] == "RuntimeError"
+                for call in mock_error.call_args_list
+            )
         )
 
     @mock.patch.object(logging, "info", autospec=True)
@@ -492,7 +523,10 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             )
         )
 
-    def test_execute_does_not_fail_on_transient_grpc_error(self):
+    @mock.patch.object(logging, "warning", autospec=True)
+    def test_execute_does_not_fail_on_transient_grpc_error(
+        self, mock_warning
+    ):
         """If AddProcessedResultValues fails with a transient gRPC error such
         as UNAVAILABLE, the BasicReport should be left in
         UNPROCESSED_RESULTS_READY for the next tick to retry; it must not be
@@ -526,6 +560,46 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertFalse(result)
         # Transient failure should not fail the BasicReport.
         self.mock_basic_reports_stub.FailBasicReport.assert_not_called()
+        self.assertTrue(
+            any(
+                "xmm.error.type=%s" in call.args[0]
+                and call.args[1] == "grpc.UNAVAILABLE"
+                for call in mock_warning.call_args_list
+            )
+        )
+
+    @mock.patch.object(logging, "warning", autospec=True)
+    def test_execute_structures_non_grpc_writeback_failure(
+        self, mock_warning
+    ):
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_writeback",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]
+            )
+        )
+        request = report_results_service_pb2.AddProcessedResultValuesRequest()
+        self.mock_post_processor.process.return_value = request
+        self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
+            ValueError("serialization failed")
+        )
+
+        result = self.job.execute()
+
+        self.assertFalse(result)
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once()
+        self.assertTrue(
+            any(
+                "xmm.lifecycle.stage=processed_result_writeback "
+                "xmm.outcome=failed xmm.error.type=%s" in call.args[0]
+                and call.args[1] == "ValueError"
+                for call in mock_warning.call_args_list
+            )
+        )
 
 
 if __name__ == "__main__":
