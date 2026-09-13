@@ -498,7 +498,13 @@ class RequisitionFetcher(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      if (workItemDispatcher != null) {
+      val failure =
+        if (e is DispatchFailureAlreadyRecordedException) {
+          e.original
+        } else {
+          e
+        }
+      if (workItemDispatcher != null && e !is DispatchFailureAlreadyRecordedException) {
         recordDispatchEvidence(
           requisitionNames = unit.requisitions.map { it.name },
           reportName = unit.reportId,
@@ -506,7 +512,7 @@ class RequisitionFetcher(
           groupId = null,
           workItemName = null,
           outcome = "failed",
-          error = e,
+          error = failure,
         )
       }
       metrics.reportFailures.add(
@@ -514,10 +520,14 @@ class RequisitionFetcher(
         Attributes.builder()
           .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
           .put(ATTR_REPORT_ID_KEY, unit.reportId)
-          .put(ATTR_ERROR_TYPE_KEY, errorTypeName(e))
+          .put(ATTR_ERROR_TYPE_KEY, errorTypeName(failure))
           .build(),
       )
-      logger.log(Level.SEVERE, "Failed to process report ${unit.reportId} for $dataProviderName", e)
+      logger.log(
+        Level.SEVERE,
+        "Failed to process report ${unit.reportId} for $dataProviderName",
+        failure,
+      )
     }
   }
 
@@ -1051,9 +1061,12 @@ class RequisitionFetcher(
         "failed",
         e,
       )
-      throw e
+      throw DispatchFailureAlreadyRecordedException(e)
     }
   }
+
+  private class DispatchFailureAlreadyRecordedException(val original: Exception) :
+    Exception(original)
 
   /** Emits one lifecycle span per Requisition after the dispatch transaction outcome is known. */
   private suspend fun recordDispatchEvidence(
@@ -1092,6 +1105,10 @@ class RequisitionFetcher(
             .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
             .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
             .recordException(error)
+          val errorCode = ReportTraceAttributes.errorCode(error)
+          if (errorCode != null) {
+            Span.current().setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+          }
         }
       }
     }

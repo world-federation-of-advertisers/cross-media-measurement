@@ -216,6 +216,10 @@ class BasicReportsReportsJob(
                           ReportTraceAttributes.errorType(e),
                         )
                         .recordException(e)
+                      val errorCode = ReportTraceAttributes.errorCode(e)
+                      if (errorCode != null) {
+                        span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+                      }
                       span.addEvent(
                         "reporting.basic_report.failed",
                         Attributes.builder()
@@ -333,15 +337,44 @@ class BasicReportsReportsJob(
           continue
         }
 
+        val basicReportName =
+          BasicReportKey(
+              cmmsMeasurementConsumerId,
+              basicReport.externalBasicReportId,
+            )
+            .toName()
+        val traceAttributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_creation")
+            .put(ReportTraceAttributes.ERROR_CODE, "BasicReportCreationTimeout")
+            .build()
         try {
           failBasicReport(
             cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
             externalBasicReportId = basicReport.externalBasicReportId,
           )
+          ReportTracing.recordFailure(
+            spanName = "reporting.basic_reports.watchdog_timeout",
+            attributes = traceAttributes,
+            error = BasicReportCreationTimeout(),
+          )
         } catch (e: StatusException) {
+          ReportTracing.recordFailure(
+            spanName = "reporting.basic_reports.watchdog_writeback",
+            attributes =
+              Attributes.builder()
+                .putAll(traceAttributes)
+                .put(
+                  ReportTraceAttributes.LIFECYCLE_STAGE,
+                  "basic_report_failure_writeback",
+                )
+                .build(),
+            error = e,
+          )
           logger.log(
             Level.WARNING,
-            "Failed to fail stuck BasicReport ${BasicReportKey(cmmsMeasurementConsumerId, basicReport.externalBasicReportId).toName()}",
+            "Failed to fail stuck BasicReport $basicReportName",
             e,
           )
         }
@@ -862,6 +895,8 @@ class BasicReportsReportsJob(
     val reportingSetResultInfoByReportingSetResultInfoKey:
       Map<ReportingSetResultInfoKey, ReportingSetResultInfo>,
   )
+
+  private class BasicReportCreationTimeout : Exception("BasicReport creation timed out")
 
   private data class PopulationResultKey(val filter: String, val groupingPredicates: Set<String>)
 

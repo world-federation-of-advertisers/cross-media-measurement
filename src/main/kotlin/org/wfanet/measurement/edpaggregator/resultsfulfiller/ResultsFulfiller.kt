@@ -154,7 +154,7 @@ class ResultsFulfiller(
         attributes =
           Attributes.builder()
             .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
-            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment_group")
             .also { builder ->
               if (groupedRequisitions.report.isNotEmpty()) {
                 builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
@@ -269,7 +269,23 @@ class ResultsFulfiller(
       requisitionsMetadata.associateBy { it.cmmsRequisition }
 
     val filteredRequisitions =
-      requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
+      requisitions.filter { requisition ->
+        try {
+          Tracing.traceSuspending(
+            spanName = "edp_aggregator.results_fulfiller.preflight_requisition",
+            attributes =
+              requisitionTraceAttributes(requisition.name).toBuilder()
+                .put(ReportTraceAttributes.OUTCOME, "started")
+                .build(),
+          ) {
+            requisition.shouldBeProcessed(requisitionMetadataByName)
+          }
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          throw RequisitionProcessingException(e)
+        }
+      }
     if (filteredRequisitions.isEmpty()) {
       return
     }
@@ -784,6 +800,10 @@ class ResultsFulfiller(
             ReportTraceAttributes.errorType(refusalError),
           )
           .recordException(refusalError)
+        val errorCode = ReportTraceAttributes.errorCode(refusalError)
+        if (errorCode != null) {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+        }
         logger.log(
           Level.SEVERE,
           "Failed to refuse requisition ${requisition.name} in CMMS",
@@ -889,6 +909,10 @@ class ResultsFulfiller(
           )
         }
       }
+    val errorCode = ReportTraceAttributes.errorCode(throwable)
+    if (errorCode != null) {
+      span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+    }
     span.addEvent(
       EVENT_REQUISITION_PROCESSING_FAILED,
       Attributes.builder()

@@ -27,6 +27,7 @@ import java.util.AbstractMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsRequest
 import org.wfanet.measurement.api.v2alpha.BatchCreateMeasurementsResponse
@@ -150,15 +151,15 @@ class MeasurementsService(
   }
 
   override suspend fun createMeasurement(request: CreateMeasurementRequest): Measurement {
-    val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
-    val parentKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "parent is either unspecified or invalid"
-      }
     return ReportTracing.traceSuspending(
       spanName = "kingdom.measurement.create",
       attributes = measurementCreationTraceAttributes(request),
     ) {
+      val authenticatedPrincipal: MeasurementPrincipal = principalFromCurrentContext
+      val parentKey =
+        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+          "parent is either unspecified or invalid"
+        }
       val measurement = createMeasurementInternal(request, authenticatedPrincipal, parentKey)
       Span.current()
         .setAttribute(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
@@ -313,14 +314,15 @@ class MeasurementsService(
   override suspend fun batchCreateMeasurements(
     request: BatchCreateMeasurementsRequest
   ): BatchCreateMeasurementsResponse {
-    val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
-
-    val parentKey =
-      grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
-        "parent is either unspecified or invalid"
-      }
     return try {
+      val authenticatedMeasurementConsumerKey = getAuthenticatedMeasurementConsumerKey()
+      val parentKey =
+        grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
+          "parent is either unspecified or invalid"
+        }
       batchCreateMeasurementsInternal(request, authenticatedMeasurementConsumerKey, parentKey)
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       for (createMeasurementRequest in request.requestsList) {
         ReportTracing.recordFailure(

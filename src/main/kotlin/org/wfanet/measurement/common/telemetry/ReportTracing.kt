@@ -21,6 +21,7 @@ import io.opentelemetry.api.trace.SpanKind
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.Instrumentation
 
@@ -40,6 +41,10 @@ object ReportTracing {
       .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
       .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
       .recordException(error)
+    val errorCode = ReportTraceAttributes.errorCode(error)
+    if (errorCode != null) {
+      span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+    }
     span.end()
   }
 
@@ -58,12 +63,18 @@ object ReportTracing {
     val context = Context.current().with(span)
     return try {
       withContext(context.asContextElement()) { block() }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       span
         .setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
         .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
         .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
         .recordException(e)
+      val errorCode = ReportTraceAttributes.errorCode(e)
+      if (errorCode != null) {
+        span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+      }
       throw e
     } finally {
       span.end()

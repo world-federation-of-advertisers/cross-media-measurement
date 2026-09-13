@@ -1279,12 +1279,24 @@ class MeasurementsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         runBlocking {
-          service.createMeasurement(createMeasurementRequest { measurement = MEASUREMENT })
+          service.createMeasurement(
+            createMeasurementRequest {
+              measurement = MEASUREMENT
+              requestId = "auth-failure-request"
+            }
+          )
         }
       }
     assertWithMessage(exception.toString())
       .that(exception.status.code)
       .isEqualTo(Status.Code.UNAUTHENTICATED)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.measurement.create")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID))
+      .isEqualTo("auth-failure-request")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAUTHENTICATED")
   }
 
   @Test
@@ -2765,10 +2777,12 @@ class MeasurementsServiceTest {
     val createMeasurementRequest = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement = MEASUREMENT
+      requestId = "auth-failure-request-1"
     }
     val createMeasurementRequest2 = createMeasurementRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       measurement = MEASUREMENT
+      requestId = "auth-failure-request-2"
     }
     val request = batchCreateMeasurementsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
@@ -2782,6 +2796,14 @@ class MeasurementsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
+    val failureSpans =
+      spanExporter.finishedSpanItems.filter { it.name == "kingdom.measurement.creation_failed" }
+    assertThat(
+        failureSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) }
+      )
+      .containsExactly("auth-failure-request-1", "auth-failure-request-2")
+    assertThat(failureSpans.map { it.attributes.get(ReportTraceAttributes.ERROR_CODE) }.distinct())
+      .containsExactly("grpc.UNAUTHENTICATED")
   }
 
   @Test

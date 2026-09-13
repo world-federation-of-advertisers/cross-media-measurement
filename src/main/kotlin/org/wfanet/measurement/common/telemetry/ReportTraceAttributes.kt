@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.common.telemetry
 
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -41,6 +43,7 @@ object ReportTraceAttributes {
   const val LIFECYCLE_STAGE_STRING = "xmm.lifecycle.stage"
   const val OUTCOME_STRING = "xmm.outcome"
   const val ERROR_TYPE_STRING = "xmm.error.type"
+  const val ERROR_CODE_STRING = "xmm.error.code"
   const val REFUSAL_ORIGIN_STRING = "xmm.refusal.origin"
   const val REQUISITION_FETCHER_REFUSAL_ORIGIN = "requisition_fetcher"
   const val RESULTS_FULFILLER_REFUSAL_ORIGIN = "results_fulfiller"
@@ -65,6 +68,7 @@ object ReportTraceAttributes {
   val LIFECYCLE_STAGE: AttributeKey<String> = AttributeKey.stringKey(LIFECYCLE_STAGE_STRING)
   val OUTCOME: AttributeKey<String> = AttributeKey.stringKey(OUTCOME_STRING)
   val ERROR_TYPE: AttributeKey<String> = AttributeKey.stringKey(ERROR_TYPE_STRING)
+  val ERROR_CODE: AttributeKey<String> = AttributeKey.stringKey(ERROR_CODE_STRING)
   val REFUSAL_ORIGIN: AttributeKey<String> = AttributeKey.stringKey(REFUSAL_ORIGIN_STRING)
 
   /** Returns the reporting resource attributes embedded in [measurementSpec]. */
@@ -88,5 +92,20 @@ object ReportTraceAttributes {
   /** Returns a bounded, human-readable exception class name suitable for a span label. */
   fun errorType(error: Throwable): String {
     return error::class.java.name.substringAfterLast('.').replace('$', '.').take(200)
+  }
+
+  /** Returns a stable gRPC status code from [error] or one of its wrapped causes. */
+  fun errorCode(error: Throwable): String? {
+    return generateSequence(error) { it.cause }
+      .take(20)
+      .mapNotNull {
+        when (it) {
+          is StatusException -> it.status.code.name
+          is StatusRuntimeException -> it.status.code.name
+          else -> null
+        }
+      }
+      .firstOrNull()
+      ?.let { "grpc.$it" }
   }
 }

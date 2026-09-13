@@ -380,19 +380,21 @@ private suspend fun InternalRequisition.toTracedRequisition(): Requisition {
         externalIdToApiId(externalMeasurementId),
       )
       .toName()
-  val measurementSpec = MeasurementSpec.parseFrom(parentMeasurement.measurementSpec)
   return ReportTracing.traceSuspending(
     spanName = "kingdom.requisition.available",
     attributes =
       Attributes.builder()
-        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
         .put(ReportTraceAttributes.MEASUREMENT_NAME, measurementName)
         .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
         .put(ReportTraceAttributes.REQUISITION_STATE, state.name)
         .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_available")
-        .put(ReportTraceAttributes.OUTCOME, "succeeded")
+        .put(ReportTraceAttributes.OUTCOME, "started")
         .build(),
   ) {
+    val measurementSpec = MeasurementSpec.parseFrom(parentMeasurement.measurementSpec)
+    Span.current()
+      .setAllAttributes(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     toRequisition()
   }
 }

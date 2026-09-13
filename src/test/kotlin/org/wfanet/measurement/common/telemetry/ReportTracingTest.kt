@@ -17,6 +17,7 @@
 package org.wfanet.measurement.common.telemetry
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -27,6 +28,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.yield
 import org.junit.After
@@ -93,5 +95,33 @@ class ReportTracingTest {
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("IllegalStateException")
     assertThat(span.events.map { it.name }).contains("exception")
+  }
+
+  @Test
+  fun `traceSuspending does not record cancellation as failure`() = runBlocking {
+    assertFailsWith<CancellationException> {
+      ReportTracing.traceSuspending(spanName = "cancelled-span") {
+        throw CancellationException("cancelled")
+      }
+    }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.UNSET)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isNull()
+    assertThat(span.events.map { it.name }).doesNotContain("exception")
+  }
+
+  @Test
+  fun `traceSuspending records status code from wrapped gRPC exception`() = runBlocking {
+    assertFailsWith<Exception> {
+      ReportTracing.traceSuspending(spanName = "grpc-failure") {
+        throw Exception(Status.UNAVAILABLE.asRuntimeException())
+      }
+    }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isEqualTo("Exception")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
   }
 }

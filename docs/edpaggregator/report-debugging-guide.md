@@ -70,8 +70,10 @@ changes *how* you use every tool below:
   cannot be found from a BasicReport name alone.
 - **Failure labels are intentionally safe and compact.** Producer spans and
   structured post-processing logs retain `xmm.outcome=failed` and a bounded
-  `xmm.error.type`. Exception messages and stack traces remain in the source
-  system rather than the portable artifact.
+  `xmm.error.type`. gRPC failures also retain a stable `xmm.error.code` such
+  as `grpc.PERMISSION_DENIED`, including when the gRPC exception is wrapped.
+  Exception messages and stack traces remain in the source system rather than
+  the portable artifact.
 - **Logs still matter, but isolation is component-dependent — and harder.** Don't
   skip them (an exception stack trace is often only in the logs), but know what is
   greppable where:
@@ -104,6 +106,15 @@ with Requisition, EDPA group, WorkItem, and Duchy computation identifiers found
 in spans or structured logs. It writes matching spans and log entries in
 timestamp order, which is usually the fastest first step before using the
 stage-specific queries below.
+
+If the BasicReport-to-Report linkage write did not complete, the tool uses the
+BasicReport's stable Report creation request ID to recover the Report from
+Reporting storage. If Kingdom created a Measurement but Reporting did not save
+its Measurement ID, the tool can promote the name from a successful
+`measurement_creation` event carrying the same
+`xmm.measurement.request_id`, then resolve that Measurement's Kingdom route.
+The artifact labels these identifiers as request-ID- or telemetry-recovered so
+their provenance is explicit.
 
 Run it from an environment with Application Default Credentials for a
 least-privilege operator service account. The identity needs permission to read
@@ -299,13 +310,18 @@ by `report-trace`.
 The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
 Report, Metric, and Measurement identifiers, plus unresolved Metric and
 Measurement creation request IDs. It then performs up to four
-correlation-expansion rounds: allowlisted Requisition, group, WorkItem, and
-computation identifiers found in either spans or structured logs are queried in
-both systems, and newly found trace IDs are fetched from every configured
-observability project. Cycles are de-duplicated. Reaching the round limit marks
-the artifact partial. If one API or project is unavailable, the artifact records
-the missing coverage and the command fails unless `--allow-partial` was
-explicitly specified.
+correlation-expansion rounds: allowlisted Report, Metric, Measurement,
+Requisition, group, WorkItem, and computation identifiers found in either spans
+or structured logs are queried in both systems, and newly found trace IDs are
+fetched from every configured observability project. Cycles are de-duplicated.
+Reaching the round limit marks the artifact partial. If one API or project is
+unavailable, the artifact records the missing coverage and the command fails
+unless `--allow-partial` was explicitly specified.
+
+No trace can prove an operation that crashed before its telemetry was exported,
+or correlate a failure that occurred before any BasicReport or creation-request
+identity existed. Missing evidence is therefore reported as `UNKNOWN` or
+`MISSING`, not as proof that the operation never ran.
 
 ## Lifecycle overview
 

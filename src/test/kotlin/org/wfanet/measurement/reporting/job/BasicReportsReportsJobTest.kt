@@ -25,11 +25,17 @@ import com.google.type.dateTime
 import com.google.type.interval
 import com.google.type.timeZone
 import io.grpc.Status
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -48,6 +54,8 @@ import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.measurementConsumerConfig
@@ -98,6 +106,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -158,9 +167,22 @@ class BasicReportsReportsJobTest {
   }
 
   private lateinit var job: BasicReportsReportsJob
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun initJob() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     job =
       BasicReportsReportsJob(
         MEASUREMENT_CONSUMER_CONFIGS,
@@ -172,6 +194,11 @@ class BasicReportsReportsJobTest {
         Clock.fixed(NOW, ZoneOffset.UTC),
         MAX_CREATED_BASIC_REPORT_AGE,
       )
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
   }
 
   /** Stubs `listBasicReports` to return [response] for the REPORT_CREATED filter. */
@@ -2616,6 +2643,7 @@ class BasicReportsReportsJobTest {
   fun `execute fails basic report stuck in CREATED`(): Unit = runBlocking {
     val stuckBasicReport =
       INTERNAL_BASIC_REPORT.copy {
+        externalBasicReportId = "br-stuck-01"
         state = BasicReport.State.CREATED
         clearExternalReportId()
         createTime = STUCK_CREATE_TIME
@@ -2631,6 +2659,25 @@ class BasicReportsReportsJobTest {
           externalBasicReportId = stuckBasicReport.externalBasicReportId
         }
       )
+    val span =
+      spanExporter.finishedSpanItems.single {
+        it.name == "reporting.basic_reports.watchdog_timeout"
+      }
+    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo(
+        BasicReportKey(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            stuckBasicReport.externalBasicReportId,
+          )
+          .toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("basic_report_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .contains("BasicReportCreationTimeout")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("BasicReportCreationTimeout")
   }
 
   @Test
@@ -2667,6 +2714,21 @@ class BasicReportsReportsJobTest {
     job.execute()
 
     verify(basicReportsMock, times(2)).failBasicReport(any())
+    val failureSpans =
+      spanExporter.finishedSpanItems.filter {
+        it.name == "reporting.basic_reports.watchdog_writeback"
+      }
+    assertThat(failureSpans).hasSize(1)
+    assertThat(failureSpans.single().attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("basic_report_failure_writeback")
+    assertThat(failureSpans.single().attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.FAILED_PRECONDITION")
+    assertThat(
+        spanExporter.finishedSpanItems.count {
+          it.name == "reporting.basic_reports.watchdog_timeout"
+        }
+      )
+      .isEqualTo(1)
   }
 
   companion object {

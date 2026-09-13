@@ -477,11 +477,13 @@ class RequisitionFetcherTest {
     createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
 
     assertThat(dispatchCalled).isFalse()
-    val failureSpan =
-      spanExporter.finishedSpanItems.single {
+    val failureSpans =
+      spanExporter.finishedSpanItems.filter {
         it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" &&
           it.attributes.get(ReportTraceAttributes.GROUP_ID) != null
       }
+    assertThat(failureSpans).hasSize(1)
+    val failureSpan = failureSpans.single()
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
       .isEqualTo(TestRequisitionData.REQUISITION.name)
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isNotNull()
@@ -516,6 +518,47 @@ class RequisitionFetcherTest {
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("IllegalStateException")
+  }
+
+  @Test
+  fun `later dispatch failure does not overwrite earlier group success`() = runBlocking {
+    val requisitions =
+      (1..5).map { index ->
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo$index"
+          updateTime = timestamp { seconds = 10 }
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { this.requisitions += requisitions })
+    var dispatchCount = 0
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatchCount++
+          if (dispatchCount == 2) {
+            error("second dispatch failed")
+          }
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher, maxRequisitionsPerGroup = 2)
+      .fetchAndStoreRequisitions()
+
+    val outcomesByRequisition =
+      spanExporter.finishedSpanItems
+        .filter { it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" }
+        .associate {
+          checkNotNull(it.attributes.get(ReportTraceAttributes.REQUISITION_NAME)) to
+            checkNotNull(it.attributes.get(ReportTraceAttributes.OUTCOME))
+        }
+    assertThat(outcomesByRequisition[requisitions[0].name]).isEqualTo("succeeded")
+    assertThat(outcomesByRequisition[requisitions[1].name]).isEqualTo("succeeded")
+    assertThat(outcomesByRequisition[requisitions[2].name]).isEqualTo("failed")
+    assertThat(outcomesByRequisition[requisitions[3].name]).isEqualTo("failed")
+    assertThat(outcomesByRequisition).doesNotContainKey(requisitions[4].name)
   }
 
   @Test

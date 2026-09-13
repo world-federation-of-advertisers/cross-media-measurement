@@ -419,6 +419,79 @@ class ResultsFulfillerTest {
     assertThat(attempts.get()).isEqualTo(3)
   }
 
+  @Test
+  fun `GetRequisition preflight failure is attributed only to affected Requisition`(): Unit =
+    runBlocking {
+      val secondRequisition =
+        DIRECT_RNF_REQUISITION.toBuilder()
+          .setName("dataProviders/AAAAAAAAAHs/requisitions/second")
+          .build()
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            for (requisition in listOf(DIRECT_RNF_REQUISITION, secondRequisition)) {
+              requisitionMetadata += requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsCreateTime = timestamp { seconds = 12345 }
+                cmmsRequisition = requisition.name
+                blobUri = "some-prefix"
+                blobTypeUrl = "some-blob-type-url"
+                groupId = "preflight-group"
+                report = "report-name"
+              }
+            }
+          }
+        )
+      whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer {
+        val request =
+          it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
+        if (request.name == DIRECT_RNF_REQUISITION.name) {
+          throw Status.UNAVAILABLE.asRuntimeException()
+        }
+        requisition { state = Requisition.State.UNFULFILLED }
+      }
+      val tmpDir = Files.createTempDirectory(null).toFile()
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          groupedRequisitions = groupedRequisitions {
+            groupId = "preflight-group"
+            report = "report-name"
+            requisitions +=
+              listOf(DIRECT_RNF_REQUISITION, secondRequisition).map { requisition ->
+                requisitionEntry { this.requisition = Any.pack(requisition) }
+              }
+          },
+          modelLineInfoMap = emptyMap(),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider =
+            ImpressionDataSourceProvider(
+              impressionMetadataStub = impressionMetadataStub,
+              dataProvider = EDP_NAME,
+              impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmpDir),
+            ),
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
+          fulfillerSelector = NoOpFulfillerSelector(),
+          metrics = metrics,
+        )
+
+      assertFailsWith<Exception> { resultsFulfiller.fulfillRequisitions() }
+
+      val failedSpans =
+        collectSpans().filter {
+          it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) == "results_fulfillment" &&
+            it.attributes.get(ReportTraceAttributes.OUTCOME) == "failed"
+        }
+      assertThat(failedSpans.map { it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) })
+        .containsExactly(DIRECT_RNF_REQUISITION.name)
+    }
+
   /**
    * Builds a [ResultsFulfiller] whose requisition group is empty, so [fulfillRequisitions]
    * exercises only the `ListRequisitionMetadata` retry path and then returns (nothing to fulfill).

@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.ByteString
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Timestamp
 import com.google.protobuf.any as protoAny
 import com.google.protobuf.kotlin.toByteStringUtf8
@@ -278,6 +279,37 @@ class RequisitionsServiceTest {
       .containsExactly("requisition_available", "requisition_available")
     assertThat(spans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) })
       .containsExactly("succeeded", "succeeded")
+  }
+
+  @Test
+  fun `listRequisitions traces malformed MeasurementSpec with Requisition identity`() {
+    val malformedRequisition =
+      INTERNAL_REQUISITION.copy {
+        parentMeasurement =
+          INTERNAL_REQUISITION.parentMeasurement.copy {
+            measurementSpec = ByteString.copyFromUtf8("malformed")
+          }
+      }
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(malformedRequisition))
+
+    assertFailsWith<InvalidProtocolBufferException> {
+      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = MEASUREMENT_NAME }) }
+      }
+    }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.requisition.available")
+    assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_available")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("InvalidProtocolBufferException")
   }
 
   @Test

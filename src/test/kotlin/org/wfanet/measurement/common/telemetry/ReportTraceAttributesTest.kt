@@ -17,6 +17,7 @@
 package org.wfanet.measurement.common.telemetry
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -56,6 +57,38 @@ class ReportTraceAttributesTest {
   fun `errorType includes enclosing class for nested exception`() {
     assertThat(ReportTraceAttributes.errorType(TestException.Nested()))
       .isEqualTo("TestException.Nested")
+  }
+
+  @Test
+  fun `errorCode returns gRPC status from runtime exception`() {
+    assertThat(
+        ReportTraceAttributes.errorCode(
+          Status.PERMISSION_DENIED.withDescription("not authorized").asRuntimeException()
+        )
+      )
+      .isEqualTo("grpc.PERMISSION_DENIED")
+  }
+
+  @Test
+  fun `errorCode returns gRPC status from checked exception`() {
+    assertThat(
+        ReportTraceAttributes.errorCode(
+          Status.FAILED_PRECONDITION.withDescription("not ready").asException()
+        )
+      )
+      .isEqualTo("grpc.FAILED_PRECONDITION")
+  }
+
+  @Test
+  fun `errorCode returns gRPC status from wrapped exception`() {
+    val error = Exception(Status.UNAVAILABLE.withDescription("retry").asRuntimeException())
+
+    assertThat(ReportTraceAttributes.errorCode(error)).isEqualTo("grpc.UNAVAILABLE")
+  }
+
+  @Test
+  fun `errorCode returns null for non-gRPC exception`() {
+    assertThat(ReportTraceAttributes.errorCode(IllegalStateException("failure"))).isNull()
   }
 }
 

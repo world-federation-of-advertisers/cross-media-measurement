@@ -26,6 +26,7 @@ import io.opentelemetry.context.propagation.TextMapGetter
 import io.opentelemetry.context.propagation.TextMapPropagator
 import io.opentelemetry.extension.kotlin.asContextElement
 import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
@@ -127,6 +128,8 @@ object Tracing {
     val scope = span.makeCurrent()
     try {
       return block()
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       recordFailure(span, e)
       throw e
@@ -175,6 +178,8 @@ object Tracing {
     val context = Context.current().with(span)
     return try {
       withContext(context.asContextElement()) { block() }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       recordFailure(span, e)
       throw e
@@ -203,6 +208,10 @@ object Tracing {
       .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
       .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
       .recordException(error)
+    val errorCode = ReportTraceAttributes.errorCode(error)
+    if (errorCode != null) {
+      span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+    }
   }
 
   private object CloudFunctionsHttpRequestGetter : TextMapGetter<HttpRequest> {

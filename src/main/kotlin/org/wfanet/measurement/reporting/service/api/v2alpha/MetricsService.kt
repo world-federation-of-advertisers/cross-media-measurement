@@ -356,37 +356,76 @@ class MetricsService(
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumerCreds: MeasurementConsumerCredentials,
     ) {
-      val measurementConsumer: MeasurementConsumer =
-        getMeasurementConsumer(measurementConsumerCreds)
-
-      val dataProviderNames = mutableSetOf<String>()
-      for (internalPrimitiveReportingSet in internalPrimitiveReportingSetMap.values) {
-        for (eventGroupKey in internalPrimitiveReportingSet.primitive.eventGroupKeysList) {
-          dataProviderNames.add(DataProviderKey(eventGroupKey.cmmsDataProviderId).toName())
-        }
-      }
-      val dataProviderInfoMap: Map<String, DataProviderInfo> =
-        buildDataProviderInfoMap(measurementConsumerCreds.callCredentials, dataProviderNames)
-
-      val measurementConsumerSigningKey = getMeasurementConsumerSigningKey(measurementConsumerCreds)
-
-      val cmmsCreateMeasurementRequests: Flow<CreateMeasurementRequest> = flow {
-        for (runningMetric in runningMetrics) {
-          for (weightedMeasurement in runningMetric.internalMetric.weightedMeasurementsList) {
-            if (weightedMeasurement.measurement.cmmsMeasurementId.isBlank()) {
-              emit(
-                buildCreateMeasurementRequest(
-                  weightedMeasurement.measurement,
-                  runningMetric,
-                  internalPrimitiveReportingSetMap,
-                  measurementConsumer,
-                  measurementConsumerCreds,
-                  dataProviderInfoMap,
-                  measurementConsumerSigningKey,
-                )
-              )
+      val pendingMeasurements =
+        buildList {
+          for (runningMetric in runningMetrics) {
+            for (weightedMeasurement in runningMetric.internalMetric.weightedMeasurementsList) {
+              if (weightedMeasurement.measurement.cmmsMeasurementId.isEmpty()) {
+                add(weightedMeasurement.measurement to runningMetric)
+              }
             }
           }
+        }
+      val preparation =
+        try {
+          val measurementConsumer: MeasurementConsumer =
+            getMeasurementConsumer(measurementConsumerCreds)
+          val dataProviderNames = mutableSetOf<String>()
+          for (internalPrimitiveReportingSet in internalPrimitiveReportingSetMap.values) {
+            for (eventGroupKey in internalPrimitiveReportingSet.primitive.eventGroupKeysList) {
+              dataProviderNames.add(DataProviderKey(eventGroupKey.cmmsDataProviderId).toName())
+            }
+          }
+          val dataProviderInfoMap: Map<String, DataProviderInfo> =
+            buildDataProviderInfoMap(measurementConsumerCreds.callCredentials, dataProviderNames)
+          val measurementConsumerSigningKey =
+            getMeasurementConsumerSigningKey(measurementConsumerCreds)
+          MeasurementPreparation(
+            measurementConsumer,
+            dataProviderInfoMap,
+            measurementConsumerSigningKey,
+          )
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          for ((internalMeasurement, runningMetric) in pendingMeasurements) {
+            ReportTracing.recordFailure(
+              spanName = "reporting.measurement.preparation_failed",
+              attributes = measurementCreationTraceAttributes(internalMeasurement, runningMetric),
+              error = e,
+            )
+          }
+          throw e
+        }
+      if (pendingMeasurements.isEmpty()) {
+        return
+      }
+
+      val traceAttributesByRequestId =
+        pendingMeasurements.associate { (internalMeasurement, runningMetric) ->
+          internalMeasurement.cmmsCreateMeasurementRequestId to
+            measurementCreationTraceAttributes(internalMeasurement, runningMetric)
+        }
+
+      val cmmsCreateMeasurementRequests: Flow<CreateMeasurementRequest> = flow {
+        for ((internalMeasurement, runningMetric) in pendingMeasurements) {
+          emit(
+            ReportTracing.traceSuspending(
+              spanName = "reporting.measurement.prepare",
+              attributes = measurementCreationTraceAttributes(internalMeasurement, runningMetric),
+            ) {
+              buildCreateMeasurementRequest(
+                  internalMeasurement,
+                  runningMetric,
+                  internalPrimitiveReportingSetMap,
+                  preparation.measurementConsumer,
+                  measurementConsumerCreds,
+                  preparation.dataProviderInfoMap,
+                  preparation.measurementConsumerSigningKey,
+                )
+                .also { Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared") }
+            }
+          )
         }
       }
 
@@ -394,7 +433,36 @@ class MetricsService(
       val callBatchCreateMeasurementsRpc:
         suspend (List<CreateMeasurementRequest>) -> BatchCreateMeasurementsResponse =
         { items ->
-          batchCreateCmmsMeasurements(measurementConsumerCreds, items)
+          try {
+            val response = batchCreateCmmsMeasurements(measurementConsumerCreds, items)
+            response.toBuilder()
+              .clearMeasurements()
+              .addAllMeasurements(
+                response.measurementsList.mapIndexed { index, measurement ->
+                  if (
+                    measurement.measurementReferenceId.isEmpty() && index < items.size
+                  ) {
+                    measurement.toBuilder()
+                      .setMeasurementReferenceId(items[index].requestId)
+                      .build()
+                  } else {
+                    measurement
+                  }
+                }
+              )
+              .build()
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            for (item in items) {
+              ReportTracing.recordFailure(
+                spanName = "reporting.measurement.creation_failed",
+                attributes = checkNotNull(traceAttributesByRequestId[item.requestId]),
+                error = e,
+              )
+            }
+            throw e
+          }
         }
 
       @OptIn(ExperimentalCoroutinesApi::class)
@@ -412,10 +480,41 @@ class MetricsService(
 
       // Set CMMS measurement IDs.
       val callBatchSetCmmsMeasurementIdsRpc: suspend (List<MeasurementIds>) -> Unit = { items ->
-        batchSetCmmsMeasurementIds(
-          measurementConsumerCreds.resourceKey.measurementConsumerId,
-          items,
-        )
+        try {
+          batchSetCmmsMeasurementIds(
+            measurementConsumerCreds.resourceKey.measurementConsumerId,
+            items,
+          )
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          for (item in items) {
+            ReportTracing.recordFailure(
+              spanName = "reporting.measurement.linkage_failed",
+              attributes =
+                measurementLinkageTraceAttributes(
+                  item,
+                  measurementConsumerCreds.resourceKey.measurementConsumerId,
+                  traceAttributesByRequestId,
+                ),
+              error = e,
+            )
+          }
+          throw e
+        }
+        for (item in items) {
+          ReportTracing.traceSuspending(
+            spanName = "reporting.measurement.linked",
+            attributes =
+              measurementLinkageTraceAttributes(
+                item,
+                measurementConsumerCreds.resourceKey.measurementConsumerId,
+                traceAttributesByRequestId,
+              ),
+          ) {
+            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+          }
+        }
       }
 
       submitBatchRequests(
@@ -435,6 +534,64 @@ class MetricsService(
         }
         .collect {}
     }
+
+    private fun measurementCreationTraceAttributes(
+      internalMeasurement: InternalMeasurement,
+      runningMetric: RunningMetric,
+    ): Attributes {
+      val metric = runningMetric.internalMetric
+      return Attributes.builder()
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+        .put(ReportTraceAttributes.OUTCOME, "started")
+        .put(
+          ReportTraceAttributes.MEASUREMENT_REQUEST_ID,
+          internalMeasurement.cmmsCreateMeasurementRequestId,
+        )
+        .put(
+          ReportTraceAttributes.METRIC_NAME,
+          MetricKey(metric.cmmsMeasurementConsumerId, metric.externalMetricId).toName(),
+        )
+        .also { builder ->
+          if (metric.details.containingReport.isNotEmpty()) {
+            builder.put(ReportTraceAttributes.REPORT_NAME, metric.details.containingReport)
+          }
+          if (metric.details.basicReport.isNotEmpty()) {
+            builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, metric.details.basicReport)
+          }
+        }
+        .build()
+    }
+
+    private fun measurementLinkageTraceAttributes(
+      measurementIds: MeasurementIds,
+      cmmsMeasurementConsumerId: String,
+      traceAttributesByRequestId: Map<String, Attributes>,
+    ): Attributes {
+      return (traceAttributesByRequestId[measurementIds.cmmsCreateMeasurementRequestId]
+          ?: Attributes.empty())
+        .toBuilder()
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_linkage")
+        .put(
+          ReportTraceAttributes.MEASUREMENT_REQUEST_ID,
+          measurementIds.cmmsCreateMeasurementRequestId,
+        )
+        .put(
+          ReportTraceAttributes.MEASUREMENT_NAME,
+          MeasurementKey(
+              measurementConsumerId = cmmsMeasurementConsumerId,
+              measurementId = measurementIds.cmmsMeasurementId,
+            )
+            .toName(),
+        )
+        .put(ReportTraceAttributes.OUTCOME, "started")
+        .build()
+    }
+
+    private data class MeasurementPreparation(
+      val measurementConsumer: MeasurementConsumer,
+      val dataProviderInfoMap: Map<String, DataProviderInfo>,
+      val measurementConsumerSigningKey: SigningKeyHandle,
+    )
 
     /** Sets a batch of CMMS [MeasurementIds] to the [InternalMeasurement] table. */
     private suspend fun batchSetCmmsMeasurementIds(
@@ -1547,18 +1704,32 @@ class MetricsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "Parent is either unspecified or invalid."
       }
-    return ReportTracing.traceSuspending(
-      spanName = "reporting.metric.create",
-      attributes = metricCreationTraceAttributes(parentKey, request),
-    ) {
-      createMetricInternal(request, parentKey)
+    val result =
+      ReportTracing.traceSuspending(
+        spanName = "reporting.metric.create",
+        attributes = metricCreationTraceAttributes(parentKey, request),
+      ) {
+        createMetricInternal(request, parentKey)
+      }
+    if (result.internalMetric.state == InternalMetric.State.RUNNING) {
+      measurementSupplier.createCmmsMeasurements(
+        listOf(
+          MeasurementSupplier.RunningMetric(
+            result.internalMetric,
+            result.effectiveModelLineName,
+          )
+        ),
+        result.internalPrimitiveReportingSetMap,
+        result.measurementConsumerCredentials,
+      )
     }
+    return result.metric
   }
 
   private suspend fun createMetricInternal(
     request: CreateMetricRequest,
     parentKey: MeasurementConsumerKey,
-  ): Metric {
+  ): CreatedMetric {
     grpcRequire(request.hasMetric()) { "Metric is not specified." }
     validateBasicReport(request.metric.basicReport, parentKey, "metric.basic_report")
     val measurementConsumerName: String = parentKey.toName()
@@ -1651,20 +1822,18 @@ class MetricsService(
           .asRuntimeException()
       }
 
-    if (internalMetric.state == InternalMetric.State.RUNNING) {
-      measurementSupplier.createCmmsMeasurements(
-        listOf(MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)),
-        internalPrimitiveReportingSetMap,
-        measurementConsumerCreds,
-      )
-    }
-
     // Convert the internal metric to public and return it.
     val metric = internalMetric.toMetric(variances)
     Span.current()
       .setAttribute(ReportTraceAttributes.METRIC_STATE, metric.state.name)
       .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
-    return metric
+    return CreatedMetric(
+      internalMetric,
+      effectiveModelLineName,
+      internalPrimitiveReportingSetMap,
+      measurementConsumerCreds,
+      metric,
+    )
   }
 
   override suspend fun batchCreateMetrics(
@@ -1678,24 +1847,37 @@ class MetricsService(
     grpcRequire(request.requestsList.size <= MAX_BATCH_SIZE) {
       "At most $MAX_BATCH_SIZE requests can be supported in a batch."
     }
-    return try {
-      batchCreateMetricsInternal(request, parentKey)
-    } catch (e: Exception) {
-      for (createMetricRequest in request.requestsList) {
-        ReportTracing.recordFailure(
-          spanName = "reporting.metric.creation_failed",
-          attributes = metricCreationTraceAttributes(parentKey, createMetricRequest),
-          error = e,
-        )
+    val result =
+      try {
+        batchCreateMetricsInternal(request, parentKey)
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        for (createMetricRequest in request.requestsList) {
+          ReportTracing.recordFailure(
+            spanName = "reporting.metric.creation_failed",
+            attributes = metricCreationTraceAttributes(parentKey, createMetricRequest),
+            error = e,
+          )
+        }
+        throw e
       }
-      throw e
+    if (result.runningMetrics.isNotEmpty()) {
+      measurementSupplier.createCmmsMeasurements(
+        result.runningMetrics,
+        result.internalPrimitiveReportingSetMap,
+        result.measurementConsumerCredentials,
+      )
+    }
+    return batchCreateMetricsResponse {
+      metrics += result.internalMetrics.map { it.toMetric(variances) }
     }
   }
 
   private suspend fun batchCreateMetricsInternal(
     request: BatchCreateMetricsRequest,
     parentKey: MeasurementConsumerKey,
-  ): BatchCreateMetricsResponse {
+  ): CreatedMetrics {
     request.requestsList.forEachIndexed { index, createMetricRequest ->
       grpcRequire(createMetricRequest.hasMetric()) { "Metric is not specified." }
       validateBasicReport(
@@ -1923,17 +2105,28 @@ class MetricsService(
         .map { (internalMetric, effectiveModelLineName) ->
           MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)
         }
-    if (internalRunningMetrics.isNotEmpty()) {
-      measurementSupplier.createCmmsMeasurements(
-        internalRunningMetrics,
-        internalPrimitiveReportingSetMap,
-        measurementConsumerCreds,
-      )
-    }
-
-    // Convert the internal metric to public and return it.
-    return batchCreateMetricsResponse { metrics += internalMetrics.map { it.toMetric(variances) } }
+    return CreatedMetrics(
+      internalMetrics,
+      internalRunningMetrics,
+      internalPrimitiveReportingSetMap,
+      measurementConsumerCreds,
+    )
   }
+
+  private data class CreatedMetric(
+    val internalMetric: InternalMetric,
+    val effectiveModelLineName: String,
+    val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
+    val measurementConsumerCredentials: MeasurementConsumerCredentials,
+    val metric: Metric,
+  )
+
+  private data class CreatedMetrics(
+    val internalMetrics: List<InternalMetric>,
+    val runningMetrics: List<MeasurementSupplier.RunningMetric>,
+    val internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
+    val measurementConsumerCredentials: MeasurementConsumerCredentials,
+  )
 
   private fun metricCreationTraceAttributes(
     parentKey: MeasurementConsumerKey,

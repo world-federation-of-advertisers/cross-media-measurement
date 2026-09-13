@@ -29,6 +29,7 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.util.concurrent.Executors
 import kotlin.coroutines.resume
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
@@ -149,6 +150,20 @@ class TracingTest {
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("IllegalStateException")
     assertThat(span.events.map { it.name }).contains("exception")
+  }
+
+  @Test
+  fun `traceSuspending does not record cancellation as failure`() = runBlocking {
+    assertFailsWith<CancellationException> {
+      Tracing.traceSuspending(spanName = "cancelled-span") {
+        throw CancellationException("cancelled")
+      }
+    }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.status.statusCode).isEqualTo(StatusCode.UNSET)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isNull()
+    assertThat(span.events.map { it.name }).doesNotContain("exception")
   }
 
   @Test

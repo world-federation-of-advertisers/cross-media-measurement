@@ -190,6 +190,10 @@ abstract class RequisitionGrouper(
           .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
           .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
           .recordException(e)
+        val errorCode = ReportTraceAttributes.errorCode(e)
+        if (errorCode != null) {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+        }
         logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
       }
     }
