@@ -836,9 +836,7 @@ class ReportTraceTest {
               )
           )
       )
-    val spans =
-      refusalPropagationSpans(context, metricName, requisitionName) +
-        refusalOriginSpan(requisitionName, ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN)
+    val spans = refusalPropagationSpans(context, metricName, requisitionName)
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
     assertThat(coverage.single { it.name == "kingdom_requisition_refusal_acceptance" }.status)
@@ -890,7 +888,9 @@ class ReportTraceTest {
               )
           )
       )
-    val spans = refusalPropagationSpans(context, metricName, requisitionName)
+    val spans =
+      refusalPropagationSpans(context, metricName, requisitionName) +
+        refusalOriginSpan(requisitionName, ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN)
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
     assertThat(
@@ -902,6 +902,53 @@ class ReportTraceTest {
       )
       .containsExactly("SKIPPED_AFTER_REFUSAL", "SKIPPED_AFTER_REFUSAL", "SKIPPED_AFTER_REFUSAL")
     assertThat(coverage.single { it.name == "requisition_refusal" }.status).isEqualTo("REFUSED")
+    assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
+      .isEqualTo(ReportTraceArtifactStatus.COMPLETE)
+  }
+
+  @Test
+  fun `lifecycleCoverage preserves failed RequisitionFetcher attempt when refusal was accepted`() {
+    val metricName = "measurementConsumers/mc-1/metrics/metric-1"
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val context =
+      reportTraceContext()
+        .copy(
+          basicReportState = "REPORT_CREATED",
+          metricNames = listOf(metricName),
+          metricStates = mapOf(metricName to "FAILED"),
+        )
+    val routeResolution =
+      routeResolution(
+          context,
+          ReportTraceMeasurementRouteKind.DIRECT,
+          requisitionName,
+          ReportTraceRequisitionRouteKind.EDPA,
+        )
+        .withRequisitionState("REFUSED", measurementState = "FAILED")
+    val failedRefusal =
+      failedLifecycleSpan(
+        "requisition_refusal",
+        mapOf(
+          "xmm.requisition.name" to requisitionName,
+          ReportTraceAttributes.REFUSAL_ORIGIN_STRING to
+            ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN,
+        ),
+      )
+    val spans = refusalPropagationSpans(context, metricName, requisitionName) + failedRefusal
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(
+        coverage
+          .filter {
+            it.name in setOf("requisition_dispatch", "work_item_processing", "results_fulfillment")
+          }
+          .map { it.status }
+      )
+      .containsExactly("SKIPPED_AFTER_REFUSAL", "SKIPPED_AFTER_REFUSAL", "SKIPPED_AFTER_REFUSAL")
+    assertThat(coverage.single { it.name == "requisition_refusal" }.status).isEqualTo("FAILED")
+    assertThat(coverage.single { it.name == "kingdom_requisition_refusal_acceptance" }.status)
+      .isEqualTo("REFUSED")
     assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
       .isEqualTo(ReportTraceArtifactStatus.COMPLETE)
   }
@@ -2572,11 +2619,12 @@ class ReportTraceTest {
         context = context,
         routeResolution =
           routeResolution(
-            context,
-            ReportTraceMeasurementRouteKind.DIRECT,
-            requisitionName,
-            ReportTraceRequisitionRouteKind.EDPA,
-          ),
+              context,
+              ReportTraceMeasurementRouteKind.DIRECT,
+              requisitionName,
+              ReportTraceRequisitionRouteKind.EDPA,
+            )
+            .withRequisitionState("REFUSED", measurementState = "SUCCEEDED"),
         spans = listOf(span),
         logEntries = emptyList(),
         sourceStatuses = emptyList(),

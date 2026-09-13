@@ -1364,10 +1364,7 @@ internal object ReportTraceOutput {
       val origins =
         observed.values
           .flatten()
-          .filter { evidence ->
-            evidence.attributes["xmm.requisition.name"] == requisitionName &&
-              evidence.outcome?.lowercase() == "refused"
-          }
+          .filter { evidence -> evidence.attributes["xmm.requisition.name"] == requisitionName }
           .mapNotNull { evidence ->
             evidence.attributes[ReportTraceAttributes.REFUSAL_ORIGIN_STRING]
           }
