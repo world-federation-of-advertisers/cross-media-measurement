@@ -17,8 +17,8 @@ syntax = "proto3";
 package wfa.measurement.config.edpaggregator;
 
 import "google/api/resource.proto";
+import "wfa/measurement/config/edpaggregator/results_fulfiller_config.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
-import "wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto";
 
 option java_package = "org.wfanet.measurement.config.edpaggregator";
 option java_multiple_files = true;
@@ -38,8 +38,7 @@ message RequisitionWorkItemDispatchConfig {
                         "control-plane.secure-computation.halo-cmm.org/Queue"];
 
   // Parameters for the ResultsFulfiller application.
-  wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
-      results_fulfiller_params = 4;
+  ResultsFulfillerConfig results_fulfiller_params = 4;
 
   // Storage path prefix reserved for direct WorkItem dispatch.
   //

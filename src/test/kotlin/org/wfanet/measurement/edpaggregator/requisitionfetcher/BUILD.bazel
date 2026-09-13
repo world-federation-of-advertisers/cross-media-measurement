@@ -5,6 +5,19 @@ package(
 )
 
 kt_jvm_test(
+    name = "ResultsFulfillerConfigTest",
+    srcs = ["ResultsFulfillerConfigTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.requisitionfetcher.ResultsFulfillerConfigTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:results_fulfiller_config",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:results_fulfiller_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "RequisitionFetcherTest",
     srcs = ["RequisitionFetcherTest.kt"],
     jvm_flags = [
