@@ -155,10 +155,10 @@ class ResultsFulfiller(
           .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
           .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
           .also { builder ->
-            if (groupedRequisitions.report.isNotBlank()) {
+            if (groupedRequisitions.report.isNotEmpty()) {
               builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
             }
-            if (groupedRequisitions.basicReport.isNotBlank()) {
+            if (groupedRequisitions.basicReport.isNotEmpty()) {
               builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
             }
           }
@@ -274,7 +274,7 @@ class ResultsFulfiller(
           .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
           .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
           .also { builder ->
-            if (basicReportName.isNotBlank()) {
+            if (basicReportName.isNotEmpty()) {
               builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
             }
           }
@@ -335,11 +335,17 @@ class ResultsFulfiller(
                       requisitionsMetadata = requisitionMetadataByName,
                       kekUri = kekUri,
                     )
-                  Span.current()
-                    .setAttribute(
-                      ReportTraceAttributes.OUTCOME,
-                      if (outcome) "succeeded" else "refused",
+                  val span = Span.current()
+                  span.setAttribute(
+                    ReportTraceAttributes.OUTCOME,
+                    if (outcome) "succeeded" else "refused",
+                  )
+                  if (!outcome) {
+                    span.setAttribute(
+                      ReportTraceAttributes.REFUSAL_ORIGIN,
+                      ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
                     )
+                  }
                   outcome
                 }
               )
@@ -459,7 +465,7 @@ class ResultsFulfiller(
           .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
           .also { builder ->
             val basicReportName = measurementSpec.reportingMetadata.basicReport
-            if (basicReportName.isNotBlank()) {
+            if (basicReportName.isNotEmpty()) {
               builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
             }
           }
@@ -658,27 +664,63 @@ class ResultsFulfiller(
     requisition: Requisition,
     e: RequisitionRefusalException,
   ) {
-    try {
-      kingdomThrottler.onReady {
-        requisitionsStub.refuseRequisition(
-          refuseRequisitionRequest {
-            name = requisition.name
-            refusal =
-              RequisitionKt.refusal {
-                justification = e.justification
-                message = e.message ?: "Requisition refused"
-              }
+    Tracing.traceSuspending(
+      spanName = "edp_aggregator.results_fulfiller.refuse_requisition",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_refusal")
+          .put(
+            ReportTraceAttributes.REFUSAL_ORIGIN,
+            ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+          )
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .also { builder ->
+            if (groupedRequisitions.report.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+            }
+            if (groupedRequisitions.basicReport.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
+            }
           }
+          .build(),
+    ) {
+      val span = Span.current()
+      try {
+        kingdomThrottler.onReady {
+          requisitionsStub.refuseRequisition(
+            refuseRequisitionRequest {
+              name = requisition.name
+              refusal =
+                RequisitionKt.refusal {
+                  justification = e.justification
+                  message = e.message ?: "Requisition refused"
+                }
+            }
+          )
+        }
+        span.setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (refusalError: Exception) {
+        span
+          .setStatus(
+            io.opentelemetry.api.trace.StatusCode.ERROR,
+            refusalError.message ?: refusalError::class.java.name,
+          )
+          .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+          .setAttribute(
+            ReportTraceAttributes.ERROR_TYPE,
+            ReportTraceAttributes.errorType(refusalError),
+          )
+          .recordException(refusalError)
+        logger.log(
+          Level.SEVERE,
+          "Failed to refuse requisition ${requisition.name} in CMMS",
+          refusalError,
         )
       }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (refusalError: Exception) {
-      logger.log(
-        Level.SEVERE,
-        "Failed to refuse requisition ${requisition.name} in CMMS",
-        refusalError,
-      )
     }
   }
 
@@ -770,6 +812,14 @@ class ResultsFulfiller(
       .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
       .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
       .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(throwable))
+      .also {
+        if (outcome == "refused") {
+          it.setAttribute(
+            ReportTraceAttributes.REFUSAL_ORIGIN,
+            ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+          )
+        }
+      }
     span.addEvent(
       EVENT_REQUISITION_PROCESSING_FAILED,
       Attributes.builder()

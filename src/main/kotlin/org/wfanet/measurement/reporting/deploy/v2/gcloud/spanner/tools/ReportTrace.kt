@@ -58,6 +58,7 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.config.reporting.ReportTraceTopologyConfig
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
@@ -80,8 +81,10 @@ internal data class ReportTraceContext(
   val metricNames: List<String>,
   val metricStates: Map<String, String>,
   val reusedMetricNames: Set<String>,
+  val unresolvedMetricRequestIds: List<String>,
   val measurementNames: List<String>,
   val reusedMeasurementNames: Set<String>,
+  val unresolvedMeasurementRequestIds: List<String>,
   val createTime: Instant?,
 ) {
   val correlationValues: List<String>
@@ -200,8 +203,10 @@ internal class DatabaseBasicReportTraceResolver(
         metricNames = emptyList(),
         metricStates = emptyMap(),
         reusedMetricNames = emptySet(),
+        unresolvedMetricRequestIds = emptyList(),
         measurementNames = emptyList(),
         reusedMeasurementNames = emptySet(),
+        unresolvedMeasurementRequestIds = emptyList(),
         createTime = Instant.ofEpochMilli(Timestamps.toMillis(basicReport.createTime)),
       )
     }
@@ -231,6 +236,9 @@ internal class DatabaseBasicReportTraceResolver(
         MetricReader(readContext)
           .readMetricsByRequestId(reportResult.measurementConsumerId, createMetricRequestIds)
           .toList()
+      val resolvedMetricRequestIds = metricResults.mapNotNull { it.createMetricRequestId }.toSet()
+      val unresolvedMetricRequestIds =
+        createMetricRequestIds.filterNot(resolvedMetricRequestIds::contains)
 
       val currentBasicReportName = basicReportKey.toName()
       val metricNames = mutableListOf<String>()
@@ -238,6 +246,7 @@ internal class DatabaseBasicReportTraceResolver(
       val reusedMetricNames = mutableSetOf<String>()
       val currentMeasurementNames = mutableSetOf<String>()
       val measurementsOnReusedMetrics = mutableSetOf<String>()
+      val unresolvedMeasurementRequestIds = mutableSetOf<String>()
       for (metricResult in metricResults) {
         val metric = metricResult.metric
         val metricName =
@@ -255,9 +264,16 @@ internal class DatabaseBasicReportTraceResolver(
           reusedMetricNames += metricName
         }
         val associatedMeasurementNames =
-          metric.weightedMeasurementsList
-            .mapNotNull { it.measurement.cmmsMeasurementId.takeIf(String::isNotEmpty) }
-            .map { MeasurementKey(basicReport.cmmsMeasurementConsumerId, it).toName() }
+          metric.weightedMeasurementsList.mapNotNull { weightedMeasurement ->
+            val measurement = weightedMeasurement.measurement
+            if (measurement.cmmsMeasurementId.isEmpty()) {
+              unresolvedMeasurementRequestIds += measurement.cmmsCreateMeasurementRequestId
+              null
+            } else {
+              MeasurementKey(basicReport.cmmsMeasurementConsumerId, measurement.cmmsMeasurementId)
+                .toName()
+            }
+          }
         if (isReused) {
           measurementsOnReusedMetrics += associatedMeasurementNames
         } else {
@@ -275,8 +291,10 @@ internal class DatabaseBasicReportTraceResolver(
         metricNames = metricNames.distinct().sorted(),
         metricStates = metricStates,
         reusedMetricNames = reusedMetricNames,
+        unresolvedMetricRequestIds = unresolvedMetricRequestIds.sorted(),
         measurementNames = measurementNames,
         reusedMeasurementNames = reusedMeasurementNames,
+        unresolvedMeasurementRequestIds = unresolvedMeasurementRequestIds.sorted(),
         createTime = Instant.ofEpochMilli(Timestamps.toMillis(basicReport.createTime)),
       )
     } finally {
@@ -406,7 +424,7 @@ internal class GoogleCloudReportTraceSpanReader(
         "Cloud Trace API returned HTTP ${response.statusCode()}"
       }
       val root = JsonParser.parseString(response.body()).asJsonObject
-      entries += parseCloudTraceV1Response(project, response.body())
+      entries += parseResponse(project, response.body(), fallbackTraceId = null)
       pageToken = root.optionalString("nextPageToken")
     } while (pageToken != null && entries.size < readLimit(limit))
     return entries
@@ -425,7 +443,7 @@ internal class GoogleCloudReportTraceSpanReader(
     check(response.statusCode() in 200..299) {
       "Cloud Trace API returned HTTP ${response.statusCode()}"
     }
-    return parseCloudTraceV1Response(project, response.body(), traceId)
+    return parseResponse(project, response.body(), traceId)
   }
 
   companion object {
@@ -457,39 +475,40 @@ internal class GoogleCloudReportTraceSpanReader(
     }
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
-  }
-}
 
-/** Parses the documented Cloud Trace v1 Trace/Traces response shape. */
-internal fun parseCloudTraceV1Response(
-  project: String,
-  body: String,
-  fallbackTraceId: String? = null,
-): List<ReportTraceSpan> {
-  val root = JsonParser.parseString(body).asJsonObject
-  val traces = root.getAsJsonArray("traces")?.map { it.asJsonObject } ?: listOf(root)
-  return traces.flatMap { trace ->
-    val traceId = trace.optionalString("traceId") ?: fallbackTraceId ?: return@flatMap emptyList()
-    trace.getAsJsonArray("spans")?.map { spanElement ->
-      val span = spanElement.asJsonObject
-      val labels = span.getAsJsonObject("labels")
-      val service =
-        labels?.optionalString("g.co/agent/name")
-          ?: labels?.optionalString("service.name")
-          ?: labels?.optionalString("/http/host")
-          ?: "unknown-service"
-      ReportTraceSpan(
-        sourceProject = project,
-        traceId = traceId,
-        spanId = span.requiredString("spanId"),
-        parentSpanId = span.optionalString("parentSpanId"),
-        name = span.requiredString("name"),
-        service = service,
-        startTime = Instant.parse(span.requiredString("startTime")),
-        endTime = span.optionalString("endTime")?.let(Instant::parse),
-        attributes = labels?.stringValues().orEmpty(),
-      )
-    } ?: emptyList()
+    /** Parses the documented Cloud Trace v1 Trace/Traces response shape. */
+    internal fun parseResponse(
+      project: String,
+      body: String,
+      fallbackTraceId: String?,
+    ): List<ReportTraceSpan> {
+      val root = JsonParser.parseString(body).asJsonObject
+      val traces = root.getAsJsonArray("traces")?.map { it.asJsonObject } ?: listOf(root)
+      return traces.flatMap { trace ->
+        val traceId =
+          trace.optionalString("traceId") ?: fallbackTraceId ?: return@flatMap emptyList()
+        trace.getAsJsonArray("spans")?.map { spanElement ->
+          val span = spanElement.asJsonObject
+          val labels = span.getAsJsonObject("labels")
+          val service =
+            labels?.optionalString("g.co/agent/name")
+              ?: labels?.optionalString("service.name")
+              ?: labels?.optionalString("/http/host")
+              ?: "unknown-service"
+          ReportTraceSpan(
+            sourceProject = project,
+            traceId = traceId,
+            spanId = span.requiredString("spanId"),
+            parentSpanId = span.optionalString("parentSpanId"),
+            name = span.requiredString("name"),
+            service = service,
+            startTime = Instant.parse(span.requiredString("startTime")),
+            endTime = span.optionalString("endTime")?.let(Instant::parse),
+            attributes = labels?.stringValues().orEmpty(),
+          )
+        } ?: emptyList()
+      }
+    }
   }
 }
 
@@ -670,6 +689,9 @@ internal object ReportTraceOutput {
         appendLine()
       }
     }
+    context.unresolvedMetricRequestIds.forEach { requestId ->
+      appendLine("- Metric request: $requestId [UNRESOLVED]")
+    }
     if (context.measurementNames.isEmpty()) {
       appendLine("- Measurements: none resolved")
     } else {
@@ -678,6 +700,9 @@ internal object ReportTraceOutput {
         if (measurementName in context.reusedMeasurementNames) append(" [REUSED]")
         appendLine()
       }
+    }
+    context.unresolvedMeasurementRequestIds.forEach { requestId ->
+      appendLine("- Measurement request: $requestId [UNRESOLVED]")
     }
     val discoveredResources =
       mapOf(
@@ -893,6 +918,7 @@ internal object ReportTraceOutput {
                 }
               exactAttributesMatch && identityIsIncomplete
             },
+          durableTerminalStatus = durableTerminalStatus(operation, routeResolution),
         )
       }
     val unexpected =
@@ -911,6 +937,7 @@ internal object ReportTraceOutput {
               ),
             matchingEvidence = observed.getValue(stage).distinct(),
             hasUnattributedEvidence = false,
+            durableTerminalStatus = null,
           )
         }
     return coverage + unexpected
@@ -1012,9 +1039,16 @@ internal object ReportTraceOutput {
     operation: ExpectedLifecycleOperation,
     matchingEvidence: List<LifecycleEvidence>,
     hasUnattributedEvidence: Boolean,
+    durableTerminalStatus: String?,
   ): ReportTraceLifecycleStage {
     val evidence = matchingEvidence.map { it.description }
     val latestOutcome = matchingEvidence.maxByOrNull { it.timestamp }?.outcome?.lowercase()
+    val durableTerminalEvidenceFound =
+      when (durableTerminalStatus) {
+        "SUCCEEDED" -> matchingEvidence.any { it.outcome?.lowercase() in TERMINAL_SUCCESS_OUTCOMES }
+        "REFUSED" -> matchingEvidence.any { it.outcome?.lowercase() == "refused" }
+        else -> false
+      }
     val requirement = operation.requirement
     return ReportTraceLifecycleStage(
       name = operation.stage,
@@ -1023,6 +1057,8 @@ internal object ReportTraceOutput {
         when {
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isNotEmpty() ->
             "UNEXPECTED"
+          durableTerminalStatus != null && durableTerminalEvidenceFound -> durableTerminalStatus
+          durableTerminalStatus != null -> "UNKNOWN"
           latestOutcome?.let {
             it == "failed" || it.startsWith("failed_") || it == "report_failed"
           } == true -> "FAILED"
@@ -1043,23 +1079,62 @@ internal object ReportTraceOutput {
           else -> "OPTIONAL"
         },
       evidence =
-        evidence.joinToString().ifEmpty {
-          when {
-            hasUnattributedEvidence -> "Stage evidence did not identify this resource"
-            requirement == ReportTraceStageRequirement.NOT_APPLICABLE ->
-              "Not applicable for the Kingdom-resolved route"
-            requirement == ReportTraceStageRequirement.UNKNOWN ->
-              "Route or resource applicability could not be resolved"
-            requirement == ReportTraceStageRequirement.REUSED ->
-              "Historical operation belongs to the BasicReport that created this reused resource"
-            requirement == ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE ->
-              "Not reached after an observed terminal failure"
-            requirement == ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL ->
-              "Not reached after an observed Requisition refusal"
-            else -> "No matching span label or structured log"
+        if (durableTerminalStatus != null && !durableTerminalEvidenceFound) {
+          buildString {
+            append("Durable resource state is $durableTerminalStatus, but no matching accepted ")
+            append("telemetry was found")
+            if (evidence.isNotEmpty()) {
+              append("; observed ").append(evidence.joinToString())
+            }
+          }
+        } else {
+          evidence.joinToString().ifEmpty {
+            when {
+              hasUnattributedEvidence -> "Stage evidence did not identify this resource"
+              requirement == ReportTraceStageRequirement.NOT_APPLICABLE ->
+                "Not applicable for the Kingdom-resolved route"
+              requirement == ReportTraceStageRequirement.UNKNOWN ->
+                "Route or resource applicability could not be resolved"
+              requirement == ReportTraceStageRequirement.REUSED ->
+                "Historical operation belongs to the BasicReport that created this reused resource"
+              requirement == ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE ->
+                "Not reached after an observed terminal failure"
+              requirement == ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL ->
+                "Not reached after an observed Requisition refusal"
+              else -> "No matching span label or structured log"
+            }
           }
         },
     )
+  }
+
+  private fun durableTerminalStatus(
+    operation: ExpectedLifecycleOperation,
+    routeResolution: ReportTraceRouteResolution,
+  ): String? {
+    if (operation.requirement != ReportTraceStageRequirement.REQUIRED) {
+      return null
+    }
+    return when (operation.stage) {
+      "kingdom_computation_result_acceptance" ->
+        routeResolution.measurementRoutes
+          .singleOrNull { it.name == operation.identifyingAttributes["xmm.measurement.name"] }
+          ?.takeIf { it.state.uppercase() == "SUCCEEDED" }
+          ?.let { "SUCCEEDED" }
+      "kingdom_requisition_result_acceptance" ->
+        routeResolution.measurementRoutes
+          .flatMap { it.requisitions }
+          .singleOrNull { it.name == operation.identifyingAttributes["xmm.requisition.name"] }
+          ?.takeIf { it.state.uppercase() == "FULFILLED" }
+          ?.let { "SUCCEEDED" }
+      "kingdom_requisition_refusal_acceptance" ->
+        routeResolution.measurementRoutes
+          .flatMap { it.requisitions }
+          .singleOrNull { it.name == operation.identifyingAttributes["xmm.requisition.name"] }
+          ?.takeIf { it.state.uppercase() == "REFUSED" }
+          ?.let { "REFUSED" }
+      else -> null
+    }
   }
 
   fun artifactStatus(
@@ -1128,7 +1203,10 @@ internal object ReportTraceOutput {
       spans.mapNotNullTo(this) { it.attributes["xmm.outcome"]?.lowercase() }
       logEntries.mapNotNullTo(this) { safeTextFields(it.message)["xmm.outcome"]?.lowercase() }
     }
-    if ("refused" in outcomes) {
+    val requisitionStatesAuthoritative =
+      routeResolution.measurementRoutes.isNotEmpty() &&
+        routeResolution.measurementRoutes.all { it.requisitionsResolved }
+    if ("refused" in outcomes && !requisitionStatesAuthoritative) {
       return ReportTraceExecutionOutcome.REFUSED
     }
     if ("report_failed" in outcomes) {
@@ -1282,6 +1360,30 @@ internal object ReportTraceOutput {
         outcome == "report_failed"
     }
 
+    fun refusalOrigin(requisitionName: String): RequisitionRefusalOrigin {
+      val origins =
+        observed.values
+          .flatten()
+          .filter { evidence ->
+            evidence.attributes["xmm.requisition.name"] == requisitionName &&
+              evidence.outcome?.lowercase() == "refused"
+          }
+          .mapNotNull { evidence ->
+            evidence.attributes[ReportTraceAttributes.REFUSAL_ORIGIN_STRING]
+          }
+          .mapNotNull { value ->
+            when (value) {
+              ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN ->
+                RequisitionRefusalOrigin.REQUISITION_FETCHER
+              ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN ->
+                RequisitionRefusalOrigin.RESULTS_FULFILLER
+              else -> null
+            }
+          }
+          .distinct()
+      return origins.singleOrNull() ?: RequisitionRefusalOrigin.UNKNOWN
+    }
+
     val basicReportFailed = context.basicReportState?.uppercase() in setOf("FAILED", "INVALID")
     val failedBeforeReport = basicReportFailed && context.reportName == REPORT_NOT_CREATED
     val reportFailed =
@@ -1333,7 +1435,18 @@ internal object ReportTraceOutput {
         },
       )
     }
-    if (context.metricNames.isEmpty()) {
+    for (requestId in context.unresolvedMetricRequestIds) {
+      val resource = "Metric request $requestId"
+      val unresolvedMetricRequirement =
+        if (failedBeforeReport) {
+          ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+        } else {
+          ReportTraceStageRequirement.UNKNOWN
+        }
+      add("metric_creation", resource, "xmm.metric.name", unresolvedMetricRequirement)
+      add("metric_result_sync", resource, "xmm.metric.name", unresolvedMetricRequirement)
+    }
+    if (context.metricNames.isEmpty() && context.unresolvedMetricRequestIds.isEmpty()) {
       val unresolvedMetricRequirement =
         if (failedBeforeReport) {
           ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
@@ -1470,6 +1583,12 @@ internal object ReportTraceOutput {
           val requisitionState = requisition.state.uppercase()
           val requisitionRefused = requisitionState == "REFUSED"
           val requisitionFulfilled = requisitionState == "FULFILLED"
+          val refusalOrigin =
+            if (requisitionRefused) {
+              refusalOrigin(requisition.name)
+            } else {
+              null
+            }
           add(
             "requisition_available",
             requisition.name,
@@ -1481,7 +1600,13 @@ internal object ReportTraceOutput {
               ReportTraceRequisitionRouteKind.EDPA ->
                 when {
                   measurementReused -> ReportTraceStageRequirement.REUSED
-                  requisitionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+                  requisitionRefused &&
+                    refusalOrigin == RequisitionRefusalOrigin.REQUISITION_FETCHER ->
+                    ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+                  requisitionRefused &&
+                    refusalOrigin == RequisitionRefusalOrigin.RESULTS_FULFILLER ->
+                    ReportTraceStageRequirement.REQUIRED
+                  requisitionRefused -> ReportTraceStageRequirement.UNKNOWN
                   measurementFailed && !requisitionFulfilled ->
                     ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
                   else -> ReportTraceStageRequirement.REQUIRED
@@ -1490,6 +1615,19 @@ internal object ReportTraceOutput {
                 ReportTraceStageRequirement.NOT_APPLICABLE
               ReportTraceRequisitionRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
             }
+          val refusalRequirement =
+            when {
+              !requisitionRefused -> ReportTraceStageRequirement.NOT_APPLICABLE
+              measurementReused -> ReportTraceStageRequirement.REUSED
+              requisition.route == ReportTraceRequisitionRouteKind.DIRECT_EDP ->
+                ReportTraceStageRequirement.NOT_APPLICABLE
+              requisition.route == ReportTraceRequisitionRouteKind.UNKNOWN ->
+                ReportTraceStageRequirement.UNKNOWN
+              refusalOrigin == RequisitionRefusalOrigin.UNKNOWN ->
+                ReportTraceStageRequirement.UNKNOWN
+              else -> ReportTraceStageRequirement.REQUIRED
+            }
+          add("requisition_refusal", requisition.name, "xmm.requisition.name", refusalRequirement)
           addWithPresence(
             "requisition_dispatch",
             requisition.name,
@@ -1545,7 +1683,26 @@ internal object ReportTraceOutput {
         }
       }
     }
-    if (routeResolution.measurementRoutes.isEmpty()) {
+    for (requestId in context.unresolvedMeasurementRequestIds) {
+      val measurementResource = "Measurement request $requestId"
+      val requisitionResource = "Requisitions for Measurement request $requestId"
+      val unresolvedMeasurementRequirement =
+        if (failedBeforeReport) {
+          ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+        } else {
+          ReportTraceStageRequirement.UNKNOWN
+        }
+      for (stage in MEASUREMENT_LIFECYCLE_STAGES) {
+        add(stage, measurementResource, "xmm.measurement.name", unresolvedMeasurementRequirement)
+      }
+      for (stage in REQUISITION_LIFECYCLE_STAGES) {
+        add(stage, requisitionResource, "xmm.requisition.name", unresolvedMeasurementRequirement)
+      }
+    }
+    if (
+      routeResolution.measurementRoutes.isEmpty() &&
+        context.unresolvedMeasurementRequestIds.isEmpty()
+    ) {
       val unresolvedMeasurementRequirement =
         if (failedBeforeReport) {
           ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
@@ -1659,6 +1816,12 @@ internal object ReportTraceOutput {
     val requirement: ReportTraceStageRequirement?,
   )
 
+  private enum class RequisitionRefusalOrigin {
+    REQUISITION_FETCHER,
+    RESULTS_FULFILLER,
+    UNKNOWN,
+  }
+
   private const val MAX_LOG_FILTER_LENGTH = 20_000
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val MEASUREMENT_LIFECYCLE_STAGES =
@@ -1672,6 +1835,7 @@ internal object ReportTraceOutput {
   private val REQUISITION_LIFECYCLE_STAGES =
     listOf(
       "requisition_available",
+      "requisition_refusal",
       "requisition_dispatch",
       "work_item_processing",
       "results_fulfillment",
@@ -1703,6 +1867,7 @@ internal object ReportTraceOutput {
       "xmm.lifecycle.stage",
       "xmm.outcome",
       "xmm.error.type",
+      "xmm.refusal.origin",
       "xmm.error.retryable",
       "xmm.operation.result",
     )
@@ -1990,8 +2155,10 @@ internal class ReportTrace(
           metricNames = emptyList(),
           metricStates = emptyMap(),
           reusedMetricNames = emptySet(),
+          unresolvedMetricRequestIds = emptyList(),
           measurementNames = emptyList(),
           reusedMeasurementNames = emptySet(),
+          unresolvedMeasurementRequestIds = emptyList(),
           createTime = null,
         )
       val routeResolution =
@@ -2117,8 +2284,10 @@ internal class ReportTrace(
               metricNames = emptyList(),
               metricStates = emptyMap(),
               reusedMetricNames = emptySet(),
+              unresolvedMetricRequestIds = emptyList(),
               measurementNames = emptyList(),
               reusedMeasurementNames = emptySet(),
+              unresolvedMeasurementRequestIds = emptyList(),
               createTime = null,
             ) to failureDescription(e)
           }
@@ -2212,6 +2381,25 @@ internal class ReportTrace(
     val warnings = mutableListOf<String>()
     if (resolutionFailure != null) {
       warnings += "Reporting resource resolution failed: $resolutionFailure"
+    }
+    val unresolvedDescendantNote =
+      buildList {
+          if (context.unresolvedMetricRequestIds.isNotEmpty()) {
+            add(
+              "Metric requests were not resolved: " +
+                context.unresolvedMetricRequestIds.joinToString()
+            )
+          }
+          if (context.unresolvedMeasurementRequestIds.isNotEmpty()) {
+            add(
+              "Measurement requests do not have Kingdom Measurement IDs: " +
+                context.unresolvedMeasurementRequestIds.joinToString()
+            )
+          }
+        }
+        .joinToString("; ")
+    if (unresolvedDescendantNote.isNotEmpty()) {
+      warnings += "Reporting resource resolution was partial: $unresolvedDescendantNote"
     }
     warnings += routeResolution.warnings
     val spanEntries = mutableListOf<ReportTraceSpan>()
@@ -2458,6 +2646,18 @@ internal class ReportTrace(
             fetched = 0,
             retained = 0,
             note = resolutionFailure,
+          )
+        )
+      } else if (unresolvedDescendantNote.isNotEmpty()) {
+        val resolvedDescendantCount = context.metricNames.size + context.measurementNames.size
+        add(
+          ReportTraceSourceStatus(
+            project = "reporting",
+            source = "Resource resolution",
+            status = "PARTIAL",
+            fetched = resolvedDescendantCount,
+            retained = resolvedDescendantCount,
+            note = unresolvedDescendantNote,
           )
         )
       }

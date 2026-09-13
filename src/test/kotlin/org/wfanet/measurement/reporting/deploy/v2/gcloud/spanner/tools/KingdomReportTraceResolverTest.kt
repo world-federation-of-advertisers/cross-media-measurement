@@ -263,6 +263,32 @@ class KingdomReportTraceResolverTest {
     assertThat(result.measurementRoutes).hasSize(51)
   }
 
+  @Test
+  fun `resolve marks omitted Measurement in successful batch response unresolved`() = runTest {
+    val client =
+      FakeKingdomReportTraceClient(
+        batchGet = {
+          batchGetMeasurementsResponse { measurements += directMeasurement(MEASUREMENT_1) }
+        },
+        list = { listRequisitionsResponse {} },
+      )
+
+    val result =
+      resolver(client)
+        .resolve(
+          listOf(MEASUREMENT_1, MEASUREMENT_2),
+          topology(EDPA to ReportTraceRequisitionRouteKind.EDPA),
+        )
+
+    assertThat(result.status).isEqualTo("PARTIAL")
+    assertThat(result.measurementRoutes.map { it.name })
+      .containsExactly(MEASUREMENT_1, MEASUREMENT_2)
+      .inOrder()
+    assertThat(result.measurementRoutes.single { it.name == MEASUREMENT_2 }.route)
+      .isEqualTo(ReportTraceMeasurementRouteKind.UNKNOWN)
+    assertThat(result.note).contains("omitted Measurements: $MEASUREMENT_2")
+  }
+
   private fun resolver(client: KingdomReportTraceClient): KingdomReportTraceResolver {
     return KingdomReportTraceResolver(
       client = client,

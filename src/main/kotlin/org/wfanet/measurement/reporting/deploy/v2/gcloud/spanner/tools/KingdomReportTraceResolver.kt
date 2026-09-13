@@ -284,7 +284,18 @@ internal class KingdomReportTraceResolver(
                     }
                   )
                 }
-                MeasurementBatchResult(response.measurementsList, emptyList(), null)
+                val measurementsByName = response.measurementsList.associateBy { it.name }
+                val unresolvedNames = names.filterNot(measurementsByName::containsKey)
+                MeasurementBatchResult(
+                  measurements = names.mapNotNull(measurementsByName::get),
+                  unresolvedNames = unresolvedNames,
+                  failure =
+                    if (unresolvedNames.isEmpty()) {
+                      null
+                    } else {
+                      "Kingdom batch response omitted Measurements: ${unresolvedNames.joinToString()}"
+                    },
+                )
               } catch (e: CancellationException) {
                 throw e
               } catch (e: Exception) {

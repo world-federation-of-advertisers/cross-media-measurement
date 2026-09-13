@@ -72,6 +72,7 @@ kt_jvm_library(
         "//imports/java/com/google/cloud/logging",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:spanner_flags",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/db:basic_reports",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/readers",

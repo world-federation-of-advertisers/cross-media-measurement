@@ -79,11 +79,13 @@ kt_jvm_library(
     srcs = ["RequisitionGrouper.kt"],
     deps = [
         ":requisitions_validator",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",

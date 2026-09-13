@@ -195,7 +195,11 @@ For a terminal failure or refusal, the artifact marks downstream operations that
 could not run as `SKIPPED_AFTER_FAILURE` or `SKIPPED_AFTER_REFUSAL`. A fully
 observed unsuccessful execution can therefore be `COMPLETE` with an execution
 outcome of `FAILED` or `REFUSED`; genuinely missing evidence still makes it
-`PARTIAL`.
+`PARTIAL`. A refused Requisition skips the EDPA dispatch and processing stages
+only when `requisition_refusal` telemetry identifies RequisitionFetcher as the
+origin. A ResultsFulfiller-origin refusal still requires dispatch, WorkItem, and
+fulfiller evidence. If the refusal origin cannot be established, those stages
+remain `UNKNOWN`.
 
 The CLI uses the Kingdom as the authoritative source for every resolved
 Measurement's state, selected protocol, Requisitions, and expected Duchy
@@ -217,12 +221,18 @@ is instead required once per Measurement/computation at the Kingdom system API.
 For a refused Requisition, the separate
 `kingdom_requisition_refusal_acceptance` stage records whether the Kingdom
 accepted or rejected that refusal; direct result acceptance is then
-`SKIPPED_AFTER_REFUSAL`.
+`SKIPPED_AFTER_REFUSAL`. A durable terminal Kingdom state resolves retry order
+only when matching accepted telemetry was collected: a later rejected duplicate
+does not override an earlier accepted operation, while durable state by itself
+does not manufacture missing evidence.
 Evidence for one child does not satisfy another child. If observed telemetry for
 an operation does not identify the child resource, that child operation is
-`UNKNOWN`. Failed Kingdom lookups and missing topology entries leave only the
-affected branches `UNKNOWN` and make the artifact partial. A successful
-BasicReport's durable availability is required; an observed
+`UNKNOWN`. Metric request IDs that do not resolve to Metrics and Measurement
+request IDs that do not yet have Kingdom Measurement IDs are emitted as
+individual unresolved children. Failed or partial Reporting and Kingdom lookups,
+and missing topology entries, leave only the affected branches `UNKNOWN` and
+make the artifact partial. A successful BasicReport's durable availability is
+required; an observed
 `basic_report_api_fetch` is shown as optional evidence because fetching the
 result is not part of producing it.
 

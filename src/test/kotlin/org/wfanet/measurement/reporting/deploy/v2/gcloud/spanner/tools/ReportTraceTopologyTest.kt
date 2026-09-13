@@ -17,7 +17,7 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
 import com.google.common.truth.Truth.assertThat
-import org.junit.Assert.assertThrows
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -30,7 +30,7 @@ class ReportTraceTopologyTest {
   @Test
   fun `fromConfig requires every route to be specified`() {
     val exception =
-      assertThrows(IllegalArgumentException::class.java) {
+      assertFailsWith<IllegalArgumentException> {
         ReportTraceTopology.fromConfig(
           reportTraceTopologyConfig {
             dataProviderRoutes += dataProviderRoute { dataProvider = DATA_PROVIDER }
@@ -44,7 +44,7 @@ class ReportTraceTopologyTest {
   @Test
   fun `fromConfig rejects duplicate DataProviders`() {
     val exception =
-      assertThrows(IllegalArgumentException::class.java) {
+      assertFailsWith<IllegalArgumentException> {
         ReportTraceTopology.fromConfig(
           reportTraceTopologyConfig {
             dataProviderRoutes +=
@@ -59,7 +59,7 @@ class ReportTraceTopologyTest {
   @Test
   fun `fromConfig rejects invalid DataProvider resource name`() {
     val exception =
-      assertThrows(IllegalArgumentException::class.java) {
+      assertFailsWith<IllegalArgumentException> {
         ReportTraceTopology.fromConfig(
           reportTraceTopologyConfig {
             dataProviderRoutes += dataProviderRoute {

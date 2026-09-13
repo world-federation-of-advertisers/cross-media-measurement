@@ -1229,6 +1229,17 @@ class RequisitionFetcherTest {
     assertThat(createRequisitionMetadataRequests).isEmpty()
     // A requisition refused for a bad spec was still fetched from the Kingdom, so it is counted.
     assertThat(counterValue("edpa.requisition_fetcher.requisitions_fetched")).isEqualTo(1)
+    val refusalSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.refuse_requisition"
+      }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(bad.name)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_refusal")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+      .isEqualTo(ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
   }
 
   @Test

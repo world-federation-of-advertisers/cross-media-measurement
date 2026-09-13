@@ -39,6 +39,9 @@ object ReportTraceAttributes {
   const val LIFECYCLE_STAGE_STRING = "xmm.lifecycle.stage"
   const val OUTCOME_STRING = "xmm.outcome"
   const val ERROR_TYPE_STRING = "xmm.error.type"
+  const val REFUSAL_ORIGIN_STRING = "xmm.refusal.origin"
+  const val REQUISITION_FETCHER_REFUSAL_ORIGIN = "requisition_fetcher"
+  const val RESULTS_FULFILLER_REFUSAL_ORIGIN = "results_fulfiller"
 
   val BASIC_REPORT_NAME: AttributeKey<String> = AttributeKey.stringKey(BASIC_REPORT_NAME_STRING)
   val REPORT_NAME: AttributeKey<String> = AttributeKey.stringKey(REPORT_NAME_STRING)
@@ -57,6 +60,7 @@ object ReportTraceAttributes {
   val LIFECYCLE_STAGE: AttributeKey<String> = AttributeKey.stringKey(LIFECYCLE_STAGE_STRING)
   val OUTCOME: AttributeKey<String> = AttributeKey.stringKey(OUTCOME_STRING)
   val ERROR_TYPE: AttributeKey<String> = AttributeKey.stringKey(ERROR_TYPE_STRING)
+  val REFUSAL_ORIGIN: AttributeKey<String> = AttributeKey.stringKey(REFUSAL_ORIGIN_STRING)
 
   /** Returns the reporting resource attributes embedded in [measurementSpec]. */
   fun fromMeasurementSpec(measurementSpec: MeasurementSpec): Attributes {

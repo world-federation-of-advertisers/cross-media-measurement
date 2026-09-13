@@ -2080,6 +2080,17 @@ class ResultsFulfillerTest {
       assertThat(processingSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
         .isEqualTo(REQUISITION_NAME)
       assertThat(processingSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+      val refusalSpan =
+        spans.first { it.name == "edp_aggregator.results_fulfiller.refuse_requisition" }
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("requisition_refusal")
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
     }
 
   @Test
