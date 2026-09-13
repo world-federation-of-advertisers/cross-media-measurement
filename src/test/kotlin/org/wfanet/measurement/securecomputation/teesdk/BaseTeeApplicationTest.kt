@@ -20,6 +20,11 @@ import com.google.protobuf.Parser
 import com.google.rpc.ErrorInfo
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -42,8 +47,10 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfa.measurement.queue.testing.TestWork
 import org.wfa.measurement.queue.testing.testWork
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.gcloud.pubsub.Publisher
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
@@ -94,6 +101,8 @@ class BaseTeeApplicationImpl(
 class BaseTeeApplicationTest {
 
   private lateinit var emulatorClient: GooglePubSubEmulatorClient
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   private val workItemsServiceMock = mockService<WorkItemsCoroutineImplBase>()
   private val workItemAttemptsServiceMock = mockService<WorkItemAttemptsCoroutineImplBase>()
@@ -106,6 +115,17 @@ class BaseTeeApplicationTest {
 
   @Before
   fun setupPubSubResources() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     runBlocking {
       emulatorClient =
         GooglePubSubEmulatorClient(
@@ -123,6 +143,7 @@ class BaseTeeApplicationTest {
       emulatorClient.deleteTopic(PROJECT_ID, TOPIC_ID)
       emulatorClient.deleteSubscription(PROJECT_ID, SUBSCRIPTION_ID)
     }
+    openTelemetry.close()
   }
 
   @Test
@@ -267,6 +288,9 @@ class BaseTeeApplicationTest {
 
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("already_completed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
   }
 
   @Test
@@ -306,6 +330,9 @@ class BaseTeeApplicationTest {
     assertThat(consumer.nackCount).isEqualTo(0)
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("in_progress")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
   }
 
   @Test
@@ -806,6 +833,9 @@ class BaseTeeApplicationTest {
     assertThat(consumer.nackCount).isEqualTo(0)
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("stale_delivery")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
   }
 
   @Test

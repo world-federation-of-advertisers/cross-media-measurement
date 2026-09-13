@@ -29,6 +29,11 @@ import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Duration
@@ -41,6 +46,7 @@ import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -130,6 +136,7 @@ import org.wfanet.measurement.api.v2alpha.protocolConfig
 import org.wfanet.measurement.api.v2alpha.reachOnlyLiquidLegionsSketchParams
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.crypto.Hashing
@@ -148,6 +155,7 @@ import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.readByteString
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toInterval
 import org.wfanet.measurement.common.toProtoTime
@@ -2688,9 +2696,22 @@ class MetricsServiceTest {
   }
 
   private lateinit var service: MetricsService
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun initService() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     randomMock.stub {
       on { nextInt(any()) } doReturn RANDOM_OUTPUT_INT
       on { nextLong() } doReturn RANDOM_OUTPUT_LONG
@@ -2723,28 +2744,71 @@ class MetricsServiceTest {
       )
   }
 
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+  }
+
+  @Test
+  fun `createMetric rejects BasicReport from another MeasurementConsumer`() {
+    val request = createMetricRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      metric =
+        REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+          basicReport = "measurementConsumers/different/basicReports/basic-report"
+        }
+      metricId = METRIC_ID
+      requestId = "metric-request-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createMetric(request) } }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val span = spanExporter.finishedSpanItems.single { it.name == "reporting.metric.create" }
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_NAME))
+      .isEqualTo(
+        MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, METRIC_ID).toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_REQUEST_ID))
+      .isEqualTo(request.requestId)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
+  }
+
   @Test
   fun `createMetric creates CMMS measurements for incremental reach`() {
+    val basicReportName =
+      "measurementConsumers/${MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId}/" +
+        "basicReports/basic-report"
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
     } doReturn checkPermissionsResponse { permissions += PermissionName.CREATE }
+    wheneverBlocking { internalMetricsMock.createMetric(any()) } doReturn
+      INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.copy {
+        details = details.copy { basicReport = basicReportName }
+      }
     val request = createMetricRequest {
       parent = MEASUREMENT_CONSUMERS.values.first().name
-      metric = REQUESTING_INCREMENTAL_REACH_METRIC
+      metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { basicReport = basicReportName }
       metricId = METRIC_ID
     }
 
     val result =
       withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
 
-    val expected = PENDING_INCREMENTAL_REACH_METRIC
+    val expected = PENDING_INCREMENTAL_REACH_METRIC.copy { basicReport = basicReportName }
 
     // Verify proto argument of the internal MetricsCoroutineImplBase::createMetric
     verifyProtoArgument(internalMetricsMock, MetricsCoroutineImplBase::createMetric)
       .ignoringRepeatedFieldOrder()
       .isEqualTo(
         internalCreateMetricRequest {
-          metric = INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC
+          metric =
+            INTERNAL_REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+              details = details.copy { basicReport = basicReportName }
+            }
           externalMetricId = METRIC_ID
         }
       )
@@ -2795,6 +2859,7 @@ class MetricsServiceTest {
             nonceHashes += List(dataProvidersList.size) { Hashing.hashSha256(RANDOM_OUTPUT_LONG) }
             reportingMetadata = reportingMetadata {
               report = CONTAINING_REPORT
+              basicReport = basicReportName
               metric =
                 MetricKey(
                     INTERNAL_PENDING_INCREMENTAL_REACH_METRIC.cmmsMeasurementConsumerId,
@@ -5378,6 +5443,27 @@ class MetricsServiceTest {
     }
 
   @Test
+  fun `batchCreateMetrics rejects BasicReport from another MeasurementConsumer`() {
+    val request = batchCreateMetricsRequest {
+      parent = MEASUREMENT_CONSUMERS.values.first().name
+      requests += createMetricRequest {
+        metric =
+          REQUESTING_INCREMENTAL_REACH_METRIC.copy {
+            basicReport = "measurementConsumers/different/basicReports/basic-report"
+          }
+        metricId = "metric-id1"
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        runBlocking { service.batchCreateMetrics(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `batchCreateMetrics creates CMMS measurements`() = runBlocking {
     wheneverBlocking {
       permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -5400,6 +5486,18 @@ class MetricsServiceTest {
       withPrincipalAndScopes(PRINCIPAL, SCOPES) {
         runBlocking { service.batchCreateMetrics(request) }
       }
+
+    val metricSpans =
+      spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.created" }
+    assertThat(metricSpans.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+      .containsExactly(
+        PENDING_INCREMENTAL_REACH_METRIC.name,
+        PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name,
+      )
+    assertThat(metricSpans.map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) })
+      .containsExactly("metric_creation", "metric_creation")
+    assertThat(metricSpans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) })
+      .containsExactly("succeeded", "succeeded")
 
     val expected = batchCreateMetricsResponse {
       metrics += PENDING_INCREMENTAL_REACH_METRIC
@@ -6445,6 +6543,7 @@ class MetricsServiceTest {
         parent = MEASUREMENT_CONSUMERS.values.first().name
         metric = REQUESTING_INCREMENTAL_REACH_METRIC.copy { modelLine = "invalid" }
         metricId = "metric-id"
+        requestId = "metric-request-id"
       }
     }
 
@@ -6464,6 +6563,19 @@ class MetricsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "requests[0].metric.model_line"
         }
       )
+    val span =
+      spanExporter.finishedSpanItems.single { it.name == "reporting.metric.creation_failed" }
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_NAME))
+      .isEqualTo(
+        MetricKey(MEASUREMENT_CONSUMERS.keys.first().measurementConsumerId, "metric-id").toName()
+      )
+    assertThat(span.attributes.get(ReportTraceAttributes.METRIC_REQUEST_ID))
+      .isEqualTo("metric-request-id")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("metric_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -6699,7 +6811,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -6772,7 +6885,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -6901,7 +7015,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -6976,7 +7091,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -7176,7 +7292,8 @@ class MetricsServiceTest {
         metrics += PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -7512,6 +7629,34 @@ class MetricsServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+
+      val measurementFailures =
+        spanExporter.finishedSpanItems.filter {
+          it.name == "reporting.kingdom_measurement.sync_failed"
+        }
+      assertThat(measurementFailures).isNotEmpty()
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
+        )
+        .doesNotContain(null)
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet()
+        )
+        .containsExactly("failed")
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet()
+        )
+        .containsExactly("StatusRuntimeException")
+
+      val metricFailures =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+        .containsExactly(
+          PENDING_INCREMENTAL_REACH_METRIC.name,
+          PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name,
+        )
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet())
+        .containsExactly("failed")
     }
 
   @Test
@@ -7527,6 +7672,8 @@ class MetricsServiceTest {
             SUCCEEDED_UNION_ALL_REACH_MEASUREMENT.name to SUCCEEDED_UNION_ALL_REACH_MEASUREMENT,
             SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name to
               SUCCEEDED_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT,
+            PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT.name to
+              PENDING_SINGLE_PUBLISHER_IMPRESSION_MEASUREMENT,
           )
         batchGetMeasurementsResponse {
           measurements +=
@@ -7538,11 +7685,32 @@ class MetricsServiceTest {
       val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
+        assertFailsWith<Exception> {
           withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.listMetrics(request) } }
         }
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
+      assertThat(exception).hasMessageThat().contains("Unable to set measurement results")
+      val measurementFailures =
+        spanExporter.finishedSpanItems.filter {
+          it.name == "reporting.kingdom_measurement.sync_failed"
+        }
+      assertThat(measurementFailures).isNotEmpty()
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
+        )
+        .doesNotContain(null)
+      assertThat(
+          measurementFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet()
+        )
+        .containsExactly("Exception")
+
+      val metricFailures =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
+      assertThat(metricFailures).isNotEmpty()
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet())
+        .containsExactly("failed")
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.ERROR_TYPE) }.toSet())
+        .containsExactly("Exception")
     }
   }
 
@@ -7725,7 +7893,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -7930,7 +8099,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8103,7 +8273,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8192,7 +8363,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8275,7 +8447,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8362,7 +8535,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -8891,7 +9065,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(2)) {
@@ -9144,7 +9319,27 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      val measurementSpan =
+        spanExporter.finishedSpanItems.single {
+          it.name == "reporting.kingdom_measurement.observed"
+        }
+      assertThat(measurementSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+        .isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name)
+      assertThat(measurementSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_STATE))
+        .isEqualTo(Measurement.State.SUCCEEDED.name)
+      assertThat(measurementSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+        .isEqualTo("succeeded")
+
+      val metricSpan =
+        spanExporter.finishedSpanItems.single { it.name == "reporting.metric.result_synchronized" }
+      assertThat(metricSpan.attributes.get(ReportTraceAttributes.METRIC_NAME))
+        .isEqualTo(SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name)
+      assertThat(metricSpan.attributes.get(ReportTraceAttributes.METRIC_STATE))
+        .isEqualTo(Metric.State.SUCCEEDED.name)
+      assertThat(metricSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -9233,7 +9428,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -9494,7 +9690,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -10489,7 +10686,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -10630,7 +10828,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -10770,7 +10969,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, times(1)) {
@@ -10862,7 +11062,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -10957,7 +11158,8 @@ class MetricsServiceTest {
       val result =
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.getMetric(request) } }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11042,7 +11244,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11115,7 +11318,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11413,7 +11617,8 @@ class MetricsServiceTest {
         batchGetMeasurements(batchGetMeasurementsCaptor.capture())
       }
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {
@@ -11899,7 +12104,8 @@ class MetricsServiceTest {
           }
         )
 
-      // Verify proto argument of internal MeasurementsCoroutineImplBase::batchSetMeasurementResults
+      // Verify proto argument of internal
+      // MeasurementsCoroutineImplBase::batchSetMeasurementResults
       val batchSetMeasurementResultsCaptor: KArgumentCaptor<BatchSetMeasurementResultsRequest> =
         argumentCaptor()
       verifyBlocking(internalMeasurementsMock, never()) {

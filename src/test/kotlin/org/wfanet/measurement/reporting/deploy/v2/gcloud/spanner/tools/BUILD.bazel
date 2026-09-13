@@ -2,6 +2,67 @@ load(
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl",
     "spanner_emulator_test",
 )
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+
+kt_jvm_test(
+    name = "ReportTraceTest",
+    srcs = ["ReportTraceTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.ReportTraceTest",
+    deps = [
+        "//imports/java/com/google/cloud/logging",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "KingdomReportTraceResolverTest",
+    srcs = ["KingdomReportTraceResolverTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.KingdomReportTraceResolverTest",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisition_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "ReportTraceTopologyTest",
+    srcs = ["ReportTraceTopologyTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.ReportTraceTopologyTest",
+    deps = [
+        "//src/main/proto/wfa/measurement/config/reporting:report_trace_topology_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "GrpcKingdomReportTraceClientTest",
+    srcs = ["GrpcKingdomReportTraceClientTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.GrpcKingdomReportTraceClientTest",
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurements_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:requisitions_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+    ],
+)
 
 spanner_emulator_test(
     name = "BasicReportReportingSetBackfillerTest",

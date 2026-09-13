@@ -29,6 +29,10 @@ import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanContext
+import io.opentelemetry.api.trace.TraceFlags
+import io.opentelemetry.api.trace.TraceState
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
@@ -119,7 +123,16 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+      val spanContext =
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      Span.wrap(spanContext).makeCurrent().use {
+        dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+      }
       val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsServiceMock, times(1)) {
         createWorkItem(createWorkItemRequestCaptor.capture())
@@ -135,6 +148,8 @@ class DataWatcherTest() {
           .unpack<WorkItemParams>()
       assertThat(workItemParams.dataPathParams.dataPath)
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
+      assertThat(workItemParams.traceContextMap)
+        .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
       val workItemAppConfig = workItemParams.appParams.unpack<Int32Value>()
       assertThat(workItemAppConfig).isEqualTo(appParams)
     }

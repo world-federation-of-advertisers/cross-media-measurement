@@ -19,6 +19,8 @@ import com.google.common.truth.Truth.assertWithMessage
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
+import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
@@ -92,7 +94,14 @@ abstract class InProcessEdpAggregatorDirectOnlyReportTest(
       expectedImpressions = EXPECTED_SINGLE_EDP_SPEC2_IMPRESSIONS,
       expectedKPlusReach = EXPECTED_SINGLE_EDP_SPEC2_K_PLUS_REACH,
     )
-    assertExpectedProtocolUsed(getMeasurementsForBasicReport(completedBasicReport.name))
+    val measurements = getMeasurementsForBasicReport(completedBasicReport.name)
+    assertThat(
+        measurements
+          .map { it.measurementSpec.unpack<MeasurementSpec>().reportingMetadata.basicReport }
+          .toSet()
+      )
+      .containsExactly(createdBasicReport.name)
+    assertExpectedProtocolUsed(measurements)
   }
 
   @Test

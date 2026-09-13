@@ -28,6 +28,7 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 
 object Tracing {
   private val w3cPropagator: TextMapPropagator = W3CTraceContextPropagator.getInstance()
@@ -125,12 +126,9 @@ object Tracing {
     val span = spanBuilder.startSpan()
     val scope = span.makeCurrent()
     try {
-      val result = block()
-      span.setStatus(StatusCode.OK)
-      return result
+      return block()
     } catch (e: Exception) {
-      span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
-      span.recordException(e)
+      recordFailure(span, e)
       throw e
     } finally {
       scope.close()
@@ -174,19 +172,37 @@ object Tracing {
     spanBuilder.setAllAttributes(attributes)
 
     val span = spanBuilder.startSpan()
-    val scope = span.makeCurrent()
+    val context = Context.current().with(span)
     return try {
-      val result = withContext(Context.current().asContextElement()) { block() }
-      span.setStatus(StatusCode.OK)
-      result
+      withContext(context.asContextElement()) { block() }
     } catch (e: Exception) {
-      span.setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
-      span.recordException(e)
+      recordFailure(span, e)
       throw e
     } finally {
-      scope.close()
       span.end()
     }
+  }
+
+  /** Records a failed operation whose work was shared by multiple correlated resources. */
+  fun recordFailure(spanName: String, attributes: Attributes, error: Throwable) {
+    val span =
+      Instrumentation.openTelemetry
+        .getTracer("edpa-instrumentation")
+        .spanBuilder(spanName)
+        .setSpanKind(SpanKind.INTERNAL)
+        .setAllAttributes(attributes)
+        .startSpan()
+    recordFailure(span, error)
+    span.end()
+  }
+
+  @PublishedApi
+  internal fun recordFailure(span: Span, error: Throwable) {
+    span
+      .setStatus(StatusCode.ERROR, error.message ?: "Unknown error")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .recordException(error)
   }
 
   private object CloudFunctionsHttpRequestGetter : TextMapGetter<HttpRequest> {

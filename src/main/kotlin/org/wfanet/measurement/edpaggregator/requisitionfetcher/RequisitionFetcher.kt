@@ -22,6 +22,7 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
@@ -51,6 +52,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -162,6 +164,16 @@ class RequisitionFetcher(
     }
   }
 
+  private data class ReportIdentifiers(val reportName: String, val basicReportName: String)
+
+  private data class ReportWorkUnit(
+    val identifiers: ReportIdentifiers,
+    val requisitions: List<Requisition>,
+  ) {
+    val reportId: String
+      get() = identifiers.reportName
+  }
+
   private enum class DispatchOwnership {
     LEGACY_DATA_WATCHER,
     DIRECT,
@@ -173,12 +185,13 @@ class RequisitionFetcher(
     val ownership: DispatchOwnership,
   )
 
-  private data class ReportWorkUnit(val reportId: String, val requisitions: List<Requisition>)
-
   private class OpenBuffer(
-    val reportId: String,
+    val identifiers: ReportIdentifiers,
     val requisitions: MutableList<Requisition> = mutableListOf(),
-  )
+  ) {
+    val reportId: String
+      get() = identifiers.reportName
+  }
 
   /**
    * Accumulator for STORED metadata rows whose blob is missing.
@@ -350,7 +363,8 @@ class RequisitionFetcher(
     // channel.
     fun drainAll(): List<ReportWorkUnit> {
       if (openBuffers.isEmpty()) return emptyList()
-      val units = openBuffers.values.map { ReportWorkUnit(it.reportId, it.requisitions.toList()) }
+      val units =
+        openBuffers.values.map { ReportWorkUnit(it.identifiers, it.requisitions.toList()) }
       openBuffers.clear()
       totalBufferedBytes = 0L
       return units
@@ -385,8 +399,8 @@ class RequisitionFetcher(
         // unparseable spec. Only this (single) collector mutates totalFetched, so no lock is
         // needed.
         totalFetched += 1
-        val reportId = extractReportId(requisition)
-        if (reportId == null) {
+        val identifiers = extractReportIdentifiers(requisition)
+        if (identifiers == null) {
           requisitionGrouper.refuseRequisitionToCmms(
             requisition,
             refusal {
@@ -399,13 +413,14 @@ class RequisitionFetcher(
           return@collect
         }
 
+        val reportId = identifiers.reportName
         val requisitionBytes = requisition.serializedSize.toLong()
         val overCap =
           buffersMutex.withLock {
             val existing = openBuffers[reportId]
             if (existing == null) {
               openBuffers[reportId] =
-                OpenBuffer(reportId = reportId, requisitions = mutableListOf(requisition))
+                OpenBuffer(identifiers = identifiers, requisitions = mutableListOf(requisition))
             } else {
               existing.requisitions.add(requisition)
             }
@@ -466,13 +481,34 @@ class RequisitionFetcher(
           Attributes.builder()
             .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
             .put(ATTR_REPORT_ID_KEY, unit.reportId)
+            .put(ReportTraceAttributes.REPORT_NAME, unit.reportId)
+            .also { builder ->
+              if (unit.identifiers.basicReportName.isNotBlank()) {
+                builder.put(
+                  ReportTraceAttributes.BASIC_REPORT_NAME,
+                  unit.identifiers.basicReportName,
+                )
+              }
+            }
             .build(),
       ) {
         processReportInner(unit, pendingRecovery, metadataCache)
+        Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       }
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
+      if (workItemDispatcher != null) {
+        recordDispatchEvidence(
+          requisitionNames = unit.requisitions.map { it.name },
+          reportName = unit.reportId,
+          basicReportName = unit.identifiers.basicReportName,
+          groupId = null,
+          workItemName = null,
+          outcome = "failed",
+          error = e,
+        )
+      }
       metrics.reportFailures.add(
         1,
         Attributes.builder()
@@ -522,7 +558,14 @@ class RequisitionFetcher(
       if (storageClient.getBlob(location.blobKey) != null) {
         if (location.ownership == DispatchOwnership.DIRECT) {
           metadataCache.remove(unit.reportId)
-          queueAndDispatchGroup(existingGroupId, metadataList, location.blobUri)
+          traceDispatchTransaction(
+            requisitionNames = metadataList.map { it.cmmsRequisition },
+            reportName = unit.reportId,
+            basicReportName = unit.identifiers.basicReportName,
+            groupId = existingGroupId,
+          ) {
+            queueAndDispatchGroup(existingGroupId, metadataList, location.blobUri)
+          }
         }
         continue
       }
@@ -555,11 +598,21 @@ class RequisitionFetcher(
             null
           }
         if (rebuilt != null) {
-          writeBlob(rebuilt, location.blobKey)
-          metrics.recoveryRebuilds.add(1, dataProviderAttrs)
           if (location.ownership == DispatchOwnership.DIRECT) {
-            metadataCache.remove(unit.reportId)
-            queueAndDispatchGroup(existingGroupId, pending.metadata, location.blobUri)
+            traceDispatchTransaction(
+              requisitionNames = pending.metadata.map { it.cmmsRequisition },
+              reportName = unit.reportId,
+              basicReportName = unit.identifiers.basicReportName,
+              groupId = existingGroupId,
+            ) {
+              writeBlob(rebuilt, location.blobKey)
+              metrics.recoveryRebuilds.add(1, dataProviderAttrs)
+              metadataCache.remove(unit.reportId)
+              queueAndDispatchGroup(existingGroupId, pending.metadata, location.blobUri)
+            }
+          } else {
+            writeBlob(rebuilt, location.blobKey)
+            metrics.recoveryRebuilds.add(1, dataProviderAttrs)
           }
         }
         pendingRecovery.remove(existingGroupId)
@@ -614,15 +667,21 @@ class RequisitionFetcher(
         priorBlobForReport = true
         val newBlobKey = blobKey(newStoragePathPrefix, groupId)
         val newBlobUri = blobUri(newStoragePathPrefix, groupId)
-        writeBlob(grouped, newBlobKey)
-        val createdMetadata =
-          if (workItemDispatcher == null) {
-            batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
-          } else {
-            registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+        if (workItemDispatcher == null) {
+          writeBlob(grouped, newBlobKey)
+          batchCreateRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+        } else {
+          traceDispatchTransaction(
+            requisitionNames = chunk.map { it.name },
+            reportName = unit.reportId,
+            basicReportName = unit.identifiers.basicReportName,
+            groupId = groupId,
+          ) {
+            writeBlob(grouped, newBlobKey)
+            val createdMetadata =
+              registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+            queueAndDispatchGroup(groupId, createdMetadata, newBlobUri)
           }
-        if (workItemDispatcher != null) {
-          queueAndDispatchGroup(groupId, createdMetadata, newBlobUri)
         }
       }
     } finally {
@@ -659,7 +718,8 @@ class RequisitionFetcher(
     reportId: String,
     requisitions: List<Requisition>,
   ): Requisition.Refusal? {
-    // MeasurementSpec is guaranteed parseable here: the stream producer's extractReportId
+    // MeasurementSpec is guaranteed parseable here: the stream producer's
+    // extractReportIdentifiers
     // already unpacked and discarded any requisition with an unparseable spec.
     for (requisition in requisitions) {
       try {
@@ -749,7 +809,7 @@ class RequisitionFetcher(
    * Returns the report ID embedded in [requisition]'s [MeasurementSpec], or `null` if the spec
    * cannot be parsed or has no report set.
    */
-  private fun extractReportId(requisition: Requisition): String? {
+  private fun extractReportIdentifiers(requisition: Requisition): ReportIdentifiers? {
     val measurementSpec: MeasurementSpec =
       try {
         requisition.measurementSpec.unpack()
@@ -757,8 +817,12 @@ class RequisitionFetcher(
         logger.log(Level.WARNING, "Unable to parse MeasurementSpec for ${requisition.name}", e)
         return null
       }
-    val report = measurementSpec.reportingMetadata.report
-    return if (report.isBlank()) null else report
+    val metadata = measurementSpec.reportingMetadata
+    return if (metadata.report.isBlank()) {
+      null
+    } else {
+      ReportIdentifiers(metadata.report, metadata.basicReport)
+    }
   }
 
   /**
@@ -792,7 +856,7 @@ class RequisitionFetcher(
    * Builds the [RequisitionMetadata] for [requisition] under [groupId] for [reportId], with a blob
    * URI supplied by the caller. [reportId] is passed in rather than re-derived from the
    * requisition's [MeasurementSpec]: the producer already extracted and validated it once per
-   * requisition (see [extractReportId] in `produceWorkUnits`).
+   * requisition (see [extractReportIdentifiers] in `produceWorkUnits`).
    */
   private fun buildRequisitionMetadata(
     requisition: Requisition,
@@ -953,6 +1017,84 @@ class RequisitionFetcher(
       }
     }
     dispatcher.dispatch(groupId, blobUri)
+  }
+
+  private suspend fun <T> traceDispatchTransaction(
+    requisitionNames: List<String>,
+    reportName: String,
+    basicReportName: String,
+    groupId: String,
+    block: suspend () -> T,
+  ): T {
+    val workItemName = checkNotNull(workItemDispatcher).workItemName(groupId)
+    return try {
+      block().also {
+        recordDispatchEvidence(
+          requisitionNames,
+          reportName,
+          basicReportName,
+          groupId,
+          workItemName,
+          "succeeded",
+          null,
+        )
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      recordDispatchEvidence(
+        requisitionNames,
+        reportName,
+        basicReportName,
+        groupId,
+        workItemName,
+        "failed",
+        e,
+      )
+      throw e
+    }
+  }
+
+  /** Emits one lifecycle span per Requisition after the dispatch transaction outcome is known. */
+  private suspend fun recordDispatchEvidence(
+    requisitionNames: List<String>,
+    reportName: String,
+    basicReportName: String,
+    groupId: String?,
+    workItemName: String?,
+    outcome: String,
+    error: Exception?,
+  ) {
+    for (requisitionName in requisitionNames) {
+      traceSuspending(
+        spanName = "edp_aggregator.requisition_fetcher.dispatch_requisition",
+        attributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+            .put(ReportTraceAttributes.REPORT_NAME, reportName)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_dispatch")
+            .put(ReportTraceAttributes.OUTCOME, outcome)
+            .also { builder ->
+              if (basicReportName.isNotEmpty()) {
+                builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+              }
+              if (groupId != null) {
+                builder.put(ReportTraceAttributes.GROUP_ID, groupId)
+              }
+              if (workItemName != null) {
+                builder.put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+              }
+            }
+            .build(),
+      ) {
+        if (error != null) {
+          Span.current()
+            .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+            .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+            .recordException(error)
+        }
+      }
+    }
   }
 
   private fun blobUri(storagePathPrefix: String, groupId: String): String =

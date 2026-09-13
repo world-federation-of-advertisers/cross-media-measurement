@@ -24,10 +24,16 @@ import com.google.protobuf.Timestamp
 import com.google.protobuf.util.Durations
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.BeforeClass
 import org.junit.Rule
@@ -61,6 +67,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.impression
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.population
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reach
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reachAndFrequency
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
@@ -92,6 +99,7 @@ import org.wfanet.measurement.api.v2alpha.testing.makeDataProvider
 import org.wfanet.measurement.api.v2alpha.withDataProviderPrincipal
 import org.wfanet.measurement.api.v2alpha.withMeasurementConsumerPrincipal
 import org.wfanet.measurement.common.HexString
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.ProtoReflection
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.grpc.errorInfo
@@ -100,6 +108,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.captureFirst
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toByteString
@@ -243,9 +252,22 @@ class MeasurementsServiceTest {
   private lateinit var service: MeasurementsService
   private lateinit var hmssEnabledService: MeasurementsService
   private lateinit var trusTeeEnabledService: MeasurementsService
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun initService() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     service =
       MeasurementsService(
         MeasurementsGrpcKt.MeasurementsCoroutineStub(grpcTestServerRule.channel),
@@ -270,6 +292,11 @@ class MeasurementsServiceTest {
         hmssEnabled = true,
         trusTeeEnabled = true,
       )
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
   }
 
   @Test
@@ -393,6 +420,62 @@ class MeasurementsServiceTest {
           requestId = request.requestId
         }
       )
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.measurement.create")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("measurement_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID))
+      .isEqualTo(request.requestId)
+  }
+
+  @Test
+  fun `createMeasurement rejects reporting lineage from another MeasurementConsumer`() {
+    val measurement =
+      MEASUREMENT.copy {
+        clearFailure()
+        results.clear()
+        measurementSpec =
+          measurementSpec.copy {
+            setMessage(
+              MEASUREMENT_SPEC.copy {
+                  reportingMetadata = reportingMetadata {
+                    basicReport = "measurementConsumers/different/basicReports/basic-report"
+                    report = "measurementConsumers/different/reports/report"
+                    metric = "measurementConsumers/different/metrics/metric"
+                  }
+                }
+                .pack()
+            )
+          }
+      }
+    val request = createMeasurementRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      this.measurement = measurement
+      requestId = "invalid-lineage-request"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.createMeasurement(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.measurement.create")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("measurement_creation")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID))
+      .isEqualTo(request.requestId)
+    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo("measurementConsumers/different/basicReports/basic-report")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -2376,6 +2459,93 @@ class MeasurementsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `batchCreateMeasurements emits one attributed lifecycle span per Measurement`() {
+    val basicReportName = "$MEASUREMENT_CONSUMER_NAME/basicReports/basic-report-1"
+    val reportName = "$MEASUREMENT_CONSUMER_NAME/reports/report-1"
+    val metricName1 = "$MEASUREMENT_CONSUMER_NAME/metrics/metric-1"
+    val metricName2 = "$MEASUREMENT_CONSUMER_NAME/metrics/metric-2"
+    val measurementSpec1 =
+      MEASUREMENT_SPEC.copy {
+        reportingMetadata = reportingMetadata {
+          basicReport = basicReportName
+          report = reportName
+          metric = metricName1
+        }
+      }
+    val measurementSpec2 =
+      MEASUREMENT_SPEC.copy {
+        reportingMetadata = reportingMetadata {
+          basicReport = basicReportName
+          report = reportName
+          metric = metricName2
+        }
+      }
+    val internalMeasurement1 =
+      INTERNAL_MEASUREMENT.copy {
+        details = details.copy { measurementSpec = measurementSpec1.pack().value }
+      }
+    val internalMeasurement2 =
+      INTERNAL_MEASUREMENT.copy {
+        externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2
+        details = details.copy { measurementSpec = measurementSpec2.pack().value }
+      }
+    internalMeasurementsMock.stub {
+      onBlocking { batchCreateMeasurements(any()) }
+        .thenReturn(
+          internalBatchCreateMeasurementsResponse {
+            measurements += internalMeasurement1
+            measurements += internalMeasurement2
+          }
+        )
+    }
+    val request = batchCreateMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      requests += createMeasurementRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        requestId = "measurement-request-1"
+        measurement =
+          MEASUREMENT.copy {
+            measurementSpec = measurementSpec.copy { setMessage(measurementSpec1.pack()) }
+          }
+      }
+      requests += createMeasurementRequest {
+        parent = MEASUREMENT_CONSUMER_NAME
+        requestId = "measurement-request-2"
+        measurement =
+          MEASUREMENT.copy {
+            measurementSpec = measurementSpec.copy { setMessage(measurementSpec2.pack()) }
+          }
+      }
+    }
+
+    withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+      runBlocking { service.batchCreateMeasurements(request) }
+    }
+
+    val spans =
+      spanExporter.finishedSpanItems.filter {
+        it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) == "measurement_creation"
+      }
+    assertThat(spans.map { it.name })
+      .containsExactly("kingdom.measurement.created", "kingdom.measurement.created")
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) })
+      .containsExactly(MEASUREMENT_NAME, MEASUREMENT_NAME_2)
+      .inOrder()
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+      .containsExactly(metricName1, metricName2)
+      .inOrder()
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.REPORT_NAME) }.distinct())
+      .containsExactly(reportName)
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME) }.distinct())
+      .containsExactly(basicReportName)
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.distinct())
+      .containsExactly("accepted")
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) })
+      .containsExactly("measurement-request-1", "measurement-request-2")
+      .inOrder()
   }
 
   @Test

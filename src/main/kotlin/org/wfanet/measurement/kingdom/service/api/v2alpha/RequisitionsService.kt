@@ -20,6 +20,8 @@ import com.google.protobuf.any
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlin.math.min
@@ -72,6 +74,8 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.FulfillRequisitionRequestKt.directRequisitionParams
 import org.wfanet.measurement.internal.kingdom.HonestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.LiquidLegionsV2Params
@@ -178,11 +182,13 @@ class RequisitionsService(
       return ListRequisitionsResponse.getDefaultInstance()
     }
 
+    val requisitions =
+      internalRequisitions.subList(0, min(internalRequisitions.size, pageSize)).map {
+        it.toTracedRequisition()
+      }
+
     return listRequisitionsResponse {
-      requisitions +=
-        internalRequisitions
-          .subList(0, min(internalRequisitions.size, pageSize))
-          .map(InternalRequisition::toRequisition)
+      this.requisitions += requisitions
 
       if (internalRequisitions.size > pageSize) {
         nextPageToken =
@@ -222,7 +228,7 @@ class RequisitionsService(
         }.toExternalStatusRuntimeException(e)
       }
 
-    return result.toRequisition()
+    return result.toTracedRequisition()
   }
 
   override suspend fun refuseRequisition(request: RefuseRequisitionRequest): Requisition {
@@ -230,39 +236,52 @@ class RequisitionsService(
       grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid"
       }
-    grpcRequire(request.refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED) {
-      "Refusal details must be present"
-    }
-
-    val authenticatedPrincipal = principalFromCurrentContext
-    if (key.parentKey != authenticatedPrincipal.resourceKey) {
-      throw Permission.REFUSE.deniedStatus(request.name).asRuntimeException()
-    }
-
-    val refuseRequest = refuseRequisitionRequest {
-      externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-      externalRequisitionId = apiIdToExternalId(key.requisitionId)
-      refusal = internalRequisitionRefusal {
-        justification = request.refusal.justification.toInternal()
-        message = request.refusal.message
-      }
-      etag = request.etag
-    }
-
-    val result =
-      try {
-        internalRequisitionStub.refuseRequisition(refuseRequest)
-      } catch (e: StatusException) {
-        throw when (e.status.code) {
-          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
-          Status.Code.NOT_FOUND -> Status.NOT_FOUND
-          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
-          Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
-          else -> Status.UNKNOWN
-        }.toExternalStatusRuntimeException(e)
+    return ReportTracing.traceSuspending(
+      spanName = "kingdom.requisition.refusal_acceptance",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REQUISITION_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_requisition_refusal_acceptance")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      grpcRequire(
+        request.refusal.justification != Refusal.Justification.JUSTIFICATION_UNSPECIFIED
+      ) {
+        "Refusal details must be present"
       }
 
-    return result.toRequisition()
+      val authenticatedPrincipal = principalFromCurrentContext
+      if (key.parentKey != authenticatedPrincipal.resourceKey) {
+        throw Permission.REFUSE.deniedStatus(request.name).asRuntimeException()
+      }
+
+      val refuseRequest = refuseRequisitionRequest {
+        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+        externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        refusal = internalRequisitionRefusal {
+          justification = request.refusal.justification.toInternal()
+          message = request.refusal.message
+        }
+        etag = request.etag
+      }
+
+      val result =
+        try {
+          internalRequisitionStub.refuseRequisition(refuseRequest)
+        } catch (e: StatusException) {
+          throw when (e.status.code) {
+            Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            else -> Status.UNKNOWN
+          }.toExternalStatusRuntimeException(e)
+        }
+
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      result.toTracedRequisition()
+    }
   }
 
   override suspend fun fulfillDirectRequisition(
@@ -272,67 +291,109 @@ class RequisitionsService(
       grpcRequireNotNull(CanonicalRequisitionKey.fromName(request.name)) {
         "Resource name unspecified or invalid."
       }
-    grpcRequire(request.nonce != 0L) { "nonce unspecified" }
-    val encryptedResultCiphertext =
-      if (request.hasEncryptedResult()) {
-        grpcRequire(
-          request.encryptedResult.typeUrl ==
-            ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
-        ) {
-          "encrypted_result must contain an encrypted SignedMessage"
-        }
-        request.encryptedResult.ciphertext
-      } else {
-        // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
-        // field.
-        grpcRequire(!request.encryptedResultCiphertext.isEmpty) {
-          "Neither encrypted_result nor encrypted_result_ciphertext specified"
-        }
-        request.encryptedResultCiphertext
-      }
-
-    val authenticatedPrincipal = principalFromCurrentContext
-    if (key.parentKey != authenticatedPrincipal.resourceKey) {
-      throw Permission.FULFILL.deniedStatus(request.name).asRuntimeException()
-    }
-
-    val fulfillRequest = fulfillRequisitionRequest {
-      externalRequisitionId = apiIdToExternalId(key.requisitionId)
-      nonce = request.nonce
-      if (request.hasFulfillmentContext()) {
-        fulfillmentContext =
-          RequisitionDetailsKt.fulfillmentContext {
-            buildLabel = request.fulfillmentContext.buildLabel
-            warnings += request.fulfillmentContext.warningsList
+    return ReportTracing.traceSuspending(
+      spanName = "kingdom.requisition.result_acceptance",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REQUISITION_NAME, request.name)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_requisition_result_acceptance")
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      grpcRequire(request.nonce != 0L) { "nonce unspecified" }
+      val encryptedResultCiphertext =
+        if (request.hasEncryptedResult()) {
+          grpcRequire(
+            request.encryptedResult.typeUrl ==
+              ProtoReflection.getTypeUrl(SignedMessage.getDescriptor())
+          ) {
+            "encrypted_result must contain an encrypted SignedMessage"
           }
-      }
-      directParams = directRequisitionParams {
-        externalDataProviderId = apiIdToExternalId(key.dataProviderId)
-        encryptedData = encryptedResultCiphertext
-        if (request.certificate.isNotEmpty()) {
-          val dataProviderCertificateKey =
-            DataProviderCertificateKey.fromName(request.certificate)
-              ?: throw Status.INVALID_ARGUMENT.withDescription("Invalid result certificate")
-                .asRuntimeException()
-          externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+          request.encryptedResult.ciphertext
+        } else {
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
+          // field.
+          grpcRequire(!request.encryptedResultCiphertext.isEmpty) {
+            "Neither encrypted_result nor encrypted_result_ciphertext specified"
+          }
+          request.encryptedResultCiphertext
         }
-        apiVersion = Version.V2_ALPHA.string
+
+      val authenticatedPrincipal = principalFromCurrentContext
+      if (key.parentKey != authenticatedPrincipal.resourceKey) {
+        throw Permission.FULFILL.deniedStatus(request.name).asRuntimeException()
       }
 
-      etag = request.etag
-    }
-    try {
-      internalRequisitionStub.fulfillRequisition(fulfillRequest)
-    } catch (e: StatusException) {
-      throw when (e.status.code) {
-        Status.Code.NOT_FOUND -> Status.NOT_FOUND
-        Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
-        Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
-        else -> Status.UNKNOWN
-      }.toExternalStatusRuntimeException(e)
-    }
+      val fulfillRequest = fulfillRequisitionRequest {
+        externalRequisitionId = apiIdToExternalId(key.requisitionId)
+        nonce = request.nonce
+        if (request.hasFulfillmentContext()) {
+          fulfillmentContext =
+            RequisitionDetailsKt.fulfillmentContext {
+              buildLabel = request.fulfillmentContext.buildLabel
+              warnings += request.fulfillmentContext.warningsList
+            }
+        }
+        directParams = directRequisitionParams {
+          externalDataProviderId = apiIdToExternalId(key.dataProviderId)
+          encryptedData = encryptedResultCiphertext
+          if (request.certificate.isNotEmpty()) {
+            val dataProviderCertificateKey =
+              DataProviderCertificateKey.fromName(request.certificate)
+                ?: throw Status.INVALID_ARGUMENT.withDescription("Invalid result certificate")
+                  .asRuntimeException()
+            externalCertificateId = apiIdToExternalId(dataProviderCertificateKey.certificateId)
+          }
+          apiVersion = Version.V2_ALPHA.string
+        }
 
-    return fulfillDirectRequisitionResponse { state = State.FULFILLED }
+        etag = request.etag
+      }
+      try {
+        internalRequisitionStub.fulfillRequisition(fulfillRequest)
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+          Status.Code.NOT_FOUND -> Status.NOT_FOUND
+          Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT
+          Status.Code.FAILED_PRECONDITION -> Status.FAILED_PRECONDITION
+          else -> Status.UNKNOWN
+        }.toExternalStatusRuntimeException(e)
+      }
+
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      fulfillDirectRequisitionResponse { state = State.FULFILLED }
+    }
+  }
+}
+
+/** Converts this Requisition while emitting one v1-readable availability span for this item. */
+private suspend fun InternalRequisition.toTracedRequisition(): Requisition {
+  val requisitionName =
+    CanonicalRequisitionKey(
+        externalIdToApiId(externalDataProviderId),
+        externalIdToApiId(externalRequisitionId),
+      )
+      .toName()
+  val measurementName =
+    MeasurementKey(
+        externalIdToApiId(externalMeasurementConsumerId),
+        externalIdToApiId(externalMeasurementId),
+      )
+      .toName()
+  val measurementSpec = MeasurementSpec.parseFrom(parentMeasurement.measurementSpec)
+  return ReportTracing.traceSuspending(
+    spanName = "kingdom.requisition.available",
+    attributes =
+      Attributes.builder()
+        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        .put(ReportTraceAttributes.MEASUREMENT_NAME, measurementName)
+        .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+        .put(ReportTraceAttributes.REQUISITION_STATE, state.name)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_available")
+        .put(ReportTraceAttributes.OUTCOME, "succeeded")
+        .build(),
+  ) {
+    toRequisition()
   }
 }
 

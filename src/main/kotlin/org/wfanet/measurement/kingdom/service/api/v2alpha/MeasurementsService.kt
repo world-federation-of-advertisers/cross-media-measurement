@@ -21,6 +21,8 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.util.AbstractMap
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -68,6 +70,8 @@ import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
@@ -151,6 +155,24 @@ class MeasurementsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "parent is either unspecified or invalid"
       }
+    return ReportTracing.traceSuspending(
+      spanName = "kingdom.measurement.create",
+      attributes = measurementCreationTraceAttributes(request),
+    ) {
+      val measurement = createMeasurementInternal(request, authenticatedPrincipal, parentKey)
+      Span.current()
+        .setAttribute(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
+        .setAttribute(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      measurement
+    }
+  }
+
+  private suspend fun createMeasurementInternal(
+    request: CreateMeasurementRequest,
+    authenticatedPrincipal: MeasurementPrincipal,
+    parentKey: MeasurementConsumerKey,
+  ): Measurement {
     if (parentKey != authenticatedPrincipal.resourceKey) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
@@ -297,7 +319,25 @@ class MeasurementsService(
       grpcRequireNotNull(MeasurementConsumerKey.fromName(request.parent)) {
         "parent is either unspecified or invalid"
       }
+    return try {
+      batchCreateMeasurementsInternal(request, authenticatedMeasurementConsumerKey, parentKey)
+    } catch (e: Exception) {
+      for (createMeasurementRequest in request.requestsList) {
+        ReportTracing.recordFailure(
+          spanName = "kingdom.measurement.creation_failed",
+          attributes = measurementCreationTraceAttributes(createMeasurementRequest),
+          error = e,
+        )
+      }
+      throw e
+    }
+  }
 
+  private suspend fun batchCreateMeasurementsInternal(
+    request: BatchCreateMeasurementsRequest,
+    authenticatedMeasurementConsumerKey: MeasurementConsumerKey,
+    parentKey: MeasurementConsumerKey,
+  ): BatchCreateMeasurementsResponse {
     if (parentKey != authenticatedMeasurementConsumerKey) {
       failGrpc(Status.PERMISSION_DENIED) {
         "Cannot create a Measurement for another MeasurementConsumer"
@@ -412,7 +452,13 @@ class MeasurementsService(
       }
 
     return batchCreateMeasurementsResponse {
-      measurements += internalMeasurements.map { it.toMeasurement() }
+      for ((index, internalMeasurement) in internalMeasurements.withIndex()) {
+        measurements +=
+          traceMeasurementCreation(
+            internalMeasurement.toMeasurement(),
+            request.requestsList.getOrNull(index)?.requestId.orEmpty(),
+          )
+      }
     }
   }
 
@@ -689,6 +735,7 @@ class MeasurementsService(
           .asRuntimeException()
       }
     measurementSpec.validate()
+    measurementSpec.validateReportingMetadata(parentKey)
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProviderValues: Map<ExternalId, DataProviderValue> = buildMap {
@@ -724,6 +771,63 @@ class MeasurementsService(
       this.requestId = requestId
     }
   }
+
+  private fun measurementCreationTraceAttributes(request: CreateMeasurementRequest): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+      .put(ReportTraceAttributes.OUTCOME, "started")
+      .also { builder ->
+        if (request.requestId.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.MEASUREMENT_REQUEST_ID, request.requestId)
+        }
+        val measurementSpec =
+          runCatching { request.measurement.measurementSpec.unpack<MeasurementSpec>() }.getOrNull()
+        if (measurementSpec != null) {
+          builder.putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        }
+      }
+      .build()
+  }
+
+  private suspend fun traceMeasurementCreation(
+    measurement: Measurement,
+    requestId: String,
+  ): Measurement {
+    val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
+    val attributes =
+      Attributes.builder()
+        .putAll(ReportTraceAttributes.fromMeasurementSpec(measurementSpec))
+        .put(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+        .put(ReportTraceAttributes.OUTCOME, "accepted")
+        .also { builder ->
+          if (requestId.isNotEmpty()) {
+            builder.put(ReportTraceAttributes.MEASUREMENT_REQUEST_ID, requestId)
+          }
+        }
+        .build()
+    return ReportTracing.traceSuspending("kingdom.measurement.created", attributes) { measurement }
+  }
+}
+
+private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementConsumerKey) {
+  val metadata = reportingMetadata
+  fun requireChildResource(name: String, collection: String, fieldName: String) {
+    if (name.isEmpty()) return
+    val parts = name.split('/')
+    grpcRequire(
+      parts.size == 4 &&
+        parts[0] == "measurementConsumers" &&
+        parts[1] == parentKey.measurementConsumerId &&
+        parts[2] == collection &&
+        parts[3].isNotEmpty()
+    ) {
+      "measurement_spec.reporting_metadata.$fieldName is invalid or has incorrect parent"
+    }
+  }
+  requireChildResource(metadata.basicReport, "basicReports", "basic_report")
+  requireChildResource(metadata.report, "reports", "report")
+  requireChildResource(metadata.metric, "metrics", "metric")
 }
 
 private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {

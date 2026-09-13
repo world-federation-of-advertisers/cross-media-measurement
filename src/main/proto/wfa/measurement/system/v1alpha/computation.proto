@@ -235,4 +235,11 @@ message Computation {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_behavior) = IMMUTABLE
   ];
+
+  // Resource name of the public API `Measurement` represented by this
+  // computation.
+  string measurement = 12 [
+    (google.api.resource_reference).type = "halo.wfanet.org/Measurement",
+    (google.api.field_behavior) = OUTPUT_ONLY
+  ];
 }

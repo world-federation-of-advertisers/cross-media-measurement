@@ -135,6 +135,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
@@ -1507,6 +1508,14 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    val noOpSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.requisition_no_op" }
+    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.REQUISITION_STATE))
+      .isEqualTo(Requisition.State.FULFILLED.name)
+    assertThat(noOpSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+      .isEqualTo("already_completed")
   }
 
   @Test
@@ -1616,6 +1625,17 @@ class ResultsFulfillerTest {
     assertThat(retryPoint.value).isEqualTo(1)
     val groupIdKey = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
     assertThat(retryPoint.attributes.get(groupIdKey)).isEqualTo(groupedRequisitions.groupId)
+    val failureSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.shared_failure" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("results_fulfillment")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
   }
 
   @Test
@@ -2069,6 +2089,27 @@ class ResultsFulfillerTest {
       }
       verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
       verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+
+      val spans = collectSpans()
+      val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
+      assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
+      assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("RequisitionRefusalException.Default")
+      val processingSpan = spans.first { it.name == "requisition_processing" }
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+      val refusalSpan =
+        spans.first { it.name == "edp_aggregator.results_fulfiller.refuse_requisition" }
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("requisition_refusal")
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
     }
 
   @Test
@@ -2685,7 +2726,7 @@ class ResultsFulfillerTest {
             blobUri = "telemetry-prefix"
             blobTypeUrl = "telemetry-blob-type-url"
             groupId = "telemetry-group-id"
-            report = "reports/telemetry-report"
+            report = "some-report"
           }
         }
       )
@@ -2813,26 +2854,44 @@ class ResultsFulfillerTest {
 
     val spans = collectSpans()
     val reportSpan = spans.first { it.name == "report_fulfillment" }
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo("some-report")
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo("measurementConsumers/mc/basicReports/telemetry-basic-report")
     val reportFinishedEvent = reportSpan.events.first { it.name == "report_processing_finished" }
     val reportIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.report_id")
     val groupIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
     val statusAttr = AttributeKey.stringKey("edpa.results_fulfiller.status")
-    assertThat(reportFinishedEvent.attributes.get(reportIdAttr))
-      .isEqualTo("reports/telemetry-report")
+    assertThat(reportFinishedEvent.attributes.get(reportIdAttr)).isEqualTo("some-report")
     val expectedGroupId = groupedRequisitions.groupId
     assertThat(reportFinishedEvent.attributes.get(groupIdAttr)).isEqualTo(expectedGroupId)
     assertThat(reportFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
-    assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.OK)
+    assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.UNSET)
 
     val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo("some-report")
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo("measurementConsumers/mc/basicReports/telemetry-basic-report")
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
     val requisitionFinishedEvent =
       requisitionSpan.events.first { it.name == "requisition_processing_finished" }
     val requisitionAttr = AttributeKey.stringKey("edpa.results_fulfiller.cmms_requisition")
     assertThat(requisitionFinishedEvent.attributes.get(requisitionAttr)).isEqualTo(REQUISITION_NAME)
-    assertThat(requisitionFinishedEvent.attributes.get(reportIdAttr))
-      .isEqualTo("reports/telemetry-report")
+    assertThat(requisitionFinishedEvent.attributes.get(reportIdAttr)).isEqualTo("some-report")
     assertThat(requisitionFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
-    assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.OK)
+    assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.UNSET)
+
+    val processingSpan = spans.first { it.name == "requisition_processing" }
+    assertThat(processingSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(processingSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
   }
 
   @Test
@@ -4049,7 +4108,11 @@ class ResultsFulfillerTest {
       delta = 1E-12
     }
     private val RNF_MEASUREMENT_SPEC = measurementSpec {
-      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
+      reportingMetadata =
+        MeasurementSpecKt.reportingMetadata {
+          report = "some-report"
+          basicReport = "measurementConsumers/mc/basicReports/telemetry-basic-report"
+        }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS
