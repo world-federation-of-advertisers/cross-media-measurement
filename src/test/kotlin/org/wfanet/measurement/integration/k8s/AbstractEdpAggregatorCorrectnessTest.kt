@@ -17,9 +17,12 @@
 package org.wfanet.measurement.integration.k8s
 
 import com.google.common.truth.Truth.assertThat
+import com.google.common.collect.Range
+import com.google.common.truth.Truth.assertWithMessage
 import java.io.File
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDate
 import kotlinx.coroutines.runBlocking
 import org.junit.Assume.assumeTrue
 import org.junit.Test
@@ -36,6 +39,10 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.integration.common.loadEncryptionPrivateKey
 import org.wfanet.measurement.integration.common.loadSigningKey
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
+import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
+import org.wfanet.measurement.reporting.v2alpha.BasicReport
+import org.wfanet.measurement.reporting.v2alpha.ResultGroup
 
 abstract class AbstractEdpAggregatorCorrectnessTest(
   private val measurementSystem: MeasurementSystem
@@ -181,9 +188,104 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
   /** Skipped where no QA 2026 dataset is configured. */
   @Test
   fun `QA 2026 media type and impression qualification filter report succeeds`() = runBlocking {
-    val runner = measurementSystem.qa2026BasicReportRunner
-    assumeTrue(runner != null)
-    runner!!.run(measurementSystem.runId)
+    val reportingTestHarness = measurementSystem.reportingTestHarness
+    assumeTrue(reportingTestHarness != null)
+
+    val dates = measurementSystem.qa2026ReportDates
+    val report =
+      reportingTestHarness!!.createMediaTypeAndIqfBasicReport(
+        measurementSystem.runId,
+        measurementSystem.qa2026SingleEdpEventGroupReferenceIds,
+        measurementSystem.qa2026EventGroupReferenceIds,
+        dates.first(),
+        dates.last(),
+      )
+
+    assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
+    assertReportGroups(report)
+    assertReachMatchesSpecs(report, measurementSystem.qa2026ExpectedReach)
+  }
+
+  /** Checks each line item's reach against the value the synthetic specs imply. */
+  private fun assertReachMatchesSpecs(
+    report: BasicReport,
+    expected: Map<String, Map<String, ClosedFloatingPointRange<Double>>>,
+  ) {
+    for (resultGroup in report.resultGroupsList) {
+      val expectedByFilter = expected.getValue(resultGroup.title)
+      for (result in resultGroup.resultsList) {
+        val label = filterLabel(result)
+        val range = expectedByFilter.getValue(label)
+        assertWithMessage("${resultGroup.title}: $label reach")
+          .that(reachOf(result.metricSet, resultGroup.title).toDouble())
+          .isIn(Range.closed(range.start, range.endInclusive))
+      }
+    }
+  }
+
+  /**
+   * Checks that every line item carries data and that filtered reach is bounded by unfiltered.
+   *
+   * `mrc` and the custom video filter each select a subset of what `ami` selects. Equality is
+   * permitted: it is the correct answer whenever a filter admits every impression.
+   */
+  private fun assertReportGroups(report: BasicReport) {
+    assertThat(report.resultGroupsList.map { it.title })
+      .containsExactly(
+        ReportingUserSimulator.SINGLE_EDP_GROUP_TITLE,
+        ReportingUserSimulator.CROSS_PUB_GROUP_TITLE,
+      )
+
+    for (resultGroup in report.resultGroupsList) {
+      assertThat(resultGroup.resultsList).hasSize(EXPECTED_FILTER_COUNT)
+
+      val reachByFilter: Map<String, Long> =
+        resultGroup.resultsList.associate { result ->
+          filterLabel(result) to reachOf(result.metricSet, resultGroup.title)
+        }
+      for ((label, reach) in reachByFilter) {
+        assertWithMessage("${resultGroup.title}: $label reach").that(reach).isGreaterThan(0L)
+      }
+
+      val amiReach = reachByFilter.getValue(ReportingUserSimulator.AMI_FILTER_ID)
+      for (label in reachByFilter.keys - ReportingUserSimulator.AMI_FILTER_ID) {
+        assertWithMessage("${resultGroup.title}: $label reach vs ami")
+          .that(reachByFilter.getValue(label))
+          .isAtMost(amiReach)
+      }
+    }
+
+    // The union over every EDP reaches at least as many people as the first EDP alone.
+    assertThat(amiReachOf(report, ReportingUserSimulator.CROSS_PUB_GROUP_TITLE))
+      .isAtLeast(amiReachOf(report, ReportingUserSimulator.SINGLE_EDP_GROUP_TITLE))
+  }
+
+  private fun amiReachOf(report: BasicReport, groupTitle: String): Long {
+    val resultGroup = report.resultGroupsList.single { it.title == groupTitle }
+    val result =
+      resultGroup.resultsList.single { filterLabel(it) == ReportingUserSimulator.AMI_FILTER_ID }
+    return reachOf(result.metricSet, groupTitle)
+  }
+
+  /**
+   * The single-EDP group requests component metrics and the cross-publisher group requests
+   * reporting-unit metrics, so the reach lives in a different field for each.
+   */
+  private fun reachOf(metricSet: ResultGroup.MetricSet, groupTitle: String): Long =
+    if (groupTitle == ReportingUserSimulator.CROSS_PUB_GROUP_TITLE) {
+      metricSet.reportingUnit.nonCumulative.reach
+    } else {
+      metricSet.componentsList.single().value.nonCumulative.reach
+    }
+
+  private fun filterLabel(result: ResultGroup.Result): String {
+    val filter = result.metadata.filter
+    return if (filter.hasCustom()) {
+      CUSTOM_FILTER_LABEL
+    } else {
+      checkNotNull(ImpressionQualificationFilterKey.fromName(filter.impressionQualificationFilter))
+        .impressionQualificationFilterId
+    }
   }
 
   interface MeasurementSystem {
@@ -194,11 +296,30 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     val apiAuthenticationKey: String
 
     /** Null when the environment has no QA 2026 dataset configured. */
-    val qa2026BasicReportRunner: Qa2026BasicReportRunner?
+    val reportingTestHarness: ReportingUserSimulator?
       get() = null
+
+    /** QA 2026 EventGroup reference IDs to report on. */
+    val qa2026EventGroupReferenceIds: Set<String>
+      get() = emptySet()
+
+    /** The subset of [qa2026EventGroupReferenceIds] belonging to the single-EDP result group. */
+    val qa2026SingleEdpEventGroupReferenceIds: Set<String>
+      get() = emptySet()
+
+    /** Acceptable reach per result group title and impression qualification filter label. */
+    val qa2026ExpectedReach: Map<String, Map<String, ClosedFloatingPointRange<Double>>>
+      get() = emptyMap()
+
+    /** QA 2026 event dates in ascending order. */
+    val qa2026ReportDates: List<LocalDate>
+      get() = emptyList()
   }
 
   companion object {
+    private const val EXPECTED_FILTER_COUNT = 3
+    private const val CUSTOM_FILTER_LABEL = "custom-video"
+
     private const val MC_ENCRYPTION_PRIVATE_KEY_NAME = "mc_enc_private.tink"
     private const val MC_CS_CERT_DER_NAME = "mc_cs_cert.der"
     private const val MC_CS_PRIVATE_KEY_DER_NAME = "mc_cs_private.der"

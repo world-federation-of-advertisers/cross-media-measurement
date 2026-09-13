@@ -79,6 +79,7 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.access.OpenIdProvidersConfig
+import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.MetadataKt.AdMetadataKt.campaignMetadata
@@ -92,6 +93,7 @@ import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.measurementconsumer.EdpAggregatorMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerSimulator
+import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt.ReportingSetsCoroutineStub
@@ -450,13 +452,37 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
 
-    override val qa2026BasicReportRunner: Qa2026BasicReportRunner? by lazy {
+    override val qa2026EventGroupReferenceIds: Set<String>
+      get() = qa2026EventGroupRefIdsByEdp.values.flatten().toSet()
+
+    override val qa2026SingleEdpEventGroupReferenceIds: Set<String>
+      get() = qa2026EventGroupRefIdsByEdp.getValue(QA2026_SINGLE_EDP_NAME)
+
+    override val qa2026ExpectedReach:
+      Map<String, Map<String, ClosedFloatingPointRange<Double>>> by lazy {
+      if (WriteQa2026ImpressionsRule.MODEL_LINE.isEmpty()) {
+        emptyMap()
+      } else {
+        Qa2026ExpectedReach.computeRangesByGroupAndFilter(
+          QA2026_PROVISIONED_CONFIG,
+          QA2026_SINGLE_EDP_NAME,
+          qa2026PopulationSpec,
+          qa2026EventDates.first(),
+          qa2026EventDates.last(),
+          BASIC_REPORT_METRIC_SPEC_CONFIG,
+        )
+      }
+    }
+
+    override val qa2026ReportDates: List<LocalDate>
+      get() = qa2026EventDates
+
+    override val reportingTestHarness: ReportingUserSimulator? by lazy {
       val modelLine = WriteQa2026ImpressionsRule.MODEL_LINE
-      val referenceIds = qa2026EventGroupRefIdsByEdp.values.flatten().toSet()
-      if (modelLine.isEmpty() || referenceIds.isEmpty()) {
+      if (modelLine.isEmpty() || qa2026EventGroupReferenceIds.isEmpty()) {
         null
       } else {
-        buildQa2026BasicReportRunner(modelLine, referenceIds)
+        createReportingTestHarness(modelLine)
       }
     }
 
@@ -563,10 +589,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       )
     }
 
-    private fun buildQa2026BasicReportRunner(
-      modelLine: String,
-      eventGroupReferenceIds: Set<String>,
-    ): Qa2026BasicReportRunner {
+    private fun createReportingTestHarness(modelLine: String): ReportingUserSimulator {
       val reportingServiceUrl: HttpUrl =
         TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()
           ?: throw IllegalArgumentException(
@@ -647,19 +670,17 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           .token
       }
 
-      return Qa2026BasicReportRunner(
+      return ReportingUserSimulator(
         measurementConsumerName = TEST_CONFIG.measurementConsumer,
-        reportingSetsClient = ReportingSetsCoroutineStub(reportingApiChannel),
+        dataProvidersClient = DataProvidersGrpcKt.DataProvidersCoroutineStub(publicApiChannel),
         eventGroupsClient = ReportingEventGroupsCoroutineStub(reportingApiChannel),
-        eventGroupReferenceIds = eventGroupReferenceIds,
-        modelLineName = modelLine,
+        reportingSetsClient = ReportingSetsCoroutineStub(reportingApiChannel),
         okHttpReportingClient = okHttpReportingClient,
         reportingGatewayScheme = reportingServiceUrl.scheme,
         reportingGatewayHost = reportingServiceUrl.host,
         reportingGatewayPort = reportingServiceUrl.port,
         getReportingAccessToken = getAccessToken,
-        reportStart = qa2026ReportDates.first(),
-        reportEnd = qa2026ReportDates.last(),
+        modelLineName = modelLine,
       )
     }
 
@@ -709,6 +730,19 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     private const val MC_TLS_CERT_NAME = "mc_tls.pem"
     private const val MC_TLS_KEY_NAME = "mc_tls.key"
     private const val REPORTING_ROOT_CERT_NAME = "reporting_root.pem"
+
+    /** EDP the single-EDP result group reports on. */
+    private const val QA2026_SINGLE_EDP_NAME = "edp7"
+
+    /** The metric spec config the Reporting server is deployed with. */
+    private val BASIC_REPORT_METRIC_SPEC_CONFIG: MetricSpecConfig by lazy {
+      val configFile =
+        getRuntimePath(SECRET_FILES_PATH.resolve(BASIC_REPORT_METRIC_SPEC_CONFIG_NAME)).toFile()
+      parseTextProto(configFile, MetricSpecConfig.getDefaultInstance())
+    }
+
+    private const val BASIC_REPORT_METRIC_SPEC_CONFIG_NAME =
+      "basic_report_metric_spec_config.textproto"
     private val CONFIG_PATH =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "edpa_correctness_test_config.textproto"
@@ -844,7 +878,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
      * The QA 2026 dates in ascending order, derived from the specs so the reporting interval cannot
      * drift from the impressions.
      */
-    val qa2026ReportDates: List<LocalDate> by lazy {
+    val qa2026EventDates: List<LocalDate> by lazy {
       qa2026DatesByImpressionPath.values.flatten().distinct().sorted()
     }
 
