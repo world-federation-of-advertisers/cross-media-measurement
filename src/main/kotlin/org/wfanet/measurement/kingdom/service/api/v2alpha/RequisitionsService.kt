@@ -184,7 +184,7 @@ class RequisitionsService(
 
     val requisitions =
       internalRequisitions.subList(0, min(internalRequisitions.size, pageSize)).map {
-        it.toTracedRequisition()
+        if (parentKey is DataProviderKey) it.toTracedRequisition() else it.toRequisition()
       }
 
     return listRequisitionsResponse {
@@ -280,7 +280,7 @@ class RequisitionsService(
         }
 
       Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "refused")
-      result.toTracedRequisition()
+      result.toRequisition()
     }
   }
 

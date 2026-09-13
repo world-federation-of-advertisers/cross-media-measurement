@@ -10,6 +10,7 @@ kt_jvm_test(
     associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
     test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.ReportTraceTest",
     deps = [
+        "//imports/java/com/google/auth:oauth_http2",
         "//imports/java/com/google/cloud/logging",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -17,6 +18,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
         "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )

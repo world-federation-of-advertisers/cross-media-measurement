@@ -270,19 +270,33 @@ class RequisitionsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
-    val spans = spanExporter.finishedSpanItems
-    assertThat(spans.map { it.name })
-      .containsExactly("kingdom.requisition.available", "kingdom.requisition.available")
-    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) })
-      .containsExactly(REQUISITION_NAME, REQUISITION_NAME)
-    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) })
-      .containsExactly("requisition_available", "requisition_available")
-    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.OUTCOME) })
-      .containsExactly("succeeded", "succeeded")
+    assertThat(spanExporter.finishedSpanItems).isEmpty()
   }
 
   @Test
-  fun `listRequisitions traces malformed MeasurementSpec with Requisition identity`() {
+  fun `listRequisitions traces Requisitions listed by DataProvider`() {
+    whenever(internalRequisitionMock.streamRequisitions(any()))
+      .thenReturn(flowOf(INTERNAL_REQUISITION))
+
+    val result =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.listRequisitions(listRequisitionsRequest { parent = DATA_PROVIDER_NAME })
+        }
+      }
+
+    assertThat(result.requisitionsList).containsExactly(REQUISITION)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.requisition.available")
+    assertThat(span.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_available")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+  }
+
+  @Test
+  fun `listRequisitions traces malformed MeasurementSpec for DataProvider parent`() {
     val malformedRequisition =
       INTERNAL_REQUISITION.copy {
         parentMeasurement =
@@ -294,8 +308,10 @@ class RequisitionsServiceTest {
       .thenReturn(flowOf(malformedRequisition))
 
     assertFailsWith<InvalidProtocolBufferException> {
-      withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
-        runBlocking { service.listRequisitions(listRequisitionsRequest { parent = MEASUREMENT_NAME }) }
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking {
+          service.listRequisitions(listRequisitionsRequest { parent = DATA_PROVIDER_NAME })
+        }
       }
     }
 

@@ -433,7 +433,7 @@ internal class GoogleCloudReportTraceSpanReader(
     for (traceId in traceIds.map { it.substringAfterLast('/') }.distinct()) {
       readTrace(project, traceId)?.let { entries += it }
     }
-    return entries.distinct().sortedBy { it.startTime }.take(readLimit(limit))
+    return retainReportTraceSpans(entries.distinct(), readLimit(limit))
   }
 
   private fun listTraces(
@@ -1896,7 +1896,7 @@ internal object ReportTraceOutput {
           basicReportFailed || reportFailed || noiseCorrectionFailed ->
             ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
           executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
-          else -> null
+          else -> ReportTraceStageRequirement.REQUIRED
         }
       add(
         "processed_result_writeback",

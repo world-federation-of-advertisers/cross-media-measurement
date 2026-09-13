@@ -16,6 +16,8 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
+import com.google.auth.oauth2.AccessToken
+import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.logging.Payload
 import com.google.common.truth.Truth.assertThat
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -26,14 +28,21 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.PrintWriter
 import java.io.StringWriter
+import java.net.http.HttpClient
+import java.net.http.HttpRequest
+import java.net.http.HttpResponse
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.Date
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
+import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
@@ -596,6 +605,85 @@ class ReportTraceTest {
     assertThat(spans).hasSize(1)
     assertThat(spans.single().name).isEqualTo("reporting.metrics.sync_results")
     assertThat(spans.single().attributes["xmm.lifecycle.stage"]).isEqualTo("metric_result_sync")
+  }
+
+  @Test
+  fun `Cloud Trace reader retains failure outside chronological read limit`() {
+    val successfulResponse = mock<HttpResponse<String>>()
+    whenever(successfulResponse.statusCode()).thenReturn(200)
+    whenever(successfulResponse.body())
+      .thenReturn(
+        """
+        {
+          "traces": [{
+            "projectId": "trace-project",
+            "traceId": "11111111111111111111111111111111",
+            "spans": [
+              {
+                "spanId": "1",
+                "name": "old-success",
+                "startTime": "2026-09-10T12:00:00Z",
+                "endTime": "2026-09-10T12:00:01Z",
+                "labels": {"xmm.outcome": "succeeded"}
+              },
+              {
+                "spanId": "2",
+                "name": "newer-success",
+                "startTime": "2026-09-10T12:00:01Z",
+                "endTime": "2026-09-10T12:00:02Z",
+                "labels": {"xmm.outcome": "succeeded"}
+              }
+            ]
+          }]
+        }
+        """
+          .trimIndent()
+      )
+    val failureResponse = mock<HttpResponse<String>>()
+    whenever(failureResponse.statusCode()).thenReturn(200)
+    whenever(failureResponse.body())
+      .thenReturn(
+        """
+        {
+          "traces": [{
+            "projectId": "trace-project",
+            "traceId": "22222222222222222222222222222222",
+            "spans": [{
+              "spanId": "3",
+              "name": "late-failure",
+              "startTime": "2026-09-10T12:00:02Z",
+              "endTime": "2026-09-10T12:00:03Z",
+              "labels": {"xmm.outcome": "failed_validation"}
+            }]
+          }]
+        }
+        """
+          .trimIndent()
+      )
+    val httpClient = mock<HttpClient>()
+    whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
+      .thenReturn(successfulResponse, failureResponse)
+    val reader =
+      GoogleCloudReportTraceSpanReader(
+        GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
+        httpClient,
+      )
+
+    val spans =
+      reader.read(
+        project = "trace-project",
+        correlationValues =
+          listOf(
+            "measurementConsumers/mc-1/basicReports/report-1",
+            "measurementConsumers/mc-1/basicReports/report-2",
+          ),
+        traceIds = emptyList(),
+        startTime = Instant.parse("2026-09-10T11:00:00Z"),
+        endTime = Instant.parse("2026-09-10T13:00:00Z"),
+        limit = 1,
+      )
+
+    assertThat(spans.map { it.name }).containsExactly("newer-success", "late-failure").inOrder()
   }
 
   @Test
@@ -1796,6 +1884,74 @@ class ReportTraceTest {
       .isEqualTo("SUCCEEDED")
     assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
       .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `nonterminal BasicReport requires final writeback and availability`() {
+    val metricName = "measurementConsumers/mc-1/metrics/metric-1"
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val context =
+      reportTraceContext()
+        .copy(
+          basicReportState = "UNPROCESSED_RESULTS_READY",
+          metricNames = listOf(metricName),
+          metricStates = mapOf(metricName to "SUCCEEDED"),
+        )
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val spans =
+      successfulDirectUpstreamSpans(context, metricName, requisitionName) +
+        lifecycleSpan("report_result_assembly", "xmm.report.name", context.reportName) +
+        lifecycleSpan(
+          "noise_correction",
+          "xmm.basic_report.name",
+          checkNotNull(context.basicReportName),
+        )
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(coverage.single { it.name == "processed_result_writeback" }.status)
+      .isEqualTo("MISSING")
+    assertThat(coverage.single { it.name == "basic_report_available" }.status).isEqualTo("MISSING")
+    assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
+      .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `diagnostic requisition lookup does not satisfy requisition availability`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val diagnosticLookup =
+      traceSpan("wfa.measurement.api.v2alpha.Requisitions/ListRequisitions", NOW)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.measurement.name" to context.measurementNames.single(),
+              "xmm.requisition.name" to requisitionName,
+            )
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(diagnosticLookup),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "requisition_available" }.status).isEqualTo("MISSING")
   }
 
   @Test
