@@ -164,6 +164,109 @@ class WorkItemServiceTest {
   }
 
   @Test
+  fun `ensureWorkItem throws REQUIRED_FIELD_NOT_SET when workItem is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.ensureWorkItem(ensureWorkItemRequest { workItemId = "work-item" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item"
+        }
+      )
+  }
+
+  @Test
+  fun `ensureWorkItem throws REQUIRED_FIELD_NOT_SET when queue is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItemId = "work-item"
+            workItem = workItem {}
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "queue"
+        }
+      )
+  }
+
+  @Test
+  fun `ensureWorkItem throws INVALID_FIELD_VALUE when workItemId is malformed`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItemId = "123"
+            workItem = workItem { queue = "queue-id" }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_id"
+        }
+      )
+  }
+
+  @Test
+  fun `ensureWorkItem maps immutable conflict from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        WorkItemAlreadyExistsException().asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+    }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.WORK_ITEM_ALREADY_EXISTS.name)
+    assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM.key))
+      .isEqualTo("workItems/work-item")
+  }
+
+  @Test
+  fun `ensureWorkItem maps terminal state from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        InternalWorkItemInvalidStateException("work-item", InternalWorkItem.State.SUCCEEDED)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+    val request = ensureWorkItemRequest {
+      workItemId = "work-item"
+      workItem = workItem { queue = "queue-id" }
+    }
+
+    val exception = assertFailsWith<StatusRuntimeException> { service.ensureWorkItem(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
+    assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key))
+      .isEqualTo(WorkItem.State.SUCCEEDED.name)
+  }
+
+  @Test
   fun `createWorkItem throws REQUIRED_FIELD_NOT_SET when workItem is not set`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> { service.createWorkItem(createWorkItemRequest {}) }
