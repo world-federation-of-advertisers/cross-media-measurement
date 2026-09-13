@@ -646,37 +646,38 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `retryWorkItem republishes queued WorkItem with missing outbox record`() = runBlocking {
-    var publicationCount = 0
-    val services =
-      initServices(
-        TestConfig.QUEUE_MAPPING,
-        IdGenerator.Default,
-        object : WorkItemPublisher {
-          override suspend fun publishMessage(queueName: String, message: Message) {
-            publicationCount++
+  fun `retryWorkItem does not republish queued WorkItem after publication is acknowledged`() =
+    runBlocking {
+      var publicationCount = 0
+      val services =
+        initServices(
+          TestConfig.QUEUE_MAPPING,
+          IdGenerator.Default,
+          object : WorkItemPublisher {
+            override suspend fun publishMessage(queueName: String, message: Message) {
+              publicationCount++
+            }
+          },
+        )
+      val created =
+        services.service.createWorkItem(
+          createWorkItemRequest {
+            workItem = workItem {
+              workItemResourceId = workItemId
+              queueResourceId = topicId
+              workItemParams = Any.pack(testWork { userName = "UserName" })
+            }
           }
-        },
-      )
-    val created =
-      services.service.createWorkItem(
-        createWorkItemRequest {
-          workItem = workItem {
-            workItemResourceId = workItemId
-            queueResourceId = topicId
-            workItemParams = Any.pack(testWork { userName = "UserName" })
-          }
-        }
-      )
+        )
 
-    val repaired =
-      services.service.retryWorkItem(
-        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
-      )
+      val repaired =
+        services.service.retryWorkItem(
+          retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        )
 
-    assertThat(repaired.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(publicationCount).isEqualTo(2)
-  }
+      assertThat(repaired.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(publicationCount).isEqualTo(1)
+    }
 
   @Test
   fun `retryWorkItem retries abandoned running WorkItem`() = runBlocking {

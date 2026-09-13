@@ -164,6 +164,12 @@ variable "image_tag" {
   type        = string
 }
 
+variable "tee_consumers_enabled" {
+  description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string

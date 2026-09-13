@@ -25,3 +25,6 @@ databaseChangeLog:
   - include:
       file: add-work-item-attempt-leases.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-publication-scheduling.sql
+      relativeToChangeLogFile: true

@@ -149,6 +149,7 @@ resource "google_compute_instance_template" "confidential_vm_template" {
 resource "google_compute_region_instance_group_manager" "mig" {
   name               = var.managed_instance_group_name
   base_instance_name = var.base_instance_name
+  target_size        = var.enabled ? null : 0
   version {
     instance_template = google_compute_instance_template.confidential_vm_template.id
   }
@@ -173,6 +174,8 @@ resource "google_compute_region_instance_group_manager" "mig" {
 }
 
 resource "google_compute_region_autoscaler" "mig_autoscaler" {
+  count = var.enabled ? 1 : 0
+
   name   = "autoscaler-for-${google_compute_region_instance_group_manager.mig.name}"
   target = google_compute_region_instance_group_manager.mig.id
 

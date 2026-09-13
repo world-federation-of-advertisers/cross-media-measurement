@@ -50,8 +50,8 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertW
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.scheduleWorkItemPublicationIfNeeded
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
@@ -162,7 +162,12 @@ class SpannerWorkItemsService(
             throw WorkItemAlreadyExistsException()
           }
           when (existing.workItem.state) {
-            WorkItem.State.QUEUED -> Unit
+            WorkItem.State.QUEUED ->
+              txn.scheduleWorkItemPublicationIfNeeded(
+                existing.workItemId,
+                existing.workItem.generation,
+                existing.publicationScheduledGeneration,
+              )
             WorkItem.State.RUNNING -> Unit
             WorkItem.State.FAILED,
             WorkItem.State.SUCCEEDED,
@@ -356,9 +361,11 @@ class SpannerWorkItemsService(
                 txn.retryWorkItem(result.workItemId, result.workItem.generation)
               }
               WorkItem.State.QUEUED -> {
-                if (!txn.workItemPublicationExists(result.workItemId)) {
-                  txn.insertWorkItemPublication(result.workItemId)
-                }
+                txn.scheduleWorkItemPublicationIfNeeded(
+                  result.workItemId,
+                  result.workItem.generation,
+                  result.publicationScheduledGeneration,
+                )
                 WorkItem.State.QUEUED
               }
               WorkItem.State.SUCCEEDED,

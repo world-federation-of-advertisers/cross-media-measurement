@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "tee_consumers_enabled" {
+  description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
