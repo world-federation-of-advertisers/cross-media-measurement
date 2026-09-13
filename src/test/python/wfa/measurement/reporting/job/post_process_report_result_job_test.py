@@ -334,9 +334,9 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         # Verifies that the exception was logged.
         mock_logging.assert_called_once_with(
             "xmm.lifecycle.stage=noise_correction xmm.outcome=failed "
-            "xmm.error.type=%s "
+            "%s "
             "Failed to process BasicReport %s for MeasurementConsumer %s",
-            "Exception",
+            "xmm.error.type=Exception",
             "basic_report_1",
             "mc_id_1",
             exc_info=True,
@@ -365,8 +365,8 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertTrue(
             any(
                 "xmm.lifecycle.stage=basic_report_failure_writeback "
-                "xmm.outcome=failed xmm.error.type=%s" in call.args[0]
-                and call.args[1] == "RuntimeError"
+                "xmm.outcome=failed %s" in call.args[0]
+                and call.args[1] == "xmm.error.type=RuntimeError"
                 for call in mock_error.call_args_list
             )
         )
@@ -562,8 +562,9 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.mock_basic_reports_stub.FailBasicReport.assert_not_called()
         self.assertTrue(
             any(
-                "xmm.error.type=%s" in call.args[0]
-                and call.args[1] == "grpc.UNAVAILABLE"
+                "%s" in call.args[0]
+                and call.args[1]
+                == "xmm.error.type=RpcError xmm.error.code=grpc.UNAVAILABLE"
                 for call in mock_warning.call_args_list
             )
         )
@@ -595,8 +596,40 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertTrue(
             any(
                 "xmm.lifecycle.stage=processed_result_writeback "
-                "xmm.outcome=failed xmm.error.type=%s" in call.args[0]
-                and call.args[1] == "ValueError"
+                "xmm.outcome=failed %s" in call.args[0]
+                and call.args[1] == "xmm.error.type=ValueError"
+                for call in mock_warning.call_args_list
+            )
+        )
+
+    @mock.patch.object(logging, "warning", autospec=True)
+    def test_execute_records_wrapped_grpc_error_code(self, mock_warning):
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_wrapped_error",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]
+            )
+        )
+        rpc_error = grpc.RpcError()
+        rpc_error.code = lambda: grpc.StatusCode.PERMISSION_DENIED
+        try:
+            raise RuntimeError("post-processing failed") from rpc_error
+        except RuntimeError as error:
+            wrapped_error = error
+        self.mock_post_processor.process.side_effect = wrapped_error
+
+        result = self.job.execute()
+
+        self.assertFalse(result)
+        self.assertTrue(
+            any(
+                call.args[1]
+                == "xmm.error.type=RuntimeError "
+                "xmm.error.code=grpc.PERMISSION_DENIED"
                 for call in mock_warning.call_args_list
             )
         )

@@ -57,7 +57,6 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.config.reporting.ReportTraceTopologyConfig
@@ -65,6 +64,7 @@ import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
 import org.wfanet.measurement.reporting.deploy.v2.common.SpannerFlags
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
+import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MetricReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
@@ -192,11 +192,10 @@ internal class DatabaseBasicReportTraceResolver(
   override suspend fun resolve(basicReportKey: BasicReportKey): ReportTraceContext {
     val basicReportResult =
       spannerClient.readOnlyTransaction().use { transaction ->
-        transaction
-          .getBasicReportByExternalId(
-            basicReportKey.cmmsMeasurementConsumerId,
-            basicReportKey.basicReportId,
-          )
+        transaction.getBasicReportByExternalId(
+          basicReportKey.cmmsMeasurementConsumerId,
+          basicReportKey.basicReportId,
+        )
       }
     val basicReport = basicReportResult.basicReport
     val readContext = postgresClient.readTransaction()
@@ -208,8 +207,17 @@ internal class DatabaseBasicReportTraceResolver(
           if (basicReport.createReportRequestId.isEmpty()) {
             null
           } else {
+            val measurementConsumerId =
+              checkNotNull(
+                  MeasurementConsumerReader(readContext)
+                    .getByCmmsId(basicReport.cmmsMeasurementConsumerId)
+                ) {
+                  "MeasurementConsumer ${basicReport.cmmsMeasurementConsumerId} was not found in " +
+                    "Reporting Postgres"
+                }
+                .measurementConsumerId
             reportReader.readReportByRequestId(
-              InternalId(basicReportResult.measurementConsumerId),
+              measurementConsumerId,
               basicReport.createReportRequestId,
             )
           }
@@ -222,7 +230,8 @@ internal class DatabaseBasicReportTraceResolver(
       if (reportResult == null) {
         check(reportResolvedByRequestId) {
           "Associated Report " +
-            ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName() +
+            ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId)
+              .toName() +
             " was not found"
         }
         return ReportTraceContext(
@@ -242,10 +251,7 @@ internal class DatabaseBasicReportTraceResolver(
         )
       }
       val reportName =
-        ReportKey(
-            basicReport.cmmsMeasurementConsumerId,
-            reportResult.report.externalReportId,
-          )
+        ReportKey(basicReport.cmmsMeasurementConsumerId, reportResult.report.externalReportId)
           .toName()
 
       val createMetricRequestIds =
@@ -1333,21 +1339,17 @@ internal object ReportTraceOutput {
     if (unresolvedRequestIds.isEmpty()) {
       return emptyMap()
     }
-    val evidenceAttributes =
-      buildList {
-        spans
-          .filter {
-            it.attributes[ReportTraceAttributes.LIFECYCLE_STAGE_STRING] ==
-              "measurement_creation"
-          }
-          .mapTo(this) { it.attributes }
-        logEntries
-          .map { safeTextFields(it.message) }
-          .filter {
-            it[ReportTraceAttributes.LIFECYCLE_STAGE_STRING] == "measurement_creation"
-          }
-          .mapTo(this) { it }
-      }
+    val evidenceAttributes = buildList {
+      spans
+        .filter {
+          it.attributes[ReportTraceAttributes.LIFECYCLE_STAGE_STRING] == "measurement_creation"
+        }
+        .mapTo(this) { it.attributes }
+      logEntries
+        .map { safeTextFields(it.message) }
+        .filter { it[ReportTraceAttributes.LIFECYCLE_STAGE_STRING] == "measurement_creation" }
+        .mapTo(this) { it }
+    }
     return unresolvedRequestIds
       .mapNotNull { requestId ->
         val names =
@@ -2038,14 +2040,7 @@ internal object ReportTraceOutput {
       "already_completed",
     )
   private val IN_PROGRESS_OUTCOMES =
-    setOf(
-      "started",
-      "prepared",
-      "in_progress",
-      "pending",
-      "retryable_failure",
-      "stale_delivery",
-    )
+    setOf("started", "prepared", "in_progress", "pending", "retryable_failure", "stale_delivery")
   private val SAFE_TRACE_ATTRIBUTES =
     setOf("error", "service.name", "g.co/agent/name", "/http/host")
   private val SECRET_PATTERNS =
@@ -2497,7 +2492,6 @@ internal class ReportTrace(
             collection.logEntries,
           )
         if (resolutionFailure == null && recoveredMeasurementNames.isNotEmpty()) {
-          val initialWarnings = collection.warnings
           context =
             context.copy(
               measurementNames =
@@ -2534,14 +2528,10 @@ internal class ReportTrace(
           collection =
             recoveredCollection.copy(
               warnings =
-                (
-                    initialWarnings +
-                      recoveredMeasurementNames.entries.map { (measurementName, requestId) ->
-                        "Measurement $measurementName was recovered from telemetry for " +
-                          "request $requestId"
-                      } +
-                      recoveredCollection.warnings
-                  )
+                (recoveredMeasurementNames.entries.map { (measurementName, requestId) ->
+                    "Measurement $measurementName was recovered from telemetry for " +
+                      "request $requestId"
+                  } + recoveredCollection.warnings)
                   .distinct()
             )
         }

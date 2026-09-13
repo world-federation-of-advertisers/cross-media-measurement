@@ -35,6 +35,7 @@ import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.TimeSource
 import kotlin.time.toJavaDuration
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -275,11 +276,18 @@ abstract class MillBase(
     try {
       processComputationImpl(token)
       Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       Span.current()
         .setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
         .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
         .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
+        .also { span ->
+          ReportTraceAttributes.errorCode(e)?.let {
+            span.setAttribute(ReportTraceAttributes.ERROR_CODE, it)
+          }
+        }
         .recordException(e)
       handleExceptions(token, e)
     }

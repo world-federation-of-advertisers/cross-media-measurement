@@ -356,16 +356,15 @@ class MetricsService(
       internalPrimitiveReportingSetMap: Map<String, InternalReportingSet>,
       measurementConsumerCreds: MeasurementConsumerCredentials,
     ) {
-      val pendingMeasurements =
-        buildList {
-          for (runningMetric in runningMetrics) {
-            for (weightedMeasurement in runningMetric.internalMetric.weightedMeasurementsList) {
-              if (weightedMeasurement.measurement.cmmsMeasurementId.isEmpty()) {
-                add(weightedMeasurement.measurement to runningMetric)
-              }
+      val pendingMeasurements = buildList {
+        for (runningMetric in runningMetrics) {
+          for (weightedMeasurement in runningMetric.internalMetric.weightedMeasurementsList) {
+            if (weightedMeasurement.measurement.cmmsMeasurementId.isEmpty()) {
+              add(weightedMeasurement.measurement to runningMetric)
             }
           }
         }
+      }
       val preparation =
         try {
           val measurementConsumer: MeasurementConsumer =
@@ -435,14 +434,14 @@ class MetricsService(
         { items ->
           try {
             val response = batchCreateCmmsMeasurements(measurementConsumerCreds, items)
-            response.toBuilder()
+            response
+              .toBuilder()
               .clearMeasurements()
               .addAllMeasurements(
                 response.measurementsList.mapIndexed { index, measurement ->
-                  if (
-                    measurement.measurementReferenceId.isEmpty() && index < items.size
-                  ) {
-                    measurement.toBuilder()
+                  if (measurement.measurementReferenceId.isEmpty() && index < items.size) {
+                    measurement
+                      .toBuilder()
                       .setMeasurementReferenceId(items[index].requestId)
                       .build()
                   } else {
@@ -1065,6 +1064,8 @@ class MetricsService(
     ): Boolean {
       return try {
         syncInternalMeasurementsInternal(internalMeasurements, measurementConsumerCreds)
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         for (internalMeasurement in internalMeasurements) {
           val attributes =
@@ -1714,10 +1715,7 @@ class MetricsService(
     if (result.internalMetric.state == InternalMetric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(
         listOf(
-          MeasurementSupplier.RunningMetric(
-            result.internalMetric,
-            result.effectiveModelLineName,
-          )
+          MeasurementSupplier.RunningMetric(result.internalMetric, result.effectiveModelLineName)
         ),
         result.internalPrimitiveReportingSetMap,
         result.measurementConsumerCredentials,
@@ -2524,6 +2522,8 @@ class MetricsService(
           )
         publicMetrics
       }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       for (internalMetric in internalMetrics) {
         ReportTracing.recordFailure(

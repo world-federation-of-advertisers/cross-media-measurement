@@ -26,6 +26,7 @@ import io.opentelemetry.api.trace.StatusCode
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
 import org.wfanet.measurement.common.ExponentialBackoff
@@ -196,7 +197,14 @@ abstract class BaseTeeApplication(
       runWork(queueMessage.body.workItemParams)
       logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
       val completionError =
-        runCatching { completeWorkItemAttempt(workItemAttempt) }.exceptionOrNull()
+        try {
+          completeWorkItemAttempt(workItemAttempt)
+          null
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Throwable) {
+          e
+        }
       if (completionError != null) {
         val statusException =
           when (completionError) {
@@ -235,19 +243,26 @@ abstract class BaseTeeApplication(
         failWorkItem(workItemName, body.generation.takeUnless { it == 0L } ?: 1L)
         logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
         queueMessage.ack()
+      } catch (error: CancellationException) {
+        throw error
       } catch (error: Throwable) {
         logger.log(Level.SEVERE, error) {
           "Failed to report work item failure. Nacking message ${queueMessage.ackId}"
         }
         queueMessage.nack()
       }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      runCatching { failWorkItemAttempt(workItemAttempt, e) }
-        .onFailure { error ->
-          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
-        }
+      try {
+        failWorkItemAttempt(workItemAttempt, e)
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Throwable) {
+        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+      }
       logger.info("Nacking message ${queueMessage.ackId} after error")
       queueMessage.nack()
     } finally {
@@ -260,6 +275,11 @@ abstract class BaseTeeApplication(
       .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
       .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
       .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .also { span ->
+        ReportTraceAttributes.errorCode(error)?.let {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, it)
+        }
+      }
       .recordException(error)
   }
 

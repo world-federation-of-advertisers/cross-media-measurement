@@ -45,7 +45,11 @@ import kotlin.math.sqrt
 import kotlin.random.Random
 import kotlin.test.assertFails
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -58,6 +62,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
@@ -5321,22 +5326,19 @@ class MetricsServiceTest {
         }
       assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.INVALID_ARGUMENT)
       val requestIds =
-        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.weightedMeasurementsList
-          .map { it.measurement.cmmsCreateMeasurementRequestId }
-      val measurementSpans =
-        spanExporter.finishedSpanItems.filter {
-          it.name == "reporting.measurement.creation_failed"
+        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.weightedMeasurementsList.map {
+          it.measurement.cmmsCreateMeasurementRequestId
         }
+      val measurementSpans =
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.measurement.creation_failed" }
       assertThat(
-          measurementSpans.map {
-            it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID)
-          }
+          measurementSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) }
         )
         .containsExactlyElementsIn(requestIds)
       assertThat(
-          measurementSpans.map {
-            it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)
-          }.distinct()
+          measurementSpans
+            .map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) }
+            .distinct()
         )
         .containsExactly("measurement_creation")
       assertThat(
@@ -5371,29 +5373,21 @@ class MetricsServiceTest {
         withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
       val linkageSpans =
-        spanExporter.finishedSpanItems.filter {
-          it.name == "reporting.measurement.linkage_failed"
-        }
+        spanExporter.finishedSpanItems.filter { it.name == "reporting.measurement.linkage_failed" }
       assertThat(
-          linkageSpans.map {
-            it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID)
-          }
+          linkageSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) }
         )
         .containsExactly(
           PENDING_UNION_ALL_REACH_MEASUREMENT.measurementReferenceId,
           PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.measurementReferenceId,
         )
-      assertThat(
-          linkageSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) }
-        )
+      assertThat(linkageSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) })
         .containsExactly(
           PENDING_UNION_ALL_REACH_MEASUREMENT.name,
           PENDING_UNION_ALL_BUT_LAST_PUBLISHER_REACH_MEASUREMENT.name,
         )
       assertThat(
-          linkageSpans.map {
-            it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)
-          }.distinct()
+          linkageSpans.map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) }.distinct()
         )
         .containsExactly("measurement_linkage")
       assertThat(
@@ -5426,8 +5420,9 @@ class MetricsServiceTest {
       assertThat(exception.grpcStatusCode()).isEqualTo(Status.Code.NOT_FOUND)
       assertThat(exception.message).contains(MEASUREMENT_CONSUMERS.values.first().name)
       val requestIds =
-        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.weightedMeasurementsList
-          .map { it.measurement.cmmsCreateMeasurementRequestId }
+        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.weightedMeasurementsList.map {
+          it.measurement.cmmsCreateMeasurementRequestId
+        }
       val spans =
         spanExporter.finishedSpanItems.filter {
           it.name == "reporting.measurement.preparation_failed"
@@ -5436,9 +5431,7 @@ class MetricsServiceTest {
         .containsExactlyElementsIn(requestIds)
       assertThat(spans.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) }.distinct())
         .containsExactly(PENDING_INCREMENTAL_REACH_METRIC.name)
-      assertThat(
-          spans.map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) }.distinct()
-        )
+      assertThat(spans.map { it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) }.distinct())
         .containsExactly("measurement_creation")
       assertThat(spans.map { it.attributes.get(ReportTraceAttributes.ERROR_CODE) }.distinct())
         .containsExactly("grpc.NOT_FOUND")
@@ -5463,8 +5456,9 @@ class MetricsServiceTest {
       }
 
       val requestIds =
-        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.weightedMeasurementsList
-          .map { it.measurement.cmmsCreateMeasurementRequestId }
+        INTERNAL_PENDING_INITIAL_INCREMENTAL_REACH_METRIC.weightedMeasurementsList.map {
+          it.measurement.cmmsCreateMeasurementRequestId
+        }
       val spans =
         spanExporter.finishedSpanItems.filter {
           it.name == "reporting.measurement.preparation_failed"
@@ -5507,9 +5501,7 @@ class MetricsServiceTest {
 
     val exception =
       assertFailsWith(Exception::class) {
-        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
-          runBlocking { service.createMetric(request) }
-        }
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { runBlocking { service.createMetric(request) } }
       }
     assertThat(exception).hasMessageThat().contains("dataProviders/")
     val preparationSpans =
@@ -5518,9 +5510,7 @@ class MetricsServiceTest {
       }
     assertThat(preparationSpans).isNotEmpty()
     assertThat(
-        preparationSpans.map {
-          it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID)
-        }
+        preparationSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) }
       )
       .doesNotContain(null)
   }
@@ -7788,6 +7778,38 @@ class MetricsServiceTest {
       assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.OUTCOME) }.toSet())
         .containsExactly("failed")
     }
+
+  @Test
+  fun `listMetrics does not record child failures when synchronization is cancelled`() {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.LIST }
+    val request = listMetricsRequest { parent = MEASUREMENT_CONSUMERS.values.first().name }
+
+    withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+      runBlocking {
+        val batchGetStarted = CompletableDeferred<Unit>()
+        measurementsMock.stub {
+          onBlocking { batchGetMeasurements(any()) } doSuspendableAnswer
+            {
+              batchGetStarted.complete(Unit)
+              awaitCancellation()
+            }
+        }
+        val job = launch { service.listMetrics(request) }
+        batchGetStarted.await()
+        job.cancelAndJoin()
+
+        assertThat(
+            spanExporter.finishedSpanItems.filter {
+              it.name == "reporting.kingdom_measurement.sync_failed" ||
+                it.name == "reporting.metric.result_sync_failed"
+            }
+          )
+          .isEmpty()
+      }
+    }
+  }
 
   @Test
   fun `listMetrics throws Exception when internal batchSetMeasurementResults throws Exception`() {

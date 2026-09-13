@@ -274,7 +274,8 @@ class ResultsFulfiller(
           Tracing.traceSuspending(
             spanName = "edp_aggregator.results_fulfiller.preflight_requisition",
             attributes =
-              requisitionTraceAttributes(requisition.name).toBuilder()
+              requisitionTraceAttributes(requisition.name)
+                .toBuilder()
                 .put(ReportTraceAttributes.OUTCOME, "started")
                 .build(),
           ) {
@@ -409,8 +410,10 @@ class ResultsFulfiller(
                 } catch (e: CancellationException) {
                   throw e
                 } catch (e: Exception) {
-                  // The per-Requisition span already contains the complete failure evidence. Mark
-                  // the exception so the group wrapper does not incorrectly fan this failure out
+                  // The per-Requisition span already contains the complete failure evidence.
+                  // Mark
+                  // the exception so the group wrapper does not incorrectly fan this failure
+                  // out
                   // to sibling Requisitions as though shared preparation had failed.
                   throw RequisitionProcessingException(e)
                 }
@@ -636,6 +639,8 @@ class ResultsFulfiller(
         signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
         refuseRequisitionInCmms(requisition, e)
         false
+      } catch (e: CancellationException) {
+        throw e
       } catch (t: Throwable) {
         recordRequisitionFailure(
           span = span,

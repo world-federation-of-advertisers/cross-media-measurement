@@ -54,6 +54,8 @@ import kotlin.math.ln
 import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
@@ -97,6 +99,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -104,6 +107,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -155,6 +159,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisition
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfillerSelector
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -443,8 +448,7 @@ class ResultsFulfillerTest {
           }
         )
       whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer {
-        val request =
-          it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
+        val request = it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
         if (request.name == DIRECT_RNF_REQUISITION.name) {
           throw Status.UNAVAILABLE.asRuntimeException()
         }
@@ -459,14 +463,15 @@ class ResultsFulfillerTest {
           requisitionsThrottler = FakeThrottler(),
           kingdomThrottler = FakeThrottler(),
           privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-          groupedRequisitions = groupedRequisitions {
-            groupId = "preflight-group"
-            report = "report-name"
-            requisitions +=
-              listOf(DIRECT_RNF_REQUISITION, secondRequisition).map { requisition ->
-                requisitionEntry { this.requisition = Any.pack(requisition) }
-              }
-          },
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "preflight-group"
+              report = "report-name"
+              requisitions +=
+                listOf(DIRECT_RNF_REQUISITION, secondRequisition).map { requisition ->
+                  requisitionEntry { this.requisition = Any.pack(requisition) }
+                }
+            },
           modelLineInfoMap = emptyMap(),
           pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
           impressionDataSourceProvider =
@@ -491,6 +496,119 @@ class ResultsFulfillerTest {
       assertThat(failedSpans.map { it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) })
         .containsExactly(DIRECT_RNF_REQUISITION.name)
     }
+
+  @Test
+  fun `fulfillRequisitions records failure only for causative child when sibling is cancelled`():
+    Unit = runBlocking {
+    val secondRequisitionName = "dataProviders/AAAAAAAAAHs/requisitions/second"
+    val secondRequisition = DIRECT_RNF_REQUISITION.copy { name = secondRequisitionName }
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          for (requisition in listOf(DIRECT_RNF_REQUISITION, secondRequisition)) {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = requisition.name
+              blobUri = "some-prefix"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "concurrent-group"
+              report = "report-name"
+            }
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "cancellation"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      emptyList(),
+      listOf(DIRECT_RNF_REQUISITION),
+    )
+    val groupedRequisitions =
+      loadGroupedRequisitions(requisitionsTmpPath).copy {
+        requisitions += requisitionEntry { requisition = Any.pack(secondRequisition) }
+      }
+    val siblingStarted = CompletableDeferred<Unit>()
+    val fulfillerSelector =
+      object : FulfillerSelector {
+        override suspend fun selectFulfiller(
+          requisition: Requisition,
+          measurementSpec: MeasurementSpec,
+          requisitionSpec: RequisitionSpec,
+          frequencyVector: StripedByteFrequencyVector,
+          populationSpec: org.wfanet.measurement.api.v2alpha.PopulationSpec,
+          kekUri: String?,
+        ): MeasurementFulfiller {
+          return object : MeasurementFulfiller {
+            override suspend fun fulfillRequisition() {
+              if (requisition.name == DIRECT_RNF_REQUISITION.name) {
+                siblingStarted.await()
+                error("causative failure")
+              }
+              siblingStarted.complete(Unit)
+              awaitCancellation()
+            }
+          }
+        }
+      }
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider =
+          ImpressionDataSourceProvider(
+            impressionMetadataStub = impressionMetadataStub,
+            dataProvider = EDP_NAME,
+            impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+          ),
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions(parallelism = 2) }
+
+    val failedRequisitionNames =
+      collectSpans()
+        .filter {
+          it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) == "results_fulfillment" &&
+            it.attributes.get(ReportTraceAttributes.OUTCOME) == "failed"
+        }
+        .mapNotNull { it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) }
+        .toSet()
+    assertThat(failedRequisitionNames).containsExactly(DIRECT_RNF_REQUISITION.name)
+    assertThat(
+        collectSpans()
+          .filter {
+            it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) == secondRequisitionName
+          }
+          .map { it.attributes.get(ReportTraceAttributes.OUTCOME) }
+      )
+      .doesNotContain("failed")
+  }
 
   /**
    * Builds a [ResultsFulfiller] whose requisition group is empty, so [fulfillRequisitions]

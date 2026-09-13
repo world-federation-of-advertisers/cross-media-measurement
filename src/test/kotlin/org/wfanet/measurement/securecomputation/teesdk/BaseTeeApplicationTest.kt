@@ -25,6 +25,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
@@ -923,6 +924,93 @@ class BaseTeeApplicationTest {
     assertThat(requestCaptor.firstValue.errorMessage).isEqualTo("java.lang.IllegalStateException")
     assertThat(consumer.nackCount).isEqualTo(1)
     job.cancelAndJoin()
+  }
+
+  @Test
+  fun `worker cancellation does not fail attempt or message`() = runBlocking {
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure = CancellationException("worker stopping"),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "some-ack-id",
+      )
+    )
+    job.join()
+
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { failWorkItemAttempt(any()) }
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("started")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isNull()
+  }
+
+  @Test
+  fun `worker failure records wrapped grpc status code`() = runBlocking {
+    val workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel)
+    val workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel)
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { failWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure =
+          IllegalStateException(
+            "wrapped control-plane failure",
+            StatusException(io.grpc.Status.PERMISSION_DENIED),
+          ),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "some-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.PERMISSION_DENIED")
   }
 
   private class FakeQueueSubscriber : QueueSubscriber {

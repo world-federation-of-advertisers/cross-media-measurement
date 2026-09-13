@@ -26,11 +26,20 @@ import com.google.crypto.tink.aead.AeadConfig
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Status
+import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.ByteArrayOutputStream
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
 import kotlin.io.path.Path
+import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -48,6 +57,7 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -61,6 +71,7 @@ import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -657,8 +668,24 @@ class TrusTeeMillTest {
     )
 
     whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+    val spanExporter = InMemorySpanExporter.create()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    val openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     whenever(mockProcessor.computeResult())
-      .thenThrow(IllegalArgumentException("Test cryptor failure during result computation"))
+      .thenThrow(
+        IllegalArgumentException(
+          "Test cryptor failure during result computation",
+          StatusException(Status.UNAVAILABLE),
+        )
+      )
 
     val mill = createMill()
     mill.claimAndProcessWork()
@@ -671,7 +698,59 @@ class TrusTeeMillTest {
     verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
     verify(mockProcessor, times(1)).computeResult()
     verify(mockSystemComputations, never()).setComputationResult(any())
+    val span = spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalArgumentException")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
   }
+
+  @Test
+  fun `computingPhase cancellation does not fail computation or emit failure evidence`(): Unit =
+    runBlocking {
+      writeRequisitionData()
+      fakeComputationDb.addComputation(
+        LOCAL_ID,
+        Stage.COMPUTING.toProtocolStage(),
+        computationDetails = COMPUTATION_DETAILS,
+        requisitions = REQUISITIONS,
+      )
+      whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
+      whenever(mockProcessor.computeResult()).thenThrow(CancellationException("mill is stopping"))
+      val spanExporter = InMemorySpanExporter.create()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+      val openTelemetry =
+        OpenTelemetrySdk.builder()
+          .setTracerProvider(
+            SdkTracerProvider.builder()
+              .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+              .build()
+          )
+          .buildAndRegisterGlobal()
+      try {
+        val mill = createMill()
+
+        assertFailsWith<CancellationException> { mill.claimAndProcessWork() }
+
+        val finalToken = fakeComputationDb[LOCAL_ID]!!
+        assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
+        assertThat(finalToken.computationDetails.endingState)
+          .isNotEqualTo(ComputationDetails.CompletedReason.FAILED)
+        verify(mockSystemComputations, never()).setComputationResult(any())
+        val span =
+          spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+        assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isNull()
+        assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
+        assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isNull()
+      } finally {
+        openTelemetry.close()
+        GlobalOpenTelemetry.resetForTest()
+        Instrumentation.resetForTest()
+      }
+    }
 
   @Test
   fun `computingPhase fails when resultMinimumThresholds has zero minUsers`(): Unit = runBlocking {

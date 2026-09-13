@@ -18,6 +18,12 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
 import com.google.cloud.logging.Payload
 import com.google.common.truth.Truth.assertThat
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.time.Clock
@@ -28,7 +34,9 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 
 @RunWith(JUnit4::class)
 class ReportTraceTest {
@@ -282,10 +290,7 @@ class ReportTraceTest {
     val measurementName = "measurementConsumers/mc-1/measurements/measurement-2"
     val context =
       reportTraceContext()
-        .copy(
-          measurementNames = emptyList(),
-          unresolvedMeasurementRequestIds = listOf(requestId),
-        )
+        .copy(measurementNames = emptyList(), unresolvedMeasurementRequestIds = listOf(requestId))
     val span =
       lifecycleSpan(
           "measurement_creation",
@@ -362,10 +367,7 @@ class ReportTraceTest {
         )
         .withRequisitionState("UNFULFILLED", measurementState = "PENDING")
     val failedRefusal =
-      failedLifecycleSpan(
-        "requisition_refusal",
-        mapOf("xmm.requisition.name" to requisitionName),
-      )
+      failedLifecycleSpan("requisition_refusal", mapOf("xmm.requisition.name" to requisitionName))
 
     val coverage =
       ReportTraceOutput.lifecycleCoverage(
@@ -2364,6 +2366,7 @@ class ReportTraceTest {
         .trimIndent()
     )
     val routeInputs = mutableListOf<List<String>>()
+    val spanCorrelationInputs = mutableListOf<Collection<String>>()
     val creationSpan =
       lifecycleSpan(
           "measurement_creation",
@@ -2385,7 +2388,10 @@ class ReportTraceTest {
       ReportTraceDependencies(
         logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
-          ReportTraceSpanReader { _, _, _, _, _, _ -> listOf(creationSpan) }
+          ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
+            spanCorrelationInputs += correlationValues
+            if (requestId in correlationValues) listOf(creationSpan) else emptyList()
+          }
         },
         resolverFactory = { _, _ -> error("Resolver factory should not be used") },
         resolverOverride =
@@ -2449,9 +2455,86 @@ class ReportTraceTest {
 
     assertThat(exitCode).isEqualTo(0)
     assertThat(routeInputs).containsExactly(emptyList<String>(), listOf(measurementName)).inOrder()
+    assertThat(spanCorrelationInputs.any { requestId in it }).isTrue()
     val artifact = outputDirectory.toFile().listFiles().single().readText()
     assertThat(artifact).contains("$measurementName [TELEMETRY_RECOVERED from request $requestId]")
     assertThat(artifact).contains("Kingdom resolution: SUCCESS")
+    assertThat(artifact).doesNotContain("Measurement requests do not have Kingdom Measurement IDs")
+    assertThat(artifact).doesNotContain("No Kingdom Measurement names were resolved from Reporting")
+    assertThat(artifact).doesNotContain("Measurement not linked yet")
+  }
+
+  @Test
+  fun `lifecycleCoverage evaluates span emitted by ReportTracing`() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    val spanExporter = InMemorySpanExporter.create()
+    val openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+    try {
+      val context = reportTraceContext()
+      val measurementName = context.measurementNames.single()
+      ReportTracing.recordFailure(
+        spanName = "reporting.measurement.create_failed",
+        attributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_creation")
+            .put(ReportTraceAttributes.MEASUREMENT_NAME, measurementName)
+            .build(),
+        error = IllegalStateException("creation failed"),
+      )
+      val exportedSpan = spanExporter.finishedSpanItems.single()
+      val collectedSpan =
+        ReportTraceSpan(
+          sourceProject = "test",
+          traceId = exportedSpan.traceId,
+          spanId = exportedSpan.spanId,
+          parentSpanId = exportedSpan.parentSpanId,
+          name = exportedSpan.name,
+          service = "reporting",
+          startTime = NOW,
+          endTime = NOW.plusSeconds(1),
+          attributes =
+            listOf(
+                ReportTraceAttributes.LIFECYCLE_STAGE,
+                ReportTraceAttributes.MEASUREMENT_NAME,
+                ReportTraceAttributes.OUTCOME,
+                ReportTraceAttributes.ERROR_TYPE,
+              )
+              .mapNotNull { key -> exportedSpan.attributes.get(key)?.let { key.key to it } }
+              .toMap(),
+        )
+      val routeResolution =
+        routeResolution(
+          context,
+          ReportTraceMeasurementRouteKind.DIRECT,
+          "dataProviders/direct/requisitions/requisition-1",
+          ReportTraceRequisitionRouteKind.DIRECT_EDP,
+        )
+
+      val coverage =
+        ReportTraceOutput.lifecycleCoverage(
+          context,
+          routeResolution,
+          listOf(collectedSpan),
+          emptyList(),
+        )
+
+      val stage =
+        coverage.single { it.name == "measurement_creation" && it.resource == measurementName }
+      assertThat(stage.status).isEqualTo("FAILED")
+      assertThat(stage.evidence).contains("reporting.measurement.create_failed")
+    } finally {
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+    }
   }
 
   @Test
@@ -2480,8 +2563,7 @@ class ReportTraceTest {
         "metric_creation" to mapOf("xmm.metric.name" to metricName),
         "measurement_creation" to
           mapOf("xmm.measurement.name" to context.measurementNames.single()),
-        "measurement_linkage" to
-          mapOf("xmm.measurement.name" to context.measurementNames.single()),
+        "measurement_linkage" to mapOf("xmm.measurement.name" to context.measurementNames.single()),
         "requisition_available" to mapOf("xmm.requisition.name" to requisitionName),
         "requisition_dispatch" to
           mapOf(
