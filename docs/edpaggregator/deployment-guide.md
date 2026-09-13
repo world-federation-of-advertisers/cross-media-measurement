@@ -41,6 +41,10 @@ None of the names below are prescriptive — they are only examples.
 | `VID_MODELS_BUCKET` | (Optional) bucket holding compiled VID model blobs |
 | `KINGDOM_PUBLIC_API_TARGET` | Kingdom public API gRPC target, e.g. `v2alpha.kingdom.example.org:8443` |
 | `SECURE_COMPUTATION_API_TARGET` | Secure Computation API gRPC target |
+| `SECURE_COMPUTATION_CERT_HOST` | DNS name in the Secure Computation API server certificate |
+| `CLIENT_CERT_PEM` / `CLIENT_KEY_PEM` | Operator client certificate and private key authorized to call the Secure Computation API |
+| `TRUSTED_ROOTS_PEM` | Root certificates used to verify the Secure Computation API |
+| `SPANNER_INSTANCE` / `SECURE_COMPUTATION_DATABASE` | Spanner instance and database backing the Secure Computation API |
 | `EDPA_METADATA_API_TARGET` | EDP Aggregator (Metadata Storage) API gRPC target |
 | `dataProviders/DATA_PROVIDER_ID` | An EDP's `DataProvider` resource name in the Kingdom |
 | `<edp-id>` | The per-EDP storage prefix the operator assigns to a data provider |
@@ -1049,6 +1053,162 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
    kubectl get deployments
    kubectl get services
    ```
+
+#### Rolling out durable WorkItem publication
+
+The `WorkItemPublications` migration does not backfill `QUEUED` WorkItems created by an older
+Secure Computation API binary. A mixed-version rollout can therefore leave a WorkItem without the
+outbox row that the new publication runner needs. For the ResultsFulfiller cutover, use the
+following controlled rollout. It reuses the existing WorkItems RPCs, ResultsFulfiller queue,
+Pub/Sub topic, subscription, and dead-letter queue; no version-suffixed RPC or parallel queue
+infrastructure is required.
+
+1. Stop RequisitionFetcher and wait for every active invocation to finish.
+2. Drain or explicitly account for every outstanding legacy DataWatcher requisition event and its
+   resulting WorkItem. Do not enable direct dispatch while an unaccounted legacy event can still
+   create a WorkItem through an old API replica.
+3. Apply the additive Secure Computation Spanner migrations. While RequisitionFetcher remains
+   stopped and legacy events are drained, capture one immutable snapshot of pre-migration `QUEUED`
+   WorkItems that have no pending publication and no active attempt:
+
+   ```bash
+   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
+     --instance=SPANNER_INSTANCE \
+     --project=PROJECT_ID \
+     --format='value(WorkItemResourceId)' \
+     --sql='SELECT WorkItemResourceId
+       FROM WorkItems AS W
+       WHERE W.State = 1
+         AND NOT EXISTS (
+           SELECT 1 FROM WorkItemPublications AS P
+           WHERE P.WorkItemId = W.WorkItemId)
+         AND NOT EXISTS (
+           SELECT 1 FROM WorkItemAttempts AS A
+           WHERE A.WorkItemId = W.WorkItemId AND A.State = 1)' \
+     > missing-work-item-publications.txt
+   ```
+
+   `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty file
+   means no repair is needed. Keep this file unchanged for the remainder of the rollout.
+4. Roll out every Secure Computation API replica. Upgrade every ResultsFulfiller TEE worker and
+   existing DLQ consumer before enabling direct dispatch. Verify that no old Secure Computation API
+   replica remains:
+
+   ```bash
+   kubectl rollout status deployment/SECURE_COMPUTATION_API_DEPLOYMENT
+   kubectl get pods -l app=SECURE_COMPUTATION_API_APP_LABEL \
+     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
+   ```
+
+   This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
+   as generation 1. Retried terminal or abandoned WorkItems advance to generation 2 or later.
+   Generation checks prevent stale ordinary and dead-letter deliveries from changing a replacement
+   execution.
+5. Do not invoke `RetryWorkItem` until step 4 has completed and all old Secure Computation API
+   replicas are gone. After that point, repair each ID in the immutable snapshot exactly once:
+
+   ```bash
+   grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+     -authority SECURE_COMPUTATION_CERT_HOST \
+     -d '{"name":"workItems/WORK_ITEM_ID"}' \
+     SECURE_COMPUTATION_API_TARGET \
+     wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
+   ```
+
+   Do not rerun the snapshot predicate: a successfully published WorkItem can legitimately remain
+   `QUEUED` until a worker creates its attempt. Verify that every repaired ID subsequently leaves
+   `QUEUED`, and investigate any that does not.
+6. Resume WorkItem producers only after the API and consumer prerequisites above are complete. The
+   stacked direct-dispatch rollout documents when to deploy and activate RequisitionFetcher.
+
+The outbox behavior itself is unchanged by this rollout procedure: WorkItem creation writes the
+pending publication atomically, the publisher deletes that row only after Pub/Sub acknowledges the
+message, and `EnsureWorkItem` returns an existing matching WorkItem without republishing it.
+`RetryWorkItem` remains the explicit repair mechanism. This PR does not add or expand
+ResultsFulfiller-specific dead-letter behavior; the existing queue and EDPA-aware DLQ consumer are
+retained.
+
+#### Recovering after correcting a queue mapping
+
+When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
+it cannot block healthy work. After correcting the Secure Computation API queue mapping, wait for
+the publication deferral interval to expire (one minute by default). If an affected WorkItem does
+not resume automatically, call `RetryWorkItem` for that WorkItem using the command in step 5 above.
+The targeted attempt bypasses the normal background priority order while still respecting an
+active publication lease.
+
+#### Recovering an abandoned running WorkItem
+
+To recover a `RUNNING` WorkItem after its worker exits without completing or failing the attempt,
+first list the WorkItem's attempts and identify the exact active attempt:
+
+```bash
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority SECURE_COMPUTATION_CERT_HOST \
+  -d '{"parent":"workItems/WORK_ITEM_ID","pageSize":100}' \
+  SECURE_COMPUTATION_API_TARGET \
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/ListWorkItemAttempts \
+  | jq '.workItemAttempts[]? | select(.state == "ACTIVE")'
+```
+
+If the response has `nextPageToken`, repeat the request with that value as `pageToken`. Confirm by
+external evidence that the worker for the returned attempt has stopped. The API does not currently
+provide an attempt lease, expiry, heartbeat, or authoritative worker-ownership signal. Do not fail
+an old attempt merely because it has exceeded a generic age threshold: legitimate work can be
+long-running.
+
+Fail only the exact attempt that was inspected:
+
+```bash
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority SECURE_COMPUTATION_CERT_HOST \
+  -d '{"name":"workItems/WORK_ITEM_ID/workItemAttempts/ATTEMPT_ID","errorMessage":"Operator confirmed that the original worker stopped"}' \
+  SECURE_COMPUTATION_API_TARGET \
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/FailWorkItemAttempt
+```
+
+Calling `FailWorkItemAttempt` again for that same already-`FAILED` attempt is idempotent. Finally,
+call `RetryWorkItem` using the command in step 5. It returns a `RUNNING` WorkItem to `QUEUED` only
+when no active attempt remains and publishes it again. A stale or repeated `RetryWorkItem` call
+cannot fail a replacement worker's attempt. Stale dead-letter deliveries are fenced by the WorkItem
+generation and are acknowledged without changing the replacement generation. A same-generation
+redelivery for an already-`FAILED` WorkItem repeats the dead-letter listener's best-effort EDPA
+failure propagation, which repairs an interruption after the WorkItem transaction committed. For
+non-ResultsFulfiller applications, also wait until that propagation has finished before retrying;
+those external resource updates are not part of the Secure Computation transaction.
+
+A duplicate delivery for the current generation is acknowledged while a legitimate attempt remains
+active. This prevents repeated duplicate delivery from reaching the dead-letter queue and failing
+healthy work. It also means queue redelivery does not recover an abandoned active attempt:
+operators must verify worker termination and use the exact-attempt recovery sequence above.
+Automatic recovery requires a future attempt lease or heartbeat.
+
+#### Monitoring old active attempts
+
+Alert on attempts that remain `ACTIVE` longer than the longest legitimate runtime for their queue.
+The following diagnostic query uses 30 minutes as an example threshold; choose a threshold for the
+deployed workload and run the query at a reasonable interval:
+
+```bash
+gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
+  --instance=SPANNER_INSTANCE \
+  --project=PROJECT_ID \
+  --sql='SELECT W.WorkItemResourceId,
+      A.WorkItemAttemptResourceId,
+      A.CreateTime,
+      TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), A.CreateTime, SECOND) AS ActiveSeconds
+    FROM WorkItemAttempts AS A
+    JOIN WorkItems AS W USING (WorkItemId)
+    WHERE A.State = 1
+      AND A.CreateTime < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 MINUTE)
+    ORDER BY A.CreateTime'
+```
+
+`WorkItemAttempt.State.ACTIVE` is stored as `1`. Treat a result as an investigation signal, not
+proof that the worker is dead. Use the exact-attempt recovery procedure above only after verifying
+that the worker stopped. Workers retry transient `CompleteWorkItemAttempt` and
+`FailWorkItemAttempt` RPC failures with bounded backoff, but exhausted retries, process termination,
+or a network partition can still leave an old active attempt that requires operator recovery.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

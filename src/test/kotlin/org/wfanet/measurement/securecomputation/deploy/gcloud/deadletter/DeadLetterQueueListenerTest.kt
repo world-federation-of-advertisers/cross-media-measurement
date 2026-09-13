@@ -16,16 +16,21 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 
+import com.google.protobuf.Any
 import com.google.protobuf.Parser
+import com.google.rpc.ErrorInfo
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
+import io.grpc.protobuf.StatusProto
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.*
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
@@ -51,14 +56,27 @@ import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 
 class DeadLetterQueueListenerTest {
+
+  private val staleGenerationWorkItemsService =
+    object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
+      override suspend fun failWorkItem(request: FailWorkItemRequest): InternalWorkItem {
+        throw WorkItemGenerationMismatchException("work-item", 1L, 2L)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
+    }
+
+  @get:Rule val grpcTestServer = GrpcTestServerRule { addService(staleGenerationWorkItemsService) }
 
   @Test
   fun `run method verifies subscription`() = runBlocking {
@@ -291,7 +309,10 @@ class DeadLetterQueueListenerTest {
   @Test
   fun `test work item with full resource name is processed correctly`() = runBlocking {
     // Create a mock work item with full resource name
-    val workItem = workItem { name = workItemId }
+    val workItem = workItem {
+      name = workItemId
+      generation = 7L
+    }
 
     // Create a mock QueueMessage
     val mockQueueMessage =
@@ -329,6 +350,7 @@ class DeadLetterQueueListenerTest {
     // correctly
     verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
     assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
+    assertEquals(workItem.generation, requestCaptor.firstValue.expectedWorkItemGeneration)
 
     // Clean up
     messageChannel.close()
@@ -498,13 +520,15 @@ class DeadLetterQueueListenerTest {
         on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
       }
 
-    // Create a mock WorkItemsStub that throws a NOT_FOUND StatusRuntimeException
-    val statusException =
-      StatusRuntimeException(Status.NOT_FOUND.withDescription("Work item not found"))
+    // Create a mock WorkItemsStub that throws a NOT_FOUND StatusException
+    val statusException = Status.NOT_FOUND.withDescription("Work item not found").asException()
 
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+          {
+            throw statusException
+          }
       }
 
     // Create the listener
@@ -559,7 +583,7 @@ class DeadLetterQueueListenerTest {
       }
 
     val statusException =
-      org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
+      statusException(
         Status.FAILED_PRECONDITION.withDescription("Work item already failed"),
         errorInfoProto,
       )
@@ -567,7 +591,10 @@ class DeadLetterQueueListenerTest {
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+          {
+            throw statusException
+          }
       }
 
     // Create the listener
@@ -592,6 +619,58 @@ class DeadLetterQueueListenerTest {
   }
 
   @Test
+  fun `test stale work item generation is acknowledged`() = runBlocking {
+    val workItem = workItem {
+      name = workItemId
+      generation = 1L
+    }
+    val acknowledged = CompletableDeferred<Unit>()
+    val mockQueueMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> {
+        on { body } doReturn workItem
+        on { ack() } doAnswer
+          {
+            acknowledged.complete(Unit)
+            Unit
+          }
+      }
+    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+    val mockQueueSubscriber =
+      mock<QueueSubscriber> {
+        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+      }
+    val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServer.channel)
+    val listener =
+      deadLetterQueueListener(queueSubscriber = mockQueueSubscriber, workItemsStub = workItemsStub)
+    val job = launch { listener.run() }
+
+    messageChannel.send(mockQueueMessage)
+
+    withTimeout(5000) { acknowledged.await() }
+    verify(mockQueueMessage).ack()
+    verify(mockQueueMessage, never()).nack()
+    messageChannel.close()
+    job.cancel()
+  }
+
+  @Test
+  fun `succeeded work item is recognized as terminal`() {
+    val errorInfoProto =
+      com.google.rpc.errorInfo {
+        reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
+        domain = Errors.DOMAIN
+        metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.SUCCEEDED.name)
+      }
+    val exception =
+      statusException(
+        Status.FAILED_PRECONDITION.withDescription("Work item already succeeded"),
+        errorInfoProto,
+      )
+
+    assertTrue(DeadLetterQueueListener.isTerminalWorkItemError(exception))
+  }
+
+  @Test
   fun `test other status error is not acknowledged`() = runBlocking {
     // Create a mock work item
     val workItem = workItem { name = workItemId }
@@ -610,12 +689,15 @@ class DeadLetterQueueListenerTest {
       }
 
     // Create a Status with general error
-    val statusException = StatusRuntimeException(Status.INTERNAL.withDescription("Internal error"))
+    val statusException = Status.INTERNAL.withDescription("Internal error").asException()
 
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+          {
+            throw statusException
+          }
       }
 
     // Create the listener
@@ -688,94 +770,97 @@ class DeadLetterQueueListenerTest {
   }
 
   @Test
-  fun `phase-0 SubpoolAssignerParams marks pool assignment job and model line failed`() =
-    runBlocking {
-      val appParams = subpoolAssignerParams {
-        rawImpressionUpload = UPLOAD
-        modelLine = MODEL_LINE
-        poolAssignmentJob = POOL_ASSIGNMENT_JOB
-      }
-      val workItem = workItemForAppParams(appParams.pack())
-      val mockQueueMessage =
-        mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-      val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-      val mockQueueSubscriber =
-        mock<QueueSubscriber> {
-          on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-        }
-      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-      val mockPoolAssignmentJobsStub =
-        mock<PoolAssignmentJobServiceCoroutineStub> {
-          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
-            poolAssignmentJob {
-              name = POOL_ASSIGNMENT_JOB
-              state = PoolAssignmentJob.State.CREATED
-              etag = ETAG
-            }
-        }
-      val mockModelLinesStub =
-        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-            listRawImpressionUploadModelLinesResponse {
-              rawImpressionUploadModelLines += parentModelLine()
-            }
-        }
-      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
-
-      val listener =
-        DeadLetterQueueListener(
-          subscriptionId = subscriptionId,
-          queueSubscriber = mockQueueSubscriber,
-          parser = WorkItem.parser(),
-          workItemsStub = mockWorkItemsStub,
-          poolAssignmentJobsStub = mockPoolAssignmentJobsStub,
-          rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
-          vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
-          rawImpressionUploadModelLinesStub = mockModelLinesStub,
-          rpcThrottlers = recordingThrottlers.throttlers,
-          getLatestWorkItemAttemptError = { ACTIONABLE_ERROR },
-        )
-
-      val job = launch { listener.run() }
-      messageChannel.send(mockQueueMessage)
-
-      val poolCaptor = argumentCaptor<MarkPoolAssignmentJobFailedRequest>()
-      verify(mockPoolAssignmentJobsStub, timeout(5000))
-        .markPoolAssignmentJobFailed(poolCaptor.capture(), any())
-      assertEquals(POOL_ASSIGNMENT_JOB, poolCaptor.firstValue.name)
-      assertEquals(ETAG, poolCaptor.firstValue.etag)
-      assertEquals(ACTIONABLE_ERROR, poolCaptor.firstValue.errorMessage)
-      assertEquals(
-        RequestIds.forMarkPoolAssignmentJobFailed(POOL_ASSIGNMENT_JOB),
-        poolCaptor.firstValue.requestId,
-      )
-
-      val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
-      verify(mockModelLinesStub, timeout(5000))
-        .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
-      assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
-      assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-      assertEquals(ACTIONABLE_ERROR, modelLineCaptor.firstValue.errorMessage)
-      assertEquals(
-        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
-        modelLineCaptor.firstValue.failureReason,
-      )
-      assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
-        modelLineCaptor.firstValue.requestId,
-      )
-
-      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
-      verify(mockQueueMessage, timeout(5000)).ack()
-      assertEquals(0, recordingThrottlers.kingdom.invocationCount)
-      assertEquals(2, recordingThrottlers.metadataRead.invocationCount)
-      assertEquals(2, recordingThrottlers.metadataWrite.invocationCount)
-      assertEquals(1, recordingThrottlers.controlPlane.invocationCount)
-
-      messageChannel.close()
-      job.cancel()
+  fun `same-generation failed phase-0 delivery replays EDPA failure propagation`() = runBlocking {
+    val appParams = subpoolAssignerParams {
+      rawImpressionUpload = UPLOAD
+      modelLine = MODEL_LINE
+      poolAssignmentJob = POOL_ASSIGNMENT_JOB
     }
+    val workItem = workItemForAppParams(appParams.pack())
+    val mockQueueMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+    val mockQueueSubscriber =
+      mock<QueueSubscriber> {
+        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+      }
+    val mockWorkItemsStub =
+      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
+        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doReturn
+          internalWorkItem { state = InternalWorkItem.State.FAILED }
+      }
+
+    val mockPoolAssignmentJobsStub =
+      mock<PoolAssignmentJobServiceCoroutineStub> {
+        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+          poolAssignmentJob {
+            name = POOL_ASSIGNMENT_JOB
+            state = PoolAssignmentJob.State.CREATED
+            etag = ETAG
+          }
+      }
+    val mockModelLinesStub =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += parentModelLine()
+          }
+      }
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
+
+    val listener =
+      DeadLetterQueueListener(
+        subscriptionId = subscriptionId,
+        queueSubscriber = mockQueueSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub = mockWorkItemsStub,
+        poolAssignmentJobsStub = mockPoolAssignmentJobsStub,
+        rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
+        vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
+        rawImpressionUploadModelLinesStub = mockModelLinesStub,
+        rpcThrottlers = recordingThrottlers.throttlers,
+        getLatestWorkItemAttemptError = { ACTIONABLE_ERROR },
+      )
+
+    val job = launch { listener.run() }
+    messageChannel.send(mockQueueMessage)
+
+    val poolCaptor = argumentCaptor<MarkPoolAssignmentJobFailedRequest>()
+    verify(mockPoolAssignmentJobsStub, timeout(5000))
+      .markPoolAssignmentJobFailed(poolCaptor.capture(), any())
+    assertEquals(POOL_ASSIGNMENT_JOB, poolCaptor.firstValue.name)
+    assertEquals(ETAG, poolCaptor.firstValue.etag)
+    assertEquals(ACTIONABLE_ERROR, poolCaptor.firstValue.errorMessage)
+    assertEquals(
+      RequestIds.forMarkPoolAssignmentJobFailed(POOL_ASSIGNMENT_JOB),
+      poolCaptor.firstValue.requestId,
+    )
+
+    val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
+    verify(mockModelLinesStub, timeout(5000))
+      .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
+    assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
+    assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
+    assertEquals(ACTIONABLE_ERROR, modelLineCaptor.firstValue.errorMessage)
+    assertEquals(
+      RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
+      modelLineCaptor.firstValue.failureReason,
+    )
+    assertEquals(
+      RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
+      modelLineCaptor.firstValue.requestId,
+    )
+
+    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+    verify(mockQueueMessage, timeout(5000)).ack()
+    assertEquals(0, recordingThrottlers.kingdom.invocationCount)
+    assertEquals(2, recordingThrottlers.metadataRead.invocationCount)
+    assertEquals(2, recordingThrottlers.metadataWrite.invocationCount)
+    assertEquals(1, recordingThrottlers.controlPlane.invocationCount)
+
+    messageChannel.close()
+    job.cancel()
+  }
 
   @Test
   fun `phase-2 non-memoized VidLabelerParams marks vid labeling job and model line failed`() =
@@ -1100,6 +1185,16 @@ class DeadLetterQueueListenerTest {
       rawImpressionUploadModelLinesStub = mock(),
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
+
+  private fun statusException(status: Status, errorInfo: ErrorInfo): StatusException {
+    val statusProto =
+      com.google.rpc.Status.newBuilder()
+        .setCode(status.code.value())
+        .setMessage(status.description.orEmpty())
+        .addDetails(Any.pack(errorInfo))
+        .build()
+    return StatusProto.toStatusException(statusProto)
+  }
 
   private fun workItemForAppParams(appParams: com.google.protobuf.Any): WorkItem = workItem {
     name = workItemId

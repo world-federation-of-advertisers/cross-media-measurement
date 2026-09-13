@@ -16,15 +16,32 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.Value
+import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
+import com.google.protobuf.Message
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
+import org.junit.Test
+import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
+import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
+import org.wfanet.measurement.securecomputation.service.internal.testing.TestConfig
 import org.wfanet.measurement.securecomputation.service.internal.testing.WorkItemsServiceTest
 
 class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
@@ -39,12 +56,14 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
     workItemPublisher: WorkItemPublisher,
   ): Services {
     val serviceDispatcher = Dispatchers.Default
+    val workItemPublicationRunner =
+      WorkItemPublicationRunner(spannerDatabase.databaseClient, queueMapping, workItemPublisher)
     return Services(
       SpannerWorkItemsService(
         spannerDatabase.databaseClient,
         queueMapping,
         idGenerator,
-        workItemPublisher,
+        workItemPublicationRunner,
       ),
       SpannerWorkItemAttemptsService(
         spannerDatabase.databaseClient,
@@ -53,6 +72,74 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
         serviceDispatcher,
       ),
     )
+  }
+
+  @Test
+  fun `failWorkItem fails active attempt after more than one page of attempts`() = runBlocking {
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {}
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = "many-attempts-work-item"
+            queueResourceId = "test-topid-id"
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val workItemId =
+      spannerDatabase.databaseClient.singleUse().use { readContext ->
+        readContext
+          .getWorkItemByResourceId(TestConfig.QUEUE_MAPPING, created.workItemResourceId)
+          .workItemId
+      }
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      repeat(102) { index ->
+        transaction.bufferInsertMutation("WorkItemAttempts") {
+          set("WorkItemId").to(workItemId)
+          set("WorkItemAttemptId").to(index.toLong() + 1L)
+          set("WorkItemAttemptResourceId").to("attempt-$index")
+          set("State")
+            .to(
+              if (index == 101) {
+                WorkItemAttempt.State.ACTIVE
+              } else {
+                WorkItemAttempt.State.FAILED
+              }
+            )
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      }
+      transaction.bufferUpdateMutation("WorkItems") {
+        set("WorkItemId").to(workItemId)
+        set("State").to(WorkItem.State.RUNNING)
+        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      }
+    }
+
+    services.service.failWorkItem(
+      failWorkItemRequest {
+        workItemResourceId = created.workItemResourceId
+        expectedWorkItemGeneration = created.generation
+      }
+    )
+
+    val updatedAttempt =
+      services.workItemAttemptsService.getWorkItemAttempt(
+        getWorkItemAttemptRequest {
+          workItemResourceId = created.workItemResourceId
+          workItemAttemptResourceId = "attempt-101"
+        }
+      )
+    assertThat(updatedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
   }
 
   companion object {

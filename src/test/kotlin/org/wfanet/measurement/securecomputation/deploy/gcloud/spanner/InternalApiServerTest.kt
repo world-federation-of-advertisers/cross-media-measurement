@@ -17,7 +17,12 @@
 package org.wfanet.measurement.securecomputation.deploy.gcloud.spanner
 
 import com.google.common.truth.Truth.assertThat
+import java.util.concurrent.CountDownLatch
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -53,5 +58,100 @@ class InternalApiServerTest {
       }
 
     assertThat(exception).hasMessageThat().contains("complete human-readable duration")
+  }
+
+  @Test
+  fun `command line rejects zero WorkItem publication interval`() {
+    val exception =
+      assertFailsWith<CommandLine.ParameterException> {
+        CommandLine(InternalApiServer()).parseArgs("--work-item-publication-poll-interval=0s")
+      }
+
+    assertThat(exception).hasMessageThat().contains("positive human-readable duration")
+  }
+
+  @Test
+  fun `publication runner executes while server wait blocks`() = runBlocking {
+    val stopServer = CountDownLatch(1)
+    val serverStarted = CompletableDeferred<Unit>()
+    var publicationRunnerExecuted = false
+
+    withTimeout(5_000) {
+      runInternalApiServerJobs(
+        blockingServer = {
+          serverStarted.complete(Unit)
+          stopServer.await()
+        },
+        shutdownServer = { stopServer.countDown() },
+        backgroundJobs =
+          listOf {
+            serverStarted.await()
+            publicationRunnerExecuted = true
+            stopServer.countDown()
+          },
+      )
+    }
+
+    assertThat(publicationRunnerExecuted).isTrue()
+  }
+
+  @Test
+  fun `server termination cancels background jobs`() = runBlocking {
+    val backgroundStarted = CountDownLatch(1)
+    val serverMayExit = CountDownLatch(1)
+    val backgroundCancelled = CompletableDeferred<Unit>()
+
+    withTimeout(5_000) {
+      runInternalApiServerJobs(
+        blockingServer = {
+          backgroundStarted.await()
+          serverMayExit.countDown()
+        },
+        shutdownServer = {},
+        backgroundJobs =
+          listOf {
+            backgroundStarted.countDown()
+            try {
+              awaitCancellation()
+            } finally {
+              backgroundCancelled.complete(Unit)
+            }
+          },
+      )
+    }
+
+    assertThat(serverMayExit.count).isEqualTo(0L)
+    assertThat(backgroundCancelled.isCompleted).isTrue()
+  }
+
+  @Test
+  fun `background job failure shuts down blocking server`() = runBlocking {
+    val stopServer = CountDownLatch(1)
+    val serverStarted = CompletableDeferred<Unit>()
+    var shutdownCalled = false
+
+    val exception =
+      assertFailsWith<IllegalStateException> {
+        withTimeout(5_000) {
+          runInternalApiServerJobs(
+            blockingServer = {
+              serverStarted.complete(Unit)
+              stopServer.await()
+            },
+            shutdownServer = {
+              shutdownCalled = true
+              stopServer.countDown()
+            },
+            backgroundJobs =
+              listOf {
+                serverStarted.await()
+                error("publication runner failed")
+              },
+          )
+        }
+      }
+
+    assertThat(exception).hasMessageThat().isEqualTo("publication runner failed")
+    assertThat(shutdownCalled).isTrue()
   }
 }

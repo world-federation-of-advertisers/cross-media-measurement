@@ -41,6 +41,7 @@ import org.wfanet.measurement.securecomputation.service.WorkItemAttemptAlreadyEx
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptKey
 import org.wfanet.measurement.securecomputation.service.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
@@ -65,6 +66,14 @@ class WorkItemAttemptsService(
       throw InvalidFieldValueException("work_item_attempt_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.expectedWorkItemGeneration < 0L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
 
     val parentKey =
       WorkItemKey.fromName(request.parent)
@@ -75,6 +84,7 @@ class WorkItemAttemptsService(
       try {
         internalWorkItemAttemptsStub.createWorkItemAttempt(
           internalCreateWorkItemAttemptRequest {
+            expectedWorkItemGeneration = expectedGeneration
             this.workItemAttempt = internalWorkItemAttempt {
               workItemResourceId = parentKey.workItemId
               workItemAttemptResourceId = request.workItemAttemptId
@@ -90,6 +100,9 @@ class WorkItemAttemptsService(
               .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
             WorkItemInvalidStateException.fromInternal(e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH ->
+            WorkItemGenerationMismatchException.fromInternal(e)
+              .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
@@ -136,6 +149,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -179,6 +193,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -223,6 +238,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -233,6 +249,14 @@ class WorkItemAttemptsService(
   override suspend fun listWorkItemAttempts(
     request: ListWorkItemAttemptsRequest
   ): ListWorkItemAttemptsResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val parentKey =
+      WorkItemKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size") { fieldName -> "$fieldName cannot be negative" }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -256,10 +280,20 @@ class WorkItemAttemptsService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
+    if (
+      internalPageToken != null &&
+        internalPageToken.after.workItemResourceId != parentKey.workItemId
+    ) {
+      throw InvalidFieldValueException("page_token") { fieldName ->
+          "$fieldName does not match parent"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val internalResponse: InternalListWorkItemAttemptsResponse =
       internalWorkItemAttemptsStub.listWorkItemAttempts(
         internalListWorkItemAttemptsRequest {
+          workItemResourceId = parentKey.workItemId
           this.pageSize = pageSize
           if (internalPageToken != null) {
             pageToken = internalPageToken
@@ -270,7 +304,7 @@ class WorkItemAttemptsService(
     return listWorkItemAttemptsResponse {
       workItemAttempts += internalResponse.workItemAttemptsList.map { it.toWorkItemAttempt() }
       if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        nextPageToken = internalResponse.nextPageToken.toByteString().base64UrlEncode()
       }
     }
   }
@@ -278,5 +312,6 @@ class WorkItemAttemptsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private const val INITIAL_GENERATION = 1L
   }
 }

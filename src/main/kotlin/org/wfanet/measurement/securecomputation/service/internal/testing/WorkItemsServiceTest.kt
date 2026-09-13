@@ -19,6 +19,7 @@ package org.wfanet.measurement.securecomputation.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.Any
+import com.google.protobuf.Message
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -47,15 +48,19 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.internal.securecomputation.controlplane.completeWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWorkItemPublisher
@@ -140,6 +145,7 @@ abstract class WorkItemsServiceTest {
       .isEqualTo(
         request.workItem.copy {
           state = WorkItem.State.QUEUED
+          generation = 1L
           workItemResourceId = "work_item_resource_id"
         }
       )
@@ -174,6 +180,159 @@ abstract class WorkItemsServiceTest {
     assertThat(createResponse).isEqualTo(workItem)
 
     deleteSubscriptionAndTopic()
+  }
+
+  @Test
+  fun `ensureWorkItem creates and publishes missing WorkItem`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val requested = workItem {
+      workItemResourceId = workItemId
+      queueResourceId = topicId
+      workItemParams = Any.pack(testWork { userName = "UserName" })
+    }
+
+    val ensured = services.service.ensureWorkItem(ensureWorkItemRequest { workItem = requested })
+
+    assertThat(ensured)
+      .ignoringFields(WorkItem.CREATE_TIME_FIELD_NUMBER, WorkItem.UPDATE_TIME_FIELD_NUMBER)
+      .isEqualTo(
+        requested.copy {
+          state = WorkItem.State.QUEUED
+          generation = 1L
+        }
+      )
+    assertThat(publicationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `ensureWorkItem does not republish matching queued WorkItem`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created = createWorkItem(services.service)
+
+    val ensured =
+      services.service.ensureWorkItem(
+        ensureWorkItemRequest {
+          workItem =
+            created.copy {
+              clearState()
+              clearGeneration()
+              clearCreateTime()
+              clearUpdateTime()
+            }
+        }
+      )
+
+    assertThat(ensured).isEqualTo(created)
+    assertThat(publicationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `ensureWorkItem returns matching running WorkItem without republishing`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "attempt")
+
+    val ensured =
+      services.service.ensureWorkItem(
+        ensureWorkItemRequest {
+          workItem =
+            created.copy {
+              clearState()
+              clearGeneration()
+              clearCreateTime()
+              clearUpdateTime()
+            }
+        }
+      )
+
+    assertThat(ensured.state).isEqualTo(WorkItem.State.RUNNING)
+    assertThat(publicationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `ensureWorkItem rejects conflicting immutable parameters`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItem =
+              created.copy {
+                workItemParams = Any.pack(testWork { userName = "DifferentUser" })
+                clearState()
+                clearGeneration()
+                clearCreateTime()
+                clearUpdateTime()
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.WORK_ITEM_ALREADY_EXISTS.name)
+  }
+
+  @Test
+  fun `ensureWorkItem rejects matching terminal WorkItem`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    val attempt = createWorkItemAttempt(services, created, "attempt")
+    services.workItemAttemptsService.completeWorkItemAttempt(
+      completeWorkItemAttemptRequest {
+        workItemResourceId = attempt.workItemResourceId
+        workItemAttemptResourceId = attempt.workItemAttemptResourceId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.ensureWorkItem(
+          ensureWorkItemRequest {
+            workItem =
+              created.copy {
+                clearState()
+                clearGeneration()
+                clearCreateTime()
+                clearUpdateTime()
+              }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
   }
 
   @Test
@@ -360,6 +519,7 @@ abstract class WorkItemsServiceTest {
 
     val createResponse: WorkItem = services.service.createWorkItem(request)
     val workItemAttemptRequest = createWorkItemAttemptRequest {
+      expectedWorkItemGeneration = createResponse.generation
       workItemAttempt = workItemAttempt {
         workItemResourceId = createResponse.workItemResourceId
         workItemAttemptResourceId = "work_item_attempt_resource_id"
@@ -390,6 +550,24 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
+  fun `failWorkItem is idempotent for the same generation`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "attempt")
+    val request = failWorkItemRequest {
+      workItemResourceId = created.workItemResourceId
+      expectedWorkItemGeneration = created.generation
+    }
+
+    val firstResponse = services.service.failWorkItem(request)
+    val secondResponse = services.service.failWorkItem(request)
+
+    assertThat(firstResponse.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(secondResponse.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(secondResponse.generation).isEqualTo(created.generation)
+  }
+
+  @Test
   fun `failWorkItem throws INVALID_ARGUMENT if workItemResourceId is missing`() = runBlocking {
     val services = initServices()
     val failRequest = failWorkItemRequest {}
@@ -406,6 +584,325 @@ abstract class WorkItemsServiceTest {
           metadata[Errors.Metadata.FIELD_NAME.key] = "work_item_resource_id"
         }
       )
+  }
+
+  @Test
+  fun `retryWorkItem returns failed WorkItem to queue`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val attempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = created.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "attempt"
+          }
+        }
+      )
+    services.service.failWorkItem(
+      failWorkItemRequest { workItemResourceId = created.workItemResourceId }
+    )
+
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(retried.generation).isEqualTo(created.generation + 1L)
+    assertThat(publicationCount).isEqualTo(2)
+    assertThat(
+        services.workItemAttemptsService
+          .getWorkItemAttempt(
+            org.wfanet.measurement.internal.securecomputation.controlplane
+              .getWorkItemAttemptRequest {
+                workItemResourceId = attempt.workItemResourceId
+                workItemAttemptResourceId = attempt.workItemAttemptResourceId
+              }
+          )
+          .state
+      )
+      .isEqualTo(WorkItemAttempt.State.FAILED)
+  }
+
+  @Test
+  fun `retryWorkItem republishes queued WorkItem with missing outbox record`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+
+    val repaired =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(repaired.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `retryWorkItem retries abandoned running WorkItem`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+
+    val abandonedAttempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = created.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "abandoned-attempt"
+          }
+        }
+      )
+    services.workItemAttemptsService.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = abandonedAttempt.workItemResourceId
+        workItemAttemptResourceId = abandonedAttempt.workItemAttemptResourceId
+        errorMessage = "Worker confirmed stopped"
+      }
+    )
+
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+    val failedAttempt =
+      services.workItemAttemptsService.getWorkItemAttempt(
+        org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest {
+          workItemResourceId = abandonedAttempt.workItemResourceId
+          workItemAttemptResourceId = abandonedAttempt.workItemAttemptResourceId
+        }
+      )
+    val replacementAttempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = retried.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "replacement-attempt"
+          }
+        }
+      )
+
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    assertThat(replacementAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(replacementAttempt.attemptNumber).isEqualTo(2)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `stale retry does not fail replacement attempt`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val abandonedAttempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = created.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "abandoned-attempt"
+          }
+        }
+      )
+    services.workItemAttemptsService.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = abandonedAttempt.workItemResourceId
+        workItemAttemptResourceId = abandonedAttempt.workItemAttemptResourceId
+      }
+    )
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+    val replacementAttempt =
+      services.workItemAttemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = retried.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = created.workItemResourceId
+            workItemAttemptResourceId = "replacement-attempt"
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.retryWorkItem(
+          retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(
+        services.workItemAttemptsService
+          .getWorkItemAttempt(
+            org.wfanet.measurement.internal.securecomputation.controlplane
+              .getWorkItemAttemptRequest {
+                workItemResourceId = replacementAttempt.workItemResourceId
+                workItemAttemptResourceId = replacementAttempt.workItemAttemptResourceId
+              }
+          )
+          .state
+      )
+      .isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `generation-less fail does not fail generation-two replacement attempt`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "first-attempt")
+    services.service.failWorkItem(
+      failWorkItemRequest {
+        workItemResourceId = created.workItemResourceId
+        expectedWorkItemGeneration = created.generation
+      }
+    )
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+    val replacementAttempt = createWorkItemAttempt(services, retried, "replacement-attempt")
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.failWorkItem(
+          failWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+    assertThat(
+        services.workItemAttemptsService
+          .getWorkItemAttempt(
+            org.wfanet.measurement.internal.securecomputation.controlplane
+              .getWorkItemAttemptRequest {
+                workItemResourceId = replacementAttempt.workItemResourceId
+                workItemAttemptResourceId = replacementAttempt.workItemAttemptResourceId
+              }
+          )
+          .state
+      )
+      .isEqualTo(WorkItemAttempt.State.ACTIVE)
+    val current =
+      services.service.getWorkItem(
+        getWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+    assertThat(current.state).isEqualTo(WorkItem.State.RUNNING)
+    assertThat(current.generation).isEqualTo(retried.generation)
+  }
+
+  @Test
+  fun `failWorkItem does not fail succeeded WorkItem`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    val attempt = createWorkItemAttempt(services, created, "attempt")
+    services.workItemAttemptsService.completeWorkItemAttempt(
+      completeWorkItemAttemptRequest {
+        workItemResourceId = attempt.workItemResourceId
+        workItemAttemptResourceId = attempt.workItemAttemptResourceId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.failWorkItem(
+          failWorkItemRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = created.generation
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
+    assertThat(
+        services.service
+          .getWorkItem(getWorkItemRequest { workItemResourceId = created.workItemResourceId })
+          .state
+      )
+      .isEqualTo(WorkItem.State.SUCCEEDED)
   }
 
   @Test
@@ -527,6 +1024,44 @@ abstract class WorkItemsServiceTest {
         }
       )
     }
+  }
+
+  private fun initServicesWithNoOpPublisher(): Services {
+    return initServices(
+      TestConfig.QUEUE_MAPPING,
+      IdGenerator.Default,
+      object : WorkItemPublisher {
+        override suspend fun publishMessage(queueName: String, message: Message) {}
+      },
+    )
+  }
+
+  private suspend fun createWorkItem(service: WorkItemsCoroutineImplBase): WorkItem {
+    return service.createWorkItem(
+      createWorkItemRequest {
+        workItem = workItem {
+          workItemResourceId = workItemId
+          queueResourceId = topicId
+          workItemParams = Any.pack(testWork { userName = "UserName" })
+        }
+      }
+    )
+  }
+
+  private suspend fun createWorkItemAttempt(
+    services: Services,
+    workItem: WorkItem,
+    resourceId: String,
+  ): WorkItemAttempt {
+    return services.workItemAttemptsService.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        expectedWorkItemGeneration = workItem.generation
+        workItemAttempt = workItemAttempt {
+          workItemResourceId = workItem.workItemResourceId
+          workItemAttemptResourceId = resourceId
+        }
+      }
+    )
   }
 
   companion object {

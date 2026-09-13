@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemAttemptResult
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.activeWorkItemAttemptExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemAttemptByResourceId
@@ -55,6 +56,7 @@ import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNo
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
@@ -79,6 +81,15 @@ class SpannerWorkItemAttemptsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.expectedWorkItemGeneration < 0L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
+
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
 
@@ -87,6 +98,13 @@ class SpannerWorkItemAttemptsService(
         transactionRunner.run { txn ->
           val result =
             txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
+          if (result.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              result.workItem.workItemResourceId,
+              expectedGeneration,
+              result.workItem.generation,
+            )
+          }
           val workItemState = result.workItem.state
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
           when (workItemState) {
@@ -98,6 +116,12 @@ class SpannerWorkItemAttemptsService(
             }
             WorkItem.State.QUEUED,
             WorkItem.State.RUNNING -> {
+              if (txn.activeWorkItemAttemptExists(result.workItemId)) {
+                throw WorkItemInvalidStateException(
+                  result.workItem.workItemResourceId,
+                  WorkItem.State.RUNNING,
+                )
+              }
               val workItemAttemptId: Long =
                 idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
               val (attemptNumber, state) =
@@ -121,6 +145,8 @@ class SpannerWorkItemAttemptsService(
           throw e
         }
       } catch (e: WorkItemInvalidStateException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: WorkItemGenerationMismatchException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       } catch (e: WorkItemNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -172,7 +198,7 @@ class SpannerWorkItemAttemptsService(
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=failWorkItemAttempt"))
 
-    val workItemAttempt =
+    val (workItemAttempt, wasUpdated) =
       transactionRunner.run { txn ->
         try {
           val workItemAttemptResult =
@@ -183,7 +209,7 @@ class SpannerWorkItemAttemptsService(
           val workItemAttemptState = workItemAttemptResult.workItemAttempt.state
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
           when (workItemAttemptState) {
-            WorkItemAttempt.State.FAILED,
+            WorkItemAttempt.State.FAILED -> workItemAttemptResult.workItemAttempt to false
             WorkItemAttempt.State.SUCCEEDED,
             WorkItemAttempt.State.STATE_UNSPECIFIED,
             WorkItemAttempt.State.UNRECOGNIZED -> {
@@ -199,7 +225,7 @@ class SpannerWorkItemAttemptsService(
                   workItemAttemptResult.workItemId,
                   workItemAttemptResult.workItemAttemptId,
                 )
-              workItemAttemptResult.workItemAttempt.copy { this.state = state }
+              workItemAttemptResult.workItemAttempt.copy { this.state = state } to true
             }
           }
         } catch (e: WorkItemAttemptInvalidStateException) {
@@ -210,8 +236,10 @@ class SpannerWorkItemAttemptsService(
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
       }
-    return workItemAttempt.copy {
-      this.updateTime = transactionRunner.getCommitTimestamp().toProto()
+    return if (wasUpdated) {
+      workItemAttempt.copy { this.updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    } else {
+      workItemAttempt
     }
   }
 
@@ -319,5 +347,6 @@ class SpannerWorkItemAttemptsService(
   companion object {
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
+    private const val INITIAL_GENERATION = 1L
   }
 }

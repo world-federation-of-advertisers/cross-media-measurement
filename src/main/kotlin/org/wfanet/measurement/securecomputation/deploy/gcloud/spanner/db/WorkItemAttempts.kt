@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.any
 import kotlinx.coroutines.flow.count
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.singleOrNullIfEmpty
@@ -54,6 +55,33 @@ suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
   ) != null
 }
 
+/** Returns whether [workItemId] has an ACTIVE attempt. */
+suspend fun AsyncDatabaseClient.ReadContext.activeWorkItemAttemptExists(workItemId: Long): Boolean {
+  return read("WorkItemAttempts", KeySet.prefixRange(Key.of(workItemId)), listOf("State")).any { row
+    ->
+    val state: WorkItemAttempt.State = row.getProtoEnum("State", WorkItemAttempt.State::forNumber)
+    state == WorkItemAttempt.State.ACTIVE
+  }
+}
+
+/** Buffers a FAILED state update for every ACTIVE attempt belonging to [workItemId]. */
+suspend fun AsyncDatabaseClient.TransactionContext.failActiveWorkItemAttempts(workItemId: Long) {
+  executeUpdate(
+    statement(
+      """
+      UPDATE WorkItemAttempts
+      SET State = @failedState, UpdateTime = PENDING_COMMIT_TIMESTAMP()
+      WHERE WorkItemId = @workItemId AND State = @activeState
+      """
+        .trimIndent()
+    ) {
+      bind("workItemId").to(workItemId)
+      bind("activeState").to(WorkItemAttempt.State.ACTIVE.number.toLong())
+      bind("failedState").to(WorkItemAttempt.State.FAILED.number.toLong())
+    }
+  )
+}
+
 /**
  * Buffers an insert mutation for the WorkItemAttempts table.
  *
@@ -84,6 +112,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.insertWorkItemAttempt(
     set("State").to(WorkItem.State.RUNNING)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  deleteWorkItemPublication(workItemId)
   return Pair(attemptNumber, workItemAttemptState)
 }
 

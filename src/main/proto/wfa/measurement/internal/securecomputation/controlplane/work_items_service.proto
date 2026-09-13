@@ -27,15 +27,29 @@ option java_outer_classname = "WorkItemsServiceProto";
 service WorkItems {
   rpc CreateWorkItem(CreateWorkItemRequest) returns (WorkItem);
 
+  // Atomically creates a durable queued WorkItem, or returns a matching one.
+  rpc EnsureWorkItem(EnsureWorkItemRequest) returns (WorkItem);
+
   rpc GetWorkItem(GetWorkItemRequest) returns (WorkItem);
 
   // Response ordered by `create_time`, ascending.
   rpc ListWorkItems(ListWorkItemsRequest) returns (ListWorkItemsResponse);
 
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem);
+
+  // Retries a FAILED WorkItem or a RUNNING WorkItem with no active attempt, or
+  // repairs publication for a QUEUED WorkItem.
+  //
+  // An abandoned active attempt must be failed separately before retrying its
+  // WorkItem.
+  rpc RetryWorkItem(RetryWorkItemRequest) returns (WorkItem);
 }
 
 message CreateWorkItemRequest {
+  WorkItem work_item = 1;
+}
+
+message EnsureWorkItemRequest {
   WorkItem work_item = 1;
 }
 
@@ -70,5 +84,13 @@ message ListWorkItemsPageToken {
 }
 
 message FailWorkItemRequest {
+  string work_item_resource_id = 1;
+
+  // Generation from the queue message whose processing failed. A value of 0
+  // is interpreted as generation 1 for rolling-upgrade compatibility.
+  int64 expected_work_item_generation = 2;
+}
+
+message RetryWorkItemRequest {
   string work_item_resource_id = 1;
 }

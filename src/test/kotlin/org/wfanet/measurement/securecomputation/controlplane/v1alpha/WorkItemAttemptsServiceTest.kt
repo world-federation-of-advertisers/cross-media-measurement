@@ -54,6 +54,7 @@ import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 
 @RunWith(JUnit4::class)
@@ -89,6 +90,7 @@ class WorkItemAttemptsServiceTest {
           "workItems/${internalWorkItemAttempt.workItemResourceId}/workItemAttempts/${internalWorkItemAttempt.workItemAttemptResourceId}"
       }
       workItemAttemptId = "workItemAttempt"
+      expectedWorkItemGeneration = 1L
     }
     val response = service.createWorkItemAttempt(request)
 
@@ -98,6 +100,7 @@ class WorkItemAttemptsServiceTest {
       )
       .isEqualTo(
         internalCreateWorkItemAttemptRequest {
+          expectedWorkItemGeneration = request.expectedWorkItemGeneration
           this.workItemAttempt = internalWorkItemAttempt {
             workItemResourceId = internalWorkItemAttempt.workItemResourceId
             workItemAttemptResourceId = request.workItemAttemptId
@@ -160,6 +163,40 @@ class WorkItemAttemptsServiceTest {
     }
 
   @Test
+  fun `createWorkItemAttempt defaults missing expected generation to one`() = runBlocking {
+    val internalWorkItemAttempt = internalWorkItemAttempt {
+      workItemResourceId = "workItem"
+      workItemAttemptResourceId = "workItemAttempt"
+      state = InternalWorkItemAttempt.State.ACTIVE
+    }
+    internalServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn internalWorkItemAttempt
+    }
+
+    service.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        parent = "workItems/workItem"
+        workItemAttemptId = "workItemAttempt"
+        workItemAttempt = workItemAttempt {}
+      }
+    )
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::createWorkItemAttempt,
+      )
+      .isEqualTo(
+        internalCreateWorkItemAttemptRequest {
+          expectedWorkItemGeneration = 1L
+          workItemAttempt = internalWorkItemAttempt {
+            workItemResourceId = "workItem"
+            workItemAttemptResourceId = "workItemAttempt"
+          }
+        }
+      )
+  }
+
+  @Test
   fun `createWorkItemAttempt throws INVALID_FIELD_VALUE when workItemAttemptId is malformed`() =
     runBlocking {
       val exception =
@@ -199,6 +236,7 @@ class WorkItemAttemptsServiceTest {
         name = "workItems/workItem/workItemAttempts/workItemAttempt"
       }
       workItemAttemptId = "workItem"
+      expectedWorkItemGeneration = 1L
     }
 
     val exception =
@@ -230,6 +268,7 @@ class WorkItemAttemptsServiceTest {
         name = "workItems/workItem/workItemAttempts/workItemAttempt"
       }
       workItemAttemptId = "workItem"
+      expectedWorkItemGeneration = 1L
     }
 
     val exception =
@@ -243,6 +282,36 @@ class WorkItemAttemptsServiceTest {
           reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
           metadata[Errors.Metadata.WORK_ITEM.key] = "workItems/workItem"
           metadata[Errors.Metadata.WORK_ITEM_STATE.key] = "SUCCEEDED"
+        }
+      )
+  }
+
+  @Test
+  fun `createWorkItemAttempt throws WORK_ITEM_GENERATION_MISMATCH from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doThrow
+        WorkItemGenerationMismatchException("workItem", 1L, 2L)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    val request = createWorkItemAttemptRequest {
+      parent = "workItems/workItem"
+      workItemAttemptId = "workItem"
+      expectedWorkItemGeneration = 1L
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createWorkItemAttempt(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name
+          metadata[Errors.Metadata.WORK_ITEM.key] = "workItems/workItem"
+          metadata[Errors.Metadata.EXPECTED_WORK_ITEM_GENERATION.key] = "1"
+          metadata[Errors.Metadata.ACTUAL_WORK_ITEM_GENERATION.key] = "2"
         }
       )
   }
@@ -592,7 +661,7 @@ class WorkItemAttemptsServiceTest {
       nextPageToken = internalListWorkItemAttemptsPageToken {
         after =
           InternalListWorkItemAttemptsPageTokenKt.after {
-            workItemResourceId = "workItemTwo"
+            workItemResourceId = "workItemOne"
             workItemAttemptResourceId = "workItemAttemptTwo"
           }
       }
@@ -601,21 +670,66 @@ class WorkItemAttemptsServiceTest {
       onBlocking { listWorkItemAttempts(any()) } doReturn internalListWorkItemAttemptsResponse
     }
 
-    val response = service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageSize = 1 })
+    val response =
+      service.listWorkItemAttempts(
+        listWorkItemAttemptsRequest {
+          parent = "workItems/workItemOne"
+          pageSize = 1
+        }
+      )
 
     verifyProtoArgument(
         internalServiceMock,
         WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::listWorkItemAttempts,
       )
-      .isEqualTo(internalListWorkItemAttemptsRequest { pageSize = 1 })
+      .isEqualTo(
+        internalListWorkItemAttemptsRequest {
+          workItemResourceId = "workItemOne"
+          pageSize = 1
+        }
+      )
     assertThat(response)
       .isEqualTo(
         listWorkItemAttemptsResponse {
           workItemAttempts += internalWorkItemAttemptFirst.toWorkItemAttempt()
           nextPageToken =
-            internalListWorkItemAttemptsResponse.nextPageToken.after
-              .toByteString()
-              .base64UrlEncode()
+            internalListWorkItemAttemptsResponse.nextPageToken.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts throws REQUIRED_FIELD_NOT_SET when parent is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(listWorkItemAttemptsRequest {})
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts throws INVALID_FIELD_VALUE when parent is malformed`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(listWorkItemAttemptsRequest { parent = "workItemOne" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
         }
       )
   }
@@ -624,7 +738,12 @@ class WorkItemAttemptsServiceTest {
   fun `listWorkItemAttempts throws INVALID_FIELD_VALUE when page size is invalid`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageSize = -1 })
+        service.listWorkItemAttempts(
+          listWorkItemAttemptsRequest {
+            parent = "workItems/workItemOne"
+            pageSize = -1
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -639,10 +758,82 @@ class WorkItemAttemptsServiceTest {
   }
 
   @Test
-  fun `listWorkItemAttepmts throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
+  fun `listWorkItemAttempts accepts page token for parent`() = runBlocking {
+    val internalPageToken = internalListWorkItemAttemptsPageToken {
+      after =
+        InternalListWorkItemAttemptsPageTokenKt.after {
+          workItemResourceId = "workItemOne"
+          workItemAttemptResourceId = "workItemAttemptOne"
+        }
+    }
+    internalServiceMock.stub {
+      onBlocking { listWorkItemAttempts(any()) } doReturn internalListWorkItemAttemptsResponse {}
+    }
+
+    service.listWorkItemAttempts(
+      listWorkItemAttemptsRequest {
+        parent = "workItems/workItemOne"
+        pageToken = internalPageToken.toByteString().base64UrlEncode()
+      }
+    )
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::listWorkItemAttempts,
+      )
+      .isEqualTo(
+        internalListWorkItemAttemptsRequest {
+          workItemResourceId = "workItemOne"
+          pageSize = 50
+          pageToken = internalPageToken
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageToken = "1" })
+        service.listWorkItemAttempts(
+          listWorkItemAttemptsRequest {
+            parent = "workItems/workItemOne"
+            pageToken = "1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts rejects page token for another parent`() = runBlocking {
+    val pageToken =
+      internalListWorkItemAttemptsPageToken {
+          after =
+            InternalListWorkItemAttemptsPageTokenKt.after {
+              workItemResourceId = "workItemTwo"
+              workItemAttemptResourceId = "workItemAttemptOne"
+            }
+        }
+        .toByteString()
+        .base64UrlEncode()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(
+          listWorkItemAttemptsRequest {
+            parent = "workItems/workItemOne"
+            this.pageToken = pageToken
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)

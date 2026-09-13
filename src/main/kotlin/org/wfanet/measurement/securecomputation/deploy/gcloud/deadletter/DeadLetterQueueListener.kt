@@ -18,7 +18,7 @@ package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 
 import com.google.protobuf.Parser
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -127,10 +127,12 @@ class DeadLetterQueueListener(
    * Processes a message from the dead letter queue by calling the WorkItems API to mark it as
    * failed, then (best-effort) marking the EDP-Aggregator resources the WorkItem references FAILED.
    *
-   * Messages with empty work item names are acknowledged and skipped. If the work item is already
-   * in a FAILED state or not found, the message is acknowledged. Other errors result in the message
-   * being nacked for retry. The EDPA marking is best-effort and never changes the ack/nack decision
-   * (a dead-lettered message is already terminal).
+   * Messages with empty work item names are acknowledged and skipped. A same-generation redelivery
+   * of an already-FAILED WorkItem succeeds idempotently and repeats the best-effort EDPA marking.
+   * If the work item is not found, terminal for another reason, or the delivery is stale, the
+   * message is acknowledged. Other errors result in the message being nacked for retry. The EDPA
+   * marking is best-effort and never changes the ack/nack decision (a dead-lettered message is
+   * already terminal).
    *
    * @param queueMessage The message received from the dead letter queue.
    */
@@ -148,7 +150,12 @@ class DeadLetterQueueListener(
     val errorMessage = resolveErrorMessage(workItem.name)
     try {
       rpcThrottlers.controlPlane.onReady {
-        workItemsStub.failWorkItem(failWorkItemRequest { workItemResourceId = workItem.name })
+        workItemsStub.failWorkItem(
+          failWorkItemRequest {
+            workItemResourceId = workItem.name
+            expectedWorkItemGeneration = workItem.generation.takeUnless { it == 0L } ?: 1L
+          }
+        )
       }
       logger.fine("Successfully marked work item as failed: ${workItem.name}")
       // Mark the EDPA resource(s) referenced by this WorkItem FAILED. Best-effort: any failure is
@@ -157,13 +164,14 @@ class DeadLetterQueueListener(
       queueMessage.ack()
     } catch (e: Exception) {
       when (e) {
-        is StatusRuntimeException -> {
+        is StatusException -> {
           if (e.status.code == Status.Code.NOT_FOUND) {
             logger.warning("Work item not found: ${workItem.name}. Acknowledging message.")
             queueMessage.ack()
-          } else if (isAlreadyFailedError(e)) {
+          } else if (isTerminalWorkItemError(e) || isStaleGenerationError(e)) {
             logger.info(
-              "Work item ${workItem.name} is already in FAILED state. Acknowledging message."
+              "Work item ${workItem.name} is already terminal or the delivery is stale. " +
+                "Acknowledging message."
             )
             queueMessage.ack()
           } else {
@@ -482,15 +490,18 @@ class DeadLetterQueueListener(
     private val VID_RANK_BUILDER_PARAMS_TYPE = VidRankBuilderParams.getDescriptor().fullName
     private val VID_LABELER_PARAMS_TYPE = VidLabelerParams.getDescriptor().fullName
 
-    /**
-     * Checks if a StatusRuntimeException indicates that the work item is already in a FAILED state.
-     */
-    fun isAlreadyFailedError(e: StatusRuntimeException): Boolean {
-      // Check if this is a failed precondition error due to the item already being in FAILED state
+    /** Returns whether [e] means that the WorkItem has already reached a terminal state. */
+    fun isTerminalWorkItemError(e: StatusException): Boolean {
+      val state = e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
       return e.status.code == Status.Code.FAILED_PRECONDITION &&
         e.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
-        e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key) ==
-          WorkItem.State.FAILED.name
+        (state == WorkItem.State.FAILED.name || state == WorkItem.State.SUCCEEDED.name)
+    }
+
+    /** Returns whether [e] means that a delivery belongs to an older WorkItem generation. */
+    fun isStaleGenerationError(e: StatusException): Boolean {
+      return e.status.code == Status.Code.FAILED_PRECONDITION &&
+        e.errorInfo?.reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name
     }
   }
 }

@@ -29,14 +29,18 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineStub as InternalWorkItemsCoroutineStub
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest as internalCreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest as internalEnsureWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest as internalFailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest as internalGetWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest as internalListWorkItemsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest as internalRetryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.WorkItemGenerationMismatchException
+import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
@@ -82,10 +86,67 @@ class WorkItemsService(
             WorkItemAlreadyExistsException(request.workItem.name, e)
               .asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItem()
+  }
+
+  override suspend fun ensureWorkItem(request: EnsureWorkItemRequest): WorkItem {
+    if (!request.hasWorkItem()) {
+      throw RequiredFieldNotSetException("work_item")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.workItem.queue.isEmpty()) {
+      throw RequiredFieldNotSetException("queue")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.workItemId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!ResourceIds.RFC_1034_REGEX.matches(request.workItemId)) {
+      throw InvalidFieldValueException("work_item_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val internalResponse =
+      try {
+        internalWorkItemsStub.ensureWorkItem(
+          internalEnsureWorkItemRequest {
+            workItem = internalWorkItem {
+              queueResourceId = request.workItem.queue
+              workItemResourceId = request.workItemId
+              workItemParams = request.workItem.workItemParams
+            }
+          }
+        )
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.UNIMPLEMENTED) {
+          throw e
+        }
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS ->
+            WorkItemAlreadyExistsException("workItems/${request.workItemId}", e)
+              .asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
+            WorkItemInvalidStateException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
@@ -126,6 +187,7 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -181,25 +243,40 @@ class WorkItemsService(
       throw RequiredFieldNotSetException("name")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-
     val key =
       WorkItemKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.expectedWorkItemGeneration < 0L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
 
     val internalResponse: InternalWorkItem =
       try {
         internalWorkItemsStub.failWorkItem(
-          internalFailWorkItemRequest { workItemResourceId = key.workItemId }
+          internalFailWorkItemRequest {
+            workItemResourceId = key.workItemId
+            expectedWorkItemGeneration = expectedGeneration
+          }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
             WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH ->
+            WorkItemGenerationMismatchException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
+            WorkItemInvalidStateException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
-          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
@@ -212,8 +289,48 @@ class WorkItemsService(
     return internalResponse.toWorkItem()
   }
 
+  override suspend fun retryWorkItem(request: RetryWorkItemRequest): WorkItem {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val key =
+      WorkItemKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse =
+      try {
+        internalWorkItemsStub.retryWorkItem(
+          internalRetryWorkItemRequest { workItemResourceId = key.workItemId }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND ->
+            WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
+            WorkItemInvalidStateException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItem()
+  }
+
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private const val INITIAL_GENERATION = 1L
   }
 }

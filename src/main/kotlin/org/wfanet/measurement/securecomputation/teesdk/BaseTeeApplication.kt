@@ -25,6 +25,8 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.delay
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -49,6 +51,7 @@ import org.wfanet.measurement.securecomputation.service.WorkItemKey
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  * @param controlPlaneThrottler optional process-scoped limiter for `WorkItems` and
  *   `WorkItemAttempts` RPCs.
+ * @param attemptUpdateRetryDelay suspends before retrying a transient attempt-state update.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -57,6 +60,9 @@ abstract class BaseTeeApplication(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub,
   private val controlPlaneThrottler: Throttler? = null,
+  private val attemptUpdateRetryDelay: suspend (Int) -> Unit = { attempt ->
+    delay(ATTEMPT_UPDATE_RETRY_BACKOFF.durationForAttempt(attempt).toMillis())
+  },
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
@@ -106,15 +112,26 @@ abstract class BaseTeeApplication(
       try {
         val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
         logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
-        createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
+        createWorkItemAttempt(
+          parent = workItemName,
+          workItemAttemptId = workItemAttemptId,
+          expectedWorkItemGeneration = body.generation.takeUnless { it == 0L } ?: 1L,
+        )
       } catch (e: ControlPlaneApiException) {
-        // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid state,
-        // ack the message and stop processing.
         val cause = e.cause
         if (cause is StatusException) {
           val reason = cause.errorInfo?.reason
+          val workItemState = cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
+          val invalidTerminalState =
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
+          val activeAttempt =
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState == WorkItem.State.RUNNING.name
           if (
-            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name ||
+            invalidTerminalState ||
+              activeAttempt ||
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {
             logger.log(Level.WARNING, e) {
@@ -133,37 +150,33 @@ abstract class BaseTeeApplication(
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
       runWork(queueMessage.body.workItemParams)
       logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
-      runCatching { completeWorkItemAttempt(workItemAttempt) }
-        .onFailure { error ->
-          when (error) {
-            is StatusException -> {
-              if (
-                error.status.code == Status.Code.FAILED_PRECONDITION &&
-                  error.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
-                  error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
-                    WorkItemAttempt.State.SUCCEEDED.name
-              ) {
-                logger.info(
-                  "WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}"
-                )
-                queueMessage.ack()
-                return@processMessage
-              } else {
-                logger.log(Level.SEVERE, error) {
-                  "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
-                }
-                queueMessage.nack()
-                return@processMessage
-              }
-            }
+      try {
+        completeWorkItemAttempt(workItemAttempt)
+      } catch (e: ControlPlaneApiException) {
+        val cause = e.cause
+        if (
+          cause is StatusException &&
+            cause.status.code == Status.Code.FAILED_PRECONDITION &&
+            cause.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
+            cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
+              WorkItemAttempt.State.SUCCEEDED.name
+        ) {
+          logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
+          queueMessage.ack()
+        } else {
+          logger.log(Level.SEVERE, e) {
+            "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
           }
+          queueMessage.nack()
         }
+        return
+      }
       logger.info("Successfully completed processing. Acking message ${queueMessage.ackId}")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
       try {
-        failWorkItem(workItemName)
+        failWorkItem(workItemName, body.generation.takeUnless { it == 0L } ?: 1L)
         logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
         queueMessage.ack()
       } catch (error: Throwable) {
@@ -188,6 +201,7 @@ abstract class BaseTeeApplication(
   private suspend fun createWorkItemAttempt(
     parent: String,
     workItemAttemptId: String,
+    expectedWorkItemGeneration: Long,
   ): WorkItemAttempt {
     try {
       return callControlPlane {
@@ -195,6 +209,7 @@ abstract class BaseTeeApplication(
           createWorkItemAttemptRequest {
             this.parent = parent
             this.workItemAttemptId = workItemAttemptId
+            this.expectedWorkItemGeneration = expectedWorkItemGeneration
           }
         )
       }
@@ -205,10 +220,12 @@ abstract class BaseTeeApplication(
 
   private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
     try {
-      callControlPlane {
-        workItemAttemptsStub.completeWorkItemAttempt(
-          completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
-        )
+      retryAttemptUpdate("CompleteWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.completeWorkItemAttempt(
+            completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
+          )
+        }
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
@@ -220,13 +237,15 @@ abstract class BaseTeeApplication(
 
   private suspend fun failWorkItemAttempt(workItemAttempt: WorkItemAttempt, e: Exception) {
     try {
-      callControlPlane {
-        workItemAttemptsStub.failWorkItemAttempt(
-          failWorkItemAttemptRequest {
-            this.name = workItemAttempt.name
-            this.errorMessage = e.toString()
-          }
-        )
+      retryAttemptUpdate("FailWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.failWorkItemAttempt(
+            failWorkItemAttemptRequest {
+              this.name = workItemAttempt.name
+              this.errorMessage = e.toString()
+            }
+          )
+        }
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
@@ -236,10 +255,15 @@ abstract class BaseTeeApplication(
     }
   }
 
-  private suspend fun failWorkItem(workItemName: String) {
+  private suspend fun failWorkItem(workItemName: String, expectedWorkItemGeneration: Long) {
     try {
       callControlPlane {
-        workItemsStub.failWorkItem(failWorkItemRequest { this.name = workItemName })
+        workItemsStub.failWorkItem(
+          failWorkItemRequest {
+            name = workItemName
+            this.expectedWorkItemGeneration = expectedWorkItemGeneration
+          }
+        )
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed", e)
@@ -252,6 +276,34 @@ abstract class BaseTeeApplication(
     return controlPlaneThrottler?.onReady(block) ?: block()
   }
 
+  private suspend fun retryAttemptUpdate(
+    operation: String,
+    workItemAttemptName: String,
+    block: suspend () -> Unit,
+  ) {
+    var attempt = 1
+    while (true) {
+      try {
+        block()
+        return
+      } catch (e: StatusException) {
+        if (
+          e.status.code !in RETRYABLE_ATTEMPT_UPDATE_CODES || attempt >= ATTEMPT_UPDATE_MAX_ATTEMPTS
+        ) {
+          throw e
+        }
+        logger.log(
+          Level.WARNING,
+          "$operation failed transiently for $workItemAttemptName on attempt $attempt of " +
+            "$ATTEMPT_UPDATE_MAX_ATTEMPTS; retrying",
+          e,
+        )
+        attemptUpdateRetryDelay(attempt)
+        attempt++
+      }
+    }
+  }
+
   override fun close() {
     logger.info("Closing BaseTeeApplication and QueueSubscriber for subscription: $subscriptionId")
     queueSubscriber.close()
@@ -260,5 +312,23 @@ abstract class BaseTeeApplication(
 
   companion object {
     protected val logger = Logger.getLogger(this::class.java.name)
+
+    private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
+    private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
+    private val RETRYABLE_ATTEMPT_UPDATE_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNAVAILABLE,
+      )
+
+    private val TERMINAL_OR_INVALID_WORK_ITEM_STATES =
+      setOf(
+        WorkItem.State.FAILED.name,
+        WorkItem.State.SUCCEEDED.name,
+        WorkItem.State.STATE_UNSPECIFIED.name,
+        WorkItem.State.UNRECOGNIZED.name,
+      )
   }
 }
