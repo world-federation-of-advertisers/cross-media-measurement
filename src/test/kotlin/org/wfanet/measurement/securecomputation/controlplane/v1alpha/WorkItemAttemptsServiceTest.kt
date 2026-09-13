@@ -767,8 +767,7 @@ class WorkItemAttemptsServiceTest {
         }
     }
     internalServiceMock.stub {
-      onBlocking { listWorkItemAttempts(any()) } doReturn
-        internalListWorkItemAttemptsResponse {}
+      onBlocking { listWorkItemAttempts(any()) } doReturn internalListWorkItemAttemptsResponse {}
     }
 
     service.listWorkItemAttempts(

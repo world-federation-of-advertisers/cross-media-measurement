@@ -358,28 +358,27 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
-  fun `failWorkItemAttempt returns WorkItemAttempt unchanged if state is FAILED`() =
-    runBlocking {
-      val services = initServices()
-      val workItem = createWorkItem(services.workItemsService)
-      val workItemAttempt =
-        createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
+  fun `failWorkItemAttempt returns WorkItemAttempt unchanged if state is FAILED`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val workItemAttempt =
+      createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
 
-      val failWorkItemAttemptRequest = failWorkItemAttemptRequest {
-        workItemResourceId = workItemAttempt.workItemResourceId
-        workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
-        errorMessage = "ErrorMessage"
-      }
-
-      val failedAttempt = services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
-
-      val repeatedResponse =
-        services.service.failWorkItemAttempt(
-          failWorkItemAttemptRequest.copy { errorMessage = "Different error message" }
-        )
-
-      assertThat(repeatedResponse).isEqualTo(failedAttempt)
+    val failWorkItemAttemptRequest = failWorkItemAttemptRequest {
+      workItemResourceId = workItemAttempt.workItemResourceId
+      workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
+      errorMessage = "ErrorMessage"
     }
+
+    val failedAttempt = services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
+
+    val repeatedResponse =
+      services.service.failWorkItemAttempt(
+        failWorkItemAttemptRequest.copy { errorMessage = "Different error message" }
+      )
+
+    assertThat(repeatedResponse).isEqualTo(failedAttempt)
+  }
 
   @Test
   fun `failWorkItemAttempt throws INVALID_WORK_ITEM_ATTEMPT_STATE if state is SUCCEEDED`() =
