@@ -670,21 +670,66 @@ class WorkItemAttemptsServiceTest {
       onBlocking { listWorkItemAttempts(any()) } doReturn internalListWorkItemAttemptsResponse
     }
 
-    val response = service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageSize = 1 })
+    val response =
+      service.listWorkItemAttempts(
+        listWorkItemAttemptsRequest {
+          parent = "workItems/workItemOne"
+          pageSize = 1
+        }
+      )
 
     verifyProtoArgument(
         internalServiceMock,
         WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::listWorkItemAttempts,
       )
-      .isEqualTo(internalListWorkItemAttemptsRequest { pageSize = 1 })
+      .isEqualTo(
+        internalListWorkItemAttemptsRequest {
+          workItemResourceId = "workItemOne"
+          pageSize = 1
+        }
+      )
     assertThat(response)
       .isEqualTo(
         listWorkItemAttemptsResponse {
           workItemAttempts += internalWorkItemAttemptFirst.toWorkItemAttempt()
           nextPageToken =
-            internalListWorkItemAttemptsResponse.nextPageToken.after
-              .toByteString()
-              .base64UrlEncode()
+            internalListWorkItemAttemptsResponse.nextPageToken.toByteString().base64UrlEncode()
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts throws REQUIRED_FIELD_NOT_SET when parent is not set`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(listWorkItemAttemptsRequest {})
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts throws INVALID_FIELD_VALUE when parent is malformed`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(listWorkItemAttemptsRequest { parent = "workItemOne" })
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "parent"
         }
       )
   }
@@ -693,7 +738,12 @@ class WorkItemAttemptsServiceTest {
   fun `listWorkItemAttempts throws INVALID_FIELD_VALUE when page size is invalid`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageSize = -1 })
+        service.listWorkItemAttempts(
+          listWorkItemAttemptsRequest {
+            parent = "workItems/workItemOne"
+            pageSize = -1
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
@@ -708,10 +758,83 @@ class WorkItemAttemptsServiceTest {
   }
 
   @Test
-  fun `listWorkItemAttepmts throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
+  fun `listWorkItemAttempts accepts page token for parent`() = runBlocking {
+    val internalPageToken = internalListWorkItemAttemptsPageToken {
+      after =
+        InternalListWorkItemAttemptsPageTokenKt.after {
+          workItemResourceId = "workItemOne"
+          workItemAttemptResourceId = "workItemAttemptOne"
+        }
+    }
+    internalServiceMock.stub {
+      onBlocking { listWorkItemAttempts(any()) } doReturn
+        internalListWorkItemAttemptsResponse {}
+    }
+
+    service.listWorkItemAttempts(
+      listWorkItemAttemptsRequest {
+        parent = "workItems/workItemOne"
+        pageToken = internalPageToken.toByteString().base64UrlEncode()
+      }
+    )
+
+    verifyProtoArgument(
+        internalServiceMock,
+        WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase::listWorkItemAttempts,
+      )
+      .isEqualTo(
+        internalListWorkItemAttemptsRequest {
+          workItemResourceId = "workItemOne"
+          pageSize = 50
+          pageToken = internalPageToken
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts throws INVALID_FIELD_VALUE when page token is invalid`() = runBlocking {
     val exception =
       assertFailsWith<StatusRuntimeException> {
-        service.listWorkItemAttempts(listWorkItemAttemptsRequest { pageToken = "1" })
+        service.listWorkItemAttempts(
+          listWorkItemAttemptsRequest {
+            parent = "workItems/workItemOne"
+            pageToken = "1"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "page_token"
+        }
+      )
+  }
+
+  @Test
+  fun `listWorkItemAttempts rejects page token for another parent`() = runBlocking {
+    val pageToken =
+      internalListWorkItemAttemptsPageToken {
+          after =
+            InternalListWorkItemAttemptsPageTokenKt.after {
+              workItemResourceId = "workItemTwo"
+              workItemAttemptResourceId = "workItemAttemptOne"
+            }
+        }
+        .toByteString()
+        .base64UrlEncode()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.listWorkItemAttempts(
+          listWorkItemAttemptsRequest {
+            parent = "workItems/workItemOne"
+            this.pageToken = pageToken
+          }
+        )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
