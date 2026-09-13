@@ -276,7 +276,24 @@ The 2026 data is blob-delivered, so the simulator test has no mechanism to
 consume it — those EDPs compute events on demand rather than reading storage.
 This is also a deliberate scope boundary: expanding the classic simulators'
 volume or date coverage is explicitly out of scope, because the aggregator path
-is the one production depends on and the one that could not be validated.
+is the one production depends on and the one that could not be validated. The
+classic simulators are also being retired, so building against them would be
+building against a path that is going away.
+
+The reports over this dataset therefore live in `EdpAggregatorCorrectnessTest`
+too, rather than alongside the reporting-layer test in
+`SyntheticGeneratorCorrectnessTest`:
+
+*   That test already registers the EventGroups, provisions the model resources
+    and writes the impressions, so a test reading the data runs after the rules
+    that created it. The two correctness tests run as parallel jobs with no
+    dependency between them, so anywhere else the ordering would not hold.
+*   Only the aggregator can serve this data, per the table above.
+*   It raises what the suite covers. `EdpAggregatorCorrectnessTest` otherwise
+    stops at the CMMS `Measurement` layer; a `BasicReport` exercises the layer
+    a Measurement Consumer actually uses — campaign group, per-line-item
+    results, media type and impression qualification filter breakdowns — over
+    the aggregator data path.
 
 Within `EdpAggregatorCorrectnessTest` the QA 2026 rules are **additive**. The
 2021 fixture keeps its own config, population spec, model line, dates and event
