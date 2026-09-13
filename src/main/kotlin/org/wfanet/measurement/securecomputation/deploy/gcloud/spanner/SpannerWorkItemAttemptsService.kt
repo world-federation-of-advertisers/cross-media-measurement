@@ -100,7 +100,8 @@ class SpannerWorkItemAttemptsService(
     }
     val expectedGeneration =
       request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
-    val leaseExpirationTime = clock.instant().plus(attemptLeaseDuration)
+    val leaseExpirationTime =
+      if (request.supportsAttemptLease) clock.instant().plus(attemptLeaseDuration) else null
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
@@ -146,7 +147,9 @@ class SpannerWorkItemAttemptsService(
               request.workItemAttempt.copy {
                 this.state = state
                 this.attemptNumber = attemptNumber
-                this.leaseExpirationTime = leaseExpirationTime.toProtoTime()
+                if (leaseExpirationTime != null) {
+                  this.leaseExpirationTime = leaseExpirationTime.toProtoTime()
+                }
               }
             }
           }

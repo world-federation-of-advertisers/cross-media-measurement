@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -92,6 +93,7 @@ class WorkItemAttemptsServiceTest {
       }
       workItemAttemptId = "workItemAttempt"
       expectedWorkItemGeneration = 1L
+      supportsAttemptLease = true
     }
     val response = service.createWorkItemAttempt(request)
 
@@ -102,6 +104,7 @@ class WorkItemAttemptsServiceTest {
       .isEqualTo(
         internalCreateWorkItemAttemptRequest {
           expectedWorkItemGeneration = request.expectedWorkItemGeneration
+          supportsAttemptLease = true
           this.workItemAttempt = internalWorkItemAttempt {
             workItemResourceId = internalWorkItemAttempt.workItemResourceId
             workItemAttemptResourceId = request.workItemAttemptId
@@ -555,6 +558,24 @@ class WorkItemAttemptsServiceTest {
         }
       )
     assertThat(response.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+  }
+
+  @Test
+  fun `renewWorkItemAttempt preserves UNIMPLEMENTED from older internal API`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { renewWorkItemAttempt(any()) } doThrow Status.UNIMPLEMENTED.asRuntimeException()
+    }
+
+    val exception =
+      assertFailsWith<StatusException> {
+        service.renewWorkItemAttempt(
+          renewWorkItemAttemptRequest {
+            name = "workItems/workItem/workItemAttempts/workItemAttempt"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNIMPLEMENTED)
   }
 
   @Test

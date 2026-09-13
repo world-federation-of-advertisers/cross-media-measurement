@@ -17,6 +17,7 @@ package org.wfanet.measurement.securecomputation.teesdk
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Parser
+import com.google.protobuf.timestamp
 import com.google.rpc.ErrorInfo
 import io.grpc.StatusException
 import io.grpc.protobuf.StatusProto
@@ -46,6 +47,7 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.atLeastOnce
 import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
@@ -212,6 +214,7 @@ class BaseTeeApplicationTest {
       createWorkItemAttempt(createRequestCaptor.capture())
     }
     assertThat(createRequestCaptor.firstValue.expectedWorkItemGeneration).isEqualTo(7L)
+    assertThat(createRequestCaptor.firstValue.supportsAttemptLease).isTrue()
 
     job.cancelAndJoin()
   }
@@ -258,9 +261,55 @@ class BaseTeeApplicationTest {
   }
 
   @Test
+  fun `does not renew attempt returned without lease by older API`() = runBlocking {
+    val testWorkItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+    }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+      onBlocking { renewWorkItemAttempt(any()) } doThrow
+        io.grpc.Status.UNIMPLEMENTED.asRuntimeException()
+      onBlocking { completeWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      object :
+        BaseTeeApplication(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = fakeSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = WorkItemsCoroutineStub(grpcTestServer.channel),
+          workItemAttemptsStub = WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+          attemptUpdateRetryDelay = {},
+          attemptLeaseRenewalInterval = Duration.ofNanos(1),
+        ) {
+        override suspend fun runWork(message: Any) {
+          repeat(10) { kotlinx.coroutines.yield() }
+        }
+      }
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "old-api-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { renewWorkItemAttempt(any()) }
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    job.cancelAndJoin()
+  }
+
+  @Test
   fun `renews active attempt lease while work is running`() = runBlocking {
     val testWorkItemAttempt = workItemAttempt {
       name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      leaseExpirationTime = timestamp { seconds = 1L }
     }
     val leaseRenewed = CompletableDeferred<Unit>()
     workItemAttemptsServiceMock.stub {

@@ -19,8 +19,8 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
 import kotlin.math.sqrt
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertThrows
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -37,7 +37,7 @@ class DirectImpressionResultBuilderTest {
 
   @Test
   fun `constructor rejects unrecognized impression cap mode`() {
-    assertThrows(IllegalArgumentException::class.java) {
+    assertFailsWith<IllegalArgumentException> {
       DirectImpressionResultBuilder(
         directProtocolConfig = DIRECT_PROTOCOL,
         frequencyData = IntArray(1),

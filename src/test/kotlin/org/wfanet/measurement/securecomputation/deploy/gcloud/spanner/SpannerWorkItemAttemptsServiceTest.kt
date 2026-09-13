@@ -129,6 +129,7 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
         attemptsService.createWorkItemAttempt(
           createWorkItemAttemptRequest {
             expectedWorkItemGeneration = workItem.generation
+            supportsAttemptLease = true
             workItemAttempt = workItemAttempt {
               workItemResourceId = workItem.workItemResourceId
               workItemAttemptResourceId = "leased-attempt"
@@ -174,6 +175,68 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
       assertThat((publisher.messages.last() as WorkItem).generation)
         .isEqualTo(workItem.generation + 1L)
     }
+
+  @Test
+  fun `attempt from caller without lease support is not reaped`() = runBlocking {
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    val publisher = RecordingPublisher()
+    val publicationRunner =
+      WorkItemPublicationRunner(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        publisher,
+        clock = clock,
+      )
+    val attemptsService =
+      SpannerWorkItemAttemptsService(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        Dispatchers.Default,
+        clock = clock,
+        attemptLeaseDuration = Duration.ofMinutes(5),
+      )
+    val workItemsService =
+      SpannerWorkItemsService(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        publicationRunner,
+      )
+    val workItem =
+      workItemsService.createWorkItem(
+        createWorkItemRequest {
+          this.workItem = workItem {
+            workItemResourceId = "legacy-worker-item"
+            queueResourceId = "test-topid-id"
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val attempt =
+      attemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "legacy-worker-attempt"
+          }
+        }
+      )
+
+    assertThat(attempt.hasLeaseExpirationTime()).isFalse()
+    clock.advance(Duration.ofHours(1))
+    assertThat(
+        WorkItemAttemptLeaseReaper(spannerDatabase.databaseClient, clock).recoverExpiredAttempts()
+      )
+      .isEqualTo(0)
+    assertThat(
+        workItemsService
+          .getWorkItem(getWorkItemRequest { workItemResourceId = workItem.workItemResourceId })
+          .state
+      )
+      .isEqualTo(WorkItem.State.RUNNING)
+  }
 
   @Test
   fun `concurrent duplicate deliveries create only one active attempt`() = runBlocking {

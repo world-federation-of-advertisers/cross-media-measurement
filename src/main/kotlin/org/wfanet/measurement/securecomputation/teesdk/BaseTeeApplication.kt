@@ -308,6 +308,7 @@ abstract class BaseTeeApplication(
             this.parent = parent
             this.workItemAttemptId = workItemAttemptId
             this.expectedWorkItemGeneration = expectedWorkItemGeneration
+            supportsAttemptLease = true
           }
         )
       }
@@ -335,6 +336,10 @@ abstract class BaseTeeApplication(
 
   private suspend fun runWorkWithLeaseRenewal(workItemAttempt: WorkItemAttempt, message: Any) =
     coroutineScope {
+      if (!workItemAttempt.hasLeaseExpirationTime()) {
+        runWork(message)
+        return@coroutineScope
+      }
       val renewalJob = launch {
         while (isActive) {
           delay(attemptLeaseRenewalInterval.toMillis())

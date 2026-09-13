@@ -57,6 +57,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGroupe
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SecureComputationRequisitionWorkItemDispatcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.toV1Alpha
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace
@@ -308,7 +309,7 @@ class RequisitionFetcherFunction : HttpFunction {
         SecureComputationRequisitionWorkItemDispatcher(
           workItemsStub = WorkItemsCoroutineStub(channel),
           queue = dispatchConfig.queue,
-          resultsFulfillerParams = dispatchConfig.resultsFulfillerParams,
+          resultsFulfillerParams = dispatchConfig.resultsFulfillerParams.toV1Alpha(),
           controlPlaneThrottler =
             MinimumIntervalThrottler(Clock.systemUTC(), controlPlaneRequestInterval),
         )
@@ -577,7 +578,7 @@ class RequisitionFetcherFunction : HttpFunction {
           "Missing 'results_fulfiller_params' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
         }
         ResultsFulfillerParamsValidator.validate(
-          dispatchConfig.resultsFulfillerParams,
+          dispatchConfig.resultsFulfillerParams.toV1Alpha(),
           dataProviderConfig.dataProvider,
         )
         require(dispatchConfig.hasControlPlaneConnection()) {
