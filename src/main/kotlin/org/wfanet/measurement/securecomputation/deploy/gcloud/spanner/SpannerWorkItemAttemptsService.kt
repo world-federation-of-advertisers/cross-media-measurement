@@ -198,7 +198,7 @@ class SpannerWorkItemAttemptsService(
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=failWorkItemAttempt"))
 
-    val workItemAttempt =
+    val (workItemAttempt, wasUpdated) =
       transactionRunner.run { txn ->
         try {
           val workItemAttemptResult =
@@ -209,7 +209,7 @@ class SpannerWorkItemAttemptsService(
           val workItemAttemptState = workItemAttemptResult.workItemAttempt.state
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
           when (workItemAttemptState) {
-            WorkItemAttempt.State.FAILED,
+            WorkItemAttempt.State.FAILED -> workItemAttemptResult.workItemAttempt to false
             WorkItemAttempt.State.SUCCEEDED,
             WorkItemAttempt.State.STATE_UNSPECIFIED,
             WorkItemAttempt.State.UNRECOGNIZED -> {
@@ -225,7 +225,7 @@ class SpannerWorkItemAttemptsService(
                   workItemAttemptResult.workItemId,
                   workItemAttemptResult.workItemAttemptId,
                 )
-              workItemAttemptResult.workItemAttempt.copy { this.state = state }
+              workItemAttemptResult.workItemAttempt.copy { this.state = state } to true
             }
           }
         } catch (e: WorkItemAttemptInvalidStateException) {
@@ -236,8 +236,10 @@ class SpannerWorkItemAttemptsService(
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
       }
-    return workItemAttempt.copy {
-      this.updateTime = transactionRunner.getCommitTimestamp().toProto()
+    return if (wasUpdated) {
+      workItemAttempt.copy { this.updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    } else {
+      workItemAttempt
     }
   }
 

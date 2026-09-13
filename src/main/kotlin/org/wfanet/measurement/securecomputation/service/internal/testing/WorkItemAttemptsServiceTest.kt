@@ -358,7 +358,7 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
-  fun `failWorkItemAttempt throws INVALID_WORK_ITEM_ATTEMPT_STATE if workItemAttempt state is not ACTIVE`() =
+  fun `failWorkItemAttempt returns WorkItemAttempt unchanged if state is FAILED`() =
     runBlocking {
       val services = initServices()
       val workItem = createWorkItem(services.workItemsService)
@@ -371,25 +371,42 @@ abstract class WorkItemAttemptsServiceTest {
         errorMessage = "ErrorMessage"
       }
 
-      services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
+      val failedAttempt = services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
+
+      val repeatedResponse =
+        services.service.failWorkItemAttempt(
+          failWorkItemAttemptRequest.copy { errorMessage = "Different error message" }
+        )
+
+      assertThat(repeatedResponse).isEqualTo(failedAttempt)
+    }
+
+  @Test
+  fun `failWorkItemAttempt throws INVALID_WORK_ITEM_ATTEMPT_STATE if state is SUCCEEDED`() =
+    runBlocking {
+      val services = initServices()
+      val workItem = createWorkItem(services.workItemsService)
+      val workItemAttempt =
+        createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).single()
+      services.service.completeWorkItemAttempt(
+        completeWorkItemAttemptRequest {
+          workItemResourceId = workItemAttempt.workItemResourceId
+          workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
+        }
+      )
+      val request = failWorkItemAttemptRequest {
+        workItemResourceId = workItemAttempt.workItemResourceId
+        workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
+      }
 
       val exception =
-        assertFailsWith<StatusRuntimeException> {
-          services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
-        }
+        assertFailsWith<StatusRuntimeException> { services.service.failWorkItemAttempt(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name
-            metadata[Errors.Metadata.WORK_ITEM_RESOURCE_ID.key] = "work_item_resource_id"
-            metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID.key] =
-              "work_item_attempt_resource_id_1"
-            metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "FAILED"
-          }
-        )
+      assertThat(exception.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name)
+      assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key))
+        .isEqualTo(WorkItemAttempt.State.SUCCEEDED.name)
     }
 
   @Test

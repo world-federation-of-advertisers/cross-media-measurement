@@ -59,7 +59,8 @@ service WorkItemAttempts {
 
   // Updates a `WorkItemAttempt`.
   //
-  // Update the State to `FAILED`
+  // Updates the state to `FAILED`. If this exact attempt is already `FAILED`,
+  // returns it without changing it.
   rpc FailWorkItemAttempt(FailWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) = "name";
@@ -115,24 +116,23 @@ message ListWorkItemAttemptsRequest {
         "control-plane.secure-computation.halo-cmm.org/WorkItem"
   ];
 
-  // The maximum number of reports to return. The service may return fewer than
+  // The maximum number of attempts to return. The service may return fewer than
   // this value.
-  // If unspecified, at most 50 work items will be returned.
-  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  // If unspecified, at most 50 attempts will be returned.
+  // The maximum value is 100; values above 100 will be coerced to 100.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
 
-  // A page token, received from a previous `ListWorkItems` call.
+  // A page token, received from a previous `ListWorkItemAttempts` call.
   // Provide this to retrieve the subsequent page.
   //
-  // When paginating, all other parameters provided to `ListWorkItems` must
-  // match the call that provided the page token.
+  // When paginating, `parent` must match the call that provided the page token.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for `ListWorkItemAttempts` method.
 message ListWorkItemAttemptsResponse {
   // The work item attempts from the specified work item. Ordered by
-  // `create_time`, descending.
+  // `create_time`, ascending.
   repeated WorkItemAttempt work_item_attempts = 1;
 
   // A token, which can be sent as `page_token` to retrieve the next page.

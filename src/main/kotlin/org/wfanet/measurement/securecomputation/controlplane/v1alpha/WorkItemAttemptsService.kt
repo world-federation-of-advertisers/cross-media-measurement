@@ -249,6 +249,14 @@ class WorkItemAttemptsService(
   override suspend fun listWorkItemAttempts(
     request: ListWorkItemAttemptsRequest
   ): ListWorkItemAttemptsResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val parentKey =
+      WorkItemKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (request.pageSize < 0) {
       throw InvalidFieldValueException("page_size") { fieldName -> "$fieldName cannot be negative" }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -272,10 +280,20 @@ class WorkItemAttemptsService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
       }
+    if (
+      internalPageToken != null &&
+        internalPageToken.after.workItemResourceId != parentKey.workItemId
+    ) {
+      throw InvalidFieldValueException("page_token") { fieldName ->
+          "$fieldName does not match parent"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val internalResponse: InternalListWorkItemAttemptsResponse =
       internalWorkItemAttemptsStub.listWorkItemAttempts(
         internalListWorkItemAttemptsRequest {
+          workItemResourceId = parentKey.workItemId
           this.pageSize = pageSize
           if (internalPageToken != null) {
             pageToken = internalPageToken
@@ -286,7 +304,7 @@ class WorkItemAttemptsService(
     return listWorkItemAttemptsResponse {
       workItemAttempts += internalResponse.workItemAttemptsList.map { it.toWorkItemAttempt() }
       if (internalResponse.hasNextPageToken()) {
-        nextPageToken = internalResponse.nextPageToken.after.toByteString().base64UrlEncode()
+        nextPageToken = internalResponse.nextPageToken.toByteString().base64UrlEncode()
       }
     }
   }

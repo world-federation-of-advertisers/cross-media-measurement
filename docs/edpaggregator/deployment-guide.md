@@ -41,6 +41,10 @@ None of the names below are prescriptive — they are only examples.
 | `VID_MODELS_BUCKET` | (Optional) bucket holding compiled VID model blobs |
 | `KINGDOM_PUBLIC_API_TARGET` | Kingdom public API gRPC target, e.g. `v2alpha.kingdom.example.org:8443` |
 | `SECURE_COMPUTATION_API_TARGET` | Secure Computation API gRPC target |
+| `SECURE_COMPUTATION_CERT_HOST` | DNS name in the Secure Computation API server certificate |
+| `CLIENT_CERT_PEM` / `CLIENT_KEY_PEM` | Operator client certificate and private key authorized to call the Secure Computation API |
+| `TRUSTED_ROOTS_PEM` | Root certificates used to verify the Secure Computation API |
+| `SPANNER_INSTANCE` / `SECURE_COMPUTATION_DATABASE` | Spanner instance and database backing the Secure Computation API |
 | `EDPA_METADATA_API_TARGET` | EDP Aggregator (Metadata Storage) API gRPC target |
 | `dataProviders/DATA_PROVIDER_ID` | An EDP's `DataProvider` resource name in the Kingdom |
 | `<edp-id>` | The per-EDP storage prefix the operator assigns to a data provider |
@@ -1223,24 +1227,75 @@ active publication lease.
 #### Recovering an abandoned running WorkItem
 
 To recover a `RUNNING` WorkItem after its worker exits without completing or failing the attempt,
-first call `FailWorkItemAttempt` for the exact active attempt that was inspected. Then call
-`RetryWorkItem`; it returns a `RUNNING` WorkItem to `QUEUED` only when no active attempt remains and
-publishes it again. A stale or repeated `RetryWorkItem` call cannot fail a replacement worker's
-attempt. Stale dead-letter deliveries are fenced by the WorkItem generation and are acknowledged
-without changing the replacement generation. Do this only after confirming that the original
-worker has stopped because the APIs do not currently provide an attempt lease, expiry, heartbeat,
-or authoritative worker-ownership signal. A same-generation redelivery for an already-`FAILED`
-WorkItem repeats the dead-letter listener's best-effort EDPA failure propagation, which repairs an
-interruption after the WorkItem transaction committed. For non-ResultsFulfiller applications, also
-wait until that propagation has finished before retrying; those external resource updates are not
-part of the Secure Computation transaction.
+first list the WorkItem's attempts and identify the exact active attempt:
 
-A duplicate delivery for the current generation is negatively acknowledged while a legitimate
-attempt remains active. If repeated delivery exhausts the subscription policy, the same-generation
-dead-letter message can fail that active WorkItem. Generation fencing protects replacement
-generations from stale deliveries, but it does not establish ownership or liveness within the
-current generation. Operators must still verify worker termination and use the exact-attempt
-recovery sequence above; automatic recovery requires a future attempt lease or heartbeat.
+```bash
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority SECURE_COMPUTATION_CERT_HOST \
+  -d '{"parent":"workItems/WORK_ITEM_ID","pageSize":100}' \
+  SECURE_COMPUTATION_API_TARGET \
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/ListWorkItemAttempts \
+  | jq '.workItemAttempts[]? | select(.state == "ACTIVE")'
+```
+
+If the response has `nextPageToken`, repeat the request with that value as `pageToken`. Confirm by
+external evidence that the worker for the returned attempt has stopped. The API does not currently
+provide an attempt lease, expiry, heartbeat, or authoritative worker-ownership signal. Do not fail
+an old attempt merely because it has exceeded a generic age threshold: legitimate work can be
+long-running.
+
+Fail only the exact attempt that was inspected:
+
+```bash
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority SECURE_COMPUTATION_CERT_HOST \
+  -d '{"name":"workItems/WORK_ITEM_ID/workItemAttempts/ATTEMPT_ID","errorMessage":"Operator confirmed that the original worker stopped"}' \
+  SECURE_COMPUTATION_API_TARGET \
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/FailWorkItemAttempt
+```
+
+Calling `FailWorkItemAttempt` again for that same already-`FAILED` attempt is idempotent. Finally,
+call `RetryWorkItem` using the command in step 7. It returns a `RUNNING` WorkItem to `QUEUED` only
+when no active attempt remains and publishes it again. A stale or repeated `RetryWorkItem` call
+cannot fail a replacement worker's attempt. Stale dead-letter deliveries are fenced by the WorkItem
+generation and are acknowledged without changing the replacement generation. A same-generation
+redelivery for an already-`FAILED` WorkItem repeats the dead-letter listener's best-effort EDPA
+failure propagation, which repairs an interruption after the WorkItem transaction committed. For
+non-ResultsFulfiller applications, also wait until that propagation has finished before retrying;
+those external resource updates are not part of the Secure Computation transaction.
+
+A duplicate delivery for the current generation is acknowledged while a legitimate attempt remains
+active. This prevents repeated duplicate delivery from reaching the dead-letter queue and failing
+healthy work. It also means queue redelivery does not recover an abandoned active attempt:
+operators must verify worker termination and use the exact-attempt recovery sequence above.
+Automatic recovery requires a future attempt lease or heartbeat.
+
+#### Monitoring old active attempts
+
+Alert on attempts that remain `ACTIVE` longer than the longest legitimate runtime for their queue.
+The following diagnostic query uses 30 minutes as an example threshold; choose a threshold for the
+deployed workload and run the query at a reasonable interval:
+
+```bash
+gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
+  --instance=SPANNER_INSTANCE \
+  --project=PROJECT_ID \
+  --sql='SELECT W.WorkItemResourceId,
+      A.WorkItemAttemptResourceId,
+      A.CreateTime,
+      TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), A.CreateTime, SECOND) AS ActiveSeconds
+    FROM WorkItemAttempts AS A
+    JOIN WorkItems AS W USING (WorkItemId)
+    WHERE A.State = 1
+      AND A.CreateTime < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 MINUTE)
+    ORDER BY A.CreateTime'
+```
+
+`WorkItemAttempt.State.ACTIVE` is stored as `1`. Treat a result as an investigation signal, not
+proof that the worker is dead. Use the exact-attempt recovery procedure above only after verifying
+that the worker stopped. Workers retry transient `CompleteWorkItemAttempt` and
+`FailWorkItemAttempt` RPC failures with bounded backoff, but exhausted retries, process termination,
+or a network partition can still leave an old active attempt that requires operator recovery.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

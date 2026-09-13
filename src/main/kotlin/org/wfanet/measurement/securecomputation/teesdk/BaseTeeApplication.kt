@@ -24,7 +24,9 @@ import io.grpc.StatusException
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.ReceiveChannel
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.queue.QueueSubscriber
@@ -49,6 +51,7 @@ import org.wfanet.measurement.securecomputation.service.WorkItemKey
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  * @param controlPlaneThrottler optional process-scoped limiter for `WorkItems` and
  *   `WorkItemAttempts` RPCs.
+ * @param attemptUpdateRetryDelay suspends before retrying a transient attempt-state update.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -57,6 +60,9 @@ abstract class BaseTeeApplication(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub,
   private val controlPlaneThrottler: Throttler? = null,
+  private val attemptUpdateRetryDelay: suspend (Int) -> Unit = { attempt ->
+    delay(ATTEMPT_UPDATE_RETRY_BACKOFF.durationForAttempt(attempt).toMillis())
+  },
 ) : AutoCloseable {
 
   /** Starts the TEE application by listening for messages on the specified queue. */
@@ -119,8 +125,12 @@ abstract class BaseTeeApplication(
           val invalidTerminalState =
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
               workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
+          val activeAttempt =
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState == WorkItem.State.RUNNING.name
           if (
             invalidTerminalState ||
+              activeAttempt ||
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {
@@ -210,10 +220,12 @@ abstract class BaseTeeApplication(
 
   private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
     try {
-      callControlPlane {
-        workItemAttemptsStub.completeWorkItemAttempt(
-          completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
-        )
+      retryAttemptUpdate("CompleteWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.completeWorkItemAttempt(
+            completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
+          )
+        }
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
@@ -225,13 +237,15 @@ abstract class BaseTeeApplication(
 
   private suspend fun failWorkItemAttempt(workItemAttempt: WorkItemAttempt, e: Exception) {
     try {
-      callControlPlane {
-        workItemAttemptsStub.failWorkItemAttempt(
-          failWorkItemAttemptRequest {
-            this.name = workItemAttempt.name
-            this.errorMessage = e.toString()
-          }
-        )
+      retryAttemptUpdate("FailWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.failWorkItemAttempt(
+            failWorkItemAttemptRequest {
+              this.name = workItemAttempt.name
+              this.errorMessage = e.toString()
+            }
+          )
+        }
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
@@ -262,6 +276,35 @@ abstract class BaseTeeApplication(
     return controlPlaneThrottler?.onReady(block) ?: block()
   }
 
+  private suspend fun retryAttemptUpdate(
+    operation: String,
+    workItemAttemptName: String,
+    block: suspend () -> Unit,
+  ) {
+    var attempt = 1
+    while (true) {
+      try {
+        block()
+        return
+      } catch (e: StatusException) {
+        if (
+          e.status.code !in RETRYABLE_ATTEMPT_UPDATE_CODES ||
+            attempt >= ATTEMPT_UPDATE_MAX_ATTEMPTS
+        ) {
+          throw e
+        }
+        logger.log(
+          Level.WARNING,
+          "$operation failed transiently for $workItemAttemptName on attempt $attempt of " +
+            "$ATTEMPT_UPDATE_MAX_ATTEMPTS; retrying",
+          e,
+        )
+        attemptUpdateRetryDelay(attempt)
+        attempt++
+      }
+    }
+  }
+
   override fun close() {
     logger.info("Closing BaseTeeApplication and QueueSubscriber for subscription: $subscriptionId")
     queueSubscriber.close()
@@ -270,6 +313,16 @@ abstract class BaseTeeApplication(
 
   companion object {
     protected val logger = Logger.getLogger(this::class.java.name)
+
+    private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
+    private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
+    private val RETRYABLE_ATTEMPT_UPDATE_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNAVAILABLE,
+      )
 
     private val TERMINAL_OR_INVALID_WORK_ITEM_STATES =
       setOf(
