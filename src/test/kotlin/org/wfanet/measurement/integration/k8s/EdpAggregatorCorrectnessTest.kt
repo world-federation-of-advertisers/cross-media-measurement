@@ -453,17 +453,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
 
     override val qa2026EventGroupReferenceIds: Set<String>
-      get() = qa2026EventGroupRefIdsByEdp.values.flatten().toSet()
+      get() = QA2026_REPORT_EVENT_GROUP_REF_IDS
 
     override val qa2026EventGroupEntityTypes: Set<String>
       get() =
         QA2026_PROVISIONED_CONFIG.eventGroupsList
           .flatMap { it.entityKeySpecsList }
+          .filter { "${it.entityType}-${it.entityId}" in QA2026_REPORT_EVENT_GROUP_REF_IDS }
           .map { it.entityType }
           .toSet()
 
     override val qa2026SingleEdpEventGroupReferenceIds: Set<String>
-      get() = qa2026EventGroupRefIdsByEdp.getValue(QA2026_SINGLE_EDP_NAME)
+      get() = QA2026_SINGLE_EDP_EVENT_GROUP_REF_IDS
 
     override val qa2026ExpectedReach:
       Map<String, Map<String, ClosedFloatingPointRange<Double>>> by lazy {
@@ -472,17 +473,18 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       } else {
         Qa2026ExpectedReach.computeRangesByGroupAndFilter(
           QA2026_PROVISIONED_CONFIG,
+          QA2026_REPORT_EVENT_GROUP_REF_IDS,
           QA2026_SINGLE_EDP_NAME,
           qa2026PopulationSpec,
-          qa2026EventDates.first(),
-          qa2026EventDates.last(),
+          QA2026_REPORT_START,
+          QA2026_REPORT_END,
           BASIC_REPORT_METRIC_SPEC_CONFIG,
         )
       }
     }
 
     override val qa2026ReportDates: List<LocalDate>
-      get() = qa2026EventDates
+      get() = listOf(QA2026_REPORT_START, QA2026_REPORT_END)
 
     override val reportingTestHarness: ReportingUserSimulator? by lazy {
       val modelLine = WriteQa2026ImpressionsRule.MODEL_LINE
@@ -750,6 +752,31 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     /** EDP the single-EDP result group reports on. */
     private const val QA2026_SINGLE_EDP_NAME = "edp7"
+
+    /**
+     * EventGroups the media-type and IQF report covers.
+     *
+     * A subset of the dataset, because every (week, filter, reporting unit) combination is a
+     * separate Measurement the EDP Aggregator fulfills by scanning impressions, and the expected
+     * values are regenerated from the same specs in process.
+     *
+     * The two `e7-meta` groups reach the **same** VIDs through both EDPs, so the cross-publisher
+     * reach counts them once; `meta-video` adds VIDs edp7 never reaches, so that reach is also
+     * strictly greater than the single-EDP reach. A union that either double-counted or dropped an
+     * EDP would fail one of those two.
+     */
+    private val QA2026_REPORT_EVENT_GROUP_REF_IDS =
+      setOf(
+        "ad_group-qa2026-e7-meta-edp7",
+        "ad_group-qa2026-e7-meta-edpa_meta",
+        "ad_group-qa2026-meta-video-edpa_meta-1",
+      )
+
+    private val QA2026_SINGLE_EDP_EVENT_GROUP_REF_IDS = setOf("ad_group-qa2026-e7-meta-edp7")
+
+    /** Reporting interval, within the flight of every EventGroup above. */
+    private val QA2026_REPORT_START: LocalDate = LocalDate.of(2026, 4, 1)
+    private val QA2026_REPORT_END: LocalDate = LocalDate.of(2026, 4, 15)
 
     /** The metric spec config the Reporting server is deployed with. */
     private val BASIC_REPORT_METRIC_SPEC_CONFIG: MetricSpecConfig by lazy {

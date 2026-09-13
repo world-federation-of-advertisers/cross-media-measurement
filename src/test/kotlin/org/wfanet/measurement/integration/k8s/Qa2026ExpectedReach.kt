@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 import kotlin.math.ln
@@ -49,16 +50,23 @@ object Qa2026ExpectedReach {
    */
   fun computeRangesByGroupAndFilter(
     config: ImpressionTestDataConfig,
+    eventGroupReferenceIds: Set<String>,
     singleEdpName: String,
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
     reportEnd: LocalDate,
     metricSpecConfig: MetricSpecConfig,
   ): Map<String, Map<String, ClosedFloatingPointRange<Double>>> {
+    val vidsByEdpAndFilter: Map<String, Map<String, Set<Long>>> =
+      vidsByEdpAndFilter(config, eventGroupReferenceIds, populationSpec, reportStart, reportEnd)
+
     val singleEdpVids: Map<String, Set<Long>> =
-      vidsByFilter(config, populationSpec, reportStart, reportEnd) { it == singleEdpName }
+      vidsByEdpAndFilter[singleEdpName]
+        ?: error("No EventGroups for $singleEdpName among $eventGroupReferenceIds")
     val allEdpVids: Map<String, Set<Long>> =
-      vidsByFilter(config, populationSpec, reportStart, reportEnd) { true }
+      FILTER_PREDICATES.keys.associateWith { label ->
+        vidsByEdpAndFilter.values.flatMapTo(mutableSetOf()) { it.getValue(label) }
+      }
 
     val singleTolerance = reachTolerance(metricSpecConfig.reachParams.singleDataProviderParams)
     val multipleTolerance = reachTolerance(metricSpecConfig.reachParams.multipleDataProviderParams)
@@ -75,35 +83,45 @@ object Qa2026ExpectedReach {
     (expected - tolerance)..(expected + tolerance)
 
   /**
-   * Returns the distinct VIDs matching each impression qualification filter, over the EDPs
-   * [edpNameFilter] admits.
+   * Returns the distinct VIDs matching each impression qualification filter, by EDP.
+   *
+   * Generation is bounded to the reporting interval, since a segment's flight can run far wider than
+   * the interval reported on. Each EDP is generated once; the cross-publisher expectation is the
+   * union, which deduplicates the VIDs a segment reaches through more than one EDP.
    */
-  private fun vidsByFilter(
+  private fun vidsByEdpAndFilter(
     config: ImpressionTestDataConfig,
+    eventGroupReferenceIds: Set<String>,
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
     reportEnd: LocalDate,
-    edpNameFilter: (String) -> Boolean,
-  ): Map<String, Set<Long>> {
+  ): Map<String, Map<String, Set<Long>>> {
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
     val endExclusive = reportEnd.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+    val timeRange: OpenEndRange<Instant> = start..<endExclusive
 
-    val vidsByFilter: Map<String, MutableSet<Long>> =
-      FILTER_PREDICATES.keys.associateWith { mutableSetOf<Long>() }
-
+    val byEdp = mutableMapOf<String, Map<String, MutableSet<Long>>>()
     for (eventGroup in config.eventGroupsList) {
-      if (!edpNameFilter(eventGroup.edpName)) continue
       for (entityKeySpec in eventGroup.entityKeySpecsList) {
+        val referenceId = "${entityKeySpec.entityType}-${entityKeySpec.entityId}"
+        if (referenceId !in eventGroupReferenceIds) continue
+
+        val vidsByFilter =
+          byEdp.getOrPut(eventGroup.edpName) {
+            FILTER_PREDICATES.keys.associateWith { mutableSetOf() }
+          }
         val spec =
-          ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(entityKeySpec.dataSpecResourcePath)
+          ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
+            entityKeySpec.dataSpecResourcePath
+          )
         for (shard in
           SyntheticDataGeneration.generateEvents(
             TestEvent.getDefaultInstance(),
             populationSpec,
             spec,
+            timeRange,
           )) {
           for (event in shard.labeledEvents) {
-            if (event.timestamp < start || event.timestamp >= endExclusive) continue
             for ((label, predicate) in FILTER_PREDICATES) {
               if (predicate(event.message)) {
                 vidsByFilter.getValue(label).add(event.vid)
@@ -113,7 +131,7 @@ object Qa2026ExpectedReach {
         }
       }
     }
-    return vidsByFilter
+    return byEdp
   }
 
   /**
