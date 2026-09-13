@@ -455,6 +455,13 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     override val qa2026EventGroupReferenceIds: Set<String>
       get() = qa2026EventGroupRefIdsByEdp.values.flatten().toSet()
 
+    override val qa2026EventGroupEntityTypes: Set<String>
+      get() =
+        QA2026_PROVISIONED_CONFIG.eventGroupsList
+          .flatMap { it.entityKeySpecsList }
+          .map { it.entityType }
+          .toSet()
+
     override val qa2026SingleEdpEventGroupReferenceIds: Set<String>
       get() = qa2026EventGroupRefIdsByEdp.getValue(QA2026_SINGLE_EDP_NAME)
 

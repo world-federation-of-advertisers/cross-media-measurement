@@ -53,6 +53,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
@@ -254,6 +255,7 @@ class ReportingUserSimulator(
     runId: String,
     singleEdpEventGroupReferenceIds: Set<String>,
     eventGroupReferenceIds: Set<String>,
+    eventGroupEntityTypes: Set<String>,
     reportStart: LocalDate,
     reportEnd: LocalDate,
   ): BasicReport {
@@ -264,7 +266,7 @@ class ReportingUserSimulator(
 
     val measurementConsumerKey =
       checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
-    val eventGroups: List<EventGroup> = getEventGroups(eventGroupReferenceIds)
+    val eventGroups: List<EventGroup> = getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
     val eventGroupsByReferenceId = eventGroups.associateBy { it.eventGroupReferenceId }
     val singleEdpDataProviders =
       singleEdpEventGroupReferenceIds
@@ -420,7 +422,14 @@ class ReportingUserSimulator(
    * @throws IllegalStateException if any reference ID has no EventGroup
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun getEventGroups(eventGroupReferenceIds: Set<String>): List<EventGroup> {
+  private suspend fun getEventGroups(
+    eventGroupReferenceIds: Set<String>,
+    entityTypes: Set<String>,
+  ): List<EventGroup> {
+    require(entityTypes.isNotEmpty()) {
+      "entity_type_in must be set; CMMS defaults it to [\"campaign\"], which hides every other " +
+        "entity type"
+    }
     val resourceLists: Flow<ResourceList<EventGroup, String>> =
       eventGroupsClient.listResources(Int.MAX_VALUE, "") { pageToken: String, _: Int ->
         val response =
@@ -430,6 +439,8 @@ class ReportingUserSimulator(
                 parent = measurementConsumerName
                 this.pageToken = pageToken
                 pageSize = EVENT_GROUP_PAGE_SIZE
+                structuredFilter =
+                  ListEventGroupsRequestKt.filter { entityTypeIn += entityTypes.sorted() }
               }
             )
           } catch (e: StatusException) {
@@ -438,15 +449,18 @@ class ReportingUserSimulator(
         ResourceList(response.eventGroupsList, response.nextPageToken)
       }
 
+    val allEventGroups: List<EventGroup> = resourceLists.flattenConcat().toList()
     val byReferenceId: Map<String, EventGroup> =
-      resourceLists
-        .flattenConcat()
-        .toList()
+      allEventGroups
         .filter { it.eventGroupReferenceId in eventGroupReferenceIds }
         .associateBy { it.eventGroupReferenceId }
 
     val missing = eventGroupReferenceIds - byReferenceId.keys
-    check(missing.isEmpty()) { "No EventGroups found for reference IDs $missing" }
+    check(missing.isEmpty()) {
+      "No EventGroups found for reference IDs $missing. " +
+        "Listed ${allEventGroups.size} EventGroups for $measurementConsumerName with reference IDs " +
+        allEventGroups.map { it.eventGroupReferenceId }.sorted()
+    }
     return byReferenceId.values.sortedBy { it.name }
   }
 

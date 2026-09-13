@@ -196,6 +196,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
         measurementSystem.runId,
         measurementSystem.qa2026SingleEdpEventGroupReferenceIds,
         measurementSystem.qa2026EventGroupReferenceIds,
+        measurementSystem.qa2026EventGroupEntityTypes,
         dates.first(),
         dates.last(),
       )
@@ -302,6 +303,14 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
 
     /** QA 2026 EventGroup reference IDs to report on. */
     val qa2026EventGroupReferenceIds: Set<String>
+      get() = emptySet()
+
+    /**
+     * Entity types of [qa2026EventGroupReferenceIds].
+     *
+     * Required: CMMS defaults `entity_type_in` to `["campaign"]`, hiding every other entity type.
+     */
+    val qa2026EventGroupEntityTypes: Set<String>
       get() = emptySet()
 
     /** The subset of [qa2026EventGroupReferenceIds] belonging to the single-EDP result group. */
