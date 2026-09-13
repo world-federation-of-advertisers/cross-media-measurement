@@ -421,23 +421,25 @@ class ReportingUserSimulator(
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun getEventGroups(eventGroupReferenceIds: Set<String>): List<EventGroup> {
+    val resourceLists: Flow<ResourceList<EventGroup, String>> =
+      eventGroupsClient.listResources(Int.MAX_VALUE, "") { pageToken: String, _: Int ->
+        val response =
+          try {
+            listEventGroups(
+              listEventGroupsRequest {
+                parent = measurementConsumerName
+                this.pageToken = pageToken
+                pageSize = EVENT_GROUP_PAGE_SIZE
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing EventGroups for $measurementConsumerName", e)
+          }
+        ResourceList(response.eventGroupsList, response.nextPageToken)
+      }
+
     val byReferenceId: Map<String, EventGroup> =
-      eventGroupsClient
-        .listResources { pageToken: String ->
-          val response =
-            try {
-              eventGroupsClient.listEventGroups(
-                listEventGroupsRequest {
-                  parent = measurementConsumerName
-                  this.pageToken = pageToken
-                  pageSize = EVENT_GROUP_PAGE_SIZE
-                }
-              )
-            } catch (e: StatusException) {
-              throw Exception("Error listing EventGroups for $measurementConsumerName", e)
-            }
-          ResourceList(response.eventGroupsList, response.nextPageToken)
-        }
+      resourceLists
         .flattenConcat()
         .toList()
         .filter { it.eventGroupReferenceId in eventGroupReferenceIds }
