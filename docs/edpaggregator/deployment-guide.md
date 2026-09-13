@@ -1136,44 +1136,18 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
 
 The `WorkItemPublications` migration does not backfill `QUEUED` WorkItems created by an older
 Secure Computation API binary. A mixed-version rollout can therefore leave a WorkItem without the
-outbox row that the new publication runner needs. Treat the following as a mandatory, quiesced
-rollout:
+outbox row that the new publication runner needs. For the ResultsFulfiller cutover, use the
+following controlled rollout. It reuses the existing WorkItems RPCs, ResultsFulfiller queue,
+Pub/Sub topic, subscription, and dead-letter queue; no version-suffixed RPC or parallel queue
+infrastructure is required.
 
-1. Pause every WorkItem producer.
-2. Let each configured Pub/Sub subscription drain, then wait until there are no active attempts:
-
-   ```bash
-   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
-     --instance=SPANNER_INSTANCE \
-     --project=PROJECT_ID \
-     --sql='SELECT COUNT(*) AS ActiveAttemptCount
-       FROM WorkItemAttempts
-       WHERE State = 1'
-   ```
-
-   `WorkItemAttempt.State.ACTIVE` is stored as `1`. Do not proceed until the query returns zero.
-3. Stop every consumer of the affected WorkItem queues. For ResultsFulfiller, set the managed
-   instance group's target size and autoscaler minimum to zero through the deployment configuration,
-   then verify that no ResultsFulfiller worker instance remains.
-4. Apply the Secure Computation Spanner migrations.
-5. Roll out every Secure Computation API replica and verify that no old replica remains:
-
-   ```bash
-   kubectl rollout status deployment/SECURE_COMPUTATION_API_DEPLOYMENT
-   kubectl get pods -l app=SECURE_COMPUTATION_API_APP_LABEL \
-     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
-   ```
-
-   This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
-   as generation 1, including requests from older consumers that omit the generation. Retried
-   terminal or abandoned WorkItems advance to generation 2 or later. Do not use `RetryWorkItem`
-   until every API replica and queue consumer understands generations: an old API does not fence a
-   generation-2 request, while an old consumer omits the generation and is correctly rejected as a
-   stale generation-1 delivery by a new API. Generation checks prevent stale ordinary and
-   dead-letter deliveries from changing a replacement execution.
-
-6. With producers and consumers still stopped, capture one immutable snapshot of `QUEUED` WorkItem
-   IDs that have no pending publication and no active attempt:
+1. Stop RequisitionFetcher and wait for every active invocation to finish.
+2. Drain or explicitly account for every outstanding legacy DataWatcher requisition event and its
+   resulting WorkItem. Do not enable direct dispatch while an unaccounted legacy event can still
+   create a WorkItem through an old API replica.
+3. Apply the additive Secure Computation Spanner migrations. While RequisitionFetcher remains
+   stopped and legacy events are drained, capture one immutable snapshot of pre-migration `QUEUED`
+   WorkItems that have no pending publication and no active attempt:
 
    ```bash
    gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
@@ -1194,8 +1168,22 @@ rollout:
 
    `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty file
    means no repair is needed. Keep this file unchanged for the remainder of the rollout.
-7. For each ID in that snapshot, call `RetryWorkItem` exactly once. The operation recreates a
-   missing publication for a `QUEUED` WorkItem:
+4. Roll out every Secure Computation API replica. Upgrade every ResultsFulfiller TEE worker and
+   existing DLQ consumer before enabling direct dispatch. Verify that no old Secure Computation API
+   replica remains:
+
+   ```bash
+   kubectl rollout status deployment/SECURE_COMPUTATION_API_DEPLOYMENT
+   kubectl get pods -l app=SECURE_COMPUTATION_API_APP_LABEL \
+     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.containers[*].image
+   ```
+
+   This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
+   as generation 1. Retried terminal or abandoned WorkItems advance to generation 2 or later.
+   Generation checks prevent stale ordinary and dead-letter deliveries from changing a replacement
+   execution.
+5. Do not invoke `RetryWorkItem` until step 4 has completed and all old Secure Computation API
+   replicas are gone. After that point, repair each ID in the immutable snapshot exactly once:
 
    ```bash
    grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
@@ -1205,22 +1193,25 @@ rollout:
      wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
    ```
 
-   Do not rerun the snapshot predicate: with consumers stopped, a successfully republished WorkItem
-   remains `QUEUED` and would match again.
-8. Restart the consumers and verify that every ID in `missing-work-item-publications.txt` leaves
-   `QUEUED`. Investigate any ID that remains queued before resuming WorkItem producers.
+   Do not rerun the snapshot predicate: a successfully published WorkItem can legitimately remain
+   `QUEUED` until a worker creates its attempt. Verify that every repaired ID subsequently leaves
+   `QUEUED`, and investigate any that does not.
+6. Resume WorkItem producers only after the API and consumer prerequisites above are complete. The
+   stacked direct-dispatch rollout documents when to deploy and activate RequisitionFetcher.
 
-Do not capture the repair snapshot while producers or subscribers are active: a WorkItem that was
-just published but has not yet started an attempt is temporarily indistinguishable from a
-pre-migration gap and could be published twice. Duplicate queue delivery is tolerated, but a
-quiesced rollout avoids creating it deliberately.
+The outbox behavior itself is unchanged by this rollout procedure: WorkItem creation writes the
+pending publication atomically, the publisher deletes that row only after Pub/Sub acknowledges the
+message, and `EnsureWorkItem` returns an existing matching WorkItem without republishing it.
+`RetryWorkItem` remains the explicit repair mechanism. This PR does not add or expand
+ResultsFulfiller-specific dead-letter behavior; the existing queue and EDPA-aware DLQ consumer are
+retained.
 
 #### Recovering after correcting a queue mapping
 
 When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
 it cannot block healthy work. After correcting the Secure Computation API queue mapping, wait for
 the publication deferral interval to expire (one minute by default). If an affected WorkItem does
-not resume automatically, call `RetryWorkItem` for that WorkItem using the command in step 7 above.
+not resume automatically, call `RetryWorkItem` for that WorkItem using the command in step 5 above.
 The targeted attempt bypasses the normal background priority order while still respecting an
 active publication lease.
 
@@ -1255,7 +1246,7 @@ grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
 ```
 
 Calling `FailWorkItemAttempt` again for that same already-`FAILED` attempt is idempotent. Finally,
-call `RetryWorkItem` using the command in step 7. It returns a `RUNNING` WorkItem to `QUEUED` only
+call `RetryWorkItem` using the command in step 5. It returns a `RUNNING` WorkItem to `QUEUED` only
 when no active attempt remains and publishes it again. A stale or repeated `RetryWorkItem` call
 cannot fail a replacement worker's attempt. Stale dead-letter deliveries are fenced by the WorkItem
 generation and are acknowledged without changing the replacement generation. A same-generation
