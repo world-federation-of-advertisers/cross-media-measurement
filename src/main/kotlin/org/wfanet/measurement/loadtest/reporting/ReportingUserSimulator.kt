@@ -322,7 +322,7 @@ class ReportingUserSimulator(
       resultGroupSpecs += resultGroupSpec {
         title = SINGLE_EDP_GROUP_TITLE
         reportingUnit = reportingUnit { components += singleEdpDataProviders.single() }
-        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        metricFrequency = metricFrequencySpec { total = true }
         dimensionSpec = dimensionSpec {}
         resultGroupMetricSpec = resultGroupMetricSpec {
           populationSize = true
@@ -342,7 +342,7 @@ class ReportingUserSimulator(
       resultGroupSpecs += resultGroupSpec {
         title = CROSS_PUB_GROUP_TITLE
         reportingUnit = reportingUnit { components += dataProviderNames }
-        metricFrequency = metricFrequencySpec { weekly = DayOfWeek.MONDAY }
+        metricFrequency = metricFrequencySpec { total = true }
         dimensionSpec = dimensionSpec {}
         resultGroupMetricSpec = resultGroupMetricSpec {
           populationSize = true
