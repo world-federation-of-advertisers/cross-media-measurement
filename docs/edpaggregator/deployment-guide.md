@@ -278,9 +278,10 @@ from a Pub/Sub subscription. Inside the TEE it:
 3. Computes the requisition result, applies the configured noise / k-anonymity, signs
    the result with the EDP's consent key, and returns it to the CMMS.
 
-Its per-WorkItem parameters are carried in RequisitionFetcher's separate direct-dispatch
-configuration as a `ResultsFulfillerParams` message; its per-EDP TLS / consent / KMS material is
-carried in the `event_data_provider_configs` file. See
+Its per-WorkItem parameters are defined in RequisitionFetcher's separate direct-dispatch
+configuration as an unversioned `ResultsFulfillerConfig` message. RequisitionFetcher validates and
+converts that configuration to the versioned `ResultsFulfillerParams` WorkItem payload at dispatch;
+its per-EDP TLS / consent / KMS material is carried in the `event_data_provider_configs` file. See
 [ResultsFulfiller parameters](#resultsfulfiller-parameters) and
 [EDP config (event_data_provider_configs)](#edp-config-event_data_provider_configs).
 
@@ -1031,12 +1032,12 @@ is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
-Each RequisitionFetcher direct-dispatch config entry's `results_fulfiller_params` is a
-`ResultsFulfillerParams` message
-(proto:
-`wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto`). Beyond the
-`data_provider`, `storage_params`, `consent_params`, and `cmms_connection` shown
-above, it supports:
+Each RequisitionFetcher direct-dispatch config entry's `results_fulfiller_params` is an
+unversioned `ResultsFulfillerConfig` message (proto:
+`wfa/measurement/config/edpaggregator/results_fulfiller_config.proto`). RequisitionFetcher converts
+it to the versioned `ResultsFulfillerParams` carried by the WorkItem. Beyond the `data_provider`,
+`storage_params`, `consent_params`, and `cmms_connection` shown above, the static configuration
+supports:
 
 * `noise_params.noise_type` — `NONE` / `CONTINUOUS_GAUSSIAN` (direct single-EDP
   results).
