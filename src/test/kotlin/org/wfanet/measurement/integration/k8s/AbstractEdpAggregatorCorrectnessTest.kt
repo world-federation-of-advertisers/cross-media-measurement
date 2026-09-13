@@ -275,9 +275,9 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
    */
   private fun reachOf(metricSet: ResultGroup.MetricSet, groupTitle: String): Long =
     if (groupTitle == ReportingUserSimulator.CROSS_PUB_GROUP_TITLE) {
-      metricSet.reportingUnit.nonCumulative.reach
+      metricSet.reportingUnit.cumulative.reach
     } else {
-      metricSet.componentsList.single().value.nonCumulative.reach
+      metricSet.componentsList.single().value.cumulative.reach
     }
 
   private fun filterLabel(result: ResultGroup.Result): String {

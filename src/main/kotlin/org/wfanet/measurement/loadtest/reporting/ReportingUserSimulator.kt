@@ -328,7 +328,7 @@ class ReportingUserSimulator(
           populationSize = true
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
-              nonCumulative =
+              cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   impressions = true
@@ -348,7 +348,7 @@ class ReportingUserSimulator(
           populationSize = true
           reportingUnit =
             ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-              nonCumulative =
+              cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   impressions = true
@@ -358,7 +358,7 @@ class ReportingUserSimulator(
             }
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
-              nonCumulative =
+              cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
                   impressions = true
