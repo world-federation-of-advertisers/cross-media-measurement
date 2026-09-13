@@ -28,8 +28,8 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 
 /**
- * Expected reach for the QA 2026 media-type and impression-qualification-filter report, derived from
- * the synthetic specs rather than from the impressions the EDP Aggregator reads.
+ * Expected reach for the QA 2026 media-type and impression-qualification-filter report, derived
+ * from the synthetic specs rather than from the impressions the EDP Aggregator reads.
  *
  * Reach is the number of distinct VIDs matching a filter over the reporting interval, unscaled: the
  * measured value is already scaled back up from the VID sampling interval, which affects only the
@@ -38,8 +38,8 @@ import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 object Qa2026ExpectedReach {
 
   /**
-   * Returns the acceptable reach range per impression qualification filter label for each of the two
-   * result groups.
+   * Returns the acceptable reach range per impression qualification filter label for each of the
+   * two result groups.
    *
    * @param config QA 2026 config restricted to the provisioned EDPs
    * @param singleEdpName the EDP the single-EDP result group reports on
@@ -85,9 +85,9 @@ object Qa2026ExpectedReach {
   /**
    * Returns the distinct VIDs matching each impression qualification filter, by EDP.
    *
-   * Generation is bounded to the reporting interval, since a segment's flight can run far wider than
-   * the interval reported on. Each EDP is generated once; the cross-publisher expectation is the
-   * union, which deduplicates the VIDs a segment reaches through more than one EDP.
+   * Generation is bounded to the reporting interval, since a segment's flight can run far wider
+   * than the interval reported on. Each EDP is generated once; the cross-publisher expectation is
+   * the union, which deduplicates the VIDs a segment reaches through more than one EDP.
    */
   private fun vidsByEdpAndFilter(
     config: ImpressionTestDataConfig,
@@ -161,12 +161,14 @@ object Qa2026ExpectedReach {
    */
   private val FILTER_PREDICATES: Map<String, (TestEvent) -> Boolean> =
     linkedMapOf(
-      ReportingUserSimulator.AMI_FILTER_ID to { event: TestEvent ->
-        event.hasVideo() || event.hasDisplay() || event.hasOther()
-      },
-      ReportingUserSimulator.MRC_FILTER_ID to { event: TestEvent ->
-        event.hasDisplay() && event.display.viewableFraction in MRC_VIEWABLE_FRACTIONS
-      },
+      ReportingUserSimulator.AMI_FILTER_ID to
+        { event: TestEvent ->
+          event.hasVideo() || event.hasDisplay() || event.hasOther()
+        },
+      ReportingUserSimulator.MRC_FILTER_ID to
+        { event: TestEvent ->
+          event.hasDisplay() && event.display.viewableFraction in MRC_VIEWABLE_FRACTIONS
+        },
       ReportingUserSimulator.CUSTOM_VIDEO_FILTER_LABEL to { event: TestEvent -> event.hasVideo() },
     )
 

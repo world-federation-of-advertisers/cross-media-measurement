@@ -266,7 +266,8 @@ class ReportingUserSimulator(
 
     val measurementConsumerKey =
       checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
-    val eventGroups: List<EventGroup> = getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
+    val eventGroups: List<EventGroup> =
+      getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
     val eventGroupsByReferenceId = eventGroups.associateBy { it.eventGroupReferenceId }
     val singleEdpDataProviders =
       singleEdpEventGroupReferenceIds
@@ -275,7 +276,8 @@ class ReportingUserSimulator(
     require(singleEdpDataProviders.size == 1) {
       "The single-EDP EventGroups span more than one DataProvider: $singleEdpDataProviders"
     }
-    val dataProviderNames: List<String> = eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
+    val dataProviderNames: List<String> =
+      eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
     require(dataProviderNames.size >= 2) {
       "The cross-publisher result group needs at least two DataProviders, got $dataProviderNames"
     }
@@ -465,7 +467,10 @@ class ReportingUserSimulator(
   }
 
   /** Creates the campaign group enumerating [eventGroups]. */
-  private suspend fun createCampaignGroup(eventGroups: List<EventGroup>, runId: String): ReportingSet {
+  private suspend fun createCampaignGroup(
+    eventGroups: List<EventGroup>,
+    runId: String,
+  ): ReportingSet {
     val reportingSetId = "media-iqf-$runId"
     val request = createReportingSetRequest {
       parent = measurementConsumerName
