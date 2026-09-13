@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkI
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
+import org.wfanet.measurement.securecomputation.service.QueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.WorkItemAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.WorkItemGenerationMismatchException
@@ -85,10 +86,13 @@ class WorkItemsService(
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS ->
             WorkItemAlreadyExistsException(request.workItem.name, e)
               .asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.QUEUE_NOT_FOUND ->
+            QueueNotFoundException.fromInternal(e).asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET ->
+            RequiredFieldNotSetException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
@@ -142,10 +146,13 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
             WorkItemInvalidStateException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.QUEUE_NOT_FOUND ->
+            QueueNotFoundException.fromInternal(e).asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET ->
+            RequiredFieldNotSetException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
-          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
-          InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,

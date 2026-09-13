@@ -1145,9 +1145,10 @@ queues; no version-suffixed RPC or parallel queue infrastructure is required.
 The outbox behavior itself is unchanged by this rollout procedure: WorkItem creation writes the
 pending publication atomically, the publisher deletes that row only after Pub/Sub acknowledges the
 message, and `EnsureWorkItem` returns an existing matching WorkItem without republishing it.
-`RetryWorkItem` remains the explicit repair mechanism. This PR does not add or expand
-ResultsFulfiller-specific dead-letter behavior; the existing queue and EDPA-aware DLQ consumer are
-retained.
+`RetryWorkItem` remains the explicit repair mechanism for a `QUEUED` WorkItem. New workers renew an
+attempt lease while work is active, and the internal API automatically fails and republishes an
+attempt whose lease expires. This PR does not add or expand ResultsFulfiller-specific dead-letter
+behavior; the existing queue and EDPA-aware DLQ consumer are retained.
 
 #### Recovering after correcting a queue mapping
 
@@ -1160,8 +1161,15 @@ active publication lease.
 
 #### Recovering an abandoned running WorkItem
 
-To recover a `RUNNING` WorkItem after its worker exits without completing or failing the attempt,
-first list the WorkItem's attempts and identify the exact active attempt:
+Workers created after this rollout renew their active attempt lease. If a worker exits or can no
+longer reach the control plane, the lease expires after five minutes by default. The internal API
+then atomically fails that exact attempt, advances the WorkItem generation, returns the WorkItem to
+`QUEUED`, and creates a new outbox publication. A late heartbeat or completion from the abandoned
+worker is rejected because its attempt is no longer active.
+
+Attempts created by an old worker have no lease and cannot be recovered automatically. If one of
+those attempts remains after rollout, or if automatic recovery must be performed manually, first
+list the WorkItem's attempts and identify the exact active attempt:
 
 ```bash
 grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
@@ -1172,10 +1180,10 @@ grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
   | jq '.workItemAttempts[]? | select(.state == "ACTIVE")'
 ```
 
-If the response has `nextPageToken`, repeat the request with that value as `pageToken`. Confirm by
-external evidence that the worker for the returned attempt has stopped. The API does not currently
-provide an attempt lease, expiry, heartbeat, or authoritative worker-ownership signal. Do not fail
-an old attempt merely because it has exceeded a generic age threshold: legitimate work can be
+If the response has `nextPageToken`, repeat the request with that value as `pageToken`. A current
+attempt includes `leaseExpirationTime`; an attempt created by an old worker does not. Confirm by
+external evidence that the worker for an unleased attempt has stopped. Do not fail an unleased
+attempt merely because it has exceeded a generic age threshold: legitimate work can be
 long-running.
 
 Fail only the exact attempt that was inspected:
@@ -1200,15 +1208,14 @@ those external resource updates are not part of the Secure Computation transacti
 
 A duplicate delivery for the current generation is acknowledged while a legitimate attempt remains
 active. This prevents repeated duplicate delivery from reaching the dead-letter queue and failing
-healthy work. It also means queue redelivery does not recover an abandoned active attempt:
-operators must verify worker termination and use the exact-attempt recovery sequence above.
-Automatic recovery requires a future attempt lease or heartbeat.
+healthy work. The attempt lease, rather than queue redelivery, detects an abandoned new-worker
+attempt. The exact-attempt procedure remains necessary for legacy attempts without a lease.
 
 #### Monitoring old active attempts
 
-Alert on attempts that remain `ACTIVE` longer than the longest legitimate runtime for their queue.
-The following diagnostic query uses 30 minutes as an example threshold; choose a threshold for the
-deployed workload and run the query at a reasonable interval:
+Alert on expired leased attempts and on unleased `ACTIVE` attempts left by old workers. The internal
+API normally recovers an expired lease within its polling interval, so either result remaining for
+more than a short grace period needs investigation:
 
 ```bash
 gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
@@ -1216,20 +1223,21 @@ gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
   --project=PROJECT_ID \
   --sql='SELECT W.WorkItemResourceId,
       A.WorkItemAttemptResourceId,
-      A.CreateTime,
-      TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), A.CreateTime, SECOND) AS ActiveSeconds
+      A.LeaseExpirationTime,
+      A.CreateTime
     FROM WorkItemAttempts AS A
     JOIN WorkItems AS W USING (WorkItemId)
     WHERE A.State = 1
-      AND A.CreateTime < TIMESTAMP_SUB(CURRENT_TIMESTAMP(), INTERVAL 30 MINUTE)
-    ORDER BY A.CreateTime'
+      AND (A.LeaseExpirationTime IS NULL
+        OR A.LeaseExpirationTime < CURRENT_TIMESTAMP())
+    ORDER BY A.LeaseExpirationTime, A.CreateTime'
 ```
 
-`WorkItemAttempt.State.ACTIVE` is stored as `1`. Treat a result as an investigation signal, not
-proof that the worker is dead. Use the exact-attempt recovery procedure above only after verifying
-that the worker stopped. Workers retry transient `CompleteWorkItemAttempt` and
-`FailWorkItemAttempt` RPC failures with bounded backoff, but exhausted retries, process termination,
-or a network partition can still leave an old active attempt that requires operator recovery.
+`WorkItemAttempt.State.ACTIVE` is stored as `1`. Workers retry transient lease, completion, and
+failure RPC errors with bounded backoff. The reaper resolves a current expired lease
+transactionally with a concurrent renewal or completion, so operators should normally wait for
+automatic recovery. Use the exact-attempt recovery procedure only for an unleased legacy attempt,
+or after investigating why the reaper did not recover an expired current attempt.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

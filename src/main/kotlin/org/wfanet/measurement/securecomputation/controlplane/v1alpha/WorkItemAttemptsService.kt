@@ -33,6 +33,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.createWork
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest as internalFailWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest as internalGetWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest as internalListWorkItemAttemptsRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.renewWorkItemAttemptRequest as internalRenewWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt as internalWorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.service.InvalidFieldValueException
@@ -175,6 +176,49 @@ class WorkItemAttemptsService(
             workItemResourceId = key.workItemId
             workItemAttemptResourceId = key.workItemAttemptId
             errorMessage = request.errorMessage
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND ->
+            WorkItemAttemptNotFoundException(request.name, e)
+              .asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE ->
+            WorkItemAttemptInvalidStateException.fromInternal(e)
+              .asStatusRuntimeException(e.status.code)
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.QUEUE_NOT_FOUND,
+          InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
+          InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
+          InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalResponse.toWorkItemAttempt()
+  }
+
+  override suspend fun renewWorkItemAttempt(request: RenewWorkItemAttemptRequest): WorkItemAttempt {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val key =
+      WorkItemAttemptKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    val internalResponse: InternalWorkItemAttempt =
+      try {
+        internalWorkItemAttemptsStub.renewWorkItemAttempt(
+          internalRenewWorkItemAttemptRequest {
+            workItemResourceId = key.workItemId
+            workItemAttemptResourceId = key.workItemAttemptId
           }
         )
       } catch (e: StatusException) {
