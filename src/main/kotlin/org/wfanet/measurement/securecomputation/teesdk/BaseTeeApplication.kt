@@ -24,8 +24,8 @@ import io.grpc.StatusException
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.delay
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.throttler.Throttler
@@ -288,8 +288,7 @@ abstract class BaseTeeApplication(
         return
       } catch (e: StatusException) {
         if (
-          e.status.code !in RETRYABLE_ATTEMPT_UPDATE_CODES ||
-            attempt >= ATTEMPT_UPDATE_MAX_ATTEMPTS
+          e.status.code !in RETRYABLE_ATTEMPT_UPDATE_CODES || attempt >= ATTEMPT_UPDATE_MAX_ATTEMPTS
         ) {
           throw e
         }
