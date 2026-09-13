@@ -119,8 +119,12 @@ abstract class BaseTeeApplication(
           val invalidTerminalState =
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
               workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
+          val activeAttempt =
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState == WorkItem.State.RUNNING.name
           if (
             invalidTerminalState ||
+              activeAttempt ||
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {

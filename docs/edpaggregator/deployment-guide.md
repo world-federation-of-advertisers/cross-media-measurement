@@ -1157,12 +1157,11 @@ interruption after the WorkItem transaction committed. For non-ResultsFulfiller 
 wait until that propagation has finished before retrying; those external resource updates are not
 part of the Secure Computation transaction.
 
-A duplicate delivery for the current generation is negatively acknowledged while a legitimate
-attempt remains active. If repeated delivery exhausts the subscription policy, the same-generation
-dead-letter message can fail that active WorkItem. Generation fencing protects replacement
-generations from stale deliveries, but it does not establish ownership or liveness within the
-current generation. Operators must still verify worker termination and use the exact-attempt
-recovery sequence above; automatic recovery requires a future attempt lease or heartbeat.
+A duplicate delivery for the current generation is acknowledged while a legitimate attempt remains
+active. This prevents repeated duplicate delivery from reaching the dead-letter queue and failing
+healthy work. It also means queue redelivery does not recover an abandoned active attempt:
+operators must verify worker termination and use the exact-attempt recovery sequence above.
+Automatic recovery requires a future attempt lease or heartbeat.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 
