@@ -249,12 +249,15 @@ class RequisitionFetcherTest {
 
   private fun createFetcher(
     storageClient: StorageClient = this.storageClient,
+    storagePathPrefix: String = STORAGE_PATH_PREFIX,
     metrics: RequisitionFetcherMetrics = testMetrics,
     flushInterval: Duration = RequisitionFetcher.DEFAULT_FLUSH_INTERVAL,
     maxTotalBufferedBytes: Long = RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
     maxRequisitionsPerGroup: Int = RequisitionFetcher.DEFAULT_MAX_REQUISITIONS_PER_GROUP,
     metadataThrottler: Throttler = this.throttler,
     workItemDispatcher: RequisitionWorkItemDispatcher? = null,
+    directStoragePathPrefix: String? =
+      if (workItemDispatcher == null) null else DIRECT_STORAGE_PATH_PREFIX,
   ): RequisitionFetcher {
     val validator =
       RequisitionsValidator(
@@ -273,9 +276,8 @@ class RequisitionFetcherTest {
       requisitionMetadataStub = requisitionMetadataStub,
       storageClient = storageClient,
       dataProviderName = TestRequisitionData.EDP_NAME,
-      storagePathPrefix = STORAGE_PATH_PREFIX,
-      directStoragePathPrefix =
-        if (workItemDispatcher == null) null else DIRECT_STORAGE_PATH_PREFIX,
+      storagePathPrefix = storagePathPrefix,
+      directStoragePathPrefix = directStoragePathPrefix,
       blobUriPrefix = BLOB_URI_PREFIX,
       requisitionValidator = validator,
       requisitionGrouper = grouper,
@@ -341,6 +343,33 @@ class RequisitionFetcherTest {
   @Test
   fun `constructor rejects non-positive maxTotalBufferedBytes`() {
     assertFailsWith<IllegalArgumentException> { createFetcher(maxTotalBufferedBytes = 0) }
+  }
+
+  @Test
+  fun `constructor rejects direct storage prefix below legacy prefix`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createFetcher(
+          workItemDispatcher = mock(),
+          directStoragePathPrefix = "$STORAGE_PATH_PREFIX/v2",
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("must not overlap")
+  }
+
+  @Test
+  fun `constructor rejects legacy storage prefix below direct prefix`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        createFetcher(
+          storagePathPrefix = "$DIRECT_STORAGE_PATH_PREFIX/legacy",
+          workItemDispatcher = mock(),
+          directStoragePathPrefix = DIRECT_STORAGE_PATH_PREFIX,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("must not overlap")
   }
 
   @Test

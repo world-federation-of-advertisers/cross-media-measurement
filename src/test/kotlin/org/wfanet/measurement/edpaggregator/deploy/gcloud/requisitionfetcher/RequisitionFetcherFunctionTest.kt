@@ -368,6 +368,27 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
+  fun `service fails closed when direct storage prefix is below legacy prefix`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    val mutableConfig = configFolder.root.toPath().resolve(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+    mutableConfig.toFile().writeText(
+      DIRECT_DISPATCH_CONFIG_SOURCE.toFile().readText().replace(
+        DIRECT_STORAGE_PATH_PREFIX,
+        "$STORAGE_PATH_PREFIX/v2",
+      )
+    )
+    startFunction(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+
+    val response = invokeFunction()
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("Invalid config")
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.listFiles()).isEmpty()
+  }
+
+  @Test
   fun `service reloads direct dispatch config for activation and rollback`() {
     functionProcess.close()
     val mutableConfig = configFolder.root.toPath().resolve(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)

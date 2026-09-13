@@ -864,7 +864,8 @@ configs {
 ```
 
 When an EDP has an entry in this file, the fetcher writes only the entry's
-`storage_path_prefix` and dispatches directly. The direct and legacy prefixes must differ. An
+`storage_path_prefix` and dispatches directly. The direct and legacy prefixes must be disjoint:
+neither may equal, contain, or be contained by the other at a path-segment boundary. An
 entry with a missing `data_provider`, a duplicate `data_provider`, or a `data_provider` absent from
 the legacy RequisitionFetcher config fails the invocation rather than silently changing dispatch
 ownership. Keep the DataWatcher `results-fulfiller` watched path restricted to the top-level legacy
@@ -887,23 +888,30 @@ API, worker, and DLQ prerequisites below are complete.
 
 Use this upgrade:
 
-1. Stop RequisitionFetcher and wait for active invocations to finish.
-2. Drain or explicitly account for outstanding legacy DataWatcher requisition events and their
-   WorkItems. Keep the legacy prefix and DataWatcher rule unchanged.
+1. Pause every WorkItem producer as required by the
+   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication). Stop
+   RequisitionFetcher and wait for active producer invocations to finish.
+2. Drain affected subscriptions, verify that no active attempt will be abandoned by a worker
+   replacement, and drain or explicitly account for outstanding legacy DataWatcher requisition
+   events and their WorkItems. Keep the legacy prefix and DataWatcher rule unchanged.
 3. Apply the additive Requisition Metadata and Secure Computation schema changes. Use the immutable
    snapshot procedure in
    [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication) to identify any
    pre-migration `QUEUED` WorkItems that need explicit repair.
-4. Roll out every Secure Computation API and Requisition Metadata API replica. Upgrade all
-   ResultsFulfiller TEE workers and the existing ResultsFulfiller DLQ consumers before enabling
-   direct dispatch.
+4. Roll out `secure-computation-internal-api-server`,
+   `secure-computation-public-api-server`, and every Requisition Metadata API replica. The existing
+   DLQ listeners are hosted by the Secure Computation internal API deployment. Upgrade every TEE
+   application before permitting generic `RetryWorkItem` use; at minimum, every ResultsFulfiller
+   worker must be upgraded before enabling direct dispatch.
 5. Deploy the new RequisitionFetcher binary, control-plane endpoint, TLS material, and separate
    `requisition-fetcher-direct-dispatch-config.textproto`, then resume RequisitionFetcher. Set each
-   direct `storage_path_prefix` to a dedicated prefix such as `<edp-id>/requisitions-v2`; it must not
-   match the legacy DataWatcher `source_path_regex`.
-6. Do not call `RetryWorkItem` until step 4 is complete and all old Secure Computation API replicas
-   are gone. After that point, use it only for the explicitly identified WorkItems described in the
-   durable-publication and recovery procedures.
+   direct `storage_path_prefix` to a dedicated prefix such as `<edp-id>/requisitions-v2`. It must
+   neither contain nor be contained by the legacy prefix, and the operator must confirm that the
+   actual legacy DataWatcher `source_path_regex` excludes it.
+6. Do not call `RetryWorkItem` until step 4 is complete, all old Secure Computation API replicas are
+   gone, and every consumer of the target queue is generation-aware. After that point, use it only
+   for the explicitly identified WorkItems described in the durable-publication and recovery
+   procedures.
 
 This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
 subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
