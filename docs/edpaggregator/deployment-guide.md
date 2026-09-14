@@ -279,9 +279,9 @@ from a Pub/Sub subscription. Inside the TEE it:
    the result with the EDP's consent key, and returns it to the CMMS.
 
 Its per-WorkItem parameters are defined in RequisitionFetcher's separate direct-dispatch
-configuration as an unversioned `ResultsFulfillerConfig` message. RequisitionFetcher validates and
-converts that configuration to the versioned `ResultsFulfillerParams` WorkItem payload at dispatch;
-its per-EDP TLS / consent / KMS material is carried in the `event_data_provider_configs` file. See
+configuration as the versioned `ResultsFulfillerParams` message. RequisitionFetcher validates and
+passes that message unchanged as the WorkItem payload; its per-EDP TLS / consent / KMS material is
+carried in the `event_data_provider_configs` file. See
 [ResultsFulfiller parameters](#resultsfulfiller-parameters) and
 [EDP config (event_data_provider_configs)](#edp-config-event_data_provider_configs).
 
@@ -883,42 +883,35 @@ The legacy and direct paths use separate object namespaces. Metadata registratio
 ownership boundary: the direct fetcher creates a group atomically in `QUEUED`, while a legacy group
 is created in `STORED`. Recovery uses each group's persisted `blob_uri`; it never moves a group
 between namespaces. A legacy group with any `PROCESSING` row remains owned by its existing
-DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob,
-which could emit a duplicate storage event. It still processes newly discovered requisitions for
-the same report through the direct namespace. The supported rollout deliberately stops
-RequisitionFetcher rather than depending on arbitrary mixed-version execution.
+DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
+It still processes newly discovered requisitions for the same report through the direct namespace.
 
 The separate configuration namespace prevents an old RequisitionFetcher binary from parsing a new
 field. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch when the
-blob is absent or empty and reload it on each invocation. Direct dispatch is enabled only after the
-API, worker, and DLQ prerequisites below are complete.
+blob is absent or empty and reload it on each invocation.
 
-Use this upgrade:
+Use this controlled-shutdown upgrade:
 
-1. Pause every WorkItem producer as required by the
-   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication). Stop
-   RequisitionFetcher and wait for active producer invocations to finish.
-2. Drain affected subscriptions, verify that no active attempt will be abandoned by a worker
-   replacement, and drain or explicitly account for outstanding legacy DataWatcher requisition
-   events and their WorkItems. Keep the legacy prefix and DataWatcher rule unchanged.
-3. Apply the additive Requisition Metadata and Secure Computation schema changes. Use the immutable
-   snapshot procedure in
-   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication) to identify any
-   pre-migration `QUEUED` WorkItems that need explicit repair.
-4. Roll out `secure-computation-internal-api-server`,
-   `secure-computation-public-api-server`, and every Requisition Metadata API replica. The existing
-   DLQ listeners are hosted by the Secure Computation internal API deployment. Upgrade every TEE
-   application before permitting generic `RetryWorkItem` use; at minimum, every ResultsFulfiller
-   worker must be upgraded before enabling direct dispatch.
-5. Deploy the new RequisitionFetcher binary, control-plane endpoint, TLS material, and separate
-   `requisition-fetcher-direct-dispatch-config.textproto`, then resume RequisitionFetcher. Set each
-   direct `storage_path_prefix` to a dedicated prefix such as `<edp-id>/requisitions-v2`. It must
-   neither contain nor be contained by the legacy prefix, and the operator must confirm that the
-   actual legacy DataWatcher `source_path_regex` excludes it.
-6. Do not call `RetryWorkItem` until step 4 is complete, all old Secure Computation API replicas are
-   gone, and every consumer of the target queue is generation-aware. After that point, use it only
-   for the explicitly identified WorkItems described in the durable-publication and recovery
-   procedures.
+1. Stop both Secure Computation API deployments, DataWatcher, RequisitionFetcher, and every
+   WorkItem TEE consumer. Allow in-flight Cloud Function invocations to finish. Leave unclaimed
+   Pub/Sub messages queued; no subscription drain, WorkItem snapshot, or legacy-event accounting is
+   required.
+2. Run the `Update CMMS` release workflow. As described in
+   [durable WorkItem publication](#rolling-out-durable-workitem-publication), the workflow holds all
+   WorkItem TEE managed instance groups at zero, applies the additive schemas, fully rolls both
+   Secure Computation API deployments, and only then starts the new TEE workers. The workflow also
+   rolls every Requisition Metadata API replica before it completes.
+3. Populate `requisition-fetcher-direct-dispatch-config.textproto` and resume DataWatcher and
+   RequisitionFetcher. Set each direct `storage_path_prefix` to a dedicated prefix such as
+   `<edp-id>/requisitions-v2`. It must neither contain nor be contained by any legacy or direct
+   prefix in the same bucket, and the actual legacy DataWatcher `source_path_regex` must exclude it.
+
+The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
+The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
+Eventarc, so retained legacy events can be redelivered safely. A new lease-capable worker atomically
+replaces an unleased attempt left by a stopped old worker when its Pub/Sub message is redelivered.
+These recovery paths remove the previous snapshot, manual `RetryWorkItem`, active-attempt drain, and
+legacy-event accounting steps from the upgrade.
 
 This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
 subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
@@ -927,10 +920,8 @@ ownership registration. The existing EDPA-aware DLQ behavior predates this chang
 expanded for ResultsFulfiller.
 
 After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
-failure, then call `RetryWorkItem` explicitly. Upgraded workers renew their attempt leases, and the
-Secure Computation internal API automatically fails and republishes an attempt after its lease
-expires. The documented exact-attempt failure and `RetryWorkItem` procedure remains necessary for
-an attempt created by an old worker, which has no lease.
+failure, then call `RetryWorkItem` explicitly. Upgraded workers renew attempt leases, and the Secure
+Computation internal API automatically republishes an attempt after its lease expires.
 
 For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
 the legacy DataWatcher intentionally does not watch that namespace. Then remove the EDP entry from
@@ -1032,12 +1023,11 @@ is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
-Each RequisitionFetcher direct-dispatch config entry's `results_fulfiller_params` is an
-unversioned `ResultsFulfillerConfig` message (proto:
-`wfa/measurement/config/edpaggregator/results_fulfiller_config.proto`). RequisitionFetcher converts
-it to the versioned `ResultsFulfillerParams` carried by the WorkItem. Beyond the `data_provider`,
-`storage_params`, `consent_params`, and `cmms_connection` shown above, the static configuration
-supports:
+Each RequisitionFetcher direct-dispatch config entry's `results_fulfiller_params` is a versioned
+`wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams` message. It crosses the Cloud
+Function-to-TEE boundary as the WorkItem payload, so RequisitionFetcher validates and passes it
+without converting it to a duplicated unversioned wire schema. Beyond the `data_provider`,
+`storage_params`, `consent_params`, and `cmms_connection` shown above, it supports:
 
 * `noise_params.noise_type` — `NONE` / `CONTINUOUS_GAUSSIAN` (direct single-EDP
   results).

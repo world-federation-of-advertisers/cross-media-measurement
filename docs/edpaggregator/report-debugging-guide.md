@@ -600,15 +600,15 @@ Trace:
    before enabling direct dispatch. When a deterministic WorkItem is `FAILED` while associated
    metadata remains `QUEUED` or `PROCESSING`, RequisitionFetcher reports the inconsistency but does
    not retry it. After remediation, an operator can call `RetryWorkItem`; the control plane
-   atomically returns the WorkItem to `QUEUED`, recreates its outbox row, and republishes it. The
-   recovery sequence for an abandoned `RUNNING` WorkItem is different: confirm that the original
-   worker has stopped, call `FailWorkItemAttempt` for the exact active attempt, and only then call
-   `RetryWorkItem`. `RetryWorkItem` rejects a `RUNNING` WorkItem while an active attempt remains. A
-   `SUCCEEDED` WorkItem paired with unfinished metadata is inconsistent and still requires
-   investigation.
+   atomically returns the WorkItem to `QUEUED`, recreates its outbox row, and republishes it. During
+   the controlled upgrade, a new lease-capable worker that receives a redelivery for an unleased
+   active attempt atomically replaces that attempt without changing the WorkItem generation. Leased
+   attempts recover automatically after lease expiry. `RetryWorkItem` still rejects a `RUNNING`
+   WorkItem while an active leased attempt remains. A `SUCCEEDED` WorkItem paired with unfinished
+   metadata is inconsistent and still requires investigation.
 
-   The legacy **data-watcher** remains enabled for the top-level legacy requisition
-   prefix during and after migration. It must not match the dedicated
+   The legacy **data-watcher** remains configured for the top-level legacy requisition prefix. It
+   is stopped for the controlled upgrade and resumed afterward. It must not match the dedicated
    direct-dispatch `storage_path_prefix`. For a legacy group, a GCS
    `object.finalized` Eventarc trigger submits the WorkItem:
 
