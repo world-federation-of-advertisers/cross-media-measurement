@@ -1060,7 +1060,9 @@ The repository's top-level **Update CMMS** workflow is the supported upgrade pat
 the child Terraform, Secure Computation, or EDP Aggregator deployment workflows independently for
 this migration; doing so bypasses the worker-quiescence barrier.
 
-Configure the deployment, then run **Update CMMS** once. The workflow performs the required order:
+Configure the deployment, then run **Update CMMS** once. An environment-scoped concurrency lock
+prevents two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
+performs the required order:
 
 1. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
    its autoscaler and sets its target size to zero.
@@ -1075,9 +1077,9 @@ Configure the deployment, then run **Update CMMS** once. The workflow performs t
 6. Continue the remaining deployment and tests normally.
 
 If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
-consumers disabled and rerun or complete the API rollout. Do not enable a TEE MIG independently.
-Do not manually scale the API deployments to zero: their manifests do not explicitly restore
-replica counts, so manual scaling can leave them stopped.
+consumers disabled and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
+independently. Do not manually scale the API deployments to zero: their manifests do not
+explicitly restore replica counts, so manual scaling can leave them stopped.
 
 DataWatcher, RequisitionFetcher, and Pub/Sub remain running during this process. Unclaimed messages
 remain queued and must not be drained. Old and new API replicas may overlap during their Kubernetes
