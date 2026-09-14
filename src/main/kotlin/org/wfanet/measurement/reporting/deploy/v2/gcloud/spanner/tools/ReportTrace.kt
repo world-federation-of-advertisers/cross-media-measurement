@@ -2379,6 +2379,7 @@ internal class ReportTrace(
             collection.generatedAt,
           )
         )
+      spec.commandLine().out.flush()
       return exitCode(collection.status)
     }
 
@@ -3045,6 +3046,7 @@ internal class ReportTrace(
   private fun writeArtifact(outputDirectory: Path?, fileName: String, contents: String): Path? {
     if (outputDirectory == null) {
       spec.commandLine().out.print(contents)
+      spec.commandLine().out.flush()
       return null
     }
     val outputPath = outputDirectory.resolve(fileName).normalize()

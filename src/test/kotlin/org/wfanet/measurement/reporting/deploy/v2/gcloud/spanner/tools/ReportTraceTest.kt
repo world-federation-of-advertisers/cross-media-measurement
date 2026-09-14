@@ -26,6 +26,7 @@ import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import java.io.BufferedWriter
 import java.io.PrintWriter
 import java.io.StringWriter
 import java.net.http.HttpClient
@@ -124,7 +125,7 @@ class ReportTraceTest {
         resolverFactory = { _, _ -> error("Resolver should not be used in direct mode") },
         resolverOverride = null,
         clock = Clock.fixed(NOW, ZoneOffset.UTC),
-        output = PrintWriter(output),
+        output = PrintWriter(BufferedWriter(output)),
         error = PrintWriter(error),
       )
 
