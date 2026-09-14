@@ -97,8 +97,17 @@ class UploadHealingWorkflowTest {
     object : RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase() {
       override suspend fun listRankIndexBlobs(request: ListRankIndexBlobsRequest) =
         listRankIndexBlobsResponse {
-          if (request.parent to request.filter.cmmsModelLine in activeSnapshots) {
-            rankIndexBlobs += rankIndexBlob { name = "${request.parent}/rankIndexBlobs/snapshot" }
+          val wildcardParent = request.parent.endsWith("/rawImpressionUploads/-")
+          for ((uploadName, cmmsModelLine) in activeSnapshots) {
+            if (
+              (wildcardParent || uploadName == request.parent) &&
+                cmmsModelLine == request.filter.cmmsModelLine
+            ) {
+              rankIndexBlobs += rankIndexBlob {
+                name = "$uploadName/rankIndexBlobs/snapshot"
+                this.cmmsModelLine = cmmsModelLine
+              }
+            }
           }
         }
     }
