@@ -188,6 +188,7 @@ locals {
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
+    paused                    = !var.requisition_fetcher_enabled
     scheduler_sa_display_name = "Requisition Fetcher Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger requisition fetcher"
     scheduler_job_description = "Scheduled job to fetch unfulfilled requisitions from the Kingdom"
@@ -474,7 +475,6 @@ module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
   tee_consumers_enabled                            = var.tee_consumers_enabled
-  direct_requisition_dispatch_enabled              = var.direct_requisition_dispatch_enabled
   requisition_fulfiller_config                     = local.requisition_fulfiller_config
   pubsub_iam_service_account_member                = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                       = var.secure_computation_storage_bucket_name

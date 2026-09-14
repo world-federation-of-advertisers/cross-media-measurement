@@ -282,22 +282,30 @@ abstract class BaseTeeApplication(
     } catch (e: Exception) {
       recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      try {
-        failWorkItemAttempt(workItemAttempt, e)
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Throwable) {
-        recordFailureWriteback(
-          spanName = "secure_computation.work_item_attempt.failure_writeback",
-          lifecycleStage = "work_item_attempt_failure_writeback",
-          workItemName = body.name,
-          workItemAttemptName = workItemAttempt.name,
-          error = error,
-        )
-        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+      val failureReported =
+        try {
+          failWorkItemAttempt(workItemAttempt, e)
+          true
+        } catch (error: CancellationException) {
+          throw error
+        } catch (error: Throwable) {
+          recordFailureWriteback(
+            spanName = "secure_computation.work_item_attempt.failure_writeback",
+            lifecycleStage = "work_item_attempt_failure_writeback",
+            workItemName = body.name,
+            workItemAttemptName = workItemAttempt.name,
+            error = error,
+          )
+          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+          false
+        }
+      if (workItemAttempt.hasLeaseExpirationTime() && failureReported) {
+        logger.info("WorkItemAttempt failure reported. Acking message ${queueMessage.ackId}")
+        queueMessage.ack()
+      } else {
+        logger.info("Nacking message ${queueMessage.ackId} after error")
+        queueMessage.nack()
       }
-      logger.info("Nacking message ${queueMessage.ackId} after error")
-      queueMessage.nack()
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }

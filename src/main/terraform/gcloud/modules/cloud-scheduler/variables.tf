@@ -24,6 +24,7 @@ variable "scheduler_config" {
     scheduler_job_description = string
     scheduler_job_name        = optional(string)
     attempt_deadline          = optional(string, "180s")
+    paused                    = optional(bool, false)
   })
   nullable = false
 }

@@ -81,10 +81,6 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
  *   RPCs. Default `100ms`.
- * - `DIRECT_WORK_ITEM_DISPATCH_ENABLED`: Optional rollout gate. When `false`, this version
- *   validates configuration and returns without fetching or dispatching work. The existing name is
- *   retained so older revisions also disable direct dispatch during a rolling replacement. Default
- *   `true`.
  * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required when direct WorkItem dispatch is
  *   configured.
  * - `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`: Optional. Server name for the Secure Computation
@@ -139,9 +135,6 @@ class RequisitionFetcherFunction : HttpFunction {
       if (errors.isNotEmpty()) {
         response.setStatusCode(500)
         response.writer.write("Completed with errors:\n" + errors.joinToString("\n"))
-      } else if (!requisitionFetcherEnabled) {
-        response.setStatusCode(200)
-        response.writer.write("RequisitionFetcher is disabled")
       } else {
         response.setStatusCode(200)
         response.writer.write("All requisitions fetched successfully")
@@ -167,11 +160,9 @@ class RequisitionFetcherFunction : HttpFunction {
           "Missing 'work_item_dispatch' for data provider: ${dataProviderConfig.dataProvider}."
         }
       validateConfig(dataProviderConfig, dispatchConfig)
-      if (requisitionFetcherEnabled) {
-        val requisitionFetcher = createRequisitionFetcher(dataProviderConfig, dispatchConfig)
-        runBlocking(Context.current().asContextElement()) {
-          requisitionFetcher.fetchAndStoreRequisitions()
-        }
+      val requisitionFetcher = createRequisitionFetcher(dataProviderConfig, dispatchConfig)
+      runBlocking(Context.current().asContextElement()) {
+        requisitionFetcher.fetchAndStoreRequisitions()
       }
     }
 
@@ -459,12 +450,6 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
-    private val requisitionFetcherEnabled: Boolean =
-      System.getenv("DIRECT_WORK_ITEM_DISPATCH_ENABLED")?.let { value ->
-        requireNotNull(value.toBooleanStrictOrNull()) {
-          "DIRECT_WORK_ITEM_DISPATCH_ENABLED must be 'true' or 'false'"
-        }
-      } ?: true
     private val requisitionFetcherConfig by lazy {
       runBlocking {
         getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
