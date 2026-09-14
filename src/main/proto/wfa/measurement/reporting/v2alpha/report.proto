@@ -48,6 +48,15 @@ message Report {
   // Resource name.
   string name = 1;
 
+  // The `BasicReport` that originated this `Report`, if any.
+  string basic_report = 11 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/BasicReport"
+    }
+  ];
+
   // A map of arbitrary key-value pairs to support tagging of Reports
   // for upstream use by UIs and other rich clients.
   map<string, string> tags = 9 [(google.api.field_behavior) = IMMUTABLE];
