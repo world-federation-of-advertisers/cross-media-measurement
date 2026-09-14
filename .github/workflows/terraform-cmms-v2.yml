@@ -253,6 +253,19 @@ jobs:
         bazelisk build //src/main/k8s/testing/secretfiles:gen_trusted_certs
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
+    - name: Validate direct RequisitionFetcher dispatch configuration
+      if: ${{ inputs.direct-requisition-dispatch-enabled }}
+      env:
+        CONFIG_DIR: ${{ runner.temp }}/configs
+        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:ValidateRequisitionFetcherConfig \
+          -- \
+          --requisition-fetcher-config="$CONFIG_DIR/requisition-fetcher-config.textproto" \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto" \
+          --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+
     - name: terraform init
       env:
         TF_STORAGE_BUCKET: ${{ vars.TF_STORAGE_BUCKET }}

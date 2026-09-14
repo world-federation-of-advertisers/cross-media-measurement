@@ -7,6 +7,17 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "requisition_fetcher_config_validator",
+    srcs = ["RequisitionFetcherConfigValidator.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_fetcher",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_params_validator",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:requisition_fetcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+    ],
+)
+
+kt_jvm_library(
     name = "requisition_fetcher_function",
     srcs = ["RequisitionFetcherFunction.kt"],
     deps = [
@@ -29,6 +40,25 @@ kt_jvm_library(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
+)
+
+kt_jvm_library(
+    name = "validate_requisition_fetcher_config",
+    srcs = ["ValidateRequisitionFetcherConfig.kt"],
+    deps = [
+        ":requisition_fetcher_config_validator",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:requisition_fetcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "ValidateRequisitionFetcherConfig",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.ValidateRequisitionFetcherConfig",
+    runtime_deps = [":validate_requisition_fetcher_config"],
 )
 
 java_binary(
