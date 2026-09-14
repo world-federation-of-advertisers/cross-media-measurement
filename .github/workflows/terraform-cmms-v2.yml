@@ -37,6 +37,10 @@ on:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
         default: true
+    outputs:
+      work_item_tee_mig_names:
+        description: WorkItem-consuming Managed Instance Group names as JSON
+        value: ${{ jobs.terraform.outputs.work_item_tee_mig_names }}
   workflow_dispatch:
     inputs:
       environment:
@@ -70,6 +74,8 @@ jobs:
       contents: read
       id-token: write
     environment: ${{ inputs.environment }}
+    outputs:
+      work_item_tee_mig_names: ${{ steps.terraform_outputs.outputs.work_item_tee_mig_names }}
     env:
       GCLOUD_MODULE_PATH: src/main/terraform/gcloud/cmms
       GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
@@ -411,3 +417,11 @@ jobs:
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
+
+    - name: Read WorkItem TEE MIG names
+      id: terraform_outputs
+      if: ${{ inputs.apply }}
+      working-directory: ${{ env.GCLOUD_MODULE_PATH }}
+      run: |
+        mig_names=$(terraform output -json work_item_tee_mig_names | jq -c .)
+        echo "work_item_tee_mig_names=$mig_names" >> "$GITHUB_OUTPUT"

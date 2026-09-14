@@ -1056,42 +1056,54 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
 
 #### Rolling out durable WorkItem publication
 
-Use a controlled shutdown for the upgrade: stop both Secure Computation API deployments,
-DataWatcher, RequisitionFetcher, and every WorkItem TEE consumer (ResultsFulfiller,
-SubpoolAssigner, VidRankBuilder, and VidLabeler). Allow in-flight Cloud Function invocations to
-finish before continuing. Unclaimed Pub/Sub messages may remain queued; do not drain the
-subscriptions or take a WorkItem snapshot.
+The repository's top-level **Update CMMS** workflow is the supported upgrade path. Do not invoke
+the child Terraform, Secure Computation, or EDP Aggregator deployment workflows independently for
+this migration; doing so bypasses the worker-quiescence barrier.
 
-Run the `Update CMMS` release workflow while those components are stopped. The workflow applies
-Terraform once with every WorkItem TEE managed instance group held at zero, rolls both
-`secure-computation-internal-api-server` and `secure-computation-public-api-server` completely, and
-then applies Terraform again to enable the new TEE workers. This ordering prevents a lease-capable
-worker from reaching an API replica that does not implement lease renewal. It also ensures that no
-old TEE remains active when a new worker replaces an unleased attempt. For TEE consumers not
-managed by this workflow, keep them stopped until both API deployments have completed.
+Configure the deployment, then run **Update CMMS** once. The workflow performs the required order:
 
-After the workflow succeeds, resume DataWatcher and RequisitionFetcher if their triggers were
-paused outside Terraform. The upgraded system recovers the stopped backlog automatically:
+1. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
+   its autoscaler and sets its target size to zero.
+2. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
+   then verify that each has target size zero and no remaining instances. Any failure stops the
+   workflow before an API is rolled.
+3. Roll `secure-computation-internal-api-server` and
+   `secure-computation-public-api-server`, waiting for every replica to complete.
+4. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
+5. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers and
+   starts only the new worker version.
+6. Continue the remaining deployment and tests normally.
 
-* The publication runner finds every `QUEUED` WorkItem whose generation has not been scheduled,
-  creates a missing outbox row, and records the scheduled generation in the same transaction.
-  This repairs WorkItems created by an older API without requiring a snapshot or `RetryWorkItem`.
-* A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
-  that legacy attempt and creates its new leased attempt at the same WorkItem generation. This is
-  safe because the controlled shutdown guarantees that the old worker is no longer running.
+If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
+consumers disabled and rerun or complete the API rollout. Do not enable a TEE MIG independently.
+Do not manually scale the API deployments to zero: their manifests do not explicitly restore
+replica counts, so manual scaling can leave them stopped.
+
+DataWatcher, RequisitionFetcher, and Pub/Sub remain running during this process. Unclaimed messages
+remain queued and must not be drained. Old and new API replicas may overlap during their Kubernetes
+rolling updates because no TEE consumes WorkItems until both API layers are ready. Compatibility and
+automatic recovery cover producer traffic during that interval:
+
+* The publication runner continuously finds every `QUEUED` WorkItem whose generation has not been
+  scheduled, creates a missing outbox row, and records the scheduled generation in the same
+  transaction. Continuous reconciliation also repairs WorkItems committed by an old API replica
+  after a newer publication runner has started.
 * DataWatcher derives a stable WorkItem ID from the watched-path identifier, object URI, and GCS
   generation. It uses `EnsureWorkItem`, validates an existing item when falling back to an older
   API, and returns transient dispatch failures to Eventarc so the same event is retried.
+* A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
+  that legacy attempt and creates its new leased attempt at the same WorkItem generation. The MIG
+  barrier makes this safe by proving that no old TEE instance remains before new workers start.
 * Existing generation-less WorkItems and queue messages are treated as generation 1. Generation
   checks prevent stale ordinary and dead-letter deliveries from changing replacement executions.
 
-New WorkItem creation, `EnsureWorkItem`, and `RetryWorkItem` update the publication-generation
-marker and outbox transactionally. The publisher still deletes the outbox row only after Pub/Sub
-acknowledges the message. This reuses the existing WorkItems RPCs, queue, topic, subscription, DLQ,
-and publish-ack behavior; it introduces no version-suffixed RPC or parallel queue infrastructure.
-The Secure Computation API remains workload-agnostic: it stores and republishes opaque WorkItem
-parameters and does not call the Requisition Metadata or Impression Metadata APIs. Existing
-EDPA-aware DLQ behavior is not expanded for ResultsFulfiller.
+No subscription drain, database snapshot, active-attempt query, or migration-time
+`FailWorkItemAttempt`/`RetryWorkItem` call is required. New WorkItem creation, `EnsureWorkItem`, and
+`RetryWorkItem` maintain the publication-generation marker and outbox transactionally. The
+publisher still deletes the outbox row only after Pub/Sub acknowledges the message. This reuses the
+existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Computation API remains
+workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
+Requisition Metadata or Impression Metadata APIs.
 
 #### Recovering after correcting a queue mapping
 
@@ -1117,8 +1129,8 @@ then atomically fails that exact attempt, advances the WorkItem generation, retu
 `QUEUED`, and creates a new outbox publication. A late heartbeat or completion from the abandoned
 worker is rejected because its attempt is no longer active.
 
-An attempt created by an old worker has no lease. During the controlled upgrade, the stopped
-worker's Pub/Sub delivery is redelivered to a new lease-capable worker. Attempt creation then fails
+An attempt created by an old worker has no lease. After the workflow's MIG quiescence barrier, the
+stopped worker's Pub/Sub delivery is redelivered to a new lease-capable worker. Attempt creation then fails
 the exact unleased attempt and creates the replacement leased attempt in one Spanner transaction,
 without advancing the WorkItem generation. A leased active attempt is never replaced by a duplicate
 delivery; the duplicate is acknowledged and lease expiry remains the authoritative abandonment
@@ -1128,8 +1140,8 @@ signal.
 
 Alert on expired leased attempts and on unleased `ACTIVE` attempts. The internal API normally
 recovers an expired lease within its polling interval, and a new worker normally replaces an
-unleased attempt on redelivery after the controlled shutdown. Either result remaining for more than
-a short grace period needs investigation:
+unleased attempt on redelivery after the automated quiescence step. Either result remaining for
+more than a short grace period needs investigation:
 
 ```bash
 gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
