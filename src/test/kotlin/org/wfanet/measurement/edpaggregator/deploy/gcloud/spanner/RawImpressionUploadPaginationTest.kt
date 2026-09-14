@@ -60,6 +60,8 @@ class RawImpressionUploadPaginationTest {
           createRequestId = "",
           state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
           doneBlobGeneration = DONE_BLOB_GENERATION,
+          doneBlobCreateTime = null,
+          replacesRawImpressionUploadResourceId = null,
         )
         txn.insertRawImpressionUpload(
           rawImpressionUploadId = 1L,
@@ -69,6 +71,8 @@ class RawImpressionUploadPaginationTest {
           createRequestId = "",
           state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
           doneBlobGeneration = DONE_BLOB_GENERATION,
+          doneBlobCreateTime = null,
+          replacesRawImpressionUploadResourceId = null,
         )
       }
 

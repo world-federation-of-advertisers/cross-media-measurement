@@ -251,6 +251,13 @@ resource "google_storage_bucket_object" "upload_results_fulfiller_population_spe
   source = var.results_fulfiller_population_spec.local_path
 }
 
+resource "google_storage_bucket_object" "upload_vid_labeler_population_spec" {
+  name           = var.vid_labeler_population_spec.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.vid_labeler_population_spec.local_path
+  source_md5hash = filemd5(var.vid_labeler_population_spec.local_path)
+}
+
 resource "google_project_iam_member" "eventarc_service_agent" {
   project = data.google_project.project.id
   role    = "roles/eventarc.serviceAgent"

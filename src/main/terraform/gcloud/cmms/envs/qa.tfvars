@@ -12,3 +12,5 @@ edpa_model_lines = [
   "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/PNGDtHsZ2mg",
   "modelProviders/eaaPUbwUC5c/modelSuites/NMtDnLwcnNo/modelLines/YiaaInsYiRo",
 ]
+vid_labeler_population_spec_file_path             = "../../../proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto"
+vid_labeler_population_spec_blob_uri              = "gs://edpa-configs-storage-qa-bucket/vid-labeler-population-spec.textproto"

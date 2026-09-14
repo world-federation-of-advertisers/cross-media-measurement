@@ -35,14 +35,14 @@ toolchain(
 
 platform(
     name = "platform",
-    parents = ["@local_config_platform//:host"],
+    parents = ["@platforms//host"],
     constraint_values = [
         "@platforms//os:linux",
         "@platforms//cpu:x86_64",
         "@bazel_tools//tools/cpp:clang",
     ],
     exec_properties = {
-        "container-image": "docker://ghcr.io/world-federation-of-advertisers/bazel@sha256:6ac041a414fcd54d66b88eec1023e0f047b8f4946df01ebfd525c07259fc857b",
+        "container-image": "docker://ghcr.io/world-federation-of-advertisers/bazel@sha256:51a43133faca0340fa52b2d168eaf7cb2ddf5408343d6b860087a6637bffb2f4",
         "OSFamily": "Linux",
     },
 )

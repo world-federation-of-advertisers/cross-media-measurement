@@ -396,7 +396,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
             }
             val generation = attributes.lastModifiedTime().toMillis()
             check(generation > 0L) { "Raw impression file has no modification time: $blobKey" }
-            RawImpressionBlobMetadata(generation = generation, sizeBytes = attributes.size())
+            RawImpressionBlobMetadata(
+              generation = generation,
+              sizeBytes = attributes.size(),
+              createTime = attributes.creationTime().toInstant(),
+            )
           }
         }
       }
@@ -417,7 +421,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
             checkNotNull(storage.get(BlobId.of(doneBlobUri.bucket, blobKey))) {
               "Raw impression blob disappeared before registration: $blobKey"
             }
-          RawImpressionBlobMetadata(generation = blob.generation, sizeBytes = blob.size)
+          RawImpressionBlobMetadata(
+            generation = blob.generation,
+            sizeBytes = blob.size,
+            createTime = blob.createTimeOffsetDateTime.toInstant(),
+          )
         }
       }
     }

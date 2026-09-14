@@ -41,6 +41,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
 
 @RunWith(JUnit4::class)
@@ -67,6 +68,7 @@ abstract class RawImpressionUploadServiceTest {
           rawImpressionUpload = rawImpressionUpload {
             doneBlobUri = DONE_BLOB_URI
             doneBlobGeneration = DONE_BLOB_GENERATION
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -75,6 +77,7 @@ abstract class RawImpressionUploadServiceTest {
     assertThat(upload.rawImpressionUploadResourceId).isNotEmpty()
     assertThat(upload.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(upload.updateTime).isEqualTo(upload.createTime)
+    assertThat(upload.etag).isNotEmpty()
     // Verify the entire response, substituting the non-deterministic resource ID and timestamps.
     assertThat(upload)
       .isEqualTo(
@@ -83,12 +86,337 @@ abstract class RawImpressionUploadServiceTest {
           rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
           doneBlobUri = DONE_BLOB_URI
           doneBlobGeneration = DONE_BLOB_GENERATION
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
           state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
           createTime = upload.createTime
           updateTime = upload.updateTime
+          etag = upload.etag
         }
       )
   }
+
+  @Test
+  fun `createRawImpressionUpload persists replaced upload resource ID`(): Unit = runBlocking {
+    val original =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 900L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val replacement =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 120L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(replacement.replacesRawImpressionUploadResourceId)
+      .isEqualTo(original.rawImpressionUploadResourceId)
+    assertThat(
+        service
+          .getRawImpressionUpload(
+            getRawImpressionUploadRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+            }
+          )
+          .state
+      )
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+  }
+
+  @Test
+  fun `completed registration is not failed by a replacement upload`(): Unit = runBlocking {
+    val original =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val completed =
+      service.markRawImpressionUploadRegistrationComplete(
+        markRawImpressionUploadRegistrationCompleteRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+          etag = original.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(completed.registrationComplete).isTrue()
+    assertThat(completed.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
+
+    service.createRawImpressionUpload(
+      createRawImpressionUploadRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = 2L
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    val fetched =
+      service.getRawImpressionUpload(
+        getRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+        }
+      )
+    assertThat(fetched.registrationComplete).isTrue()
+    assertThat(fetched.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
+  }
+
+  @Test
+  fun `finalizing a superseded upload does not resurrect it`(): Unit = runBlocking {
+    val original =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 1L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    service.createRawImpressionUpload(
+      createRawImpressionUploadRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUpload = rawImpressionUpload {
+          doneBlobUri = DONE_BLOB_URI
+          doneBlobGeneration = 2L
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+            etag = original.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    val fetched =
+      service.getRawImpressionUpload(
+        getRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = original.rawImpressionUploadResourceId
+        }
+      )
+    assertThat(fetched.state).isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+    assertThat(fetched.registrationComplete).isFalse()
+  }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete is idempotent by request ID`(): Unit =
+    runBlocking {
+      val upload = createUpload()
+      val request = markRawImpressionUploadRegistrationCompleteRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
+        etag = upload.etag
+        requestId = UUID.randomUUID().toString()
+      }
+
+      val completed = service.markRawImpressionUploadRegistrationComplete(request)
+      val replayed = service.markRawImpressionUploadRegistrationComplete(request)
+
+      assertThat(replayed).isEqualTo(completed)
+    }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete rejects stale etag`(): Unit = runBlocking {
+    val upload = createUpload()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
+            etag = "stale-etag"
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+  }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete rejects missing etag`(): Unit = runBlocking {
+    val upload = createUpload()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete rejects reused request ID`(): Unit =
+    runBlocking {
+      val first = createUpload()
+      val second = createUpload()
+      val requestId = UUID.randomUUID().toString()
+      service.markRawImpressionUploadRegistrationComplete(
+        markRawImpressionUploadRegistrationCompleteRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = first.rawImpressionUploadResourceId
+          etag = first.etag
+          this.requestId = requestId
+        }
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadRegistrationComplete(
+            markRawImpressionUploadRegistrationCompleteRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = second.rawImpressionUploadResourceId
+              etag = second.etag
+              this.requestId = requestId
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
+  fun `markRawImpressionUploadRegistrationComplete rejects a different request after completion`() =
+    runBlocking {
+      val upload = createUpload()
+      val completed =
+        service.markRawImpressionUploadRegistrationComplete(
+          markRawImpressionUploadRegistrationCompleteRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
+            etag = upload.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadRegistrationComplete(
+            markRawImpressionUploadRegistrationCompleteRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = upload.rawImpressionUploadResourceId
+              etag = completed.etag
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `createRawImpressionUpload rejects an older done blob with a higher generation`(): Unit =
+    runBlocking {
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = 120L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUpload(
+            createRawImpressionUploadRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUpload = rawImpressionUpload {
+                doneBlobUri = DONE_BLOB_URI
+                doneBlobGeneration = 900L
+                doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    }
+
+  @Test
+  fun `createRawImpressionUpload accepts a newer done blob with a lower generation`(): Unit =
+    runBlocking {
+      val original =
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = 900L
+              doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      val replacement =
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = 120L
+              doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+
+      assertThat(replacement.replacesRawImpressionUploadResourceId)
+        .isEqualTo(original.rawImpressionUploadResourceId)
+    }
 
   @Test
   fun `createRawImpressionUpload is idempotent with same request_id`(): Unit = runBlocking {
@@ -475,7 +803,7 @@ abstract class RawImpressionUploadServiceTest {
       service.listRawImpressionUploads(
         listRawImpressionUploadsRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-          filter = ListRawImpressionUploadsRequestKt.filter { doneBlobUri = DONE_BLOB_URI }
+          filter = ListRawImpressionUploadsRequestKt.filter { doneBlobUri = expected.doneBlobUri }
         }
       )
 
@@ -713,21 +1041,24 @@ abstract class RawImpressionUploadServiceTest {
 
   private var nextDoneBlobGeneration = DONE_BLOB_GENERATION
 
-  private suspend fun createUpload(): RawImpressionUpload =
-    service.createRawImpressionUpload(
+  private suspend fun createUpload(): RawImpressionUpload {
+    val generation = nextDoneBlobGeneration++
+    return service.createRawImpressionUpload(
       createRawImpressionUploadRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUpload = rawImpressionUpload {
-          doneBlobUri = DONE_BLOB_URI
-          doneBlobGeneration = nextDoneBlobGeneration++
+          doneBlobUri = "$DONE_BLOB_URI/$generation"
+          doneBlobGeneration = generation
         }
         requestId = UUID.randomUUID().toString()
       }
     )
+  }
 
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val DONE_BLOB_URI = "gs://test-bucket/2026-06-16/done"
     private const val DONE_BLOB_GENERATION = 1234L
+    private val DONE_BLOB_CREATE_TIME = Instant.parse("2026-06-16T00:00:00Z")
   }
 }

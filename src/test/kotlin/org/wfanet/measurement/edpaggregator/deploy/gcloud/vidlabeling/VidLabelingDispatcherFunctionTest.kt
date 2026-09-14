@@ -68,6 +68,7 @@ import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
@@ -75,6 +76,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingDispatcherParams
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
@@ -95,8 +97,18 @@ class VidLabelingDispatcherFunctionTest {
           RawImpressionUpload.newBuilder()
             .setName("${request.parent}/rawImpressionUploads/upload-1")
             .setDoneBlobUri("file:////edp/edp_name/timestamp/done")
+            .setEtag(UPLOAD_ETAG)
             .build()
         }
+      onBlocking { markRawImpressionUploadRegistrationComplete(any()) }
+        .thenReturn(
+          RawImpressionUpload.newBuilder()
+            .setName("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+            .setDoneBlobUri("file:////edp/edp_name/timestamp/done")
+            .setRegistrationComplete(true)
+            .setEtag("completed-$UPLOAD_ETAG")
+            .build()
+        )
       // The fast-path sequencer lists uploads after registration; return none so it cleanly
       // no-ops in this Function-wiring test (dispatch behavior is covered by the unit tests).
       onBlocking { listRawImpressionUploads(any()) }.thenReturn(listRawImpressionUploadsResponse {})
@@ -106,6 +118,8 @@ class VidLabelingDispatcherFunctionTest {
     mockService {
       onBlocking { batchCreateRawImpressionUploadFiles(any()) }
         .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+      onBlocking { listRawImpressionUploadFiles(any()) }
+        .thenReturn(listRawImpressionUploadFilesResponse {})
     }
 
   private val rawImpressionUploadModelLineServiceMock:
@@ -270,6 +284,15 @@ class VidLabelingDispatcherFunctionTest {
     verifyBlocking(rawImpressionUploadModelLineServiceMock, times(1)) {
       batchCreateRawImpressionUploadModelLines(any())
     }
+    val registrationRequestCaptor =
+      argumentCaptor<MarkRawImpressionUploadRegistrationCompleteRequest>()
+    verifyBlocking(rawImpressionUploadServiceMock, times(1)) {
+      markRawImpressionUploadRegistrationComplete(registrationRequestCaptor.capture())
+    }
+    assertThat(registrationRequestCaptor.firstValue.name)
+      .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    assertThat(registrationRequestCaptor.firstValue.etag).isEqualTo(UPLOAD_ETAG)
+    assertThat(registrationRequestCaptor.firstValue.requestId).isNotEmpty()
     verifyBlocking(modelLinesServiceMock, times(1)) { listModelLines(any()) }
   }
 
@@ -385,6 +408,7 @@ class VidLabelingDispatcherFunctionTest {
       eventTemplateDescriptorBlobUri = "gs://descriptors/event-template-set.binpb"
       eventTemplateType = "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
       requiredEntityKeyFieldMapping["person"] = "person_col"
+      populationSpecBlobUri = "gs://configs/population-spec.textproto"
     }
     modelSuite = MODEL_SUITE
     numberOfShards = 2
@@ -407,6 +431,7 @@ class VidLabelingDispatcherFunctionTest {
     private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
     private const val MODEL_LINE = "$MODEL_SUITE/modelLines/ml1"
     private const val MODEL_RELEASE = "$MODEL_SUITE/modelReleases/mr1"
+    private const val UPLOAD_ETAG = "upload-etag"
 
     private val FUNCTION_BINARY_PATH =
       Paths.get(
