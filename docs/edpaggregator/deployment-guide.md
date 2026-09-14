@@ -892,19 +892,20 @@ blob is absent or empty and reload it on each invocation.
 
 Use this controlled-shutdown upgrade:
 
-1. Stop both Secure Computation API deployments, DataWatcher, RequisitionFetcher, and every
+1. Set `REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT` to the desired direct-dispatch
+   configuration. Use a dedicated `storage_path_prefix`, such as `<edp-id>/requisitions-v2`, for
+   each entry. It must neither contain nor be contained by any legacy or direct prefix in the same
+   bucket, and the actual legacy DataWatcher `source_path_regex` must exclude it.
+2. Stop both Secure Computation API deployments, DataWatcher, RequisitionFetcher, and every
    WorkItem TEE consumer. Allow in-flight Cloud Function invocations to finish. Leave unclaimed
    Pub/Sub messages queued; no subscription drain, WorkItem snapshot, or legacy-event accounting is
    required.
-2. Run the `Update CMMS` release workflow. As described in
+3. Run the `Update CMMS` release workflow. As described in
    [durable WorkItem publication](#rolling-out-durable-workitem-publication), the workflow holds all
    WorkItem TEE managed instance groups at zero, applies the additive schemas, fully rolls both
    Secure Computation API deployments, and only then starts the new TEE workers. The workflow also
-   rolls every Requisition Metadata API replica before it completes.
-3. Populate `requisition-fetcher-direct-dispatch-config.textproto` and resume DataWatcher and
-   RequisitionFetcher. Set each direct `storage_path_prefix` to a dedicated prefix such as
-   `<edp-id>/requisitions-v2`. It must neither contain nor be contained by any legacy or direct
-   prefix in the same bucket, and the actual legacy DataWatcher `source_path_regex` must exclude it.
+   rolls every Requisition Metadata API replica before it completes and uploads the separate
+   direct-dispatch config. Resume DataWatcher and RequisitionFetcher only after it succeeds.
 
 The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
 The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
