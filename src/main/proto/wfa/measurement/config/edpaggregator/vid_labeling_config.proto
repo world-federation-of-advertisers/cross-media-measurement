@@ -76,6 +76,17 @@ message VidLabelingConfig {
     // entity_type. Keys MUST be disjoint from
     // required_entity_key_field_mapping.
     map<string, string> optional_entity_key_field_mapping = 6;
+
+    // Config-storage blob URI of the model line's `PopulationSpec` textproto.
+    // Copied onto VidLabelerParams.ModelLineConfig; the TEE resolves each
+    // assigned VID against it and writes that subpopulation's population
+    // attributes onto the labeled output's event.
+    //
+    // REQUIRED: without it the labeled output carries the demographics the
+    // DataProvider uploaded rather than the ones the model assigned. Checked at
+    // Cloud Function boot by requireValidModelLineConfigs.
+    string population_spec_blob_uri = 7
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // Map from model line resource name to its configuration.
