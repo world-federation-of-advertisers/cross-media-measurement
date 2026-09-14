@@ -34,6 +34,9 @@ service WorkItemAttempts {
   // there is already an active leased attempt, the request is rejected. A
   // lease-capable caller may atomically replace an active legacy attempt that
   // has no lease.
+  // (-- api-linter: core::0133::method-signature=disabled
+  //     aip.dev/not-precedent: The generation precondition must be available to
+  //     flattened clients. --)
   rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) =
@@ -102,12 +105,17 @@ message CreateWorkItemAttemptRequest {
   // generation 1 is used for compatibility with queue messages published
   // before generations were added. The request is rejected if the resulting
   // generation does not match the WorkItem's current generation.
+  // (-- api-linter: core::0133::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Queue delivery generation fences stale work. --)
   int64 expected_work_item_generation = 4
       [(google.api.field_behavior) = OPTIONAL];
 
   // Whether the caller supports renewing an attempt lease. When false, the
   // attempt is created without a lease for compatibility with workers that do
   // not implement lease renewal.
+  // (-- api-linter: core::0133::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Capability negotiation preserves compatibility
+  //     with workers that do not renew leases. --)
   bool supports_attempt_lease = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
