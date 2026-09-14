@@ -20,6 +20,10 @@ run-name: >-
   test=${{ inputs.run-tests }},
   image-tag=${{ inputs.existing-image-tag }}
 
+concurrency:
+  group: update-cmms-${{ inputs.environment }}
+  cancel-in-progress: false
+
 on:
   workflow_call:
     inputs:

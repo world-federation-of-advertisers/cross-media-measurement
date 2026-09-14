@@ -865,28 +865,33 @@ between namespaces. A legacy group with any `PROCESSING` row remains owned by it
 DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
 It still processes newly discovered requisitions for the same report through the direct namespace.
 
-To activate direct dispatch, update `REQUISITION_FETCHER_CONFIG_CONTENT` by adding
-`work_item_dispatch` to each selected provider. Preserve the existing top-level
-`storage_path_prefix`, choose a dedicated nested prefix such as `<edp-id>/requisitions-v2`, and
-verify that the actual legacy DataWatcher `source_path_regex` excludes every direct prefix.
+To activate direct dispatch, operators only need to:
 
-Then run the repository's top-level **Update CMMS** workflow once. Its first Terraform apply uploads
-the combined config with direct dispatch gated off, then quiesces and verifies all
-WorkItem-consuming TEE MIGs. The workflow rolls both Secure Computation API deployments and every
+1. Add `work_item_dispatch` to each selected provider in
+   `REQUISITION_FETCHER_CONFIG_CONTENT`. Preserve the existing top-level `storage_path_prefix`,
+   choose a dedicated nested prefix such as `<edp-id>/requisitions-v2` that is disjoint from every
+   legacy and direct prefix sharing the bucket, and verify that the actual
+   legacy DataWatcher `source_path_regex` excludes every direct prefix.
+2. Run the repository's top-level **Update CMMS** workflow, or automation that implements the same
+   environment lock and ordered barriers.
+3. If deployment fails before workers are restored, rerun the complete process. Do not enable
+   direct dispatch, TEE MIGs, or individual deployment phases independently.
+
+The workflow's environment-scoped concurrency lock prevents overlapping deployments from
+interleaving rollout phases. Its first Terraform apply uploads the combined config with direct
+dispatch gated off, then quiesces and verifies all WorkItem-consuming TEE MIGs. The workflow rolls
+both Secure Computation API deployments and every
 EDP Aggregator/Requisition Metadata API deployment to completion. Its final Terraform apply enables
 direct dispatch and the new workers. The explicit gate prevents Terraform's parallel resource
 updates from activating direct dispatch while an old TEE can still consume it. DataWatcher and
 RequisitionFetcher remain running; unclaimed Pub/Sub messages remain queued and must not be
-drained. An old RequisitionFetcher
-revision may reject the newly added textproto field during the Cloud Function rollout, but it makes
-no state change in that case, and the next invocation of the new revision polls the same unfulfilled
-Kingdom requisitions.
+drained. An old RequisitionFetcher revision may reject the newly added textproto field during the
+Cloud Function rollout, but it makes no state change in that case, and the next invocation of the
+new revision polls the same unfulfilled Kingdom requisitions.
 
 Do not invoke the child Terraform, Secure Computation, or EDP Aggregator workflows independently
 for this upgrade. No manual service scaling, subscription drain, WorkItem snapshot,
-active-attempt query, or migration-time failure/retry RPC is required. If the workflow fails after
-quiescing the TEE workers, leave them disabled and rerun or complete the API rollout before enabling
-them.
+active-attempt query, or migration-time failure/retry RPC is required.
 
 The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
 The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
@@ -1142,7 +1147,9 @@ The repository's top-level **Update CMMS** workflow is the supported upgrade pat
 the child Terraform, Secure Computation, or EDP Aggregator deployment workflows independently for
 this migration; doing so bypasses the worker-quiescence barrier.
 
-Configure the deployment, then run **Update CMMS** once. The workflow performs the required order:
+Configure the deployment, then run **Update CMMS** once. An environment-scoped concurrency lock
+prevents two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
+performs the required order:
 
 1. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
    its autoscaler and sets its target size to zero.
@@ -1157,9 +1164,9 @@ Configure the deployment, then run **Update CMMS** once. The workflow performs t
 6. Continue the remaining deployment and tests normally.
 
 If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
-consumers disabled and rerun or complete the API rollout. Do not enable a TEE MIG independently.
-Do not manually scale the API deployments to zero: their manifests do not explicitly restore
-replica counts, so manual scaling can leave them stopped.
+consumers disabled and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
+independently. Do not manually scale the API deployments to zero: their manifests do not
+explicitly restore replica counts, so manual scaling can leave them stopped.
 
 DataWatcher, RequisitionFetcher, and Pub/Sub remain running during this process. Unclaimed messages
 remain queued and must not be drained. Old and new API replicas may overlap during their Kubernetes
