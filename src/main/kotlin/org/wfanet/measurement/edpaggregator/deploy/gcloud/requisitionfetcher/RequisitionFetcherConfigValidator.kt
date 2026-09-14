@@ -160,11 +160,7 @@ object RequisitionFetcherConfigValidator {
   ) {
     val directPrefix = "$storageUriPrefix/${dispatchConfig.storagePathPrefix.trim('/')}"
     val representativePaths =
-      listOf(
-        directPrefix,
-        "$directPrefix/",
-        "$directPrefix/00000000-0000-0000-0000-000000000000",
-      )
+      listOf(directPrefix, "$directPrefix/", "$directPrefix/00000000-0000-0000-0000-000000000000")
     for (watchedPath in dataWatcherConfig.watchedPathsList) {
       val regex = watchedPath.sourcePathRegex.toRegex()
       require(representativePaths.none(regex::matches)) {
