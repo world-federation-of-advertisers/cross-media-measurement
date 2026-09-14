@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkIte
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.ProcessWorkItemDeadLetterRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.RetryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
@@ -45,6 +46,8 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkIte
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.activeWorkItemAttemptExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failActiveWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getActiveWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
@@ -395,6 +398,88 @@ class SpannerWorkItemsService(
       }
     val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
     workItemPublicationRunner.publishWorkItem(workItemId)
+    return result
+  }
+
+  override suspend fun processWorkItemDeadLetter(
+    request: ProcessWorkItemDeadLetterRequest
+  ): WorkItem {
+    if (request.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.expectedWorkItemGeneration < 0L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be non-negative"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
+
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=processWorkItemDeadLetter"))
+    val (workItemId, workItem) =
+      transactionRunner.run { txn ->
+        try {
+          val result = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
+          if (result.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              result.workItem.workItemResourceId,
+              expectedGeneration,
+              result.workItem.generation,
+            )
+          }
+
+          val activeAttempt = txn.getActiveWorkItemAttempt(result.workItemId)
+          val nextState =
+            when (result.workItem.state) {
+              WorkItem.State.RUNNING -> {
+                if (activeAttempt?.workItemAttempt?.hasLeaseExpirationTime() == true) {
+                  throw WorkItemInvalidStateException(
+                    result.workItem.workItemResourceId,
+                    result.workItem.state,
+                  )
+                }
+                if (activeAttempt != null) {
+                  txn.failWorkItemAttempt(result.workItemId, activeAttempt.workItemAttemptId)
+                  txn.retryWorkItem(result.workItemId, result.workItem.generation)
+                } else {
+                  txn.failWorkItem(result.workItemId)
+                }
+              }
+              WorkItem.State.QUEUED -> txn.failWorkItem(result.workItemId)
+              WorkItem.State.FAILED -> txn.failWorkItem(result.workItemId)
+              WorkItem.State.SUCCEEDED,
+              WorkItem.State.STATE_UNSPECIFIED,
+              WorkItem.State.UNRECOGNIZED ->
+                throw WorkItemInvalidStateException(
+                  result.workItem.workItemResourceId,
+                  result.workItem.state,
+                )
+            }
+          result.workItemId to
+            result.workItem.copy {
+              state = nextState
+              if (nextState == WorkItem.State.QUEUED) {
+                generation = result.workItem.generation + 1L
+              }
+            }
+        } catch (e: WorkItemNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: QueueNotFoundForWorkItem) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: WorkItemGenerationMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+      }
+
+    val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    if (result.state == WorkItem.State.QUEUED) {
+      workItemPublicationRunner.publishWorkItem(workItemId)
+    }
     return result
   }
 

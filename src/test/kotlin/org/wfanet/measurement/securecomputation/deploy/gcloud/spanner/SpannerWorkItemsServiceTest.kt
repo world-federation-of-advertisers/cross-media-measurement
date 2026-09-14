@@ -33,11 +33,15 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.processWorkItemDeadLetterRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
@@ -72,6 +76,63 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
         serviceDispatcher,
       ),
     )
+  }
+
+  @Test
+  fun `legacy DLQ recovery keeps outbox row when immediate publication fails`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+            if (publicationCount == 2) error("publication unavailable")
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = "legacy-dlq-work-item"
+            queueResourceId = "test-topid-id"
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    services.workItemAttemptsService.createWorkItemAttempt(
+      createWorkItemAttemptRequest {
+        expectedWorkItemGeneration = created.generation
+        workItemAttempt = workItemAttempt {
+          workItemResourceId = created.workItemResourceId
+          workItemAttemptResourceId = "legacy-attempt"
+        }
+      }
+    )
+
+    val recovered =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+    val workItemId =
+      spannerDatabase.databaseClient.singleUse().use { transaction ->
+        transaction
+          .getWorkItemByResourceId(TestConfig.QUEUE_MAPPING, created.workItemResourceId)
+          .workItemId
+      }
+    val publicationExists =
+      spannerDatabase.databaseClient.singleUse().use { transaction ->
+        transaction.workItemPublicationExists(workItemId)
+      }
+
+    assertThat(recovered.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(recovered.generation).isEqualTo(2L)
+    assertThat(publicationExists).isTrue()
   }
 
   @Test

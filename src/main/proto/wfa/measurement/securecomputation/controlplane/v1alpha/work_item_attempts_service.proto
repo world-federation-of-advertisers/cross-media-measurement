@@ -29,9 +29,11 @@ option java_outer_classname = "WorkItemAttemptsServiceProto";
 service WorkItemAttempts {
   // Creates a `WorkItemAttempt`.
   //
-  // Creates a new `WorkItemAttempt` with state `ACTIVE`.
-  // Sets the state of the parent `WorkItem` to `RUNNING`.
-  // Any existing `WorkItemAttempt` for the same `WorkItem` will fail.
+  // Creates a new `WorkItemAttempt` with state `ACTIVE` and sets the state of
+  // the parent `WorkItem` to `RUNNING`. Historical attempts are retained. If
+  // there is already an active leased attempt, the request is rejected. A
+  // lease-capable caller may atomically replace an active legacy attempt that
+  // has no lease.
   rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) =

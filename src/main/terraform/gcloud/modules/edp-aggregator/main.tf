@@ -413,6 +413,12 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
+resource "google_pubsub_subscription_iam_member" "result_fulfiller_dead_letter_subscriber" {
+  subscription = module.result_fulfiller_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
 module "result_fulfiller_tee_app" {
   source = "../mig"
 

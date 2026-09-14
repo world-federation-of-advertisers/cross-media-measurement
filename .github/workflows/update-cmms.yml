@@ -87,9 +87,22 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
+  update-secure-computation-dlq-paused:
+    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
+    needs: [publish-images]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      dead-letter-processing-enabled: false
+
   terraform-quiesced:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images]
+    needs: [publish-images, update-secure-computation-dlq-paused]
     secrets: inherit
     permissions:
       contents: read
@@ -183,6 +196,7 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+      dead-letter-processing-enabled: true
 
   update-edp-aggregator-service:
     uses: ./.github/workflows/configure-edp-aggregator.yml
