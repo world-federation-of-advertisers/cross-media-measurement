@@ -858,7 +858,7 @@ RequisitionFetcher also requires
 `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`. The repository's Terraform entry point injects the
 target from `secure_computation_public_api_target` and mounts the
-`securecomputation-root-ca` secret at `/secrets/ca/secure_computation_root.pem`; each
+`securecomputation-root-ca` secret at `/secrets/secure-computation-ca/secure_computation_root.pem`; each
 `control_plane_connection.cert_collection_file_path` must name that mounted path.
 
 #### Migrating from DataWatcher dispatch
