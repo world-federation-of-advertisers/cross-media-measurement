@@ -70,7 +70,6 @@ class VidLabelerAppRunner :
   private val eventDescriptorCache =
     ConcurrentHashMap<Pair<String, String>, Descriptors.Descriptor>()
 
-  // Owns the PopulationSpec load + cache; see PopulationAttributeWriterLoader.
   private val populationAttributeWriterLoader = PopulationAttributeWriterLoader { blobUri ->
     getResultsFulfillerConfigAsByteArray(googleProjectId, blobUri)
   }

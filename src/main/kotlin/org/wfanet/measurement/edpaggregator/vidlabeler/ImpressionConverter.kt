@@ -66,12 +66,9 @@ fun interface ImpressionConverter {
  *   required/optional entity-key column mappings (see [EntityKeyMapper]); propagated to the labeled
  *   output and the per-blob `BlobDetails.entity_keys` union.
  * @property populationAttributeWriter writes the population attributes of the VID the model assigns
- *   onto [eventMessage]. It cannot be applied here — the model has not run yet, so the VID is
- *   unknown — so the sink applies it per assigned person. Shared and stateless: the converter
- *   memoizes one per model-line config.
- *
- * Not a `data class`: [populationAttributeWriter] has no value semantics, so a generated `equals`
- * would make structural equality depend on which instance was injected.
+ *   onto the event [buildEvent] produces. It cannot be applied here — the model has not run yet, so
+ *   the VID is unknown — so the sink applies it per assigned person. Shared and stateless: the
+ *   converter memoizes one per model-line config.
  */
 class ConvertedImpression(
   val labelerInput: LabelerInput,
