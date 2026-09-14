@@ -19,6 +19,7 @@ package k8s
 	_verboseGrpcServerLogging:    bool | *false
 	_verboseGrpcClientLogging:    bool | *false
 	_deadLetterProcessingEnabled: string | *"true"
+	_workItemPublicationEnabled:  string | *"true"
 
 	_spannerConfig: #SpannerConfig & {
 		database: "secure-computation"
@@ -84,7 +85,8 @@ package k8s
 	deployments: {
 		"secure-computation-internal-api-server": {
 			_container: args: [
-						"--dead-letter-processing-enabled=" + _deadLetterProcessingEnabled,
+							"--dead-letter-processing-enabled=" + _deadLetterProcessingEnabled,
+							"--work-item-publication-enabled=" + _workItemPublicationEnabled,
 						_debugVerboseGrpcServerLoggingFlag,
 						"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
 						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",

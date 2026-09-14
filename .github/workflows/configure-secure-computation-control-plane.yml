@@ -37,6 +37,10 @@ on:
         description: "Whether Secure Computation DLQ listeners may consume messages"
         type: boolean
         default: true
+      work-item-publication-enabled:
+        description: "Whether Secure Computation may publish or reconcile WorkItems"
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -83,6 +87,7 @@ jobs:
         build --define "google_cloud_project=$GCLOUD_PROJECT"
         build --define "spanner_instance=$SPANNER_INSTANCE"
         build --define "dead_letter_processing_enabled=${{ inputs.dead-letter-processing-enabled }}"
+        build --define "work_item_publication_enabled=${{ inputs.work-item-publication-enabled }}"
         EOF
 
     - name: Export BAZEL_BIN
