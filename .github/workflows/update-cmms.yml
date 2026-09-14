@@ -99,6 +99,7 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       dead-letter-processing-enabled: false
+      work-item-publication-enabled: false
 
   terraform-quiesced:
     uses: ./.github/workflows/terraform-cmms-v2.yml
@@ -197,6 +198,7 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       dead-letter-processing-enabled: true
+      work-item-publication-enabled: true
 
   update-edp-aggregator-service:
     uses: ./.github/workflows/configure-edp-aggregator.yml

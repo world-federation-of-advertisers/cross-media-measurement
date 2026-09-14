@@ -471,9 +471,14 @@ abstract class WorkItemAttemptsServiceTest {
     val updatedWorkItemAttempt = services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
 
     assertThat(workItemAttempt)
-      .ignoringFields(WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER, WorkItemAttempt.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
+        WorkItemAttempt.STATE_FIELD_NUMBER,
+        WorkItemAttempt.ERROR_MESSAGE_FIELD_NUMBER,
+      )
       .isEqualTo(updatedWorkItemAttempt)
     assertThat(updatedWorkItemAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    assertThat(updatedWorkItemAttempt.errorMessage).isEqualTo("ErrorMessage")
   }
 
   @Test

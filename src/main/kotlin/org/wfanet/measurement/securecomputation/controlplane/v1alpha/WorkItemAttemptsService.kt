@@ -112,6 +112,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_NOT_FOUND,
           InternalErrors.Reason.INVALID_FIELD_VALUE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -152,6 +153,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -196,6 +198,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -242,6 +245,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -287,6 +291,7 @@ class WorkItemAttemptsService(
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

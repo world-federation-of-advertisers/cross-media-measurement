@@ -85,6 +85,46 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `disabled publication preserves outbox and does not reconcile legacy WorkItems`() =
+    runBlocking {
+      val publisher = RecordingPublisher()
+      val clock = MutableClock(Instant.now().plusSeconds(10))
+      val disabledRunner =
+        WorkItemPublicationRunner(
+          databaseClient = spannerDatabase.databaseClient,
+          queueMapping = TestConfig.QUEUE_MAPPING,
+          workItemPublisher = publisher,
+          clock = clock,
+          leaseDuration = Duration.ofMinutes(1),
+          initialRetryDelay = Duration.ofSeconds(1),
+          maxRetryDelay = Duration.ofMinutes(1),
+          publicationEnabled = false,
+        )
+      val service =
+        SpannerWorkItemsService(
+          spannerDatabase.databaseClient,
+          TestConfig.QUEUE_MAPPING,
+          IdGenerator.Default,
+          disabledRunner,
+        )
+
+      service.createWorkItem(createRequest("new-work-item"))
+      insertLegacyQueuedWorkItem(WORK_ITEM_ID, "legacy-work-item")
+
+      assertThat(disabledRunner.publishWorkItem(WORK_ITEM_ID)).isFalse()
+      assertThat(disabledRunner.publishPendingWorkItems()).isEqualTo(0)
+      assertThat(publisher.callCount).isEqualTo(0)
+      assertThat(publicationCount()).isEqualTo(1L)
+      assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isNull()
+
+      val enabledRunner = newRunner(publisher, clock)
+      assertThat(enabledRunner.publishPendingWorkItems(limit = 2)).isEqualTo(2)
+      assertThat(publisher.callCount).isEqualTo(2)
+      assertThat(publicationCount()).isEqualTo(0L)
+      assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isEqualTo(1L)
+    }
+
+  @Test
   fun `runner publishes legacy queued WorkItem without outbox exactly once`() = runBlocking {
     insertLegacyQueuedWorkItem(WORK_ITEM_ID, "legacy-work-item")
     val publisher = RecordingPublisher()

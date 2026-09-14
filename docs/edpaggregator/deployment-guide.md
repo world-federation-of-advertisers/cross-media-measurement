@@ -1064,16 +1064,17 @@ prevents two runs from interleaving the worker-quiescence and API-rollout phases
 performs the required order:
 
 1. Roll `secure-computation-internal-api-server` and
-   `secure-computation-public-api-server` with dead-letter consumption paused. The APIs remain
-   available to producers and existing workers.
+   `secure-computation-public-api-server` with WorkItem publication, legacy reconciliation, and
+   dead-letter consumption paused. The APIs remain available to producers and existing workers;
+   transactions continue creating durable outbox rows without publishing them.
 2. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
    its autoscaler, sets its target size to zero, and writes a process-level consumption gate into
    the replacement instance template so a surge instance cannot pull work while quiescing.
 3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
    then verify that each has target size zero and no remaining instances.
-4. Roll Kingdom, then roll the Secure Computation APIs again with dead-letter consumption enabled.
-   The DLQ listener automatically retries current-generation WorkItems that have an active legacy
-   attempt without a lease.
+4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
+   reconciliation, and dead-letter consumption enabled. The DLQ listener automatically retries
+   current-generation WorkItems that have an active legacy attempt without a lease.
 5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
 6. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers,
    changes the process-level gate to enabled, and starts only the new worker version.
@@ -1084,10 +1085,14 @@ consumers disabled and rerun the complete **Update CMMS** workflow. Do not enabl
 independently. Do not manually scale the API deployments to zero: their manifests do not
 explicitly restore replica counts, so manual scaling can leave them stopped.
 
-DataWatcher, RequisitionFetcher, and Pub/Sub remain running during this process. Unclaimed messages
-remain queued and must not be drained. Old and new API replicas may overlap during their Kubernetes
-rolling updates because no TEE consumes WorkItems until both API layers are ready. Compatibility and
-automatic recovery cover producer traffic during that interval:
+DataWatcher and Pub/Sub remain running during this process. RequisitionFetcher continues running
+until Terraform pauses its Cloud Scheduler job, and the workflow then waits for invocations that
+started before the pause to finish. Unclaimed messages remain queued and must not be drained. Old
+and new API replicas may overlap in the first Kubernetes rolling update while old TEE workers are
+still running. Publication and legacy reconciliation are disabled on every new internal API replica
+during that rollout, preventing a new replica from introducing duplicate legacy deliveries. After
+the first API rollout completes, the workflow stops every TEE consumer before enabling publication.
+Compatibility and automatic recovery cover producer traffic during that interval:
 
 * The publication runner continuously finds every `QUEUED` WorkItem whose generation has not been
   scheduled, creates a missing outbox row, and records the scheduled generation in the same

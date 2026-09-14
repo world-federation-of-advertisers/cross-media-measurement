@@ -37,6 +37,7 @@ class InternalApiServices(
   private val idGenerator: IdGenerator = IdGenerator.Default,
   workItemPublicationPollInterval: Duration = WorkItemPublicationRunner.DEFAULT_POLL_INTERVAL,
   workItemPublicationLeaseDuration: Duration = WorkItemPublicationRunner.DEFAULT_LEASE_DURATION,
+  workItemPublicationEnabled: Boolean = true,
   private val workItemAttemptLeaseDuration: Duration =
     SpannerWorkItemAttemptsService.DEFAULT_ATTEMPT_LEASE_DURATION,
   workItemAttemptReaperPollInterval: Duration = WorkItemAttemptLeaseReaper.DEFAULT_POLL_INTERVAL,
@@ -48,6 +49,7 @@ class InternalApiServices(
       workItemPublisher,
       pollInterval = workItemPublicationPollInterval,
       leaseDuration = workItemPublicationLeaseDuration,
+      publicationEnabled = workItemPublicationEnabled,
     )
 
   val workItemAttemptLeaseReaper =
