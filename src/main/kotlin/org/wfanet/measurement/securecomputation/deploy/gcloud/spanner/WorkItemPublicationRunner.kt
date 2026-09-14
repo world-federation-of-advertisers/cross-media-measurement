@@ -47,8 +47,6 @@ class WorkItemPublicationRunner(
   private val initialRetryDelay: Duration = DEFAULT_INITIAL_RETRY_DELAY,
   private val maxRetryDelay: Duration = DEFAULT_MAX_RETRY_DELAY,
 ) {
-  private var reconciliationComplete = false
-
   init {
     require(pollInterval > Duration.ZERO) { "pollInterval must be positive" }
     require(leaseDuration > Duration.ZERO) { "leaseDuration must be positive" }
@@ -130,21 +128,16 @@ class WorkItemPublicationRunner(
   }
 
   private suspend fun reconcileLegacyWorkItems(limit: Int) {
-    if (reconciliationComplete) {
+    try {
+      databaseClient.readWriteTransaction().run { transaction ->
+        transaction.reconcileWorkItemPublications(limit)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      logger.log(Level.WARNING, "Unable to reconcile legacy WorkItem publications", e)
       return
     }
-    val reconciled =
-      try {
-        databaseClient.readWriteTransaction().run { transaction ->
-          transaction.reconcileWorkItemPublications(limit)
-        }
-      } catch (e: CancellationException) {
-        throw e
-      } catch (e: Exception) {
-        logger.log(Level.WARNING, "Unable to reconcile legacy WorkItem publications", e)
-        return
-      }
-    reconciliationComplete = reconciled < limit
   }
 
   private suspend fun claimWorkItemPublication(

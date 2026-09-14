@@ -143,6 +143,22 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `runner reconciles legacy WorkItem created after an empty scan`() = runBlocking {
+    val publisher = RecordingPublisher()
+    val runner = newRunner(publisher, MutableClock(Instant.now().plusSeconds(10)))
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+
+    insertLegacyQueuedWorkItem(WORK_ITEM_ID, "late-legacy-work-item")
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+    assertThat(publisher.callCount).isEqualTo(1)
+    assertThat(publicationCount()).isEqualTo(0L)
+    assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isEqualTo(1L)
+  }
+
+  @Test
   fun `active lease prevents concurrent publication`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     val clock = MutableClock(Instant.now().plusSeconds(10))
