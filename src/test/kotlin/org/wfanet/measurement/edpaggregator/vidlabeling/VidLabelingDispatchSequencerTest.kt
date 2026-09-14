@@ -342,12 +342,17 @@ class VidLabelingDispatchSequencerTest {
     stubMarkPoolAssigning()
   }
 
-  private fun upload(id: String, state: RawImpressionUpload.State, createdAt: Instant) =
-    rawImpressionUpload {
-      name = "$DATA_PROVIDER/rawImpressionUploads/$id"
-      this.state = state
-      createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
-    }
+  private fun upload(
+    id: String,
+    state: RawImpressionUpload.State,
+    createdAt: Instant,
+    registrationComplete: Boolean = true,
+  ) = rawImpressionUpload {
+    name = "$DATA_PROVIDER/rawImpressionUploads/$id"
+    this.state = state
+    createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
+    this.registrationComplete = registrationComplete
+  }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
     name = "$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/$id"
@@ -379,6 +384,30 @@ class VidLabelingDispatchSequencerTest {
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `dispatchNext skips upload while registration is incomplete`() = runBlocking {
+    stubUploads(
+      created =
+        listOf(
+          upload(
+            "upload-1",
+            RawImpressionUpload.State.CREATED,
+            FIXED_NOW,
+            registrationComplete = false,
+          )
+        )
+    )
+
+    val result = createSequencer().dispatchNext()
+
+    assertThat(result.dispatchedUpload).isNull()
+    assertThat(result.queuedUploads).isEqualTo(0)
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      listRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
