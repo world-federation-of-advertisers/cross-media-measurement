@@ -892,12 +892,12 @@ The final Terraform apply enables direct dispatch and the new workers. The expli
 Terraform's parallel resource updates from activating direct dispatch while an old TEE can still
 consume it. DataWatcher and RequisitionFetcher remain running; unclaimed Pub/Sub messages remain
 queued and must not be drained. An old RequisitionFetcher revision may reject the new textproto
-field during the Cloud Function rollout, but it makes no state change in that case, and the next invocation of the
-new revision polls the same unfulfilled Kingdom requisitions.
+field during the Cloud Function rollout, but it makes no state change in that case. The next
+invocation of the new revision polls the same unfulfilled Kingdom requisitions.
 
-Do not invoke the child Terraform, Secure Computation, or EDP Aggregator workflows independently
-for this upgrade. No manual service scaling, subscription drain, WorkItem snapshot,
-active-attempt query, or migration-time failure/retry RPC is required.
+Do not invoke child deployment workflows independently for this upgrade. No manual service
+scaling, subscription drain, WorkItem snapshot, active-attempt query, or migration-time
+failure/retry RPC is required.
 
 The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
 The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
@@ -1149,9 +1149,8 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
 
 #### Rolling out durable WorkItem publication
 
-The repository's top-level **Update CMMS** workflow is the supported upgrade path. Do not invoke
-the child Terraform, Secure Computation, or EDP Aggregator deployment workflows independently for
-this migration; doing so bypasses the worker-quiescence barrier.
+The repository's top-level **Update CMMS** workflow is the supported upgrade path. Do not invoke its
+child deployment workflows independently; doing so bypasses the worker-quiescence barrier.
 
 Configure the deployment, then run **Update CMMS** once. An environment-scoped concurrency lock
 prevents two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
