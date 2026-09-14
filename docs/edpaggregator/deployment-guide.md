@@ -887,11 +887,13 @@ RequisitionFetcher and DataWatcher textprotos from the selected GitHub environme
 direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
 and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
 DataWatcher regex that matches a representative direct-path object. Validation failure therefore
-stops deployment before any worker is quiesced. The first Terraform apply then pauses the
-RequisitionFetcher Cloud Scheduler job, uploads the direct-only configuration and binary, and
-quiesces all WorkItem-consuming TEE MIGs. The workflow waits for the fetcher's 600-second maximum
-invocation duration and verifies that every affected TEE MIG has zero instances before continuing.
-The workflow rolls both Secure Computation API deployments and every EDP Aggregator/Requisition
+stops deployment before any worker is quiesced. The workflow first rolls both Secure Computation API
+deployments with WorkItem publication, legacy reconciliation, and dead-letter processing disabled.
+Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
+direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
+waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE
+MIG has zero instances before continuing. It rolls both Secure Computation API deployments again
+with publication and dead-letter processing enabled, then rolls every EDP Aggregator/Requisition
 Metadata API deployment to completion. Its final Terraform apply validates the configuration again
 before resuming the RequisitionFetcher scheduler and enabling the new workers.
 
@@ -907,10 +909,11 @@ failure/retry RPC is required.
 
 The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
 The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
-Eventarc, so retained legacy events can be redelivered safely. A new lease-capable worker atomically
-replaces an unleased attempt left by a stopped old worker when its Pub/Sub message is redelivered.
-These recovery paths remove the previous snapshot, manual `RetryWorkItem`, active-attempt drain, and
-legacy-event accounting steps from the upgrade.
+Eventarc, so retained and future legacy events can be redelivered safely. A new lease-capable worker
+atomically replaces an unleased attempt left by a stopped old worker when its Pub/Sub message is
+redelivered. Events that the previous DataWatcher acknowledged after an ambiguous dispatch failure
+are not recoverable from Pub/Sub; before claiming that no legacy recovery is required, identify any
+legacy `STORED` group with a blob but no matching WorkItem.
 
 This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
 subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
@@ -1187,9 +1190,9 @@ consumers disabled and rerun the complete **Update CMMS** workflow. Do not enabl
 independently. Do not manually scale the API deployments to zero: their manifests do not
 explicitly restore replica counts, so manual scaling can leave them stopped.
 
-DataWatcher and Pub/Sub remain running during this process. RequisitionFetcher continues running
-until Terraform pauses its Cloud Scheduler job, and the workflow then waits for invocations that
-started before the pause to finish. Unclaimed messages remain queued and must not be drained. Old
+DataWatcher and Pub/Sub remain running during this process. Terraform pauses the RequisitionFetcher
+Cloud Scheduler job, and the workflow then waits for invocations that started before the pause to
+finish. Unclaimed messages remain queued and must not be drained. Old
 and new API replicas may overlap in the first Kubernetes rolling update while old TEE workers are
 still running. Publication and legacy reconciliation are disabled on every new internal API replica
 during that rollout, preventing a new replica from introducing duplicate legacy deliveries. After
