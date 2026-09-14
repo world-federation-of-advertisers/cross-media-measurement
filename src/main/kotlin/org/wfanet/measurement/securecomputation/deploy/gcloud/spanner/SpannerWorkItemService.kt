@@ -368,9 +368,7 @@ class SpannerWorkItemsService(
                   )
                 }
                 if (txn.workItemPublicationExists(result.workItemId)) {
-                  throw WorkItemPublicationPendingException(
-                    result.workItem.workItemResourceId
-                  )
+                  throw WorkItemPublicationPendingException(result.workItem.workItemResourceId)
                 }
                 txn.retryWorkItem(result.workItemId, result.workItem.generation)
               }
