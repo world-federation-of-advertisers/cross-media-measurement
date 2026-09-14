@@ -327,6 +327,8 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
 
     assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
     assertThat(repeatedFailure.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    assertThat(failedAttempt.errorMessage).isEqualTo("permanent failure")
+    assertThat(repeatedFailure.errorMessage).isEqualTo("permanent failure")
     val recoveredWorkItem =
       workItemsService.getWorkItem(
         getWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
@@ -397,6 +399,15 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
       )
     assertThat(pendingDeadLetter.state).isEqualTo(WorkItem.State.RUNNING)
     assertThat(pendingDeadLetter.generation).isEqualTo(workItem.generation + 1L)
+    val retryError =
+      kotlin.test.assertFailsWith<StatusRuntimeException> {
+        workItemsService.retryWorkItem(
+          retryWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+        )
+      }
+    assertThat(retryError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(retryError.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_PUBLICATION_PENDING.name)
     val staleDeliveryError =
       kotlin.test.assertFailsWith<StatusRuntimeException> {
         attemptsService.createWorkItemAttempt(

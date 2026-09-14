@@ -141,6 +141,13 @@ class InternalApiServer : Runnable {
   private var deadLetterProcessingEnabled: Boolean = true
 
   @CommandLine.Option(
+    names = ["--work-item-publication-enabled"],
+    description = ["Whether WorkItem publication and legacy reconciliation may run."],
+    defaultValue = "true",
+  )
+  private var workItemPublicationEnabled: Boolean = true
+
+  @CommandLine.Option(
     names = ["--edpa-tls-cert-file"],
     description =
       [
@@ -274,6 +281,7 @@ class InternalApiServer : Runnable {
             queueMapping,
             workItemPublicationPollInterval = workItemPublicationPollInterval,
             workItemPublicationLeaseDuration = workItemPublicationLeaseDuration,
+            workItemPublicationEnabled = workItemPublicationEnabled,
           )
         val services = internalApiServices.build(serviceFlags.executor.asCoroutineDispatcher())
         val servicesList: List<BindableService> = services.toList()

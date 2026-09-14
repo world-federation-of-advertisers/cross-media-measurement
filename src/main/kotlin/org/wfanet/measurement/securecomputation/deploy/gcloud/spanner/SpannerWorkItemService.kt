@@ -55,6 +55,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWor
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.scheduleWorkItemPublicationIfNeeded
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
@@ -64,6 +65,7 @@ import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlready
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublicationPendingException
 
 class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
@@ -365,6 +367,11 @@ class SpannerWorkItemsService(
                     result.workItem.state,
                   )
                 }
+                if (txn.workItemPublicationExists(result.workItemId)) {
+                  throw WorkItemPublicationPendingException(
+                    result.workItem.workItemResourceId
+                  )
+                }
                 txn.retryWorkItem(result.workItemId, result.workItem.generation)
               }
               WorkItem.State.QUEUED -> {
@@ -397,6 +404,8 @@ class SpannerWorkItemsService(
         } catch (e: QueueNotFoundForWorkItem) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         } catch (e: WorkItemInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemPublicationPendingException) {
           throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
       }
@@ -450,7 +459,11 @@ class SpannerWorkItemsService(
                   )
                 }
                 if (activeAttempt != null) {
-                  txn.failWorkItemAttempt(result.workItemId, activeAttempt.workItemAttemptId)
+                  txn.failWorkItemAttempt(
+                    result.workItemId,
+                    activeAttempt.workItemAttemptId,
+                    "Recovered from dead-letter delivery",
+                  )
                   txn.retryWorkItem(result.workItemId, result.workItem.generation)
                 } else {
                   txn.failWorkItem(result.workItemId)

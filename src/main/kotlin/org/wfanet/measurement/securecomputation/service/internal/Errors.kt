@@ -40,6 +40,7 @@ object Errors {
     WORK_ITEM_ALREADY_EXISTS,
     WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
     WORK_ITEM_GENERATION_MISMATCH,
+    WORK_ITEM_PUBLICATION_PENDING,
     INVALID_FIELD_VALUE,
   }
 
@@ -200,6 +201,17 @@ class WorkItemGenerationMismatchException(
       Errors.Metadata.EXPECTED_WORK_ITEM_GENERATION to expectedGeneration.toString(),
       Errors.Metadata.ACTUAL_WORK_ITEM_GENERATION to actualGeneration.toString(),
     ),
+    cause,
+  )
+
+class WorkItemPublicationPendingException(
+  workItemResourceId: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    Errors.Reason.WORK_ITEM_PUBLICATION_PENDING,
+    "WorkItem with resource ID $workItemResourceId already has a pending publication",
+    mapOf(Errors.Metadata.WORK_ITEM_RESOURCE_ID to workItemResourceId),
     cause,
   )
 

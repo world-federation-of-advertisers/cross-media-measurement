@@ -216,12 +216,14 @@ fun AsyncDatabaseClient.TransactionContext.completeWorkItemAttempt(
 fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(
   workItemId: Long,
   workItemAttemptId: Long,
+  errorMessage: String,
 ): WorkItemAttempt.State {
   val state = WorkItemAttempt.State.FAILED
   bufferUpdateMutation("WorkItemAttempts") {
     set("WorkItemId").to(workItemId)
     set("WorkItemAttemptId").to(workItemAttemptId)
     set("State").to(state)
+    set("ErrorMessage").to(errorMessage)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   return state
@@ -231,8 +233,9 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(
 fun AsyncDatabaseClient.TransactionContext.failWorkItemAttemptAndScheduleRecovery(
   result: WorkItemAttemptResult,
   queue: QueueMapping.Queue,
+  errorMessage: String,
 ): WorkItemAttemptRecoveryOutcome {
-  failWorkItemAttempt(result.workItemId, result.workItemAttemptId)
+  failWorkItemAttempt(result.workItemId, result.workItemAttemptId, errorMessage)
   return if (result.workItemAttempt.attemptNumber >= queue.maxWorkItemAttempts) {
     scheduleWorkItemDeadLetterPublication(result.workItemId, result.generation)
     WorkItemAttemptRecoveryOutcome.DEAD_LETTERED
@@ -333,6 +336,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.recoverExpiredWorkItemAttempt
       workItemAttempt = workItemAttempt { this.attemptNumber = attemptNumber },
     ),
     queue,
+    "WorkItemAttempt lease expired",
   )
 }
 

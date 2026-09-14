@@ -44,6 +44,7 @@ import org.wfanet.measurement.securecomputation.service.WorkItemGenerationMismat
 import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.WorkItemNotFoundException
+import org.wfanet.measurement.securecomputation.service.WorkItemPublicationPendingException
 import org.wfanet.measurement.securecomputation.service.internal.Errors as InternalErrors
 
 class WorkItemsService(
@@ -93,6 +94,7 @@ class WorkItemsService(
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE,
           InternalErrors.Reason.WORK_ITEM_NOT_FOUND,
@@ -146,6 +148,9 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
             WorkItemInvalidStateException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING ->
+            WorkItemPublicationPendingException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.QUEUE_NOT_FOUND ->
             QueueNotFoundException.fromInternal(e).asStatusRuntimeException(Status.Code.NOT_FOUND)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET ->
@@ -195,6 +200,7 @@ class WorkItemsService(
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
@@ -281,6 +287,9 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
             WorkItemInvalidStateException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING ->
+            WorkItemPublicationPendingException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
@@ -318,6 +327,9 @@ class WorkItemsService(
             WorkItemNotFoundException(request.name, e).asStatusRuntimeException(e.status.code)
           InternalErrors.Reason.INVALID_WORK_ITEM_STATE ->
             WorkItemInvalidStateException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING ->
+            WorkItemPublicationPendingException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,

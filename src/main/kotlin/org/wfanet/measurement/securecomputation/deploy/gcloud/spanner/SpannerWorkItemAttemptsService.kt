@@ -140,7 +140,11 @@ class SpannerWorkItemAttemptsService(
                   request.supportsAttemptLease &&
                     !activeAttempt.workItemAttempt.hasLeaseExpirationTime()
                 ) {
-                  txn.failWorkItemAttempt(activeAttempt.workItemId, activeAttempt.workItemAttemptId)
+                  txn.failWorkItemAttempt(
+                    activeAttempt.workItemId,
+                    activeAttempt.workItemAttemptId,
+                    "Replaced by a lease-capable worker",
+                  )
                 } else {
                   throw WorkItemInvalidStateException(
                     result.workItem.workItemResourceId,
@@ -257,15 +261,23 @@ class SpannerWorkItemAttemptsService(
                       ?: throw QueueNotFoundForWorkItem(
                         workItemAttemptResult.workItemAttempt.workItemResourceId
                       )
-                  txn.failWorkItemAttemptAndScheduleRecovery(workItemAttemptResult, queue)
+                  txn.failWorkItemAttemptAndScheduleRecovery(
+                    workItemAttemptResult,
+                    queue,
+                    request.errorMessage.take(MAX_ERROR_MESSAGE_LENGTH),
+                  )
                   WorkItemAttempt.State.FAILED
                 } else {
                   txn.failWorkItemAttempt(
                     workItemAttemptResult.workItemId,
                     workItemAttemptResult.workItemAttemptId,
+                    request.errorMessage.take(MAX_ERROR_MESSAGE_LENGTH),
                   )
                 }
-              workItemAttemptResult.workItemAttempt.copy { this.state = state } to true
+              workItemAttemptResult.workItemAttempt.copy {
+                this.state = state
+                errorMessage = request.errorMessage.take(MAX_ERROR_MESSAGE_LENGTH)
+              } to true
             }
           }
         } catch (e: WorkItemAttemptInvalidStateException) {
@@ -434,6 +446,7 @@ class SpannerWorkItemAttemptsService(
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
     private const val INITIAL_GENERATION = 1L
+    private const val MAX_ERROR_MESSAGE_LENGTH = 1024
     val DEFAULT_ATTEMPT_LEASE_DURATION: Duration = Duration.ofMinutes(5)
   }
 }

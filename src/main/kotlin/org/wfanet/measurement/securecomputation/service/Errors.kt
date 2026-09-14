@@ -36,6 +36,7 @@ object Errors {
     WORK_ITEM_ALREADY_EXISTS,
     WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
     WORK_ITEM_GENERATION_MISMATCH,
+    WORK_ITEM_PUBLICATION_PENDING,
     QUEUE_NOT_FOUND,
     INVALID_FIELD_VALUE,
   }
@@ -231,6 +232,28 @@ class WorkItemGenerationMismatchException(
         internalMetadata.getValue(InternalErrors.Metadata.ACTUAL_WORK_ITEM_GENERATION),
         cause,
       )
+    }
+  }
+}
+
+class WorkItemPublicationPendingException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    reason,
+    "WorkItem $name already has a pending publication",
+    mapOf(Errors.Metadata.WORK_ITEM to name),
+    cause,
+  ) {
+  companion object : Factory<WorkItemPublicationPendingException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.WORK_ITEM_PUBLICATION_PENDING
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): WorkItemPublicationPendingException {
+      val workItemKey =
+        WorkItemKey(internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID))
+      return WorkItemPublicationPendingException(workItemKey.toName(), cause)
     }
   }
 }

@@ -23,6 +23,7 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -46,6 +47,7 @@ class WorkItemPublicationRunner(
   private val leaseDuration: Duration = DEFAULT_LEASE_DURATION,
   private val initialRetryDelay: Duration = DEFAULT_INITIAL_RETRY_DELAY,
   private val maxRetryDelay: Duration = DEFAULT_MAX_RETRY_DELAY,
+  private val publicationEnabled: Boolean = true,
 ) {
   init {
     require(pollInterval > Duration.ZERO) { "pollInterval must be positive" }
@@ -58,6 +60,9 @@ class WorkItemPublicationRunner(
 
   /** Attempts to publish the pending outbox record for [workItemId]. */
   suspend fun publishWorkItem(workItemId: Long): Boolean {
+    if (!publicationEnabled) {
+      return false
+    }
     return try {
       when (val claim = claimWorkItemPublication(workItemId)) {
         is WorkItemPublicationClaimResult.Claimed -> publishClaimedWorkItem(claim.publication)
@@ -78,6 +83,9 @@ class WorkItemPublicationRunner(
   /** Publishes up to [limit] pending outbox records. */
   suspend fun publishPendingWorkItems(limit: Int = DEFAULT_BATCH_SIZE): Int {
     require(limit > 0) { "limit must be positive" }
+    if (!publicationEnabled) {
+      return 0
+    }
     reconcileLegacyWorkItems(limit)
     var publishedCount = 0
     repeat(limit) {
@@ -115,6 +123,10 @@ class WorkItemPublicationRunner(
 
   /** Continuously publishes pending outbox records until the coroutine is cancelled. */
   suspend fun run() {
+    if (!publicationEnabled) {
+      logger.info("WorkItem publication and reconciliation are disabled")
+      awaitCancellation()
+    }
     while (currentCoroutineContext().isActive) {
       try {
         publishPendingWorkItems()
