@@ -170,8 +170,8 @@ variable "tee_consumers_enabled" {
   default     = true
 }
 
-variable "requisition_fetcher_enabled" {
-  description = "Whether RequisitionFetcher may process scheduled invocations."
+variable "direct_requisition_dispatch_enabled" {
+  description = "Whether RequisitionFetcher may process new work."
   type        = bool
   default     = true
 }

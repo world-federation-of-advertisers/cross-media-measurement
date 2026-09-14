@@ -81,8 +81,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
  *   RPCs. Default `100ms`.
- * - `REQUISITION_FETCHER_ENABLED`: Optional. Whether scheduled invocations fetch and dispatch new
- *   work. The deployment workflow sets this to `false` while workers and APIs are replaced. Default
+ * - `DIRECT_WORK_ITEM_DISPATCH_ENABLED`: Optional rollout gate. When `false`, this version
+ *   validates configuration and returns without fetching or dispatching work. The existing name is
+ *   retained so older revisions also disable direct dispatch during a rolling replacement. Default
  *   `true`.
  * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required when direct WorkItem dispatch is
  *   configured.
@@ -459,9 +460,9 @@ class RequisitionFetcherFunction : HttpFunction {
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
     private val requisitionFetcherEnabled: Boolean =
-      System.getenv("REQUISITION_FETCHER_ENABLED")?.let { value ->
+      System.getenv("DIRECT_WORK_ITEM_DISPATCH_ENABLED")?.let { value ->
         requireNotNull(value.toBooleanStrictOrNull()) {
-          "REQUISITION_FETCHER_ENABLED must be 'true' or 'false'"
+          "DIRECT_WORK_ITEM_DISPATCH_ENABLED must be 'true' or 'false'"
         }
       } ?: true
     private val requisitionFetcherConfig by lazy {
