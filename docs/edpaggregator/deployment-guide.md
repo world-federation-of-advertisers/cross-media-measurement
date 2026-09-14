@@ -888,17 +888,19 @@ direct-dispatch block for every configured data provider, a control-plane target
 and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
 DataWatcher regex that matches a representative direct-path object. Validation failure therefore
 stops deployment before any worker is quiesced. The first Terraform apply then uploads the config,
-disables RequisitionFetcher processing, and quiesces and verifies all WorkItem-consuming TEE MIGs.
+sets the existing direct-dispatch gate to `false`, and quiesces and verifies all WorkItem-consuming
+TEE MIGs.
 The workflow rolls both Secure Computation API deployments and every EDP Aggregator/Requisition
 Metadata API deployment to completion. Its final Terraform apply validates the configuration again
 before enabling RequisitionFetcher and the new workers.
 
-The final Terraform apply enables RequisitionFetcher and the new workers. The explicit gate prevents
-Terraform's parallel resource updates from fetching new work while an old TEE can still consume it.
-DataWatcher remains running; RequisitionFetcher invocations validate configuration but do no work
-while disabled. Unclaimed Pub/Sub messages remain queued and must not be drained. An old
-RequisitionFetcher revision may reject the new textproto
-field during the Cloud Function rollout, but it makes no state change in that case. The next
+The final Terraform apply enables RequisitionFetcher and the new workers. During the fetcher
+replacement, an older revision that recognizes the gate can create only legacy DataWatcher work;
+the new revision validates configuration and returns without fetching or dispatching. Neither can
+create direct work while the gate is `false`. After the first apply finishes, only the disabled new
+revision remains. DataWatcher stays active and unclaimed Pub/Sub messages remain queued; they must
+not be drained. A pre-feature RequisitionFetcher revision may instead reject the new textproto field,
+but it makes no state change in that case. The next
 invocation of the new revision polls the same unfulfilled Kingdom requisitions.
 
 Do not invoke child deployment workflows independently for this upgrade. No manual service
