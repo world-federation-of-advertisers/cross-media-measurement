@@ -62,6 +62,21 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     spannerDatabase.databaseClient.write(listOf(mutation))
   }
 
+  override suspend fun setEvictionFence(
+    dataProviderResourceId: String,
+    evictionOperationId: String,
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        insertMutation("VidLabelingEvictionFence") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("EvictionOperationId").to(evictionOperationId)
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      )
+    )
+  }
+
   override suspend fun getParentUploadState(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,

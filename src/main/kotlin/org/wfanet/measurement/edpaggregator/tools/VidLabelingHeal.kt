@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.tools
 import io.grpc.ManagedChannel
 import java.time.Duration
 import java.time.Instant
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
@@ -473,6 +474,17 @@ class EvictUploadsCommand : EdpaApiCommand() {
   )
   private lateinit var reason: String
 
+  @Option(
+    names = ["--eviction-operation-id"],
+    description =
+      [
+        "UUID4 identifying this resumable eviction. Omit for a new operation; reuse the printed " +
+          "value after an interrupted run."
+      ],
+    required = false,
+  )
+  private var evictionOperationId: String? = null
+
   override fun run() {
     require(badUploads.all { it.isNotBlank() }) {
       "--bad-uploads entries must be non-blank RawImpressionUpload resource names."
@@ -488,8 +500,13 @@ class EvictUploadsCommand : EdpaApiCommand() {
             RankIndexBlobServiceCoroutineStub(channel),
           )
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
-        val plan = evictUploader.plan(badUploads, cutoffTime)
+        val operationId = evictionOperationId ?: UUID.randomUUID().toString()
+        val plan = evictUploader.plan(badUploads, cutoffTime, evictionOperationId = operationId)
 
+        println(
+          "Eviction operation ID: ${plan.evictionOperationId}. Reuse it with " +
+            "--eviction-operation-id if this run is interrupted."
+        )
         println(
           "Eviction plan (${plan.cascade.size} upload/model-line pair(s)): " +
             plan.cascade.map { "${it.uploadName} -> ${it.cmmsModelLine}" }

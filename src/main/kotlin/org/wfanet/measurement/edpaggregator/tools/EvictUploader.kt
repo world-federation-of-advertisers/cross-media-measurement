@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.type.interval
 import java.time.Instant
+import java.util.UUID
 import java.util.logging.Logger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -26,6 +27,7 @@ import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.service.RankIndexBlobKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
@@ -36,12 +38,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.R
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
 /**
@@ -82,6 +86,8 @@ class EvictUploader(
     val nonMemoizedModelLines: Set<String>,
     val badUploads: List<String>,
     val cutoffTime: Instant,
+    /** UUID4 that owns the durable data-provider eviction fence and resumes this exact plan. */
+    val evictionOperationId: String,
   )
 
   /** Outcome of an [evict] run. */
@@ -99,8 +105,15 @@ class EvictUploader(
    *   an unknown upload, names an upload older than [cutoffTime], or the DataProvider still has
    *   queued or running model-line work.
    */
-  suspend fun plan(badUploads: List<String>, cutoffTime: Instant): EvictionPlan {
+  suspend fun plan(
+    badUploads: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String = UUID.randomUUID().toString(),
+  ): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
+    require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
+      "evictionOperationId must be a UUID"
+    }
     val dataProvider = dataProviderOf(badUploads.first())
     require(badUploads.all { dataProviderOf(it) == dataProvider }) {
       "all bad uploads must be under the same DataProvider"
@@ -137,22 +150,14 @@ class EvictUploader(
         .map { it.cmmsModelLine }
         .toSet()
         .associateWith { listModelLines("$dataProvider/rawImpressionUploads/-", it, cutoffTime) }
-    val snapshotRows = coroutineScope {
+    val snapshotRows: Set<Pair<String, String>> = coroutineScope {
       val semaphore = Semaphore(SNAPSHOT_LOOKUP_PARALLELISM)
-      rowsByCmmsModelLine.values
-        .flatten()
-        .map { row ->
-          async {
-            val uploadName = uploadNameOf(row.name)
-            if (semaphore.withPermit { hasSnapshot(uploadName, row.cmmsModelLine) }) {
-              uploadName to row.cmmsModelLine
-            } else {
-              null
-            }
-          }
+      rowsByCmmsModelLine.keys
+        .map { cmmsModelLine ->
+          async { semaphore.withPermit { listSnapshotRows(dataProvider, cmmsModelLine) } }
         }
         .awaitAll()
-        .filterNotNull()
+        .flatten()
         .toSet()
     }
     val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
@@ -198,6 +203,7 @@ class EvictUploader(
       nonMemoizedModelLines,
       badUploads,
       cutoffTime,
+      evictionOperationId,
     )
   }
 
@@ -206,16 +212,39 @@ class EvictUploader(
    * `EVICTED_OUTPUT` (recording [reason]) and soft-deletes its cumulative `SNAPSHOT` rank-index
    * blobs. Model lines already failed for another reason are reclassified as evicted before their
    * snapshots are deleted, so `retry-failed` cannot recreate invalidated output. Already-evicted
-   * model lines and snapshot soft-deletes are idempotent. The caller must first quiesce dispatch
-   * and workers: marking a row FAILED does not cancel a worker that has already loaded a corrupt
-   * predecessor. The plan is refreshed immediately before mutation and execution aborts if it has
-   * changed since operator confirmation.
+   * model lines and snapshot soft-deletes are idempotent. Before refreshing the plan, this acquires
+   * a durable DataProvider-wide fence that verifies the pipeline is idle and prevents new upload
+   * registration, model-line backfill, or processing restarts until eviction completes. A partial
+   * failure leaves the fence in place so the same operation ID can safely resume.
    */
   suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
-    val refreshed = plan(plan.badUploads, plan.cutoffTime)
-    require(refreshed.cascade == plan.cascade) {
-      "eviction plan changed after confirmation; review the new plan and retry"
+    val dataProvider = dataProviderOf(plan.badUploads.first())
+    uploadsStub.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        parent = dataProvider
+        evictionOperationId = plan.evictionOperationId
+      }
+    )
+    var mutationStarted = false
+    try {
+      val refreshed =
+        plan(plan.badUploads, plan.cutoffTime, evictionOperationId = plan.evictionOperationId)
+      require(refreshed.cascade == plan.cascade) {
+        "eviction plan changed after confirmation; review the new plan and retry"
+      }
+      mutationStarted = true
+      val result = executeEviction(plan, reason)
+      releaseEvictionFence(dataProvider, plan.evictionOperationId)
+      return result
+    } catch (e: Exception) {
+      if (!mutationStarted) {
+        releaseEvictionFence(dataProvider, plan.evictionOperationId)
+      }
+      throw e
     }
+  }
+
+  private suspend fun executeEviction(plan: EvictionPlan, reason: String): EvictionResult {
     val failed = mutableListOf<String>()
     var deleted = 0
     for (entry in plan.cascade) {
@@ -365,21 +394,45 @@ class EvictUploader(
     return count
   }
 
-  private suspend fun hasSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
-    val response =
-      rankIndexBlobsStub.listRankIndexBlobs(
-        listRankIndexBlobsRequest {
-          parent = uploadName
-          pageSize = 1
-          showDeleted = true
-          filter =
-            ListRankIndexBlobsRequestKt.filter {
-              blobType = RankIndexBlob.BlobType.SNAPSHOT
-              this.cmmsModelLine = cmmsModelLine
-            }
-        }
-      )
-    return response.rankIndexBlobsCount > 0
+  private suspend fun listSnapshotRows(
+    dataProvider: String,
+    cmmsModelLine: String,
+  ): List<Pair<String, String>> {
+    val rows = mutableListOf<Pair<String, String>>()
+    var pageToken = ""
+    do {
+      val response =
+        rankIndexBlobsStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = "$dataProvider/rawImpressionUploads/-"
+            showDeleted = true
+            filter =
+              ListRankIndexBlobsRequestKt.filter {
+                blobType = RankIndexBlob.BlobType.SNAPSHOT
+                this.cmmsModelLine = cmmsModelLine
+              }
+            this.pageToken = pageToken
+          }
+        )
+      for (blob in response.rankIndexBlobsList) {
+        val key =
+          requireNotNull(RankIndexBlobKey.fromName(blob.name)) {
+            "Malformed RankIndexBlob resource name: ${blob.name}"
+          }
+        rows += key.parentKey.toName() to blob.cmmsModelLine
+      }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
+  }
+
+  private suspend fun releaseEvictionFence(dataProvider: String, evictionOperationId: String) {
+    uploadsStub.releaseRawImpressionUploadEvictionFence(
+      releaseRawImpressionUploadEvictionFenceRequest {
+        parent = dataProvider
+        this.evictionOperationId = evictionOperationId
+      }
+    )
   }
 
   companion object {

@@ -39,6 +39,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpr
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
@@ -116,6 +117,8 @@ class SpannerRawImpressionUploadModelLineService(
             }
             return@run existing.rawImpressionUploadModelLine
           }
+
+          txn.requireNoVidLabelingEvictionFence(request.dataProviderResourceId)
 
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(
@@ -264,6 +267,10 @@ class SpannerRawImpressionUploadModelLineService(
               rawImpressionUploadResourceId,
               request.requestsList.map { it.requestId },
             )
+
+          if (request.requestsList.any { it.requestId !in existingByRequestId }) {
+            txn.requireNoVidLabelingEvictionFence(dataProviderResourceId)
+          }
 
           var anyInserted = false
           val created =
@@ -747,6 +754,10 @@ class SpannerRawImpressionUploadModelLineService(
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
+        if (nextState in PROCESSING_STATES) {
+          txn.requireNoVidLabelingEvictionFence(dataProviderResourceId)
+        }
+
         // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
         // would corrupt the shared cumulative rank index.
         if (nextState in PROCESSING_STATES) {
@@ -848,6 +859,17 @@ class SpannerRawImpressionUploadModelLineService(
         etag = ETags.computeETag(commitTimestamp.toInstant())
       }
     )
+  }
+
+  private suspend fun AsyncDatabaseClient.ReadContext.requireNoVidLabelingEvictionFence(
+    dataProviderResourceId: String
+  ) {
+    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "VID-labeling eviction $operationId is in progress for DataProvider " +
+          dataProviderResourceId
+      )
+      .asRuntimeException()
   }
 
   /**
