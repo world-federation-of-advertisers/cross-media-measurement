@@ -38,33 +38,6 @@ on:
         description: "Apply the new configuration"
         type: boolean
         required: true
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "GitHub-managed environment"
-        required: true
-        type: choice
-        options:
-        - dev
-        - qa
-        - head
-      image-tag:
-        description: "Tag of container images"
-        type: string
-        required: true
-      duchy-name:
-        description: "Name (external ID) of Duchy"
-        type: choice
-        options:
-        - worker1
-        - worker2
-        - aggregator
-        required: true
-      apply:
-        description: "Apply the new configuration"
-        type: boolean
-        default: false
-
 permissions:
   contents: read
 
