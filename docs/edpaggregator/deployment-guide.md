@@ -870,8 +870,7 @@ To activate direct dispatch, operators only need to:
 1. Add `work_item_dispatch` to each selected provider in
    `REQUISITION_FETCHER_CONFIG_CONTENT`. Preserve the existing top-level `storage_path_prefix`,
    choose a dedicated nested prefix such as `<edp-id>/requisitions-v2` that is disjoint from every
-   legacy and direct prefix sharing the bucket, and verify that the actual
-   legacy DataWatcher `source_path_regex` excludes every direct prefix.
+   legacy and direct prefix sharing the bucket.
 2. Run the repository's top-level **Update CMMS** workflow, or automation that implements the same
    environment lock and ordered barriers.
 3. If deployment fails before workers are restored, rerun the complete process. Do not enable
@@ -881,12 +880,19 @@ The workflow's environment-scoped concurrency lock prevents overlapping deployme
 interleaving rollout phases. Its first Terraform apply uploads the combined config with direct
 dispatch gated off, then quiesces and verifies all WorkItem-consuming TEE MIGs. The workflow rolls
 both Secure Computation API deployments and every
-EDP Aggregator/Requisition Metadata API deployment to completion. Its final Terraform apply enables
-direct dispatch and the new workers. The explicit gate prevents Terraform's parallel resource
-updates from activating direct dispatch while an old TEE can still consume it. DataWatcher and
-RequisitionFetcher remain running; unclaimed Pub/Sub messages remain queued and must not be
-drained. An old RequisitionFetcher revision may reject the newly added textproto field during the
-Cloud Function rollout, but it makes no state change in that case, and the next invocation of the
+EDP Aggregator/Requisition Metadata API deployment to completion. Before its final Terraform apply,
+the workflow validates the exact RequisitionFetcher and DataWatcher textprotos from the selected
+GitHub environment. It requires a direct-dispatch block for every configured data provider, a
+control-plane target, queue, TLS paths, and valid ResultsFulfiller parameters; it also rejects
+overlapping storage prefixes or any deployed DataWatcher regex that matches a representative
+direct-path object. Validation failure stops deployment before direct dispatch or workers are
+enabled.
+
+The final Terraform apply enables direct dispatch and the new workers. The explicit gate prevents
+Terraform's parallel resource updates from activating direct dispatch while an old TEE can still
+consume it. DataWatcher and RequisitionFetcher remain running; unclaimed Pub/Sub messages remain
+queued and must not be drained. An old RequisitionFetcher revision may reject the new textproto
+field during the Cloud Function rollout, but it makes no state change in that case, and the next invocation of the
 new revision polls the same unfulfilled Kingdom requisitions.
 
 Do not invoke the child Terraform, Secure Computation, or EDP Aggregator workflows independently
