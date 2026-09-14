@@ -57,8 +57,7 @@ service WorkItems {
   //
   // Set `WorkItemAttempt`s as FAILED.
   rpc FailWorkItem(FailWorkItemRequest) returns (WorkItem) {
-    option (google.api.method_signature) =
-        "name,expected_work_item_generation";
+    option (google.api.method_signature) = "name,expected_work_item_generation";
   }
 
   // Retries a failed `WorkItem`, a `RUNNING` `WorkItem` with no active attempt,

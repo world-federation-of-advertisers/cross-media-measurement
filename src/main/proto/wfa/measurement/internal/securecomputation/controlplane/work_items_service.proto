@@ -43,7 +43,8 @@ service WorkItems {
   // atomically retried at the next generation. An active leased attempt is
   // rejected so the delivery can be retried after the lease is recovered.
   // Otherwise, the WorkItem is failed terminally.
-  rpc ProcessWorkItemDeadLetter(ProcessWorkItemDeadLetterRequest) returns (WorkItem);
+  rpc ProcessWorkItemDeadLetter(ProcessWorkItemDeadLetterRequest)
+      returns (WorkItem);
 
   // Retries a FAILED WorkItem or a RUNNING WorkItem with no active attempt, or
   // repairs publication for a QUEUED WorkItem.

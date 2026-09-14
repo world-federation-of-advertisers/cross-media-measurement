@@ -52,14 +52,9 @@ class ValidateRequisitionFetcherConfig : Runnable {
   override fun run() {
     val requisitionFetcherConfig =
       parseTextProto(requisitionFetcherConfigFile, RequisitionFetcherConfig.getDefaultInstance())
-    val typeRegistry =
-      TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
+    val typeRegistry = TypeRegistry.newBuilder().add(ResultsFulfillerParams.getDescriptor()).build()
     val dataWatcherConfig =
-      parseTextProto(
-        dataWatcherConfigFile,
-        DataWatcherConfig.getDefaultInstance(),
-        typeRegistry,
-      )
+      parseTextProto(dataWatcherConfigFile, DataWatcherConfig.getDefaultInstance(), typeRegistry)
     RequisitionFetcherConfigValidator.validate(
       requisitionFetcherConfig,
       controlPlaneTarget,
@@ -70,7 +65,6 @@ class ValidateRequisitionFetcherConfig : Runnable {
 
   companion object {
     @JvmStatic
-    fun main(args: Array<String>) =
-      commandLineMain(ValidateRequisitionFetcherConfig(), args)
+    fun main(args: Array<String>) = commandLineMain(ValidateRequisitionFetcherConfig(), args)
   }
 }

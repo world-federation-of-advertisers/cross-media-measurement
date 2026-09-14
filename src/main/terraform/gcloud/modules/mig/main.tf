@@ -163,8 +163,8 @@ resource "google_compute_region_instance_group_manager" "mig" {
     create_before_destroy = true
   }
   update_policy {
-    type                  = "PROACTIVE"
-    minimal_action        = "REPLACE"
+    type           = "PROACTIVE"
+    minimal_action = "REPLACE"
     # PROACTIVE rolling updates on a regional MIG require max_surge >= zone count so the
     # replacement pool can honor distribution_policy_zones during the roll. Trade-off vs
     # a fixed max_surge=1: rolls now briefly run up to zone-count extra instances instead

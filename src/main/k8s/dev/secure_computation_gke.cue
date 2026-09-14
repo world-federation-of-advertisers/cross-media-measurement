@@ -14,8 +14,8 @@
 
 package k8s
 
-_secretName:           string @tag("secret_name")
-_publicApiAddressName: "secure-computation-public"
+_secretName:                     string @tag("secret_name")
+_publicApiAddressName:           "secure-computation-public"
 _deadLetterProcessingEnabledTag: string @tag("dead_letter_processing_enabled")
 
 // Name of K8s service account for the ControlPlane internal API server.

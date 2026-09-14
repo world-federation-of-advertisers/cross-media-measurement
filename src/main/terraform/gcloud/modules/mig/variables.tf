@@ -50,8 +50,8 @@ variable "mig_distribution_policy_zones" {
 variable "secrets_to_access" {
   description = "List of secrets to access from the VM"
   type = list(object({
-    secret_id  = string
-    version    = string
+    secret_id = string
+    version   = string
   }))
   default = []
 }

@@ -860,8 +860,12 @@ abstract class WorkItemsServiceTest {
 
     val results =
       listOf(
-          async(Dispatchers.Default) { runCatching { services.service.processWorkItemDeadLetter(request) } },
-          async(Dispatchers.Default) { runCatching { services.service.processWorkItemDeadLetter(request) } },
+          async(Dispatchers.Default) {
+            runCatching { services.service.processWorkItemDeadLetter(request) }
+          },
+          async(Dispatchers.Default) {
+            runCatching { services.service.processWorkItemDeadLetter(request) }
+          },
         )
         .map { it.await() }
     val current =
