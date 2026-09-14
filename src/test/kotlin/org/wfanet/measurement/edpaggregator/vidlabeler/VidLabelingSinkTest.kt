@@ -338,8 +338,15 @@ class VidLabelingSinkTest {
       sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_000L, idByte = 1)))
       sink.close() // no commit()
 
+      // A partially written data blob may survive: close() cancels the writer scope without
+      // joining it, so the streaming write may already have created the object. That is the
+      // documented contract -- see close()'s KDoc and the withdrawn review thread on #3990:
+      // "consumers discover blobs only via the metadata sidecar", and commit() (which writes the
+      // sidecar) never runs on the cancel path. The blob is deliberately NOT deleted here: the
+      // output key is deterministic, so on Pub/Sub redelivery a delete could remove a sibling
+      // VM's committed output (TODO(#3999) tracks write-if-absent as the real fix).
       val files = tempFolder.root.walkTopDown().filter { it.isFile }.toList()
-      assertThat(files).isEmpty()
+      assertThat(files.filter { it.name.endsWith(".metadata.binpb") }).isEmpty()
     }
 
   @Test
