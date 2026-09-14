@@ -54,6 +54,9 @@ abstract class RawImpressionUploadServiceTest {
     idGenerator: IdGenerator = IdGenerator.Default
   ): RawImpressionUploadServiceCoroutineImplBase
 
+  /** Inserts a fully registered upload with an active model line. */
+  protected abstract suspend fun createActiveModelLine(dataProviderResourceId: String)
+
   @Before
   fun initService() {
     service = newService()
@@ -1078,6 +1081,24 @@ abstract class RawImpressionUploadServiceTest {
   @Test
   fun `eviction fence rejects an upload whose registration is incomplete`(): Unit = runBlocking {
     createUpload()
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            evictionOperationId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(error.status.description).contains("not idle")
+  }
+
+  @Test
+  fun `eviction fence rejects an active model line`(): Unit = runBlocking {
+    createActiveModelLine(DATA_PROVIDER_RESOURCE_ID)
 
     val error =
       assertFailsWith<StatusRuntimeException> {
