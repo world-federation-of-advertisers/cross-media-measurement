@@ -134,6 +134,13 @@ class InternalApiServer : Runnable {
   private var deadLetterSubscriptionIds: List<String> = emptyList()
 
   @CommandLine.Option(
+    names = ["--dead-letter-processing-enabled"],
+    description = ["Whether configured dead-letter subscriptions may be consumed."],
+    defaultValue = "true",
+  )
+  private var deadLetterProcessingEnabled: Boolean = true
+
+  @CommandLine.Option(
     names = ["--edpa-tls-cert-file"],
     description =
       [
@@ -239,12 +246,14 @@ class InternalApiServer : Runnable {
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
+    val activeDeadLetterSubscriptionIds =
+      if (deadLetterProcessingEnabled) deadLetterSubscriptionIds else emptyList()
 
     // The EDP-Aggregator metadata-storage mTLS channel and stubs are only needed when at least one
     // DLQ listener runs. When no dead-letter subscription is configured the server runs without
     // them, so the EDPA cert/key/target flags are not required in that case.
     val edpaConnection: EdpaConnection? =
-      if (deadLetterSubscriptionIds.isEmpty()) null else buildEdpaConnection()
+      if (activeDeadLetterSubscriptionIds.isEmpty()) null else buildEdpaConnection()
     val rpcThrottlers =
       VidLabelingRpcThrottlers.fromMinimumIntervals(
         metadataRead = metadataReadRpcMinInterval,
@@ -281,7 +290,7 @@ class InternalApiServer : Runnable {
         try {
           // Run one DLQ listener per dead-letter subscription (e.g. one per phase queue).
           val deadLetterListenerJobs: List<suspend () -> Unit> =
-            deadLetterSubscriptionIds.map { subscriptionId ->
+            activeDeadLetterSubscriptionIds.map { subscriptionId ->
               val subscriber =
                 Subscriber(
                   projectId = googleProjectId,

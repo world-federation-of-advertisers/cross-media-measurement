@@ -27,6 +27,8 @@ import java.time.Instant
 import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Rule
@@ -55,11 +57,13 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.createWork
 import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.processWorkItemDeadLetterRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
@@ -751,6 +755,172 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
+  fun `dead letter retries active legacy attempt at next generation`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created = createWorkItem(services.service)
+    val attempt = createWorkItemAttempt(services, created, "legacy-attempt")
+
+    val recovered =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    val failedAttempt =
+      services.workItemAttemptsService.getWorkItemAttempt(
+        getWorkItemAttemptRequest {
+          workItemResourceId = attempt.workItemResourceId
+          workItemAttemptResourceId = attempt.workItemAttemptResourceId
+        }
+      )
+    assertThat(recovered.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(recovered.generation).isEqualTo(2L)
+    assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `dead letter recovery remains durable when immediate publication fails`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+            if (publicationCount == 2) error("publication unavailable")
+          }
+        },
+      )
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "legacy-attempt")
+
+    val queued =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    assertThat(queued.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(queued.generation).isEqualTo(2L)
+    assertThat(publicationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `stale repeated dead letter recovery cannot advance generation twice`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "legacy-attempt")
+    val request = processWorkItemDeadLetterRequest {
+      workItemResourceId = created.workItemResourceId
+      expectedWorkItemGeneration = created.generation
+    }
+    services.service.processWorkItemDeadLetter(request)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.processWorkItemDeadLetter(request)
+      }
+    val current =
+      services.service.getWorkItem(
+        getWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+    assertThat(current.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(current.generation).isEqualTo(2L)
+  }
+
+  @Test
+  fun `racing dead letter recovery advances generation once`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "legacy-attempt")
+    val request = processWorkItemDeadLetterRequest {
+      workItemResourceId = created.workItemResourceId
+      expectedWorkItemGeneration = created.generation
+    }
+
+    val results =
+      listOf(
+          async(Dispatchers.Default) { runCatching { services.service.processWorkItemDeadLetter(request) } },
+          async(Dispatchers.Default) { runCatching { services.service.processWorkItemDeadLetter(request) } },
+        )
+        .map { it.await() }
+    val current =
+      services.service.getWorkItem(
+        getWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(results.count { it.isSuccess }).isEqualTo(1)
+    assertThat(results.count { it.isFailure }).isEqualTo(1)
+    assertThat(current.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(current.generation).isEqualTo(2L)
+  }
+
+  @Test
+  fun `dead letter defers WorkItem with active leased attempt`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    val leasedAttempt = createWorkItemAttempt(services, created, "leased-attempt", lease = true)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.processWorkItemDeadLetter(
+          processWorkItemDeadLetterRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = created.generation
+          }
+        )
+      }
+    val currentAttempt =
+      services.workItemAttemptsService.getWorkItemAttempt(
+        getWorkItemAttemptRequest {
+          workItemResourceId = leasedAttempt.workItemResourceId
+          workItemAttemptResourceId = leasedAttempt.workItemAttemptResourceId
+        }
+      )
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
+    assertThat(currentAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+  }
+
+  @Test
+  fun `dead letter without active attempt fails WorkItem terminally`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val failed =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(created.generation)
+  }
+
+  @Test
   fun `stale retry does not fail replacement attempt`() = runBlocking {
     var publicationCount = 0
     val services =
@@ -1053,6 +1223,7 @@ abstract class WorkItemsServiceTest {
     services: Services,
     workItem: WorkItem,
     resourceId: String,
+    lease: Boolean = false,
   ): WorkItemAttempt {
     return services.workItemAttemptsService.createWorkItemAttempt(
       createWorkItemAttemptRequest {
@@ -1061,6 +1232,7 @@ abstract class WorkItemsServiceTest {
           workItemResourceId = workItem.workItemResourceId
           workItemAttemptResourceId = resourceId
         }
+        supportsAttemptLease = lease
       }
     )
   }

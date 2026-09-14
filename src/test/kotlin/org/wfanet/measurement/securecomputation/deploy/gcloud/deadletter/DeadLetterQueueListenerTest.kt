@@ -55,7 +55,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
-import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ProcessWorkItemDeadLetterRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
@@ -70,7 +70,7 @@ class DeadLetterQueueListenerTest {
 
   private val staleGenerationWorkItemsService =
     object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
-      override suspend fun failWorkItem(request: FailWorkItemRequest): InternalWorkItem {
+      override suspend fun processWorkItemDeadLetter(request: ProcessWorkItemDeadLetterRequest): InternalWorkItem {
         throw WorkItemGenerationMismatchException("work-item", 1L, 2L)
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
@@ -129,7 +129,7 @@ class DeadLetterQueueListenerTest {
     val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
     val mockQueueSubscriber =
       mock<QueueSubscriber> { on { subscribe(subscriptionId, mockParser) } doReturn messageChannel }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     // Create the listener
     val listener =
@@ -175,7 +175,7 @@ class DeadLetterQueueListenerTest {
       mock<QueueSubscriber> {
         on { subscribe(eq(subscriptionId), eq(WorkItem.parser())) } doThrow expectedError
       }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     // Create the listener
     val listener =
@@ -212,7 +212,7 @@ class DeadLetterQueueListenerTest {
   fun `close method calls queueSubscriber close`() {
     // Create a mock QueueSubscriber
     val mockQueueSubscriber = mock<QueueSubscriber>()
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     // Create the listener
     val listener =
@@ -252,8 +252,11 @@ class DeadLetterQueueListenerTest {
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
         onBlocking {
-          failWorkItem(argThat<FailWorkItemRequest> { workItemResourceId == "error-item" }, any())
+          processWorkItemDeadLetter(argThat<ProcessWorkItemDeadLetterRequest> { workItemResourceId == "error-item" }, any())
         } doThrow RuntimeException("Simulated processing error")
+        onBlocking {
+          processWorkItemDeadLetter(argThat<ProcessWorkItemDeadLetterRequest> { workItemResourceId == "success-item" }, any())
+        } doReturn terminalWorkItem()
       }
 
     // Create the listener
@@ -328,7 +331,7 @@ class DeadLetterQueueListenerTest {
       }
 
     // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     // Create the listener
     val listener =
@@ -337,8 +340,8 @@ class DeadLetterQueueListenerTest {
         workItemsStub = mockWorkItemsStub,
       )
 
-    // Capture the arguments to the failWorkItem call
-    val requestCaptor = argumentCaptor<FailWorkItemRequest>()
+    // Capture the arguments to the processWorkItemDeadLetter call
+    val requestCaptor = argumentCaptor<ProcessWorkItemDeadLetterRequest>()
 
     // Start the listener
     val job = launch { listener.run() }
@@ -348,7 +351,7 @@ class DeadLetterQueueListenerTest {
 
     // Wait for the message to be processed and verify that the work item resource ID was passed
     // correctly
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
+    verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(requestCaptor.capture(), any())
     assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
     assertEquals(workItem.generation, requestCaptor.firstValue.expectedWorkItemGeneration)
 
@@ -377,7 +380,7 @@ class DeadLetterQueueListenerTest {
       }
 
     // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     // Create the listener
     val listener =
@@ -386,8 +389,8 @@ class DeadLetterQueueListenerTest {
         workItemsStub = mockWorkItemsStub,
       )
 
-    // Capture the arguments to the failWorkItem call
-    val requestCaptor = argumentCaptor<FailWorkItemRequest>()
+    // Capture the arguments to the processWorkItemDeadLetter call
+    val requestCaptor = argumentCaptor<ProcessWorkItemDeadLetterRequest>()
 
     // Start the listener
     val job = launch { listener.run() }
@@ -397,7 +400,7 @@ class DeadLetterQueueListenerTest {
 
     // Wait for the message to be processed and verify that the work item resource ID was passed
     // correctly
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
+    verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(requestCaptor.capture(), any())
     assertEquals(workItemIdOnly, requestCaptor.firstValue.workItemResourceId)
 
     // Clean up
@@ -424,7 +427,7 @@ class DeadLetterQueueListenerTest {
       }
 
     // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     // Create the listener
     val listener =
@@ -433,8 +436,8 @@ class DeadLetterQueueListenerTest {
         workItemsStub = mockWorkItemsStub,
       )
 
-    // Capture the arguments to the failWorkItem call
-    val requestCaptor = argumentCaptor<FailWorkItemRequest>()
+    // Capture the arguments to the processWorkItemDeadLetter call
+    val requestCaptor = argumentCaptor<ProcessWorkItemDeadLetterRequest>()
 
     // Start the listener
     val job = launch { listener.run() }
@@ -444,7 +447,7 @@ class DeadLetterQueueListenerTest {
 
     // Wait for the message to be processed and verify that the work item resource ID was passed
     // correctly
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
+    verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(requestCaptor.capture(), any())
 
     // Verify the message is acknowledged
     verify(mockQueueMessage, timeout(5000)).ack()
@@ -453,6 +456,99 @@ class DeadLetterQueueListenerTest {
     assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
 
     // Close the channel and cancel the job
+    messageChannel.close()
+    job.cancel()
+  }
+
+  @Test
+  fun `recovered legacy attempt is acknowledged without EDPA failure propagation`() =
+    runBlocking {
+      val workItem = workItem {
+        name = workItemId
+        generation = 1L
+      }
+      val queueMessage =
+        mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+      val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+      val queueSubscriber =
+        mock<QueueSubscriber> {
+          on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+        }
+      val workItemsStub =
+        mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
+          onBlocking {
+            processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any())
+          } doReturn
+            internalWorkItem {
+              state = InternalWorkItem.State.QUEUED
+              generation = 2L
+            }
+        }
+      val poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>()
+      val listener =
+        DeadLetterQueueListener(
+          subscriptionId = subscriptionId,
+          queueSubscriber = queueSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub = workItemsStub,
+          poolAssignmentJobsStub = poolAssignmentJobsStub,
+          rankerJobsStub = mock(),
+          vidLabelingJobsStub = mock(),
+          rawImpressionUploadModelLinesStub = mock(),
+          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+        )
+      val job = launch { listener.run() }
+
+      messageChannel.send(queueMessage)
+
+      verify(queueMessage, timeout(5000)).ack()
+      verify(queueMessage, never()).nack()
+      verify(poolAssignmentJobsStub, never()).markPoolAssignmentJobFailed(any(), any())
+      messageChannel.close()
+      job.cancel()
+    }
+
+  @Test
+  fun `dead letter for active leased attempt is deferred`() = runBlocking {
+    val workItem = workItem {
+      name = workItemId
+      generation = 1L
+    }
+    val queueMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+    val queueSubscriber =
+      mock<QueueSubscriber> {
+        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+      }
+    val errorInfoProto =
+      com.google.rpc.errorInfo {
+        reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
+        domain = Errors.DOMAIN
+        metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.RUNNING.name)
+      }
+    val statusException =
+      statusException(
+        Status.FAILED_PRECONDITION.withDescription("Active leased attempt"),
+        errorInfoProto,
+      )
+    val workItemsStub =
+      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
+        onBlocking {
+          processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any())
+        } doAnswer
+          {
+            throw statusException
+          }
+      }
+    val listener =
+      deadLetterQueueListener(queueSubscriber = queueSubscriber, workItemsStub = workItemsStub)
+    val job = launch { listener.run() }
+
+    messageChannel.send(queueMessage)
+
+    verify(queueMessage, timeout(5000)).nack()
+    verify(queueMessage, never()).ack()
     messageChannel.close()
     job.cancel()
   }
@@ -476,7 +572,7 @@ class DeadLetterQueueListenerTest {
       }
 
     // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     // Create the listener
     val listener =
@@ -494,8 +590,8 @@ class DeadLetterQueueListenerTest {
     // Verify the message is acknowledged
     verify(mockQueueMessage, timeout(5000)).ack()
 
-    // Verify that the failWorkItem method was not called
-    verify(mockWorkItemsStub, never()).failWorkItem(any(), any())
+    // Verify that the processWorkItemDeadLetter method was not called
+    verify(mockWorkItemsStub, never()).processWorkItemDeadLetter(any(), any())
 
     // Close the channel and cancel the job
     messageChannel.close()
@@ -525,7 +621,7 @@ class DeadLetterQueueListenerTest {
 
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+        onBlocking { processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any()) } doAnswer
           {
             throw statusException
           }
@@ -591,7 +687,7 @@ class DeadLetterQueueListenerTest {
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+        onBlocking { processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any()) } doAnswer
           {
             throw statusException
           }
@@ -694,7 +790,7 @@ class DeadLetterQueueListenerTest {
     // Create a mock WorkItemsStub that throws the status exception
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doAnswer
+        onBlocking { processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any()) } doAnswer
           {
             throw statusException
           }
@@ -743,7 +839,7 @@ class DeadLetterQueueListenerTest {
     // Create a mock WorkItemsStub that throws a general exception
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow
+        onBlocking { processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any()) } doThrow
           RuntimeException("Unexpected error")
       }
 
@@ -786,7 +882,7 @@ class DeadLetterQueueListenerTest {
       }
     val mockWorkItemsStub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doReturn
+        onBlocking { processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any()) } doReturn
           internalWorkItem { state = InternalWorkItem.State.FAILED }
       }
 
@@ -851,7 +947,7 @@ class DeadLetterQueueListenerTest {
       modelLineCaptor.firstValue.requestId,
     )
 
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+    verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(any(), any())
     verify(mockQueueMessage, timeout(5000)).ack()
     assertEquals(0, recordingThrottlers.kingdom.invocationCount)
     assertEquals(2, recordingThrottlers.metadataRead.invocationCount)
@@ -878,7 +974,7 @@ class DeadLetterQueueListenerTest {
         mock<QueueSubscriber> {
           on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
         }
-      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+      val mockWorkItemsStub = terminalWorkItemsStub()
 
       val mockVidLabelingJobsStub =
         mock<VidLabelingJobServiceCoroutineStub> {
@@ -938,7 +1034,7 @@ class DeadLetterQueueListenerTest {
         modelLineCaptor.firstValue.requestId,
       )
 
-      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+      verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(any(), any())
       verify(mockQueueMessage, timeout(5000)).ack()
 
       messageChannel.close()
@@ -961,7 +1057,7 @@ class DeadLetterQueueListenerTest {
         mock<QueueSubscriber> {
           on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
         }
-      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+      val mockWorkItemsStub = terminalWorkItemsStub()
 
       val mockVidLabelingJobsStub =
         mock<VidLabelingJobServiceCoroutineStub> {
@@ -1020,7 +1116,7 @@ class DeadLetterQueueListenerTest {
         modelLineCaptor.firstValue.requestId,
       )
 
-      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+      verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(any(), any())
       verify(mockQueueMessage, timeout(5000)).ack()
 
       messageChannel.close()
@@ -1042,7 +1138,7 @@ class DeadLetterQueueListenerTest {
       mock<QueueSubscriber> {
         on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
       }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     val mockRankerJobsStub =
       mock<RankerJobServiceCoroutineStub> {
@@ -1097,7 +1193,7 @@ class DeadLetterQueueListenerTest {
       modelLineCaptor.firstValue.requestId,
     )
 
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+    verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(any(), any())
     verify(mockQueueMessage, timeout(5000)).ack()
 
     messageChannel.close()
@@ -1119,7 +1215,7 @@ class DeadLetterQueueListenerTest {
       mock<QueueSubscriber> {
         on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
       }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val mockWorkItemsStub = terminalWorkItemsStub()
 
     val mockPoolAssignmentJobsStub =
       mock<PoolAssignmentJobServiceCoroutineStub> {
@@ -1155,7 +1251,7 @@ class DeadLetterQueueListenerTest {
     val job = launch { listener.run() }
     messageChannel.send(mockQueueMessage)
 
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
+    verify(mockWorkItemsStub, timeout(5000)).processWorkItemDeadLetter(any(), any())
     verify(mockQueueMessage, timeout(5000)).ack()
     // Already-terminal resources are not re-marked.
     verify(mockPoolAssignmentJobsStub, never()).markPoolAssignmentJobFailed(any(), any())
@@ -1185,6 +1281,17 @@ class DeadLetterQueueListenerTest {
       rawImpressionUploadModelLinesStub = mock(),
       rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
+
+  private fun terminalWorkItemsStub(): WorkItemsGrpcKt.WorkItemsCoroutineStub =
+    mock {
+      onBlocking {
+        processWorkItemDeadLetter(any<ProcessWorkItemDeadLetterRequest>(), any())
+      } doReturn terminalWorkItem()
+    }
+
+  private fun terminalWorkItem(): InternalWorkItem = internalWorkItem {
+    state = InternalWorkItem.State.FAILED
+  }
 
   private fun statusException(status: Status, errorInfo: ErrorInfo): StatusException {
     val statusProto =

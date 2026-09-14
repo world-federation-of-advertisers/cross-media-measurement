@@ -45,32 +45,6 @@ on:
       work_item_tee_mig_names:
         description: WorkItem-consuming Managed Instance Group names as JSON
         value: ${{ jobs.terraform.outputs.work_item_tee_mig_names }}
-  workflow_dispatch:
-    inputs:
-      environment:
-        description: "GitHub-managed environment"
-        required: true
-        type: choice
-        options:
-        - dev
-        - qa
-        - head
-      apply:
-        description: "Apply the new configuration"
-        type: boolean
-        default: false
-      image-tag:
-        description: Tag of container images
-        type: string
-        required: true
-      tee-consumers-enabled:
-        description: Whether Secure Computation WorkItem TEE consumers may run
-        type: boolean
-        default: true
-      direct-requisition-dispatch-enabled:
-        description: Whether RequisitionFetcher may dispatch WorkItems directly
-        type: boolean
-        default: true
 
 permissions:
   contents: read
