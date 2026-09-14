@@ -1165,8 +1165,9 @@ performs the required order:
    the replacement instance template so a surge instance cannot pull work while quiescing.
 3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
    then verify that each has target size zero and no remaining instances.
-4. Roll Kingdom, then roll the Secure Computation APIs again with dead-letter consumption enabled. The DLQ listener automatically retries current-generation
-   WorkItems that have an active legacy attempt without a lease.
+4. Roll Kingdom, then roll the Secure Computation APIs again with dead-letter consumption enabled.
+   The DLQ listener automatically retries current-generation WorkItems that have an active legacy
+   attempt without a lease.
 5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
 6. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers,
    changes the process-level gate to enabled, and starts only the new worker version.
