@@ -2798,9 +2798,7 @@ class MeasurementsServiceTest {
     assertThat(exception.status.code).isEqualTo(Status.Code.UNAUTHENTICATED)
     val failureSpans =
       spanExporter.finishedSpanItems.filter { it.name == "kingdom.measurement.creation_failed" }
-    assertThat(
-        failureSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) }
-      )
+    assertThat(failureSpans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_REQUEST_ID) })
       .containsExactly("auth-failure-request-1", "auth-failure-request-2")
     assertThat(failureSpans.map { it.attributes.get(ReportTraceAttributes.ERROR_CODE) }.distinct())
       .containsExactly("grpc.UNAUTHENTICATED")

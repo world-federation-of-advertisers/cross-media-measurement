@@ -121,7 +121,6 @@ class ReportTracingTest {
 
     val span = spanExporter.finishedSpanItems.single()
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isEqualTo("Exception")
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
-      .isEqualTo("grpc.UNAVAILABLE")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
   }
 }

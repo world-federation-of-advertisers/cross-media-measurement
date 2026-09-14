@@ -52,9 +52,9 @@ import org.mockito.kotlin.whenever
 import org.mockito.stubbing.Answer
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.testing.verifyProtoArgument
@@ -228,15 +228,10 @@ class BasicReportsReportsJobTest {
     expectedErrorCode: String?,
   ) {
     val span =
-      spanExporter.finishedSpanItems.single {
-        it.name == "reporting.basic_report.assemble_results"
-      }
+      spanExporter.finishedSpanItems.single { it.name == "reporting.basic_report.assemble_results" }
     assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
       .isEqualTo(
-        BasicReportKey(
-            basicReport.cmmsMeasurementConsumerId,
-            basicReport.externalBasicReportId,
-          )
+        BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
           .toName()
       )
     assertThat(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
@@ -2539,9 +2534,7 @@ class BasicReportsReportsJobTest {
         externalBasicReportId = "invalid-result-transformation"
         state = BasicReport.State.REPORT_CREATED
         details =
-          INTERNAL_BASIC_REPORT.details.copy {
-            effectiveImpressionQualificationFilters.clear()
-          }
+          INTERNAL_BASIC_REPORT.details.copy { effectiveImpressionQualificationFilters.clear() }
       }
     stubListBasicReports(listBasicReportsResponse { basicReports += basicReport })
     whenever(reportsMock.getReport(any()))
@@ -2850,10 +2843,7 @@ class BasicReportsReportsJobTest {
       }
     assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
       .isEqualTo(
-        BasicReportKey(
-            CMMS_MEASUREMENT_CONSUMER_ID,
-            stuckBasicReport.externalBasicReportId,
-          )
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, stuckBasicReport.externalBasicReportId)
           .toName()
       )
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))

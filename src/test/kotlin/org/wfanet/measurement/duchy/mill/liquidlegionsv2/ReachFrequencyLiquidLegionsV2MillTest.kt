@@ -705,8 +705,7 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       .isEqualTo(measurementName)
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
       .isEqualTo(ComputationKey(GLOBAL_ID).toName())
-    assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID))
-      .isEqualTo(DUCHY_ONE_NAME)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ONE_NAME)
   }
 
   @Test

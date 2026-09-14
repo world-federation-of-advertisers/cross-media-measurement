@@ -338,11 +338,7 @@ class BasicReportsReportsJob(
         }
 
         val basicReportName =
-          BasicReportKey(
-              cmmsMeasurementConsumerId,
-              basicReport.externalBasicReportId,
-            )
-            .toName()
+          BasicReportKey(cmmsMeasurementConsumerId, basicReport.externalBasicReportId).toName()
         val traceAttributes =
           Attributes.builder()
             .put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
@@ -365,18 +361,11 @@ class BasicReportsReportsJob(
             attributes =
               Attributes.builder()
                 .putAll(traceAttributes)
-                .put(
-                  ReportTraceAttributes.LIFECYCLE_STAGE,
-                  "basic_report_failure_writeback",
-                )
+                .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_failure_writeback")
                 .build(),
             error = e,
           )
-          logger.log(
-            Level.WARNING,
-            "Failed to fail stuck BasicReport $basicReportName",
-            e,
-          )
+          logger.log(Level.WARNING, "Failed to fail stuck BasicReport $basicReportName", e)
         }
       }
     }

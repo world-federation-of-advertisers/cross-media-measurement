@@ -2314,134 +2314,131 @@ class ResultsFulfillerTest {
     }
 
   @Test
-  fun `runWork traces failed Kingdom refusal for TrusTee requisition`() =
-    runBlocking {
-      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-      val metadataTmpPath = Files.createTempDirectory(null).toFile()
-      val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
-      val impressions =
-        List(130) {
-          LABELED_IMPRESSION.copy {
-            vid = it.toLong() + 1
-            eventTime = TIME_RANGE.start.toProtoTime()
-          }
+  fun `runWork traces failed Kingdom refusal for TrusTee requisition`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
         }
-
-      val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
-
-      val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
-
-      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
-        .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
-
-      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-        .thenReturn(
-          listRequisitionMetadataResponse {
-            requisitionMetadata += requisitionMetadata {
-              state = RequisitionMetadata.State.STORED
-              cmmsCreateTime = timestamp { seconds = 12345 }
-              cmmsRequisition = REQUISITION_NAME
-              blobUri = "some-prefix"
-              blobTypeUrl = "some-blob-type-url"
-              groupId = "an-existing-group-id"
-              report = "report-name"
-            }
-          }
-        )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
-      whenever(requisitionsServiceMock.refuseRequisition(any()))
-        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
-      whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
-        .thenReturn(requisitionMetadata {})
-
-      val kmsClient = FakeKmsClient()
-      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-      createData(
-        kmsClient,
-        kekUri,
-        impressionsTmpPath,
-        metadataTmpPath,
-        requisitionsTmpPath,
-        impressions,
-        listOf(TRUSTEE_NO_NOISE_REQUISITION),
-      )
-      val impressionsMetadataService =
-        ImpressionDataSourceProvider(
-          impressionMetadataStub = impressionMetadataStub,
-          dataProvider = "dataProviders/123",
-          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        )
-
-      val fulfillerSelector =
-        DefaultFulfillerSelector(
-          requisitionsStub = requisitionsStub,
-          requisitionsThrottler = FakeThrottler(),
-          kingdomThrottler = FakeThrottler(),
-          requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
-          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-          noiserSelector = NoNoiserSelector(),
-          resultMinimumThresholds = null,
-          overrideImpressionMaxFrequencyPerUser = null,
-          supportedMultiPartyNoiseMechanisms =
-            setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
-          trusTeeConfig =
-            TrusTeeConfig(
-              kmsClient = kmsClient,
-              workloadIdentityProvider = "test-wip",
-              impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsParams = null,
-            ),
-          kekUriToKeyNameMap = emptyMap(),
-        )
-
-      val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
-
-      val resultsFulfiller =
-        ResultsFulfiller(
-          dataProvider = EDP_NAME,
-          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-          requisitionMetadataStub = requisitionMetadataStub,
-          requisitionsStub = requisitionsStub,
-          requisitionsThrottler = FakeThrottler(),
-          kingdomThrottler = FakeThrottler(),
-          groupedRequisitions = groupedRequisitions,
-          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
-          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-          impressionDataSourceProvider = impressionsMetadataService,
-          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-          kmsClient = kmsClient,
-          fulfillerSelector = fulfillerSelector,
-          metrics = metrics,
-        )
-
-      resultsFulfiller.fulfillRequisitions()
-
-      verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
-      verifyBlocking(requisitionMetadataServiceMock, times(1)) {
-        startProcessingRequisitionMetadata(any())
       }
-      verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
-      verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
-      val refusalSpan =
-        collectSpans().single {
-          it.name == "edp_aggregator.results_fulfiller.refuse_requisition"
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
         }
-      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
-        .isEqualTo(REQUISITION_NAME)
-      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
-        .isEqualTo("requisition_refusal")
-      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
-        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
-      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
-      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
-        .isEqualTo("StatusException")
-      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
-        .isEqualTo("grpc.UNAVAILABLE")
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.refuseRequisition(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
+      .thenReturn(requisitionMetadata {})
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(TRUSTEE_NO_NOISE_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = NoNoiserSelector(),
+        resultMinimumThresholds = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms =
+          setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    resultsFulfiller.fulfillRequisitions()
+
+    verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+      startProcessingRequisitionMetadata(any())
     }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+    val refusalSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.refuse_requisition" }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_refusal")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+      .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusException")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
+  }
 
   @Test
   fun `runWork fulfills HMSS no-noise requisition when multi-party config is empty`() =

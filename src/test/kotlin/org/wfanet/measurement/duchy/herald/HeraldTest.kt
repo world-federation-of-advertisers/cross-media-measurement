@@ -49,9 +49,9 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.KArgumentCaptor
 import org.mockito.kotlin.any
-import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.atLeastOnce
+import org.mockito.kotlin.doSuspendableAnswer
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
@@ -1839,10 +1839,10 @@ class HeraldTest {
   fun `syncStatuses starts computations with retries`() = runBlocking {
     val computation =
       buildComputationAtKingdom(
-        COMPUTATION_GLOBAL_ID,
-        Computation.State.PENDING_COMPUTATION,
-        mpcProtocolConfig = HMSS_MPC_PROTOCOL_CONFIG,
-      )
+          COMPUTATION_GLOBAL_ID,
+          Computation.State.PENDING_COMPUTATION,
+          mpcProtocolConfig = HMSS_MPC_PROTOCOL_CONFIG,
+        )
         .copy { measurement = PUBLIC_MEASUREMENT_NAME }
     val streamActiveComputationsJob = Job()
     systemComputations.stub {
