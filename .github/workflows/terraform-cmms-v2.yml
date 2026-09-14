@@ -37,8 +37,8 @@ on:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
         default: true
-      direct-requisition-dispatch-enabled:
-        description: Whether RequisitionFetcher may process new work
+      requisition-fetcher-enabled:
+        description: Whether the RequisitionFetcher scheduler may start new invocations
         type: boolean
         default: true
     outputs:
@@ -390,7 +390,7 @@ jobs:
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
-        -var="direct_requisition_dispatch_enabled=${{ inputs.direct-requisition-dispatch-enabled }}"
+        -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         -var="duchy_worker1_id=$DUCHY_WORKER1_ID"

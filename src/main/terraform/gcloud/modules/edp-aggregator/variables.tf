@@ -18,12 +18,6 @@ variable "tee_consumers_enabled" {
   default     = true
 }
 
-variable "direct_requisition_dispatch_enabled" {
-  description = "Whether RequisitionFetcher may process new work."
-  type        = bool
-  default     = true
-}
-
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({

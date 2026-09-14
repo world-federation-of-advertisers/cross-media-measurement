@@ -887,21 +887,19 @@ RequisitionFetcher and DataWatcher textprotos from the selected GitHub environme
 direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
 and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
 DataWatcher regex that matches a representative direct-path object. Validation failure therefore
-stops deployment before any worker is quiesced. The first Terraform apply then uploads the config,
-sets the existing direct-dispatch gate to `false`, and quiesces and verifies all WorkItem-consuming
-TEE MIGs.
+stops deployment before any worker is quiesced. The first Terraform apply then pauses the
+RequisitionFetcher Cloud Scheduler job, uploads the direct-only configuration and binary, and
+quiesces all WorkItem-consuming TEE MIGs. The workflow waits for the fetcher's 600-second maximum
+invocation duration and verifies that every affected TEE MIG has zero instances before continuing.
 The workflow rolls both Secure Computation API deployments and every EDP Aggregator/Requisition
 Metadata API deployment to completion. Its final Terraform apply validates the configuration again
-before enabling RequisitionFetcher and the new workers.
+before resuming the RequisitionFetcher scheduler and enabling the new workers.
 
-The final Terraform apply enables RequisitionFetcher and the new workers. During the fetcher
-replacement, an older revision that recognizes the gate can create only legacy DataWatcher work;
-the new revision validates configuration and returns without fetching or dispatching. Neither can
-create direct work while the gate is `false`. After the first apply finishes, only the disabled new
-revision remains. DataWatcher stays active and unclaimed Pub/Sub messages remain queued; they must
-not be drained. A pre-feature RequisitionFetcher revision may instead reject the new textproto field,
-but it makes no state change in that case. The next
-invocation of the new revision polls the same unfulfilled Kingdom requisitions.
+The final Terraform apply resumes the RequisitionFetcher scheduler and enables the new workers.
+Scheduler pausing is independent of the function revision, so an old fetcher cannot run during the
+API and worker rollout and the new direct-only fetcher needs no legacy-mode process flag. The next
+invocation polls the same unfulfilled Kingdom requisitions. DataWatcher stays active and unclaimed
+Pub/Sub messages remain queued; they must not be drained.
 
 Do not invoke child deployment workflows independently for this upgrade. No manual service
 scaling, subscription drain, WorkItem snapshot, active-attempt query, or migration-time
@@ -924,11 +922,12 @@ After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remedia
 failure, then call `RetryWorkItem` explicitly. Upgraded workers renew attempt leases, and the Secure
 Computation internal API automatically republishes an attempt after its lease expires.
 
-For rollback, first disable RequisitionFetcher and the WorkItem consumers, then drain or repair all
-direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`; the legacy DataWatcher intentionally
-does not watch that namespace. Restore the pre-cutover RequisitionFetcher binary and config as a
-unit before resuming. Do not remove `work_item_dispatch` while the new binary is deployed: the field
-is required. The legacy prefix and DataWatcher rule remain unchanged.
+For rollback, first pause the RequisitionFetcher scheduler and disable the WorkItem consumers, then
+drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`; the legacy
+DataWatcher intentionally does not watch that namespace. Restore the pre-cutover RequisitionFetcher
+binary and config as a unit before resuming the scheduler. Do not remove `work_item_dispatch` while
+the new binary is deployed: the field is required. The legacy prefix and DataWatcher rule remain
+unchanged.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
