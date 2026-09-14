@@ -254,21 +254,21 @@ class WorkItemsService(
       WorkItemKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    if (request.expectedWorkItemGeneration < 0L) {
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
       throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
-          "$fieldName must be non-negative"
+          "$fieldName must be at least 1"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    val expectedGeneration =
-      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
 
     val internalResponse: InternalWorkItem =
       try {
         internalWorkItemsStub.failWorkItem(
           internalFailWorkItemRequest {
             workItemResourceId = key.workItemId
-            expectedWorkItemGeneration = expectedGeneration
+            if (request.hasExpectedWorkItemGeneration()) {
+              expectedWorkItemGeneration = request.expectedWorkItemGeneration
+            }
           }
         )
       } catch (e: StatusException) {
@@ -338,6 +338,5 @@ class WorkItemsService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
-    private const val INITIAL_GENERATION = 1L
   }
 }

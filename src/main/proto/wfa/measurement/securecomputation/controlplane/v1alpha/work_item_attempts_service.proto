@@ -101,13 +101,14 @@ message CreateWorkItemAttemptRequest {
   WorkItemAttempt work_item_attempt = 3
       [(google.api.field_behavior) = REQUIRED];
 
-  // Generation of the parent WorkItem received from the queue. If omitted,
-  // generation 1 is used for compatibility with queue messages published
-  // before generations were added. The request is rejected if the resulting
-  // generation does not match the WorkItem's current generation.
+  // Expected execution generation of the parent `WorkItem` received from the
+  // queue. New clients must populate this field. Absence is interpreted as
+  // generation 1 only for legacy-client compatibility; an explicit value less
+  // than 1 is invalid. The request is rejected if the resulting generation
+  // does not match the `WorkItem`'s current generation.
   // (-- api-linter: core::0133::request-unknown-fields=disabled
   //     aip.dev/not-precedent: Queue delivery generation fences stale work. --)
-  int64 expected_work_item_generation = 4
+  optional int64 expected_work_item_generation = 4
       [(google.api.field_behavior) = OPTIONAL];
 
   // Whether the caller supports renewing an attempt lease. When false, the

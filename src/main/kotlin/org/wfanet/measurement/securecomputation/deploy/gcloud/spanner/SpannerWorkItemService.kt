@@ -288,14 +288,18 @@ class SpannerWorkItemsService(
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.expectedWorkItemGeneration < 0L) {
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
       throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
-          "$fieldName must be non-negative"
+          "$fieldName must be at least 1"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val expectedGeneration =
-      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=failWorkItem"))
@@ -408,14 +412,18 @@ class SpannerWorkItemsService(
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.expectedWorkItemGeneration < 0L) {
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
       throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
-          "$fieldName must be non-negative"
+          "$fieldName must be at least 1"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val expectedGeneration =
-      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=processWorkItemDeadLetter"))

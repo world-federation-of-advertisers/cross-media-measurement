@@ -302,6 +302,35 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
+  fun `createWorkItemAttempt rejects explicit zero expected generation`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = 0L
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "work-item-attempt"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
+        }
+      )
+  }
+
+  @Test
   fun `createWorkItemAttempt with missing generation rejects generation two`() = runBlocking {
     val services = initServices()
     val workItem = createWorkItem(services.workItemsService)
