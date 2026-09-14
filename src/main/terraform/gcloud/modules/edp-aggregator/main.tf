@@ -324,11 +324,14 @@ module "requisition_fetcher_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars                           = "${var.cloud_function_configs.requisition_fetcher.extra_env_vars},DIRECT_WORK_ITEM_DISPATCH_ENABLED=${var.direct_requisition_dispatch_enabled}"
-  secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
-  uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
-  config_path                              = var.requisition_fetcher_config.local_path
+  extra_env_vars = join(",", compact([
+    var.cloud_function_configs.requisition_fetcher.extra_env_vars,
+    "DIRECT_WORK_ITEM_DISPATCH_ENABLED=${var.direct_requisition_dispatch_enabled}",
+  ]))
+  secret_mappings   = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path     = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
+  config_path       = var.requisition_fetcher_config.local_path
 
   # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
   # run longer than that for incremental draining to happen at all — the gen2 default of 60s would
