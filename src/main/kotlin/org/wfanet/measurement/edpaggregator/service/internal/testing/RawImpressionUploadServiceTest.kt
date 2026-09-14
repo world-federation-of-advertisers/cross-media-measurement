@@ -38,11 +38,13 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRes
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.releaseRawImpressionUploadEvictionFenceRequest
 
 @RunWith(JUnit4::class)
 abstract class RawImpressionUploadServiceTest {
@@ -1038,6 +1040,58 @@ abstract class RawImpressionUploadServiceTest {
         )
       assertThat(windowResponse.rawImpressionUploadsList).hasSize(2)
     }
+
+  @Test
+  fun `eviction fence is resumable and blocks new uploads until released`(): Unit = runBlocking {
+    val operationId = UUID.randomUUID().toString()
+    val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
+      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+      evictionOperationId = operationId
+    }
+
+    service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+    service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+
+    val competingOperation =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            evictionOperationId = UUID.randomUUID().toString()
+          }
+        )
+      }
+    assertThat(competingOperation.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    val createError = assertFailsWith<StatusRuntimeException> { createUpload() }
+    assertThat(createError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    service.releaseRawImpressionUploadEvictionFence(
+      releaseRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        evictionOperationId = operationId
+      }
+    )
+    assertThat(createUpload().rawImpressionUploadResourceId).isNotEmpty()
+  }
+
+  @Test
+  fun `eviction fence rejects an upload whose registration is incomplete`(): Unit = runBlocking {
+    createUpload()
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            evictionOperationId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(error.status.description).contains("not idle")
+  }
 
   private var nextDoneBlobGeneration = DONE_BLOB_GENERATION
 

@@ -30,6 +30,8 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
@@ -37,6 +39,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsResp
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken as InternalListUploadsPageToken
@@ -45,11 +49,13 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRes
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload as InternalRawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub as InternalUploadServiceStub
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest as internalAcquireEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest as internalCreateUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest as internalGetUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsRequest as internalListUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadRegistrationCompleteRequest as internalMarkRegistrationCompleteRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.releaseRawImpressionUploadEvictionFenceRequest as internalReleaseEvictionFenceRequest
 
 class RawImpressionUploadService(
   private val internalUploadStub: InternalUploadServiceStub,
@@ -152,7 +158,12 @@ class RawImpressionUploadService(
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_STATE_INVALID,
           InternalErrors.Reason.POOL_ASSIGNMENT_JOB_ALREADY_EXISTS,
-          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+          null ->
+            if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+              e.status.withCause(e).asRuntimeException()
+            } else {
+              Status.INTERNAL.withCause(e).asRuntimeException()
+            }
           InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
             Status.NOT_FOUND.withDescription("RawImpressionUpload not found")
               .withCause(e)
@@ -163,6 +174,73 @@ class RawImpressionUploadService(
       }
 
     return internalResponse.toPublic()
+  }
+
+  override suspend fun acquireRawImpressionUploadEvictionFence(
+    request: AcquireRawImpressionUploadEvictionFenceRequest
+  ): AcquireRawImpressionUploadEvictionFenceResponse {
+    val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    try {
+      internalUploadStub.acquireRawImpressionUploadEvictionFence(
+        internalAcquireEvictionFenceRequest {
+          dataProviderResourceId = dataProviderKey.dataProviderId
+          evictionOperationId = request.evictionOperationId
+        }
+      )
+    } catch (e: StatusException) {
+      throw if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+        e.status.withCause(e).asRuntimeException()
+      } else {
+        Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    }
+    return AcquireRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+  }
+
+  override suspend fun releaseRawImpressionUploadEvictionFence(
+    request: ReleaseRawImpressionUploadEvictionFenceRequest
+  ): ReleaseRawImpressionUploadEvictionFenceResponse {
+    val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    try {
+      internalUploadStub.releaseRawImpressionUploadEvictionFence(
+        internalReleaseEvictionFenceRequest {
+          dataProviderResourceId = dataProviderKey.dataProviderId
+          evictionOperationId = request.evictionOperationId
+        }
+      )
+    } catch (e: StatusException) {
+      throw if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+        e.status.withCause(e).asRuntimeException()
+      } else {
+        Status.INTERNAL.withCause(e).asRuntimeException()
+      }
+    }
+    return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+  }
+
+  private fun validateEvictionFenceRequest(
+    parent: String,
+    evictionOperationId: String,
+  ): DataProviderKey {
+    if (parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val dataProviderKey =
+      DataProviderKey.fromName(parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (evictionOperationId.isEmpty()) {
+      throw RequiredFieldNotSetException("eviction_operation_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(evictionOperationId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("eviction_operation_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return dataProviderKey
   }
 
   override suspend fun getRawImpressionUpload(
