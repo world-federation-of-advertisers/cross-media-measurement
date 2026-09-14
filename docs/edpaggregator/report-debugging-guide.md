@@ -850,10 +850,13 @@ Trace:
    WorkItem while an active leased attempt remains. A `SUCCEEDED` WorkItem paired with unfinished
    metadata is inconsistent and still requires investigation.
 
-   The **data-watcher** remains configured for pre-cutover groups under the top-level legacy
-   requisition prefix. It is stopped for the controlled upgrade and resumed afterward. It must not
-   match the dedicated direct-dispatch `storage_path_prefix`. For a legacy group, a GCS
-   `object.finalized` Eventarc trigger submits the WorkItem:
+   The **data-watcher** remains running for pre-cutover groups under the top-level legacy
+   requisition prefix while the automated rollout quiesces the WorkItem consumers. It must not
+   match the dedicated direct-dispatch `storage_path_prefix`. Updated DataWatcher revisions use a
+   deterministic WorkItem ID and propagate transient dispatch failures so retained and future
+   events can be retried safely. An event that an older DataWatcher already acknowledged after an
+   ambiguous dispatch failure is not recoverable from Pub/Sub after retention. For a legacy group,
+   a GCS `object.finalized` Eventarc trigger submits the WorkItem:
 
    ```bash
    gcloud logging read \
