@@ -38,11 +38,20 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
+import org.wfanet.measurement.internal.reporting.v2.BatchSetCmmsMeasurementIdsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.Metric
+import org.wfanet.measurement.internal.reporting.v2.MetricKt
 import org.wfanet.measurement.internal.reporting.v2.MetricSpecKt
+import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.ReportKt
+import org.wfanet.measurement.internal.reporting.v2.ReportingSetKt
 import org.wfanet.measurement.internal.reporting.v2.basicReport
+import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
+import org.wfanet.measurement.internal.reporting.v2.createMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest
+import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.measurementConsumer
+import org.wfanet.measurement.internal.reporting.v2.metric
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.report
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
@@ -50,7 +59,9 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertBasicR
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasurementConsumer
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
+import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
+import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportingSetsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresReportsService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.MeasurementConsumerReader
@@ -116,30 +127,31 @@ class DatabaseBasicReportTraceResolverTest {
     }
 
   @Test
-  fun `resolve fails when associated Report is missing`() = runBlocking<Unit> {
-    spannerClient.readWriteTransaction().run { transaction ->
-      transaction.insertBasicReport(
-        basicReportId = SPANNER_BASIC_REPORT_ID,
-        measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
-        basicReport =
-          basicReport {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
-            externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
-            externalReportId = "missing-report"
-          },
-        state = BasicReport.State.REPORT_CREATED,
-        requestId = null,
-      )
-    }
-
-    val exception =
-      assertFailsWith<IllegalStateException> {
-        DatabaseBasicReportTraceResolver(spannerClient, postgresClient)
-          .resolve(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID))
+  fun `resolve fails when associated Report is missing`() =
+    runBlocking<Unit> {
+      spannerClient.readWriteTransaction().run { transaction ->
+        transaction.insertBasicReport(
+          basicReportId = SPANNER_BASIC_REPORT_ID,
+          measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
+          basicReport =
+            basicReport {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
+              externalReportId = "missing-report"
+            },
+          state = BasicReport.State.REPORT_CREATED,
+          requestId = null,
+        )
       }
 
-    assertThat(exception).hasMessageThat().contains("missing-report")
-  }
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          DatabaseBasicReportTraceResolver(spannerClient, postgresClient)
+            .resolve(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID))
+        }
+
+      assertThat(exception).hasMessageThat().contains("missing-report")
+    }
 
   @Test
   fun `resolve finds Report by request ID using Postgres MeasurementConsumer ID`() =
@@ -261,6 +273,242 @@ class DatabaseBasicReportTraceResolverTest {
             .createMetricRequestId
         )
     }
+
+  @Test
+  fun `resolve returns populated resource graph with reused and unresolved children`() =
+    runBlocking<Unit> {
+      val reportingSet =
+        createReportingSet(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          PostgresReportingSetsService(ID_GENERATOR, postgresClient),
+          EXTERNAL_REPORTING_SET_ID,
+          CMMS_DATA_PROVIDER_ID,
+          CMMS_EVENT_GROUP_ID,
+        )
+      val metricCalculationSpec =
+        createMetricCalculationSpec(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          PostgresMetricCalculationSpecsService(ID_GENERATOR, postgresClient),
+          EXTERNAL_METRIC_CALCULATION_SPEC_ID,
+        )
+      val currentBasicReportName =
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName()
+      val createdReport =
+        PostgresReportsService(ID_GENERATOR, postgresClient)
+          .createReport(
+            createReportRequest {
+              requestId = CREATE_REPORT_REQUEST_ID
+              externalReportId = EXTERNAL_REPORT_ID
+              report = report {
+                cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                reportingMetricEntries[reportingSet.externalReportingSetId] =
+                  ReportKt.reportingMetricCalculationSpec {
+                    metricCalculationSpecReportingMetrics +=
+                      ReportKt.metricCalculationSpecReportingMetrics {
+                        externalMetricCalculationSpecId =
+                          metricCalculationSpec.externalMetricCalculationSpecId
+                        reportingMetrics += reportMetricDetails(startSeconds = 100L)
+                        reportingMetrics += reportMetricDetails(startSeconds = 120L)
+                      }
+                  }
+                details =
+                  ReportKt.details {
+                    basicReport = currentBasicReportName
+                    timeIntervals = timeIntervals {
+                      timeIntervals += interval {
+                        startTime = timestamp { seconds = 100 }
+                        endTime = timestamp { seconds = 200 }
+                      }
+                    }
+                  }
+              }
+            }
+          )
+      val reportMetrics =
+        createdReport.reportingMetricEntriesMap.values
+          .single()
+          .metricCalculationSpecReportingMetricsList
+          .single()
+          .reportingMetricsList
+      val currentMetric =
+        createMetric(
+          requestId = reportMetrics[0].createMetricRequestId,
+          externalMetricId = "current-metric",
+          externalReportingSetId = reportingSet.externalReportingSetId,
+          basicReportName = currentBasicReportName,
+          measurementCount = 2,
+        )
+      val reusedMetric =
+        createMetric(
+          requestId = reportMetrics[1].createMetricRequestId,
+          externalMetricId = "reused-metric",
+          externalReportingSetId = reportingSet.externalReportingSetId,
+          basicReportName =
+            BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, "another-basic-report").toName(),
+          measurementCount = 1,
+        )
+      val unresolvedMeasurementRequestId =
+        currentMetric.weightedMeasurementsList[1].measurement.cmmsCreateMeasurementRequestId
+      PostgresMeasurementsService(ID_GENERATOR, postgresClient)
+        .batchSetCmmsMeasurementIds(
+          batchSetCmmsMeasurementIdsRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            measurementIds +=
+              BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                cmmsCreateMeasurementRequestId =
+                  currentMetric.weightedMeasurementsList[0]
+                    .measurement
+                    .cmmsCreateMeasurementRequestId
+                cmmsMeasurementId = "current-measurement"
+              }
+            measurementIds +=
+              BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+                cmmsCreateMeasurementRequestId =
+                  reusedMetric.weightedMeasurementsList
+                    .single()
+                    .measurement
+                    .cmmsCreateMeasurementRequestId
+                cmmsMeasurementId = "reused-measurement"
+              }
+          }
+        )
+      spannerClient.readWriteTransaction().run { transaction ->
+        transaction.insertBasicReport(
+          basicReportId = SPANNER_BASIC_REPORT_ID,
+          measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
+          basicReport =
+            basicReport {
+              cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+              externalBasicReportId = EXTERNAL_BASIC_REPORT_ID
+              externalReportId = createdReport.externalReportId
+            },
+          state = BasicReport.State.REPORT_CREATED,
+          requestId = null,
+        )
+      }
+
+      val context =
+        DatabaseBasicReportTraceResolver(spannerClient, postgresClient)
+          .resolve(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID))
+
+      val currentMetricName =
+        "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/metrics/${currentMetric.externalMetricId}"
+      val reusedMetricName =
+        "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/metrics/${reusedMetric.externalMetricId}"
+      val currentMeasurementName =
+        "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/measurements/current-measurement"
+      val reusedMeasurementName =
+        "measurementConsumers/$CMMS_MEASUREMENT_CONSUMER_ID/measurements/reused-measurement"
+      assertThat(context.reportName)
+        .isEqualTo(ReportKey(CMMS_MEASUREMENT_CONSUMER_ID, createdReport.externalReportId).toName())
+      assertThat(context.metricNames).containsExactly(currentMetricName, reusedMetricName)
+      assertThat(context.metricStates)
+        .containsExactly(
+          currentMetricName,
+          Metric.State.RUNNING.name,
+          reusedMetricName,
+          Metric.State.RUNNING.name,
+        )
+      assertThat(context.reusedMetricNames).containsExactly(reusedMetricName)
+      assertThat(context.unresolvedMetricRequestIds).isEmpty()
+      assertThat(context.measurementNames)
+        .containsExactly(currentMeasurementName, reusedMeasurementName)
+      assertThat(context.reusedMeasurementNames).containsExactly(reusedMeasurementName)
+      assertThat(context.unresolvedMeasurementRequestIds)
+        .containsExactly(unresolvedMeasurementRequestId)
+      assertThat(context.reportResolvedByRequestId).isFalse()
+    }
+
+  private suspend fun createMetric(
+    requestId: String,
+    externalMetricId: String,
+    externalReportingSetId: String,
+    basicReportName: String,
+    measurementCount: Int,
+  ): Metric {
+    return PostgresMetricsService(ID_GENERATOR, postgresClient)
+      .createMetric(
+        createMetricRequest {
+          this.requestId = requestId
+          this.externalMetricId = externalMetricId
+          metric = metric {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            this.externalReportingSetId = externalReportingSetId
+            timeInterval = interval {
+              startTime = timestamp { seconds = 100 }
+              endTime = timestamp { seconds = 200 }
+            }
+            metricSpec = metricSpec {
+              reach =
+                MetricSpecKt.reachParams {
+                  multipleDataProviderParams =
+                    MetricSpecKt.samplingAndPrivacyParams {
+                      privacyParams =
+                        MetricSpecKt.differentialPrivacyParams {
+                          epsilon = 1.0
+                          delta = 1e-3
+                        }
+                      vidSamplingInterval =
+                        MetricSpecKt.vidSamplingInterval {
+                          start = 0.0f
+                          width = 1.0f
+                        }
+                    }
+                }
+            }
+            repeat(measurementCount) { index ->
+              weightedMeasurements +=
+                MetricKt.weightedMeasurement {
+                  weight = 1
+                  binaryRepresentation = 1 shl index
+                  measurement = measurement {
+                    cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+                    timeInterval = interval {
+                      startTime = timestamp { seconds = 100 }
+                      endTime = timestamp { seconds = 200 }
+                    }
+                    primitiveReportingSetBases +=
+                      ReportingSetKt.primitiveReportingSetBasis {
+                        this.externalReportingSetId = externalReportingSetId
+                      }
+                  }
+                }
+            }
+            details = MetricKt.details { this.basicReport = basicReportName }
+          }
+        }
+      )
+  }
+
+  private fun reportMetricDetails(startSeconds: Long): Report.ReportingMetric {
+    return ReportKt.reportingMetric {
+      details =
+        ReportKt.ReportingMetricKt.details {
+          metricSpec = metricSpec {
+            reach =
+              MetricSpecKt.reachParams {
+                multipleDataProviderParams =
+                  MetricSpecKt.samplingAndPrivacyParams {
+                    privacyParams =
+                      MetricSpecKt.differentialPrivacyParams {
+                        epsilon = 1.0
+                        delta = 1e-3
+                      }
+                    vidSamplingInterval =
+                      MetricSpecKt.vidSamplingInterval {
+                        start = 0.0f
+                        width = 1.0f
+                      }
+                  }
+              }
+          }
+          timeInterval = interval {
+            startTime = timestamp { seconds = startSeconds }
+            endTime = timestamp { seconds = startSeconds + 100L }
+          }
+        }
+    }
+  }
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "measurement-consumer"

@@ -160,17 +160,31 @@ class BaseTeeApplicationTest {
     expectedErrorCode: String?,
   ) {
     val span =
-      spanExporter.finishedSpanItems.single {
-        it.name == "secure_computation.work_item.process"
-      }
+      spanExporter.finishedSpanItems.single { it.name == "secure_computation.work_item.process" }
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("work_item_processing")
     assertThat(span.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isEqualTo(workItemName)
     assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
-      .isEqualTo(expectedErrorType)
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
-      .isEqualTo(expectedErrorCode)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isEqualTo(expectedErrorType)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo(expectedErrorCode)
+  }
+
+  private fun assertFailureWritebackSpan(
+    spanName: String,
+    lifecycleStage: String,
+    workItemName: String,
+    workItemAttemptName: String,
+    expectedErrorType: String,
+    expectedErrorCode: String?,
+  ) {
+    val span = spanExporter.finishedSpanItems.single { it.name == spanName }
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)).isEqualTo(lifecycleStage)
+    assertThat(span.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isEqualTo(workItemName)
+    assertThat(span.attributes.get(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME))
+      .isEqualTo(workItemAttemptName)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isEqualTo(expectedErrorType)
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo(expectedErrorCode)
   }
 
   @Test
@@ -231,11 +245,7 @@ class BaseTeeApplicationTest {
     val workItem = createWorkItem(createTestWork())
 
     fakeSubscriber.send(
-      QueueSubscriber.QueueMessage(
-        body = workItem,
-        consumer = consumer,
-        ackId = "not-found-ack-id",
-      )
+      QueueSubscriber.QueueMessage(body = workItem, consumer = consumer, ackId = "not-found-ack-id")
     )
     consumer.disposition.await()
     job.cancelAndJoin()
@@ -293,6 +303,60 @@ class BaseTeeApplicationTest {
       workItemName = workItem.name,
       expectedErrorType = "InvalidProtocolBufferException",
       expectedErrorCode = null,
+    )
+  }
+
+  @Test
+  fun `nacks malformed WorkItem parameters when failure writeback fails`() = runBlocking {
+    val workItemAttemptName = "workItems/workItem/workItemAttempts/workItemAttempt"
+    val testWorkItemAttempt = workItemAttempt { name = workItemAttemptName }
+    workItemAttemptsServiceMock.stub {
+      onBlocking { createWorkItemAttempt(any()) } doReturn testWorkItemAttempt
+    }
+    workItemsServiceMock.stub {
+      onBlocking { failWorkItem(any()) } doThrow io.grpc.Status.UNAVAILABLE.asRuntimeException()
+    }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        WorkItemsCoroutineStub(grpcTestServer.channel),
+        WorkItemAttemptsCoroutineStub(grpcTestServer.channel),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+    val workItem = workItem {
+      name = "workItems/workItem"
+      generation = 1L
+      workItemParams = Any.pack(Empty.getDefaultInstance())
+    }
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = consumer,
+        ackId = "malformed-params-writeback-failure-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertFailedProcessingSpan(
+      workItemName = workItem.name,
+      expectedErrorType = "InvalidProtocolBufferException",
+      expectedErrorCode = null,
+    )
+    assertFailureWritebackSpan(
+      spanName = "secure_computation.work_item.failure_writeback",
+      lifecycleStage = "work_item_failure_writeback",
+      workItemName = workItem.name,
+      workItemAttemptName = workItemAttemptName,
+      expectedErrorType = "ControlPlaneApiException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
     )
   }
 
@@ -973,6 +1037,67 @@ class BaseTeeApplicationTest {
     assertThat(consumer.ackCount).isEqualTo(0)
     assertThat(consumer.nackCount).isEqualTo(1)
     job.cancelAndJoin()
+  }
+
+  @Test
+  fun `worker failure records failure writeback error separately`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val workItemAttemptName = "workItems/workItem/workItemAttempts/workItemAttempt"
+    val testWorkItemAttempt = workItemAttempt { name = workItemAttemptName }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(testWorkItemAttempt)
+    whenever(
+        workItemAttemptsStub.failWorkItemAttempt(
+          any<FailWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure = IllegalStateException("worker failed"),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+    val workItem = createWorkItem(createTestWork())
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = workItem,
+        consumer = consumer,
+        ackId = "failure-writeback-ack-id",
+      )
+    )
+    consumer.disposition.await()
+    job.cancelAndJoin()
+
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(1)
+    assertFailedProcessingSpan(
+      workItemName = workItem.name,
+      expectedErrorType = "IllegalStateException",
+      expectedErrorCode = null,
+    )
+    assertFailureWritebackSpan(
+      spanName = "secure_computation.work_item_attempt.failure_writeback",
+      lifecycleStage = "work_item_attempt_failure_writeback",
+      workItemName = workItem.name,
+      workItemAttemptName = workItemAttemptName,
+      expectedErrorType = "ControlPlaneApiException",
+      expectedErrorCode = "grpc.UNAVAILABLE",
+    )
   }
 
   @Test

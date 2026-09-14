@@ -35,6 +35,7 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Date
+import kotlinx.coroutines.CancellationException
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -257,6 +258,46 @@ class ReportTraceTest {
     assertThat(output.toString()).contains("FAILED  not-a-resource-name")
     assertThat(output.toString())
       .contains("PARTIAL  measurementConsumers/mc-1/basicReports/report-a")
+  }
+
+  @Test
+  fun `main stops BasicReport batch when resolver is cancelled`() {
+    val output = StringWriter()
+    val error = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("cancelled-traces").toPath()
+    var resolverCalls = 0
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver {
+            resolverCalls++
+            throw CancellationException("resolver cancelled")
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(error),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-a",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-b",
+          "--output-dir=$outputDirectory",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(resolverCalls).isEqualTo(1)
+    assertThat(outputDirectory.toFile().list()!!.toList()).isEmpty()
+    assertThat(output.toString()).doesNotContain("report-b")
+    assertThat(error.toString()).contains("resolver cancelled")
   }
 
   @Test
@@ -3955,6 +3996,72 @@ class ReportTraceTest {
     assertThat(exitCode).isEqualTo(0)
     assertThat(output.toString())
       .contains("Cloud Trace fallback query failed for project test: IllegalStateException")
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `main retains evidence when Cloud Logging correlation expansion fails`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val workItemName = "workItems/discovered-work-item"
+    var logReads = 0
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            logReads++
+            if (workItemName in correlationValues) {
+              error("expansion denied")
+            }
+            listOf(
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW.minusSeconds(1),
+                service = "reporting",
+                severity = "INFO",
+                trace = null,
+                message = "xmm.report.name=$reportName primary-evidence",
+              )
+            )
+          }
+        },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, traceIds, _, _, _ ->
+            if (traceIds.isEmpty() && reportName in correlationValues) {
+              listOf(
+                traceSpan("primary-span", NOW)
+                  .copy(attributes = mapOf("xmm.work_item.name" to workItemName))
+              )
+            } else {
+              emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(logReads).isEqualTo(2)
+    assertThat(output.toString()).contains("primary-evidence")
+    assertThat(output.toString())
+      .contains("Cloud Logging correlation-expansion query failed for project test")
+    assertThat(output.toString()).contains("| test | Cloud Logging | PARTIAL | 1 | 1 |")
     assertThat(output.toString()).contains("Collection completeness: PARTIAL")
   }
 

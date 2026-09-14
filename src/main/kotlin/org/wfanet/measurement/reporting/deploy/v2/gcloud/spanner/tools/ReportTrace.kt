@@ -775,6 +775,8 @@ internal object ReportTraceOutput {
         "Requisition" to observedAttributeValues(spans, logEntries, "xmm.requisition.name"),
         "EDPA group" to observedAttributeValues(spans, logEntries, "xmm.edpa.group_id"),
         "WorkItem" to observedAttributeValues(spans, logEntries, "xmm.work_item.name"),
+        "WorkItemAttempt" to
+          observedAttributeValues(spans, logEntries, "xmm.work_item_attempt.name"),
         "Computation" to observedAttributeValues(spans, logEntries, "xmm.computation.name"),
         "Duchy participant" to observedAttributeValues(spans, logEntries, "xmm.duchy.id"),
       )
@@ -2025,6 +2027,7 @@ internal object ReportTraceOutput {
       "xmm.requisition.name",
       "xmm.edpa.group_id",
       "xmm.work_item.name",
+      "xmm.work_item_attempt.name",
       "xmm.computation.name",
       "xmm.duchy.id",
       "xmm.basic_report.state",
@@ -2579,6 +2582,8 @@ internal class ReportTrace(
         if (exitCode(collection.status) != 0) {
           failures++
         }
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         failures++
         val outputPath =

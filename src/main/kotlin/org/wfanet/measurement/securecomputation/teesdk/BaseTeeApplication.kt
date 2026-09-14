@@ -259,6 +259,13 @@ abstract class BaseTeeApplication(
       } catch (error: CancellationException) {
         throw error
       } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item.failure_writeback",
+          lifecycleStage = "work_item_failure_writeback",
+          workItemName = body.name,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
+        )
         logger.log(Level.SEVERE, error) {
           "Failed to report work item failure. Nacking message ${queueMessage.ackId}"
         }
@@ -274,6 +281,13 @@ abstract class BaseTeeApplication(
       } catch (error: CancellationException) {
         throw error
       } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item_attempt.failure_writeback",
+          lifecycleStage = "work_item_attempt_failure_writeback",
+          workItemName = body.name,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
+        )
         logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
       }
       logger.info("Nacking message ${queueMessage.ackId} after error")
@@ -281,6 +295,24 @@ abstract class BaseTeeApplication(
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }
+  }
+
+  private fun recordFailureWriteback(
+    spanName: String,
+    lifecycleStage: String,
+    workItemName: String,
+    workItemAttemptName: String,
+    error: Throwable,
+  ) {
+    ReportTracing.recordFailure(
+      spanName,
+      io.opentelemetry.api.common.Attributes.builder()
+        .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+        .put(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttemptName)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, lifecycleStage)
+        .build(),
+      error,
+    )
   }
 
   private fun recordCurrentSpanError(error: Throwable) {
