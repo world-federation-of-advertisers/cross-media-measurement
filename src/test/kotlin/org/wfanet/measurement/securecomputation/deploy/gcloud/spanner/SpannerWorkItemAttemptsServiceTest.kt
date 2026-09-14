@@ -396,10 +396,27 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
         getWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
       )
     assertThat(pendingDeadLetter.state).isEqualTo(WorkItem.State.RUNNING)
-    assertThat(pendingDeadLetter.generation).isEqualTo(workItem.generation)
+    assertThat(pendingDeadLetter.generation).isEqualTo(workItem.generation + 1L)
+    val staleDeliveryError =
+      kotlin.test.assertFailsWith<StatusRuntimeException> {
+        attemptsService.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            supportsAttemptLease = true
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "stale-redelivery-attempt"
+            }
+          }
+        )
+      }
+    assertThat(staleDeliveryError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(staleDeliveryError.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
     assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(1)
     assertThat(publisher.queueNames).containsExactly(DEAD_LETTER_QUEUE_RESOURCE_ID)
-    assertThat((publisher.messages.single() as WorkItem).generation).isEqualTo(workItem.generation)
+    assertThat((publisher.messages.single() as WorkItem).generation)
+      .isEqualTo(workItem.generation + 1L)
   }
 
   @Test
