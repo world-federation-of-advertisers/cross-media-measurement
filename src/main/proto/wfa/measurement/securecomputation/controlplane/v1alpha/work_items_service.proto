@@ -41,6 +41,9 @@ service WorkItems {
   // Creates the `WorkItem` and its pending publication when it does not exist.
   // An existing matching `QUEUED` or `RUNNING` `WorkItem` is returned without
   // creating another publication.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: Returning the ensured resource directly is more
+  //     ergonomic for this idempotent create-like method. --)
   rpc EnsureWorkItem(EnsureWorkItemRequest) returns (WorkItem) {
     option (google.api.method_signature) = "work_item,work_item_id";
   }
