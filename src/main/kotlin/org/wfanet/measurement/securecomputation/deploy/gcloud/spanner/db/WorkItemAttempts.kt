@@ -37,15 +37,24 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkIt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
+import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
 
 data class WorkItemAttemptResult(
   val workItemId: Long,
   val workItemAttemptId: Long,
+  val queueId: Long,
+  val generation: Long,
   val workItemAttempt: WorkItemAttempt,
 )
 
 data class ExpiredWorkItemAttemptKey(val workItemId: Long, val workItemAttemptId: Long)
+
+enum class WorkItemAttemptRecoveryOutcome {
+  REQUEUED,
+  DEAD_LETTERED,
+}
 
 suspend fun AsyncDatabaseClient.ReadContext.workItemAttemptExists(
   workItemId: Long,
@@ -218,6 +227,21 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(
   return state
 }
 
+/** Fails an attempt and creates a durable normal or dead-letter publication. */
+fun AsyncDatabaseClient.TransactionContext.failWorkItemAttemptAndScheduleRecovery(
+  result: WorkItemAttemptResult,
+  queue: QueueMapping.Queue,
+): WorkItemAttemptRecoveryOutcome {
+  failWorkItemAttempt(result.workItemId, result.workItemAttemptId)
+  return if (result.workItemAttempt.attemptNumber >= queue.maxWorkItemAttempts) {
+    insertDeadLetterWorkItemPublication(result.workItemId)
+    WorkItemAttemptRecoveryOutcome.DEAD_LETTERED
+  } else {
+    retryWorkItem(result.workItemId, result.generation)
+    WorkItemAttemptRecoveryOutcome.REQUEUED
+  }
+}
+
 /** Extends the lease for an ACTIVE WorkItemAttempt. */
 fun AsyncDatabaseClient.TransactionContext.renewWorkItemAttemptLease(
   workItemId: Long,
@@ -259,17 +283,18 @@ fun AsyncDatabaseClient.ReadContext.readExpiredWorkItemAttempts(
   }
 }
 
-/** Fails an expired ACTIVE attempt and transactionally queues its WorkItem for a new generation. */
+/** Fails an expired ACTIVE attempt and transactionally schedules recovery or dead-lettering. */
 suspend fun AsyncDatabaseClient.TransactionContext.recoverExpiredWorkItemAttempt(
   key: ExpiredWorkItemAttemptKey,
   now: Instant,
-): Boolean {
+  queueMapping: QueueMapping,
+): WorkItemAttemptRecoveryOutcome? {
   val attemptRow =
     readRow(
       "WorkItemAttempts",
       Key.of(key.workItemId, key.workItemAttemptId),
       listOf("State", "LeaseExpirationTime"),
-    ) ?: return false
+    ) ?: return null
   val state: WorkItemAttempt.State =
     attemptRow.getProtoEnum("State", WorkItemAttempt.State::forNumber)
   if (
@@ -277,19 +302,38 @@ suspend fun AsyncDatabaseClient.TransactionContext.recoverExpiredWorkItemAttempt
       attemptRow.isNull("LeaseExpirationTime") ||
       attemptRow.getTimestamp("LeaseExpirationTime") > now.toGcloudTimestamp()
   ) {
-    return false
+    return null
   }
 
   val workItemRow =
-    readRow("WorkItems", Key.of(key.workItemId), listOf("State", "Generation")) ?: return false
+    readRow(
+      "WorkItems",
+      Key.of(key.workItemId),
+      listOf("WorkItemResourceId", "QueueId", "State", "Generation"),
+    ) ?: return null
   val workItemState: WorkItem.State = workItemRow.getProtoEnum("State", WorkItem.State::forNumber)
   if (workItemState != WorkItem.State.RUNNING) {
-    return false
+    return null
   }
   val generation = if (workItemRow.isNull("Generation")) 1L else workItemRow.getLong("Generation")
-  failWorkItemAttempt(key.workItemId, key.workItemAttemptId)
-  retryWorkItem(key.workItemId, generation)
-  return true
+  val queueId = workItemRow.getLong("QueueId")
+  val queue =
+    queueMapping.getQueueById(queueId)
+      ?: throw QueueNotFoundForWorkItem(workItemRow.getString("WorkItemResourceId"))
+  val attemptNumber =
+    read("WorkItemAttempts", KeySet.prefixRange(Key.of(key.workItemId)), listOf("WorkItemId"))
+      .count()
+      .toInt()
+  return failWorkItemAttemptAndScheduleRecovery(
+    WorkItemAttemptResult(
+      workItemId = key.workItemId,
+      workItemAttemptId = key.workItemAttemptId,
+      queueId = queueId,
+      generation = generation,
+      workItemAttempt = workItemAttempt { this.attemptNumber = attemptNumber },
+    ),
+    queue,
+  )
 }
 
 /**
@@ -346,6 +390,8 @@ private object WorkItemAttempts {
       WorkItemAttempts.WorkItemAttemptId,
       WorkItemAttempts.WorkItemId,
       WorkItems.WorkItemResourceId,
+      WorkItems.QueueId,
+      WorkItems.Generation,
       WorkItemAttempts.WorkItemAttemptResourceId,
       WorkItemAttempts.State,
       (
@@ -365,20 +411,23 @@ private object WorkItemAttempts {
 
   fun buildWorkItemAttemptResult(row: Struct): WorkItemAttemptResult {
     return WorkItemAttemptResult(
-      row.getLong("WorkItemId"),
-      row.getLong("WorkItemAttemptId"),
-      workItemAttempt {
-        workItemResourceId = row.getString("WorkItemResourceId")
-        workItemAttemptResourceId = row.getString("WorkItemAttemptResourceId")
-        state = row.getProtoEnum("State", WorkItemAttempt.State::forNumber)
-        attemptNumber = row.getLong("AttemptNumber").toInt()
-        errorMessage = row.getNullableString("ErrorMessage") ?: ""
-        if (!row.isNull("LeaseExpirationTime")) {
-          leaseExpirationTime = row.getTimestamp("LeaseExpirationTime").toProto()
-        }
-        createTime = row.getTimestamp("CreateTime").toProto()
-        updateTime = row.getTimestamp("UpdateTime").toProto()
-      },
+      workItemId = row.getLong("WorkItemId"),
+      workItemAttemptId = row.getLong("WorkItemAttemptId"),
+      queueId = row.getLong("QueueId"),
+      generation = if (row.isNull("Generation")) 1L else row.getLong("Generation"),
+      workItemAttempt =
+        workItemAttempt {
+          workItemResourceId = row.getString("WorkItemResourceId")
+          workItemAttemptResourceId = row.getString("WorkItemAttemptResourceId")
+          state = row.getProtoEnum("State", WorkItemAttempt.State::forNumber)
+          attemptNumber = row.getLong("AttemptNumber").toInt()
+          errorMessage = row.getNullableString("ErrorMessage") ?: ""
+          if (!row.isNull("LeaseExpirationTime")) {
+            leaseExpirationTime = row.getTimestamp("LeaseExpirationTime").toProto()
+          }
+          createTime = row.getTimestamp("CreateTime").toProto()
+          updateTime = row.getTimestamp("UpdateTime").toProto()
+        },
     )
   }
 }

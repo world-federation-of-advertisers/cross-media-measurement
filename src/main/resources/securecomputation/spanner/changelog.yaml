@@ -28,3 +28,6 @@ databaseChangeLog:
   - include:
       file: add-work-item-publication-scheduling.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-work-item-dead-letter-publications.sql
+      relativeToChangeLogFile: true

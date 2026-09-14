@@ -171,7 +171,7 @@ class WorkItemPublicationRunner(
 
   private suspend fun publishClaimedWorkItem(publication: WorkItemPublicationResult): Boolean {
     try {
-      workItemPublisher.publishMessage(publication.workItem.queueResourceId, publication.workItem)
+      workItemPublisher.publishMessage(publication.queueResourceId, publication.workItem)
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {

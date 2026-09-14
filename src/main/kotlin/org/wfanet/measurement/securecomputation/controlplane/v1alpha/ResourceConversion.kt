@@ -48,6 +48,9 @@ fun InternalWorkItem.toWorkItem(): WorkItem {
     name = WorkItemKey(source.workItemResourceId).toName()
     queue = source.queueResourceId
     state = source.state.toWorkItemState()
+    if (source.hasWorkItemParams()) {
+      workItemParams = source.workItemParams
+    }
     generation = source.generation
     createTime = source.createTime
     updateTime = source.updateTime

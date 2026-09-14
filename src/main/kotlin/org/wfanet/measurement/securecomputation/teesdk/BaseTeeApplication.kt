@@ -206,16 +206,10 @@ abstract class BaseTeeApplication(
       }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      if (workItemAttempt.hasLeaseExpirationTime()) {
-        logger.info(
-          "Leaving leased WorkItemAttempt ${workItemAttempt.name} ACTIVE for lease recovery"
-        )
-      } else {
-        runCatching { failWorkItemAttempt(workItemAttempt, e) }
-          .onFailure { error ->
-            logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
-          }
-      }
+      runCatching { failWorkItemAttempt(workItemAttempt, e) }
+        .onFailure { error ->
+          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+        }
       logger.info("Nacking message ${queueMessage.ackId} after error")
       queueMessage.nack()
     } finally {
