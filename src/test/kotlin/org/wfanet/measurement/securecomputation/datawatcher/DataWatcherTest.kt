@@ -191,6 +191,70 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `redelivery reuses trace context from existing WorkItem`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val appParams = Any.pack(Int32Value.of(5))
+    val storedTraceparent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+    val existingWorkItem =
+      org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+        name = "workItems/deterministic-id"
+        this.queue = queue
+        workItemParams =
+          workItemParams {
+              this.appParams = appParams
+              dataPathParams = dataPathParams { dataPath = path }
+              traceContext["traceparent"] = storedTraceparent
+            }
+            .pack()
+      }
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.ALREADY_EXISTS.asRuntimeException() doReturn
+        existingWorkItem
+      onBlocking { getWorkItem(any()) } doReturn existingWorkItem
+    }
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        this.queue = queue
+        this.appParams = appParams
+      }
+    }
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+      )
+    val redeliverySpan =
+      Span.wrap(
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      )
+
+    redeliverySpan.makeCurrent().use {
+      dataWatcher.receivePath(path, mapOf(DataWatcher.GENERATION_METADATA_KEY to "42"))
+    }
+
+    val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
+    val firstParams = requestCaptor.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
+    val retryParams = requestCaptor.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
+    assertThat(firstParams.traceContextMap)
+      .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+    assertThat(retryParams.traceContextMap).containsExactly("traceparent", storedTraceparent)
+    assertThat(retryParams.appParams).isEqualTo(firstParams.appParams)
+    assertThat(retryParams.dataPathParams).isEqualTo(firstParams.dataPathParams)
+  }
+
+  @Test
   fun `falls back to legacy Create and validates an existing WorkItem`() = runBlocking {
     val path = "test-schema://test-bucket/path-to-watch/some-data"
     val queue = "test-topic-id"

@@ -19,6 +19,7 @@ package org.wfanet.measurement.securecomputation.datawatcher
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
+import com.google.protobuf.Any
 import io.grpc.Status
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
@@ -138,21 +139,41 @@ class DataWatcher(
       this.workItemParams = workItemParams
     }
     try {
-      workItemsStub.ensureWorkItem(
-        ensureWorkItemRequest {
-          this.workItemId = workItemId
-          workItem = requestedWorkItem
-        }
-      )
+      ensureWorkItem(workItemId, requestedWorkItem)
     } catch (e: Exception) {
       when (e.grpcStatusCode()) {
         Status.Code.UNIMPLEMENTED -> createWorkItemWithLegacyApi(workItemId, requestedWorkItem)
+        Status.Code.ALREADY_EXISTS ->
+          ensureWorkItemWithStoredTraceContext(workItemId, requestedWorkItem)
         Status.Code.FAILED_PRECONDITION -> validateExistingWorkItem(workItemId, requestedWorkItem)
         else -> throw e
       }
     }
 
     onQueueWrite(config, path, queueConfig.queue, workItemId)
+  }
+
+  private suspend fun ensureWorkItem(workItemId: String, workItem: WorkItem) {
+    workItemsStub.ensureWorkItem(
+      ensureWorkItemRequest {
+        this.workItemId = workItemId
+        this.workItem = workItem
+      }
+    )
+  }
+
+  private suspend fun ensureWorkItemWithStoredTraceContext(
+    workItemId: String,
+    requestedWorkItem: WorkItem,
+  ) {
+    val existingWorkItemParams = validateExistingWorkItem(workItemId, requestedWorkItem)
+    ensureWorkItem(
+      workItemId,
+      workItem {
+        queue = requestedWorkItem.queue
+        workItemParams = existingWorkItemParams
+      },
+    )
   }
 
   private suspend fun createWorkItemWithLegacyApi(workItemId: String, requestedWorkItem: WorkItem) {
@@ -171,14 +192,22 @@ class DataWatcher(
     }
   }
 
-  private suspend fun validateExistingWorkItem(workItemId: String, requestedWorkItem: WorkItem) {
+  private suspend fun validateExistingWorkItem(
+    workItemId: String,
+    requestedWorkItem: WorkItem,
+  ): Any {
     val existing = workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val requestedParams =
+      requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     check(
       existing.queue == requestedWorkItem.queue &&
-        existing.workItemParams == requestedWorkItem.workItemParams
+        existingParams.appParams == requestedParams.appParams &&
+        existingParams.dataPathParams == requestedParams.dataPathParams
     ) {
       "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
     }
+    return existing.workItemParams
   }
 
   private fun sendToHttpEndpoint(
