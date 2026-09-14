@@ -803,7 +803,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `leased worker failure is durably reported before stale nack`() = runBlocking {
+  fun `leased worker failure is durably reported without stale nack`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -871,7 +871,8 @@ class BaseTeeApplicationTest {
     assertThat(duplicateDelivery.ackCount).isEqualTo(1)
     assertThat(duplicateDelivery.nackCount).isEqualTo(0)
     assertThat(originalDelivery.ackCount).isEqualTo(0)
-    assertThat(originalDelivery.nackCallCount).isEqualTo(1)
+    assertThat(originalDelivery.ackCallCount).isEqualTo(1)
+    assertThat(originalDelivery.nackCallCount).isEqualTo(0)
     assertThat(originalDelivery.nackCount).isEqualTo(0)
     verifyBlocking(workItemAttemptsStub, times(1)) {
       failWorkItemAttempt(any(), any<io.grpc.Metadata>())
@@ -1065,6 +1066,7 @@ class BaseTeeApplicationTest {
     private val acceptAck: () -> Boolean = { true },
     private val acceptNack: () -> Boolean = { true },
   ) : MessageConsumer {
+    @Volatile var ackCallCount = 0
     @Volatile var ackCount = 0
     @Volatile var nackCount = 0
     @Volatile var nackCallCount = 0
@@ -1074,6 +1076,7 @@ class BaseTeeApplicationTest {
       get() = _disposition
 
     override fun ack() {
+      ackCallCount++
       if (acceptAck()) {
         ackCount++
       }
@@ -1121,6 +1124,9 @@ class BaseTeeApplicationTest {
 
       val ackCount: Int
         get() = consumer.ackCount
+
+      val ackCallCount: Int
+        get() = consumer.ackCallCount
 
       val nackCount: Int
         get() = consumer.nackCount
