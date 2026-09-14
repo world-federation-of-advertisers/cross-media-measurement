@@ -135,7 +135,6 @@ class ReportTraceTest {
           "--report=measurementConsumers/mc-1/reports/report-1",
           "--start-time=2026-09-10T11:00:00Z",
           "--allow-partial",
-          "--spanner-ready-timeout=PT10S",
         ),
         dependencies,
       )
