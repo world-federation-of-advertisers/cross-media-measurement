@@ -49,9 +49,11 @@ service WorkItemAttempts {
 
 message CreateWorkItemAttemptRequest {
   WorkItemAttempt work_item_attempt = 1;
-  // Generation from the queue message. A value of 0 is interpreted as
-  // generation 1 for rolling-upgrade compatibility.
-  int64 expected_work_item_generation = 2;
+  // Expected execution generation from the queue message. New callers must
+  // populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
   // Whether the caller supports renewing an attempt lease.
   bool supports_attempt_lease = 3;
 }

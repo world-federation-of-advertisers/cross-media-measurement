@@ -93,14 +93,18 @@ class SpannerWorkItemAttemptsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.expectedWorkItemGeneration < 0L) {
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
       throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
-          "$fieldName must be non-negative"
+          "$fieldName must be at least 1"
         }
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     val expectedGeneration =
-      request.expectedWorkItemGeneration.takeUnless { it == 0L } ?: INITIAL_GENERATION
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
     val leaseExpirationTime =
       if (request.supportsAttemptLease) clock.instant().plus(attemptLeaseDuration) else null
 

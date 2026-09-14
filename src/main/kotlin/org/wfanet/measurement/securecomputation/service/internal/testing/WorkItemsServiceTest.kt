@@ -591,6 +591,32 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
+  fun `failWorkItem rejects explicit zero expected generation`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.failWorkItem(
+          failWorkItemRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = 0L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
+        }
+      )
+  }
+
+  @Test
   fun `retryWorkItem returns failed WorkItem to queue`() = runBlocking {
     var publicationCount = 0
     val services =
@@ -922,6 +948,72 @@ abstract class WorkItemsServiceTest {
 
     assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
     assertThat(failed.generation).isEqualTo(created.generation)
+  }
+
+  @Test
+  fun `dead letter defaults missing expected generation to one`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val failed =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(1L)
+  }
+
+  @Test
+  fun `dead letter with missing expected generation rejects generation two`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    createWorkItemAttempt(services, created, "legacy-attempt")
+    val retried =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.processWorkItemDeadLetter(
+          processWorkItemDeadLetterRequest { workItemResourceId = created.workItemResourceId }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+    assertThat(retried.generation).isEqualTo(2L)
+  }
+
+  @Test
+  fun `dead letter rejects explicit zero expected generation`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.processWorkItemDeadLetter(
+          processWorkItemDeadLetterRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = 0L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
+        }
+      )
   }
 
   @Test

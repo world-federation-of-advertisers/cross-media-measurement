@@ -16,8 +16,9 @@ syntax = "proto3";
 
 package wfa.measurement.internal.securecomputation.controlplane;
 
-import "wfa/measurement/internal/securecomputation/controlplane/work_item.proto";
+import "google/api/field_behavior.proto";
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/securecomputation/controlplane/work_item.proto";
 
 option java_package = "org.wfanet.measurement.internal.securecomputation.controlplane";
 option java_multiple_files = true;
@@ -99,17 +100,21 @@ message ListWorkItemsPageToken {
 message FailWorkItemRequest {
   string work_item_resource_id = 1;
 
-  // Generation from the queue message whose processing failed. A value of 0
-  // is interpreted as generation 1 for rolling-upgrade compatibility.
-  int64 expected_work_item_generation = 2;
+  // Expected execution generation from the queue message. New callers must
+  // populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 message ProcessWorkItemDeadLetterRequest {
   string work_item_resource_id = 1;
 
-  // Generation carried by the dead-letter delivery. A value of 0 is
-  // interpreted as generation 1 for rolling-upgrade compatibility.
-  int64 expected_work_item_generation = 2;
+  // Expected execution generation from the dead-letter delivery. New callers
+  // must populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 message RetryWorkItemRequest {

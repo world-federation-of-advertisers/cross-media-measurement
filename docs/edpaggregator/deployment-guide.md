@@ -1104,9 +1104,10 @@ automatic recovery cover producer traffic during that interval:
 * A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
   that legacy attempt and creates its new leased attempt at the same WorkItem generation. The MIG
   barrier makes this safe by proving that no old TEE instance remains before new workers start.
-* Existing generation-less WorkItems and queue messages are treated as generation 1. Generation
-  checks make repeated or racing recovery idempotent and prevent stale ordinary and dead-letter
-  deliveries from changing replacement executions.
+* Existing generation-less WorkItems and queue messages are treated as generation 1. New clients
+  always send the expected execution generation; an explicitly supplied value below 1 is invalid.
+  Generation checks make repeated or racing recovery idempotent and prevent stale ordinary and
+  dead-letter deliveries from changing replacement executions.
 
 No subscription drain, database snapshot, active-attempt query, or migration-time
 `FailWorkItemAttempt`/`RetryWorkItem` call is required. New WorkItem creation, `EnsureWorkItem`, and
@@ -1143,9 +1144,12 @@ dead-letter topic; the existing DLQ listener makes the WorkItem terminal and per
 best-effort workload-specific failure propagation. A late heartbeat or completion from the
 abandoned worker is rejected because its attempt is no longer active.
 
-A lease-capable worker that catches a workload failure uses the same transaction before NACKing its
-delivery, instead of waiting for lease expiry. This means a permanent workload error cannot receive
-an unbounded number of fresh Pub/Sub delivery budgets as WorkItem generations advance. The default
+A lease-capable worker that catches a workload failure uses the same transaction before
+acknowledging its original delivery, instead of waiting for lease expiry. A successful failure RPC
+has already durably scheduled either the next execution or dead-letter delivery. If that RPC cannot
+be confirmed, the worker NACKs. A legacy unleased attempt still NACKs after failure because its
+recovery depends on Pub/Sub redelivery. This means a permanent workload error cannot receive an
+unbounded number of fresh Pub/Sub delivery budgets as WorkItem generations advance. The default
 limit is five execution attempts per WorkItem and is configured with `max_work_item_attempts` in
 `queues_config.textproto`; `dead_letter_queue_resource_id` identifies the existing DLQ topic.
 
