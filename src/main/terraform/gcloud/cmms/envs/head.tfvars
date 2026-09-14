@@ -7,3 +7,5 @@ results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-h
 results_fulfiller_event_template_type_name        = "wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
 results_fulfiller_population_spec_blob_uri        = "gs://edpa-configs-storage-head-bucket/results-fulfiller-population-spec.textproto"
 edpa_model_lines                                  = ["modelProviders/PYauXl6kcsA/modelSuites/IvSb6madWtE/modelLines/DOfmLYTmbbY"]
+vid_labeler_population_spec_file_path             = "../../../proto/wfa/measurement/loadtest/dataprovider/hashonly_model_population_spec.textproto"
+vid_labeler_population_spec_blob_uri              = "gs://edpa-configs-storage-head-bucket/vid-labeler-population-spec.textproto"
