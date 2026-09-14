@@ -11,9 +11,8 @@ package(
 filegroup(
     name = "config",
     srcs = [
+        "legacy-requisition-fetcher-config.textproto",
         "requisition-fetcher-config.textproto",
-        "requisition-fetcher-direct-dispatch-config.textproto",
-        "unknown-requisition-fetcher-direct-dispatch-config.textproto",
     ],
 )
 

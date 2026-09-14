@@ -1,3 +1,0 @@
-# proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_direct_dispatch_config.proto
-# proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherDirectDispatchConfig
-configs { data_provider: "dataProviders/unknown" }

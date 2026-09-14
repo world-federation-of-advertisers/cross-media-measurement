@@ -222,8 +222,6 @@ class RequisitionFetcherFunctionTest {
     capturedTraceparent = null
     ensureWorkItemRequest = null
     copyConfig("requisition-fetcher-config.textproto")
-    copyConfig(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
-    copyConfig("unknown-requisition-fetcher-direct-dispatch-config.textproto")
 
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
@@ -246,10 +244,10 @@ class RequisitionFetcherFunctionTest {
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
 
-    startFunction(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+    startFunction()
   }
 
-  private fun startFunction(directDispatchConfigBlobKey: String) {
+  private fun startFunction(directWorkItemDispatchEnabled: Boolean = true) {
     functionProcess =
       FunctionsFrameworkInvokerProcess(
         javaBinaryPath = FETCHER_BINARY_PATH,
@@ -269,7 +267,7 @@ class RequisitionFetcherFunctionTest {
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configFolder.root.toPath()}",
-            "REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY" to directDispatchConfigBlobKey,
+            "DIRECT_WORK_ITEM_DISPATCH_ENABLED" to directWorkItemDispatchEnabled.toString(),
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
             "OTEL_TRACES_EXPORTER" to "none",
@@ -288,7 +286,7 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service dispatches WorkItem when direct dispatch config exists`() {
+  fun `service dispatches WorkItem when work_item_dispatch is set`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
     val client = HttpClient.newHttpClient()
@@ -327,7 +325,11 @@ class RequisitionFetcherFunctionTest {
   fun `service uses legacy dispatch when direct dispatch config is absent`() {
     functionProcess.close()
     ensureWorkItemRequest = null
-    startFunction("missing-direct-dispatch-config.textproto")
+    copyConfig(
+      "legacy-requisition-fetcher-config.textproto",
+      "requisition-fetcher-config.textproto",
+    )
+    startFunction()
 
     val response =
       HttpClient.newHttpClient()
@@ -346,23 +348,33 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service fails closed when direct dispatch config names unknown data provider`() {
+  fun `service uses legacy dispatch while direct dispatch is disabled`() {
     functionProcess.close()
     ensureWorkItemRequest = null
-    startFunction("unknown-requisition-fetcher-direct-dispatch-config.textproto")
+    startFunction(directWorkItemDispatchEnabled = false)
 
-    val response =
-      HttpClient.newHttpClient()
-        .send(
-          HttpRequest.newBuilder()
-            .uri(URI.create("http://localhost:${functionProcess.port}"))
-            .GET()
-            .build(),
-          BodyHandlers.ofString(),
-        )
+    val response = invokeFunction()
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    val storageDir = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
+    assertThat(storageDir.listFiles()).isNotEmpty()
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile().exists())
+      .isFalse()
+  }
+
+  @Test
+  fun `service validates work_item_dispatch while direct dispatch is disabled`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    val config = configFolder.root.toPath().resolve("requisition-fetcher-config.textproto").toFile()
+    config.writeText(config.readText().replace("queue: \"results-fulfiller-queue\"", "queue: \"\""))
+    startFunction(directWorkItemDispatchEnabled = false)
+
+    val response = invokeFunction()
 
     assertThat(response.statusCode()).isEqualTo(500)
-    assertThat(response.body()).contains("direct-dispatch configuration")
+    assertThat(response.body()).contains("Invalid config for data provider")
     assertThat(ensureWorkItemRequest).isNull()
     assertThat(tempFolder.root.listFiles()).isEmpty()
   }
@@ -371,15 +383,16 @@ class RequisitionFetcherFunctionTest {
   fun `service fails closed when direct storage prefix is below legacy prefix`() {
     functionProcess.close()
     ensureWorkItemRequest = null
-    val mutableConfig = configFolder.root.toPath().resolve(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+    val mutableConfig = configFolder.root.toPath().resolve("requisition-fetcher-config.textproto")
     mutableConfig
       .toFile()
       .writeText(
-        DIRECT_DISPATCH_CONFIG_SOURCE.toFile()
+        mutableConfig
+          .toFile()
           .readText()
           .replace(DIRECT_STORAGE_PATH_PREFIX, "$STORAGE_PATH_PREFIX/v2")
       )
-    startFunction(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+    startFunction()
 
     val response = invokeFunction()
 
@@ -404,7 +417,7 @@ class RequisitionFetcherFunctionTest {
           "storage_path_prefix: \"$DIRECT_STORAGE_PATH_PREFIX/legacy\"",
         )
     legacyConfig.writeText("$originalConfig\n$secondProviderConfig")
-    startFunction(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
+    startFunction()
 
     val response = invokeFunction()
 
@@ -412,39 +425,6 @@ class RequisitionFetcherFunctionTest {
     assertThat(response.body()).contains("Invalid config")
     assertThat(ensureWorkItemRequest).isNull()
     assertThat(tempFolder.root.listFiles()).isEmpty()
-  }
-
-  @Test
-  fun `service reloads direct dispatch config for activation and rollback`() {
-    functionProcess.close()
-    val mutableConfig = configFolder.root.toPath().resolve(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
-    mutableConfig.toFile().writeText("")
-    startFunction(MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY)
-
-    val legacyResponse = invokeFunction()
-
-    assertThat(legacyResponse.statusCode()).isEqualTo(200)
-    assertThat(ensureWorkItemRequest).isNull()
-    assertThat(tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile().listFiles())
-      .isNotEmpty()
-
-    DIRECT_DISPATCH_CONFIG_SOURCE.toFile().copyTo(mutableConfig.toFile(), overwrite = true)
-    ensureWorkItemRequest = null
-
-    val directResponse = invokeFunction()
-
-    assertThat(directResponse.statusCode()).isEqualTo(200)
-    assertThat(ensureWorkItemRequest).isNotNull()
-    assertThat(tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile().listFiles())
-      .isNotEmpty()
-
-    mutableConfig.toFile().writeText("")
-    ensureWorkItemRequest = null
-
-    val rollbackResponse = invokeFunction()
-
-    assertThat(rollbackResponse.statusCode()).isEqualTo(200)
-    assertThat(ensureWorkItemRequest).isNull()
   }
 
   @Test
@@ -475,10 +455,10 @@ class RequisitionFetcherFunctionTest {
       )
   }
 
-  private fun copyConfig(fileName: String) {
+  private fun copyConfig(fileName: String, destinationFileName: String = fileName) {
     CONFIG_SOURCE_PATH.resolve(fileName)
       .toFile()
-      .copyTo(configFolder.root.toPath().resolve(fileName).toFile(), overwrite = true)
+      .copyTo(configFolder.root.toPath().resolve(destinationFileName).toFile(), overwrite = true)
   }
 
   companion object {
@@ -500,10 +480,6 @@ class RequisitionFetcherFunctionTest {
       )
     private const val GCF_TARGET =
       "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
-    private const val DIRECT_DISPATCH_CONFIG_BLOB_KEY =
-      "requisition-fetcher-direct-dispatch-config.textproto"
-    private const val MUTABLE_DIRECT_DISPATCH_CONFIG_BLOB_KEY =
-      "mutable-requisition-fetcher-direct-dispatch-config.textproto"
     private const val DATA_PROVIDER_NAME = "dataProviders/AAAAAAAAAHs"
     private const val REQUISITION_NAME = "$DATA_PROVIDER_NAME/requisitions/foo"
 
@@ -643,8 +619,6 @@ class RequisitionFetcherFunctionTest {
           )
         )
       )
-    private val DIRECT_DISPATCH_CONFIG_SOURCE =
-      CONFIG_SOURCE_PATH.resolve(DIRECT_DISPATCH_CONFIG_BLOB_KEY)
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),

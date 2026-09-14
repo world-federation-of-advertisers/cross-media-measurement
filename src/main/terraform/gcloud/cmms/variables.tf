@@ -132,13 +132,6 @@ variable "requisition_fetcher_config_file_path" {
   nullable    = false
 }
 
-variable "requisition_fetcher_direct_dispatch_config_file_path" {
-  description = "Optional path to the requisition fetcher direct-dispatch config file."
-  type        = string
-  nullable    = true
-  default     = null
-}
-
 variable "event_data_provider_configs_file_path" {
   description = "Path to the event data provider config file for the ResultsFulfiller TEE app."
   type        = string
@@ -173,6 +166,12 @@ variable "image_tag" {
 
 variable "tee_consumers_enabled" {
   description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
+variable "direct_requisition_dispatch_enabled" {
+  description = "Whether RequisitionFetcher may dispatch WorkItems directly."
   type        = bool
   default     = true
 }

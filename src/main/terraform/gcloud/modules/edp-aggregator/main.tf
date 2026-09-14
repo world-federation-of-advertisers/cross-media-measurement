@@ -222,17 +222,6 @@ resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   source_md5hash = filemd5(var.requisition_fetcher_config.local_path)
 }
 
-resource "google_storage_bucket_object" "upload_requisition_fetcher_direct_dispatch_config" {
-  for_each = var.requisition_fetcher_direct_dispatch_config == null ? {} : {
-    direct_dispatch = var.requisition_fetcher_direct_dispatch_config
-  }
-
-  name           = each.value.destination
-  bucket         = module.config_files_bucket.storage_bucket.name
-  source         = each.value.local_path
-  source_md5hash = filemd5(each.value.local_path)
-}
-
 resource "google_storage_bucket_object" "upload_edps_config" {
   name   = var.edps_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
@@ -329,14 +318,13 @@ module "requisition_fetcher_cloud_function" {
   depends_on = [
     module.secrets,
     google_storage_bucket_object.upload_requisition_fetcher_config,
-    google_storage_bucket_object.upload_requisition_fetcher_direct_dispatch_config,
   ]
 
   http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  extra_env_vars                           = "${var.cloud_function_configs.requisition_fetcher.extra_env_vars},DIRECT_WORK_ITEM_DISPATCH_ENABLED=${var.direct_requisition_dispatch_enabled}"
   secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
   secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]

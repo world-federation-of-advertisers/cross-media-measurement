@@ -37,6 +37,10 @@ on:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
         default: true
+      direct-requisition-dispatch-enabled:
+        description: Whether RequisitionFetcher may dispatch WorkItems directly
+        type: boolean
+        default: true
     outputs:
       work_item_tee_mig_names:
         description: WorkItem-consuming Managed Instance Group names as JSON
@@ -63,6 +67,10 @@ on:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
         default: true
+      direct-requisition-dispatch-enabled:
+        description: Whether RequisitionFetcher may dispatch WorkItems directly
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -83,7 +91,6 @@ jobs:
       DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
       DATA_WATCHER_DELETE_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_DELETE_CONFIG_CONTENT }}
       REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
-      REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT }}
       EDPA_EDPS_CONFIG: ${{ vars.EDPA_EDPS_CONFIG }}
       EVENT_GROUP_SYNC_CONFIG_CONTENT: ${{ vars.EVENT_GROUP_SYNC_CONFIG_CONTENT }}
       DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
@@ -155,7 +162,6 @@ jobs:
         echo "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         echo "$DATA_WATCHER_DELETE_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-delete-config.textproto"
         echo "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
-        echo "$REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-direct-dispatch-config.textproto"
         echo "$EDPA_EDPS_CONFIG" > "$CONFIG_DIR/event-data-provider-configs.textproto"
         echo "$EVENT_GROUP_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/event-group-sync-config.textproto"
         echo "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
@@ -361,7 +367,6 @@ jobs:
         -var="data_watcher_config_file_path=$CONFIG_DIR/data-watcher-config.textproto"
         -var="data_watcher_delete_config_file_path=$CONFIG_DIR/data-watcher-delete-config.textproto"
         -var="requisition_fetcher_config_file_path=$CONFIG_DIR/requisition-fetcher-config.textproto"
-        -var="requisition_fetcher_direct_dispatch_config_file_path=$CONFIG_DIR/requisition-fetcher-direct-dispatch-config.textproto"
         -var="event_data_provider_configs_file_path=$CONFIG_DIR/event-data-provider-configs.textproto"
         -var="event_group_sync_config_file_path=$CONFIG_DIR/event-group-sync-config.textproto"
         -var="data_availability_sync_config_file_path=$CONFIG_DIR/data-availability-sync-config.textproto"
@@ -399,6 +404,7 @@ jobs:
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
+        -var="direct_requisition_dispatch_enabled=${{ inputs.direct-requisition-dispatch-enabled }}"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         -var="duchy_worker1_id=$DUCHY_WORKER1_ID"

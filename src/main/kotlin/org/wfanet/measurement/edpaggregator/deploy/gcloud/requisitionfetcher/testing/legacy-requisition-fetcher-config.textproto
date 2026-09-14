@@ -1,0 +1,21 @@
+# proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_config.proto
+# proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherConfig
+configs {
+  data_provider: "dataProviders/edp7"
+  requisition_storage {
+    file_system {
+    }
+  }
+  storage_path_prefix: "edp7"
+  cmms_connection {
+    cert_file_path: "src/main/k8s/testing/secretfiles/edp7_tls.pem"
+    private_key_file_path: "src/main/k8s/testing/secretfiles/edp7_tls.key"
+    cert_collection_file_path: "src/main/k8s/testing/secretfiles/kingdom_root.pem"
+  }
+  requisition_metadata_storage_connection {
+    cert_file_path: "src/main/k8s/testing/secretfiles/edp7_tls.pem"
+    private_key_file_path: "src/main/k8s/testing/secretfiles/edp7_tls.key"
+    cert_collection_file_path: "src/main/k8s/testing/secretfiles/kingdom_root.pem"
+  }
+  edp_private_key_path: "src/main/k8s/testing/secretfiles/edp7_enc_private.tink"
+}

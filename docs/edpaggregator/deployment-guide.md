@@ -278,8 +278,8 @@ from a Pub/Sub subscription. Inside the TEE it:
 3. Computes the requisition result, applies the configured noise / k-anonymity, signs
    the result with the EDP's consent key, and returns it to the CMMS.
 
-Its per-WorkItem parameters are defined in RequisitionFetcher's separate direct-dispatch
-configuration as the versioned `ResultsFulfillerParams` message. RequisitionFetcher validates and
+Its per-WorkItem parameters are defined in RequisitionFetcher's `work_item_dispatch` configuration
+as the versioned `ResultsFulfillerParams` message. RequisitionFetcher validates and
 passes that message unchanged as the WorkItem payload; its per-EDP TLS / consent / KMS material is
 carried in the `event_data_provider_configs` file. See
 [ResultsFulfiller parameters](#resultsfulfiller-parameters) and
@@ -560,7 +560,6 @@ by the module:
 | `data_watcher_config` | `DataWatcherConfig` | DataWatcher |
 | `data_watcher_delete_config` | `DataWatcherConfig` | DataWatcherDelete |
 | `requisition_fetcher_config` | `RequisitionFetcherConfig` | RequisitionFetcher |
-| `requisition_fetcher_direct_dispatch_config` | `RequisitionFetcherDirectDispatchConfig` | RequisitionFetcher |
 | `event_group_sync_config` | `EventGroupSyncConfigs` | EventGroupSync |
 | `data_availability_sync_config` | `DataAvailabilitySyncConfigs` | DataAvailabilitySync |
 | `data_availability_monitor_config` | `DataAvailabilityMonitorConfigs` | DataAvailabilityMonitor |
@@ -815,66 +814,46 @@ configs {
     private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
     cert_collection_file_path: "/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem"
   }
-}
-```
-
-This legacy config remains parseable by old RequisitionFetcher revisions and is not changed to
-activate direct dispatch.
-
-### RequisitionFetcher direct-dispatch config (`RequisitionFetcherDirectDispatchConfig`)
-
-Proto:
-`wfa/measurement/config/edpaggregator/requisition_fetcher_direct_dispatch_config.proto`.
-The separate `requisition-fetcher-direct-dispatch-config.textproto` blob contains one `configs`
-entry for each EDP using direct dispatch. An absent or empty blob leaves every EDP on the legacy
-DataWatcher path. The deployment workflow writes this blob from the
-`REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT` GitHub environment variable.
-
-```textproto
-# proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_direct_dispatch_config.proto
-# proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherDirectDispatchConfig
-configs {
-  data_provider: "dataProviders/DATA_PROVIDER_ID"
-  # Dedicated namespace for directly dispatched groups. Do not match this
-  # path in the legacy DataWatcher source_path_regex.
-  storage_path_prefix: "<edp-id>/requisitions-v2"
-  control_plane_connection {
-    cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
-    private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
-    cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
-  }
-  queue: "results-fulfiller-queue"
-  results_fulfiller_params {
-    data_provider: "dataProviders/DATA_PROVIDER_ID"
-    storage_params {
-      labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
-      gcs_project_id: "PROJECT_ID"
+  # Omit this block to keep this EDP on legacy DataWatcher dispatch.
+  work_item_dispatch {
+    # Dedicated namespace for directly dispatched groups. Do not match this
+    # path in the legacy DataWatcher source_path_regex.
+    storage_path_prefix: "<edp-id>/requisitions-v2"
+    control_plane_connection {
+      cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+      private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
+      cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
     }
-    consent_params {
-      result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
-      result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
-      private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
-      edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
+    queue: "results-fulfiller-queue"
+    results_fulfiller_params {
+      data_provider: "dataProviders/DATA_PROVIDER_ID"
+      storage_params {
+        labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
+        gcs_project_id: "PROJECT_ID"
+      }
+      consent_params {
+        result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
+        result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
+        private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
+        edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
+      }
+      cmms_connection {
+        client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
+        client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
+      }
+      noise_params { noise_type: CONTINUOUS_GAUSSIAN }
     }
-    cmms_connection {
-      client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
-      client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
-    }
-    noise_params { noise_type: CONTINUOUS_GAUSSIAN }
   }
 }
 ```
 
-When an EDP has an entry in this file, the fetcher writes only the entry's
-`storage_path_prefix` and dispatches directly. Every legacy and direct prefix sharing a bucket must
-be disjoint globally: no prefix may equal, contain, or be contained by another at a path-segment
-boundary, even when the prefixes belong to different data providers. The fetcher validates this
-before processing any provider. An entry with a missing `data_provider`, a duplicate
-`data_provider`, or a `data_provider` absent from the legacy RequisitionFetcher config fails the
-invocation rather than silently changing dispatch ownership. Keep the DataWatcher
-`results-fulfiller` watched path restricted to the top-level legacy prefix throughout the rollout.
-Also set
-`SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
+When `work_item_dispatch` is present, RequisitionFetcher writes the grouped blob under its nested
+`storage_path_prefix` and dispatches it directly. When the block is absent, the provider remains on
+the legacy DataWatcher path. Every legacy and direct prefix sharing a bucket must be disjoint
+globally: no prefix may equal, contain, or be contained by another at a path-segment boundary, even
+when the prefixes belong to different data providers. The fetcher validates all namespaces before
+processing any provider. Keep the DataWatcher `results-fulfiller` watched path restricted to the
+top-level legacy prefix. Also set `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
 
 #### Migrating from DataWatcher dispatch
@@ -886,26 +865,28 @@ between namespaces. A legacy group with any `PROCESSING` row remains owned by it
 DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
 It still processes newly discovered requisitions for the same report through the direct namespace.
 
-The separate configuration namespace prevents an old RequisitionFetcher binary from parsing a new
-field. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch when the
-blob is absent or empty and reload it on each invocation.
+To activate direct dispatch, update `REQUISITION_FETCHER_CONFIG_CONTENT` by adding
+`work_item_dispatch` to each selected provider. Preserve the existing top-level
+`storage_path_prefix`, choose a dedicated nested prefix such as `<edp-id>/requisitions-v2`, and
+verify that the actual legacy DataWatcher `source_path_regex` excludes every direct prefix.
 
-Use this controlled-shutdown upgrade:
+Then run the repository's top-level **Update CMMS** workflow once. Its first Terraform apply uploads
+the combined config with direct dispatch gated off, then quiesces and verifies all
+WorkItem-consuming TEE MIGs. The workflow rolls both Secure Computation API deployments and every
+EDP Aggregator/Requisition Metadata API deployment to completion. Its final Terraform apply enables
+direct dispatch and the new workers. The explicit gate prevents Terraform's parallel resource
+updates from activating direct dispatch while an old TEE can still consume it. DataWatcher and
+RequisitionFetcher remain running; unclaimed Pub/Sub messages remain queued and must not be
+drained. An old RequisitionFetcher
+revision may reject the newly added textproto field during the Cloud Function rollout, but it makes
+no state change in that case, and the next invocation of the new revision polls the same unfulfilled
+Kingdom requisitions.
 
-1. Set `REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT` to the desired direct-dispatch
-   configuration. Use a dedicated `storage_path_prefix`, such as `<edp-id>/requisitions-v2`, for
-   each entry. It must neither contain nor be contained by any legacy or direct prefix in the same
-   bucket, and the actual legacy DataWatcher `source_path_regex` must exclude it.
-2. Stop both Secure Computation API deployments, DataWatcher, RequisitionFetcher, and every
-   WorkItem TEE consumer. Allow in-flight Cloud Function invocations to finish. Leave unclaimed
-   Pub/Sub messages queued; no subscription drain, WorkItem snapshot, or legacy-event accounting is
-   required.
-3. Run the `Update CMMS` release workflow. As described in
-   [durable WorkItem publication](#rolling-out-durable-workitem-publication), the workflow holds all
-   WorkItem TEE managed instance groups at zero, applies the additive schemas, fully rolls both
-   Secure Computation API deployments, and only then starts the new TEE workers. The workflow also
-   rolls every Requisition Metadata API replica before it completes and uploads the separate
-   direct-dispatch config. Resume DataWatcher and RequisitionFetcher only after it succeeds.
+Do not invoke the child Terraform, Secure Computation, or EDP Aggregator workflows independently
+for this upgrade. No manual service scaling, subscription drain, WorkItem snapshot,
+active-attempt query, or migration-time failure/retry RPC is required. If the workflow fails after
+quiescing the TEE workers, leave them disabled and rerun or complete the API rollout before enabling
+them.
 
 The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
 The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
@@ -926,8 +907,8 @@ Computation internal API automatically republishes an attempt after its lease ex
 
 For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
 the legacy DataWatcher intentionally does not watch that namespace. Then remove the EDP entry from
-`requisition-fetcher-direct-dispatch-config.textproto`. No RequisitionFetcher redeployment is
-required. The legacy config, legacy prefix, and DataWatcher rule remain unchanged.
+the `work_item_dispatch` block and rerun **Update CMMS**. The legacy prefix and DataWatcher rule
+remain unchanged.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
@@ -1024,7 +1005,7 @@ is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
-Each RequisitionFetcher direct-dispatch config entry's `results_fulfiller_params` is a versioned
+Each RequisitionFetcher `work_item_dispatch.results_fulfiller_params` field is a versioned
 `wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams` message. It crosses the Cloud
 Function-to-TEE boundary as the WorkItem payload, so RequisitionFetcher validates and passes it
 without converting it to a duplicated unversioned wire schema. Beyond the `data_provider`,
@@ -1371,10 +1352,7 @@ image is not `STABLE`). Never use a debug image in production.
 
 * **Config caching** — the ResultsFulfiller and functions generally read their config at process
   start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the affected MIG VMs or
-  redeploy the function so the new config is picked up. The exception is
-  `requisition-fetcher-direct-dispatch-config.textproto`: RequisitionFetcher reloads that optional
-  file on every invocation, so direct-dispatch activation and rollback do not require a function
-  redeployment. Its legacy `requisition-fetcher-config.textproto` remains process-start cached.
+  redeploy the function so the new config is picked up. **Update CMMS** performs this automatically.
 * **Secret path mismatches** — the single most common failure. Every mounted secret
   path must match, character for character, the path in the config file that
   references it.
