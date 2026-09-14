@@ -2719,6 +2719,272 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main renders complete mixed direct and MPC lifecycle per child`() {
+    val basicReportName = "measurementConsumers/mc-1/basicReports/basic-report-1"
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val directMetricName = "measurementConsumers/mc-1/metrics/direct-metric"
+    val mpcMetricName = "measurementConsumers/mc-1/metrics/mpc-metric"
+    val directMeasurementName = "measurementConsumers/mc-1/measurements/direct-measurement"
+    val mpcMeasurementName = "measurementConsumers/mc-1/measurements/mpc-measurement"
+    val directRequisitionName = "dataProviders/direct/requisitions/direct-requisition"
+    val edpaRequisitionName = "dataProviders/edpa/requisitions/edpa-requisition"
+    val workItemName = "workItems/results-fulfiller-group-1"
+    val groupId = "group-1"
+    val computationName = "computations/mpc-computation"
+    val duchyIds = listOf("aggregator", "worker1")
+    val context =
+      ReportTraceContext(
+        basicReportName = basicReportName,
+        basicReportState = "SUCCEEDED",
+        reportName = reportName,
+        metricNames = listOf(directMetricName, mpcMetricName),
+        metricStates = mapOf(directMetricName to "SUCCEEDED", mpcMetricName to "SUCCEEDED"),
+        reusedMetricNames = emptySet(),
+        unresolvedMetricRequestIds = emptyList(),
+        measurementNames = listOf(directMeasurementName, mpcMeasurementName),
+        reusedMeasurementNames = emptySet(),
+        unresolvedMeasurementRequestIds = emptyList(),
+        reportResolvedByRequestId = false,
+        telemetryRecoveredMeasurementNames = emptyMap(),
+        createTime = NOW,
+      )
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topology = ReportTraceTopology.notSupplied(),
+        measurementRoutes =
+          listOf(
+            ReportTraceMeasurementRoute(
+              name = directMeasurementName,
+              state = "SUCCEEDED",
+              protocol = "DIRECT",
+              route = ReportTraceMeasurementRouteKind.DIRECT,
+              duchyIds = emptyList(),
+              duchyParticipantsResolved = true,
+              requisitions =
+                listOf(
+                  ReportTraceRequisitionRoute(
+                    name = directRequisitionName,
+                    state = "FULFILLED",
+                    dataProvider = "dataProviders/direct",
+                    route = ReportTraceRequisitionRouteKind.DIRECT_EDP,
+                  )
+                ),
+              requisitionsResolved = true,
+            ),
+            ReportTraceMeasurementRoute(
+              name = mpcMeasurementName,
+              state = "SUCCEEDED",
+              protocol = "HONEST_MAJORITY_SHARE_SHUFFLE",
+              route = ReportTraceMeasurementRouteKind.MPC,
+              duchyIds = duchyIds,
+              duchyParticipantsResolved = true,
+              requisitions =
+                listOf(
+                  ReportTraceRequisitionRoute(
+                    name = edpaRequisitionName,
+                    state = "FULFILLED",
+                    dataProvider = "dataProviders/edpa",
+                    route = ReportTraceRequisitionRouteKind.EDPA,
+                  )
+                ),
+              requisitionsResolved = true,
+            ),
+          ),
+        warnings = emptyList(),
+      )
+    val commonStages =
+      listOf(
+        "basic_report_creation" to mapOf("xmm.basic_report.name" to basicReportName),
+        "report_creation" to mapOf("xmm.report.name" to reportName),
+        "metric_creation" to mapOf("xmm.metric.name" to directMetricName),
+        "metric_creation" to mapOf("xmm.metric.name" to mpcMetricName),
+        "metric_result_sync" to mapOf("xmm.metric.name" to directMetricName),
+        "metric_result_sync" to mapOf("xmm.metric.name" to mpcMetricName),
+        "measurement_creation" to mapOf("xmm.measurement.name" to directMeasurementName),
+        "measurement_linkage" to mapOf("xmm.measurement.name" to directMeasurementName),
+        "kingdom_measurement_sync" to mapOf("xmm.measurement.name" to directMeasurementName),
+        "measurement_creation" to mapOf("xmm.measurement.name" to mpcMeasurementName),
+        "measurement_linkage" to mapOf("xmm.measurement.name" to mpcMeasurementName),
+        "kingdom_measurement_sync" to mapOf("xmm.measurement.name" to mpcMeasurementName),
+        "requisition_available" to mapOf("xmm.requisition.name" to directRequisitionName),
+        "kingdom_requisition_result_acceptance" to
+          mapOf("xmm.requisition.name" to directRequisitionName),
+        "requisition_available" to mapOf("xmm.requisition.name" to edpaRequisitionName),
+        "requisition_dispatch" to
+          mapOf(
+            "xmm.requisition.name" to edpaRequisitionName,
+            "xmm.edpa.group_id" to groupId,
+            "xmm.work_item.name" to workItemName,
+          ),
+        "work_item_processing" to
+          mapOf(
+            "xmm.requisition.name" to edpaRequisitionName,
+            "xmm.work_item.name" to workItemName,
+          ),
+        "results_fulfillment" to
+          mapOf("xmm.requisition.name" to edpaRequisitionName, "xmm.edpa.group_id" to groupId),
+        "kingdom_computation_result_acceptance" to
+          mapOf(
+            "xmm.measurement.name" to mpcMeasurementName,
+            "xmm.computation.name" to computationName,
+          ),
+        "report_result_assembly" to mapOf("xmm.report.name" to reportName),
+        "noise_correction" to mapOf("xmm.basic_report.name" to basicReportName),
+        "processed_result_writeback" to mapOf("xmm.basic_report.name" to basicReportName),
+      )
+    val duchyStages =
+      duchyIds.flatMap { duchyId ->
+        listOf("duchy_computation", "duchy_stage_attempt").map { stage ->
+          stage to
+            mapOf(
+              "xmm.measurement.name" to mpcMeasurementName,
+              "xmm.computation.name" to computationName,
+              "xmm.duchy.id" to duchyId,
+            )
+        }
+      }
+    val spans =
+      (commonStages + duchyStages).mapIndexed { index, (stage, attributes) ->
+        lifecycleSpan(stage, attributes)
+          .copy(
+            traceId = "mixed-trace",
+            spanId = "mixed-span-$index",
+            startTime = NOW.plusSeconds(index.toLong()),
+            endTime = NOW.plusSeconds(index.toLong() + 1),
+          )
+      }
+    val outputDirectory = temporaryFolder.newFolder("mixed-routes").toPath()
+    val topologyConfigFile = temporaryFolder.newFile("mixed-routes-topology.textproto")
+    topologyConfigFile.writeText(
+      """
+      data_provider_routes {
+        data_provider: "dataProviders/direct"
+        route: DIRECT_EDP
+      }
+      data_provider_routes {
+        data_provider: "dataProviders/edpa"
+        route: EDPA
+      }
+      """
+        .trimIndent()
+    )
+    var spansReturned = false
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, _, _, _, _, _ ->
+            if (spansReturned) {
+              emptyList()
+            } else {
+              spansReturned = true
+              spans
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { context },
+        routeResolverOverride =
+          ReportTraceRouteResolver { measurementNames, topology ->
+            assertThat(measurementNames)
+              .containsExactly(directMeasurementName, mpcMeasurementName)
+              .inOrder()
+            assertThat(topology.routes)
+              .containsExactly(
+                "dataProviders/direct",
+                ReportTraceRequisitionRouteKind.DIRECT_EDP,
+                "dataProviders/edpa",
+                ReportTraceRequisitionRouteKind.EDPA,
+              )
+            routeResolution.copy(topology = topology)
+          },
+        clock = Clock.fixed(NOW.plusSeconds(60), ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$basicReportName",
+          "--topology-config-file=$topologyConfigFile",
+          "--output-dir=$outputDirectory",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    val artifact = outputDirectory.toFile().listFiles().single().readText()
+    assertThat(artifact).contains("Collection completeness: COMPLETE")
+    assertThat(artifact).contains("Execution outcome: SUCCEEDED")
+    assertThat(artifact).contains("| $directMeasurementName | SUCCEEDED | DIRECT | DIRECT |")
+    assertThat(artifact)
+      .contains("| $mpcMeasurementName | SUCCEEDED | HONEST_MAJORITY_SHARE_SHUFFLE | MPC |")
+    assertThat(artifact).contains("| duchy_computation | $directMeasurementName | NOT_APPLICABLE |")
+    for (duchyId in duchyIds) {
+      assertThat(artifact)
+        .contains("| duchy_computation | $mpcMeasurementName @ duchy $duchyId | SUCCEEDED |")
+      assertThat(artifact)
+        .contains("| duchy_stage_attempt | $mpcMeasurementName @ duchy $duchyId | SUCCEEDED |")
+    }
+    assertThat(artifact)
+      .contains("| kingdom_computation_result_acceptance | $mpcMeasurementName | SUCCEEDED |")
+    assertThat(artifact)
+      .contains(
+        "| kingdom_computation_result_acceptance | $directMeasurementName | NOT_APPLICABLE |"
+      )
+    assertThat(artifact)
+      .contains("| kingdom_requisition_result_acceptance | $directRequisitionName | SUCCEEDED |")
+    assertThat(artifact)
+      .contains("| kingdom_requisition_result_acceptance | $edpaRequisitionName | NOT_APPLICABLE |")
+    for (stage in listOf("requisition_dispatch", "work_item_processing", "results_fulfillment")) {
+      assertThat(artifact).contains("| $stage | $edpaRequisitionName | SUCCEEDED |")
+      assertThat(artifact).contains("| $stage | $directRequisitionName | NOT_APPLICABLE |")
+    }
+
+    val incompleteCoverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        spans.filterNot {
+          (it.attributes["xmm.lifecycle.stage"] == "results_fulfillment" &&
+            it.attributes["xmm.requisition.name"] == edpaRequisitionName) ||
+            (it.attributes["xmm.lifecycle.stage"] == "measurement_linkage" &&
+              it.attributes["xmm.measurement.name"] == mpcMeasurementName)
+        },
+        emptyList(),
+      )
+    assertThat(
+        incompleteCoverage
+          .single { it.name == "results_fulfillment" && it.resource == edpaRequisitionName }
+          .status
+      )
+      .isEqualTo("MISSING")
+    assertThat(
+        incompleteCoverage
+          .single { it.name == "results_fulfillment" && it.resource == directRequisitionName }
+          .status
+      )
+      .isEqualTo("NOT_APPLICABLE")
+    assertThat(
+        incompleteCoverage
+          .single { it.name == "measurement_linkage" && it.resource == mpcMeasurementName }
+          .status
+      )
+      .isEqualTo("MISSING")
+    assertThat(
+        incompleteCoverage
+          .single { it.name == "measurement_linkage" && it.resource == directMeasurementName }
+          .status
+      )
+      .isEqualTo("SUCCEEDED")
+  }
+
+  @Test
   fun `main resolves Kingdom route after recovering Measurement name from telemetry`() {
     val requestId = "measurement-request-1"
     val measurementName = "measurementConsumers/mc-1/measurements/measurement-2"

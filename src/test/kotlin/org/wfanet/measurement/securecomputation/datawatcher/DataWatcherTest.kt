@@ -255,6 +255,52 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `redelivery succeeds when matching WorkItem is terminal`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val appParams = Any.pack(Int32Value.of(5))
+    val existingWorkItem =
+      org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+        name = "workItems/deterministic-id"
+        this.queue = queue
+        workItemParams =
+          workItemParams {
+              this.appParams = appParams
+              dataPathParams = dataPathParams { dataPath = path }
+              traceContext["traceparent"] =
+                "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+            }
+            .pack()
+      }
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.ALREADY_EXISTS.asRuntimeException() doThrow
+        Status.FAILED_PRECONDITION.asRuntimeException()
+      onBlocking { getWorkItem(any()) } doReturn existingWorkItem
+    }
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        this.queue = queue
+        this.appParams = appParams
+      }
+    }
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+      )
+
+    dataWatcher.receivePath(path, mapOf(DataWatcher.GENERATION_METADATA_KEY to "42"))
+
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock) { getWorkItem(any()) }
+  }
+
+  @Test
   fun `falls back to legacy Create and validates an existing WorkItem`() = runBlocking {
     val path = "test-schema://test-bucket/path-to-watch/some-data"
     val queue = "test-topic-id"

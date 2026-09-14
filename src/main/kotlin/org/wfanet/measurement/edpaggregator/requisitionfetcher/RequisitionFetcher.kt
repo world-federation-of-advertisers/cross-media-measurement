@@ -726,9 +726,8 @@ class RequisitionFetcher(
     reportId: String,
     requisitions: List<Requisition>,
   ): Requisition.Refusal? {
-    // MeasurementSpec is guaranteed parseable here: the stream producer's
-    // extractReportIdentifiers
-    // already unpacked and discarded any requisition with an unparseable spec.
+    // MeasurementSpec is guaranteed parseable here: extractReportIdentifiers in the stream
+    // producer already unpacked and discarded any requisition with an unparseable spec.
     for (requisition in requisitions) {
       try {
         requisitionValidator.validateRequisitionSpec(requisition)

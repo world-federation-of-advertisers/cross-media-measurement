@@ -413,10 +413,8 @@ class ResultsFulfiller(
                 } catch (e: CancellationException) {
                   throw e
                 } catch (e: Exception) {
-                  // The per-Requisition span already contains the complete failure evidence.
-                  // Mark
-                  // the exception so the group wrapper does not incorrectly fan this failure
-                  // out
+                  // The per-Requisition span already contains the complete failure evidence. Mark
+                  // the exception so the group wrapper does not incorrectly fan this failure out
                   // to sibling Requisitions as though shared preparation had failed.
                   throw RequisitionProcessingException(e)
                 }

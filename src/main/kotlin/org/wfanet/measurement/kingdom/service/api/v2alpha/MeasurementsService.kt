@@ -101,6 +101,9 @@ import org.wfanet.measurement.kingdom.deploy.common.HmssProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.Llv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.RoLlv2ProtocolConfig
 import org.wfanet.measurement.kingdom.deploy.common.TrusTeeProtocolConfig
+import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.MetricKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -814,22 +817,21 @@ class MeasurementsService(
 
 private fun MeasurementSpec.validateReportingMetadata(parentKey: MeasurementConsumerKey) {
   val metadata = reportingMetadata
-  fun requireChildResource(name: String, collection: String, fieldName: String) {
+  fun requireChildResource(
+    name: String,
+    fieldName: String,
+    parentFromName: (String) -> MeasurementConsumerKey?,
+  ) {
     if (name.isEmpty()) return
-    val parts = name.split('/')
-    grpcRequire(
-      parts.size == 4 &&
-        parts[0] == "measurementConsumers" &&
-        parts[1] == parentKey.measurementConsumerId &&
-        parts[2] == collection &&
-        parts[3].isNotEmpty()
-    ) {
+    grpcRequire(parentFromName(name) == parentKey) {
       "measurement_spec.reporting_metadata.$fieldName is invalid or has incorrect parent"
     }
   }
-  requireChildResource(metadata.basicReport, "basicReports", "basic_report")
-  requireChildResource(metadata.report, "reports", "report")
-  requireChildResource(metadata.metric, "metrics", "metric")
+  requireChildResource(metadata.basicReport, "basic_report") {
+    BasicReportKey.fromName(it)?.parentKey
+  }
+  requireChildResource(metadata.report, "report") { ReportKey.fromName(it)?.parentKey }
+  requireChildResource(metadata.metric, "metric") { MetricKey.fromName(it)?.parentKey }
 }
 
 private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {

@@ -1162,8 +1162,7 @@ class MetricsService(
             succeededMeasurements,
             BATCH_SET_MEASUREMENT_RESULTS_LIMIT,
             callBatchSetInternalMeasurementResultsRpc,
-            // Writes to the internal Measurements table from the read/poll path, not Kingdom,
-            // so
+            // Writes to the internal Measurements table from the read/poll path, not Kingdom, so
             // it doesn't share the Kingdom-dispatch concurrency flag.
             concurrency = 3,
           ) { _: Unit ->

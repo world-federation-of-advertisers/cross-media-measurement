@@ -231,14 +231,14 @@ fun InternalMeasurement.toSystemComputation(): Computation {
   val apiVersion = Version.fromString(details.apiVersion)
   return computation {
     name = ComputationKey(externalIdToApiId(externalComputationId)).toName()
-    if (externalMeasurementConsumerId != 0L && externalMeasurementId != 0L) {
-      measurement =
-        MeasurementKey(
-            externalIdToApiId(externalMeasurementConsumerId),
-            externalIdToApiId(externalMeasurementId),
-          )
-          .toName()
-    }
+    require(externalMeasurementConsumerId != 0L) { "external_measurement_consumer_id is missing" }
+    require(externalMeasurementId != 0L) { "external_measurement_id is missing" }
+    measurement =
+      MeasurementKey(
+          externalIdToApiId(externalMeasurementConsumerId),
+          externalIdToApiId(externalMeasurementId),
+        )
+        .toName()
     publicApiVersion = details.apiVersion
     measurementSpec = details.measurementSpec
     state = source.state.toSystemComputationState()

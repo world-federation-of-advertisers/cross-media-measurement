@@ -167,13 +167,19 @@ class DataWatcher(
     requestedWorkItem: WorkItem,
   ) {
     val existingWorkItemParams = validateExistingWorkItem(workItemId, requestedWorkItem)
-    ensureWorkItem(
-      workItemId,
-      workItem {
-        queue = requestedWorkItem.queue
-        workItemParams = existingWorkItemParams
-      },
-    )
+    try {
+      ensureWorkItem(
+        workItemId,
+        workItem {
+          queue = requestedWorkItem.queue
+          workItemParams = existingWorkItemParams
+        },
+      )
+    } catch (e: Exception) {
+      if (e.grpcStatusCode() != Status.Code.FAILED_PRECONDITION) {
+        throw e
+      }
+    }
   }
 
   private suspend fun createWorkItemWithLegacyApi(workItemId: String, requestedWorkItem: WorkItem) {
