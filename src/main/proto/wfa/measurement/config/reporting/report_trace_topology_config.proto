@@ -22,9 +22,9 @@ option java_package = "org.wfanet.measurement.config.reporting";
 option java_multiple_files = true;
 option java_outer_classname = "ReportTraceTopologyConfigProto";
 
-// Complete DataProvider fulfillment topology used by the report-trace operator tool. EDPA means
-// the supported direct RequisitionFetcher-to-Secure Computation dispatch path; legacy DataWatcher
-// dispatch is not supported.
+// Complete DataProvider fulfillment topology used by the report-trace operator
+// tool. EDPA means the supported direct RequisitionFetcher-to-Secure
+// Computation dispatch path; legacy DataWatcher dispatch is not supported.
 message ReportTraceTopologyConfig {
   // Routes for all DataProviders in the deployment.
   repeated DataProviderRoute data_provider_routes = 1;
@@ -39,7 +39,8 @@ message DataProviderRoute {
     // The DataProvider fulfills Requisitions without an EDP Aggregator.
     DIRECT_EDP = 1;
 
-    // The DataProvider uses an EDP Aggregator with direct Secure Computation WorkItem dispatch.
+    // The DataProvider uses an EDP Aggregator with direct Secure Computation
+    // WorkItem dispatch.
     EDPA = 2;
   }
 
