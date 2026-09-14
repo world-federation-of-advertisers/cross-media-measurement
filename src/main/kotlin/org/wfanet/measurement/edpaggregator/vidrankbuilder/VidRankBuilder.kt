@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
@@ -104,6 +105,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * @param maxJobsPerBatchCreate the maximum `CreateVidLabelingJobRequest`s per
  *   `BatchCreateVidLabelingJobs` call (the service's per-batch limit).
  * @param vidLabelerQueue the Secure Computation queue the Phase-2 WorkItems are published to.
+ * @param rpcThrottlers process-scoped rate limiters shared by Phase-1 metadata and control-plane
+ *   calls.
  */
 class VidRankBuilder(
   private val subpoolRanker: SubpoolRanker,
@@ -120,6 +123,7 @@ class VidRankBuilder(
   private val vidLabelerParamsTemplate: VidLabelerParams,
   private val vidLabelerQueue: String,
   private val maxFileBatchSizeBytes: Long,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
 ) {
   init {
@@ -150,7 +154,10 @@ class VidRankBuilder(
     // Gate on job state: an already-SUCCEEDED job on redelivery skips the expensive re-rank and
     // only
     // recovers the last-job-out (SUCCEEDED is set only after every subpool's blobs are durable).
-    val job = rankerJobsStub.getRankerJob(getRankerJobRequest { name = rankerJob })
+    val job =
+      rpcThrottlers.metadataRead.onReady {
+        rankerJobsStub.getRankerJob(getRankerJobRequest { name = rankerJob })
+      }
     if (job.state == RankerJob.State.SUCCEEDED) {
       return recoverIfLastJobOut()
     }
@@ -168,13 +175,15 @@ class VidRankBuilder(
 
     val markResponse =
       try {
-        rankerJobsStub.markRankerJobSucceeded(
-          markRankerJobSucceededRequest {
-            name = rankerJob
-            etag = job.etag
-            requestId = markSucceededRequestId()
-          }
-        )
+        rpcThrottlers.metadataWrite.onReady {
+          rankerJobsStub.markRankerJobSucceeded(
+            markRankerJobSucceededRequest {
+              name = rankerJob
+              etag = job.etag
+              requestId = markSucceededRequestId()
+            }
+          )
+        }
       } catch (e: StatusException) {
         // Lost the etag race to a concurrent/re-delivered ranker (Concurrent Ranker Protection). If
         // the job is already SUCCEEDED, discard this attempt's work and ack (idempotent no-op);
@@ -184,7 +193,10 @@ class VidRankBuilder(
         ) {
           throw e
         }
-        val current = rankerJobsStub.getRankerJob(getRankerJobRequest { name = rankerJob })
+        val current =
+          rpcThrottlers.metadataRead.onReady {
+            rankerJobsStub.getRankerJob(getRankerJobRequest { name = rankerJob })
+          }
         if (current.state != RankerJob.State.SUCCEEDED) throw e
         logger.info(
           "RankerJob $rankerJob already SUCCEEDED by another ranker (${e.status.code}); acking"
@@ -297,12 +309,14 @@ class VidRankBuilder(
     rawImpressionUploadFilesStub
       .listResources { pageToken: String ->
         val response =
-          listRawImpressionUploadFiles(
-            listRawImpressionUploadFilesRequest {
-              parent = rawImpressionUpload
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = rawImpressionUpload
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
       }
       .collect { page -> files.addAll(page) }
@@ -321,21 +335,23 @@ class VidRankBuilder(
     val created = mutableListOf<VidLabelingJob>()
     for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
       val response =
-        vidLabelingJobsStub.batchCreateVidLabelingJobs(
-          batchCreateVidLabelingJobsRequest {
-            parent = rawImpressionUpload
-            for ((batchIndex, batch) in group) {
-              requests += createVidLabelingJobRequest {
-                parent = rawImpressionUpload
-                vidLabelingJob = vidLabelingJob {
-                  cmmsModelLines += modelLine
-                  rawImpressionUploadFiles += batch
+        rpcThrottlers.metadataWrite.onReady {
+          vidLabelingJobsStub.batchCreateVidLabelingJobs(
+            batchCreateVidLabelingJobsRequest {
+              parent = rawImpressionUpload
+              for ((batchIndex, batch) in group) {
+                requests += createVidLabelingJobRequest {
+                  parent = rawImpressionUpload
+                  vidLabelingJob = vidLabelingJob {
+                    cmmsModelLines += modelLine
+                    rawImpressionUploadFiles += batch
+                  }
+                  requestId = labelingJobRequestId(batchIndex)
                 }
-                requestId = labelingJobRequestId(batchIndex)
               }
             }
-          }
-        )
+          )
+        }
       check(response.vidLabelingJobsList.size == group.size) {
         "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsList.size} jobs for " +
           "${group.size} requests"
@@ -355,15 +371,17 @@ class VidRankBuilder(
     val params = vidLabelerParamsTemplate.copy { vidLabelingJob = job.name }
     val workItemId = WorkItemIds.forVidLabeler(job.name)
     try {
-      workItemsStub.createWorkItem(
-        createWorkItemRequest {
-          this.workItemId = workItemId
-          workItem = workItem {
-            queue = vidLabelerQueue
-            workItemParams = workItemParams { appParams = params.pack() }.pack()
+      rpcThrottlers.controlPlane.onReady {
+        workItemsStub.createWorkItem(
+          createWorkItemRequest {
+            this.workItemId = workItemId
+            workItem = workItem {
+              queue = vidLabelerQueue
+              workItemParams = workItemParams { appParams = params.pack() }.pack()
+            }
           }
-        }
-      )
+        )
+      }
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
       logger.warning(
@@ -388,13 +406,15 @@ class VidRankBuilder(
   /** Flips the parent `RANKING` -> `LABELING`, swallowing the benign "already advanced" races. */
   private suspend fun markParentLabeling(parent: RawImpressionUploadModelLine) {
     try {
-      rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
-        markRawImpressionUploadModelLineLabelingRequest {
-          name = parent.name
-          etag = parent.etag
-          requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(parent.name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            name = parent.name
+            etag = parent.etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(parent.name)
+          }
+        )
+      }
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
@@ -416,13 +436,15 @@ class VidRankBuilder(
    */
   private suspend fun markParentCompleted(parent: RawImpressionUploadModelLine) {
     try {
-      rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
-        markRawImpressionUploadModelLineCompletedRequest {
-          name = parent.name
-          etag = parent.etag
-          requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
+          markRawImpressionUploadModelLineCompletedRequest {
+            name = parent.name
+            etag = parent.etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
+          }
+        )
+      }
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
@@ -447,29 +469,33 @@ class VidRankBuilder(
    */
   private suspend fun allRankerJobsSucceeded(): Boolean {
     val totalCount =
-      rankerJobsStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = rawImpressionUpload
-            filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
-            pageSize = 0
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobsStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = rawImpressionUpload
+              filter = ListRankerJobsRequestKt.filter { cmmsModelLine = modelLine }
+              pageSize = 0
+            }
+          )
+        }
         .totalSize
     if (totalCount == 0) return false
     val nonSucceededCount =
-      rankerJobsStub
-        .listRankerJobs(
-          listRankerJobsRequest {
-            parent = rawImpressionUpload
-            filter =
-              ListRankerJobsRequestKt.filter {
-                cmmsModelLine = modelLine
-                stateIn += listOf(RankerJob.State.CREATED, RankerJob.State.FAILED)
-              }
-            pageSize = 0
-          }
-        )
+      rpcThrottlers.metadataRead
+        .onReady {
+          rankerJobsStub.listRankerJobs(
+            listRankerJobsRequest {
+              parent = rawImpressionUpload
+              filter =
+                ListRankerJobsRequestKt.filter {
+                  cmmsModelLine = modelLine
+                  stateIn += listOf(RankerJob.State.CREATED, RankerJob.State.FAILED)
+                }
+              pageSize = 0
+            }
+          )
+        }
         .totalSize
     return nonSucceededCount == 0
   }
@@ -480,14 +506,16 @@ class VidRankBuilder(
     rawImpressionUploadModelLinesStub
       .listResources { pageToken: String ->
         val response =
-          listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = rawImpressionUpload
-              filter =
-                ListRawImpressionUploadModelLinesRequestKt.filter { cmmsModelLine = modelLine }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLinesStub.listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = rawImpressionUpload
+                filter =
+                  ListRawImpressionUploadModelLinesRequestKt.filter { cmmsModelLine = modelLine }
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .collect { page ->

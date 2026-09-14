@@ -14,7 +14,7 @@
 package org.wfanet.measurement.loadtest.dataprovider
 
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.toRange
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters

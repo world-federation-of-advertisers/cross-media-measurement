@@ -73,8 +73,8 @@ import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCorouti
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig as PublicProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.api.v2alpha.getMeasurementConsumerRequest
 import org.wfanet.measurement.api.v2alpha.listMeasurementsRequest
@@ -138,7 +138,6 @@ import org.wfanet.measurement.reporting.v2alpha.BasicReportsGrpcKt.BasicReportsC
 import org.wfanet.measurement.reporting.v2alpha.CreateBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
-import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.MetricFrequencySpec
@@ -154,8 +153,6 @@ import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
-import org.wfanet.measurement.reporting.v2alpha.eventFilter
-import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.getReportRequest
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
@@ -191,6 +188,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
    */
   private val directNoiseType: ResultsFulfillerParams.NoiseParams.NoiseType =
     ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
+  private val resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> =
+    emptyMap(),
 ) {
 
   protected val expectedProtocol: PublicProtocolConfig.Protocol.ProtocolCase =
@@ -418,6 +417,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
               "edp4" to directNoiseType,
             ),
           edpMultiPartyNoiseTypes = multiPartyNoiseTypes,
+          resultMinimumThresholdsByEdp = resultMinimumThresholdsByEdp,
         )
         runBlocking {
           registerDataAvailabilityIntervals(kingdomChannel, edpDisplayNameToResourceMap)
@@ -1064,6 +1064,9 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     }
   }
 
+  protected fun dataProviderName(edpDisplayName: String): String =
+    inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name
+
   protected fun assertExpectedProtocolUsed(measurements: List<Measurement>) {
     assertWithMessage("measurements").that(measurements).isNotEmpty()
     var expectedProtocolFound = false
@@ -1185,6 +1188,25 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
     processBuilder.command().add("--tls-cert-file=${REPORTING_TLS_CERT_FILE.path}")
     processBuilder.command().add("--tls-key-file=${REPORTING_TLS_KEY_FILE.path}")
     processBuilder.command().add("--cert-collection-file=${ALL_ROOT_CERTS_FILE.path}")
+    if (resultMinimumThresholdsByEdp.isNotEmpty()) {
+      val thresholds = resultMinimumThresholdsByEdp.values.first()
+      require(
+        resultMinimumThresholdsByEdp.values.all {
+          it.minUsers == thresholds.minUsers && it.minImpressions == thresholds.minImpressions
+        }
+      ) {
+        "The report corrector supports one shared minimum threshold configuration."
+      }
+      processBuilder.command().add("--potential-direct-result-min-users=${thresholds.minUsers}")
+      processBuilder
+        .command()
+        .add("--potential-direct-result-min-impressions=${thresholds.minImpressions}")
+      for (edpDisplayName in resultMinimumThresholdsByEdp.keys.sorted()) {
+        val edpResourceName =
+          inProcessCmmsComponents.edpDisplayNameToResourceMap.getValue(edpDisplayName).name
+        processBuilder.command().add("--potential-direct-thresholding-edp=$edpResourceName")
+      }
+    }
     val process = processBuilder.start()
     process.waitFor()
   }
@@ -1398,7 +1420,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       getRuntimePath(TEST_RESULTS_FULFILLER_DATA_PATH)!!
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
     val populationSpec: PopulationSpec =
       parseTextProto(
@@ -1433,18 +1455,13 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
           }
       }
 
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add a filter term once
+    // threshold comparisons are supported. Every IMPRESSION_QUALIFICATION field on the event
+    // message is a fraction, and filter terms render as `==`.
     private val IMPRESSION_QUALIFICATION_FILTER = reportingImpressionQualificationFilter {
       custom =
         ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-          filterSpec += impressionQualificationFilterSpec {
-            mediaType = MediaType.DISPLAY
-            filters += eventFilter {
-              terms += eventTemplateField {
-                path = "banner_ad.viewable"
-                value = EventTemplateFieldKt.fieldValue { boolValue = true }
-              }
-            }
-          }
+          filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.DISPLAY }
         }
     }
     // All computation methods (HMSS, TrusTee, etc.) are expected to produce exactly the same
@@ -1468,6 +1485,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
         epsilon = 1.0
         delta = 1e-15
       }
+
+    private const val IMPRESSION_MAXIMUM_FREQUENCY_PER_USER = 60
 
     /** MetricSpecConfig with width=1.0 so there's no VID sampling variance. */
     private val NO_SAMPLING_METRIC_SPEC_CONFIG = metricSpecConfig {
@@ -1521,7 +1540,7 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
                     }
                 }
             }
-          maximumFrequencyPerUser = 60
+          maximumFrequencyPerUser = IMPRESSION_MAXIMUM_FREQUENCY_PER_USER
         }
 
       watchDurationParams =

@@ -61,7 +61,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.replaceDataProviderCapabilitiesRequest
@@ -258,9 +258,13 @@ class InProcessEdpAggregatorComponents(
     duchyMap: Map<String, Channel>,
     edpNoise: Map<String, ResultsFulfillerParams.NoiseParams.NoiseType>,
     edpMultiPartyNoiseTypes: Map<String, List<ResultsFulfillerParams.NoiseParams.NoiseType>>,
+    resultMinimumThresholdsByEdp: Map<String, ResultsFulfillerParams.KAnonymityParams> = emptyMap(),
   ) = runBlocking {
     require(edpNoise.keys == edpCapabilities.keys) {
       "edpNoise keys ${edpNoise.keys} must match edpCapabilities keys ${edpCapabilities.keys}"
+    }
+    require(resultMinimumThresholdsByEdp.keys.all { it in edpCapabilities }) {
+      "resultMinimumThresholdsByEdp keys must identify configured EDPs"
     }
     publicApiChannel = kingdomChannel
     duchyChannelMap = duchyMap
@@ -295,6 +299,7 @@ class InProcessEdpAggregatorComponents(
               noiseType = edpNoise.getValue(edpAggregatorShortName),
               supportedMultiPartyNoiseTypes =
                 edpMultiPartyNoiseTypes.getOrDefault(edpAggregatorShortName, emptyList()),
+              resultMinimumThresholds = resultMinimumThresholdsByEdp[edpAggregatorShortName],
             )
         }
       getDataWatcherResultFulfillerParamsConfig(

@@ -42,6 +42,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -150,13 +151,26 @@ class SubpoolRetentionTest {
         listRankIndexBlobsResponse { rankIndexBlobs += candidate }
       onBlocking { deleteRankIndexBlob(any(), any()) } doReturn candidate
     }
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
     val retention =
-      SubpoolRetention(stub, rankStore, DP, MODEL_LINE, retentionDays = 30, today = TODAY)
+      SubpoolRetention(
+        stub,
+        rankStore,
+        DP,
+        MODEL_LINE,
+        retentionDays = 30,
+        today = TODAY,
+        rpcThrottlers = recordingThrottlers.throttlers,
+      )
 
     retention.deleteAgedBlobs(POOL)
 
     verifyBlocking(stub) { deleteRankIndexBlob(any(), any()) }
     assertThat(rankStore.readBlob("day/old", candidate.encryptedDek).toList()).isEmpty()
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
   }
 
   @Test
@@ -166,7 +180,15 @@ class SubpoolRetentionTest {
       onBlocking { listRankIndexBlobs(any(), any()) } doReturn listRankIndexBlobsResponse {}
     }
     val retention =
-      SubpoolRetention(stub, rankStore, DP, MODEL_LINE, retentionDays = 30, today = TODAY)
+      SubpoolRetention(
+        stub,
+        rankStore,
+        DP,
+        MODEL_LINE,
+        retentionDays = 30,
+        today = TODAY,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+      )
 
     retention.deleteAgedBlobs(POOL)
 
@@ -206,6 +228,7 @@ class SubpoolRetentionTest {
         MODEL_LINE,
         retentionDays = 30,
         today = TODAY,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     assertFailsWith<IOException> { retention.deleteAgedBlobs(POOL) }
@@ -228,6 +251,7 @@ class SubpoolRetentionTest {
         MODEL_LINE,
         retentionDays = RETENTION_DAYS,
         today = TODAY,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     retention.deleteAgedBlobs(POOL)
@@ -249,6 +273,7 @@ class SubpoolRetentionTest {
         MODEL_LINE,
         retentionDays = RETENTION_DAYS,
         today = TODAY,
+        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
     retention.deleteAgedBlobs(POOL)

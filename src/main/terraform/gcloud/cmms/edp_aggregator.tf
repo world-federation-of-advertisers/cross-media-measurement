@@ -327,11 +327,12 @@ locals {
 
   # Health cadence: staleness alerting, stuck-phase recovery, and data-quality
   # checks (VidLabelingMonitor.runHealth, selected by ?mode=health). Runs once
-  # daily, matching the DataAvailabilityMonitor, so recovery attempts are spaced
-  # a day apart and never race an in-flight last-out (see staleness_threshold's
-  # 24h floor). Health is duration-based, so a faster cadence buys nothing.
+  # daily, 30 minutes after the 06:00 dispatch tick, so the two scheduled requests
+  # do not compete for the function's single instance. Recovery attempts remain
+  # spaced a day apart and never race an in-flight last-out (see
+  # staleness_threshold's 24h floor).
   vid_labeling_monitor_scheduler_config = {
-    schedule                  = "0 6 * * *" # Daily at 06:00
+    schedule                  = "30 6 * * *" # Daily at 06:30
     time_zone                 = "UTC"
     name                      = "vid-labeling-monitor-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-monitor?mode=health"

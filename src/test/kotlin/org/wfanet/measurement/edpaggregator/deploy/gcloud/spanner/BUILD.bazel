@@ -2,6 +2,7 @@ load(
     "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing:macros.bzl",
     "spanner_emulator_test",
 )
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 spanner_emulator_test(
     name = "EdpAggregatorSchemaTest",
@@ -23,6 +24,22 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal/testing:impression_metadata_service_test",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+kt_jvm_test(
+    name = "SpannerImpressionMetadataServiceTransactionRetryTest",
+    srcs = ["SpannerImpressionMetadataServiceTransactionRetryTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerImpressionMetadataServiceTransactionRetryTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_impression_metadata_service",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_state_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
 

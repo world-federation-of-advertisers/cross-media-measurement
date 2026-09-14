@@ -46,6 +46,8 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
@@ -158,6 +160,7 @@ class VidLabelingDispatchSequencerTest {
   private fun createSequencer(
     numberOfShards: Int = NUMBER_OF_SHARDS,
     subpoolAssignerParamsTemplate: SubpoolAssignerParams = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
@@ -177,6 +180,7 @@ class VidLabelingDispatchSequencerTest {
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
+      rpcThrottlers = rpcThrottlers,
     )
 
   /**
@@ -338,12 +342,17 @@ class VidLabelingDispatchSequencerTest {
     stubMarkPoolAssigning()
   }
 
-  private fun upload(id: String, state: RawImpressionUpload.State, createdAt: Instant) =
-    rawImpressionUpload {
-      name = "$DATA_PROVIDER/rawImpressionUploads/$id"
-      this.state = state
-      createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
-    }
+  private fun upload(
+    id: String,
+    state: RawImpressionUpload.State,
+    createdAt: Instant,
+    registrationComplete: Boolean = true,
+  ) = rawImpressionUpload {
+    name = "$DATA_PROVIDER/rawImpressionUploads/$id"
+    this.state = state
+    createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
+    this.registrationComplete = registrationComplete
+  }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
     name = "$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/$id"
@@ -361,8 +370,9 @@ class VidLabelingDispatchSequencerTest {
     stubNonMemoizedFilesAndJobs()
     whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
     stubMarkTransitions()
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val result = createSequencer().dispatchNext()
+    val result = createSequencer(rpcThrottlers = recordingThrottlers.throttlers).dispatchNext()
 
     assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
     // Non-memoized line: one WorkItem per shard, then MarkLabeling once.
@@ -370,6 +380,34 @@ class VidLabelingDispatchSequencerTest {
     verifyBlocking(rawImpressionUploadModelLineService) {
       markRawImpressionUploadModelLineLabeling(any())
     }
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(3)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
+  }
+
+  @Test
+  fun `dispatchNext skips upload while registration is incomplete`() = runBlocking {
+    stubUploads(
+      created =
+        listOf(
+          upload(
+            "upload-1",
+            RawImpressionUpload.State.CREATED,
+            FIXED_NOW,
+            registrationComplete = false,
+          )
+        )
+    )
+
+    val result = createSequencer().dispatchNext()
+
+    assertThat(result.dispatchedUpload).isNull()
+    assertThat(result.queuedUploads).isEqualTo(0)
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      listRawImpressionUploadModelLines(any())
+    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
@@ -447,8 +485,9 @@ class VidLabelingDispatchSequencerTest {
       )
       stubModelLines(createdModelLine())
       stubMemoizedDispatch()
+      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-      val result = createSequencer().dispatchNext()
+      val result = createSequencer(rpcThrottlers = recordingThrottlers.throttlers).dispatchNext()
 
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
       // Memoized line: one PoolAssignmentJob batch, one SubpoolAssigner WorkItem per shard, then
@@ -461,6 +500,10 @@ class VidLabelingDispatchSequencerTest {
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         markRawImpressionUploadModelLineLabeling(any())
       }
+      assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
+      assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
     }
 
   @Test

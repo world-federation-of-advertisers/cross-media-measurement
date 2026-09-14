@@ -447,6 +447,40 @@ kustomization_dir(
     } | EDP7_TLS_RENAMES,
 )
 
+# TLS identity used by data availability tools when calling the EDP Aggregator API.
+DATA_AVAILABILITY_TLS_SRCS = [
+    "data_availability_tls.pem",
+    "data_availability_tls.key",
+]
+
+DATA_AVAILABILITY_TLS_RENAMES = {
+    "data_availability_tls.pem": "tls.crt",
+    "data_availability_tls.key": "tls.key",
+}
+
+pkg_files(
+    name = "data_availability_tls_files",
+    srcs = DATA_AVAILABILITY_TLS_SRCS,
+    renames = DATA_AVAILABILITY_TLS_RENAMES,
+    visibility = ["//visibility:private"],
+)
+
+pkg_tar(
+    name = "data_availability_tls_archive",
+    srcs = [":data_availability_tls_files"],
+    out = "data_availability_tls_files.tar",
+)
+
+kustomization_dir(
+    name = "data_availability_tls",
+    srcs = [
+        "data_availability_tls_kustomization.yaml",
+    ] + DATA_AVAILABILITY_TLS_SRCS,
+    renames = {
+        "data_availability_tls_kustomization.yaml": "kustomization.yaml",
+    } | DATA_AVAILABILITY_TLS_RENAMES,
+)
+
 pkg_tar(
     name = "archive",
     srcs = [":secret_files"],

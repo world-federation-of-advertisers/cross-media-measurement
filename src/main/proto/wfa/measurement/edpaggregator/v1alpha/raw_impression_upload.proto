@@ -69,4 +69,29 @@ message RawImpressionUpload {
   // The timestamp when this upload was last updated.
   google.protobuf.Timestamp update_time = 5
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Cloud Storage generation of the done blob. A nonzero value identifies the
+  // exact upload event when the same done path is written more than once.
+  int64 done_blob_generation = 6 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
+
+  // The preceding upload revision for the same done-blob path, if any.
+  string replaces_raw_impression_upload = 7 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Creation time of the exact Cloud Storage `done` object version.
+  google.protobuf.Timestamp done_blob_create_time = 8
+      [(google.api.field_behavior) = IMMUTABLE];
+
+  // Whether registration of this upload's files and model lines finished.
+  bool registration_complete = 9 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

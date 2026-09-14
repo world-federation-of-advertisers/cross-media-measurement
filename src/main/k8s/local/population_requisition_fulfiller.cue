@@ -20,7 +20,7 @@ _pdpCertName: string @tag("pdp_cert_name")
 _populationRequisitionFulfillerConfig: #PopulationRequisitionFulfillerConfig & {
 	dataProviderResourceName:     _pdpName
 	dataProviderCertResourceName: _pdpCertName
-	eventMessageTypeUrl:          "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+	eventMessageTypeUrl:          "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
 }
 
 objectSets: [

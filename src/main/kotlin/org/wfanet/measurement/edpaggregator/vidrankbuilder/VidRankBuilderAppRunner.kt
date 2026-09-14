@@ -110,6 +110,7 @@ class VidRankBuilderAppRunner :
         vidLabelingJobsStub = vidLabelingJobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
         vidLabelerQueue = vidLabelerQueue,
+        rpcThrottlers = rpcThrottlers,
       )
 
     runBlockingWithTelemetry { vidRankBuilderApp.run() }

@@ -97,8 +97,8 @@ class FakeMeasurementsService(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (measurementSpec.measurementTypeCase) {
         MeasurementSpec.MeasurementTypeCase.REACH,
-        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY ->
-          throw Status.UNIMPLEMENTED.asRuntimeException()
+        MeasurementSpec.MeasurementTypeCase.REACH_AND_FREQUENCY,
+        MeasurementSpec.MeasurementTypeCase.MULTI -> throw Status.UNIMPLEMENTED.asRuntimeException()
         MeasurementSpec.MeasurementTypeCase.IMPRESSION ->
           MeasurementKt.result { impression = MeasurementKt.ResultKt.impression { value = 100 } }
         MeasurementSpec.MeasurementTypeCase.DURATION ->

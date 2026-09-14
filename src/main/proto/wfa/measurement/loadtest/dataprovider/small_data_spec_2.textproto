@@ -26,9 +26,9 @@ date_specs {
         end_exclusive: 1501
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.1
+          float_value: 0.1
         }
       }
     }
@@ -41,9 +41,9 @@ date_specs {
         end_exclusive: 2501
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.2
+          float_value: 0.2
         }
       }
     }
@@ -56,9 +56,9 @@ date_specs {
         end_exclusive: 21501
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.3
+          float_value: 0.3
         }
       }
     }
@@ -71,9 +71,9 @@ date_specs {
         end_exclusive: 22501
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.5
+          float_value: 0.5
         }
       }
     }
@@ -86,9 +86,9 @@ date_specs {
         end_exclusive: 36001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.1
+          float_value: 0.1
         }
       }
     }
@@ -101,9 +101,9 @@ date_specs {
         end_exclusive: 91501
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.5
+          float_value: 0.5
         }
       }
     }

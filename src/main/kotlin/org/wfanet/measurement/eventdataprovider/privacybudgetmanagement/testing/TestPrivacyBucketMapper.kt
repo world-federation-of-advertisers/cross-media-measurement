@@ -15,10 +15,10 @@ package org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.testing
 
 import com.google.protobuf.Message
 import org.projectnessie.cel.Program
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.testEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.testEvent
 import org.wfanet.measurement.eventdataprovider.eventfiltration.EventFilters.compileProgram
 import org.wfanet.measurement.eventdataprovider.eventfiltration.validation.EventFilterValidationException
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AgeGroup
@@ -31,7 +31,7 @@ import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.PrivacyB
 /** [PrivacyBucketMapper] for [TestEvent] instances. */
 class TestPrivacyBucketMapper : PrivacyBucketMapper {
 
-  override val operativeFields = setOf("person.age_group", "person.gender")
+  override val operativeFields = setOf("common.age_group", "common.gender")
 
   override fun toPrivacyFilterProgram(filterExpression: String): Program =
     try {
@@ -45,17 +45,17 @@ class TestPrivacyBucketMapper : PrivacyBucketMapper {
 
   override fun toEventMessage(privacyBucketGroup: PrivacyBucketGroup): Message {
     return testEvent {
-      person = person {
+      common = common {
         ageGroup =
           when (privacyBucketGroup.ageGroup) {
-            AgeGroup.RANGE_18_34 -> Person.AgeGroup.YEARS_18_TO_34
-            AgeGroup.RANGE_35_54 -> Person.AgeGroup.YEARS_35_TO_54
-            AgeGroup.ABOVE_54 -> Person.AgeGroup.YEARS_55_PLUS
+            AgeGroup.RANGE_18_34 -> Common.AgeGroup.YEARS_18_TO_34
+            AgeGroup.RANGE_35_54 -> Common.AgeGroup.YEARS_35_TO_54
+            AgeGroup.ABOVE_54 -> Common.AgeGroup.YEARS_55_PLUS
           }
         gender =
           when (privacyBucketGroup.gender) {
-            Gender.MALE -> Person.Gender.MALE
-            Gender.FEMALE -> Person.Gender.FEMALE
+            Gender.MALE -> Common.Gender.MALE
+            Gender.FEMALE -> Common.Gender.FEMALE
           }
       }
     }

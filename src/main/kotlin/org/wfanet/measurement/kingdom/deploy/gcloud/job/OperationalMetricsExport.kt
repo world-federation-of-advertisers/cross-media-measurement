@@ -706,6 +706,8 @@ class OperationalMetricsExport(
           MeasurementSpec.MeasurementTypeCase.DURATION -> MeasurementType.DURATION
           MeasurementSpec.MeasurementTypeCase.REACH -> MeasurementType.REACH
           MeasurementSpec.MeasurementTypeCase.POPULATION -> MeasurementType.POPULATION
+          MeasurementSpec.MeasurementTypeCase.MULTI ->
+            error("Multi measurements are not supported.")
           MeasurementSpec.MeasurementTypeCase.MEASUREMENTTYPE_NOT_SET ->
             MeasurementType.MEASUREMENT_TYPE_UNSPECIFIED
         }

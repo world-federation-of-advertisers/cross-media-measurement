@@ -30,6 +30,7 @@ import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -241,6 +242,7 @@ class VidRankBuilderAppTest {
       vidLabelingJobsStub = vidLabelingJobsStub,
       rawImpressionUploadFilesStub = filesStub,
       vidLabelerQueue = QUEUE,
+      rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       buildSubpoolMapStorageClient = { mock<ConditionalOperationStorageClient>() },
       buildVidRankMapStorageClient = { mock<ConditionalOperationStorageClient>() },
     )

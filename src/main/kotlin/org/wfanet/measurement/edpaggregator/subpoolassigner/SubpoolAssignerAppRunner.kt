@@ -114,6 +114,7 @@ class SubpoolAssignerAppRunner :
           )
         },
         getSubpoolMapKekUri = { dataProvider -> kekUriFor(dataProvider) },
+        rpcThrottlers = rpcThrottlers,
       )
 
     runBlockingWithTelemetry { subpoolAssignerApp.run() }

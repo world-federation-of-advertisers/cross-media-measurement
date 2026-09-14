@@ -57,8 +57,8 @@ import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
@@ -470,8 +470,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           val event = impression.message as TestEvent
           nonMemoizedVidLabeler.assignVid(
             impression.vid,
-            event.person.gender.name,
-            event.person.ageGroup.name,
+            event.common.gender.name,
+            event.common.ageGroup.name,
             impression.timestamp,
           )
         },
@@ -521,7 +521,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
-      TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       val configFile =

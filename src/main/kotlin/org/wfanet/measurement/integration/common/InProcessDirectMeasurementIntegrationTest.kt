@@ -28,8 +28,8 @@ import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.dateInterval
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRelease
 import org.wfanet.measurement.api.v2alpha.modelRollout
@@ -154,7 +154,7 @@ abstract class InProcessDirectMeasurementIntegrationTest(
     private const val MODEL_SUITE_DISPLAY_NAME = "ModelSuite1"
     private val MODEL_LINE_ACTIVE_START_TIME = Instant.now().plusSeconds(2000L).toProtoTime()
     private const val DEFAULT_POPULATION_FILTER_EXPRESSION =
-      "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}"
+      "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}"
     private val ROLLOUT_PERIOD_START_DATE = LocalDate.now().plusDays(10).toProtoDate()
     private val ROLLOUT_PERIOD_END_DATE = LocalDate.now().plusDays(20).toProtoDate()
   }

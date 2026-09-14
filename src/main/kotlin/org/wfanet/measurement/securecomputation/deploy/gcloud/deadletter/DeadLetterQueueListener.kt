@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
@@ -79,6 +80,9 @@ import org.wfanet.measurement.securecomputation.service.Errors
  * @param vidLabelingJobsStub EDPA stub used to mark Phase-2 `VidLabelingJob`s FAILED.
  * @param rawImpressionUploadModelLinesStub EDPA stub used to resolve and mark the parent
  *   `RawImpressionUploadModelLine` FAILED.
+ * @param rpcThrottlers process-scoped throttlers shared by all outbound control-plane and EDPA
+ *   metadata RPCs.
+ * @param getLatestWorkItemAttemptError returns the latest worker error recorded for a WorkItem.
  */
 class DeadLetterQueueListener(
   private val subscriptionId: String,
@@ -89,6 +93,8 @@ class DeadLetterQueueListener(
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val getLatestWorkItemAttemptError: suspend (String) -> String? = { null },
 ) : AutoCloseable {
 
   /** Starts the listener by subscribing to the dead letter queue. */
@@ -139,12 +145,15 @@ class DeadLetterQueueListener(
 
     logger.fine("Processing dead letter message for work item: ${workItem.name}")
 
+    val errorMessage = resolveErrorMessage(workItem.name)
     try {
-      workItemsStub.failWorkItem(failWorkItemRequest { workItemResourceId = workItem.name })
+      rpcThrottlers.controlPlane.onReady {
+        workItemsStub.failWorkItem(failWorkItemRequest { workItemResourceId = workItem.name })
+      }
       logger.fine("Successfully marked work item as failed: ${workItem.name}")
       // Mark the EDPA resource(s) referenced by this WorkItem FAILED. Best-effort: any failure is
       // logged and swallowed so the already-terminal dead-letter message is still acked below.
-      markEdpaResourcesFailed(workItem)
+      markEdpaResourcesFailed(workItem, errorMessage)
       queueMessage.ack()
     } catch (e: Exception) {
       when (e) {
@@ -182,7 +191,7 @@ class DeadLetterQueueListener(
    * Every call is best-effort and never throws: a failure to mark an EDPA resource must not re-nack
    * an already-terminal dead-letter message.
    */
-  private suspend fun markEdpaResourcesFailed(workItem: WorkItem) {
+  private suspend fun markEdpaResourcesFailed(workItem: WorkItem, errorMessage: String) {
     val appParams =
       try {
         workItem.workItemParams.unpack(WorkItemParams::class.java).appParams
@@ -195,7 +204,6 @@ class DeadLetterQueueListener(
         return
       }
 
-    val errorMessage = "WorkItem ${workItem.name} dead-lettered (retries exhausted)"
     when (appParams.typeUrl.substringAfterLast('/')) {
       SUBPOOL_ASSIGNER_PARAMS_TYPE -> {
         val params = appParams.unpack(SubpoolAssignerParams::class.java)
@@ -238,6 +246,20 @@ class DeadLetterQueueListener(
     }
   }
 
+  private suspend fun resolveErrorMessage(workItemName: String): String {
+    val fallback = "WorkItem $workItemName dead-lettered (retries exhausted)"
+    return try {
+      getLatestWorkItemAttemptError(workItemName)?.takeIf { it.isNotEmpty() } ?: fallback
+    } catch (e: Exception) {
+      logger.log(
+        Level.WARNING,
+        "Could not read the latest WorkItemAttempt for $workItemName; using fallback error",
+        e,
+      )
+      fallback
+    }
+  }
+
   /**
    * Best-effort `MarkPoolAssignmentJobFailed`; logs and swallows any failure. `Get`s the job first
    * to obtain its current `etag` (REQUIRED on `MarkPoolAssignmentJobFailedRequest`) and to skip the
@@ -247,9 +269,11 @@ class DeadLetterQueueListener(
     if (name.isEmpty()) return
     try {
       val job =
-        poolAssignmentJobsStub.getPoolAssignmentJob(
-          getPoolAssignmentJobRequest { this.name = name }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          poolAssignmentJobsStub.getPoolAssignmentJob(
+            getPoolAssignmentJobRequest { this.name = name }
+          )
+        }
       if (
         job.state == PoolAssignmentJob.State.SUCCEEDED ||
           job.state == PoolAssignmentJob.State.FAILED
@@ -257,16 +281,18 @@ class DeadLetterQueueListener(
         logger.info("PoolAssignmentJob $name already terminal (${job.state}); skipping FAILED mark")
         return
       }
-      poolAssignmentJobsStub.markPoolAssignmentJobFailed(
-        markPoolAssignmentJobFailedRequest {
-          this.name = name
-          this.etag = job.etag
-          this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the resource
-          // + operation so every attempt for the same mark shares one idempotent result.
-          requestId = RequestIds.forMarkPoolAssignmentJobFailed(name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        poolAssignmentJobsStub.markPoolAssignmentJobFailed(
+          markPoolAssignmentJobFailedRequest {
+            this.name = name
+            this.etag = job.etag
+            this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+            // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the
+            // resource + operation so every attempt for the same mark shares one idempotent result.
+            requestId = RequestIds.forMarkPoolAssignmentJobFailed(name)
+          }
+        )
+      }
       logger.info("Marked PoolAssignmentJob $name FAILED from dead-letter queue")
     } catch (e: Exception) {
       logger.log(Level.WARNING, "Best-effort MarkPoolAssignmentJobFailed($name) failed", e)
@@ -281,21 +307,26 @@ class DeadLetterQueueListener(
   private suspend fun markRankerJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
     try {
-      val job = rankerJobsStub.getRankerJob(getRankerJobRequest { this.name = name })
+      val job =
+        rpcThrottlers.metadataRead.onReady {
+          rankerJobsStub.getRankerJob(getRankerJobRequest { this.name = name })
+        }
       if (job.state == RankerJob.State.SUCCEEDED || job.state == RankerJob.State.FAILED) {
         logger.info("RankerJob $name already terminal (${job.state}); skipping FAILED mark")
         return
       }
-      rankerJobsStub.markRankerJobFailed(
-        markRankerJobFailedRequest {
-          this.name = name
-          this.etag = job.etag
-          this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the resource
-          // + operation so every attempt for the same mark shares one idempotent result.
-          requestId = RequestIds.forMarkRankerJobFailed(name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rankerJobsStub.markRankerJobFailed(
+          markRankerJobFailedRequest {
+            this.name = name
+            this.etag = job.etag
+            this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+            // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the
+            // resource + operation so every attempt for the same mark shares one idempotent result.
+            requestId = RequestIds.forMarkRankerJobFailed(name)
+          }
+        )
+      }
       logger.info("Marked RankerJob $name FAILED from dead-letter queue")
     } catch (e: Exception) {
       logger.log(Level.WARNING, "Best-effort MarkRankerJobFailed($name) failed", e)
@@ -311,19 +342,24 @@ class DeadLetterQueueListener(
   private suspend fun markVidLabelingJobFailedBestEffort(name: String, errorMessage: String) {
     if (name.isEmpty()) return
     try {
-      val job = vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { this.name = name })
+      val job =
+        rpcThrottlers.metadataRead.onReady {
+          vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { this.name = name })
+        }
       if (job.state == VidLabelingJob.State.SUCCEEDED || job.state == VidLabelingJob.State.FAILED) {
         logger.info("VidLabelingJob $name already terminal (${job.state}); skipping FAILED mark")
         return
       }
-      vidLabelingJobsStub.markVidLabelingJobFailed(
-        markVidLabelingJobFailedRequest {
-          this.name = name
-          this.etag = job.etag
-          this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          requestId = RequestIds.forMarkVidLabelingJobFailed(name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        vidLabelingJobsStub.markVidLabelingJobFailed(
+          markVidLabelingJobFailedRequest {
+            this.name = name
+            this.etag = job.etag
+            this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+            requestId = RequestIds.forMarkVidLabelingJobFailed(name)
+          }
+        )
+      }
       logger.info("Marked VidLabelingJob $name FAILED from dead-letter queue")
     } catch (e: Exception) {
       logger.log(Level.WARNING, "Best-effort MarkVidLabelingJobFailed($name) failed", e)
@@ -361,18 +397,22 @@ class DeadLetterQueueListener(
         )
         return
       }
-      rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineFailed(
-        markRawImpressionUploadModelLineFailedRequest {
-          name = parent.name
-          // `etag` is REQUIRED. Reuse the one already returned by getParentModelLine's List (the
-          // RawImpressionUploadModelLine resource carries it) instead of an extra Get.
-          etag = parent.etag
-          this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
-          // AIP-155 idempotency on Pub/Sub redelivery: derived deterministically from the resource
-          // + operation so every attempt for the same mark shares one idempotent result.
-          requestId = RequestIds.forMarkRawImpressionUploadModelLineFailed(parent.name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineFailed(
+          markRawImpressionUploadModelLineFailedRequest {
+            name = parent.name
+            // `etag` is REQUIRED. Reuse the one already returned by getParentModelLine's List (the
+            // RawImpressionUploadModelLine resource carries it) instead of an extra Get.
+            etag = parent.etag
+            this.errorMessage = errorMessage.take(MAX_ERROR_MESSAGE)
+            failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+            // AIP-155 idempotency on Pub/Sub redelivery: the etag identifies the model-line version
+            // being failed, so a later failure after an operator retry receives a new request ID.
+            requestId =
+              RequestIds.forMarkRawImpressionUploadModelLineFailed(parent.name, parent.etag)
+          }
+        )
+      }
       logger.info(
         "Marked RawImpressionUploadModelLine ${parent.name} FAILED from dead-letter queue"
       )
@@ -399,16 +439,18 @@ class DeadLetterQueueListener(
     rawImpressionUploadModelLinesStub
       .listResources { pageToken: String ->
         val response =
-          listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = rawImpressionUpload
-              filter =
-                ListRawImpressionUploadModelLinesRequestKt.filter {
-                  this.cmmsModelLine = cmmsModelLine
-                }
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = rawImpressionUpload
+                filter =
+                  ListRawImpressionUploadModelLinesRequestKt.filter {
+                    this.cmmsModelLine = cmmsModelLine
+                  }
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .collect { page ->

@@ -49,6 +49,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:event_id_digest",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:memoized_rank_index",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
@@ -170,7 +171,9 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerAppTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_app",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",

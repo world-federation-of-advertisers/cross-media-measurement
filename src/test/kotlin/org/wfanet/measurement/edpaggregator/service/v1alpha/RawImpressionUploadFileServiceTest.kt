@@ -119,6 +119,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -129,6 +130,7 @@ class RawImpressionUploadFileServiceTest {
     assertThat(fileKey.rawImpressionUploadId).isNotEmpty()
     assertThat(fileKey.fileId).isNotEmpty()
     assertThat(file.blobUri).isEqualTo(BLOB_URI_1)
+    assertThat(file.blobGeneration).isEqualTo(BLOB_GENERATION)
     assertThat(file.eventDate).isEqualTo(EVENT_DATE)
     assertThat(file.createTime.toInstant()).isGreaterThan(startTime)
     assertThat(file.updateTime).isEqualTo(file.createTime)
@@ -141,6 +143,7 @@ class RawImpressionUploadFileServiceTest {
         sizeBytes = SIZE_BYTES
         eventDate = EVENT_DATE
         blobUri = BLOB_URI_1
+        blobGeneration = BLOB_GENERATION
       }
     }
 
@@ -158,6 +161,57 @@ class RawImpressionUploadFileServiceTest {
   }
 
   @Test
+  fun `createRawImpressionUploadFile rejects negative blob generation`() = runBlocking {
+    val uploadName = createUpload()
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.createRawImpressionUploadFile(
+          createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              eventDate = EVENT_DATE
+              blobUri = BLOB_URI_1
+              blobGeneration = -1L
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createRawImpressionUploadFile rejects missing blob generation`() = runBlocking {
+    val uploadName = createUpload()
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        fileService.createRawImpressionUploadFile(
+          createRawImpressionUploadFileRequest {
+            parent = uploadName
+            rawImpressionUploadFile = rawImpressionUploadFile {
+              sizeBytes = SIZE_BYTES
+              eventDate = EVENT_DATE
+              blobUri = BLOB_URI_1
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "raw_impression_upload_file.blob_generation"
+        }
+      )
+  }
+
+  @Test
   fun `createRawImpressionUploadFile throws NOT_FOUND for nonexistent upload`() = runBlocking {
     val request = createRawImpressionUploadFileRequest {
       parent = "dataProviders/dp1/rawImpressionUploads/nonexistent"
@@ -165,6 +219,7 @@ class RawImpressionUploadFileServiceTest {
         sizeBytes = SIZE_BYTES
         eventDate = EVENT_DATE
         blobUri = BLOB_URI_1
+        blobGeneration = BLOB_GENERATION
       }
       requestId = UUID.randomUUID().toString()
     }
@@ -185,6 +240,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -228,6 +284,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -253,6 +310,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -282,6 +340,7 @@ class RawImpressionUploadFileServiceTest {
               sizeBytes = SIZE_BYTES
               eventDate = EVENT_DATE
               blobUri = BLOB_URI_1
+              blobGeneration = BLOB_GENERATION
             }
             requestId = UUID.randomUUID().toString()
           }
@@ -291,6 +350,7 @@ class RawImpressionUploadFileServiceTest {
               sizeBytes = SIZE_BYTES
               eventDate = EVENT_DATE
               blobUri = BLOB_URI_2
+              blobGeneration = BLOB_GENERATION
             }
             requestId = UUID.randomUUID().toString()
           }
@@ -314,6 +374,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -326,6 +387,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_2
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -357,6 +419,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           this.requestId = requestId
         }
@@ -368,7 +431,8 @@ class RawImpressionUploadFileServiceTest {
           rawImpressionUploadFile = rawImpressionUploadFile {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
-            blobUri = BLOB_URI_2
+            blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           this.requestId = requestId
         }
@@ -391,6 +455,7 @@ class RawImpressionUploadFileServiceTest {
                 sizeBytes = SIZE_BYTES
                 eventDate = EVENT_DATE
                 blobUri = BLOB_URI_1
+                blobGeneration = BLOB_GENERATION
               }
               requestId = "not-a-uuid"
             }
@@ -422,6 +487,7 @@ class RawImpressionUploadFileServiceTest {
                 sizeBytes = SIZE_BYTES
                 eventDate = EVENT_DATE
                 blobUri = BLOB_URI_1
+                blobGeneration = BLOB_GENERATION
               }
             }
           )
@@ -454,6 +520,7 @@ class RawImpressionUploadFileServiceTest {
                   sizeBytes = SIZE_BYTES
                   eventDate = EVENT_DATE
                   blobUri = BLOB_URI_1
+                  blobGeneration = BLOB_GENERATION
                 }
               }
             }
@@ -484,6 +551,7 @@ class RawImpressionUploadFileServiceTest {
               rawImpressionUploadFile = rawImpressionUploadFile {
                 sizeBytes = SIZE_BYTES
                 blobUri = BLOB_URI_1
+                blobGeneration = BLOB_GENERATION
               }
               requestId = UUID.randomUUID().toString()
             }
@@ -516,6 +584,7 @@ class RawImpressionUploadFileServiceTest {
                 rawImpressionUploadFile = rawImpressionUploadFile {
                   sizeBytes = SIZE_BYTES
                   blobUri = BLOB_URI_1
+                  blobGeneration = BLOB_GENERATION
                 }
                 requestId = UUID.randomUUID().toString()
               }
@@ -548,6 +617,7 @@ class RawImpressionUploadFileServiceTest {
                 sizeBytes = SIZE_BYTES
                 eventDate = EVENT_DATE
                 blobUri = "gs://bucket/file-$i"
+                blobGeneration = BLOB_GENERATION
               }
               requestId = UUID.randomUUID().toString()
             }
@@ -596,6 +666,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -608,6 +679,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_2
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -634,6 +706,7 @@ class RawImpressionUploadFileServiceTest {
           sizeBytes = SIZE_BYTES
           eventDate = EVENT_DATE
           blobUri = BLOB_URI_1
+          blobGeneration = BLOB_GENERATION
         }
         requestId = UUID.randomUUID().toString()
       }
@@ -645,6 +718,7 @@ class RawImpressionUploadFileServiceTest {
           sizeBytes = SIZE_BYTES
           eventDate = EVENT_DATE
           blobUri = BLOB_URI_2
+          blobGeneration = BLOB_GENERATION
         }
         requestId = UUID.randomUUID().toString()
       }
@@ -672,6 +746,7 @@ class RawImpressionUploadFileServiceTest {
           sizeBytes = SIZE_BYTES
           eventDate = EVENT_DATE
           blobUri = BLOB_URI_1
+          blobGeneration = BLOB_GENERATION
         }
         requestId = UUID.randomUUID().toString()
       }
@@ -683,6 +758,7 @@ class RawImpressionUploadFileServiceTest {
           sizeBytes = SIZE_BYTES
           eventDate = EVENT_DATE
           blobUri = BLOB_URI_2
+          blobGeneration = BLOB_GENERATION
         }
         requestId = UUID.randomUUID().toString()
       }
@@ -730,6 +806,7 @@ class RawImpressionUploadFileServiceTest {
                   sizeBytes = SIZE_BYTES
                   eventDate = EVENT_DATE
                   blobUri = BLOB_URI_1
+                  blobGeneration = BLOB_GENERATION
                 }
                 this.requestId = requestId
               }
@@ -739,6 +816,7 @@ class RawImpressionUploadFileServiceTest {
                   sizeBytes = SIZE_BYTES
                   eventDate = EVENT_DATE
                   blobUri = BLOB_URI_2
+                  blobGeneration = BLOB_GENERATION
                 }
                 this.requestId = requestId
               }
@@ -773,6 +851,7 @@ class RawImpressionUploadFileServiceTest {
                   sizeBytes = SIZE_BYTES
                   eventDate = EVENT_DATE
                   blobUri = BLOB_URI_1
+                  blobGeneration = BLOB_GENERATION
                 }
               }
             }
@@ -840,6 +919,7 @@ class RawImpressionUploadFileServiceTest {
               sizeBytes = SIZE_BYTES
               eventDate = EVENT_DATE
               blobUri = BLOB_URI_1
+              blobGeneration = BLOB_GENERATION
             }
             requestId = UUID.randomUUID().toString()
           }
@@ -880,6 +960,7 @@ class RawImpressionUploadFileServiceTest {
               sizeBytes = SIZE_BYTES
               eventDate = EVENT_DATE
               blobUri = BLOB_URI_1
+              blobGeneration = BLOB_GENERATION
             }
             requestId = UUID.randomUUID().toString()
           }
@@ -968,6 +1049,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_1
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -980,6 +1062,7 @@ class RawImpressionUploadFileServiceTest {
             sizeBytes = SIZE_BYTES
             eventDate = EVENT_DATE
             blobUri = BLOB_URI_2
+            blobGeneration = BLOB_GENERATION
           }
           requestId = UUID.randomUUID().toString()
         }
@@ -1009,6 +1092,7 @@ class RawImpressionUploadFileServiceTest {
               sizeBytes = SIZE_BYTES
               eventDate = EVENT_DATE
               blobUri = BLOB_URI_1
+              blobGeneration = BLOB_GENERATION
             }
             requestId = UUID.randomUUID().toString()
           }
@@ -1021,6 +1105,7 @@ class RawImpressionUploadFileServiceTest {
               sizeBytes = SIZE_BYTES
               eventDate = EVENT_DATE
               blobUri = BLOB_URI_2
+              blobGeneration = BLOB_GENERATION
             }
             requestId = UUID.randomUUID().toString()
           }
@@ -1060,6 +1145,7 @@ class RawImpressionUploadFileServiceTest {
                     sizeBytes = SIZE_BYTES
                     eventDate = EVENT_DATE
                     blobUri = "gs://bucket/file-$i"
+                    blobGeneration = BLOB_GENERATION
                   }
                   requestId = UUID.randomUUID().toString()
                 }
@@ -1127,6 +1213,7 @@ class RawImpressionUploadFileServiceTest {
           sizeBytes = SIZE_BYTES
           eventDate = EVENT_DATE
           blobUri = BLOB_URI_1
+          blobGeneration = BLOB_GENERATION
         }
         requestId = UUID.randomUUID().toString()
       }
@@ -1140,6 +1227,7 @@ class RawImpressionUploadFileServiceTest {
               sizeBytes = SIZE_BYTES
               eventDate = EVENT_DATE
               blobUri = BLOB_URI_1
+              blobGeneration = BLOB_GENERATION
             }
             requestId = UUID.randomUUID().toString()
           }
@@ -1155,6 +1243,7 @@ class RawImpressionUploadFileServiceTest {
     private const val BLOB_URI_1 = "gs://bucket/file1"
     private const val BLOB_URI_2 = "gs://bucket/file2"
     private const val SIZE_BYTES = 1024L
+    private const val BLOB_GENERATION = 1234L
     private val EVENT_DATE = date {
       year = 2026
       month = 6

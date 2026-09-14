@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
@@ -25,24 +26,29 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
  * Returns the single [RawImpressionUploadModelLine] under [uploadName] whose `cmms_model_line`
  * equals [cmmsModelLine], or null if none exists.
  *
+ * @param throttler optional throttler acquired once for every paginated RPC.
  * @throws IllegalArgumentException if more than one model line matches.
  */
 internal suspend fun RawImpressionUploadModelLineServiceCoroutineStub.findModelLine(
   uploadName: String,
   cmmsModelLine: String,
+  throttler: Throttler? = null,
 ): RawImpressionUploadModelLine? {
   var pageToken = ""
   var found: RawImpressionUploadModelLine? = null
   do {
+    val request = listRawImpressionUploadModelLinesRequest {
+      parent = uploadName
+      filter =
+        ListRawImpressionUploadModelLinesRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
+      this.pageToken = pageToken
+    }
     val response =
-      listRawImpressionUploadModelLines(
-        listRawImpressionUploadModelLinesRequest {
-          parent = uploadName
-          filter =
-            ListRawImpressionUploadModelLinesRequestKt.filter { this.cmmsModelLine = cmmsModelLine }
-          this.pageToken = pageToken
-        }
-      )
+      if (throttler == null) {
+        listRawImpressionUploadModelLines(request)
+      } else {
+        throttler.onReady { listRawImpressionUploadModelLines(request) }
+      }
     for (line in response.rawImpressionUploadModelLinesList) {
       // The service filters by cmms_model_line, but guard against a server that ignores it.
       if (line.cmmsModelLine != cmmsModelLine) continue

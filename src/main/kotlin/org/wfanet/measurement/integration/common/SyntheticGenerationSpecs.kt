@@ -21,7 +21,7 @@ import com.google.protobuf.TypeRegistry
 import java.nio.file.Paths
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 
@@ -34,12 +34,12 @@ object SyntheticGenerationSpecs {
   /**
    * Type registry used when parsing the v2alpha [PopulationSpec] textprotos in this directory.
    *
-   * The textprotos embed event template attribute messages (today only [Person]) inside
+   * The textprotos embed event template attribute messages (today only [Common]) inside
    * `google.protobuf.Any` packed values, so the parser needs the descriptors for those template
    * types.
    */
   private val TYPE_REGISTRY: TypeRegistry =
-    TypeRegistry.newBuilder().add(Person.getDescriptor()).build()
+    TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
   /** v2alpha [PopulationSpec] for synthetic generation of population ~34,000,000. */
   val POPULATION_SPEC_LARGE: PopulationSpec by lazy {

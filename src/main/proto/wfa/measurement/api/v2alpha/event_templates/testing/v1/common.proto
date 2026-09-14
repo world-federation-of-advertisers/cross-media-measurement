@@ -142,7 +142,8 @@ message Common {
     display_name: "Signed In"
     population_attribute: false
     reporting_features: FILTERABLE
-    reporting_features: GROUPABLE
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4370): Add
+    // `GROUPABLE` once grouping over non-enum fields is supported.
     version_added: 1
   }];
 

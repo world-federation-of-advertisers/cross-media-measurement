@@ -29,7 +29,7 @@ import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
@@ -184,8 +184,8 @@ class WriteReusedLabeledImpressionsRule(
                         vid =
                           vidLabeler.assignVid(
                             event.vid,
-                            event.message.person.gender.name,
-                            event.message.person.ageGroup.name,
+                            event.message.common.gender.name,
+                            event.message.common.ageGroup.name,
                             event.timestamp,
                           )
                       )

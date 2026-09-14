@@ -25,7 +25,7 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.common.testing.ProviderRule
 import org.wfanet.measurement.integration.common.ALL_DUCHY_NAMES
 import org.wfanet.measurement.integration.common.AccessServicesFactory
@@ -76,7 +76,7 @@ abstract class InProcessDirectMultipleReportIntegrationTest(
     val measurementConsumerData = inProcessCmmsComponents.getMeasurementConsumerData()
     val eventGroups = listEventGroups()
     val eventGroupEntries: List<Pair<EventGroup, String>> =
-      listOf(eventGroups.first() to "person.age_group == ${Person.AgeGroup.YEARS_18_TO_34_VALUE}")
+      listOf(eventGroups.first() to "common.age_group == ${Common.AgeGroup.YEARS_18_TO_34_VALUE}")
     val createdPrimitiveReportingSet: ReportingSet =
       createPrimitiveReportingSets(eventGroupEntries, measurementConsumerData.name).single()
 

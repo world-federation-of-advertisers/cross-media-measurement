@@ -26,6 +26,8 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
@@ -190,6 +192,30 @@ class MarkFailedCommand : EdpaApiCommand() {
 )
 class RetryFailedCommand : EdpaApiCommand() {
   @Option(
+    names = ["--metadata-read-rpc-min-interval"],
+    description = ["Minimum interval between outbound metadata read RPCs."],
+    defaultValue = "100ms",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var metadataReadRpcMinInterval: Duration
+
+  @Option(
+    names = ["--metadata-write-rpc-min-interval"],
+    description = ["Minimum interval between outbound metadata write RPCs."],
+    defaultValue = "200ms",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var metadataWriteRpcMinInterval: Duration
+
+  @Option(
+    names = ["--control-plane-rpc-min-interval"],
+    description = ["Minimum interval between outbound Secure Computation control-plane RPCs."],
+    defaultValue = "250ms",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var controlPlaneRpcMinInterval: Duration
+
+  @Option(
     names = ["--control-plane-api-target"],
     description = ["gRPC target (host:port) of the Secure Computation control-plane API."],
     required = true,
@@ -242,18 +268,22 @@ class RetryFailedCommand : EdpaApiCommand() {
             RankerJobServiceCoroutineStub(edpaChannel),
             VidLabelingJobServiceCoroutineStub(edpaChannel),
             WorkItemsCoroutineStub(controlPlaneChannel),
+            VidLabelingRpcThrottlers.fromMinimumIntervals(
+              metadataRead = metadataReadRpcMinInterval,
+              metadataWrite = metadataWriteRpcMinInterval,
+              controlPlane = controlPlaneRpcMinInterval,
+            ),
           )
         val result = retrier.retryFailed(rawImpressionUpload, modelLine, fromPhase)
-        if (result.workItemsRepublished == 0) {
-          System.err.println(
-            "WARN: all target WorkItems for ${result.modelLineName} already exist from a prior " +
-              "retry; the model line remains ${result.newState} and no new work was created. " +
-              "Investigate the prior retry's WorkItems (workItems/rt-<...>) before re-running."
+        if (result.wasAlreadyStarted) {
+          println(
+            "Retry for ${result.modelLineName} was already started; current state is " +
+              "${result.newState}."
           )
         } else {
           println(
-            "Re-triggered ${result.modelLineName} at ${result.newState}: republished " +
-              "${result.workItemsRepublished} WorkItem(s)."
+            "Re-triggered ${result.modelLineName} at ${result.newState}: created " +
+              "${result.workItemsRepublished} retry WorkItem(s)."
           )
         }
       }
@@ -402,6 +432,9 @@ class BackfillModelLineCommand : EdpaApiCommand() {
  * retention window. Prints the cascade and prompts the operator to confirm before mutating
  * anything.
  *
+ * The resulting `FAILED` model lines represent invalidated completed work. They must be replaced by
+ * new uploads and must not be passed to `retry-failed`.
+ *
  * Confirmation is interactive (type `yes`), by design, not a `--confirm` flag: the printed cascade
  * often includes uploads the operator did not name explicitly (later uploads that cascade from the
  * earliest bad one), so making the operator visually review that cascade before typing `yes` is the
@@ -495,7 +528,8 @@ class EvictUploadsCommand : EdpaApiCommand() {
         println(
           "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
             "${result.deletedSnapshots} snapshot(s). Re-trigger the affected uploads (re-upload " +
-            "their done blobs) to rebuild from the last good snapshot."
+            "their done blobs) to rebuild from the last good snapshot. Do not use retry-failed " +
+            "for these model lines."
         )
       }
     } finally {

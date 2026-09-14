@@ -59,6 +59,9 @@ class RawImpressionUploadPaginationTest {
           doneBlobUri = DONE_BLOB_URI,
           createRequestId = "",
           state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+          doneBlobGeneration = DONE_BLOB_GENERATION,
+          doneBlobCreateTime = null,
+          replacesRawImpressionUploadResourceId = null,
         )
         txn.insertRawImpressionUpload(
           rawImpressionUploadId = 1L,
@@ -67,6 +70,9 @@ class RawImpressionUploadPaginationTest {
           doneBlobUri = DONE_BLOB_URI,
           createRequestId = "",
           state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED,
+          doneBlobGeneration = DONE_BLOB_GENERATION,
+          doneBlobCreateTime = null,
+          replacesRawImpressionUploadResourceId = null,
         )
       }
 
@@ -109,5 +115,6 @@ class RawImpressionUploadPaginationTest {
     private const val RESOURCE_A = "resource-a"
     private const val RESOURCE_B = "resource-b"
     private const val DONE_BLOB_URI = "gs://test-bucket/2026-06-16/done"
+    private const val DONE_BLOB_GENERATION = 1234L
   }
 }

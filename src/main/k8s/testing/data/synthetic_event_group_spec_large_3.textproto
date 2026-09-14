@@ -25,9 +25,9 @@ date_specs {
         end_exclusive: 501001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.25
+          float_value: 0.25
         }
       }
     }
@@ -40,9 +40,9 @@ date_specs {
         end_exclusive: 600001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.5
+          float_value: 0.5
         }
       }
     }
@@ -55,9 +55,9 @@ date_specs {
         end_exclusive: 5500001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.75
+          float_value: 0.75
         }
       }
     }
@@ -70,9 +70,9 @@ date_specs {
         end_exclusive: 8000001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.25
+          float_value: 0.25
         }
       }
     }
@@ -85,9 +85,9 @@ date_specs {
         end_exclusive: 1200001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.5
+          float_value: 0.5
         }
       }
     }
@@ -100,9 +100,9 @@ date_specs {
         end_exclusive: 14100001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.75
+          float_value: 0.75
         }
       }
     }
@@ -115,9 +115,9 @@ date_specs {
         end_exclusive: 18002001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.25
+          float_value: 0.25
         }
       }
     }
@@ -130,9 +130,9 @@ date_specs {
         end_exclusive: 18003001
       }
       non_population_field_values {
-        key: "video_ad.viewed_fraction"
+        key: "video.completed_fraction"
         value {
-          double_value: 0.5
+          float_value: 0.5
         }
       }
     }

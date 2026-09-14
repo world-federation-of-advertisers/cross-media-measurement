@@ -230,8 +230,8 @@ class VidLabelerModelResourcesRule(
             .build()
         )
         // Output event template (TestEvent) so downstream measurement can slice by demographics.
-        putEventTemplateFieldMapping("person.gender", RawImpressionColumns.PERSON_GENDER)
-        putEventTemplateFieldMapping("person.age_group", RawImpressionColumns.PERSON_AGE_GROUP)
+        putEventTemplateFieldMapping("common.gender", RawImpressionColumns.PERSON_GENDER)
+        putEventTemplateFieldMapping("common.age_group", RawImpressionColumns.PERSON_AGE_GROUP)
         // Entity keys read per row from the raw-impression columns SeedRawImpressionsRule emits
         // (see SeedRawImpressionsRule.entityKeyColumnsFor). Every file carries the person id
         // (person_id, also the model identity column); entity-key event groups additionally carry

@@ -30,6 +30,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
@@ -37,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.UndigestedEvent
+import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -111,6 +113,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   given the model line and its [VidLabelerParams.ModelLineConfig]; the production factory loads
  *   the EventTemplate descriptor from the config blob. Entity keys are read per file from the
  *   Parquet footer at labeling time, not passed here.
+ * @param rpcThrottlers process-scoped rate limiters shared by the TEE lifecycle and Phase-2 RPCs.
  * @param eventIdDigestExtractor computes the 12-byte `EventIdDigest` of an event id.
  */
 class VidLabelerApp(
@@ -132,6 +135,7 @@ class VidLabelerApp(
     suspend (modelStorageConfig: StorageConfig, modelBlobUri: String) -> VidAssigner,
   private val buildImpressionConverter:
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
+  private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
   // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
   // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
@@ -149,6 +153,7 @@ class VidLabelerApp(
     parser = parser,
     workItemsStub = workItemsClient,
     workItemAttemptsStub = workItemAttemptsClient,
+    controlPlaneThrottler = rpcThrottlers.controlPlane,
   ) {
 
   /**
@@ -218,7 +223,9 @@ class VidLabelerApp(
       // (the output is idempotent via deterministic blob keys) but still run the idempotent mark +
       // last-job-out recovery so a crash between label() and the mark cannot drop the completion.
       val job =
-        vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
+        rpcThrottlers.metadataRead.onReady {
+          vidLabelingJobsStub.getVidLabelingJob(getVidLabelingJobRequest { name = vidLabelingJob })
+        }
       val observedEventDates: Set<LocalDate> =
         if (job.state != VidLabelingJob.State.SUCCEEDED) {
           labelMemoized(
@@ -279,9 +286,11 @@ class VidLabelerApp(
         }
 
       val job =
-        vidLabelingJobsStub.getVidLabelingJob(
-          getVidLabelingJobRequest { name = params.vidLabelingJob }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          vidLabelingJobsStub.getVidLabelingJob(
+            getVidLabelingJobRequest { name = params.vidLabelingJob }
+          )
+        }
       val observedEventDates: Set<LocalDate> =
         if (job.state != VidLabelingJob.State.SUCCEEDED) {
           labelNonMemoized(
@@ -338,7 +347,12 @@ class VidLabelerApp(
     // until it recovers. If it becomes a hotspot, cache the result with a short TTL to share one
     // call across a burst of WorkItems, or retry-on-transient before falling through to a rebuild.
     val resolvedBlobs =
-      MemoizedRankIndex.resolveLatestBlobs(rankIndexBlobsStub, dataProvider, modelLine)
+      MemoizedRankIndex.resolveLatestBlobs(
+        rankIndexBlobsStub,
+        dataProvider,
+        modelLine,
+        rpcThrottlers.metadataRead,
+      )
     val rankIndex =
       memoizedRankIndexCache.getOrBuild(resolvedBlobs.key) {
         MemoizedRankIndex.buildFrom(rankIndexStore, dataProvider, modelLine, resolvedBlobs.blobs)
@@ -357,6 +371,7 @@ class VidLabelerApp(
             kmsClient,
           ),
         rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+        metadataReadThrottler = rpcThrottlers.metadataRead,
         rawImpressionUpload = parentUpload(params.vidLabelingJob),
         eventIdColumn = eventIdColumn,
         eventIdDigestExtractor = eventIdDigestExtractor,
@@ -456,6 +471,7 @@ class VidLabelerApp(
             kmsClient,
           ),
         rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
+        metadataReadThrottler = rpcThrottlers.metadataRead,
         rawImpressionUpload = parentUpload(params.vidLabelingJob),
         eventIdColumn = eventIdColumn,
         eventIdDigestExtractor = eventIdDigestExtractor,
@@ -555,19 +571,21 @@ class VidLabelerApp(
   ) {
     val response =
       try {
-        vidLabelingJobsStub.markVidLabelingJobSucceeded(
-          markVidLabelingJobSucceededRequest {
-            name = vidLabelingJob
-            // [etag] was captured from GetVidLabelingJob before label(); together with the
-            // deterministic request_id below it covers Pub/Sub *redelivery* under the single-writer
-            // assumption (only this worker mutates the job), NOT a concurrent first-delivery
-            // mutation by another writer.
-            this.etag = etag
-            // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so the
-            // server returns the cached result instead of hitting the etag-mismatch path.
-            requestId = RequestIds.forMarkVidLabelingJobSucceeded(vidLabelingJob)
-          }
-        )
+        rpcThrottlers.metadataWrite.onReady {
+          vidLabelingJobsStub.markVidLabelingJobSucceeded(
+            markVidLabelingJobSucceededRequest {
+              name = vidLabelingJob
+              // [etag] was captured from GetVidLabelingJob before label(); together with the
+              // deterministic request_id below it covers Pub/Sub *redelivery* under the
+              // single-writer assumption (only this worker mutates the job), NOT a concurrent
+              // first-delivery mutation by another writer.
+              this.etag = etag
+              // AIP-155 retry-idempotency key: a Pub/Sub redelivery reuses the same request_id so
+              // the server returns the cached result instead of hitting the etag-mismatch path.
+              requestId = RequestIds.forMarkVidLabelingJobSucceeded(vidLabelingJob)
+            }
+          )
+        }
       } catch (e: StatusException) {
         metrics.markSucceededFailuresCounter.add(1, attributes)
         throw e
@@ -648,13 +666,15 @@ class VidLabelerApp(
     dataProvider: String,
   ) {
     try {
-      rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
-        markRawImpressionUploadModelLineCompletedRequest {
-          name = parent.name
-          etag = parent.etag
-          requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
-        }
-      )
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
+          markRawImpressionUploadModelLineCompletedRequest {
+            name = parent.name
+            etag = parent.etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
+          }
+        )
+      }
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
@@ -686,12 +706,14 @@ class VidLabelerApp(
     rawImpressionUploadModelLinesStub
       .listResources { pageToken: String ->
         val response =
-          listRawImpressionUploadModelLines(
-            listRawImpressionUploadModelLinesRequest {
-              parent = upload
-              this.pageToken = pageToken
-            }
-          )
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLinesStub.listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = upload
+                this.pageToken = pageToken
+              }
+            )
+          }
         ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
       }
       .collect { page -> rows.addAll(page) }
@@ -720,12 +742,16 @@ class VidLabelerApp(
       buildParquetStorageClient(getStorageConfig(params.rawImpressionsStorageParams), kmsClient)
     return inputFiles
       .map { inputFile ->
-        val blobUri =
-          rawImpressionUploadFilesStub
-            .getRawImpressionUploadFile(getRawImpressionUploadFileRequest { name = inputFile })
-            .blobUri
+        val inputBlob =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.getRawImpressionUploadFile(
+              getRawImpressionUploadFileRequest { name = inputFile }
+            )
+          }
+        val blobUri = inputBlob.blobUri
         val parquetBlob =
-          parquetStorageClient.getBlob(blobUri) ?: error("Raw-impression blob not found: $blobUri")
+          parquetStorageClient.getBlob(generationMatchedBlobUri(blobUri, inputBlob.blobGeneration))
+            ?: error("Raw-impression blob not found: $blobUri")
         val eventDateString =
           requireNotNull(
             parquetBlob.readKeyValueMetadata()[RawImpressionFileMetadata.EVENT_DATE_KEY]?.takeIf {

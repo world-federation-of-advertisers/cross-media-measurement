@@ -130,6 +130,7 @@ class VidLabelerAppRunner :
         // memoized rank index is reused across WorkItems when the Phase-1 snapshot set is
         // unchanged.
         memoizedRankIndexCache = MemoizedRankIndexCache(),
+        rpcThrottlers = rpcThrottlers,
       )
 
     runBlockingWithTelemetry { vidLabelerApp.run() }

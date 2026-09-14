@@ -41,8 +41,10 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
+import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -103,8 +105,10 @@ class SubpoolRankerTest {
     maxEventDate: Date = epochDayToDate(TODAY_EPOCH_DAY),
     upload: String = UPLOAD,
     metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ): SubpoolRanker {
-    val retention = SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY)
+    val retention =
+      SubpoolRetention(fake.stub, rankStore, DP, MODEL_LINE, RETENTION_DAYS, TODAY, rpcThrottlers)
     return SubpoolRanker(
       subpoolFingerprintsStore = subpoolStore,
       rankIndexStore = rankStore,
@@ -119,6 +123,7 @@ class SubpoolRankerTest {
       maxEventDate = maxEventDate,
       retentionDays = RETENTION_DAYS,
       today = TODAY,
+      rpcThrottlers = rpcThrottlers,
       metrics = metrics,
     )
   }
@@ -198,8 +203,10 @@ class SubpoolRankerTest {
   @Test
   fun `cold subpool allocates a dense rank set and stamps last_seen`() = runBlocking {
     val key = writePhase0(listOf(1L to 0, 2L to 0, 3L to 0))
+    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val result = ranker().rank(POOL, key, rankedSize = 100)
+    val result =
+      ranker(rpcThrottlers = recordingThrottlers.throttlers).rank(POOL, key, rankedSize = 100)
 
     assertThat(result.skipped).isFalse()
     assertThat(result.allocated).isEqualTo(3)
@@ -215,6 +222,10 @@ class SubpoolRankerTest {
         fake.rows.any { it.blobType == RankIndexBlob.BlobType.DAY_ONLY && it.hasMaxEventDate() }
       )
       .isTrue()
+    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
   }
 
   @Test

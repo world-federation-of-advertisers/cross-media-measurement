@@ -738,6 +738,39 @@ class DataProvidersServiceTest {
   }
 
   @Test
+  fun `replaceDataProviderCapabilities round-trips the TrusTEE v2 capability`() {
+    val internalDataProvider =
+      INTERNAL_DATA_PROVIDER.copy {
+        details = details.copy { capabilities = capabilities.copy { trusTeeV2Supported = true } }
+      }
+    internalServiceMock.stub {
+      onBlocking { replaceDataProviderCapabilities(any()) }.thenReturn(internalDataProvider)
+    }
+    val request = replaceDataProviderCapabilitiesRequest {
+      name = DATA_PROVIDER_NAME
+      capabilities = DataProviderKt.capabilities { trusTeeV2Supported = true }
+    }
+
+    val response: DataProvider = runBlocking {
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        service.replaceDataProviderCapabilities(request)
+      }
+    }
+
+    assertThat(response).isEqualTo(DATA_PROVIDER.copy { capabilities = request.capabilities })
+    verifyProtoArgument(
+        internalServiceMock,
+        InternalDataProvidersService::replaceDataProviderCapabilities,
+      )
+      .isEqualTo(
+        internalReplaceDataProviderCapabilitiesRequest {
+          externalDataProviderId = internalDataProvider.externalDataProviderId
+          capabilities = internalDataProvider.details.capabilities
+        }
+      )
+  }
+
+  @Test
   fun `replaceDataProviderCapabilities throws PERMISSION_DENIED for incorrect principal`() {
     val request = replaceDataProviderCapabilitiesRequest {
       name = DATA_PROVIDER_NAME

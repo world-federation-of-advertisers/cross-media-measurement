@@ -38,6 +38,18 @@ service RawImpressionUploadService {
   // Lists RawImpressionUpload entries for a data provider.
   rpc ListRawImpressionUploads(ListRawImpressionUploadsRequest)
       returns (ListRawImpressionUploadsResponse);
+
+  // Marks registration of an upload's files and model lines complete.
+  rpc MarkRawImpressionUploadRegistrationComplete(
+      MarkRawImpressionUploadRegistrationCompleteRequest)
+      returns (RawImpressionUpload);
+}
+
+message MarkRawImpressionUploadRegistrationCompleteRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string request_id = 3;
+  string etag = 4;
 }
 
 // Request message for CreateRawImpressionUpload.
@@ -86,6 +98,9 @@ message ListRawImpressionUploadsRequest {
     // returns resources created before end, omitting end returns
     // resources created after start.
     google.type.Interval create_time_in = 2;
+
+    // Filter by the exact Cloud Storage URI of the done blob.
+    string done_blob_uri = 3;
   }
   Filter filter = 4;
 }

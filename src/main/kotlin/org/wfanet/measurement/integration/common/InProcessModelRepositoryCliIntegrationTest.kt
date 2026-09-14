@@ -62,8 +62,8 @@ import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.createModelLineRequest
 import org.wfanet.measurement.api.v2alpha.createModelSuiteRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.person
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
 import org.wfanet.measurement.api.v2alpha.listModelProvidersRequest
 import org.wfanet.measurement.api.v2alpha.listModelSuitesPageToken
 import org.wfanet.measurement.api.v2alpha.listModelSuitesResponse
@@ -677,7 +677,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
     private const val END_TIME = "2099-02-15T10:00:00Z"
 
     private const val EVENT_MESSAGE_TYPE_URL =
-      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
+      "type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent"
     private val EVENT_MESSAGE_DESCRIPTOR_SET_PATH =
       getRuntimePath(
         Paths.get(
@@ -691,6 +691,7 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
           "v2alpha",
           "event_templates",
           "testing",
+          "v1",
           "test_event_descriptor_set.pb",
         )
       )!!
@@ -705,10 +706,10 @@ abstract class InProcessModelRepositoryCliIntegrationTest(
             }
           attributes +=
             ProtoAny.pack(
-              person {
-                gender = Person.Gender.FEMALE
-                ageGroup = Person.AgeGroup.YEARS_18_TO_34
-                socialGradeGroup = Person.SocialGradeGroup.A_B_C1
+              common {
+                gender = Common.Gender.FEMALE
+                ageGroup = Common.AgeGroup.YEARS_18_TO_34
+                usState = Common.UsState.CALIFORNIA
               }
             )
         }
