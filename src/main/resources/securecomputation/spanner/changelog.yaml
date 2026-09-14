@@ -20,6 +20,9 @@ databaseChangeLog:
       file: add-work-item-publications.sql
       relativeToChangeLogFile: true
   - include:
+      file: add-work-item-publication-retry-scheduling.sql
+      relativeToChangeLogFile: true
+  - include:
       file: add-work-item-generation.sql
       relativeToChangeLogFile: true
   - include:
