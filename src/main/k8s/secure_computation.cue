@@ -84,13 +84,13 @@ package k8s
 	deployments: {
 		"secure-computation-internal-api-server": {
 			_container: args: [
-				"--dead-letter-processing-enabled=" + _deadLetterProcessingEnabled,
-				_debugVerboseGrpcServerLoggingFlag,
-				"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
-				"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
-				"--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
-				"--queue-config=/etc/\(#AppName)/config-files/queues_config.textproto",
-				"--google-project-id=" + #GCloudProject,
+						"--dead-letter-processing-enabled=" + _deadLetterProcessingEnabled,
+						_debugVerboseGrpcServerLoggingFlag,
+						"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
+						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
+						"--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
+						"--queue-config=/etc/\(#AppName)/config-files/queues_config.textproto",
+						"--google-project-id=" + #GCloudProject,
 
 				// Dead-letter listeners: one per EDP-Aggregator phase DLQ. On Pub/Sub retry
 				// exhaustion each marks the EDPA pipeline resources FAILED via the
@@ -123,11 +123,11 @@ package k8s
 
 		"secure-computation-public-api-server": {
 			_container: args: [
-				_debugVerboseGrpcClientLoggingFlag,
-				_debugVerboseGrpcServerLoggingFlag,
-				"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
-				"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
-				"--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
+						_debugVerboseGrpcClientLoggingFlag,
+						_debugVerboseGrpcServerLoggingFlag,
+						"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
+						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
+						"--tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
 			] + _secureComputationInternalApiTarget.args
 			spec: template: spec: {
 				_dependencies: ["secure-computation-internal-api-server"]
