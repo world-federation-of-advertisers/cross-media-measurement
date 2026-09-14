@@ -282,25 +282,19 @@ abstract class BaseTeeApplication(
     } catch (e: Exception) {
       recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      if (workItemAttempt.hasLeaseExpirationTime()) {
-        logger.info(
-          "Leaving leased WorkItemAttempt ${workItemAttempt.name} ACTIVE for lease recovery"
+      try {
+        failWorkItemAttempt(workItemAttempt, e)
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item_attempt.failure_writeback",
+          lifecycleStage = "work_item_attempt_failure_writeback",
+          workItemName = body.name,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
         )
-      } else {
-        try {
-          failWorkItemAttempt(workItemAttempt, e)
-        } catch (error: CancellationException) {
-          throw error
-        } catch (error: Throwable) {
-          recordFailureWriteback(
-            spanName = "secure_computation.work_item_attempt.failure_writeback",
-            lifecycleStage = "work_item_attempt_failure_writeback",
-            workItemName = body.name,
-            workItemAttemptName = workItemAttempt.name,
-            error = error,
-          )
-          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
-        }
+        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
       }
       logger.info("Nacking message ${queueMessage.ackId} after error")
       queueMessage.nack()

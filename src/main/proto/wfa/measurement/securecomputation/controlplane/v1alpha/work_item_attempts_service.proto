@@ -65,10 +65,11 @@ service WorkItemAttempts {
     option (google.api.method_signature) = "name";
   }
 
-  // Updates a `WorkItemAttempt`.
+  // Fails a `WorkItemAttempt`.
   //
-  // Updates the state to `FAILED`. If this exact attempt is already `FAILED`,
-  // returns it without changing it.
+  // A leased attempt schedules its `WorkItem` for another execution or for
+  // dead-letter processing. If this exact attempt is already `FAILED`, returns
+  // it without changing it.
   rpc FailWorkItemAttempt(FailWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) = "name";

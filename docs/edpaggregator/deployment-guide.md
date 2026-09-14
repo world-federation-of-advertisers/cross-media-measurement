@@ -853,8 +853,12 @@ the legacy DataWatcher path. Every legacy and direct prefix sharing a bucket mus
 globally: no prefix may equal, contain, or be contained by another at a path-segment boundary, even
 when the prefixes belong to different data providers. The fetcher validates all namespaces before
 processing any provider. Keep the DataWatcher `results-fulfiller` watched path restricted to the
-top-level legacy prefix. Also set `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
-`SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
+top-level legacy prefix. RequisitionFetcher also requires
+`SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
+`SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`. The repository's Terraform entry point injects the
+target from `secure_computation_public_api_target` and mounts the
+`securecomputation-root-ca` secret at `/secrets/ca/secure_computation_root.pem`; each
+`control_plane_connection.cert_collection_file_path` must name that mounted path.
 
 #### Migrating from DataWatcher dispatch
 
@@ -877,16 +881,16 @@ To activate direct dispatch, operators only need to:
    direct dispatch, TEE MIGs, or individual deployment phases independently.
 
 The workflow's environment-scoped concurrency lock prevents overlapping deployments from
-interleaving rollout phases. Its first Terraform apply uploads the combined config with direct
-dispatch gated off, then quiesces and verifies all WorkItem-consuming TEE MIGs. The workflow rolls
-both Secure Computation API deployments and every
-EDP Aggregator/Requisition Metadata API deployment to completion. Before its final Terraform apply,
-the workflow validates the exact RequisitionFetcher and DataWatcher textprotos from the selected
-GitHub environment. It requires a direct-dispatch block for every configured data provider, a
-control-plane target, queue, TLS paths, and valid ResultsFulfiller parameters; it also rejects
-overlapping storage prefixes or any deployed DataWatcher regex that matches a representative
-direct-path object. Validation failure stops deployment before direct dispatch or workers are
-enabled.
+interleaving rollout phases. Before its first Terraform apply, the workflow validates the exact
+RequisitionFetcher and DataWatcher textprotos from the selected GitHub environment. It requires a
+direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
+and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
+DataWatcher regex that matches a representative direct-path object. Validation failure therefore
+stops deployment before any worker is quiesced. The first Terraform apply then uploads the combined
+config with direct dispatch gated off, and quiesces and verifies all WorkItem-consuming TEE MIGs.
+The workflow rolls both Secure Computation API deployments and every EDP Aggregator/Requisition
+Metadata API deployment to completion. Its final Terraform apply validates the configuration again
+before enabling direct dispatch and the new workers.
 
 The final Terraform apply enables direct dispatch and the new workers. The explicit gate prevents
 Terraform's parallel resource updates from activating direct dispatch while an old TEE can still
@@ -1229,9 +1233,18 @@ grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
 
 Workers created after this rollout renew their active attempt lease. If a worker exits or can no
 longer reach the control plane, the lease expires after five minutes by default. The internal API
-then atomically fails that exact attempt, advances the WorkItem generation, returns the WorkItem to
-`QUEUED`, and creates a new outbox publication. A late heartbeat or completion from the abandoned
-worker is rejected because its attempt is no longer active.
+then atomically fails that exact attempt. If the queue's durable execution-attempt limit has not
+been reached, it advances the WorkItem generation, returns the WorkItem to `QUEUED`, and creates a
+new outbox publication. At the limit, it instead creates an outbox publication for the existing
+dead-letter topic; the existing DLQ listener makes the WorkItem terminal and performs its existing
+best-effort workload-specific failure propagation. A late heartbeat or completion from the
+abandoned worker is rejected because its attempt is no longer active.
+
+A lease-capable worker that catches a workload failure uses the same transaction before NACKing its
+delivery, instead of waiting for lease expiry. This means a permanent workload error cannot receive
+an unbounded number of fresh Pub/Sub delivery budgets as WorkItem generations advance. The default
+limit is five execution attempts per WorkItem and is configured with `max_work_item_attempts` in
+`queues_config.textproto`; `dead_letter_queue_resource_id` identifies the existing DLQ topic.
 
 An attempt created by an old worker has no lease. After the workflow's MIG quiescence barrier, the
 stopped worker's Pub/Sub delivery is either redelivered to a new lease-capable worker or is handled

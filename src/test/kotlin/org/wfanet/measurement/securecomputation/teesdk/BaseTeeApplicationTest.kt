@@ -1104,7 +1104,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `stale nack after duplicate ack leaves leased attempt for reaper recovery`() = runBlocking {
+  fun `leased worker failure is durably reported before stale nack`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -1119,6 +1119,13 @@ class BaseTeeApplicationTest {
       )
       .thenReturn(workItemAttempt)
       .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+    whenever(
+        workItemAttemptsStub.failWorkItemAttempt(
+          any<FailWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
     val originalSubscriber = FakeQueueSubscriber()
     val duplicateSubscriber = FakeQueueSubscriber()
     val workerStarted = CompletableDeferred<Unit>()
@@ -1167,7 +1174,7 @@ class BaseTeeApplicationTest {
     assertThat(originalDelivery.ackCount).isEqualTo(0)
     assertThat(originalDelivery.nackCallCount).isEqualTo(1)
     assertThat(originalDelivery.nackCount).isEqualTo(0)
-    verifyBlocking(workItemAttemptsStub, times(0)) {
+    verifyBlocking(workItemAttemptsStub, times(1)) {
       failWorkItemAttempt(any(), any<io.grpc.Metadata>())
     }
     originalJob.cancelAndJoin()

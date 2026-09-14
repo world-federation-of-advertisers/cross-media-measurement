@@ -47,6 +47,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemAttemptResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttemptAndScheduleRecovery
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getActiveWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemAttemptByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
@@ -246,10 +247,20 @@ class SpannerWorkItemAttemptsService(
             }
             WorkItemAttempt.State.ACTIVE -> {
               val state =
-                txn.failWorkItemAttempt(
-                  workItemAttemptResult.workItemId,
-                  workItemAttemptResult.workItemAttemptId,
-                )
+                if (workItemAttemptResult.workItemAttempt.hasLeaseExpirationTime()) {
+                  val queue =
+                    queueMapping.getQueueById(workItemAttemptResult.queueId)
+                      ?: throw QueueNotFoundForWorkItem(
+                        workItemAttemptResult.workItemAttempt.workItemResourceId
+                      )
+                  txn.failWorkItemAttemptAndScheduleRecovery(workItemAttemptResult, queue)
+                  WorkItemAttempt.State.FAILED
+                } else {
+                  txn.failWorkItemAttempt(
+                    workItemAttemptResult.workItemId,
+                    workItemAttemptResult.workItemAttemptId,
+                  )
+                }
               workItemAttemptResult.workItemAttempt.copy { this.state = state } to true
             }
           }
