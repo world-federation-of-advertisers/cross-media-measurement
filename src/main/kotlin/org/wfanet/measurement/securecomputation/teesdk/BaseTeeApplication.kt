@@ -28,6 +28,7 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
@@ -76,6 +77,7 @@ abstract class BaseTeeApplication(
     delay(ATTEMPT_UPDATE_RETRY_BACKOFF.durationForAttempt(attempt).toMillis())
   },
   private val attemptLeaseRenewalInterval: Duration = DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL,
+  private val workItemConsumptionEnabled: Boolean = workItemConsumptionEnabledFromEnvironment(),
 ) : AutoCloseable {
 
   init {
@@ -86,6 +88,10 @@ abstract class BaseTeeApplication(
 
   /** Starts the TEE application by listening for messages on the specified queue. */
   suspend fun run() {
+    if (!workItemConsumptionEnabled) {
+      logger.info("WorkItem consumption is disabled; waiting without subscribing")
+      awaitCancellation()
+    }
     logger.info("Starting BaseTeeApplication for subscription: $subscriptionId")
     receiveAndProcessMessages()
   }
@@ -276,19 +282,25 @@ abstract class BaseTeeApplication(
     } catch (e: Exception) {
       recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      try {
-        failWorkItemAttempt(workItemAttempt, e)
-      } catch (error: CancellationException) {
-        throw error
-      } catch (error: Throwable) {
-        recordFailureWriteback(
-          spanName = "secure_computation.work_item_attempt.failure_writeback",
-          lifecycleStage = "work_item_attempt_failure_writeback",
-          workItemName = body.name,
-          workItemAttemptName = workItemAttempt.name,
-          error = error,
+      if (workItemAttempt.hasLeaseExpirationTime()) {
+        logger.info(
+          "Leaving leased WorkItemAttempt ${workItemAttempt.name} ACTIVE for lease recovery"
         )
-        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+      } else {
+        try {
+          failWorkItemAttempt(workItemAttempt, e)
+        } catch (error: CancellationException) {
+          throw error
+        } catch (error: Throwable) {
+          recordFailureWriteback(
+            spanName = "secure_computation.work_item_attempt.failure_writeback",
+            lifecycleStage = "work_item_attempt_failure_writeback",
+            workItemName = body.name,
+            workItemAttemptName = workItemAttempt.name,
+            error = error,
+          )
+          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+        }
       }
       logger.info("Nacking message ${queueMessage.ackId} after error")
       queueMessage.nack()
@@ -478,6 +490,7 @@ abstract class BaseTeeApplication(
     protected val logger = Logger.getLogger(this::class.java.name)
 
     private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
+    private const val WORK_ITEM_CONSUMPTION_ENABLED_ENV = "WORK_ITEM_CONSUMPTION_ENABLED"
     val DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL: Duration = Duration.ofMinutes(1)
     private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
     private val RETRYABLE_ATTEMPT_UPDATE_CODES =
@@ -495,5 +508,12 @@ abstract class BaseTeeApplication(
         WorkItem.State.STATE_UNSPECIFIED.name,
         WorkItem.State.UNRECOGNIZED.name,
       )
+
+    private fun workItemConsumptionEnabledFromEnvironment(): Boolean {
+      val value = System.getenv(WORK_ITEM_CONSUMPTION_ENABLED_ENV) ?: return true
+      return requireNotNull(value.toBooleanStrictOrNull()) {
+        "$WORK_ITEM_CONSUMPTION_ENABLED_ENV must be either true or false"
+      }
+    }
   }
 }

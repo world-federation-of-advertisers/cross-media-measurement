@@ -50,7 +50,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobFailedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
-import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
+import org.wfanet.measurement.internal.securecomputation.controlplane.processWorkItemDeadLetterRequest
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -62,7 +63,8 @@ import org.wfanet.measurement.securecomputation.service.Errors
  *
  * This service subscribes to a Google PubSub dead letter queue where messages are sent after a TEE
  * application fails to process them after multiple attempts. It processes each message by
- * extracting the work item ID and calling the WorkItems API to mark the item as failed.
+ * extracting the work item ID and calling the WorkItems API to recover legacy active work or mark
+ * genuinely exhausted work as failed.
  *
  * After failing the WorkItem it also marks the EDP-Aggregator resource(s) that the WorkItem's phase
  * params reference (the per-phase job and the parent `RawImpressionUploadModelLine`) FAILED, so a
@@ -124,15 +126,15 @@ class DeadLetterQueueListener(
   }
 
   /**
-   * Processes a message from the dead letter queue by calling the WorkItems API to mark it as
-   * failed, then (best-effort) marking the EDP-Aggregator resources the WorkItem references FAILED.
+   * Processes a message from the dead letter queue by calling the WorkItems API to recover or fail
+   * it, then (for a terminal failure) best-effort marking the EDP-Aggregator resources FAILED.
    *
    * Messages with empty work item names are acknowledged and skipped. A same-generation redelivery
    * of an already-FAILED WorkItem succeeds idempotently and repeats the best-effort EDPA marking.
    * If the work item is not found, terminal for another reason, or the delivery is stale, the
-   * message is acknowledged. Other errors result in the message being nacked for retry. The EDPA
-   * marking is best-effort and never changes the ack/nack decision (a dead-lettered message is
-   * already terminal).
+   * message is acknowledged. Other errors result in the message being nacked for retry. An active
+   * leased attempt is nacked so lease expiration remains authoritative for recovery. EDPA marking
+   * is best-effort and never changes the ack/nack decision for a terminal WorkItem.
    *
    * @param queueMessage The message received from the dead letter queue.
    */
@@ -149,13 +151,25 @@ class DeadLetterQueueListener(
 
     val errorMessage = resolveErrorMessage(workItem.name)
     try {
-      rpcThrottlers.controlPlane.onReady {
-        workItemsStub.failWorkItem(
-          failWorkItemRequest {
-            workItemResourceId = workItem.name
-            expectedWorkItemGeneration = workItem.generation.takeUnless { it == 0L } ?: 1L
-          }
+      val processedWorkItem =
+        rpcThrottlers.controlPlane.onReady {
+          workItemsStub.processWorkItemDeadLetter(
+            processWorkItemDeadLetterRequest {
+              workItemResourceId = workItem.name
+              expectedWorkItemGeneration = workItem.generation.takeUnless { it == 0L } ?: 1L
+            }
+          )
+        }
+      if (processedWorkItem.state == InternalWorkItem.State.QUEUED) {
+        logger.info(
+          "Recovered legacy unleased attempt for ${workItem.name} at generation " +
+            processedWorkItem.generation
         )
+        queueMessage.ack()
+        return
+      }
+      check(processedWorkItem.state == InternalWorkItem.State.FAILED) {
+        "Unexpected state ${processedWorkItem.state} after processing ${workItem.name}"
       }
       logger.fine("Successfully marked work item as failed: ${workItem.name}")
       // Mark the EDPA resource(s) referenced by this WorkItem FAILED. Best-effort: any failure is

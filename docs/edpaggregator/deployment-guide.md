@@ -870,8 +870,7 @@ To activate direct dispatch, operators only need to:
 1. Add `work_item_dispatch` to each selected provider in
    `REQUISITION_FETCHER_CONFIG_CONTENT`. Preserve the existing top-level `storage_path_prefix`,
    choose a dedicated nested prefix such as `<edp-id>/requisitions-v2` that is disjoint from every
-   legacy and direct prefix sharing the bucket, and verify that the actual
-   legacy DataWatcher `source_path_regex` excludes every direct prefix.
+   legacy and direct prefix sharing the bucket.
 2. Run the repository's top-level **Update CMMS** workflow, or automation that implements the same
    environment lock and ordered barriers.
 3. If deployment fails before workers are restored, rerun the complete process. Do not enable
@@ -881,12 +880,19 @@ The workflow's environment-scoped concurrency lock prevents overlapping deployme
 interleaving rollout phases. Its first Terraform apply uploads the combined config with direct
 dispatch gated off, then quiesces and verifies all WorkItem-consuming TEE MIGs. The workflow rolls
 both Secure Computation API deployments and every
-EDP Aggregator/Requisition Metadata API deployment to completion. Its final Terraform apply enables
-direct dispatch and the new workers. The explicit gate prevents Terraform's parallel resource
-updates from activating direct dispatch while an old TEE can still consume it. DataWatcher and
-RequisitionFetcher remain running; unclaimed Pub/Sub messages remain queued and must not be
-drained. An old RequisitionFetcher revision may reject the newly added textproto field during the
-Cloud Function rollout, but it makes no state change in that case, and the next invocation of the
+EDP Aggregator/Requisition Metadata API deployment to completion. Before its final Terraform apply,
+the workflow validates the exact RequisitionFetcher and DataWatcher textprotos from the selected
+GitHub environment. It requires a direct-dispatch block for every configured data provider, a
+control-plane target, queue, TLS paths, and valid ResultsFulfiller parameters; it also rejects
+overlapping storage prefixes or any deployed DataWatcher regex that matches a representative
+direct-path object. Validation failure stops deployment before direct dispatch or workers are
+enabled.
+
+The final Terraform apply enables direct dispatch and the new workers. The explicit gate prevents
+Terraform's parallel resource updates from activating direct dispatch while an old TEE can still
+consume it. DataWatcher and RequisitionFetcher remain running; unclaimed Pub/Sub messages remain
+queued and must not be drained. An old RequisitionFetcher revision may reject the new textproto
+field during the Cloud Function rollout, but it makes no state change in that case, and the next invocation of the
 new revision polls the same unfulfilled Kingdom requisitions.
 
 Do not invoke the child Terraform, Secure Computation, or EDP Aggregator workflows independently
@@ -1151,17 +1157,20 @@ Configure the deployment, then run **Update CMMS** once. An environment-scoped c
 prevents two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 
-1. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
-   its autoscaler and sets its target size to zero.
-2. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
-   then verify that each has target size zero and no remaining instances. Any failure stops the
-   workflow before an API is rolled.
-3. Roll `secure-computation-internal-api-server` and
-   `secure-computation-public-api-server`, waiting for every replica to complete.
-4. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
-5. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers and
-   starts only the new worker version.
-6. Continue the remaining deployment and tests normally.
+1. Roll `secure-computation-internal-api-server` and
+   `secure-computation-public-api-server` with dead-letter consumption paused. The APIs remain
+   available to producers and existing workers.
+2. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
+   its autoscaler, sets its target size to zero, and writes a process-level consumption gate into
+   the replacement instance template so a surge instance cannot pull work while quiescing.
+3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
+   then verify that each has target size zero and no remaining instances.
+4. Roll Kingdom, then roll the Secure Computation APIs again with dead-letter consumption enabled. The DLQ listener automatically retries current-generation
+   WorkItems that have an active legacy attempt without a lease.
+5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
+6. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers,
+   changes the process-level gate to enabled, and starts only the new worker version.
+7. Continue the remaining deployment and tests normally.
 
 If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
 consumers disabled and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
@@ -1180,11 +1189,17 @@ automatic recovery cover producer traffic during that interval:
 * DataWatcher derives a stable WorkItem ID from the watched-path identifier, object URI, and GCS
   generation. It uses `EnsureWorkItem`, validates an existing item when falling back to an older
   API, and returns transient dispatch failures to Eventarc so the same event is retried.
+* Dead-letter consumption is paused before old workers stop. After the zero-instance barrier, a
+  current-generation DLQ delivery with an active unleased attempt atomically fails that attempt,
+  advances the WorkItem generation, and creates its publication outbox row. A DLQ delivery for an
+  active leased attempt is deferred to the lease reaper. A genuinely exhausted WorkItem with no
+  active attempt remains terminal.
 * A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
   that legacy attempt and creates its new leased attempt at the same WorkItem generation. The MIG
   barrier makes this safe by proving that no old TEE instance remains before new workers start.
 * Existing generation-less WorkItems and queue messages are treated as generation 1. Generation
-  checks prevent stale ordinary and dead-letter deliveries from changing replacement executions.
+  checks make repeated or racing recovery idempotent and prevent stale ordinary and dead-letter
+  deliveries from changing replacement executions.
 
 No subscription drain, database snapshot, active-attempt query, or migration-time
 `FailWorkItemAttempt`/`RetryWorkItem` call is required. New WorkItem creation, `EnsureWorkItem`, and
@@ -1219,9 +1234,11 @@ then atomically fails that exact attempt, advances the WorkItem generation, retu
 worker is rejected because its attempt is no longer active.
 
 An attempt created by an old worker has no lease. After the workflow's MIG quiescence barrier, the
-stopped worker's Pub/Sub delivery is redelivered to a new lease-capable worker. Attempt creation then fails
-the exact unleased attempt and creates the replacement leased attempt in one Spanner transaction,
-without advancing the WorkItem generation. A leased active attempt is never replaced by a duplicate
+stopped worker's Pub/Sub delivery is either redelivered to a new lease-capable worker or is handled
+by the upgraded DLQ listener. Main-queue takeover fails the exact unleased attempt and creates the
+replacement leased attempt in one Spanner transaction without advancing the WorkItem generation.
+DLQ takeover advances the generation and creates a durable publication row. Both paths are
+automatic and generation-fenced. A leased active attempt is never replaced by a duplicate
 delivery; the duplicate is acknowledged and lease expiry remains the authoritative abandonment
 signal.
 

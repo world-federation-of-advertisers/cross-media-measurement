@@ -18,6 +18,7 @@ package k8s
 
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
+	_deadLetterProcessingEnabled: string | *"true"
 
 	_spannerConfig: #SpannerConfig & {
 		database: "secure-computation"
@@ -83,6 +84,7 @@ package k8s
 	deployments: {
 		"secure-computation-internal-api-server": {
 			_container: args: [
+						"--dead-letter-processing-enabled=" + _deadLetterProcessingEnabled,
 						_debugVerboseGrpcServerLoggingFlag,
 						"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
 						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
@@ -97,6 +99,7 @@ package k8s
 				"--dead-letter-subscription-id=subpool-assigner-queue-dlq-sub",
 				"--dead-letter-subscription-id=vid-rank-builder-queue-dlq-sub",
 				"--dead-letter-subscription-id=vid-labeler-queue-dlq-sub",
+				"--dead-letter-subscription-id=results-fulfiller-queue-dlq-sub",
 				"--edpa-tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
 				"--edpa-tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
 				"--metadata-storage-cert-collection-file=/var/run/secrets/files/all_root_certs.pem",

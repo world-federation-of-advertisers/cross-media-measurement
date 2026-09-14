@@ -40,6 +40,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
+import org.wfanet.measurement.internal.securecomputation.controlplane.completeWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
@@ -174,6 +175,27 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
       assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(1)
       assertThat((publisher.messages.last() as WorkItem).generation)
         .isEqualTo(workItem.generation + 1L)
+
+      val replacementAttempt =
+        attemptsService.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = recoveredWorkItem.generation
+            supportsAttemptLease = true
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "replacement-attempt"
+            }
+          }
+        )
+      val completed =
+        attemptsService.completeWorkItemAttempt(
+          completeWorkItemAttemptRequest {
+            workItemResourceId = replacementAttempt.workItemResourceId
+            workItemAttemptResourceId = replacementAttempt.workItemAttemptResourceId
+          }
+        )
+      assertThat(replacementAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+      assertThat(completed.state).isEqualTo(WorkItemAttempt.State.SUCCEEDED)
     }
 
   @Test
