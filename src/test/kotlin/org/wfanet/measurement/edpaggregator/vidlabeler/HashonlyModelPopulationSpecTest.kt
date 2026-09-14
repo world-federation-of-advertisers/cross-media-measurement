@@ -23,8 +23,8 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.getRuntimePath
 import org.wfanet.measurement.common.parseTextProto
 
@@ -50,25 +50,25 @@ class HashonlyModelPopulationSpecTest {
   fun `each pool boundary resolves to the demo the model documents for it`() {
     // Mirrors the pool table in cloudtest_hashonly_model.textproto, which is compiled to the
     // `edp7/hashonly_model` blob the cloud test labels with.
-    assertPool(10000, 24999, Person.Gender.MALE, Person.AgeGroup.YEARS_18_TO_34)
-    assertPool(25000, 39999, Person.Gender.MALE, Person.AgeGroup.YEARS_35_TO_54)
-    assertPool(40000, 54999, Person.Gender.MALE, Person.AgeGroup.YEARS_55_PLUS)
-    assertPool(55000, 69999, Person.Gender.FEMALE, Person.AgeGroup.YEARS_18_TO_34)
-    assertPool(70000, 84999, Person.Gender.FEMALE, Person.AgeGroup.YEARS_35_TO_54)
-    assertPool(85000, 99999, Person.Gender.FEMALE, Person.AgeGroup.YEARS_55_PLUS)
+    assertPool(10000, 24999, Common.Gender.MALE, Common.AgeGroup.YEARS_18_TO_34)
+    assertPool(25000, 39999, Common.Gender.MALE, Common.AgeGroup.YEARS_35_TO_54)
+    assertPool(40000, 54999, Common.Gender.MALE, Common.AgeGroup.YEARS_55_PLUS)
+    assertPool(55000, 69999, Common.Gender.FEMALE, Common.AgeGroup.YEARS_18_TO_34)
+    assertPool(70000, 84999, Common.Gender.FEMALE, Common.AgeGroup.YEARS_35_TO_54)
+    assertPool(85000, 99999, Common.Gender.FEMALE, Common.AgeGroup.YEARS_55_PLUS)
   }
 
   private fun assertPool(
     startVid: Long,
     endVidInclusive: Long,
-    gender: Person.Gender,
-    ageGroup: Person.AgeGroup,
+    gender: Common.Gender,
+    ageGroup: Common.AgeGroup,
   ) {
     for (vid in listOf(startVid, endVidInclusive)) {
-      val person =
-        writer.apply(TestEvent.getDefaultInstance(), vid).unpack(TestEvent::class.java).person
-      assertThat(person.gender).isEqualTo(gender)
-      assertThat(person.ageGroup).isEqualTo(ageGroup)
+      val common =
+        writer.apply(TestEvent.getDefaultInstance(), vid).unpack(TestEvent::class.java).common
+      assertThat(common.gender).isEqualTo(gender)
+      assertThat(common.ageGroup).isEqualTo(ageGroup)
     }
   }
 
@@ -90,7 +90,7 @@ class HashonlyModelPopulationSpecTest {
           )!!
           .toFile(),
         PopulationSpec.getDefaultInstance(),
-        TypeRegistry.newBuilder().add(Person.getDescriptor()).build(),
+        TypeRegistry.newBuilder().add(Common.getDescriptor()).build(),
       )
   }
 }

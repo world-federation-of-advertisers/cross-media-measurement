@@ -18,10 +18,13 @@
 # cloud test's expected-result computation load the same file offline, so the
 # pre-staged days, the pipelined day and the oracle all agree.
 #
-# `Person.social_grade_group` is annotated `population_attribute`, so
-# PopulationSpecValidator requires it on every subpopulation. The model has no
-# social-grade dimension, so it is fixed to A_B_C1 throughout; no cloud-test
-# measurement filters or groups on it.
+# Attributes are `event_templates.testing.v1.Common`, matching the
+# `event_template_type` the deployed VidLabelingConfig sets
+# (wfa.measurement.api.v2alpha.event_templates.testing.v1.TestEvent).
+#
+# `Common.us_state` is annotated `population_attribute`, so PopulationSpecValidator
+# requires it on every subpopulation. The model has no geo dimension, so it is fixed
+# to CALIFORNIA throughout; no cloud-test measurement filters or groups on it.
 
 # MALE 16-34: VIDs 10000-24999
 subpopulations {
@@ -30,10 +33,10 @@ subpopulations {
     end_vid_inclusive: 24999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_18_TO_34
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
@@ -45,10 +48,10 @@ subpopulations {
     end_vid_inclusive: 39999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_35_TO_54
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
@@ -60,10 +63,10 @@ subpopulations {
     end_vid_inclusive: 54999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: MALE
       age_group: YEARS_55_PLUS
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
@@ -75,10 +78,10 @@ subpopulations {
     end_vid_inclusive: 69999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_18_TO_34
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
@@ -90,10 +93,10 @@ subpopulations {
     end_vid_inclusive: 84999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_35_TO_54
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }
@@ -105,10 +108,10 @@ subpopulations {
     end_vid_inclusive: 99999
   }
   attributes {
-    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.Person] {
+    [type.googleapis.com/wfa.measurement.api.v2alpha.event_templates.testing.v1.Common] {
       gender: FEMALE
       age_group: YEARS_55_PLUS
-      social_grade_group: A_B_C1
+      us_state: CALIFORNIA
     }
   }
 }

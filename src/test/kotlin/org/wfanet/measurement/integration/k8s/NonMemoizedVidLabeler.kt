@@ -19,7 +19,7 @@ package org.wfanet.measurement.integration.k8s
 import com.google.protobuf.ByteString
 import java.time.Instant
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
