@@ -234,7 +234,7 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttemptAndScheduleRecover
 ): WorkItemAttemptRecoveryOutcome {
   failWorkItemAttempt(result.workItemId, result.workItemAttemptId)
   return if (result.workItemAttempt.attemptNumber >= queue.maxWorkItemAttempts) {
-    insertDeadLetterWorkItemPublication(result.workItemId)
+    scheduleWorkItemDeadLetterPublication(result.workItemId, result.generation)
     WorkItemAttemptRecoveryOutcome.DEAD_LETTERED
   } else {
     retryWorkItem(result.workItemId, result.generation)
