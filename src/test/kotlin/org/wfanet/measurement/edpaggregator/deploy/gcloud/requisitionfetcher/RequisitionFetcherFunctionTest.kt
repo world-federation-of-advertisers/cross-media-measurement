@@ -247,7 +247,7 @@ class RequisitionFetcherFunctionTest {
     startFunction()
   }
 
-  private fun startFunction(directWorkItemDispatchEnabled: Boolean = true) {
+  private fun startFunction(requisitionFetcherEnabled: Boolean = true) {
     functionProcess =
       FunctionsFrameworkInvokerProcess(
         javaBinaryPath = FETCHER_BINARY_PATH,
@@ -267,7 +267,7 @@ class RequisitionFetcherFunctionTest {
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configFolder.root.toPath()}",
-            "DIRECT_WORK_ITEM_DISPATCH_ENABLED" to directWorkItemDispatchEnabled.toString(),
+            "REQUISITION_FETCHER_ENABLED" to requisitionFetcherEnabled.toString(),
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
             "OTEL_TRACES_EXPORTER" to "none",
@@ -286,7 +286,7 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service dispatches WorkItem when work_item_dispatch is set`() {
+  fun `service dispatches WorkItem`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
     val client = HttpClient.newHttpClient()
@@ -322,7 +322,7 @@ class RequisitionFetcherFunctionTest {
   }
 
   @Test
-  fun `service uses legacy dispatch when direct dispatch config is absent`() {
+  fun `service rejects config without work_item_dispatch`() {
     functionProcess.close()
     ensureWorkItemRequest = null
     copyConfig(
@@ -341,35 +341,32 @@ class RequisitionFetcherFunctionTest {
           BodyHandlers.ofString(),
         )
 
-    assertThat(response.statusCode()).isEqualTo(200)
-    val storageDir = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
-    assertThat(storageDir.listFiles()).isNotEmpty()
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("Invalid config")
     assertThat(ensureWorkItemRequest).isNull()
   }
 
   @Test
-  fun `service uses legacy dispatch while direct dispatch is disabled`() {
+  fun `service does no work while RequisitionFetcher is disabled`() {
     functionProcess.close()
     ensureWorkItemRequest = null
-    startFunction(directWorkItemDispatchEnabled = false)
+    startFunction(requisitionFetcherEnabled = false)
 
     val response = invokeFunction()
 
     assertThat(response.statusCode()).isEqualTo(200)
-    val storageDir = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
-    assertThat(storageDir.listFiles()).isNotEmpty()
+    assertThat(response.body()).contains("RequisitionFetcher is disabled")
+    assertThat(tempFolder.root.listFiles()).isEmpty()
     assertThat(ensureWorkItemRequest).isNull()
-    assertThat(tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile().exists())
-      .isFalse()
   }
 
   @Test
-  fun `service validates work_item_dispatch while direct dispatch is disabled`() {
+  fun `service validates work_item_dispatch while RequisitionFetcher is disabled`() {
     functionProcess.close()
     ensureWorkItemRequest = null
     val config = configFolder.root.toPath().resolve("requisition-fetcher-config.textproto").toFile()
     config.writeText(config.readText().replace("queue: \"results-fulfiller-queue\"", "queue: \"\""))
-    startFunction(directWorkItemDispatchEnabled = false)
+    startFunction(requisitionFetcherEnabled = false)
 
     val response = invokeFunction()
 

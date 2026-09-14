@@ -59,7 +59,6 @@ class ValidateRequisitionFetcherConfig : Runnable {
       requisitionFetcherConfig,
       controlPlaneTarget,
       dataWatcherConfig,
-      requireDirectDispatch = true,
     )
   }
 

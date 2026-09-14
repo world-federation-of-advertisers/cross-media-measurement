@@ -29,27 +29,25 @@ object RequisitionFetcherConfigValidator {
   /**
    * Validates [config].
    *
-   * When [requireDirectDispatch] is true, every configured DataProvider must have a complete
-   * direct-dispatch block, [controlPlaneTarget] must be set, and [dataWatcherConfig] must prove
-   * that no legacy object-name filter matches a representative object in a direct namespace.
+   * Every configured DataProvider must have a complete direct-dispatch block, [controlPlaneTarget]
+   * must be set, and [dataWatcherConfig] must prove that no legacy object-name filter matches a
+   * representative object in a direct namespace.
    */
   fun validate(
     config: RequisitionFetcherConfig,
     controlPlaneTarget: String?,
     dataWatcherConfig: DataWatcherConfig? = null,
-    requireDirectDispatch: Boolean = false,
     storageUriPrefix: (DataProviderRequisitionConfig) -> String = ::storageUriPrefix,
   ) {
     require(config.configsCount > 0) { "RequisitionFetcher config has no data providers." }
     val namespaces = buildList {
       for (dataProviderConfig in config.configsList) {
         val dispatchConfig =
-          dataProviderConfig.workItemDispatch.takeIf { dataProviderConfig.hasWorkItemDispatch() }
-        if (requireDirectDispatch) {
-          requireNotNull(dispatchConfig) {
+          requireNotNull(
+            dataProviderConfig.workItemDispatch.takeIf { dataProviderConfig.hasWorkItemDispatch() }
+          ) {
             "Missing 'work_item_dispatch' for data provider: ${dataProviderConfig.dataProvider}."
           }
-        }
         validateDataProvider(dataProviderConfig, dispatchConfig, controlPlaneTarget)
         val root = storageUriPrefix(dataProviderConfig).removeSuffix("/")
         add(
@@ -59,17 +57,15 @@ object RequisitionFetcherConfigValidator {
             "legacy DataWatcher path for ${dataProviderConfig.dataProvider}",
           )
         )
-        if (dispatchConfig != null) {
-          add(
-            StoragePathPrefixes.Namespace(
-              root,
-              dispatchConfig.storagePathPrefix,
-              "direct-dispatch path for ${dataProviderConfig.dataProvider}",
-            )
+        add(
+          StoragePathPrefixes.Namespace(
+            root,
+            dispatchConfig.storagePathPrefix,
+            "direct-dispatch path for ${dataProviderConfig.dataProvider}",
           )
-          if (dataWatcherConfig != null) {
-            requireDataWatcherExcludesDirectPath(root, dispatchConfig, dataWatcherConfig)
-          }
+        )
+        if (dataWatcherConfig != null) {
+          requireDataWatcherExcludesDirectPath(root, dispatchConfig, dataWatcherConfig)
         }
       }
     }
@@ -78,7 +74,7 @@ object RequisitionFetcherConfigValidator {
 
   private fun validateDataProvider(
     dataProviderConfig: DataProviderRequisitionConfig,
-    dispatchConfig: RequisitionWorkItemDispatchConfig?,
+    dispatchConfig: RequisitionWorkItemDispatchConfig,
     controlPlaneTarget: String?,
   ) {
     val dataProvider = dataProviderConfig.dataProvider
@@ -113,7 +109,6 @@ object RequisitionFetcherConfigValidator {
       "cmms_connection for data provider: $dataProvider",
     )
 
-    if (dispatchConfig == null) return
     require(!controlPlaneTarget.isNullOrBlank()) {
       "Missing Secure Computation control-plane target for direct dispatch."
     }
@@ -174,7 +169,8 @@ object RequisitionFetcherConfigValidator {
     return when (config.requisitionStorage.storageCase) {
       StorageParams.StorageCase.GCS -> "gs://${config.requisitionStorage.gcs.bucketName}"
       StorageParams.StorageCase.FILE_SYSTEM -> "file://"
-      else -> ""
+      StorageParams.StorageCase.STORAGE_NOT_SET ->
+        throw IllegalArgumentException("Requisition storage is not configured")
     }
   }
 }

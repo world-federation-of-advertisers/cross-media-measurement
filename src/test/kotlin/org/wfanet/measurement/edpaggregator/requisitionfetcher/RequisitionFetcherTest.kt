@@ -288,9 +288,8 @@ class RequisitionFetcherTest {
     maxTotalBufferedBytes: Long = RequisitionFetcher.DEFAULT_MAX_TOTAL_BUFFERED_BYTES,
     maxRequisitionsPerGroup: Int = RequisitionFetcher.DEFAULT_MAX_REQUISITIONS_PER_GROUP,
     metadataThrottler: Throttler = this.throttler,
-    workItemDispatcher: RequisitionWorkItemDispatcher? = null,
-    directStoragePathPrefix: String? =
-      if (workItemDispatcher == null) null else DIRECT_STORAGE_PATH_PREFIX,
+    workItemDispatcher: RequisitionWorkItemDispatcher = defaultWorkItemDispatcher(),
+    directStoragePathPrefix: String = DIRECT_STORAGE_PATH_PREFIX,
   ): RequisitionFetcher {
     val validator =
       RequisitionsValidator(
@@ -323,16 +322,24 @@ class RequisitionFetcherTest {
     )
   }
 
+  private fun defaultWorkItemDispatcher(): RequisitionWorkItemDispatcher =
+    SecureComputationRequisitionWorkItemDispatcher(
+      workItemsStub = workItemsStub,
+      queue = "results-fulfiller-queue",
+      resultsFulfillerParams = resultsFulfillerParams {},
+      controlPlaneThrottler = throttler,
+    )
+
   private fun blobsDir() = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
 
   private fun directBlobsDir() =
     tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile()
 
   /**
-   * Makes [requisitionMetadataServiceMock].listRequisitionMetadata stateful: it returns STORED rows
-   * for every requisition already persisted via batchCreateRequisitionMetadata (recorded in
+   * Makes [requisitionMetadataServiceMock].listRequisitionMetadata stateful: it returns QUEUED rows
+   * for every requisition already persisted via registerQueuedRequisitionMetadata (recorded in
    * [createRequisitionMetadataRequests]), filtered to the requested report. This mirrors the real
-   * service so that a second work unit for a report observes the first unit's STORED metadata,
+   * service so that a second work unit for a report observes the first unit's QUEUED metadata,
    * which is what the bufferSplits split-detection and cross-unit recovery both key off of.
    */
   private fun installStatefulMetadataMock() {
@@ -348,7 +355,8 @@ class RequisitionFetcherTest {
                 .filter { reportFilter.isEmpty() || it.report == reportFilter }
                 .map {
                   requisitionMetadata {
-                    state = RequisitionMetadata.State.STORED
+                    state = RequisitionMetadata.State.QUEUED
+                    workItem = "workItems/results-fulfiller-${it.groupId}"
                     cmmsRequisition = it.cmmsRequisition
                     groupId = it.groupId
                     report = it.report
@@ -361,7 +369,7 @@ class RequisitionFetcherTest {
     }
   }
 
-  private fun blobsList() = blobsDir().listFiles().orEmpty()
+  private fun blobsList() = directBlobsDir().listFiles().orEmpty()
 
   @Test
   fun `constructor rejects non-positive flushInterval`() {
@@ -472,7 +480,7 @@ class RequisitionFetcherTest {
     assertThat(dispatchedGroupId).isEqualTo(groupId)
     assertThat(dispatchedBlobUri).isEqualTo("$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId")
     assertThat(directBlobsDir().listFiles().orEmpty()).hasLength(1)
-    assertThat(blobsList()).isEmpty()
+    assertThat(blobsDir().listFiles().orEmpty()).isEmpty()
     assertThat(allMetadataQueuedBeforeDispatch).isTrue()
     val dispatchSpan =
       spanExporter.finishedSpanItems.single {
@@ -882,7 +890,7 @@ class RequisitionFetcherTest {
     assertThat(registerQueuedRequisitionMetadataRequests).hasSize(1)
     assertThat(dispatchAttempts).isEqualTo(2)
     assertThat(directBlobsDir().listFiles().orEmpty()).hasLength(1)
-    assertThat(blobsList()).isEmpty()
+    assertThat(blobsDir().listFiles().orEmpty()).isEmpty()
   }
 
   @Test
@@ -1225,20 +1233,26 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `writes blob before creating any metadata for that group`() = runBlocking {
+  fun `writes blob before registering metadata for that group`() = runBlocking {
     val recordingStorage = OrderRecordingStorageClient(storageClient)
-    whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
+    whenever(requisitionMetadataServiceMock.registerQueuedRequisitionMetadata(any())).thenAnswer {
       invocation ->
-      val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+      val request = invocation.getArgument<RegisterQueuedRequisitionMetadataRequest>(0)
       for (subRequest in request.requestsList) {
         val groupId = subRequest.requisitionMetadata.groupId
         check(recordingStorage.writtenGroupIds.contains(groupId)) {
-          "batchCreateRequisitionMetadata called for $groupId before its blob was written"
+          "registerQueuedRequisitionMetadata called for $groupId before its blob was written"
         }
       }
       createRequisitionMetadataRequests += request.requestsList
-      batchCreateRequisitionMetadataResponse {
-        requisitionMetadata += request.requestsList.map { requisitionMetadata {} }
+      registerQueuedRequisitionMetadataResponse {
+        requisitionMetadata +=
+          request.requestsList.map {
+            requisitionMetadata {
+              state = RequisitionMetadata.State.QUEUED
+              workItem = request.workItem
+            }
+          }
       }
     }
 
@@ -1914,19 +1928,19 @@ class RequisitionFetcherTest {
 
     createFetcher().fetchAndStoreRequisitions()
 
-    val writtenBlobNames = blobsList().map { it.name }.toSet()
+    val writtenBlobNames = blobsDir().listFiles().orEmpty().map { it.name }.toSet()
     assertThat(writtenBlobNames).containsExactly("group-A", "group-B")
     assertThat(counterValue("edpa.requisition_fetcher.recovery_rebuilds")).isEqualTo(2)
   }
 
   @Test
-  fun `batch create failure leaves zero metadata under the group (no partial wedge)`() =
+  fun `queued registration failure leaves zero metadata under the group (no partial wedge)`() =
     runBlocking {
-      // Wedge variant pin: blob already written, batch metadata create throws. Because
-      // BatchCreateRequisitionMetadata is server-side atomic (one Spanner transaction), the
-      // failure produces zero metadata rows under groupId — never a partial subset. Next run
-      // sees `unregistered = all requisitions`, mints a new groupId, writes a fresh blob —
-      // the orphan blob is benign because no metadata references it as STORED.
+      // Wedge variant pin: blob already written, queued metadata registration throws. Because
+      // RegisterQueuedRequisitionMetadata is server-side atomic (one Spanner transaction), the
+      // failure produces zero metadata rows under groupId. The next run sees every requisition as
+      // unregistered, mints a new groupId, and writes a fresh blob. The orphan is benign because no
+      // metadata references it.
       val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
       val r2 =
         TestRequisitionData.REQUISITION.copy {
@@ -1935,8 +1949,8 @@ class RequisitionFetcherTest {
         }
       whenever(requisitionsServiceMock.listRequisitions(any()))
         .thenReturn(listRequisitionsResponse { requisitions += listOf(r1, r2) })
-      whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
-        throw RuntimeException("simulated batch failure after blob write")
+      whenever(requisitionMetadataServiceMock.registerQueuedRequisitionMetadata(any())).thenAnswer {
+        throw RuntimeException("simulated registration failure after blob write")
       }
 
       createFetcher().fetchAndStoreRequisitions()
@@ -1950,7 +1964,7 @@ class RequisitionFetcherTest {
     }
 
   @Test
-  fun `batch create requests carry deterministic UUID requestIds derived per (req, group)`() =
+  fun `queued registration requests carry deterministic UUID requestIds per requisition and group`() =
     runBlocking {
       val r1 = TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 10 } }
       val r2 =
@@ -1977,9 +1991,9 @@ class RequisitionFetcherTest {
   @Test
   fun `requestId is stable across retries for the same (cmmsRequisition, groupId)`(): Unit =
     runBlocking {
-      // Two requisitions for one report; the first batchCreate call throws, forcing the per-
+      // Two requisitions for one report; the first registration call throws, forcing the per-
       // report try/catch to record the failure. The next fetch run replays the same requisitions
-      // (still UNFULFILLED in Kingdom) and re-attempts the batch. RequestIds derived from
+      // (still UNFULFILLED in Kingdom) and re-attempts registration. RequestIds derived from
       // (cmmsRequisition, groupId) via UUID.nameUUIDFromBytes are stable per pair, so the same
       // requisitions produce the same requestId set on every attempt — which is what makes
       // server-side idempotency by requestId work as a backstop against duplicate rows.
@@ -1994,24 +2008,26 @@ class RequisitionFetcherTest {
 
       val attempts = AtomicInteger(0)
       val seenBatches = mutableListOf<List<String>>()
-      whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
-        invocation ->
-        val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
-        val attempt = attempts.incrementAndGet()
-        seenBatches += request.requestsList.map { it.requestId }
-        if (attempt == 1) throw RuntimeException("simulated transient failure")
-        // Second attempt mirrors the normal mock behavior so the run can complete.
-        createRequisitionMetadataRequests += request.requestsList
-        batchCreateRequisitionMetadataResponse {
-          requisitionMetadata +=
-            request.requestsList.map { subRequest ->
-              requisitionMetadata {
-                cmmsRequisition = subRequest.requisitionMetadata.cmmsRequisition
-                groupId = subRequest.requisitionMetadata.groupId
+      whenever(requisitionMetadataServiceMock.registerQueuedRequisitionMetadata(any()))
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<RegisterQueuedRequisitionMetadataRequest>(0)
+          val attempt = attempts.incrementAndGet()
+          seenBatches += request.requestsList.map { it.requestId }
+          if (attempt == 1) throw RuntimeException("simulated transient failure")
+          // Second attempt mirrors the normal mock behavior so the run can complete.
+          createRequisitionMetadataRequests += request.requestsList
+          registerQueuedRequisitionMetadataResponse {
+            requisitionMetadata +=
+              request.requestsList.map { subRequest ->
+                requisitionMetadata {
+                  cmmsRequisition = subRequest.requisitionMetadata.cmmsRequisition
+                  groupId = subRequest.requisitionMetadata.groupId
+                  state = RequisitionMetadata.State.QUEUED
+                  workItem = request.workItem
+                }
               }
-            }
+          }
         }
-      }
 
       // First fetch hits the failure, second fetch retries with the same requisitions because
       // they are still UNFULFILLED and no metadata was persisted on the failed attempt.
@@ -2428,7 +2444,7 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `metadata cache is invalidated when batch create throws on the persist call`() = runBlocking {
+  fun `metadata cache is invalidated when queued registration throws`() = runBlocking {
     val r1 =
       TestRequisitionData.REQUISITION.copy {
         name = "${TestRequisitionData.EDP_NAME}/requisitions/r1"
@@ -2458,22 +2474,27 @@ class RequisitionFetcherTest {
     }
 
     val listCalls = AtomicInteger(0)
-    val batchCalls = AtomicInteger(0)
+    val registrationCalls = AtomicInteger(0)
     whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any())).thenAnswer {
       listCalls.incrementAndGet()
       listRequisitionMetadataResponse {}
     }
-    whenever(requisitionMetadataServiceMock.batchCreateRequisitionMetadata(any())).thenAnswer {
+    whenever(requisitionMetadataServiceMock.registerQueuedRequisitionMetadata(any())).thenAnswer {
       invocation ->
-      val count = batchCalls.incrementAndGet()
-      if (count == 1) throw RuntimeException("simulated batch create failure")
-      val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+      val count = registrationCalls.incrementAndGet()
+      if (count == 1) throw RuntimeException("simulated queued registration failure")
+      val request = invocation.getArgument<RegisterQueuedRequisitionMetadataRequest>(0)
       createRequisitionMetadataRequests += request.requestsList
-      batchCreateRequisitionMetadataResponse {
-        requisitionMetadata += request.requestsList.map { requisitionMetadata {} }
+      registerQueuedRequisitionMetadataResponse {
+        requisitionMetadata +=
+          request.requestsList.map {
+            requisitionMetadata {
+              state = RequisitionMetadata.State.QUEUED
+              workItem = request.workItem
+            }
+          }
       }
     }
-
     createFetcher(flushInterval = Duration.ofMillis(100)).fetchAndStoreRequisitions()
 
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)

@@ -41,7 +41,6 @@ class RequisitionFetcherConfigValidatorTest {
       validFetcherConfig(),
       CONTROL_PLANE_TARGET,
       dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
-      requireDirectDispatch = true,
     )
   }
 
@@ -53,7 +52,6 @@ class RequisitionFetcherConfigValidatorTest {
           validFetcherConfig(),
           CONTROL_PLANE_TARGET,
           dataWatcherConfig("^gs://bucket/(.*)$"),
-          requireDirectDispatch = true,
         )
       }
 
@@ -73,7 +71,6 @@ class RequisitionFetcherConfigValidatorTest {
           config,
           CONTROL_PLANE_TARGET,
           dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
-          requireDirectDispatch = true,
         )
       }
 
@@ -88,7 +85,6 @@ class RequisitionFetcherConfigValidatorTest {
           validFetcherConfig(),
           "",
           dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
-          requireDirectDispatch = true,
         )
       }
 

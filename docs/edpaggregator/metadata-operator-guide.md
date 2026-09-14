@@ -64,7 +64,7 @@ Each scheduled invocation:
    deterministic WorkItem name `workItems/results-fulfiller-<group-id>`, and only
    then ensures that WorkItem through the Secure Computation API. The WorkItem
    carries the persisted blob URI and the configured `ResultsFulfillerParams`.
-   Legacy groups remain `STORED` under the original DataWatcher namespace.
+   Pre-cutover legacy groups remain `STORED` under the original DataWatcher namespace.
 
 This ordering makes every handoff recoverable. A crash before metadata registration
 can leave only an unreferenced direct-prefix blob. A crash after registration leaves
@@ -95,9 +95,9 @@ variable (see the memory row).
 | `MAX_REQUISITIONS_PER_GROUP` | env var | `1000` | Max requisitions per blob / per metadata `BatchCreate`. Bounds the Spanner mutation count per transaction. |
 | `METADATA_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between RequisitionMetadata service RPCs. The pacing multiplier for all list/batch-create calls. |
 | `CONTROL_PLANE_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between Secure Computation WorkItems API RPCs. Each direct group requires one idempotent `EnsureWorkItem` call. |
-| `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` | env var | none | Secure Computation Control Plane gRPC target. Required when an EDP has `work_item_dispatch` configured. |
+| `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` | env var | none | Secure Computation Control Plane gRPC target. Required because every EDP must configure `work_item_dispatch`. |
 | `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` | env var | none | Optional server name used to verify the Control Plane TLS certificate when it differs from the target host. |
-| `DIRECT_WORK_ITEM_DISPATCH_ENABLED` | env var | `true` | Deployment-controlled safety gate. **Update CMMS** sets this to `false` while old TEE workers and APIs are replaced, then enables it in the final Terraform apply. |
+| `REQUISITION_FETCHER_ENABLED` | env var | `true` | Deployment-controlled safety gate. When `false`, invocations validate configuration and return without fetching or dispatching work. **Update CMMS** disables it while workers and APIs are replaced, then enables it in the final Terraform apply. |
 | `GRPC_REQUEST_INTERVAL` | env var | `1s` | Minimum interval between Kingdom mutation RPCs (e.g. `refuseRequisition`). |
 | `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL` | env var | `50ms` | Minimum interval between Kingdom `getEventGroup` RPCs (called during grouping). |
 | `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried on gRPC `RESOURCE_EXHAUSTED` (surfaced by the `page_size_reductions` metric), down to a floor of 1. |

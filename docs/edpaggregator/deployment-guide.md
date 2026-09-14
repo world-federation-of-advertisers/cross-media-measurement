@@ -802,7 +802,7 @@ One `configs` entry per EDP.
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
   requisition_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
-  storage_path_prefix: "<edp-id>/requisitions"
+  storage_path_prefix: "<edp-id>/requisitions"  # Legacy recovery only; no new writes.
   cmms_connection {
     cert_file_path: "/secrets/cert/<edp-id>_tls.pem"
     private_key_file_path: "/secrets/key/<edp-id>_tls.key"
@@ -814,7 +814,7 @@ configs {
     private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
     cert_collection_file_path: "/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem"
   }
-  # Omit this block to keep this EDP on legacy DataWatcher dispatch.
+  # Required. All newly fetched requisitions use direct dispatch.
   work_item_dispatch {
     # Dedicated namespace for directly dispatched groups. Do not match this
     # path in the legacy DataWatcher source_path_regex.
@@ -847,13 +847,14 @@ configs {
 }
 ```
 
-When `work_item_dispatch` is present, RequisitionFetcher writes the grouped blob under its nested
-`storage_path_prefix` and dispatches it directly. When the block is absent, the provider remains on
-the legacy DataWatcher path. Every legacy and direct prefix sharing a bucket must be disjoint
-globally: no prefix may equal, contain, or be contained by another at a path-segment boundary, even
-when the prefixes belong to different data providers. The fetcher validates all namespaces before
-processing any provider. Keep the DataWatcher `results-fulfiller` watched path restricted to the
-top-level legacy prefix. RequisitionFetcher also requires
+`work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
+new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
+`storage_path_prefix` is retained only to recognize and recover pre-cutover DataWatcher-owned groups.
+Every legacy and direct prefix sharing a bucket must be disjoint globally: no prefix may equal,
+contain, or be contained by another at a path-segment boundary, even when the prefixes belong to
+different data providers. The fetcher validates all namespaces before processing any provider. Keep
+the DataWatcher `results-fulfiller` watched path restricted to the top-level legacy prefix.
+RequisitionFetcher also requires
 `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`. The repository's Terraform entry point injects the
 target from `secure_computation_public_api_target` and mounts the
@@ -862,16 +863,16 @@ target from `secure_computation_public_api_target` and mounts the
 
 #### Migrating from DataWatcher dispatch
 
-The legacy and direct paths use separate object namespaces. Metadata registration remains the
-ownership boundary: the direct fetcher creates a group atomically in `QUEUED`, while a legacy group
-is created in `STORED`. Recovery uses each group's persisted `blob_uri`; it never moves a group
-between namespaces. A legacy group with any `PROCESSING` row remains owned by its existing
+The legacy and direct paths use separate object namespaces. All new groups are created atomically in
+`QUEUED` under the direct prefix. Pre-cutover legacy groups remain `STORED` under the original
+prefix. Recovery uses each group's persisted `blob_uri`; it never moves a group between namespaces.
+A legacy group with any `PROCESSING` row remains owned by its existing
 DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
 It still processes newly discovered requisitions for the same report through the direct namespace.
 
 To activate direct dispatch, operators only need to:
 
-1. Add `work_item_dispatch` to each selected provider in
+1. Add the required `work_item_dispatch` block to every provider in
    `REQUISITION_FETCHER_CONFIG_CONTENT`. Preserve the existing top-level `storage_path_prefix`,
    choose a dedicated nested prefix such as `<edp-id>/requisitions-v2` that is disjoint from every
    legacy and direct prefix sharing the bucket.
@@ -886,16 +887,17 @@ RequisitionFetcher and DataWatcher textprotos from the selected GitHub environme
 direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
 and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
 DataWatcher regex that matches a representative direct-path object. Validation failure therefore
-stops deployment before any worker is quiesced. The first Terraform apply then uploads the combined
-config with direct dispatch gated off, and quiesces and verifies all WorkItem-consuming TEE MIGs.
+stops deployment before any worker is quiesced. The first Terraform apply then uploads the config,
+disables RequisitionFetcher processing, and quiesces and verifies all WorkItem-consuming TEE MIGs.
 The workflow rolls both Secure Computation API deployments and every EDP Aggregator/Requisition
 Metadata API deployment to completion. Its final Terraform apply validates the configuration again
-before enabling direct dispatch and the new workers.
+before enabling RequisitionFetcher and the new workers.
 
-The final Terraform apply enables direct dispatch and the new workers. The explicit gate prevents
-Terraform's parallel resource updates from activating direct dispatch while an old TEE can still
-consume it. DataWatcher and RequisitionFetcher remain running; unclaimed Pub/Sub messages remain
-queued and must not be drained. An old RequisitionFetcher revision may reject the new textproto
+The final Terraform apply enables RequisitionFetcher and the new workers. The explicit gate prevents
+Terraform's parallel resource updates from fetching new work while an old TEE can still consume it.
+DataWatcher remains running; RequisitionFetcher invocations validate configuration but do no work
+while disabled. Unclaimed Pub/Sub messages remain queued and must not be drained. An old
+RequisitionFetcher revision may reject the new textproto
 field during the Cloud Function rollout, but it makes no state change in that case. The next
 invocation of the new revision polls the same unfulfilled Kingdom requisitions.
 
@@ -920,10 +922,11 @@ After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remedia
 failure, then call `RetryWorkItem` explicitly. Upgraded workers renew attempt leases, and the Secure
 Computation internal API automatically republishes an attempt after its lease expires.
 
-For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
-the legacy DataWatcher intentionally does not watch that namespace. Then remove the EDP entry from
-the `work_item_dispatch` block and rerun **Update CMMS**. The legacy prefix and DataWatcher rule
-remain unchanged.
+For rollback, first disable RequisitionFetcher and the WorkItem consumers, then drain or repair all
+direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`; the legacy DataWatcher intentionally
+does not watch that namespace. Restore the pre-cutover RequisitionFetcher binary and config as a
+unit before resuming. Do not remove `work_item_dispatch` while the new binary is deployed: the field
+is required. The legacy prefix and DataWatcher rule remain unchanged.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
@@ -1172,8 +1175,9 @@ performs the required order:
    The DLQ listener automatically retries current-generation WorkItems that have an active legacy
    attempt without a lease.
 5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
-6. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers,
-   changes the process-level gate to enabled, and starts only the new worker version.
+6. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
+   the TEE autoscalers, changes both process-level gates to enabled, and starts only the new worker
+   version.
 7. Continue the remaining deployment and tests normally.
 
 If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
@@ -1181,10 +1185,12 @@ consumers disabled and rerun the complete **Update CMMS** workflow. Do not enabl
 independently. Do not manually scale the API deployments to zero: their manifests do not
 explicitly restore replica counts, so manual scaling can leave them stopped.
 
-DataWatcher, RequisitionFetcher, and Pub/Sub remain running during this process. Unclaimed messages
-remain queued and must not be drained. Old and new API replicas may overlap during their Kubernetes
-rolling updates because no TEE consumes WorkItems until both API layers are ready. Compatibility and
-automatic recovery cover producer traffic during that interval:
+DataWatcher and Pub/Sub remain running during this process. RequisitionFetcher stays deployed, but
+its scheduled invocations validate configuration and return successfully without fetching new work
+while the gate is disabled. Unclaimed messages remain queued and must not be drained. Old and new
+API replicas may overlap during their Kubernetes rolling updates because no TEE consumes WorkItems
+until both API layers are ready. Compatibility and automatic recovery cover producer traffic during
+that interval:
 
 * The publication runner continuously finds every `QUEUED` WorkItem whose generation has not been
   scheduled, creates a missing outbox row, and records the scheduled generation in the same

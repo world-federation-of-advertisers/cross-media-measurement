@@ -16,6 +16,7 @@ syntax = "proto3";
 
 package wfa.measurement.config.edpaggregator;
 
+import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
@@ -61,9 +62,9 @@ message DataProviderRequisitionConfig {
   string edp_private_key_path = 5;
   // How the EDP connects to the Requisition Metadata Storage Public API
   TransportLayerSecurityParams requisition_metadata_storage_connection = 6;
-  // Direct WorkItem dispatch configuration. If unset, RequisitionFetcher uses
-  // legacy DataWatcher dispatch for this DataProvider.
-  RequisitionWorkItemDispatchConfig work_item_dispatch = 7;
+  // Direct WorkItem dispatch configuration for newly fetched requisitions.
+  RequisitionWorkItemDispatchConfig work_item_dispatch = 7
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // The Requisition Fetcher configuration
