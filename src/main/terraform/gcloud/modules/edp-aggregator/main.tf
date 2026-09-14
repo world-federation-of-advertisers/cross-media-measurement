@@ -436,6 +436,7 @@ module "result_fulfiller_tee_app" {
   depends_on = [module.secrets]
 
   enabled                       = var.tee_consumers_enabled
+  work_item_consumption_enabled = var.tee_consumers_enabled
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
   base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
   managed_instance_group_name   = var.requisition_fulfiller_config.worker.managed_instance_group_name
@@ -800,6 +801,7 @@ module "vid_labeling_tee_app" {
   depends_on = [module.secrets]
 
   enabled                       = var.tee_consumers_enabled
+  work_item_consumption_enabled = var.tee_consumers_enabled
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name
