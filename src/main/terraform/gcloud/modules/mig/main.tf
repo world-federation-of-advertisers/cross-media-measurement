@@ -25,7 +25,9 @@ locals {
       "google-logging-enabled"                = "true"
       "google-monitoring-enabled"             = "true"
       "tee-container-log-redirect"            = "true"
-      "tee-env-WORK_ITEM_CONSUMPTION_ENABLED" = tostring(var.enabled)
+    },
+    var.work_item_consumption_enabled == null ? {} : {
+      "tee-env-WORK_ITEM_CONSUMPTION_ENABLED" = tostring(var.work_item_consumption_enabled)
     },
     var.config_storage_bucket == null ? {} : {
       "tee-env-EDPA_CONFIG_STORAGE_BUCKET" = "gs://${var.config_storage_bucket}"

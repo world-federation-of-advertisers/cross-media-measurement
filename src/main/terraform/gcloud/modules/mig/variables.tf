@@ -18,6 +18,12 @@ variable "enabled" {
   default     = true
 }
 
+variable "work_item_consumption_enabled" {
+  description = "Whether a WorkItem TEE application may consume Pub/Sub deliveries. Null for non-WorkItem applications."
+  type        = bool
+  default     = null
+}
+
 variable "instance_template_name" {
   description = "The name of the instance template."
   type        = string
