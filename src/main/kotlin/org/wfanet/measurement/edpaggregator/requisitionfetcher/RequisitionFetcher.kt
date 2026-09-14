@@ -538,10 +538,10 @@ class RequisitionFetcher(
    *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
    *    Kingdom and persist `REFUSED` metadata.
    * 4. On valid input, group the requisitions in memory, write the blob under the direct prefix,
-   *    atomically register `QUEUED` metadata, and then ensure the WorkItem. The ordering makes every
-   *    interruption recoverable by a later fetch: no WorkItem can run before its metadata exists,
-   *    and deterministic identifiers make ambiguous retries idempotent. The legacy prefix is used
-   *    only by step 2 to recover work created before cutover.
+   *    atomically register `QUEUED` metadata, and then ensure the WorkItem. The ordering makes
+   *    every interruption recoverable by a later fetch: no WorkItem can run before its metadata
+   *    exists, and deterministic identifiers make ambiguous retries idempotent. The legacy prefix
+   *    is used only by step 2 to recover work created before cutover.
    */
   private suspend fun processReportInner(
     unit: ReportWorkUnit,
