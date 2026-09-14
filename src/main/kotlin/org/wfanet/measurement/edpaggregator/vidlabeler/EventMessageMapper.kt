@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeler
 
 import com.google.protobuf.Descriptors
 import com.google.protobuf.DynamicMessage
+import org.wfanet.measurement.api.v2alpha.EventTemplates
 import org.wfanet.measurement.edpaggregator.rawimpressions.ProtoRowProjector
 import org.wfanet.measurement.storage.ParquetValue
 
@@ -45,6 +46,24 @@ class EventMessageMapper(
 ) {
   private val bindings: List<ProtoRowProjector.Binding> =
     ProtoRowProjector.bind(eventDescriptor, eventTemplateFieldMapping)
+
+  init {
+    // Population attributes describe the VID the model assigns, and PopulationAttributeWriter
+    // sources them from the model line's PopulationSpec. Mapping one to a raw column would express
+    // the DataProvider's uploaded demographics, which the writer then overwrites -- so the mapping
+    // is silently dead. Declared demographics belong in labeler_input_field_mapping, which feeds
+    // the correction model itself.
+    val populationFields: Set<Descriptors.FieldDescriptor> =
+      EventTemplates.getPopulationFieldsByTemplateType(eventDescriptor).values.flatten().toSet()
+    for ((fieldPath, column) in eventTemplateFieldMapping) {
+      val leaf = ProtoRowProjector.resolvePath(eventDescriptor, fieldPath).last()
+      require(leaf !in populationFields) {
+        "event_template_field_mapping maps population attribute '$fieldPath' to column '$column'; " +
+          "population attributes come from the model line's PopulationSpec, and declared " +
+          "demographics belong in labeler_input_field_mapping"
+      }
+    }
+  }
 
   /** Builds the event [DynamicMessage] from [row], setting only the mapped, non-NULL columns. */
   fun project(row: Map<String, ParquetValue>): DynamicMessage {

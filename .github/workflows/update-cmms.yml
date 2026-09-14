@@ -312,6 +312,9 @@ jobs:
     ]
     uses: ./.github/workflows/run-k8s-tests.yml
     secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
     with:
       environment: ${{ inputs.environment }}
 
