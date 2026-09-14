@@ -84,6 +84,21 @@ fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
   return state
 }
 
+/** Advances the generation and schedules a dead-letter publication for a running WorkItem. */
+fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemDeadLetterPublication(
+  workItemId: Long,
+  generation: Long,
+) {
+  val nextGeneration = generation + 1L
+  bufferUpdateMutation("WorkItems") {
+    set("WorkItemId").to(workItemId)
+    set("Generation").to(nextGeneration)
+    set("PublicationScheduledGeneration").to(nextGeneration)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  insertDeadLetterWorkItemPublication(workItemId)
+}
+
 /**
  * Buffers an insert mutation for the WorkItems table.
  *
