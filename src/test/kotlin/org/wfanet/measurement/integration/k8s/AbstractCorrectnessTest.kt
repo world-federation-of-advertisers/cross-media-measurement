@@ -456,7 +456,7 @@ abstract class AbstractCorrectnessTest(private val measurementSystem: Measuremen
         createAccessPrincipal(
           measurementConsumer,
           accessChannel,
-          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+          openIdProvidersConfig.providerConfigByIssuerMap.keys.single(),
         )
       val openIdProvider =
         OpenIdProvider(
