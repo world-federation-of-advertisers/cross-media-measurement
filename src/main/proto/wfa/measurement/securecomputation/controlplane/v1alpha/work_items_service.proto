@@ -142,13 +142,13 @@ message FailWorkItemRequest {
         "control-plane.secure-computation.halo-cmm.org/WorkItem"
   ];
 
-  // Generation from the delivered `WorkItem`. If omitted, generation 1 is
-  // used for compatibility with queue messages published before generations
-  // were added.
+  // Expected execution generation from the delivered `WorkItem`. New clients
+  // must populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
   //
   // This prevents a stale queue delivery from failing a newer execution of
   // the same `WorkItem`.
-  int64 expected_work_item_generation = 2
+  optional int64 expected_work_item_generation = 2
       [(google.api.field_behavior) = OPTIONAL];
 }
 

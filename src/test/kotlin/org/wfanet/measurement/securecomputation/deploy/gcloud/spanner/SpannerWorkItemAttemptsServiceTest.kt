@@ -413,6 +413,11 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
     assertThat(staleDeliveryError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
     assertThat(staleDeliveryError.errorInfo?.reason)
       .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+    val attempts =
+      attemptsService.listWorkItemAttempts(
+        listWorkItemAttemptsRequest { workItemResourceId = workItem.workItemResourceId }
+      )
+    assertThat(attempts.workItemAttemptsList).hasSize(1)
     assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(1)
     assertThat(publisher.queueNames).containsExactly(DEAD_LETTER_QUEUE_RESOURCE_ID)
     assertThat((publisher.messages.single() as WorkItem).generation)

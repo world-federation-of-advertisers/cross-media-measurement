@@ -167,7 +167,7 @@ class WorkItemAttemptsServiceTest {
     }
 
   @Test
-  fun `createWorkItemAttempt defaults missing expected generation to one`() = runBlocking {
+  fun `createWorkItemAttempt preserves missing expected generation`() = runBlocking {
     val internalWorkItemAttempt = internalWorkItemAttempt {
       workItemResourceId = "workItem"
       workItemAttemptResourceId = "workItemAttempt"
@@ -191,11 +191,35 @@ class WorkItemAttemptsServiceTest {
       )
       .isEqualTo(
         internalCreateWorkItemAttemptRequest {
-          expectedWorkItemGeneration = 1L
           workItemAttempt = internalWorkItemAttempt {
             workItemResourceId = "workItem"
             workItemAttemptResourceId = "workItemAttempt"
           }
+        }
+      )
+  }
+
+  @Test
+  fun `createWorkItemAttempt rejects explicit zero expected generation`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            parent = "workItems/workItem"
+            workItemAttemptId = "workItemAttempt"
+            workItemAttempt = workItemAttempt {}
+            expectedWorkItemGeneration = 0L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
         }
       )
   }

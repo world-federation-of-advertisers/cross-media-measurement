@@ -576,7 +576,7 @@ class WorkItemServiceTest {
   }
 
   @Test
-  fun `failWorkItem defaults missing expected generation to one`() = runBlocking {
+  fun `failWorkItem preserves missing expected generation`() = runBlocking {
     val internalWorkItem = internalWorkItem {
       workItemResourceId = "work-item"
       state = InternalWorkItem.State.FAILED
@@ -590,10 +590,28 @@ class WorkItemServiceTest {
         internalServiceMock,
         WorkItemsGrpcKt.WorkItemsCoroutineImplBase::failWorkItem,
       )
+      .isEqualTo(internalFailWorkItemRequest { workItemResourceId = "work-item" })
+  }
+
+  @Test
+  fun `failWorkItem rejects explicit zero expected generation`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.failWorkItem(
+          failWorkItemRequest {
+            name = "workItems/work-item"
+            expectedWorkItemGeneration = 0L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
       .isEqualTo(
-        internalFailWorkItemRequest {
-          workItemResourceId = "work-item"
-          expectedWorkItemGeneration = 1L
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
         }
       )
   }

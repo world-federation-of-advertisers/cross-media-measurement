@@ -803,6 +803,116 @@ class BaseTeeApplicationTest {
   }
 
   @Test
+  fun `nacks leased worker failure when failure cannot be reported`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val workItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      leaseExpirationTime = timestamp { seconds = 300L }
+    }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
+    whenever(
+        workItemAttemptsStub.failWorkItemAttempt(
+          any<FailWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure = IllegalStateException("worker failed"),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "some-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    verifyBlocking(workItemAttemptsStub, times(3)) {
+      failWorkItemAttempt(any(), any<io.grpc.Metadata>())
+    }
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(1)
+    job.cancelAndJoin()
+  }
+
+  @Test
+  fun `acks leased worker failure when retry confirms attempt already failed`() = runBlocking {
+    val workItemsStub = mock<WorkItemsCoroutineStub>()
+    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+    val workItemAttempt = workItemAttempt {
+      name = "workItems/workItem/workItemAttempts/workItemAttempt"
+      leaseExpirationTime = timestamp { seconds = 300L }
+    }
+    val failedAttempt = workItemAttempt {
+      name = workItemAttempt.name
+      state = WorkItemAttempt.State.FAILED
+      leaseExpirationTime = workItemAttempt.leaseExpirationTime
+    }
+    whenever(
+        workItemAttemptsStub.createWorkItemAttempt(
+          any<CreateWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenReturn(workItemAttempt)
+    whenever(
+        workItemAttemptsStub.failWorkItemAttempt(
+          any<FailWorkItemAttemptRequest>(),
+          any<io.grpc.Metadata>(),
+        )
+      )
+      .thenAnswer { throw StatusException(io.grpc.Status.UNAVAILABLE) }
+      .thenReturn(failedAttempt)
+    val fakeSubscriber = FakeQueueSubscriber()
+    val app =
+      BaseTeeApplicationImpl(
+        subscriptionId = SUBSCRIPTION_ID,
+        queueSubscriber = fakeSubscriber,
+        parser = WorkItem.parser(),
+        workItemsStub,
+        workItemAttemptsStub,
+        failure = IllegalStateException("worker failed"),
+      )
+    val job = launch { app.run() }
+    val consumer = TestMessageConsumer()
+
+    fakeSubscriber.send(
+      QueueSubscriber.QueueMessage(
+        body = createWorkItem(createTestWork()),
+        consumer = consumer,
+        ackId = "some-ack-id",
+      )
+    )
+    consumer.disposition.await()
+
+    verifyBlocking(workItemAttemptsStub, times(2)) {
+      failWorkItemAttempt(any(), any<io.grpc.Metadata>())
+    }
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    job.cancelAndJoin()
+  }
+
+  @Test
   fun `leased worker failure is durably reported without stale nack`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
