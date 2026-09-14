@@ -76,6 +76,7 @@ message AcquireRawImpressionUploadEvictionFenceRequest {
   ];
 }
 
+// Response from acquiring the VID-labeling eviction fence.
 message AcquireRawImpressionUploadEvictionFenceResponse {}
 
 // Request message for `ReleaseRawImpressionUploadEvictionFence`.
@@ -95,6 +96,7 @@ message ReleaseRawImpressionUploadEvictionFenceRequest {
   ];
 }
 
+// Response from releasing the VID-labeling eviction fence.
 message ReleaseRawImpressionUploadEvictionFenceResponse {}
 
 // Request message for `MarkRawImpressionUploadRegistrationComplete`.
