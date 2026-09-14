@@ -267,7 +267,7 @@ locals {
       ]))
       secret_mappings = join(",", compact([
         var.requisition_fetcher_secret_mapping,
-        "/secrets/ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
+        "/secrets/secure-computation-ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
       ]))
       uber_jar_path = var.requisition_fetcher_uber_jar_path
     },
