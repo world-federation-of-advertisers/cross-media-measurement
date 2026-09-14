@@ -206,12 +206,19 @@ abstract class BaseTeeApplication(
       }
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      runCatching { failWorkItemAttempt(workItemAttempt, e) }
-        .onFailure { error ->
-          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
-        }
-      logger.info("Nacking message ${queueMessage.ackId} after error")
-      queueMessage.nack()
+      val failureReported =
+        runCatching { failWorkItemAttempt(workItemAttempt, e) }
+          .onFailure { error ->
+            logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+          }
+          .isSuccess
+      if (workItemAttempt.hasLeaseExpirationTime() && failureReported) {
+        logger.info("WorkItemAttempt failure reported. Acking message ${queueMessage.ackId}")
+        queueMessage.ack()
+      } else {
+        logger.info("Nacking message ${queueMessage.ackId} after error")
+        queueMessage.nack()
+      }
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }
