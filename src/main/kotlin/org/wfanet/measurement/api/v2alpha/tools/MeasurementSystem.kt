@@ -1007,7 +1007,11 @@ private class DataProviders {
     noiseMechanismDeterministicTruncatedLaplaceSupported: Boolean? = null,
     @Option(
       names = ["--trus-tee-v2-supported"],
-      description = ["Whether the TrusTEE multimeasurement protocol is supported"],
+      description =
+        [
+          "Whether the TrusTEE multimeasurement protocol is supported. Nothing issues such a " +
+            "Requisition yet, so setting this has no effect."
+        ],
       required = false,
     )
     trusTeeV2Supported: Boolean? = null,

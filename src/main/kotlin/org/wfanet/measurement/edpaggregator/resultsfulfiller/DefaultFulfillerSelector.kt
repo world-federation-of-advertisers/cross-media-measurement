@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.kotlin.unpack
+import java.util.logging.Logger
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.EncryptionPublicKey
 import org.wfanet.measurement.api.v2alpha.FulfillRequisitionRequest
@@ -186,7 +187,8 @@ internal fun frequencyVectorCap(
  * @param supportedMultiPartyNoiseMechanisms set of [NoiseMechanism] values this EDP supports for
  *   multi-party protocols (HMSS, TrusTee). When non-empty, any HMSS or TrusTee requisition whose
  *   protocol noise mechanism is not in this set will be refused. When empty, no multi-party noise
- *   validation is performed.
+ *   validation is performed. TrusTeeV2 is not covered: its `ProtocolConfig` carries no mechanism,
+ *   because the noise is fixed in the attested image.
  * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
  */
 class DefaultFulfillerSelector(
@@ -266,6 +268,12 @@ class DefaultFulfillerSelector(
       // `ProtocolConfig.TrusTeeV2` carries no fields. The noise mechanism and the result minimum
       // thresholds are fixed in the attested image, so there is nothing to validate here and the
       // TEE applies the thresholds after noising rather than this EDP applying them first.
+      if (resultMinimumThresholds != null) {
+        logger.warning(
+          "Configured result minimum thresholds do not apply to ${requisition.name}: a TrusTeeV2 " +
+            "fulfillment is thresholded in the attested image, which carries its own values."
+        )
+      }
       TrusTeeMeasurementFulfiller(
         requisition,
         requisitionSpec.nonce,
@@ -371,13 +379,13 @@ class DefaultFulfillerSelector(
     if (kekUri == null) {
       val totalUncappedImpressions = frequencyVector.getTotalUncappedImpressions()
       require(totalUncappedImpressions == 0L) {
-        "TrusTee protocol selected with null kekUri but totalUncappedImpressions is " +
-          "$totalUncappedImpressions. Expected 0 impressions when no data sources are available."
+        "TrusTee or TrusTeeV2 protocol selected with null kekUri but totalUncappedImpressions " +
+          "is $totalUncappedImpressions. Expected 0 impressions when no data sources are available."
       }
       return null
     }
     requireNotNull(trusTeeConfig) {
-      "TrusTee protocol selected but trusTeeConfig is null. " +
+      "TrusTee or TrusTeeV2 protocol selected but trusTeeConfig is null. " +
         "TrusTeeConfig must be provided when impression data sources are available."
     }
     return trusTeeConfig.buildEncryptionParams(kekUri, kekUriToKeyNameMap)
@@ -444,5 +452,9 @@ class DefaultFulfillerSelector(
       requisitionsThrottler,
       kingdomThrottler,
     )
+  }
+
+  companion object {
+    private val logger: Logger = Logger.getLogger(this::class.java.name)
   }
 }
