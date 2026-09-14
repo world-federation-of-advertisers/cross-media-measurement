@@ -42,16 +42,16 @@ import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsResponse
 /**
  * Test that a deployed Reporting MCP server serves MCP against the real Reporting API.
  *
- * Scope: the server is reached over its public Ingress. The in-cluster ClusterIP Service is not
- * exercised, as this test runs from outside the cluster and has no cluster credentials.
+ * In CI, requests are tunneled through a temporary proxy pod that connects to the in-cluster
+ * `reporting-mcp-server` Service.
  *
  * Assumptions:
- * * The MCP server is deployed and reachable at [CorrectnessTestConfig.getMcpHost], which the
- *   deployment renders only when the environment also configures an OAuth issuer.
+ * * The MCP server is deployed and reachable at the endpoint in [MCP_ENDPOINT_ENV].
  * * The Reporting API trusts the OpenID provider in `open_id_providers_config.json`.
  * * The MeasurementConsumer has EventGroups.
  *
- * The whole test is skipped when the environment has no MCP host configured.
+ * The whole test is skipped when [MCP_ENDPOINT_ENV] is unset. OAuth-specific tests are also skipped
+ * when the environment does not expose an OAuth-protected MCP endpoint.
  */
 @RunWith(JUnit4::class)
 class ReportingMcpSmokeTest {
@@ -65,6 +65,8 @@ class ReportingMcpSmokeTest {
 
   @Test
   fun `server serves OAuth protected resource metadata`() {
+    assumeOAuthConfigured()
+
     val response = sendGet(OAUTH_PROTECTED_RESOURCE_PATH)
 
     assertThat(response.statusCode()).isEqualTo(200)
@@ -75,6 +77,8 @@ class ReportingMcpSmokeTest {
 
   @Test
   fun `mcp returns unauthorized when bearer token is missing`() {
+    assumeOAuthConfigured()
+
     val response = postMcp(INITIALIZE_REQUEST, bearerToken = null)
 
     assertThat(response.statusCode()).isEqualTo(401)
@@ -115,6 +119,7 @@ class ReportingMcpSmokeTest {
     private const val SERVER_NAME = "ReportingMcpServer"
     private const val EVENT_GROUPS_LIST_PERMISSION = "reporting.eventGroups.list"
     private const val SSE_DATA_PREFIX = "data:"
+    private const val MCP_ENDPOINT_ENV = "MCP_ENDPOINT"
     private val TIMEOUT = Duration.ofSeconds(60)
 
     private val INITIALIZE_REQUEST =
@@ -132,7 +137,7 @@ class ReportingMcpSmokeTest {
       parseTextProto(configFile, CorrectnessTestConfig.getDefaultInstance())
     }
 
-    private val baseUrl: String by lazy { "https://${TEST_CONFIG.mcpHost}" }
+    private val baseUrl: String by lazy { System.getenv(MCP_ENDPOINT_ENV).orEmpty().trimEnd('/') }
 
     private val httpClient: HttpClient by lazy {
       HttpClient.newBuilder().connectTimeout(TIMEOUT).build()
@@ -160,9 +165,16 @@ class ReportingMcpSmokeTest {
 
     @BeforeClass
     @JvmStatic
-    fun assumeMcpHostConfigured() {
+    fun assumeMcpEndpointConfigured() {
+      if (baseUrl.isEmpty()) {
+        logger.warning("$MCP_ENDPOINT_ENV is not set. Skipping.")
+      }
+      assumeTrue(baseUrl.isNotEmpty())
+    }
+
+    private fun assumeOAuthConfigured() {
       if (TEST_CONFIG.mcpHost.isEmpty()) {
-        logger.warning("No MCP host configured for this environment. Skipping.")
+        logger.warning("No MCP host configured for this environment. Skipping OAuth checks.")
       }
       assumeTrue(TEST_CONFIG.mcpHost.isNotEmpty())
     }

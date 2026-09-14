@@ -165,6 +165,9 @@ java_test(
     data = [
         ":correctness_test_config.textproto",
     ],
+    env_inherit = [
+        "MCP_ENDPOINT",
+    ],
     tags = [
         # Creates the shared Access Principal and Role, so it must not run alongside other tests
         # that do the same.

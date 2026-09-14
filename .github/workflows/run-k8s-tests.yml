@@ -35,6 +35,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   run-tests:
@@ -42,6 +43,18 @@ jobs:
     environment: ${{ inputs.environment }}
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.GKE_CONFIG_SERVICE_ACCOUNT }}
+
+    - name: Get GKE cluster credentials
+      uses: google-github-actions/get-gke-credentials@3da1e46a907576cefaa90c484278bb5b259dd395 # v3.0.0
+      with:
+        cluster_name: reporting-v2
+        location: ${{ vars.GCLOUD_ZONE }}
 
     - name: Write auth.bazelrc
       env:
@@ -116,12 +129,90 @@ jobs:
     - name: Set TCP keepalive
       run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
 
-    - name: Run tests
+    - name: Run tests through the in-cluster MCP Service
       id: run-tests
-      run: >
-        bazelisk test
-        //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest
-        //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest
+      env:
+        MCP_ENDPOINT: http://127.0.0.1:18080
+        MCP_PROXY_POD: reporting-mcp-smoke-${{ github.run_id }}-${{ github.run_attempt }}
+      run: |
+        cleanup() {
+          if [[ -n "${MCP_PORT_FORWARD_PID:-}" ]]; then
+            kill "$MCP_PORT_FORWARD_PID" || true
+          fi
+          kubectl delete pod "$MCP_PROXY_POD" --ignore-not-found --wait=false || true
+          kubectl delete networkpolicy "$MCP_PROXY_POD" --ignore-not-found || true
+        }
+        trap cleanup EXIT
+
+        kubectl apply -f - <<EOF
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        metadata:
+          name: $MCP_PROXY_POD
+        spec:
+          podSelector:
+            matchLabels:
+              app: $MCP_PROXY_POD
+          policyTypes:
+          - Ingress
+          - Egress
+          ingress:
+          - ports:
+            - protocol: TCP
+              port: 8080
+          egress:
+          - to:
+            - podSelector:
+                matchLabels:
+                  app: reporting-mcp-server-app
+            ports:
+            - protocol: TCP
+              port: 8080
+        ---
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: $MCP_PROXY_POD
+          labels:
+            app: $MCP_PROXY_POD
+        spec:
+          activeDeadlineSeconds: 7200
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65534
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+          - name: proxy
+            image: registry.k8s.io/busybox:1.27
+            command: ["sh", "-c", "nc -ll -p 8080 -e nc reporting-mcp-server 8080"]
+            securityContext:
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: ["ALL"]
+        EOF
+
+        kubectl wait --for=condition=Ready "pod/$MCP_PROXY_POD" --timeout=60s
+        kubectl port-forward "pod/$MCP_PROXY_POD" 18080:8080 \
+          >"$RUNNER_TEMP/reporting-mcp-port-forward.log" 2>&1 &
+        MCP_PORT_FORWARD_PID=$!
+        for attempt in {1..30}; do
+          if curl --fail --silent "$MCP_ENDPOINT/healthz" >/dev/null; then
+            break
+          fi
+          if [[ "$attempt" == 30 ]]; then
+            cat "$RUNNER_TEMP/reporting-mcp-port-forward.log"
+            kubectl logs "$MCP_PROXY_POD" || true
+            exit 1
+          fi
+          sleep 1
+        done
+
+        bazelisk test \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGeneratorCorrectnessTest \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest
 
     - name: Upload Bazel testlogs
       continue-on-error: true

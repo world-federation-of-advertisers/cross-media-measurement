@@ -100,19 +100,23 @@ bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:SyntheticGen
     --define=mcp_host=mcp.reporting.dev.halo-cmm.org
 ```
 
-`mcp_host` is the public hostname of the Reporting MCP server. It is only read
-by the MCP smoke test below, but the define is required by the shared test
-configuration; pass `--define=mcp_host=` for an environment that has no MCP
-server.
+`mcp_host` is the public hostname of the Reporting MCP server. The smoke test
+uses it to determine whether to run the OAuth-specific checks. Pass
+`--define=mcp_host=` for an environment that does not expose an OAuth-protected
+MCP endpoint.
 
 ## Run the Reporting MCP smoke test
 
 The MCP smoke test checks that the deployed Reporting MCP server serves MCP
-against the Reporting API. It takes the same defines and skips itself when
-`mcp_host` is empty.
+against the Reporting API. `MCP_ENDPOINT` specifies the endpoint under test;
+the test is skipped when it is unset. The Kubernetes test workflow creates a
+temporary proxy pod and sets this variable to a local tunnel through that pod,
+so requests reach the MCP server through its in-cluster Service. For a manual
+test of the public endpoint, set it to the public URL instead.
 
 ```shell
-bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest \
+MCP_ENDPOINT=https://mcp.reporting.dev.halo-cmm.org \
+  bazel test //src/test/kotlin/org/wfanet/measurement/integration/k8s:ReportingMcpSmokeTest \
     --test_output=streamed \
     --define=mcp_host=mcp.reporting.dev.halo-cmm.org \
     ... # the remaining defines from the command above
