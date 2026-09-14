@@ -108,8 +108,9 @@ class DataWatcher(
       onProcessingCompleted(config, path, processingDurationSeconds)
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
-      onProcessingFailed(config, path, elapsedSeconds, e)
-      if (e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES) {
+      val isRetryable = e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES
+      onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
+      if (isRetryable) {
         throw e
       }
     }
@@ -246,6 +247,7 @@ class DataWatcher(
     path: String,
     durationSeconds: Double,
     throwable: Throwable,
+    shouldLog: Boolean,
   ) {
     Span.current()
       .addEvent(
@@ -259,11 +261,13 @@ class DataWatcher(
           .put(ATTR_ERROR_MESSAGE_KEY, throwable.message ?: "")
           .build(),
       )
-    logger.log(
-      Level.SEVERE,
-      "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
-      throwable,
-    )
+    if (shouldLog) {
+      logger.log(
+        Level.SEVERE,
+        "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
+        throwable,
+      )
+    }
   }
 
   private fun onQueueWrite(
