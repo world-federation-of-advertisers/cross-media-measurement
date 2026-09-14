@@ -225,23 +225,14 @@ class EvictUploader(
         evictionOperationId = plan.evictionOperationId
       }
     )
-    var mutationStarted = false
-    try {
-      val refreshed =
-        plan(plan.badUploads, plan.cutoffTime, evictionOperationId = plan.evictionOperationId)
-      require(refreshed.cascade == plan.cascade) {
-        "eviction plan changed after confirmation; review the new plan and retry"
-      }
-      mutationStarted = true
-      val result = executeEviction(plan, reason)
-      releaseEvictionFence(dataProvider, plan.evictionOperationId)
-      return result
-    } catch (e: Exception) {
-      if (!mutationStarted) {
-        releaseEvictionFence(dataProvider, plan.evictionOperationId)
-      }
-      throw e
+    val refreshed =
+      plan(plan.badUploads, plan.cutoffTime, evictionOperationId = plan.evictionOperationId)
+    require(refreshed.cascade == plan.cascade) {
+      "eviction plan changed after confirmation; review the new plan and retry"
     }
+    val result = executeEviction(plan, reason)
+    releaseEvictionFence(dataProvider, plan.evictionOperationId)
+    return result
   }
 
   private suspend fun executeEviction(plan: EvictionPlan, reason: String): EvictionResult {
