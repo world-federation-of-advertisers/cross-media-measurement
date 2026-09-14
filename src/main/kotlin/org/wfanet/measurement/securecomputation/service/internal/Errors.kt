@@ -204,10 +204,7 @@ class WorkItemGenerationMismatchException(
     cause,
   )
 
-class WorkItemPublicationPendingException(
-  workItemResourceId: String,
-  cause: Throwable? = null,
-) :
+class WorkItemPublicationPendingException(workItemResourceId: String, cause: Throwable? = null) :
   ServiceException(
     Errors.Reason.WORK_ITEM_PUBLICATION_PENDING,
     "WorkItem with resource ID $workItemResourceId already has a pending publication",
