@@ -41,6 +41,7 @@ import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt
 import org.wfanet.measurement.api.v2alpha.listModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toProtoTime
@@ -177,6 +178,11 @@ class UploadHealingWorkflowIntegrationTest {
     val d3 = uploads[2]
     val d4 = uploads[3]
     val d5 = uploads[4]
+    val retainedRawBlobs =
+      uploads
+        .flatMap { listOf(it.doneKey, it.rawFileKey) }
+        .associateWith { blobKey -> checkNotNull(rawStorage.getBlob(blobKey)).read().flatten() }
+    val requestedBlobDeletions = mutableListOf<String>()
     val evictUploader =
       EvictUploader(
         uploadsStub,
@@ -185,7 +191,13 @@ class UploadHealingWorkflowIntegrationTest {
         filesStub,
         impressionMetadataStub,
         LABELED_OUTPUT_PREFIX,
-        deleteBlob = { outputBlobUris.remove(it) },
+        deleteBlob = { blobUri ->
+          requestedBlobDeletions += blobUri
+          check(blobUri.startsWith("$LABELED_OUTPUT_PREFIX/")) {
+            "Eviction attempted to delete a blob outside the labeled-output prefix: $blobUri"
+          }
+          outputBlobUris.remove(blobUri)
+        },
       )
     val recoverUploader =
       RecoverUploader(
@@ -226,12 +238,35 @@ class UploadHealingWorkflowIntegrationTest {
         .isTrue()
       assertThat(outputBlobUris.intersect(source.outputBlobUris)).isEmpty()
     }
+    assertThat(requestedBlobDeletions)
+      .containsExactlyElementsIn(listOf(d2, d3, d4, d5).flatMap { it.outputBlobUris })
+    for ((blobKey, contents) in retainedRawBlobs) {
+      assertThat(checkNotNull(rawStorage.getBlob(blobKey)).read().flatten()).isEqualTo(contents)
+    }
 
     val d2Replacement = completeReplacement(d2, registerEdpCorrection(d2))
     val afterD2 = workflow.resume(started.operation.name)
 
     assertThat(afterD2.nextAction).contains(d3.upload.name)
     assertThat(recoveredSources).containsExactly(d3.upload.name)
+    val d3RecoveryGeneration =
+      afterD2.operation.stepsList
+        .single { it.sourceRawImpressionUpload == d3.upload.name }
+        .recoveryDoneBlobGeneration
+    val d3RevisionCount = listRevisions(d3.upload.doneBlobUri).size
+
+    val repeatedWhileD3Pending = workflow.resume(started.operation.name)
+
+    assertThat(repeatedWhileD3Pending.nextAction).contains(d3.upload.name)
+    assertThat(recoveredSources).containsExactly(d3.upload.name)
+    assertThat(blobMetadata.getValue(d3.doneKey).generation).isEqualTo(d3RecoveryGeneration)
+    assertThat(listRevisions(d3.upload.doneBlobUri)).hasSize(d3RevisionCount)
+    assertThat(
+        repeatedWhileD3Pending.operation.stepsList
+          .single { it.sourceRawImpressionUpload == d3.upload.name }
+          .recoveryDoneBlobGeneration
+      )
+      .isEqualTo(d3RecoveryGeneration)
 
     val d3Replacement = completeReplacement(d3, registerRecovery(d3))
     val afterD3 = workflow.resume(started.operation.name)
@@ -376,6 +411,7 @@ class UploadHealingWorkflowIntegrationTest {
       modelLine = completedModelLine,
       metadata = metadata,
       doneKey = doneKey,
+      rawFileKey = fileKey,
       outputBlobUris = outputBlobUris,
     )
   }
@@ -579,6 +615,7 @@ class UploadHealingWorkflowIntegrationTest {
     val modelLine: RawImpressionUploadModelLine,
     val metadata: ImpressionMetadata,
     val doneKey: String,
+    val rawFileKey: String,
     val outputBlobUris: Set<String>,
   )
 
