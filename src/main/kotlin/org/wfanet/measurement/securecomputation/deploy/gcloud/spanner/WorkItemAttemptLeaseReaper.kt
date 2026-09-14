@@ -28,10 +28,12 @@ import kotlinx.coroutines.isActive
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readExpiredWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.recoverExpiredWorkItemAttempt
+import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 
 /** Recovers WorkItems whose active worker has stopped renewing its attempt lease. */
 class WorkItemAttemptLeaseReaper(
   private val databaseClient: AsyncDatabaseClient,
+  private val queueMapping: QueueMapping,
   private val clock: Clock = Clock.systemUTC(),
   private val pollInterval: Duration = DEFAULT_POLL_INTERVAL,
 ) {
@@ -52,12 +54,13 @@ class WorkItemAttemptLeaseReaper(
       try {
         val recovered =
           databaseClient.readWriteTransaction().run { transaction ->
-            transaction.recoverExpiredWorkItemAttempt(attempt, now)
+            transaction.recoverExpiredWorkItemAttempt(attempt, now, queueMapping)
           }
-        if (recovered) {
+        if (recovered != null) {
           recoveredCount++
           logger.warning(
-            "Recovered expired WorkItemAttempt ${attempt.workItemId}/${attempt.workItemAttemptId}"
+            "Recovered expired WorkItemAttempt ${attempt.workItemId}/${attempt.workItemAttemptId}: " +
+              recovered
           )
         }
       } catch (e: CancellationException) {

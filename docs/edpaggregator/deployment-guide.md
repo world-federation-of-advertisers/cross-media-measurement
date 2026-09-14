@@ -1229,9 +1229,18 @@ grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
 
 Workers created after this rollout renew their active attempt lease. If a worker exits or can no
 longer reach the control plane, the lease expires after five minutes by default. The internal API
-then atomically fails that exact attempt, advances the WorkItem generation, returns the WorkItem to
-`QUEUED`, and creates a new outbox publication. A late heartbeat or completion from the abandoned
-worker is rejected because its attempt is no longer active.
+then atomically fails that exact attempt. If the queue's durable execution-attempt limit has not
+been reached, it advances the WorkItem generation, returns the WorkItem to `QUEUED`, and creates a
+new outbox publication. At the limit, it instead creates an outbox publication for the existing
+dead-letter topic; the existing DLQ listener makes the WorkItem terminal and performs its existing
+best-effort workload-specific failure propagation. A late heartbeat or completion from the
+abandoned worker is rejected because its attempt is no longer active.
+
+A lease-capable worker that catches a workload failure uses the same transaction before NACKing its
+delivery, instead of waiting for lease expiry. This means a permanent workload error cannot receive
+an unbounded number of fresh Pub/Sub delivery budgets as WorkItem generations advance. The default
+limit is five execution attempts per WorkItem and is configured with `max_work_item_attempts` in
+`queues_config.textproto`; `dead_letter_queue_resource_id` identifies the existing DLQ topic.
 
 An attempt created by an old worker has no lease. After the workflow's MIG quiescence barrier, the
 stopped worker's Pub/Sub delivery is either redelivered to a new lease-capable worker or is handled

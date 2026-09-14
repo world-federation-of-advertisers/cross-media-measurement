@@ -34,6 +34,7 @@ import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 data class WorkItemPublicationResult(
   val workItemId: Long,
   val workItem: WorkItem,
+  val queueResourceId: String,
   val attemptCount: Long,
   val leaseToken: String,
 )
@@ -49,7 +50,7 @@ sealed interface WorkItemPublicationClaimResult {
   data class Skipped(val workItemResourceId: String, val queueId: Long, val reason: Reason) :
     WorkItemPublicationClaimResult {
     enum class Reason {
-      WORK_ITEM_NOT_QUEUED,
+      WORK_ITEM_STATE_MISMATCH,
       QUEUE_NOT_FOUND,
     }
   }
@@ -57,8 +58,21 @@ sealed interface WorkItemPublicationClaimResult {
 
 /** Buffers an insert mutation for a pending WorkItem publication. */
 fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(workItemId: Long) {
+  insertWorkItemPublication(workItemId, isDeadLetter = false)
+}
+
+/** Buffers an insert mutation for a pending dead-letter WorkItem publication. */
+fun AsyncDatabaseClient.TransactionContext.insertDeadLetterWorkItemPublication(workItemId: Long) {
+  insertWorkItemPublication(workItemId, isDeadLetter = true)
+}
+
+private fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
+  workItemId: Long,
+  isDeadLetter: Boolean,
+) {
   bufferInsertMutation("WorkItemPublications") {
     set("WorkItemId").to(workItemId)
+    set("IsDeadLetter").to(isDeadLetter)
     set("LeaseOwner").to(null as String?)
     set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
     set("NextAttemptTime").to(com.google.cloud.Timestamp.now())
@@ -78,8 +92,7 @@ fun AsyncDatabaseClient.TransactionContext.deleteWorkItemPublication(workItemId:
  * Claims a pending publication with [leaseToken].
  *
  * If [workItemId] is specified, only that WorkItem is considered. A publication for a WorkItem
- * which is no longer QUEUED is removed because queue delivery has already been demonstrated or the
- * WorkItem has reached a terminal state.
+ * whose state no longer matches the publication type is removed because the publication is stale.
  */
 suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
   queueMapping: QueueMapping,
@@ -117,13 +130,15 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
   val workItemResourceId = row.getString("WorkItemResourceId")
   val queueId = row.getLong("QueueId")
   val state = WorkItem.State.forNumber(row.getLong("State").toInt())
+  val isDeadLetter = !row.isNull("IsDeadLetter") && row.getBoolean("IsDeadLetter")
 
-  if (state != WorkItem.State.QUEUED) {
+  val expectedState = if (isDeadLetter) WorkItem.State.RUNNING else WorkItem.State.QUEUED
+  if (state != expectedState) {
     deleteWorkItemPublication(claimedWorkItemId)
     return WorkItemPublicationClaimResult.Skipped(
       workItemResourceId,
       queueId,
-      WorkItemPublicationClaimResult.Skipped.Reason.WORK_ITEM_NOT_QUEUED,
+      WorkItemPublicationClaimResult.Skipped.Reason.WORK_ITEM_STATE_MISMATCH,
     )
   }
 
@@ -150,7 +165,13 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
 
   val result = WorkItems.buildWorkItemResult(row, queue)
   return WorkItemPublicationClaimResult.Claimed(
-    WorkItemPublicationResult(claimedWorkItemId, result.workItem, attemptCount, leaseToken)
+    WorkItemPublicationResult(
+      claimedWorkItemId,
+      result.workItem,
+      if (isDeadLetter) queue.deadLetterQueueResourceId else queue.queueResourceId,
+      attemptCount,
+      leaseToken,
+    )
   )
 }
 
@@ -204,6 +225,7 @@ private val WORK_ITEM_PUBLICATION_SQL =
     WorkItems.PublicationScheduledGeneration,
     WorkItems.CreateTime,
     WorkItems.UpdateTime,
+    WorkItemPublications.IsDeadLetter,
     WorkItemPublications.AttemptCount,
     WorkItemPublications.LeaseExpirationTime,
     WorkItemPublications.NextAttemptTime,

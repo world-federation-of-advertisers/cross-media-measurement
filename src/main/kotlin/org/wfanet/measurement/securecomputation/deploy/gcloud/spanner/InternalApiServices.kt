@@ -51,7 +51,11 @@ class InternalApiServices(
     )
 
   val workItemAttemptLeaseReaper =
-    WorkItemAttemptLeaseReaper(databaseClient, pollInterval = workItemAttemptReaperPollInterval)
+    WorkItemAttemptLeaseReaper(
+      databaseClient,
+      queueMapping,
+      pollInterval = workItemAttemptReaperPollInterval,
+    )
 
   /**
    * Builds the core internal API services.

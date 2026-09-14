@@ -36,6 +36,8 @@ import org.junit.Test
 import org.wfa.measurement.queue.testing.testWork
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.config.securecomputation.QueuesConfigKt.queueInfo
+import org.wfanet.measurement.config.securecomputation.queuesConfig
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
@@ -151,7 +153,8 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
       assertThat(renewed.leaseExpirationTime.seconds)
         .isEqualTo(clock.instant().plus(Duration.ofMinutes(5)).epochSecond)
 
-      val reaper = WorkItemAttemptLeaseReaper(spannerDatabase.databaseClient, clock)
+      val reaper =
+        WorkItemAttemptLeaseReaper(spannerDatabase.databaseClient, TestConfig.QUEUE_MAPPING, clock)
       clock.advance(Duration.ofMinutes(2))
       assertThat(reaper.recoverExpiredAttempts()).isEqualTo(0)
 
@@ -249,7 +252,8 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
     assertThat(attempt.hasLeaseExpirationTime()).isFalse()
     clock.advance(Duration.ofHours(1))
     assertThat(
-        WorkItemAttemptLeaseReaper(spannerDatabase.databaseClient, clock).recoverExpiredAttempts()
+        WorkItemAttemptLeaseReaper(spannerDatabase.databaseClient, TestConfig.QUEUE_MAPPING, clock)
+          .recoverExpiredAttempts()
       )
       .isEqualTo(0)
     assertThat(
@@ -258,6 +262,144 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
           .state
       )
       .isEqualTo(WorkItem.State.RUNNING)
+  }
+
+  @Test
+  fun `failed leased attempt is durably republished at a new generation`() = runBlocking {
+    val queueMapping = queueMapping(maxWorkItemAttempts = 2)
+    val publisher = RecordingPublisher()
+    val publicationRunner =
+      WorkItemPublicationRunner(spannerDatabase.databaseClient, queueMapping, publisher)
+    val attemptsService =
+      SpannerWorkItemAttemptsService(
+        spannerDatabase.databaseClient,
+        queueMapping,
+        IdGenerator.Default,
+        Dispatchers.Default,
+      )
+    val workItemsService =
+      SpannerWorkItemsService(
+        spannerDatabase.databaseClient,
+        queueMapping,
+        IdGenerator.Default,
+        publicationRunner,
+      )
+    val workItem =
+      workItemsService.createWorkItem(
+        createWorkItemRequest {
+          this.workItem = workItem {
+            workItemResourceId = "failed-leased-work-item"
+            queueResourceId = QUEUE_RESOURCE_ID
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    publisher.clear()
+    val attempt =
+      attemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          supportsAttemptLease = true
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "failed-leased-attempt"
+          }
+        }
+      )
+
+    val failedAttempt =
+      attemptsService.failWorkItemAttempt(
+        failWorkItemAttemptRequest {
+          workItemResourceId = attempt.workItemResourceId
+          workItemAttemptResourceId = attempt.workItemAttemptResourceId
+          errorMessage = "permanent failure"
+        }
+      )
+    // Retrying after a lost response must preserve the same recovery publication.
+    val repeatedFailure =
+      attemptsService.failWorkItemAttempt(
+        failWorkItemAttemptRequest {
+          workItemResourceId = attempt.workItemResourceId
+          workItemAttemptResourceId = attempt.workItemAttemptResourceId
+          errorMessage = "permanent failure"
+        }
+      )
+
+    assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    assertThat(repeatedFailure.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    val recoveredWorkItem =
+      workItemsService.getWorkItem(
+        getWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+      )
+    assertThat(recoveredWorkItem.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(recoveredWorkItem.generation).isEqualTo(workItem.generation + 1L)
+
+    assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(1)
+    assertThat(publisher.queueNames).containsExactly(QUEUE_RESOURCE_ID)
+    assertThat((publisher.messages.single() as WorkItem).generation)
+      .isEqualTo(workItem.generation + 1L)
+  }
+
+  @Test
+  fun `failed leased attempt is dead-lettered when attempt limit is reached`() = runBlocking {
+    val queueMapping = queueMapping(maxWorkItemAttempts = 1)
+    val publisher = RecordingPublisher()
+    val publicationRunner =
+      WorkItemPublicationRunner(spannerDatabase.databaseClient, queueMapping, publisher)
+    val attemptsService =
+      SpannerWorkItemAttemptsService(
+        spannerDatabase.databaseClient,
+        queueMapping,
+        IdGenerator.Default,
+        Dispatchers.Default,
+      )
+    val workItemsService =
+      SpannerWorkItemsService(
+        spannerDatabase.databaseClient,
+        queueMapping,
+        IdGenerator.Default,
+        publicationRunner,
+      )
+    val workItem =
+      workItemsService.createWorkItem(
+        createWorkItemRequest {
+          this.workItem = workItem {
+            workItemResourceId = "dead-lettered-work-item"
+            queueResourceId = QUEUE_RESOURCE_ID
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    publisher.clear()
+    val attempt =
+      attemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          supportsAttemptLease = true
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "dead-lettered-attempt"
+          }
+        }
+      )
+
+    attemptsService.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = attempt.workItemResourceId
+        workItemAttemptResourceId = attempt.workItemAttemptResourceId
+        errorMessage = "permanent failure"
+      }
+    )
+
+    val pendingDeadLetter =
+      workItemsService.getWorkItem(
+        getWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+      )
+    assertThat(pendingDeadLetter.state).isEqualTo(WorkItem.State.RUNNING)
+    assertThat(pendingDeadLetter.generation).isEqualTo(workItem.generation)
+    assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(1)
+    assertThat(publisher.queueNames).containsExactly(DEAD_LETTER_QUEUE_RESOURCE_ID)
+    assertThat((publisher.messages.single() as WorkItem).generation).isEqualTo(workItem.generation)
   }
 
   @Test
@@ -395,14 +537,38 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+
+    private const val QUEUE_RESOURCE_ID = "test-topid-id"
+    private const val DEAD_LETTER_QUEUE_RESOURCE_ID = "$QUEUE_RESOURCE_ID-dlq"
   }
 
   private class RecordingPublisher : WorkItemPublisher {
     val messages = mutableListOf<Message>()
+    val queueNames = mutableListOf<String>()
 
     override suspend fun publishMessage(queueName: String, message: Message) {
+      queueNames += queueName
       messages += message
     }
+
+    fun clear() {
+      queueNames.clear()
+      messages.clear()
+    }
+  }
+
+  private fun queueMapping(maxWorkItemAttempts: Int): QueueMapping {
+    return QueueMapping(
+      queuesConfig {
+        queueInfos.add(
+          queueInfo {
+            queueResourceId = QUEUE_RESOURCE_ID
+            deadLetterQueueResourceId = DEAD_LETTER_QUEUE_RESOURCE_ID
+            this.maxWorkItemAttempts = maxWorkItemAttempts
+          }
+        )
+      }
+    )
   }
 
   private class MutableClock(private var currentInstant: Instant) : Clock() {
