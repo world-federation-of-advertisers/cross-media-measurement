@@ -37,14 +37,10 @@ on:
         description: Whether Secure Computation WorkItem TEE consumers may run
         type: boolean
         default: true
-      direct-requisition-dispatch-enabled:
-        description: Whether RequisitionFetcher may dispatch WorkItems directly
+      requisition-fetcher-enabled:
+        description: Whether RequisitionFetcher may process scheduled invocations
         type: boolean
         default: true
-      validate-direct-requisition-dispatch:
-        description: Validate direct-dispatch configuration before applying Terraform
-        type: boolean
-        default: false
     outputs:
       work_item_tee_mig_names:
         description: WorkItem-consuming Managed Instance Group names as JSON
@@ -232,7 +228,6 @@ jobs:
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
     - name: Validate direct RequisitionFetcher dispatch configuration
-      if: ${{ inputs.direct-requisition-dispatch-enabled || inputs.validate-direct-requisition-dispatch }}
       env:
         CONFIG_DIR: ${{ runner.temp }}/configs
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
@@ -395,7 +390,7 @@ jobs:
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
-        -var="direct_requisition_dispatch_enabled=${{ inputs.direct-requisition-dispatch-enabled }}"
+        -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         -var="duchy_worker1_id=$DUCHY_WORKER1_ID"

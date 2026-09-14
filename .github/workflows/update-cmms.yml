@@ -112,8 +112,7 @@ jobs:
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       tee-consumers-enabled: false
-      direct-requisition-dispatch-enabled: false
-      validate-direct-requisition-dispatch: true
+      requisition-fetcher-enabled: false
 
   wait-for-tee-consumers-to-stop:
     runs-on: ubuntu-24.04
@@ -224,7 +223,7 @@ jobs:
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       tee-consumers-enabled: true
-      direct-requisition-dispatch-enabled: true
+      requisition-fetcher-enabled: true
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml

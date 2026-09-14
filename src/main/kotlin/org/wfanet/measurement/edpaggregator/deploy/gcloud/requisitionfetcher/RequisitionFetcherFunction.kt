@@ -81,9 +81,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   `getEventGroup` RPCs. Default `50ms`.
  * - `METADATA_REQUEST_INTERVAL`: Optional. Minimum interval between Requisition Metadata Service
  *   RPCs. Default `100ms`.
- * - `DIRECT_WORK_ITEM_DISPATCH_ENABLED`: Optional. Whether configured direct WorkItem dispatch is
- *   active. The deployment workflow sets this to `false` while old TEE workers and APIs are being
- *   replaced. Default `true`.
+ * - `REQUISITION_FETCHER_ENABLED`: Optional. Whether scheduled invocations fetch and dispatch new
+ *   work. The deployment workflow sets this to `false` while workers and APIs are replaced. Default
+ *   `true`.
  * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required when direct WorkItem dispatch is
  *   configured.
  * - `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST`: Optional. Server name for the Secure Computation
@@ -121,11 +121,7 @@ class RequisitionFetcherFunction : HttpFunction {
       }
       val errors = mutableListOf<String>()
       for (dataProviderConfig in requisitionFetcherConfig.configsList) {
-        val configuredDispatch =
-          dataProviderConfig.workItemDispatch.takeIf { dataProviderConfig.hasWorkItemDispatch() }
-        val activeDispatch = configuredDispatch.takeIf { directWorkItemDispatchEnabled }
-        val result: Result<Unit> =
-          processDataProvider(dataProviderConfig, configuredDispatch, activeDispatch)
+        val result: Result<Unit> = processDataProvider(dataProviderConfig)
         val failure = result.exceptionOrNull()
         if (failure != null) {
           val errorMsg =
@@ -142,6 +138,9 @@ class RequisitionFetcherFunction : HttpFunction {
       if (errors.isNotEmpty()) {
         response.setStatusCode(500)
         response.writer.write("Completed with errors:\n" + errors.joinToString("\n"))
+      } else if (!requisitionFetcherEnabled) {
+        response.setStatusCode(200)
+        response.writer.write("RequisitionFetcher is disabled")
       } else {
         response.setStatusCode(200)
         response.writer.write("All requisitions fetched successfully")
@@ -156,21 +155,22 @@ class RequisitionFetcherFunction : HttpFunction {
    * Executes the requisition fetch workflow for a single data provider and aggregates telemetry.
    *
    * @param dataProviderConfig configuration for the data provider.
-   * @param configuredDispatch direct WorkItem dispatch configuration, or `null` when unconfigured.
-   * @param activeDispatch direct WorkItem dispatch configuration, or `null` while rollout gating
-   *   keeps the provider on legacy dispatch.
    * @return a [Result] capturing success or the failure that occurred.
    */
-  private fun processDataProvider(
-    dataProviderConfig: DataProviderRequisitionConfig,
-    configuredDispatch: RequisitionWorkItemDispatchConfig?,
-    activeDispatch: RequisitionWorkItemDispatchConfig?,
-  ): Result<Unit> =
+  private fun processDataProvider(dataProviderConfig: DataProviderRequisitionConfig): Result<Unit> =
     withDataProviderTelemetry(dataProviderConfig.dataProvider) {
-      validateConfig(dataProviderConfig, configuredDispatch)
-      val requisitionFetcher = createRequisitionFetcher(dataProviderConfig, activeDispatch)
-      runBlocking(Context.current().asContextElement()) {
-        requisitionFetcher.fetchAndStoreRequisitions()
+      val dispatchConfig =
+        requireNotNull(
+          dataProviderConfig.workItemDispatch.takeIf { dataProviderConfig.hasWorkItemDispatch() }
+        ) {
+          "Missing 'work_item_dispatch' for data provider: ${dataProviderConfig.dataProvider}."
+        }
+      validateConfig(dataProviderConfig, dispatchConfig)
+      if (requisitionFetcherEnabled) {
+        val requisitionFetcher = createRequisitionFetcher(dataProviderConfig, dispatchConfig)
+        runBlocking(Context.current().asContextElement()) {
+          requisitionFetcher.fetchAndStoreRequisitions()
+        }
       }
     }
 
@@ -185,15 +185,19 @@ class RequisitionFetcherFunction : HttpFunction {
             "legacy DataWatcher path for ${dataProviderConfig.dataProvider}",
           )
         )
-        if (dataProviderConfig.hasWorkItemDispatch()) {
-          add(
-            StoragePathPrefixes.Namespace(
-              storageUriPrefix,
-              dataProviderConfig.workItemDispatch.storagePathPrefix,
-              "direct-dispatch path for ${dataProviderConfig.dataProvider}",
-            )
+        val dispatchConfig =
+          requireNotNull(
+            dataProviderConfig.workItemDispatch.takeIf { dataProviderConfig.hasWorkItemDispatch() }
+          ) {
+            "Missing 'work_item_dispatch' for data provider: ${dataProviderConfig.dataProvider}."
+          }
+        add(
+          StoragePathPrefixes.Namespace(
+            storageUriPrefix,
+            dispatchConfig.storagePathPrefix,
+            "direct-dispatch path for ${dataProviderConfig.dataProvider}",
           )
-        }
+        )
       }
     }
     StoragePathPrefixes.requireDisjoint(namespaces)
@@ -232,13 +236,13 @@ class RequisitionFetcherFunction : HttpFunction {
    * Creates a [RequisitionFetcher] instance for the given data provider configuration.
    *
    * @param dataProviderConfig The configuration for a single data provider.
-   * @param dispatchConfig direct WorkItem dispatch configuration, or `null` for legacy dispatch.
+   * @param dispatchConfig direct WorkItem dispatch configuration.
    * @return A fully initialized [RequisitionFetcher] ready to fetch and store requisitions for the
    *   data provider.
    */
   private fun createRequisitionFetcher(
     dataProviderConfig: DataProviderRequisitionConfig,
-    dispatchConfig: RequisitionWorkItemDispatchConfig?,
+    dispatchConfig: RequisitionWorkItemDispatchConfig,
   ): RequisitionFetcher {
     val storageClient = createStorageClient(dataProviderConfig)
     val requisitionBlobPrefix = createRequisitionBlobPrefix(dataProviderConfig)
@@ -263,28 +267,24 @@ class RequisitionFetcherFunction : HttpFunction {
     val kingdomEventGroupThrottler =
       MinimumIntervalThrottler(Clock.systemUTC(), kingdomEventGroupRequestInterval)
     val metadataThrottler = MinimumIntervalThrottler(Clock.systemUTC(), metadataRequestInterval)
-    val workItemDispatcher =
-      if (dispatchConfig != null) {
-        val target =
-          requireNotNull(secureComputationControlPlaneTarget) {
-            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required for direct dispatch"
-          }
-        val channel =
-          createInstrumentedChannel(
-            dispatchConfig.controlPlaneConnection,
-            target,
-            secureComputationControlPlaneCertHost,
-          )
-        SecureComputationRequisitionWorkItemDispatcher(
-          workItemsStub = WorkItemsCoroutineStub(channel),
-          queue = dispatchConfig.queue,
-          resultsFulfillerParams = dispatchConfig.resultsFulfillerParams,
-          controlPlaneThrottler =
-            MinimumIntervalThrottler(Clock.systemUTC(), controlPlaneRequestInterval),
-        )
-      } else {
-        null
+    val target =
+      requireNotNull(secureComputationControlPlaneTarget) {
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required for direct dispatch"
       }
+    val channel =
+      createInstrumentedChannel(
+        dispatchConfig.controlPlaneConnection,
+        target,
+        secureComputationControlPlaneCertHost,
+      )
+    val workItemDispatcher =
+      SecureComputationRequisitionWorkItemDispatcher(
+        workItemsStub = WorkItemsCoroutineStub(channel),
+        queue = dispatchConfig.queue,
+        resultsFulfillerParams = dispatchConfig.resultsFulfillerParams,
+        controlPlaneThrottler =
+          MinimumIntervalThrottler(Clock.systemUTC(), controlPlaneRequestInterval),
+      )
 
     val requisitionGrouper =
       RequisitionGrouperByReportId(
@@ -301,7 +301,7 @@ class RequisitionFetcherFunction : HttpFunction {
       storageClient = storageClient,
       dataProviderName = dataProviderConfig.dataProvider,
       storagePathPrefix = dataProviderConfig.storagePathPrefix,
-      directStoragePathPrefix = dispatchConfig?.storagePathPrefix,
+      directStoragePathPrefix = dispatchConfig.storagePathPrefix,
       blobUriPrefix = requisitionBlobPrefix,
       requisitionValidator = requisitionsValidator,
       requisitionGrouper = requisitionGrouper,
@@ -458,10 +458,10 @@ class RequisitionFetcherFunction : HttpFunction {
       )
 
     private const val CONFIG_BLOB_KEY = "requisition-fetcher-config.textproto"
-    private val directWorkItemDispatchEnabled: Boolean =
-      System.getenv("DIRECT_WORK_ITEM_DISPATCH_ENABLED")?.let { value ->
+    private val requisitionFetcherEnabled: Boolean =
+      System.getenv("REQUISITION_FETCHER_ENABLED")?.let { value ->
         requireNotNull(value.toBooleanStrictOrNull()) {
-          "DIRECT_WORK_ITEM_DISPATCH_ENABLED must be 'true' or 'false'"
+          "REQUISITION_FETCHER_ENABLED must be 'true' or 'false'"
         }
       } ?: true
     private val requisitionFetcherConfig by lazy {
@@ -492,7 +492,7 @@ class RequisitionFetcherFunction : HttpFunction {
 
     private fun validateConfig(
       dataProviderConfig: DataProviderRequisitionConfig,
-      dispatchConfig: RequisitionWorkItemDispatchConfig?,
+      dispatchConfig: RequisitionWorkItemDispatchConfig,
     ) {
       require(dataProviderConfig.dataProvider.isNotBlank()) { "Missing 'data_provider' in config." }
 
@@ -530,41 +530,42 @@ class RequisitionFetcherFunction : HttpFunction {
         "Missing 'cert_collection_file_path' in cmms_connection for data provider: ${dataProviderConfig.dataProvider}."
       }
 
-      if (dispatchConfig != null) {
-        require(dispatchConfig.storagePathPrefix.isNotBlank()) {
-          "Missing 'storage_path_prefix' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
-        }
-        require(
-          !StoragePathPrefixes.overlap(
-            dispatchConfig.storagePathPrefix,
-            dataProviderConfig.storagePathPrefix,
-          )
-        ) {
-          "Direct-dispatch storage_path_prefix must not overlap the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
-        }
-        require(dispatchConfig.queue.isNotBlank()) {
-          "Missing 'queue' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
-        }
-        require(dispatchConfig.hasResultsFulfillerParams()) {
-          "Missing 'results_fulfiller_params' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
-        }
-        ResultsFulfillerParamsValidator.validate(
-          dispatchConfig.resultsFulfillerParams,
-          dataProviderConfig.dataProvider,
+      require(!secureComputationControlPlaneTarget.isNullOrBlank()) {
+        "Missing Secure Computation control-plane target for direct dispatch."
+      }
+      require(dispatchConfig.storagePathPrefix.isNotBlank()) {
+        "Missing 'storage_path_prefix' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      require(
+        !StoragePathPrefixes.overlap(
+          dispatchConfig.storagePathPrefix,
+          dataProviderConfig.storagePathPrefix,
         )
-        require(dispatchConfig.hasControlPlaneConnection()) {
-          "Missing 'control_plane_connection' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
-        }
-        val controlPlaneTls = dispatchConfig.controlPlaneConnection
-        require(controlPlaneTls.certFilePath.isNotBlank()) {
-          "Missing 'cert_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
-        }
-        require(controlPlaneTls.privateKeyFilePath.isNotBlank()) {
-          "Missing 'private_key_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
-        }
-        require(controlPlaneTls.certCollectionFilePath.isNotBlank()) {
-          "Missing 'cert_collection_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
-        }
+      ) {
+        "Direct-dispatch storage_path_prefix must not overlap the legacy storage_path_prefix for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      require(dispatchConfig.queue.isNotBlank()) {
+        "Missing 'queue' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      require(dispatchConfig.hasResultsFulfillerParams()) {
+        "Missing 'results_fulfiller_params' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      ResultsFulfillerParamsValidator.validate(
+        dispatchConfig.resultsFulfillerParams,
+        dataProviderConfig.dataProvider,
+      )
+      require(dispatchConfig.hasControlPlaneConnection()) {
+        "Missing 'control_plane_connection' in direct-dispatch config for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      val controlPlaneTls = dispatchConfig.controlPlaneConnection
+      require(controlPlaneTls.certFilePath.isNotBlank()) {
+        "Missing 'cert_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      require(controlPlaneTls.privateKeyFilePath.isNotBlank()) {
+        "Missing 'private_key_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
+      }
+      require(controlPlaneTls.certCollectionFilePath.isNotBlank()) {
+        "Missing 'cert_collection_file_path' in direct-dispatch control_plane_connection for data provider: ${dataProviderConfig.dataProvider}."
       }
     }
   }

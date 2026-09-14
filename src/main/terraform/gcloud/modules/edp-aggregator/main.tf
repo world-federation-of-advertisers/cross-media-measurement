@@ -326,7 +326,7 @@ module "requisition_fetcher_cloud_function" {
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
   extra_env_vars = join(",", compact([
     var.cloud_function_configs.requisition_fetcher.extra_env_vars,
-    "DIRECT_WORK_ITEM_DISPATCH_ENABLED=${var.direct_requisition_dispatch_enabled}",
+    "REQUISITION_FETCHER_ENABLED=${var.requisition_fetcher_enabled}",
   ]))
   secret_mappings   = var.cloud_function_configs.requisition_fetcher.secret_mappings
   uber_jar_path     = var.cloud_function_configs.requisition_fetcher.uber_jar_path

@@ -544,15 +544,15 @@ Trace:
      ResultsFulfiller failure or dead-letter message, remediate it, and then have an
      operator call `RetryWorkItem`. RequisitionFetcher does not restart a dead-letter cycle.
    - Row `STORED (1)` → the blob is registered but direct dispatch has not
-     completed its queue transition; check the fetcher. In a legacy deployment,
-     continue to the DataWatcher checks in step 3.
+     completed its queue transition; check the fetcher. For a pre-cutover legacy group, continue to
+     the DataWatcher checks in step 3.
    - No row → the fetcher never stored it; go to step 2.
 
 2. **requisition-fetcher** (Cloud Function). It polls the Kingdom and is also
-   HTTP-triggered, writing a grouped-requisitions blob to
-   `<edp>/requisitions/<groupId>` and registering it via the **v1alpha
-   RequisitionMetadata service**. After every row in the group is `QUEUED`, the
-   fetcher creates the deterministic ResultsFulfiller WorkItem directly.
+   HTTP-triggered, writing every new grouped-requisitions blob to the configured direct-dispatch
+   prefix and registering it via the **v1alpha RequisitionMetadata service**. After every row in the
+   group is `QUEUED`, the fetcher creates the deterministic ResultsFulfiller WorkItem directly. The
+   legacy prefix is used only to recover pre-cutover groups.
 
    ```bash
    gcloud logging read \
@@ -607,9 +607,9 @@ Trace:
    WorkItem while an active leased attempt remains. A `SUCCEEDED` WorkItem paired with unfinished
    metadata is inconsistent and still requires investigation.
 
-   The legacy **data-watcher** remains configured for the top-level legacy requisition prefix. It
-   is stopped for the controlled upgrade and resumed afterward. It must not match the dedicated
-   direct-dispatch `storage_path_prefix`. For a legacy group, a GCS
+   The **data-watcher** remains configured for pre-cutover groups under the top-level legacy
+   requisition prefix. It is stopped for the controlled upgrade and resumed afterward. It must not
+   match the dedicated direct-dispatch `storage_path_prefix`. For a legacy group, a GCS
    `object.finalized` Eventarc trigger submits the WorkItem:
 
    ```bash
