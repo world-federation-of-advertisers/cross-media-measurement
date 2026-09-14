@@ -25,8 +25,6 @@ CREATE TABLE WorkItemPublications (
 
     LeaseOwner STRING(36),
     LeaseExpirationTime TIMESTAMP,
-    NextAttemptTime TIMESTAMP,
-    QueueResolutionFailed BOOL NOT NULL,
     AttemptCount INT64 NOT NULL,
 
     CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
@@ -35,7 +33,7 @@ CREATE TABLE WorkItemPublications (
 ) PRIMARY KEY (WorkItemId),
     INTERLEAVE IN PARENT WorkItems ON DELETE CASCADE;
 
-CREATE INDEX WorkItemPublicationsByClaimPriority
-    ON WorkItemPublications(QueueResolutionFailed, NextAttemptTime, LeaseExpirationTime, WorkItemId);
+CREATE INDEX WorkItemPublicationsByLeaseExpirationTime
+    ON WorkItemPublications(LeaseExpirationTime, WorkItemId);
 
 RUN BATCH;
