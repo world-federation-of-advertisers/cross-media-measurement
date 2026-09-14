@@ -85,6 +85,80 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `runner publishes legacy queued WorkItem without outbox exactly once`() = runBlocking {
+    insertLegacyQueuedWorkItem(WORK_ITEM_ID, "legacy-work-item")
+    val publisher = RecordingPublisher()
+    val runner = newRunner(publisher, MutableClock(Instant.now().plusSeconds(10)))
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+
+    assertThat(publisher.callCount).isEqualTo(1)
+    assertThat(publicationCount()).isEqualTo(0L)
+    assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isEqualTo(1L)
+  }
+
+  @Test
+  fun `runner publishes queued WorkItem whose generation was not scheduled`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "retried-work-item")
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.deleteWorkItemPublication(WORK_ITEM_ID)
+      transaction.bufferUpdateMutation("WorkItems") {
+        set("WorkItemId").to(WORK_ITEM_ID)
+        set("Generation").to(2L)
+        set("PublicationScheduledGeneration").to(1L)
+      }
+    }
+    val publisher = RecordingPublisher()
+    val runner = newRunner(publisher, MutableClock(Instant.now().plusSeconds(10)))
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+
+    assertThat(publisher.callCount).isEqualTo(1)
+    assertThat(publisher.messages).hasSize(1)
+    assertThat((publisher.messages.single() as WorkItem).generation).isEqualTo(2L)
+    assertThat(publicationCount()).isEqualTo(0L)
+    assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isEqualTo(2L)
+  }
+
+  @Test
+  fun `reconciliation racing across runners publishes legacy WorkItem once`() = runBlocking {
+    insertLegacyQueuedWorkItem(WORK_ITEM_ID, "legacy-work-item")
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    val publisher = BlockingPublisher()
+    val firstRunner = newRunner(publisher, clock)
+    val secondRunner = newRunner(publisher, clock)
+
+    val firstPublication = async { firstRunner.publishPendingWorkItems(limit = 1) }
+    publisher.started.await()
+
+    assertThat(secondRunner.publishPendingWorkItems(limit = 1)).isEqualTo(0)
+
+    publisher.release.complete(Unit)
+    assertThat(firstPublication.await()).isEqualTo(1)
+    assertThat(publisher.callCount).isEqualTo(1)
+    assertThat(publicationCount()).isEqualTo(0L)
+    assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isEqualTo(1L)
+  }
+
+  @Test
+  fun `runner reconciles legacy WorkItem created after an empty scan`() = runBlocking {
+    val publisher = RecordingPublisher()
+    val runner = newRunner(publisher, MutableClock(Instant.now().plusSeconds(10)))
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+
+    insertLegacyQueuedWorkItem(WORK_ITEM_ID, "late-legacy-work-item")
+
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+    assertThat(runner.publishPendingWorkItems()).isEqualTo(0)
+    assertThat(publisher.callCount).isEqualTo(1)
+    assertThat(publicationCount()).isEqualTo(0L)
+    assertThat(publicationScheduledGeneration(WORK_ITEM_ID)).isEqualTo(1L)
+  }
+
+  @Test
   fun `active lease prevents concurrent publication`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     val clock = MutableClock(Instant.now().plusSeconds(10))
@@ -279,6 +353,36 @@ class WorkItemPublicationRunnerTest {
         Any.pack(testWork { userName = "UserName" }),
       )
       transaction.insertWorkItemPublication(workItemId)
+    }
+  }
+
+  private suspend fun insertLegacyQueuedWorkItem(workItemId: Long, workItemResourceId: String) {
+    insertPendingWorkItem(workItemId, workItemResourceId)
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.deleteWorkItemPublication(workItemId)
+      transaction.bufferUpdateMutation("WorkItems") {
+        set("WorkItemId").to(workItemId)
+        set("Generation").to(null as Long?)
+        set("PublicationScheduledGeneration").to(null as Long?)
+      }
+    }
+  }
+
+  private suspend fun publicationScheduledGeneration(workItemId: Long): Long? {
+    return spannerDatabase.databaseClient.singleUse().use { readContext ->
+      val row =
+        checkNotNull(
+          readContext.readRow(
+            "WorkItems",
+            com.google.cloud.spanner.Key.of(workItemId),
+            listOf("PublicationScheduledGeneration"),
+          )
+        )
+      if (row.isNull("PublicationScheduledGeneration")) {
+        null
+      } else {
+        row.getLong("PublicationScheduledGeneration")
+      }
     }
   }
 

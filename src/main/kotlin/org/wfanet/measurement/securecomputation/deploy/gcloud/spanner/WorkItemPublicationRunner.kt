@@ -31,6 +31,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkIte
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemPublication
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.reconcileWorkItemPublications
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItemPublication
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
@@ -77,6 +78,7 @@ class WorkItemPublicationRunner(
   /** Publishes up to [limit] pending outbox records. */
   suspend fun publishPendingWorkItems(limit: Int = DEFAULT_BATCH_SIZE): Int {
     require(limit > 0) { "limit must be positive" }
+    reconcileLegacyWorkItems(limit)
     var publishedCount = 0
     repeat(limit) {
       val claim =
@@ -122,6 +124,19 @@ class WorkItemPublicationRunner(
         logger.log(Level.WARNING, "Unable to process the current WorkItem publication batch", e)
       }
       delay(pollInterval.toMillis())
+    }
+  }
+
+  private suspend fun reconcileLegacyWorkItems(limit: Int) {
+    try {
+      databaseClient.readWriteTransaction().run { transaction ->
+        transaction.reconcileWorkItemPublications(limit)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      logger.log(Level.WARNING, "Unable to reconcile legacy WorkItem publications", e)
+      return
     }
   }
 

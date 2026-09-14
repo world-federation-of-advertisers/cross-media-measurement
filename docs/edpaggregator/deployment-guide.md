@@ -278,10 +278,10 @@ from a Pub/Sub subscription. Inside the TEE it:
 3. Computes the requisition result, applies the configured noise / k-anonymity, signs
    the result with the EDP's consent key, and returns it to the CMMS.
 
-Its per-WorkItem parameters are defined in RequisitionFetcher's separate direct-dispatch
-configuration as an unversioned `ResultsFulfillerConfig` message. RequisitionFetcher validates and
-converts that configuration to the versioned `ResultsFulfillerParams` WorkItem payload at dispatch;
-its per-EDP TLS / consent / KMS material is carried in the `event_data_provider_configs` file. See
+Its per-WorkItem parameters are defined in RequisitionFetcher's `work_item_dispatch` configuration
+as the versioned `ResultsFulfillerParams` message. RequisitionFetcher validates and
+passes that message unchanged as the WorkItem payload; its per-EDP TLS / consent / KMS material is
+carried in the `event_data_provider_configs` file. See
 [ResultsFulfiller parameters](#resultsfulfiller-parameters) and
 [EDP config (event_data_provider_configs)](#edp-config-event_data_provider_configs).
 
@@ -560,7 +560,6 @@ by the module:
 | `data_watcher_config` | `DataWatcherConfig` | DataWatcher |
 | `data_watcher_delete_config` | `DataWatcherConfig` | DataWatcherDelete |
 | `requisition_fetcher_config` | `RequisitionFetcherConfig` | RequisitionFetcher |
-| `requisition_fetcher_direct_dispatch_config` | `RequisitionFetcherDirectDispatchConfig` | RequisitionFetcher |
 | `event_group_sync_config` | `EventGroupSyncConfigs` | EventGroupSync |
 | `data_availability_sync_config` | `DataAvailabilitySyncConfigs` | DataAvailabilitySync |
 | `data_availability_monitor_config` | `DataAvailabilityMonitorConfigs` | DataAvailabilityMonitor |
@@ -815,66 +814,46 @@ configs {
     private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
     cert_collection_file_path: "/secrets/ca/cert_metadata_storage/edp_aggregator_root.pem"
   }
-}
-```
-
-This legacy config remains parseable by old RequisitionFetcher revisions and is not changed to
-activate direct dispatch.
-
-### RequisitionFetcher direct-dispatch config (`RequisitionFetcherDirectDispatchConfig`)
-
-Proto:
-`wfa/measurement/config/edpaggregator/requisition_fetcher_direct_dispatch_config.proto`.
-The separate `requisition-fetcher-direct-dispatch-config.textproto` blob contains one `configs`
-entry for each EDP using direct dispatch. An absent or empty blob leaves every EDP on the legacy
-DataWatcher path. The deployment workflow writes this blob from the
-`REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_CONTENT` GitHub environment variable.
-
-```textproto
-# proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_direct_dispatch_config.proto
-# proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherDirectDispatchConfig
-configs {
-  data_provider: "dataProviders/DATA_PROVIDER_ID"
-  # Dedicated namespace for directly dispatched groups. Do not match this
-  # path in the legacy DataWatcher source_path_regex.
-  storage_path_prefix: "<edp-id>/requisitions-v2"
-  control_plane_connection {
-    cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
-    private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
-    cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
-  }
-  queue: "results-fulfiller-queue"
-  results_fulfiller_params {
-    data_provider: "dataProviders/DATA_PROVIDER_ID"
-    storage_params {
-      labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
-      gcs_project_id: "PROJECT_ID"
+  # Omit this block to keep this EDP on legacy DataWatcher dispatch.
+  work_item_dispatch {
+    # Dedicated namespace for directly dispatched groups. Do not match this
+    # path in the legacy DataWatcher source_path_regex.
+    storage_path_prefix: "<edp-id>/requisitions-v2"
+    control_plane_connection {
+      cert_file_path: "/secrets/cert_requisition_fetcher/requisition_fetcher_tls.pem"
+      private_key_file_path: "/secrets/key_requisition_fetcher/requisition_fetcher_tls.key"
+      cert_collection_file_path: "/secrets/ca/securecomputation_root.pem"
     }
-    consent_params {
-      result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
-      result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
-      private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
-      edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
+    queue: "results-fulfiller-queue"
+    results_fulfiller_params {
+      data_provider: "dataProviders/DATA_PROVIDER_ID"
+      storage_params {
+        labeled_impressions_blob_details_uri_prefix: "gs://EDPA_STORAGE_BUCKET"
+        gcs_project_id: "PROJECT_ID"
+      }
+      consent_params {
+        result_cs_cert_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_cert.der"
+        result_cs_private_key_der_resource_path: "/tmp/edp_certs/<edp-id>_cs_private.der"
+        private_encryption_key_resource_path: "/tmp/edp_certs/<edp-id>_enc_private.tink"
+        edp_certificate_name: "dataProviders/DATA_PROVIDER_ID/certificates/CERT_ID"
+      }
+      cmms_connection {
+        client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
+        client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
+      }
+      noise_params { noise_type: CONTINUOUS_GAUSSIAN }
     }
-    cmms_connection {
-      client_cert_resource_path: "/tmp/edp_certs/<edp-id>_tls.pem"
-      client_private_key_resource_path: "/tmp/edp_certs/<edp-id>_tls.key"
-    }
-    noise_params { noise_type: CONTINUOUS_GAUSSIAN }
   }
 }
 ```
 
-When an EDP has an entry in this file, the fetcher writes only the entry's
-`storage_path_prefix` and dispatches directly. Every legacy and direct prefix sharing a bucket must
-be disjoint globally: no prefix may equal, contain, or be contained by another at a path-segment
-boundary, even when the prefixes belong to different data providers. The fetcher validates this
-before processing any provider. An entry with a missing `data_provider`, a duplicate
-`data_provider`, or a `data_provider` absent from the legacy RequisitionFetcher config fails the
-invocation rather than silently changing dispatch ownership. Keep the DataWatcher
-`results-fulfiller` watched path restricted to the top-level legacy prefix throughout the rollout.
-Also set
-`SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
+When `work_item_dispatch` is present, RequisitionFetcher writes the grouped blob under its nested
+`storage_path_prefix` and dispatches it directly. When the block is absent, the provider remains on
+the legacy DataWatcher path. Every legacy and direct prefix sharing a bucket must be disjoint
+globally: no prefix may equal, contain, or be contained by another at a path-segment boundary, even
+when the prefixes belong to different data providers. The fetcher validates all namespaces before
+processing any provider. Keep the DataWatcher `results-fulfiller` watched path restricted to the
+top-level legacy prefix. Also set `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` and, when needed,
 `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` on the function.
 
 #### Migrating from DataWatcher dispatch
@@ -883,42 +862,38 @@ The legacy and direct paths use separate object namespaces. Metadata registratio
 ownership boundary: the direct fetcher creates a group atomically in `QUEUED`, while a legacy group
 is created in `STORED`. Recovery uses each group's persisted `blob_uri`; it never moves a group
 between namespaces. A legacy group with any `PROCESSING` row remains owned by its existing
-DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob,
-which could emit a duplicate storage event. It still processes newly discovered requisitions for
-the same report through the direct namespace. The supported rollout deliberately stops
-RequisitionFetcher rather than depending on arbitrary mixed-version execution.
+DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
+It still processes newly discovered requisitions for the same report through the direct namespace.
 
-The separate configuration namespace prevents an old RequisitionFetcher binary from parsing a new
-field. Old fetchers never read the direct-dispatch blob. New fetchers use legacy dispatch when the
-blob is absent or empty and reload it on each invocation. Direct dispatch is enabled only after the
-API, worker, and DLQ prerequisites below are complete.
+To activate direct dispatch, update `REQUISITION_FETCHER_CONFIG_CONTENT` by adding
+`work_item_dispatch` to each selected provider. Preserve the existing top-level
+`storage_path_prefix`, choose a dedicated nested prefix such as `<edp-id>/requisitions-v2`, and
+verify that the actual legacy DataWatcher `source_path_regex` excludes every direct prefix.
 
-Use this upgrade:
+Then run the repository's top-level **Update CMMS** workflow once. Its first Terraform apply uploads
+the combined config with direct dispatch gated off, then quiesces and verifies all
+WorkItem-consuming TEE MIGs. The workflow rolls both Secure Computation API deployments and every
+EDP Aggregator/Requisition Metadata API deployment to completion. Its final Terraform apply enables
+direct dispatch and the new workers. The explicit gate prevents Terraform's parallel resource
+updates from activating direct dispatch while an old TEE can still consume it. DataWatcher and
+RequisitionFetcher remain running; unclaimed Pub/Sub messages remain queued and must not be
+drained. An old RequisitionFetcher
+revision may reject the newly added textproto field during the Cloud Function rollout, but it makes
+no state change in that case, and the next invocation of the new revision polls the same unfulfilled
+Kingdom requisitions.
 
-1. Pause every WorkItem producer as required by the
-   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication). Stop
-   RequisitionFetcher and wait for active producer invocations to finish.
-2. Drain affected subscriptions, verify that no active attempt will be abandoned by a worker
-   replacement, and drain or explicitly account for outstanding legacy DataWatcher requisition
-   events and their WorkItems. Keep the legacy prefix and DataWatcher rule unchanged.
-3. Apply the additive Requisition Metadata and Secure Computation schema changes. Use the immutable
-   snapshot procedure in
-   [durable WorkItem publication rollout](#rolling-out-durable-workitem-publication) to identify any
-   pre-migration `QUEUED` WorkItems that need explicit repair.
-4. Roll out `secure-computation-internal-api-server`,
-   `secure-computation-public-api-server`, and every Requisition Metadata API replica. The existing
-   DLQ listeners are hosted by the Secure Computation internal API deployment. Upgrade every TEE
-   application before permitting generic `RetryWorkItem` use; at minimum, every ResultsFulfiller
-   worker must be upgraded before enabling direct dispatch.
-5. Deploy the new RequisitionFetcher binary, control-plane endpoint, TLS material, and separate
-   `requisition-fetcher-direct-dispatch-config.textproto`, then resume RequisitionFetcher. Set each
-   direct `storage_path_prefix` to a dedicated prefix such as `<edp-id>/requisitions-v2`. It must
-   neither contain nor be contained by the legacy prefix, and the operator must confirm that the
-   actual legacy DataWatcher `source_path_regex` excludes it.
-6. Do not call `RetryWorkItem` until step 4 is complete, all old Secure Computation API replicas are
-   gone, and every consumer of the target queue is generation-aware. After that point, use it only
-   for the explicitly identified WorkItems described in the durable-publication and recovery
-   procedures.
+Do not invoke the child Terraform, Secure Computation, or EDP Aggregator workflows independently
+for this upgrade. No manual service scaling, subscription drain, WorkItem snapshot,
+active-attempt query, or migration-time failure/retry RPC is required. If the workflow fails after
+quiescing the TEE workers, leave them disabled and rerun or complete the API rollout before enabling
+them.
+
+The upgraded publication runner automatically repairs old `QUEUED` WorkItems without outbox rows.
+The upgraded DataWatcher uses deterministic WorkItem IDs and returns transient dispatch failures to
+Eventarc, so retained legacy events can be redelivered safely. A new lease-capable worker atomically
+replaces an unleased attempt left by a stopped old worker when its Pub/Sub message is redelivered.
+These recovery paths remove the previous snapshot, manual `RetryWorkItem`, active-attempt drain, and
+legacy-event accounting steps from the upgrade.
 
 This cutover does not add version-suffixed RPCs or another Secure Computation queue, Pub/Sub topic,
 subscription, or dead-letter queue. It keeps the existing outbox publish-ack behavior,
@@ -927,15 +902,13 @@ ownership registration. The existing EDPA-aware DLQ behavior predates this chang
 expanded for ResultsFulfiller.
 
 After cutover, a `FAILED` WorkItem is not retried by RequisitionFetcher. Remediate the underlying
-failure, then call `RetryWorkItem` explicitly. Upgraded workers renew their attempt leases, and the
-Secure Computation internal API automatically fails and republishes an attempt after its lease
-expires. The documented exact-attempt failure and `RetryWorkItem` procedure remains necessary for
-an attempt created by an old worker, which has no lease.
+failure, then call `RetryWorkItem` explicitly. Upgraded workers renew attempt leases, and the Secure
+Computation internal API automatically republishes an attempt after its lease expires.
 
 For rollback, first drain or repair all direct-prefix groups in `STORED`, `QUEUED`, or `PROCESSING`;
 the legacy DataWatcher intentionally does not watch that namespace. Then remove the EDP entry from
-`requisition-fetcher-direct-dispatch-config.textproto`. No RequisitionFetcher redeployment is
-required. The legacy config, legacy prefix, and DataWatcher rule remain unchanged.
+the `work_item_dispatch` block and rerun **Update CMMS**. The legacy prefix and DataWatcher rule
+remain unchanged.
 
 ### EventGroupSync config (`EventGroupSyncConfigs`)
 
@@ -1032,12 +1005,11 @@ is in the [AWS KMS Setup Guide](aws-kms-setup.md).
 
 ### ResultsFulfiller parameters
 
-Each RequisitionFetcher direct-dispatch config entry's `results_fulfiller_params` is an
-unversioned `ResultsFulfillerConfig` message (proto:
-`wfa/measurement/config/edpaggregator/results_fulfiller_config.proto`). RequisitionFetcher converts
-it to the versioned `ResultsFulfillerParams` carried by the WorkItem. Beyond the `data_provider`,
-`storage_params`, `consent_params`, and `cmms_connection` shown above, the static configuration
-supports:
+Each RequisitionFetcher `work_item_dispatch.results_fulfiller_params` field is a versioned
+`wfa.measurement.edpaggregator.v1alpha.ResultsFulfillerParams` message. It crosses the Cloud
+Function-to-TEE boundary as the WorkItem payload, so RequisitionFetcher validates and passes it
+without converting it to a duplicated unversioned wire schema. Beyond the `data_provider`,
+`storage_params`, `consent_params`, and `cmms_connection` shown above, it supports:
 
 * `noise_params.noise_type` — `NONE` / `CONTINUOUS_GAUSSIAN` (direct single-EDP
   results).
@@ -1166,108 +1138,70 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
 
 #### Rolling out durable WorkItem publication
 
-The `WorkItemPublications` migration does not backfill `QUEUED` WorkItems created by an older
-Secure Computation API binary. A mixed-version rollout can therefore leave a WorkItem without the
-outbox row that the new publication runner needs. Use the following controlled rollout for every
-queue. It reuses the existing WorkItems RPCs, queues, Pub/Sub topics, subscriptions, and dead-letter
-queues; no version-suffixed RPC or parallel queue infrastructure is required.
+The repository's top-level **Update CMMS** workflow is the supported upgrade path. Do not invoke
+the child Terraform, Secure Computation, or EDP Aggregator deployment workflows independently for
+this migration; doing so bypasses the worker-quiescence barrier.
 
-1. Pause every WorkItem producer and wait for active producer invocations to finish. This includes
-   DataWatcher, RequisitionFetcher, SubpoolAssigner, VidRankBuilder, VidLabeling dispatchers and
-   monitors, and manual creation or retry tools. Drain or explicitly account for every outstanding
-   legacy DataWatcher event before continuing.
-2. Drain each affected subscription and wait for every active attempt to finish before replacing
-   workers. An unclaimed Pub/Sub backlog is safe, but terminating a worker after it created an
-   `ACTIVE` attempt strands that WorkItem until explicit recovery. Verify that the active-attempt
-   count is zero:
+Configure the deployment, then run **Update CMMS** once. The workflow performs the required order:
 
-   ```bash
-   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
-     --instance=SPANNER_INSTANCE \
-     --project=PROJECT_ID \
-     --sql='SELECT COUNT(*) AS ActiveAttemptCount
-       FROM WorkItemAttempts
-       WHERE State = 1'
-   ```
+1. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
+   its autoscaler and sets its target size to zero.
+2. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
+   then verify that each has target size zero and no remaining instances. Any failure stops the
+   workflow before an API is rolled.
+3. Roll `secure-computation-internal-api-server` and
+   `secure-computation-public-api-server`, waiting for every replica to complete.
+4. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
+5. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers and
+   starts only the new worker version.
+6. Continue the remaining deployment and tests normally.
 
-   `WorkItemAttempt.State.ACTIVE` is stored as `1`. Do not replace workers until the query returns
-   zero. If an environment cannot drain, capture every active attempt and follow the documented
-   exact-attempt recovery procedure after terminating its worker.
-3. Apply the additive Secure Computation Spanner migrations. With all producers paused, capture one
-   immutable snapshot of pre-migration `QUEUED` WorkItems that have no pending publication and no
-   active attempt:
+If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
+consumers disabled and rerun or complete the API rollout. Do not enable a TEE MIG independently.
+Do not manually scale the API deployments to zero: their manifests do not explicitly restore
+replica counts, so manual scaling can leave them stopped.
 
-   ```bash
-   gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
-     --instance=SPANNER_INSTANCE \
-     --project=PROJECT_ID \
-     --format='value(WorkItemResourceId)' \
-     --sql='SELECT WorkItemResourceId
-       FROM WorkItems AS W
-       WHERE W.State = 1
-         AND NOT EXISTS (
-           SELECT 1 FROM WorkItemPublications AS P
-           WHERE P.WorkItemId = W.WorkItemId)
-         AND NOT EXISTS (
-           SELECT 1 FROM WorkItemAttempts AS A
-           WHERE A.WorkItemId = W.WorkItemId AND A.State = 1)' \
-     > missing-work-item-publications.txt
-   ```
+DataWatcher, RequisitionFetcher, and Pub/Sub remain running during this process. Unclaimed messages
+remain queued and must not be drained. Old and new API replicas may overlap during their Kubernetes
+rolling updates because no TEE consumes WorkItems until both API layers are ready. Compatibility and
+automatic recovery cover producer traffic during that interval:
 
-   `WorkItem.State.QUEUED` and `WorkItemAttempt.State.ACTIVE` are both stored as `1`. An empty file
-   means no repair is needed. Keep this file unchanged for the remainder of the rollout.
-4. Roll out both Secure Computation API deployments and verify that no old replica remains. The
-   outbox publisher, generation enforcement, and existing DLQ listeners are hosted by the internal
-   deployment:
+* The publication runner continuously finds every `QUEUED` WorkItem whose generation has not been
+  scheduled, creates a missing outbox row, and records the scheduled generation in the same
+  transaction. Continuous reconciliation also repairs WorkItems committed by an old API replica
+  after a newer publication runner has started.
+* DataWatcher derives a stable WorkItem ID from the watched-path identifier, object URI, and GCS
+  generation. It uses `EnsureWorkItem`, validates an existing item when falling back to an older
+  API, and returns transient dispatch failures to Eventarc so the same event is retried.
+* A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
+  that legacy attempt and creates its new leased attempt at the same WorkItem generation. The MIG
+  barrier makes this safe by proving that no old TEE instance remains before new workers start.
+* Existing generation-less WorkItems and queue messages are treated as generation 1. Generation
+  checks prevent stale ordinary and dead-letter deliveries from changing replacement executions.
 
-   ```bash
-   kubectl rollout status deployment/secure-computation-internal-api-server
-   kubectl rollout status deployment/secure-computation-public-api-server
-   kubectl get deployments \
-     secure-computation-internal-api-server secure-computation-public-api-server \
-     -o custom-columns=NAME:.metadata.name,IMAGE:.spec.template.spec.containers[*].image
-   ```
-
-   This rollout adds a durable WorkItem generation. Existing rows and queue messages are treated
-   as generation 1. Retried terminal or abandoned WorkItems advance to generation 2 or later.
-   Generation checks prevent stale ordinary and dead-letter deliveries from changing a replacement
-   execution.
-5. Upgrade every queue consumer before permitting a generation-advancing retry. This includes
-   ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler TEE applications. If a queue's
-   consumers are not all generation-aware, do not call `RetryWorkItem` for that queue.
-6. Do not invoke `RetryWorkItem` until steps 4 and 5 are complete for the target queue. After that
-   point, repair each ID in the immutable snapshot exactly once:
-
-   ```bash
-   grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
-     -authority SECURE_COMPUTATION_CERT_HOST \
-     -d '{"name":"workItems/WORK_ITEM_ID"}' \
-     SECURE_COMPUTATION_API_TARGET \
-     wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
-   ```
-
-   Do not rerun the snapshot predicate: a successfully published WorkItem can legitimately remain
-   `QUEUED` until a worker creates its attempt. Verify that every repaired ID subsequently leaves
-   `QUEUED`, and investigate any that does not.
-7. Resume WorkItem producers only after the API and consumer prerequisites above are complete. The
-   stacked direct-dispatch rollout documents when to deploy and activate RequisitionFetcher.
-
-The outbox behavior itself is unchanged by this rollout procedure: WorkItem creation writes the
-pending publication atomically, the publisher deletes that row only after Pub/Sub acknowledges the
-message, and `EnsureWorkItem` returns an existing matching WorkItem without republishing it.
-`RetryWorkItem` remains the explicit repair mechanism for a `QUEUED` WorkItem. New workers renew an
-attempt lease while work is active, and the internal API automatically fails and republishes an
-attempt whose lease expires. This PR does not add or expand ResultsFulfiller-specific dead-letter
-behavior; the existing queue and EDPA-aware DLQ consumer are retained.
+No subscription drain, database snapshot, active-attempt query, or migration-time
+`FailWorkItemAttempt`/`RetryWorkItem` call is required. New WorkItem creation, `EnsureWorkItem`, and
+`RetryWorkItem` maintain the publication-generation marker and outbox transactionally. The
+publisher still deletes the outbox row only after Pub/Sub acknowledges the message. This reuses the
+existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Computation API remains
+workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
+Requisition Metadata or Impression Metadata APIs.
 
 #### Recovering after correcting a queue mapping
 
 When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
 it cannot block healthy work. After correcting the Secure Computation API queue mapping, wait for
 the publication deferral interval to expire (one minute by default). If an affected WorkItem does
-not resume automatically, call `RetryWorkItem` for that WorkItem using the command in step 6 above.
-The targeted attempt bypasses the normal background priority order while still respecting an
-active publication lease.
+not resume automatically, call `RetryWorkItem` for that WorkItem. The targeted attempt bypasses
+priority order while still respecting an active publication lease:
+
+```bash
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority SECURE_COMPUTATION_CERT_HOST \
+  -d '{"name":"workItems/WORK_ITEM_ID"}' \
+  SECURE_COMPUTATION_API_TARGET \
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
+```
 
 #### Recovering an abandoned running WorkItem
 
@@ -1277,54 +1211,18 @@ then atomically fails that exact attempt, advances the WorkItem generation, retu
 `QUEUED`, and creates a new outbox publication. A late heartbeat or completion from the abandoned
 worker is rejected because its attempt is no longer active.
 
-Attempts created by an old worker have no lease and cannot be recovered automatically. If one of
-those attempts remains after rollout, or if automatic recovery must be performed manually, first
-list the WorkItem's attempts and identify the exact active attempt:
+An attempt created by an old worker has no lease. After the workflow's MIG quiescence barrier, the
+stopped worker's Pub/Sub delivery is redelivered to a new lease-capable worker. Attempt creation then fails
+the exact unleased attempt and creates the replacement leased attempt in one Spanner transaction,
+without advancing the WorkItem generation. A leased active attempt is never replaced by a duplicate
+delivery; the duplicate is acknowledged and lease expiry remains the authoritative abandonment
+signal.
 
-```bash
-grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
-  -authority SECURE_COMPUTATION_CERT_HOST \
-  -d '{"parent":"workItems/WORK_ITEM_ID","pageSize":100}' \
-  SECURE_COMPUTATION_API_TARGET \
-  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/ListWorkItemAttempts \
-  | jq '.workItemAttempts[]? | select(.state == "ACTIVE")'
-```
+#### Monitoring active attempts
 
-If the response has `nextPageToken`, repeat the request with that value as `pageToken`. A current
-attempt includes `leaseExpirationTime`; an attempt created by an old worker does not. Confirm by
-external evidence that the worker for an unleased attempt has stopped. Do not fail an unleased
-attempt merely because it has exceeded a generic age threshold: legitimate work can be
-long-running.
-
-Fail only the exact attempt that was inspected:
-
-```bash
-grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
-  -authority SECURE_COMPUTATION_CERT_HOST \
-  -d '{"name":"workItems/WORK_ITEM_ID/workItemAttempts/ATTEMPT_ID","errorMessage":"Operator confirmed that the original worker stopped"}' \
-  SECURE_COMPUTATION_API_TARGET \
-  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/FailWorkItemAttempt
-```
-
-Calling `FailWorkItemAttempt` again for that same already-`FAILED` attempt is idempotent. Finally,
-call `RetryWorkItem` using the command in step 6. It returns a `RUNNING` WorkItem to `QUEUED` only
-when no active attempt remains and publishes it again. A stale or repeated `RetryWorkItem` call
-cannot fail a replacement worker's attempt. Stale dead-letter deliveries are fenced by the WorkItem
-generation and are acknowledged without changing the replacement generation. A same-generation
-redelivery for an already-`FAILED` WorkItem repeats the dead-letter listener's best-effort EDPA
-failure propagation, which repairs an interruption after the WorkItem transaction committed. For
-non-ResultsFulfiller applications, also wait until that propagation has finished before retrying;
-those external resource updates are not part of the Secure Computation transaction.
-
-A duplicate delivery for the current generation is acknowledged while a legitimate attempt remains
-active. This prevents repeated duplicate delivery from reaching the dead-letter queue and failing
-healthy work. The attempt lease, rather than queue redelivery, detects an abandoned new-worker
-attempt. The exact-attempt procedure remains necessary for legacy attempts without a lease.
-
-#### Monitoring old active attempts
-
-Alert on expired leased attempts and on unleased `ACTIVE` attempts left by old workers. The internal
-API normally recovers an expired lease within its polling interval, so either result remaining for
+Alert on expired leased attempts and on unleased `ACTIVE` attempts. The internal API normally
+recovers an expired lease within its polling interval, and a new worker normally replaces an
+unleased attempt on redelivery after the automated quiescence step. Either result remaining for
 more than a short grace period needs investigation:
 
 ```bash
@@ -1345,9 +1243,8 @@ gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
 
 `WorkItemAttempt.State.ACTIVE` is stored as `1`. Workers retry transient lease, completion, and
 failure RPC errors with bounded backoff. The reaper resolves a current expired lease
-transactionally with a concurrent renewal or completion, so operators should normally wait for
-automatic recovery. Use the exact-attempt recovery procedure only for an unleased legacy attempt,
-or after investigating why the reaper did not recover an expired current attempt.
+transactionally with a concurrent renewal or completion. Investigate an unleased attempt that does
+not receive a replacement delivery, or an expired current attempt that the reaper does not recover.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 
@@ -1455,10 +1352,7 @@ image is not `STABLE`). Never use a debug image in production.
 
 * **Config caching** — the ResultsFulfiller and functions generally read their config at process
   start. After changing a config file in `EDPA_CONFIG_BUCKET`, recreate the affected MIG VMs or
-  redeploy the function so the new config is picked up. The exception is
-  `requisition-fetcher-direct-dispatch-config.textproto`: RequisitionFetcher reloads that optional
-  file on every invocation, so direct-dispatch activation and rollback do not require a function
-  redeployment. Its legacy `requisition-fetcher-config.textproto` remains process-start cached.
+  redeploy the function so the new config is picked up. **Update CMMS** performs this automatically.
 * **Secret path mismatches** — the single most common failure. Every mounted secret
   path must match, character for character, the path in the config file that
   references it.

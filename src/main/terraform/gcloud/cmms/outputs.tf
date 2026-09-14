@@ -1,4 +1,4 @@
-# Copyright 2025 The Cross-Media Measurement Authors
+# Copyright 2026 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,19 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-databaseChangeLog:
-  - include:
-      file: create-securecomputation-schema.sql
-      relativeToChangeLogFile: true
-  - include:
-      file: add-work-item-publications.sql
-      relativeToChangeLogFile: true
-  - include:
-      file: add-work-item-generation.sql
-      relativeToChangeLogFile: true
-  - include:
-      file: add-work-item-attempt-leases.sql
-      relativeToChangeLogFile: true
-  - include:
-      file: add-work-item-publication-scheduling.sql
-      relativeToChangeLogFile: true
+output "work_item_tee_mig_names" {
+  description = "Names of Managed Instance Groups that consume Secure Computation WorkItems."
+  value       = module.edp_aggregator.work_item_tee_mig_names
+}

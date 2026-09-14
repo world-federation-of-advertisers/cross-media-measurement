@@ -12,6 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "enabled" {
+  description = "Whether this Managed Instance Group may run instances."
+  type        = bool
+  default     = true
+}
+
 variable "instance_template_name" {
   description = "The name of the instance template."
   type        = string

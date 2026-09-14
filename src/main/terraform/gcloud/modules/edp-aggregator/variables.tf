@@ -12,6 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+variable "tee_consumers_enabled" {
+  description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
+variable "direct_requisition_dispatch_enabled" {
+  description = "Whether RequisitionFetcher may dispatch WorkItems directly."
+  type        = bool
+  default     = true
+}
+
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
@@ -199,16 +211,6 @@ variable "requisition_fetcher_config" {
     local_path  = string
     destination = string
   })
-}
-
-variable "requisition_fetcher_direct_dispatch_config" {
-  description = "An optional object containing the local path of the requisition fetcher direct-dispatch config file and its destination path in Cloud Storage."
-  type = object({
-    local_path  = string
-    destination = string
-  })
-  nullable = true
-  default  = null
 }
 
 variable "edps_config" {

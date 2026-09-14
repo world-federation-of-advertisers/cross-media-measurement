@@ -19,6 +19,7 @@ package org.wfanet.measurement.securecomputation.datawatcher
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
+import io.grpc.Status
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.Meter
@@ -27,19 +28,23 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
-import java.util.UUID
+import java.security.MessageDigest
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /*
@@ -51,7 +56,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
-  private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
+  private val workItemIdGenerator: (String) -> String = ::deterministicWorkItemId,
   private val idTokenProvider: IdTokenProvider =
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
@@ -92,7 +97,8 @@ class DataWatcher(
 
     try {
       when (config.sinkConfigCase) {
-        WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> sendToControlPlane(config, path)
+        WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK ->
+          sendToControlPlane(config, path, objectMetadata)
         WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK ->
           sendToHttpEndpoint(config, path, objectMetadata)
         WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
@@ -103,14 +109,23 @@ class DataWatcher(
       onProcessingCompleted(config, path, processingDurationSeconds)
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
-      onProcessingFailed(config, path, elapsedSeconds, e)
+      val isRetryable = e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES
+      onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
+      if (isRetryable) {
+        throw e
+      }
     }
   }
 
-  private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
-
+  private suspend fun sendToControlPlane(
+    config: WatchedPath,
+    path: String,
+    objectMetadata: Map<String, String>,
+  ) {
     val queueConfig = config.controlPlaneQueueSink
-    val workItemId = workItemIdGenerator()
+    val objectGeneration = objectMetadata[GENERATION_METADATA_KEY].orEmpty()
+    val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
+    val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
@@ -118,16 +133,52 @@ class DataWatcher(
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
-    val request = createWorkItemRequest {
-      this.workItemId = workItemId
-      this.workItem = workItem {
-        queue = queueConfig.queue
-        this.workItemParams = workItemParams
+    val requestedWorkItem = workItem {
+      queue = queueConfig.queue
+      this.workItemParams = workItemParams
+    }
+    try {
+      workItemsStub.ensureWorkItem(
+        ensureWorkItemRequest {
+          this.workItemId = workItemId
+          workItem = requestedWorkItem
+        }
+      )
+    } catch (e: Exception) {
+      when (e.grpcStatusCode()) {
+        Status.Code.UNIMPLEMENTED -> createWorkItemWithLegacyApi(workItemId, requestedWorkItem)
+        Status.Code.FAILED_PRECONDITION -> validateExistingWorkItem(workItemId, requestedWorkItem)
+        else -> throw e
       }
     }
-    workItemsStub.createWorkItem(request)
 
     onQueueWrite(config, path, queueConfig.queue, workItemId)
+  }
+
+  private suspend fun createWorkItemWithLegacyApi(workItemId: String, requestedWorkItem: WorkItem) {
+    try {
+      workItemsStub.createWorkItem(
+        createWorkItemRequest {
+          this.workItemId = workItemId
+          workItem = requestedWorkItem
+        }
+      )
+    } catch (e: Exception) {
+      if (e.grpcStatusCode() != Status.Code.ALREADY_EXISTS) {
+        throw e
+      }
+      validateExistingWorkItem(workItemId, requestedWorkItem)
+    }
+  }
+
+  private suspend fun validateExistingWorkItem(workItemId: String, requestedWorkItem: WorkItem) {
+    val existing = workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    check(
+      existing.queue == requestedWorkItem.queue &&
+        existing.workItemParams == requestedWorkItem.workItemParams
+    ) {
+      "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
+    }
   }
 
   private fun sendToHttpEndpoint(
@@ -198,6 +249,7 @@ class DataWatcher(
     path: String,
     durationSeconds: Double,
     throwable: Throwable,
+    shouldLog: Boolean,
   ) {
     Span.current()
       .addEvent(
@@ -211,11 +263,13 @@ class DataWatcher(
           .put(ATTR_ERROR_MESSAGE_KEY, throwable.message ?: "")
           .build(),
       )
-    logger.log(
-      Level.SEVERE,
-      "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
-      throwable,
-    )
+    if (shouldLog) {
+      logger.log(
+        Level.SEVERE,
+        "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
+        throwable,
+      )
+    }
   }
 
   private fun onQueueWrite(
@@ -265,6 +319,16 @@ class DataWatcher(
 
   companion object {
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
+    private val RETRYABLE_CONTROL_PLANE_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.CANCELLED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.INTERNAL,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNKNOWN,
+        Status.Code.UNAVAILABLE,
+      )
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
 
@@ -293,6 +357,16 @@ class DataWatcher(
 
     private const val STATUS_SUCCESS = "success"
     private const val STATUS_FAILURE = "failure"
+
+    private fun deterministicWorkItemId(idempotencyKey: String): String {
+      val digest =
+        MessageDigest.getInstance("SHA-256").digest(idempotencyKey.toByteArray(Charsets.UTF_8))
+      val hex =
+        digest.joinToString(separator = "") { byte ->
+          (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+        }
+      return "dw-${hex.take(60)}"
+    }
 
     private const val EVENT_PROCESSING_COMPLETED = "edpa.data_watcher.processing_completed"
     private const val EVENT_PROCESSING_FAILED = "edpa.data_watcher.processing_failed"

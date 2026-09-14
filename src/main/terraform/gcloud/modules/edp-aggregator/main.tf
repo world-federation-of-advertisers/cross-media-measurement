@@ -222,17 +222,6 @@ resource "google_storage_bucket_object" "upload_requisition_fetcher_config" {
   source_md5hash = filemd5(var.requisition_fetcher_config.local_path)
 }
 
-resource "google_storage_bucket_object" "upload_requisition_fetcher_direct_dispatch_config" {
-  for_each = var.requisition_fetcher_direct_dispatch_config == null ? {} : {
-    direct_dispatch = var.requisition_fetcher_direct_dispatch_config
-  }
-
-  name           = each.value.destination
-  bucket         = module.config_files_bucket.storage_bucket.name
-  source         = each.value.local_path
-  source_md5hash = filemd5(each.value.local_path)
-}
-
 resource "google_storage_bucket_object" "upload_edps_config" {
   name   = var.edps_config.destination
   bucket = module.config_files_bucket.storage_bucket.name
@@ -329,18 +318,20 @@ module "requisition_fetcher_cloud_function" {
   depends_on = [
     module.secrets,
     google_storage_bucket_object.upload_requisition_fetcher_config,
-    google_storage_bucket_object.upload_requisition_fetcher_direct_dispatch_config,
   ]
 
   http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
-  secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
-  uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
-  config_path                              = var.requisition_fetcher_config.local_path
+  extra_env_vars = join(",", compact([
+    var.cloud_function_configs.requisition_fetcher.extra_env_vars,
+    "DIRECT_WORK_ITEM_DISPATCH_ENABLED=${var.direct_requisition_dispatch_enabled}",
+  ]))
+  secret_mappings   = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path     = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
+  config_path       = var.requisition_fetcher_config.local_path
 
   # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
   # run longer than that for incremental draining to happen at all — the gen2 default of 60s would
@@ -434,6 +425,7 @@ module "result_fulfiller_tee_app" {
 
   depends_on = [module.secrets]
 
+  enabled                       = var.tee_consumers_enabled
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
   base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
   managed_instance_group_name   = var.requisition_fulfiller_config.worker.managed_instance_group_name
@@ -797,6 +789,7 @@ module "vid_labeling_tee_app" {
 
   depends_on = [module.secrets]
 
+  enabled                       = var.tee_consumers_enabled
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name

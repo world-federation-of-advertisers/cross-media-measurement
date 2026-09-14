@@ -95,9 +95,9 @@ variable (see the memory row).
 | `MAX_REQUISITIONS_PER_GROUP` | env var | `1000` | Max requisitions per blob / per metadata `BatchCreate`. Bounds the Spanner mutation count per transaction. |
 | `METADATA_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between RequisitionMetadata service RPCs. The pacing multiplier for all list/batch-create calls. |
 | `CONTROL_PLANE_REQUEST_INTERVAL` | env var | `100ms` | Minimum interval between Secure Computation WorkItems API RPCs. Each direct group requires one idempotent `EnsureWorkItem` call. |
-| `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` | env var | none | Secure Computation Control Plane gRPC target. Required when an EDP is present in the direct-dispatch config. |
+| `SECURE_COMPUTATION_CONTROL_PLANE_TARGET` | env var | none | Secure Computation Control Plane gRPC target. Required when an EDP has `work_item_dispatch` configured. |
 | `SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST` | env var | none | Optional server name used to verify the Control Plane TLS certificate when it differs from the target host. |
-| `REQUISITION_FETCHER_DIRECT_DISPATCH_CONFIG_BLOB_KEY` | env var | `requisition-fetcher-direct-dispatch-config.textproto` | Optional override for the separate direct-dispatch config blob name. The blob is reloaded on every invocation. |
+| `DIRECT_WORK_ITEM_DISPATCH_ENABLED` | env var | `true` | Deployment-controlled safety gate. **Update CMMS** sets this to `false` while old TEE workers and APIs are replaced, then enables it in the final Terraform apply. |
 | `GRPC_REQUEST_INTERVAL` | env var | `1s` | Minimum interval between Kingdom mutation RPCs (e.g. `refuseRequisition`). |
 | `KINGDOM_EVENT_GROUP_REQUEST_INTERVAL` | env var | `50ms` | Minimum interval between Kingdom `getEventGroup` RPCs (called during grouping). |
 | `PAGE_SIZE` | env var | `50` | Starting page size for `listRequisitions`. Halved and retried on gRPC `RESOURCE_EXHAUSTED` (surfaced by the `page_size_reductions` metric), down to a floor of 1. |

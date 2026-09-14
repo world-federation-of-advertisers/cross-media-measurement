@@ -83,7 +83,7 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
-  terraform:
+  terraform-quiesced:
     uses: ./.github/workflows/terraform-cmms-v2.yml
     needs: [publish-images]
     secrets: inherit
@@ -94,10 +94,60 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      tee-consumers-enabled: false
+      direct-requisition-dispatch-enabled: false
+
+  wait-for-tee-consumers-to-stop:
+    runs-on: ubuntu-24.04
+    needs: [terraform-quiesced]
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    steps:
+    - name: Authenticate to Google Cloud
+      if: ${{ inputs.apply }}
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+    - name: Wait for WorkItem TEE consumers to stop
+      if: ${{ inputs.apply }}
+      env:
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+        MIG_NAMES_JSON: ${{ needs.terraform-quiesced.outputs.work_item_tee_mig_names }}
+      run: |
+        set -euo pipefail
+        if [[ -z "$MIG_NAMES_JSON" ]]; then
+          echo "::error::Terraform returned no WorkItem TEE MIG output"
+          exit 1
+        fi
+        mapfile -t mig_names < <(jq -r '.[]' <<< "$MIG_NAMES_JSON")
+        if (( ${#mig_names[@]} == 0 )); then
+          echo "::error::Terraform returned no WorkItem TEE MIG names"
+          exit 1
+        fi
+        for mig in "${mig_names[@]}"; do
+          gcloud compute instance-groups managed wait-until "$mig" \
+            --stable \
+            --region="$GCLOUD_REGION" \
+            --timeout=600
+          target_size=$(gcloud compute instance-groups managed describe "$mig" \
+            --region="$GCLOUD_REGION" \
+            --format='value(targetSize)')
+          instance_count=$(gcloud compute instance-groups managed list-instances "$mig" \
+            --region="$GCLOUD_REGION" \
+            --format=json | jq 'length')
+          if [[ "$target_size" != "0" || "$instance_count" != "0" ]]; then
+            echo "::error::MIG $mig is not empty: targetSize=$target_size instances=$instance_count"
+            exit 1
+          fi
+        done
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: [publish-images, terraform]
+    needs: [publish-images, wait-for-tee-consumers-to-stop]
     secrets: inherit
     permissions:
       contents: read
@@ -121,7 +171,7 @@ jobs:
 
   update-secure-computation:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [ publish-images, terraform, update-kingdom]
+    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom]
     secrets: inherit
     permissions:
       contents: read
@@ -130,6 +180,32 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+
+  update-edp-aggregator-service:
+    uses: ./.github/workflows/configure-edp-aggregator.yml
+    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+
+  terraform:
+    uses: ./.github/workflows/terraform-cmms-v2.yml
+    needs: [publish-images, update-secure-computation, update-edp-aggregator-service]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      tee-consumers-enabled: true
+      direct-requisition-dispatch-enabled: true
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -173,18 +249,6 @@ jobs:
   update-simulators:
     uses: ./.github/workflows/configure-simulators.yml
     needs: [publish-images, terraform]
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
-    with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  update-edp-aggregator-service:
-    uses: ./.github/workflows/configure-edp-aggregator.yml
-    needs: [publish-images, terraform, update-kingdom]
     secrets: inherit
     permissions:
       contents: read
