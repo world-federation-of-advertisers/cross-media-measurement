@@ -43,6 +43,10 @@ service WorkItems {
   // atomically retried at the next generation. An active leased attempt is
   // rejected so the delivery can be retried after the lease is recovered.
   // Otherwise, the WorkItem is failed terminally.
+  // (-- api-linter: core::0136::response-message-name=disabled
+  //     aip.dev/not-precedent: This internal recovery RPC returns the affected
+  //     resource so the DLQ listener can distinguish retry from terminal
+  //     failure. --)
   rpc ProcessWorkItemDeadLetter(ProcessWorkItemDeadLetterRequest)
       returns (WorkItem);
 
