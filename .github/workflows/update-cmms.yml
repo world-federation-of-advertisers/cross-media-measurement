@@ -113,6 +113,7 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       tee-consumers-enabled: false
       direct-requisition-dispatch-enabled: false
+      validate-direct-requisition-dispatch: true
 
   wait-for-tee-consumers-to-stop:
     runs-on: ubuntu-24.04

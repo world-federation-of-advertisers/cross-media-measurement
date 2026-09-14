@@ -41,6 +41,10 @@ on:
         description: Whether RequisitionFetcher may dispatch WorkItems directly
         type: boolean
         default: true
+      validate-direct-requisition-dispatch:
+        description: Validate direct-dispatch configuration before applying Terraform
+        type: boolean
+        default: false
     outputs:
       work_item_tee_mig_names:
         description: WorkItem-consuming Managed Instance Group names as JSON
@@ -228,7 +232,7 @@ jobs:
         cp bazel-bin/src/main/k8s/testing/secretfiles/all_root_certs.pem src/main/k8s/testing/secretfiles/
 
     - name: Validate direct RequisitionFetcher dispatch configuration
-      if: ${{ inputs.direct-requisition-dispatch-enabled }}
+      if: ${{ inputs.direct-requisition-dispatch-enabled || inputs.validate-direct-requisition-dispatch }}
       env:
         CONFIG_DIR: ${{ runner.temp }}/configs
         SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}

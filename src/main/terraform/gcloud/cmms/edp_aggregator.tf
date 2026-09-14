@@ -258,11 +258,17 @@ locals {
       uber_jar_path   = var.data_watcher_uber_jar_path
     },
     requisition_fetcher = {
-      function_name   = "requisition-fetcher"
-      entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
-      extra_env_vars  = var.requisition_fetcher_env_var
-      secret_mappings = var.requisition_fetcher_secret_mapping
-      uber_jar_path   = var.requisition_fetcher_uber_jar_path
+      function_name = "requisition-fetcher"
+      entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
+      extra_env_vars = join(",", compact([
+        var.requisition_fetcher_env_var,
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+      ]))
+      secret_mappings = join(",", compact([
+        var.requisition_fetcher_secret_mapping,
+        "/secrets/ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
+      ]))
+      uber_jar_path = var.requisition_fetcher_uber_jar_path
     },
     event_group_sync = {
       function_name   = "event-group-sync"
