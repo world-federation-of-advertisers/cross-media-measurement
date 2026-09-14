@@ -19,6 +19,7 @@ package org.wfanet.measurement.kingdom.service.api.v2alpha
 import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.kotlin.unpack
+import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.AbstractMap
@@ -62,6 +63,7 @@ import org.wfanet.measurement.api.v2alpha.principalFromCurrentContext
 import org.wfanet.measurement.api.v2alpha.unpack
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.common.grpc.asRuntimeException
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -71,6 +73,7 @@ import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.internal.kingdom.CreateMeasurementRequest as InternalCreateMeasurementRequest
 import org.wfanet.measurement.internal.kingdom.DataProviderCapabilities as InternalDataProviderCapabilities
 import org.wfanet.measurement.internal.kingdom.DataProvidersGrpcKt.DataProvidersCoroutineStub as InternalDataProvidersCoroutineStub
+import org.wfanet.measurement.internal.kingdom.ErrorCode
 import org.wfanet.measurement.internal.kingdom.Measurement as InternalMeasurement
 import org.wfanet.measurement.internal.kingdom.Measurement.DataProviderValue
 import org.wfanet.measurement.internal.kingdom.Measurement.View as InternalMeasurementView
@@ -192,7 +195,11 @@ class MeasurementsService(
     // TODO(@SanjayVas): Check required capabilities once we have any.
 
     val internalRequest =
-      request.buildInternalCreateMeasurementRequest(dataProviderCapabilities, parentKey)
+      request.buildInternalCreateMeasurementRequest(
+        dataProviderCapabilities,
+        parentKey,
+        "measurement",
+      )
 
     val internalMeasurement =
       try {
@@ -350,7 +357,7 @@ class MeasurementsService(
     val internalCreateMeasurementRequests = mutableListOf<InternalCreateMeasurementRequest>()
     var isParentEmpty = false
     var isParentNotEmpty = false
-    for (createMeasurementRequest in request.requestsList) {
+    for ((index, createMeasurementRequest) in request.requestsList.withIndex()) {
       if (createMeasurementRequest.parent.isEmpty()) {
         if (isParentNotEmpty) {
           failGrpc(Status.INVALID_ARGUMENT) {
@@ -386,6 +393,7 @@ class MeasurementsService(
         createMeasurementRequest.buildInternalCreateMeasurementRequest(
           allDataProviderCapabilities.filterKeys { it in externalDataProviderIds }.values,
           parentKey,
+          "requests[$index].measurement",
         )
       internalCreateMeasurementRequests.add(internalCreateMeasurementRequest)
     }
@@ -665,6 +673,7 @@ class MeasurementsService(
   private fun CreateMeasurementRequest.buildInternalCreateMeasurementRequest(
     dataProviderCapabilities: Collection<InternalDataProviderCapabilities>,
     parentKey: MeasurementConsumerKey,
+    measurementFieldPath: String,
   ): InternalCreateMeasurementRequest {
     val measurementConsumerCertificateKey =
       grpcRequireNotNull(
@@ -688,7 +697,7 @@ class MeasurementsService(
           .withDescription("measurement.measurement_spec does not contain a valid MeasurementSpec")
           .asRuntimeException()
       }
-    measurementSpec.validate()
+    measurementSpec.validate("$measurementFieldPath.measurement_spec")
 
     grpcRequire(measurement.dataProvidersList.isNotEmpty()) { "Data Providers list is empty" }
     val dataProviderValues: Map<ExternalId, DataProviderValue> = buildMap {
@@ -731,7 +740,7 @@ private fun DifferentialPrivacyParams.hasValidEpsilonAndDelta(): Boolean {
 }
 
 /** Validates a [MeasurementSpec] for a request. */
-private fun MeasurementSpec.validate() {
+private fun MeasurementSpec.validate(fieldPath: String) {
   grpcRequire(hasMeasurementPublicKey()) { "Measurement public key is unspecified" }
   try {
     measurementPublicKey.unpack<EncryptionPublicKey>()
@@ -799,7 +808,16 @@ private fun MeasurementSpec.validate() {
       }
     }
     MeasurementSpec.MeasurementTypeCase.POPULATION -> {
-      grpcRequire(modelLine.isNotEmpty()) { "Model Line is unspecified" }
+      if (modelLine.isEmpty()) {
+        throw Status.INVALID_ARGUMENT.withDescription("Model Line is unspecified")
+          .asRuntimeException(
+            errorInfo {
+              domain = Errors.DOMAIN
+              reason = ErrorCode.REQUIRED_FIELD_NOT_SET.name
+              metadata["fieldName"] = "$fieldPath.model_line"
+            }
+          )
+      }
     }
     MeasurementSpec.MeasurementTypeCase.MULTI ->
       failGrpc(Status.INVALID_ARGUMENT) { "Multi measurements are not supported" }
