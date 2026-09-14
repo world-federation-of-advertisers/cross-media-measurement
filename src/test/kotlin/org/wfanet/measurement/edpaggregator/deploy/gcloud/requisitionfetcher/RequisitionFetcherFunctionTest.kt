@@ -267,7 +267,7 @@ class RequisitionFetcherFunctionTest {
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
             "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configFolder.root.toPath()}",
-            "REQUISITION_FETCHER_ENABLED" to requisitionFetcherEnabled.toString(),
+            "DIRECT_WORK_ITEM_DISPATCH_ENABLED" to requisitionFetcherEnabled.toString(),
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
             "OTEL_TRACES_EXPORTER" to "none",
