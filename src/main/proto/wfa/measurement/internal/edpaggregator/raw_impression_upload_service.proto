@@ -61,7 +61,9 @@ message AcquireRawImpressionUploadEvictionFenceRequest {
   string eviction_operation_id = 2;
 }
 
-message AcquireRawImpressionUploadEvictionFenceResponse {}
+message AcquireRawImpressionUploadEvictionFenceResponse {
+  bool newly_acquired = 1;
+}
 
 message ReleaseRawImpressionUploadEvictionFenceRequest {
   string data_provider_resource_id = 1;

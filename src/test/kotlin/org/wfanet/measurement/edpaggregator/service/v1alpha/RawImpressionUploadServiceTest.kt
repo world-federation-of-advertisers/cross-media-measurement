@@ -879,12 +879,15 @@ class RawImpressionUploadServiceTest {
   @Test
   fun `eviction fence blocks public upload creation until released`(): Unit = runBlocking {
     val operationId = UUID.randomUUID().toString()
-    service.acquireRawImpressionUploadEvictionFence(
-      acquireRawImpressionUploadEvictionFenceRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        evictionOperationId = operationId
-      }
-    )
+    val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      evictionOperationId = operationId
+    }
+    val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+    val resumedAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+
+    assertThat(initialAcquire.newlyAcquired).isTrue()
+    assertThat(resumedAcquire.newlyAcquired).isFalse()
 
     val error =
       assertFailsWith<StatusRuntimeException> {
