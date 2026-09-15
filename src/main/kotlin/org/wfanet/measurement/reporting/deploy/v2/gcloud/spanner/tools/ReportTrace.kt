@@ -748,7 +748,8 @@ internal object ReportTraceOutput {
           .map { match -> "${match.groupValues[1]}=${sanitize(match.groupValues[2])}" }
           .toList()
       val diagnostic = safeDiagnostic(text, severity)
-      return (safeFields + listOfNotNull(diagnostic?.let { "diagnostic=${sanitize(it)}" }))
+      return (safeFields +
+          listOfNotNull(diagnostic?.let { "diagnostic=${sanitizeDiagnostic(it)}" }))
         .takeIf(List<String>::isNotEmpty)
         ?.joinToString(" ") ?: "[string payload omitted]"
     }
@@ -768,7 +769,7 @@ internal object ReportTraceOutput {
         val value = match.groups[2]?.value ?: return@forEach
         safeValues[key] = sanitize(value)
       }
-      safeDiagnostic(message, severity)?.let { safeValues["diagnostic"] = sanitize(it) }
+      safeDiagnostic(message, severity)?.let { safeValues["diagnostic"] = sanitizeDiagnostic(it) }
     }
     val nestedAttributes = values["attributes"] as? Map<*, *>
     if (nestedAttributes != null) {
@@ -2180,6 +2181,14 @@ internal object ReportTraceOutput {
   }
 
   fun sanitize(value: String): String {
+    return redact(value).take(MAX_RENDERED_VALUE_LENGTH)
+  }
+
+  private fun sanitizeDiagnostic(value: String): String {
+    return redact(value).take(MAX_RENDERED_DIAGNOSTIC_LENGTH)
+  }
+
+  private fun redact(value: String): String {
     var sanitized = value.replace('\n', ' ').replace('\r', ' ')
     for (pattern in SECRET_PATTERNS) {
       sanitized =
@@ -2187,7 +2196,7 @@ internal object ReportTraceOutput {
           "${match.groupValues.getOrNull(1).orEmpty()}[REDACTED]"
         }
     }
-    return sanitized.take(MAX_RENDERED_VALUE_LENGTH)
+    return sanitized
   }
 
   private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
@@ -2245,6 +2254,7 @@ internal object ReportTraceOutput {
 
   private const val MAX_LOG_FILTER_LENGTH = 20_000
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
+  private const val MAX_RENDERED_DIAGNOSTIC_LENGTH = 16 * 1024
   private val MEASUREMENT_LIFECYCLE_STAGES =
     listOf(
       "measurement_creation",

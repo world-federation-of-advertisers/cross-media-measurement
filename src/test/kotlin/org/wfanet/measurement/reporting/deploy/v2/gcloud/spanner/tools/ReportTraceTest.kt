@@ -3956,6 +3956,8 @@ class ReportTraceTest {
         "Refusing Requisition dataProviders/dp-1/requisitions/r1\n" +
           "org.example.UnfulfillableRequisitionException: PopulationSpec is invalid\n" +
           "\tat org.example.Fulfiller.process(Fulfiller.kt:42)\n" +
+          "Caused by: org.example.PopulationSpecValidationException: " +
+          "Not all population fields are set: gender, age_group, us_state\n" +
           "authorization=secret-token"
       )
 
@@ -3970,6 +3972,8 @@ class ReportTraceTest {
     assertThat(rendered).contains("UnfulfillableRequisitionException")
     assertThat(rendered).contains("PopulationSpec is invalid")
     assertThat(rendered).contains("Fulfiller.process(Fulfiller.kt:42)")
+    assertThat(rendered).contains("PopulationSpecValidationException")
+    assertThat(rendered).contains("Not all population fields are set: gender, age_group, us_state")
     assertThat(rendered).contains("authorization=[REDACTED]")
     assertThat(rendered).doesNotContain("secret-token")
   }
