@@ -207,6 +207,9 @@ Cloud Trace request types share one quota limiter per project. Each ListTraces
 request consumes 25 units and each GetTrace request consumes one unit;
 `--trace-quota-units-per-second` controls their combined rate.
 `--logging-requests-per-second` independently limits Cloud Logging queries.
+Cloud Trace HTTP 429 and Cloud Logging `RESOURCE_EXHAUSTED` responses are hard
+per-report failures, even with `--allow-partial`, because the resulting artifact
+cannot establish that collection was complete. Retry at a lower rate.
 `--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
 a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
