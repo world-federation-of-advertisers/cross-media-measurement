@@ -3664,6 +3664,80 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Reporting lifecycle logs retain per-child coverage without spans`() {
+    val metricNames =
+      listOf(
+        "measurementConsumers/mc-1/metrics/metric-1",
+        "measurementConsumers/mc-1/metrics/metric-2",
+      )
+    val measurementNames =
+      listOf(
+        "measurementConsumers/mc-1/measurements/measurement-1",
+        "measurementConsumers/mc-1/measurements/measurement-2",
+      )
+    val context =
+      reportTraceContext().copy(metricNames = metricNames, measurementNames = measurementNames)
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topology =
+          ReportTraceTopology(
+            routes = emptyMap(),
+            provenance = "operator-provided --topology-config-file (0 DataProvider routes)",
+          ),
+        measurementRoutes =
+          measurementNames.map { measurementName ->
+            ReportTraceMeasurementRoute(
+              name = measurementName,
+              state = "SUCCEEDED",
+              protocol = "DIRECT",
+              route = ReportTraceMeasurementRouteKind.DIRECT,
+              duchyIds = emptyList(),
+              duchyParticipantsResolved = true,
+              requisitions = emptyList(),
+              requisitionsResolved = true,
+            )
+          },
+        warnings = emptyList(),
+      )
+    val logEntries =
+      listOf(
+        successfulLifecycleLog(
+          "metric_result_sync",
+          mapOf("xmm.metric.name" to metricNames.first()),
+          0,
+        ),
+        successfulLifecycleLog(
+          "kingdom_measurement_sync",
+          mapOf("xmm.measurement.name" to measurementNames.first()),
+          1,
+        ),
+        successfulLifecycleLog(
+          "report_result_assembly",
+          mapOf("xmm.report.name" to context.reportName),
+          2,
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), logEntries)
+
+    assertThat(
+        coverage.filter { it.name == "metric_result_sync" }.associate { it.resource to it.status }
+      )
+      .containsExactly(metricNames[0], "SUCCEEDED", metricNames[1], "MISSING")
+    assertThat(
+        coverage
+          .filter { it.name == "kingdom_measurement_sync" }
+          .associate { it.resource to it.status }
+      )
+      .containsExactly(measurementNames[0], "SUCCEEDED", measurementNames[1], "MISSING")
+    assertThat(coverage.single { it.name == "report_result_assembly" }.status)
+      .isEqualTo("SUCCEEDED")
+  }
+
+  @Test
   fun `structured errors render for every MPC and Duchy lifecycle stage`() {
     val context = reportTraceContext()
     val measurementName = context.measurementNames.single()
@@ -5268,6 +5342,25 @@ class ReportTraceTest {
         },
       severity = "ERROR",
       trace = "projects/test/traces/trace-$secondsAfterNow",
+      message = message,
+    )
+  }
+
+  private fun successfulLifecycleLog(
+    stage: String,
+    producerAttributes: Map<String, String>,
+    secondsAfterNow: Int,
+  ): ReportTraceLogEntry {
+    val message =
+      (mapOf("xmm.lifecycle.stage" to stage, "xmm.outcome" to "succeeded") + producerAttributes)
+        .entries
+        .joinToString(" ") { (name, value) -> "$name=$value" }
+    return ReportTraceLogEntry(
+      sourceProject = "test",
+      timestamp = NOW.plusSeconds(secondsAfterNow.toLong()),
+      service = "reporting",
+      severity = "INFO",
+      trace = null,
       message = message,
     )
   }
