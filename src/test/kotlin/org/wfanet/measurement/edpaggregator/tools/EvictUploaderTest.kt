@@ -329,6 +329,108 @@ class EvictUploaderTest {
   }
 
   @Test
+  fun `plan skips noncontiguous permanently removed uploads in recovery dependencies`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            for ((id, time) in
+              listOf("up1" to T1, "up2" to T2, "up3" to T3, "up4" to T4, "up5" to T5)) {
+              rawImpressionUploads += rawImpressionUpload {
+                name = uploadName(id)
+                createTime = time.toProtoTime()
+                doneBlobUri = "gs://raw/$id/done"
+                doneBlobGeneration = 1L
+              }
+            }
+          }
+        )
+      stubModelLineRows("up1", "up2", "up3", "up4", "up5")
+      stubSnapshotRows("up1", "up2", "up3", "up4", "up5")
+
+      val plan =
+        evictUploader.plan(
+          listOf(uploadName("up2"), uploadName("up4")),
+          cutoffTime = T0,
+          noReplacementUploads = setOf(uploadName("up2"), uploadName("up4")),
+        )
+      val entries = plan.cascade.associateBy { it.uploadName }
+
+      assertThat(entries.getValue(uploadName("up2")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+      assertThat(entries.getValue(uploadName("up2")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up1"))
+      assertThat(entries.getValue(uploadName("up3")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+      assertThat(entries.getValue(uploadName("up3")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up1"))
+      assertThat(entries.getValue(uploadName("up4")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+      assertThat(entries.getValue(uploadName("up4")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up3"))
+      assertThat(entries.getValue(uploadName("up5")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+      assertThat(entries.getValue(uploadName("up5")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up3"))
+      assertThat(plan.recoveryTargets)
+        .containsExactly(
+          EvictUploader.RecoveryTarget(uploadName("up3"), listOf(MODEL_LINE)),
+          EvictUploader.RecoveryTarget(uploadName("up5"), listOf(MODEL_LINE)),
+        )
+        .inOrder()
+    }
+
+  @Test
+  fun `plan starts recovery without a predecessor when first upload is permanently removed`():
+    Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          for ((id, time) in listOf("up1" to T1, "up2" to T2, "up3" to T3)) {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName(id)
+              createTime = time.toProtoTime()
+              doneBlobUri = "gs://raw/$id/done"
+              doneBlobGeneration = 1L
+            }
+          }
+        }
+      )
+    stubModelLineRows("up1", "up2", "up3")
+    stubSnapshotRows("up1", "up2", "up3")
+
+    val plan =
+      evictUploader.plan(
+        listOf(uploadName("up1")),
+        cutoffTime = T0,
+        noReplacementUploads = setOf(uploadName("up1")),
+      )
+    val entries = plan.cascade.associateBy { it.uploadName }
+
+    assertThat(entries.getValue(uploadName("up1")).recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+    assertThat(entries.getValue(uploadName("up2")).recoveryPredecessorUploadName).isEmpty()
+    assertThat(entries.getValue(uploadName("up3")).recoveryPredecessorUploadName)
+      .isEqualTo(uploadName("up2"))
+  }
+
+  @Test
+  fun `plan rejects no-replacement upload outside bad uploads`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking {
+          evictUploader.plan(
+            listOf(uploadName("up1")),
+            cutoffTime = T0,
+            noReplacementUploads = setOf(uploadName("up2")),
+          )
+        }
+      }
+
+    assertThat(error).hasMessageThat().contains("must also be listed in badUploads")
+  }
+
+  @Test
   fun `plan throws when a bad upload is outside the retention window`() {
     val error =
       assertFailsWith<IllegalArgumentException> {

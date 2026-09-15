@@ -41,6 +41,8 @@ the first row for that date.
 Run the command with:
 
 * `--bad-uploads`: comma-separated `RawImpressionUpload` resource names containing bad data.
+* `--no-replacement-upload`: optional comma-separated subset of `--bad-uploads` that must be
+  permanently removed rather than corrected and re-uploaded by the EDP.
 * `--retention-days`: the bounded history in which the command may inspect and evict uploads.
 * `--reason`: the diagnosis recorded on each failed upload/model-line row.
 * `--labeled-impressions-blob-prefix`: the absolute URI prefix configured for VID-labeled output.
@@ -82,10 +84,18 @@ Objects removed from the directory are excluded from the replacement upload.
 
 For explicitly selected bad uploads, the EDP writes corrected data and a new `done` generation in
 chronological order. That normal path recreates every applicable memoized and non-memoized model
-line. Give the EDP the
+line recorded by the eviction, even if a model line's active window ends while healing is in
+progress. Give the EDP the
 [Reference VID impression upload guide](../edpaggregator/reference-vid-impression-upload-guide.md)
 and confirm that eviction completed before the EDP changes the directory or writes the new `done`
 generation.
+
+If an invalid upload must be removed permanently, include it in both `--bad-uploads` and
+`--no-replacement-upload`. Do not write an empty replacement. Non-memoized processing simply omits
+that upload. For each memoized model line, the workflow skips the removed upload when constructing
+the predecessor chain: the next retained upload is recovered from the latest earlier retained
+snapshot, or starts a new snapshot when no predecessor remains. Multiple adjacent or
+non-contiguous removals are supported.
 
 Later uploads pulled into the eviction only by a memoized cascade do not need their raw data
 re-uploaded. Run `resume` with the operation name printed by `evict-uploads` whenever the requested

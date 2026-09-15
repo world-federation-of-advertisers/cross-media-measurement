@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -145,6 +146,17 @@ class UploadHealingWorkflowTest {
     addService(impressionMetadataService)
   }
 
+  @Before
+  fun resetState() {
+    operationsService.reset()
+    uploadsByName.clear()
+    modelLinesByUpload.clear()
+    activeSnapshots.clear()
+    recoveredUploads.clear()
+    releasedFenceOperationIds.clear()
+    releaseFailuresRemaining = 0
+  }
+
   @Test
   fun `resume checkpoints eviction and advances replacements oldest first`() = runBlocking {
     for ((index, uploadName) in listOf(D1, D2, D3, D4, D5).withIndex()) {
@@ -260,6 +272,80 @@ class UploadHealingWorkflowTest {
     Unit
   }
 
+  @Test
+  fun `permanent removals complete without replacement and recover around missing days`() =
+    runBlocking {
+      for ((index, uploadName) in listOf(D1, D2, D3, D4, D5).withIndex()) {
+        uploadsByName[uploadName] = sourceUpload(uploadName, index)
+        modelLinesByUpload[uploadName] =
+          listOf(
+            rawImpressionUploadModelLine {
+              name = "$uploadName/rawImpressionUploadModelLines/ml"
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.COMPLETED
+            }
+          )
+        activeSnapshots += uploadName to MODEL_LINE
+      }
+      val channel = grpcTestServerRule.channel
+      val plan =
+        EvictUploader(
+            RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(channel),
+            RawImpressionUploadModelLineServiceGrpcKt
+              .RawImpressionUploadModelLineServiceCoroutineStub(channel),
+            RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
+            RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
+              channel
+            ),
+            ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel),
+            "gs://output/vid",
+            deleteBlob = { true },
+          )
+          .plan(listOf(D2, D4), cutoffTime = Instant.EPOCH, noReplacementUploads = setOf(D2, D4))
+      val workflow =
+        UploadHealingWorkflow(
+          UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(channel),
+          RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(channel),
+          RawImpressionUploadModelLineServiceGrpcKt
+            .RawImpressionUploadModelLineServiceCoroutineStub(channel),
+          RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
+          EvictionExecutor { evictionPlan, _, checkpoint ->
+            for (entry in evictionPlan.cascade) checkpoint(entry)
+            EvictUploader.EvictionResult(evictionPlan.cascade.map { it.modelLineName }, 4, 4, 8)
+          },
+          RecoveryExecutor { source, modelLines ->
+            recoveredUploads += source
+            RecoverUploader.Result(
+              source,
+              uploadsByName.getValue(source).doneBlobUri,
+              999L,
+              modelLines,
+            )
+          },
+        )
+
+      val started = workflow.start(plan, "bad source data", "gs://output/vid")
+
+      assertThat(started.operation.stepsList.single { it.sourceRawImpressionUpload == D2 }.state)
+        .isEqualTo(UploadHealingStep.State.COMPLETE)
+      assertThat(started.operation.stepsList.single { it.sourceRawImpressionUpload == D4 }.state)
+        .isEqualTo(UploadHealingStep.State.COMPLETE)
+      assertThat(recoveredUploads).containsExactly(D3)
+
+      addCompletedReplacement(D3, D3_REPLACEMENT)
+      val afterD3 = workflow.resume(started.operation.name)
+
+      assertThat(afterD3.nextAction).contains(D5)
+      assertThat(recoveredUploads).containsExactly(D3, D5).inOrder()
+
+      addCompletedReplacement(D5, D5_REPLACEMENT)
+      val completed = workflow.resume(started.operation.name)
+
+      assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+      assertThat(releasedFenceOperationIds).containsExactly(plan.evictionOperationId)
+      Unit
+    }
+
   private fun addCompletedReplacement(sourceName: String, replacementName: String) {
     val source = uploadsByName.getValue(sourceName)
     uploadsByName[replacementName] = rawImpressionUpload {
@@ -296,6 +382,11 @@ class UploadHealingWorkflowTest {
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
     private var operation: UploadHealingOperation? = null
     private var etagSequence = 0
+
+    fun reset() {
+      operation = null
+      etagSequence = 0
+    }
 
     override suspend fun createUploadHealingOperation(
       request: CreateUploadHealingOperationRequest

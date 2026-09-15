@@ -119,6 +119,8 @@ class EvictUploader(
     val memoizedModelLines: Set<String>,
     val nonMemoizedModelLines: Set<String>,
     val badUploads: List<String>,
+    /** Explicitly bad uploads that are permanently removed instead of replaced by the EDP. */
+    val noReplacementUploads: Set<String>,
     val cutoffTime: Instant,
     /** UUID4 that owns the fence and identifies every model-line row in this eviction. */
     val evictionOperationId: String,
@@ -142,6 +144,7 @@ class EvictUploader(
    *
    * @param badUploads `RawImpressionUpload` resource names of the bad uploads (all under the same
    *   DataProvider).
+   * @param noReplacementUploads subset of [badUploads] that the operator is permanently removing.
    * @throws IllegalArgumentException if [badUploads] is empty, spans multiple DataProviders, names
    *   an unknown upload, names an upload older than [cutoffTime], or the DataProvider still has
    *   queued or running model-line work.
@@ -150,6 +153,7 @@ class EvictUploader(
     badUploads: List<String>,
     cutoffTime: Instant,
     evictionOperationId: String = UUID.randomUUID().toString(),
+    noReplacementUploads: Set<String> = emptySet(),
   ): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
     require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
@@ -158,6 +162,10 @@ class EvictUploader(
     val dataProvider = dataProviderOf(badUploads.first())
     require(badUploads.all { dataProviderOf(it) == dataProvider }) {
       "all bad uploads must be under the same DataProvider"
+    }
+    require(noReplacementUploads.all { it in badUploads }) {
+      "no-replacement upload(s) must also be listed in badUploads: " +
+        noReplacementUploads.filter { it !in badUploads }
     }
 
     val uploadsByName: Map<String, RawImpressionUpload> = listUploads(dataProvider, cutoffTime)
@@ -243,7 +251,9 @@ class EvictUploader(
               cmmsModelLine = cmmsModelLine,
               memoized = true,
               recoveryAction =
-                if (uploadName in requestedNames) {
+                if (uploadName in noReplacementUploads) {
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+                } else if (uploadName in requestedNames) {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
                 } else {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
@@ -262,7 +272,11 @@ class EvictUploader(
             row.cmmsModelLine,
             memoized = false,
             recoveryAction =
-              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+              if (uploadName in noReplacementUploads) {
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+              } else {
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+              },
             recoveryPredecessorUploadName = "",
           )
     }
@@ -318,7 +332,12 @@ class EvictUploader(
                   add((cmmsModelLine to sameRevision.uploadName) to predecessorName)
                 }
               }
-              predecessorName = entry.uploadName
+              if (
+                entry.recoveryAction !=
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+              ) {
+                predecessorName = entry.uploadName
+              }
             }
           }
         }
@@ -357,6 +376,7 @@ class EvictUploader(
       memoizedModelLines,
       nonMemoizedModelLines,
       badUploads,
+      noReplacementUploads,
       cutoffTime,
       evictionOperationId,
       recoveryTargets,
@@ -395,7 +415,12 @@ class EvictUploader(
       }
     )
     val refreshed =
-      plan(plan.badUploads, plan.cutoffTime, evictionOperationId = plan.evictionOperationId)
+      plan(
+        plan.badUploads,
+        plan.cutoffTime,
+        evictionOperationId = plan.evictionOperationId,
+        noReplacementUploads = plan.noReplacementUploads,
+      )
     require(refreshed.cascade == plan.cascade) {
       "eviction plan changed after confirmation; review the new plan and retry"
     }

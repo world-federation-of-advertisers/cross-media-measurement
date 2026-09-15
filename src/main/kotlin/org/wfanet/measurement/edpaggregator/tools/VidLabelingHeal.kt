@@ -580,8 +580,9 @@ class RecoverUploadCommand : EdpaApiCommand() {
  * and their cumulative snapshots are soft-deleted. Confined to the retention window. Prints the
  * complete mixed-path plan and prompts the operator to confirm before mutating anything.
  *
- * The resulting `FAILED` model lines represent invalidated completed work. They must be replaced by
- * new uploads and must not be passed to `retry-failed`.
+ * The resulting `FAILED` model lines represent invalidated completed work. Unless explicitly marked
+ * as requiring no replacement, they must be replaced by new uploads and must not be passed to
+ * `retry-failed`.
  *
  * Confirmation is interactive (type `yes`), by design, not a `--confirm` flag: the printed cascade
  * often includes uploads the operator did not name explicitly (later uploads that cascade from the
@@ -624,6 +625,18 @@ class EvictUploadsCommand : EdpaApiCommand() {
   private lateinit var badUploads: List<String>
 
   @Option(
+    names = ["--no-replacement-upload"],
+    description =
+      [
+        "Comma-separated subset of --bad-uploads to remove permanently without waiting for an " +
+          "EDP replacement."
+      ],
+    required = false,
+    split = ",",
+  )
+  private var noReplacementUploads: List<String> = emptyList()
+
+  @Option(
     names = ["--retention-days"],
     description = ["Retention window in days; uploads created before now-retention are rejected."],
     required = true,
@@ -652,6 +665,9 @@ class EvictUploadsCommand : EdpaApiCommand() {
     require(badUploads.all { it.isNotBlank() }) {
       "--bad-uploads entries must be non-blank RawImpressionUpload resource names."
     }
+    require(noReplacementUploads.all { it.isNotBlank() }) {
+      "--no-replacement-upload entries must be non-blank RawImpressionUpload resource names."
+    }
     require(retentionDays > 0) { "--retention-days must be positive; got $retentionDays" }
     val outputPrefixBlobUri = parseLabeledImpressionsBlobPrefix(labeledImpressionsBlobPrefix)
     val normalizedOutputPrefix = normalizedBlobPrefix(outputPrefixBlobUri)
@@ -662,7 +678,13 @@ class EvictUploadsCommand : EdpaApiCommand() {
           newEvictUploader(channel, outputPrefixBlobUri, normalizedOutputPrefix, gcsProject)
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
         val operationId = evictionOperationId ?: UUID.randomUUID().toString()
-        val plan = evictUploader.plan(badUploads, cutoffTime, evictionOperationId = operationId)
+        val plan =
+          evictUploader.plan(
+            badUploads,
+            cutoffTime,
+            evictionOperationId = operationId,
+            noReplacementUploads = noReplacementUploads.toSet(),
+          )
 
         println(
           "Eviction operation ID: ${plan.evictionOperationId}. Reuse it with " +
@@ -679,6 +701,12 @@ class EvictUploadsCommand : EdpaApiCommand() {
         if (plan.extraUploads.isNotEmpty()) {
           println(
             "NOTE: uploads created after the bad one(s) will also be evicted: ${plan.extraUploads}"
+          )
+        }
+        if (plan.noReplacementUploads.isNotEmpty()) {
+          println(
+            "Permanently removed uploads (no EDP replacement expected): " +
+              plan.noReplacementUploads
           )
         }
         val operationName =
