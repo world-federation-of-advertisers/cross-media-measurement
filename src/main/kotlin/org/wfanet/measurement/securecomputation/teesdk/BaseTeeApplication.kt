@@ -216,6 +216,7 @@ abstract class BaseTeeApplication(
         queueMessage.nack()
         return
       }
+    Span.current().setAttribute(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttempt.name)
 
     try {
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")

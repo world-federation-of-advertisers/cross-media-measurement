@@ -780,6 +780,8 @@ class ReportTraceTest {
     assertThat(filter).contains("NOT (textPayload =~")
     assertThat(filter).contains("jsonPayload.message =~")
     assertThat(filter).contains("gRPC([[:space:]]+client)?")
+    assertThat(filter).contains("resource.labels.container_name =~ \".*api-server.*\"")
+    assertThat(filter).contains("^[[:space:]]*[a-z][a-z0-9_.-]*:[[:space:]]")
   }
 
   @Test
@@ -1493,6 +1495,81 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `foreign report failure does not change execution outcome`() {
+    val context = reportTraceContext().copy(basicReportState = null)
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val targetReportSucceeded =
+      traceSpan("target-report", NOW)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.report.name" to context.reportName,
+              "xmm.report.state" to "SUCCEEDED",
+              "xmm.outcome" to "succeeded",
+            )
+        )
+    val foreignMeasurementFailed =
+      traceSpan("foreign-measurement", NOW.plusSeconds(1))
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.measurement.name" to
+                "measurementConsumers/mc-1/measurements/foreign-measurement",
+              "xmm.measurement.state" to "FAILED",
+              "xmm.outcome" to "failed",
+            )
+        )
+
+    assertThat(
+        ReportTraceOutput.executionOutcome(
+          context,
+          routeResolution,
+          listOf(targetReportSucceeded, foreignMeasurementFailed),
+          emptyList(),
+        )
+      )
+      .isEqualTo(ReportTraceExecutionOutcome.SUCCEEDED)
+  }
+
+  @Test
+  fun `correlation discovery rejects resources belonging only to another report`() {
+    val targetMeasurement = "measurementConsumers/mc-1/measurements/measurement-1"
+    val targetWorkItem = "workItems/target-work-item"
+    val foreignMeasurement = "measurementConsumers/mc-1/measurements/foreign-measurement"
+    val foreignComputation = "computations/foreign-computation"
+    val spans =
+      listOf(
+        traceSpan("target", NOW)
+          .copy(
+            attributes =
+              mapOf(
+                "xmm.measurement.name" to targetMeasurement,
+                "xmm.work_item.name" to targetWorkItem,
+              )
+          ),
+        traceSpan("foreign", NOW.plusSeconds(1))
+          .copy(
+            attributes =
+              mapOf(
+                "xmm.measurement.name" to foreignMeasurement,
+                "xmm.computation.name" to foreignComputation,
+              )
+          ),
+      )
+
+    val discovered =
+      ReportTraceOutput.discoveredCorrelationValues(spans, emptyList(), setOf(targetMeasurement))
+
+    assertThat(discovered).containsExactly(targetMeasurement, targetWorkItem)
+  }
+
+  @Test
   fun `span retention preserves all recognized failure outcomes`() {
     val failureOutcomes =
       listOf("failed", "failed_validation", "report_failed", "failure", "error", "refused")
@@ -1830,6 +1907,43 @@ class ReportTraceTest {
     assertThat(coverage.single { it.name == "requisition_refusal" }.status).isEqualTo("REFUSED")
     assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
       .isEqualTo(ReportTraceArtifactStatus.COMPLETE)
+  }
+
+  @Test
+  fun `accepted Requisition refusal skips report assembly when it was not reached`() {
+    val context = reportTraceContext().copy(basicReportState = "REPORT_CREATED")
+    val baseRoute =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val routeResolution =
+      baseRoute.copy(
+        measurementRoutes =
+          listOf(
+            baseRoute.measurementRoutes
+              .single()
+              .copy(
+                state = "FAILED",
+                requisitions =
+                  listOf(
+                    baseRoute.measurementRoutes
+                      .single()
+                      .requisitions
+                      .single()
+                      .copy(state = "REFUSED")
+                  ),
+              )
+          )
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), emptyList())
+
+    assertThat(coverage.single { it.name == "report_result_assembly" }.status)
+      .isEqualTo("SKIPPED_AFTER_REFUSAL")
   }
 
   @Test
@@ -2965,6 +3079,65 @@ class ReportTraceTest {
       )
     assertThat(output).contains("| DIRECT | DIRECT |")
     assertThat(output).contains("| FULFILLED | dataProviders/direct | DIRECT_EDP |")
+    assertThat(output).contains("- DataProvider: dataProviders/direct [DIRECT_EDP]")
+    assertThat(output).doesNotContain("- DataProvider: dataProviders/edpa [EDPA]")
+  }
+
+  @Test
+  fun `render promotes application errors and warning refusal details`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val errorMessage =
+      "Failed to write report\njava.lang.IllegalStateException: database unavailable"
+    val warningMessage =
+      "Refusing Requisition $requisitionName\n" +
+        "org.wfanet.measurement.dataprovider.UnfulfillableRequisitionException: " +
+        "PopulationSpec is invalid\n" +
+        "\tat example.Fulfiller.validate(Fulfiller.kt:10)\n" +
+        "Caused by: org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException: " +
+        "Not all population fields are set\n" +
+        "  Population field Common.gender not set in subpopulations[0]"
+    val logEntries =
+      listOf(
+        ReportTraceLogEntry("test", NOW, "reporting", "ERROR", null, errorMessage),
+        ReportTraceLogEntry(
+          "test",
+          NOW.plusSeconds(1),
+          "population-fulfiller",
+          "WARNING",
+          null,
+          warningMessage,
+        ),
+      )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution =
+          routeResolution(
+            context,
+            ReportTraceMeasurementRouteKind.DIRECT,
+            requisitionName,
+            ReportTraceRequisitionRouteKind.DIRECT_EDP,
+          ),
+        spans = emptyList(),
+        logEntries = logEntries,
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+      )
+
+    assertThat(output.indexOf("## Errors")).isLessThan(output.indexOf("## Resolved resource chain"))
+    assertThat(output.indexOf("## Warnings"))
+      .isLessThan(output.indexOf("## Resolved resource chain"))
+    val diagnostics = output.substringBefore("## Resolved resource chain")
+    assertThat(diagnostics).contains("Failed to write report java.lang.IllegalStateException")
+    assertThat(diagnostics).contains("Refusing Requisition $requisitionName")
+    assertThat(diagnostics)
+      .contains("org.wfanet.measurement.dataprovider.UnfulfillableRequisitionException")
+    assertThat(diagnostics).contains("PopulationSpecValidationException")
+    assertThat(diagnostics).contains("Population field Common.gender not set")
+    assertThat(diagnostics).doesNotContain("at example.Fulfiller.validate")
   }
 
   @Test
@@ -4005,6 +4178,35 @@ class ReportTraceTest {
     val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = true)
 
     assertThat(rendered).isEqualTo(payload.data)
+  }
+
+  @Test
+  fun `renderLogPayload omits split gRPC protobuf continuation from API server`() {
+    val payload = Payload.StringPayload.of("    work_item: \"workItems/work-item-1\"")
+
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        includeGrpcPayloads = false,
+        service = "secure-computation-api-server-container",
+      )
+
+    assertThat(rendered).isNull()
+  }
+
+  @Test
+  fun `renderLogPayload keeps similar application message outside API server`() {
+    val message = "work_item: processing started"
+    val payload = Payload.StringPayload.of(message)
+
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        includeGrpcPayloads = false,
+        service = "results-fulfiller",
+      )
+
+    assertThat(rendered).isEqualTo(message)
   }
 
   @Test

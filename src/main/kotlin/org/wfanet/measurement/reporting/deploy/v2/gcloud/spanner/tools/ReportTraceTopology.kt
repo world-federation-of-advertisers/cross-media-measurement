@@ -51,7 +51,7 @@ internal data class ReportTraceTopology(
       }
       return ReportTraceTopology(
         routes = routes,
-        provenance = "operator-provided --topology-config-file (${routes.size} DataProvider routes)",
+        provenance = "operator-provided --topology-config-file",
       )
     }
 
