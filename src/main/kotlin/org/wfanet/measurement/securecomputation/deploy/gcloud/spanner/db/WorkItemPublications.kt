@@ -66,11 +66,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
   workItemId: Long,
   nextAttemptTime: Instant,
 ) {
-  insertWorkItemPublication(
-    workItemId,
-    isDeadLetter = false,
-    nextAttemptTime = nextAttemptTime,
-  )
+  insertWorkItemPublication(workItemId, isDeadLetter = false, nextAttemptTime = nextAttemptTime)
 }
 
 /** Buffers an insert mutation for a pending dead-letter WorkItem publication. */
