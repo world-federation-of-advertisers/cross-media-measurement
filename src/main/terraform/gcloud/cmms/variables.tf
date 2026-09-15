@@ -182,6 +182,12 @@ variable "tee_consumers_enabled" {
   default     = true
 }
 
+variable "requisition_fetcher_enabled" {
+  description = "Whether the RequisitionFetcher scheduler may start new invocations."
+  type        = bool
+  default     = true
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string

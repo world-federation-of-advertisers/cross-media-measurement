@@ -39,6 +39,12 @@ service RequisitionMetadataService {
   rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
       returns (BatchCreateRequisitionMetadataResponse) {}
 
+  // Atomically registers multiple RequisitionMetadata entries in the QUEUED
+  // state for direct WorkItem dispatch.
+  rpc RegisterQueuedRequisitionMetadata(
+      RegisterQueuedRequisitionMetadataRequest)
+      returns (RegisterQueuedRequisitionMetadataResponse) {}
+
   // Retrieves a specific RequisitionMetadata entry by its resource name.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
       returns (RequisitionMetadata) {}
@@ -150,6 +156,40 @@ message BatchCreateRequisitionMetadataRequest {
 message BatchCreateRequisitionMetadataResponse {
   // The list of newly created RequisitionMetadata, in the same order as the
   // request.
+  repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+// Request message for the `RegisterQueuedRequisitionMetadata` method.
+// (-- api-linter: core::0233::request-requests-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
+message RegisterQueuedRequisitionMetadataRequest {
+  // The parent data provider resource name.
+  // Format: `dataProviders/{data_provider}`
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RequisitionMetadata"
+    }
+  ];
+
+  // The RequisitionMetadata resources to create and queue atomically.
+  repeated CreateRequisitionMetadataRequest requests = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // The WorkItem that owns the queued resources.
+  string work_item = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "control-plane.secure-computation.halo-cmm.org/WorkItem"
+    }
+  ];
+}
+
+// Response message for the `RegisterQueuedRequisitionMetadata` method.
+// (-- api-linter: core::0233::response-resource-field=disabled
+//     aip.dev/not-precedent: Linter incorrectly singularizes "Metadata". --)
+message RegisterQueuedRequisitionMetadataResponse {
+  // The registered RequisitionMetadata resources, in request order.
   repeated RequisitionMetadata requisition_metadata = 1;
 }
 
