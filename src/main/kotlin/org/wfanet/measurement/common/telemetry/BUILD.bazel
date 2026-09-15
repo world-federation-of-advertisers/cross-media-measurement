@@ -6,6 +6,7 @@ kt_jvm_library(
     name = "report_tracing",
     srcs = [
         "ReportTraceAttributes.kt",
+        "ReportTraceLogging.kt",
         "ReportTracing.kt",
         "W3CTraceContext.kt",
     ],

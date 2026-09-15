@@ -39,6 +39,7 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
@@ -240,6 +241,13 @@ class BasicReportsReportsJob(
                         externalBasicReportId = basicReport.externalBasicReportId,
                       )
                       span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+                      logReportResultAssembly(
+                        basicReportName,
+                        reportName,
+                        report.state,
+                        "failed",
+                        error = e,
+                      )
                       return@trace
                     }
 
@@ -262,6 +270,13 @@ class BasicReportsReportsJob(
                       .build(),
                   )
                   span.setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+                  logReportResultAssembly(
+                    basicReportName,
+                    reportName,
+                    report.state,
+                    "succeeded",
+                    error = null,
+                  )
                 }
                 Report.State.FAILED -> {
                   failBasicReport(
@@ -273,6 +288,13 @@ class BasicReportsReportsJob(
                     Attributes.of(ReportTraceAttributes.OUTCOME, "report_failed"),
                   )
                   span.setAttribute(ReportTraceAttributes.OUTCOME, "report_failed")
+                  logReportResultAssembly(
+                    basicReportName,
+                    reportName,
+                    report.state,
+                    "report_failed",
+                    error = null,
+                  )
                 }
 
                 Report.State.STATE_UNSPECIFIED,
@@ -282,10 +304,24 @@ class BasicReportsReportsJob(
                     "reporting.basic_report.waiting_for_report",
                     Attributes.of(ReportTraceAttributes.REPORT_STATE, report.state.name),
                   )
+                  logReportResultAssembly(
+                    basicReportName,
+                    reportName,
+                    report.state,
+                    "in_progress",
+                    error = null,
+                  )
                 }
               }
             }
           } catch (e: Exception) {
+            logReportResultAssembly(
+              basicReportName,
+              reportName,
+              reportState = null,
+              outcome = "failed",
+              error = e,
+            )
             logger.log(
               Level.WARNING,
               "Failed to get Report Results for BasicReport " +
@@ -874,6 +910,26 @@ class BasicReportsReportsJob(
     )
   }
 
+  private fun logReportResultAssembly(
+    basicReportName: String?,
+    reportName: String,
+    reportState: Report.State?,
+    outcome: String,
+    error: Throwable?,
+  ) {
+    ReportTraceLogging.log(
+      logger,
+      "reporting.basic_report.assemble_results",
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "report_result_assembly",
+      ReportTraceAttributes.BASIC_REPORT_NAME_STRING to basicReportName,
+      ReportTraceAttributes.REPORT_NAME_STRING to reportName,
+      ReportTraceAttributes.REPORT_STATE_STRING to reportState?.name,
+      ReportTraceAttributes.OUTCOME_STRING to outcome,
+      ReportTraceAttributes.ERROR_TYPE_STRING to error?.let(ReportTraceAttributes::errorType),
+      ReportTraceAttributes.ERROR_CODE_STRING to error?.let(ReportTraceAttributes::errorCode),
+    )
+  }
+
   private data class MetricCalculationSpecInfo(
     val metricFrequencySpec: MetricCalculationSpec.MetricFrequencySpec,
     val hasTrailingWindow: Boolean,
@@ -920,7 +976,7 @@ class BasicReportsReportsJob(
   )
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
   }
 }
