@@ -60,9 +60,11 @@ import org.wfanet.measurement.api.v2alpha.EventGroupKt
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.ListRequisitionsRequest
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
 import org.wfanet.measurement.api.v2alpha.RefuseRequisitionRequest
+import org.wfanet.measurement.api.v2alpha.Requisition
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt
 import org.wfanet.measurement.api.v2alpha.copy
@@ -86,8 +88,10 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequi
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.FulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataRequest
@@ -118,6 +122,10 @@ class RequisitionFetcherTest {
   private val refuseRequisitionRequests = mutableListOf<RefuseRequisitionRequest>()
   private val createRequisitionMetadataRequests = mutableListOf<CreateRequisitionMetadataRequest>()
   private val refuseRequisitionMetadataRequests = mutableListOf<RefuseRequisitionMetadataRequest>()
+  private val fulfillRequisitionMetadataRequests =
+    mutableListOf<FulfillRequisitionMetadataRequest>()
+  private val markWithdrawnRequisitionMetadataRequests =
+    mutableListOf<MarkWithdrawnRequisitionMetadataRequest>()
   private val queueRequisitionMetadataRequests = mutableListOf<QueueRequisitionMetadataRequest>()
   private val registerQueuedRequisitionMetadataRequests =
     mutableListOf<RegisterQueuedRequisitionMetadataRequest>()
@@ -130,8 +138,12 @@ class RequisitionFetcherTest {
         .thenReturn(listRequisitionsResponse { requisitions += TestRequisitionData.REQUISITION })
       onBlocking { refuseRequisition(any()) }
         .thenAnswer { invocation ->
-          refuseRequisitionRequests += invocation.getArgument<RefuseRequisitionRequest>(0)
-          requisition {}
+          val request = invocation.getArgument<RefuseRequisitionRequest>(0)
+          refuseRequisitionRequests += request
+          requisition {
+            name = request.name
+            state = Requisition.State.REFUSED
+          }
         }
     }
 
@@ -244,6 +256,18 @@ class RequisitionFetcherTest {
         .thenAnswer { invocation ->
           refuseRequisitionMetadataRequests +=
             invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
+          requisitionMetadata {}
+        }
+      onBlocking { fulfillRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          fulfillRequisitionMetadataRequests +=
+            invocation.getArgument<FulfillRequisitionMetadataRequest>(0)
+          requisitionMetadata {}
+        }
+      onBlocking { markWithdrawnRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          markWithdrawnRequisitionMetadataRequests +=
+            invocation.getArgument<MarkWithdrawnRequisitionMetadataRequest>(0)
           requisitionMetadata {}
         }
     }
@@ -611,6 +635,63 @@ class RequisitionFetcherTest {
 
     assertThat(refuseRequisitionMetadataRequests.map { it.etag })
       .containsExactly("queued-etag", "processing-etag")
+    assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
+  fun `stale metadata reconciles terminal Kingdom state that wins refusal race`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val kingdomStates =
+      listOf(Requisition.State.REFUSED, Requisition.State.WITHDRAWN, Requisition.State.FULFILLED)
+    val staleRequisitions =
+      kingdomStates.mapIndexed { index, _ ->
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/terminal-$index"
+          updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+        }
+      }
+    val terminalStateByName =
+      staleRequisitions.zip(kingdomStates).associate { (requisition, state) ->
+        requisition.name to state
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += staleRequisitions })
+    whenever(requisitionsServiceMock.refuseRequisition(any()))
+      .thenThrow(Status.FAILED_PRECONDITION.asRuntimeException())
+    whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetRequisitionRequest>(0)
+      TestRequisitionData.REQUISITION.copy {
+        name = request.name
+        state = terminalStateByName.getValue(request.name)
+      }
+    }
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            staleRequisitions.mapIndexed { index, requisition ->
+              requisitionMetadata {
+                name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-$index"
+                cmmsRequisition = requisition.name
+                groupId = "existing-group"
+                blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+                state = RequisitionMetadata.State.QUEUED
+                workItem = "workItems/results-fulfiller-existing-group"
+                etag = "etag-$index"
+              }
+            }
+        }
+      )
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionMetadataRequests.map { it.name })
+      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-0")
+    assertThat(markWithdrawnRequisitionMetadataRequests.map { it.name })
+      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-1")
+    assertThat(fulfillRequisitionMetadataRequests.map { it.name })
+      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-2")
+    assertThat(failWorkItemRequests).hasSize(1)
     assertThat(ensureWorkItemRequests).isEmpty()
   }
 

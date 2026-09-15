@@ -864,8 +864,10 @@ the matching metadata `REFUSED`. If every metadata member in the group is termin
 generation-fails its WorkItem; otherwise ResultsFulfiller skips terminal Kingdom Requisitions and
 continues eligible siblings. Failing a WorkItem fences its control-plane state but does not forcibly
 stop an already-running TEE, so the prior Kingdom refusal is the safety boundary. If the Kingdom
-refusal call fails, that Requisition and its group are excluded from dispatch for the current run
-and remain `UNFULFILLED`; a later scheduled invocation retries the refusal.
+refusal races with fulfillment, withdrawal, or another refusal, the fetcher reads the authoritative
+Kingdom state and applies the matching local terminal transition. If the Requisition remains
+`UNFULFILLED` or its state cannot be resolved, it and its group are excluded from dispatch for the
+current run; a later scheduled invocation retries the refusal.
 
 `work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
 new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
