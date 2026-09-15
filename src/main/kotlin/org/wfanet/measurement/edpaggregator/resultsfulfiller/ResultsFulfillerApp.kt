@@ -200,6 +200,15 @@ class ResultsFulfillerApp(
         }
         .toSet()
 
+    // Already validated by ResultsFulfillerParamsValidator, both here and at the config load that
+    // dispatched this work item.
+    val trusTeeV2ImpressionCountsParams: ResultsFulfillerParams.ImpressionCountsParams? =
+      if (fulfillerParams.trusTeeV2Config.hasImpressionCountsParams()) {
+        fulfillerParams.trusTeeV2Config.impressionCountsParams
+      } else {
+        null
+      }
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
@@ -222,6 +231,7 @@ class ResultsFulfillerApp(
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
+        trusTeeV2ImpressionCountsParams = trusTeeV2ImpressionCountsParams,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {

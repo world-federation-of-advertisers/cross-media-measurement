@@ -123,6 +123,10 @@ object ResultsFulfillerParamsValidator {
           "'$kekUri'. Key name must match pattern [a-zA-Z0-9_-]{1,63}"
       }
     }
+
+    if (params.trusTeeV2Config.hasImpressionCountsParams()) {
+      validateImpressionCountsParams(params.trusTeeV2Config.impressionCountsParams)
+    }
   }
 
   private fun NoiseType.isSupported(): Boolean {

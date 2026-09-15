@@ -23,6 +23,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 
@@ -225,6 +226,45 @@ class ResultsFulfillerParamsValidatorTest {
       }
 
     assertThat(exception).hasMessageThat().contains("Unsupported multi-party noise type")
+  }
+
+  @Test
+  fun `a TrusTeeV2 impression count config is validated at config load`() {
+    val invalidParams =
+      VALID_PARAMS.copy {
+        trusTeeV2Config =
+          ResultsFulfillerParamsKt.trusTeeV2Config {
+            impressionCountsParams =
+              ResultsFulfillerParamsKt.impressionCountsParams {
+                capMode = ResultsFulfillerParams.ImpressionCapMode.DYNAMIC
+                noiseParams = ResultsFulfillerParamsKt.noiseParams { noiseType = NoiseType.NONE }
+              }
+          }
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        ResultsFulfillerParamsValidator.validate(invalidParams)
+      }
+
+    assertThat(exception).hasMessageThat().contains("DYNAMIC requires noise_type")
+  }
+
+  @Test
+  fun `a valid TrusTeeV2 impression count config passes validation`() {
+    ResultsFulfillerParamsValidator.validate(
+      VALID_PARAMS.copy {
+        trusTeeV2Config =
+          ResultsFulfillerParamsKt.trusTeeV2Config {
+            impressionCountsParams =
+              ResultsFulfillerParamsKt.impressionCountsParams {
+                capMode = ResultsFulfillerParams.ImpressionCapMode.UNCAPPED
+                noiseParams = ResultsFulfillerParamsKt.noiseParams { noiseType = NoiseType.NONE }
+              }
+          }
+      },
+      DATA_PROVIDER,
+    )
   }
 
   @Test

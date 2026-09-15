@@ -216,4 +216,48 @@ message ResultsFulfillerParams {
   // UNSPECIFIED and preserves the existing interpretation of
   // `impression_max_frequency_per_user`.
   ImpressionCapMode impression_cap_mode = 11;
+
+  // Parameters for the impression count a `TrusTeeV2` fulfillment carries
+  // alongside the frequency vector.
+  //
+  // The count covers the whole population rather than the sampling interval
+  // the vector covers, so it carries no sampling error.
+  message ImpressionCountsParams {
+    // Noise applied to the count. Nothing else on this path is noised, since
+    // the frequency vector is raw event data encrypted to the TEE.
+    //
+    // NONE leaves the count for the TEE to noise once per released figure,
+    // which is fewer draws than noising once per requisition. It releases an
+    // unnoised aggregate to the TEE, which already holds the vector that
+    // aggregate summarizes.
+    //
+    // Required, and `noise_type` must be set: the default of UNSPECIFIED is
+    // refused rather than read as NONE, so that leaving the field out cannot
+    // release an unnoised count.
+    NoiseParams noise_params = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // How the per-user cap on the count is chosen.
+    //
+    // UNCAPPED and CUSTOM_CAP require `noise_params.noise_type` to be NONE,
+    // and DYNAMIC requires DETERMINISTIC_TRUNCATED_LAPLACE.
+    // USE_MEASUREMENT_SPEC_CAP has nothing to read, since a
+    // `MultiMeasurementSpec` carries no cap.
+    ImpressionCapMode cap_mode = 2;
+
+    // The cap under CUSTOM_CAP, between 1 and 127.
+    //
+    // A frequency vector cell saturates at the largest signed byte, so a
+    // larger cap cannot be applied. Unused under the other modes.
+    int32 max_frequency_per_user = 3;
+  }
+
+  // Configuration for the `TrusTeeV2` protocol.
+  message TrusTeeV2Config {
+    // Set to send an impression count. Unset sends none, and the TEE derives
+    // the count from the frequency vector instead.
+    ImpressionCountsParams impression_counts_params = 1;
+  }
+
+  // `TrusTeeV2` configuration.
+  TrusTeeV2Config trus_tee_v2_config = 12;
 }

@@ -179,7 +179,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
@@ -3403,6 +3405,7 @@ class ResultsFulfillerTest {
   private suspend fun fulfillTrusTeeV2Requisition(
     resultMinimumThresholds: ResultMinimumThresholds?,
     vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
+    trusTeeV2ImpressionCountsParams: ResultsFulfillerParams.ImpressionCountsParams? = null,
   ): TrusTeeV2Fulfillment {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -3480,6 +3483,7 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
+        trusTeeV2ImpressionCountsParams = trusTeeV2ImpressionCountsParams,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3534,7 +3538,7 @@ class ResultsFulfillerTest {
     assertThat(header.trusTeeV2.trusTee.dataFormat)
       .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR)
     assertThat(header.trusTeeV2.trusTee.envelopeEncryption.hasEncryptedDek()).isTrue()
-    // Nothing computes an impression count until the EDPA populates FulfillmentDetails.
+    // No impression_counts_params is configured here, so the TEE derives the count itself.
     assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
     assertThat(header.trusTeeV2.hasEncryptedFulfillmentDetails()).isFalse()
     assertThat(fulfillment.requests[1].bodyChunk.data).isNotEmpty()
@@ -3563,6 +3567,84 @@ class ResultsFulfillerTest {
       .getPrimitive(StreamingAead::class.java)
       .newDecryptingStream(encryptedPayload.newInput(), byteArrayOf())
       .use { it.readAllBytes() }
+  }
+
+  /** Unwraps the DEK from the header and decrypts the `FulfillmentDetails` it carried. */
+  private fun decryptFulfillmentDetails(
+    fulfillment: TrusTeeV2Fulfillment
+  ): FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails {
+    val trusTeeV2 = fulfillment.requests[0].header.trusTeeV2
+    val encryptedDetails = trusTeeV2.encryptedFulfillmentDetails
+    val dekKeysetHandle =
+      KeysetHandle.read(
+        BinaryKeysetReader.withInputStream(
+          trusTeeV2.trusTee.envelopeEncryption.encryptedDek.data.newInput()
+        ),
+        fulfillment.kmsClient.getAead(fulfillment.kekUri),
+      )
+    val plaintext =
+      dekKeysetHandle
+        .getPrimitive(StreamingAead::class.java)
+        .newDecryptingStream(
+          encryptedDetails.ciphertext.newInput(),
+          encryptedDetails.typeUrl.toByteArray(),
+        )
+        .use { it.readAllBytes() }
+    return FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails.parseFrom(plaintext)
+  }
+
+  /** VID 1 seen 5 times, VID 2 seen 200 times, VIDs 3 to 130 once each. Totals 333 impressions. */
+  private val skewedVidCounts: Map<Long, Int> = buildMap {
+    put(1L, 5)
+    put(2L, 200)
+    for (vid in 3L..130L) {
+      put(vid, 1)
+    }
+  }
+
+  private fun impressionCountsParams(
+    capMode: ImpressionCapMode,
+    cap: Int = 0,
+  ): ResultsFulfillerParams.ImpressionCountsParams =
+    ResultsFulfillerParamsKt.impressionCountsParams {
+      this.capMode = capMode
+      maxFrequencyPerUser = cap
+      noiseParams =
+        ResultsFulfillerParamsKt.noiseParams {
+          noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.NONE
+        }
+    }
+
+  @Test
+  fun `runWork sends an uncapped TrusTeeV2 impression count`() = runBlocking {
+    val fulfillment =
+      fulfillTrusTeeV2Requisition(
+        resultMinimumThresholds = null,
+        vidCounts = skewedVidCounts,
+        trusTeeV2ImpressionCountsParams = impressionCountsParams(ImpressionCapMode.UNCAPPED),
+      )
+
+    val details = decryptFulfillmentDetails(fulfillment)
+    // 5 + 200 + 128, counted before a cell saturates at 127.
+    assertThat(details.impression.value).isEqualTo(333L)
+    assertThat(details.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(0)
+  }
+
+  @Test
+  fun `runWork sends a capped TrusTeeV2 impression count`() = runBlocking {
+    val fulfillment =
+      fulfillTrusTeeV2Requisition(
+        resultMinimumThresholds = null,
+        vidCounts = skewedVidCounts,
+        trusTeeV2ImpressionCountsParams =
+          impressionCountsParams(ImpressionCapMode.CUSTOM_CAP, cap = 3),
+      )
+
+    val details = decryptFulfillmentDetails(fulfillment)
+    // 3 + 3 + 128, clipping the two VIDs above the cap.
+    assertThat(details.impression.value).isEqualTo(134L)
+    assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(3)
   }
 
   @Test

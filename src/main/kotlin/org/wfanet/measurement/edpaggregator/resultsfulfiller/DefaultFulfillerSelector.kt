@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
@@ -164,6 +165,9 @@ internal fun frequencyVectorCap(
  *   validation is performed. TrusTeeV2 is not covered: its `ProtocolConfig` carries no mechanism,
  *   because the noise is fixed in the attested image.
  * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
+ * @param trusTeeV2ImpressionCountsParams how a TrusTeeV2 fulfillment builds the impression count it
+ *   carries alongside the frequency vector; null sends no count, leaving the TEE to derive one from
+ *   the vector
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -180,6 +184,7 @@ class DefaultFulfillerSelector(
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
+  private val trusTeeV2ImpressionCountsParams: ResultsFulfillerParams.ImpressionCountsParams? = null,
 ) : FulfillerSelector {
 
   init {
@@ -242,9 +247,6 @@ class DefaultFulfillerSelector(
       // `ProtocolConfig.TrusTeeV2` carries no fields. The noise mechanism and the result minimum
       // thresholds are fixed in the attested image, so there is nothing to validate here and the
       // TEE applies the thresholds after noising rather than this EDP applying them first.
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4475): Populate
-      //  `Header.TrusTeeV2.FulfillmentDetails` with the impression count over the whole
-      //  population. The header carries neither member until then.
       if (resultMinimumThresholds != null) {
         logger.warning(
           "Configured result minimum thresholds do not apply to ${requisition.name}: a TrusTeeV2 " +
@@ -259,6 +261,9 @@ class DefaultFulfillerSelector(
         requisitionsStub,
         requisitionsThrottler,
         buildTrusTeeEncryptionParams(kekUri, frequencyVector),
+        trusTeeV2ImpressionCountsParams?.let {
+          buildTrusTeeV2FulfillmentDetails(it, frequencyVector)
+        },
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {
       val trusTeeProtocolConfig =
