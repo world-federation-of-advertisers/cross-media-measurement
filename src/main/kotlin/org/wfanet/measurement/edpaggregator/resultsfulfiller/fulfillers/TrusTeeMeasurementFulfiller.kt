@@ -84,9 +84,11 @@ class TrusTeeMeasurementFulfiller(
   }
 
   private fun getAggregatorDuchy(requisition: Requisition): String {
-    return requisition.duchiesList.singleOrNull { it.value.hasTrusTee() }?.key
+    return requisition.duchiesList
+      .singleOrNull { it.value.hasTrusTee() || it.value.hasTrusTeeV2() }
+      ?.key
       ?: throw IllegalArgumentException(
-        "Expected exactly one Duchy entry with TrusTee protocol configuration."
+        "Expected exactly one Duchy entry with TrusTee or TrusTeeV2 protocol configuration."
       )
   }
 
