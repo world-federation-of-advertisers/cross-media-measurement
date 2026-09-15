@@ -68,7 +68,7 @@ service WorkItems {
   // To recover abandoned work, first fail the exact active attempt with
   // `FailWorkItemAttempt`, then call this method.
   rpc RetryWorkItem(RetryWorkItemRequest) returns (WorkItem) {
-    option (google.api.method_signature) = "name";
+    option (google.api.method_signature) = "name,expected_work_item_generation";
   }
 }
 
@@ -160,4 +160,13 @@ message RetryWorkItemRequest {
     (google.api.resource_reference).type =
         "control-plane.secure-computation.halo-cmm.org/WorkItem"
   ];
+
+  // Expected execution generation of the `WorkItem`. New clients must
+  // populate this field. Absence is interpreted as generation 1 only for
+  // legacy-client compatibility; an explicit value less than 1 is invalid.
+  //
+  // This prevents a stale or replayed operator request from retrying a newer
+  // failed execution of the same `WorkItem`.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
 }

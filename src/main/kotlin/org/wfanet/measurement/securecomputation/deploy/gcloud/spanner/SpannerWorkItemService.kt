@@ -351,12 +351,31 @@ class SpannerWorkItemsService(
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be at least 1"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
 
     val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=retryWorkItem"))
     val (workItemId, workItem) =
       transactionRunner.run { txn ->
         try {
           val result = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
+          if (result.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              result.workItem.workItemResourceId,
+              expectedGeneration,
+              result.workItem.generation,
+            )
+          }
           val state =
             when (result.workItem.state) {
               WorkItem.State.FAILED,
@@ -401,6 +420,8 @@ class SpannerWorkItemsService(
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         } catch (e: QueueNotFoundForWorkItem) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: WorkItemGenerationMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         } catch (e: WorkItemInvalidStateException) {
           throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         } catch (e: WorkItemPublicationPendingException) {
@@ -467,7 +488,8 @@ class SpannerWorkItemsService(
                   txn.failWorkItem(result.workItemId)
                 }
               }
-              WorkItem.State.QUEUED -> txn.failWorkItem(result.workItemId)
+              WorkItem.State.QUEUED ->
+                txn.retryWorkItem(result.workItemId, result.workItem.generation)
               WorkItem.State.FAILED -> txn.failWorkItem(result.workItemId)
               WorkItem.State.SUCCEEDED,
               WorkItem.State.STATE_UNSPECIFIED,

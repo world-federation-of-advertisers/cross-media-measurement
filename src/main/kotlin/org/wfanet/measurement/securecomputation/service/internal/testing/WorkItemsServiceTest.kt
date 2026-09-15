@@ -655,7 +655,10 @@ abstract class WorkItemsServiceTest {
 
     val retried =
       services.service.retryWorkItem(
-        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        retryWorkItemRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
       )
 
     assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
@@ -702,12 +705,54 @@ abstract class WorkItemsServiceTest {
 
       val repaired =
         services.service.retryWorkItem(
-          retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+          retryWorkItemRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = created.generation
+          }
         )
 
       assertThat(repaired.state).isEqualTo(WorkItem.State.QUEUED)
       assertThat(publicationCount).isEqualTo(1)
     }
+
+  @Test
+  fun `retryWorkItem rejects explicit zero expected generation`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.retryWorkItem(
+          retryWorkItemRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = 0L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_FIELD_VALUE.name)
+  }
+
+  @Test
+  fun `retryWorkItem defaults missing expected generation to one`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    services.service.failWorkItem(
+      failWorkItemRequest {
+        workItemResourceId = created.workItemResourceId
+        expectedWorkItemGeneration = created.generation
+      }
+    )
+
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+      )
+
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(retried.generation).isEqualTo(2L)
+  }
 
   @Test
   fun `retryWorkItem retries abandoned running WorkItem`() = runBlocking {
@@ -753,7 +798,10 @@ abstract class WorkItemsServiceTest {
 
     val retried =
       services.service.retryWorkItem(
-        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        retryWorkItemRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
       )
     val failedAttempt =
       services.workItemAttemptsService.getWorkItemAttempt(
@@ -934,9 +982,34 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `dead letter without active attempt fails WorkItem terminally`() = runBlocking {
+  fun `dead letter for queued WorkItem republishes at next generation`() = runBlocking {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
+
+    val retried =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(retried.generation).isEqualTo(created.generation + 1L)
+  }
+
+  @Test
+  fun `dead letter for running WorkItem without active attempt fails terminally`() = runBlocking {
+    val services = initServicesWithNoOpPublisher()
+    val created = createWorkItem(services.service)
+    val attempt = createWorkItemAttempt(services, created, "failed-attempt")
+    services.workItemAttemptsService.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = attempt.workItemResourceId
+        workItemAttemptResourceId = attempt.workItemAttemptResourceId
+        errorMessage = "worker failed"
+      }
+    )
 
     val failed =
       services.service.processWorkItemDeadLetter(
@@ -955,13 +1028,13 @@ abstract class WorkItemsServiceTest {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
 
-    val failed =
+    val retried =
       services.service.processWorkItemDeadLetter(
         processWorkItemDeadLetterRequest { workItemResourceId = created.workItemResourceId }
       )
 
-    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
-    assertThat(failed.generation).isEqualTo(1L)
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(retried.generation).isEqualTo(2L)
   }
 
   @Test
@@ -1057,7 +1130,10 @@ abstract class WorkItemsServiceTest {
     )
     val retried =
       services.service.retryWorkItem(
-        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        retryWorkItemRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
       )
     val replacementAttempt =
       services.workItemAttemptsService.createWorkItemAttempt(
@@ -1073,11 +1149,16 @@ abstract class WorkItemsServiceTest {
     val exception =
       assertFailsWith<StatusRuntimeException> {
         services.service.retryWorkItem(
-          retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+          retryWorkItemRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = created.generation
+          }
         )
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
     assertThat(
         services.workItemAttemptsService
           .getWorkItemAttempt(
@@ -1106,7 +1187,10 @@ abstract class WorkItemsServiceTest {
     )
     val retried =
       services.service.retryWorkItem(
-        retryWorkItemRequest { workItemResourceId = created.workItemResourceId }
+        retryWorkItemRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
       )
     val replacementAttempt = createWorkItemAttempt(services, retried, "replacement-attempt")
 
