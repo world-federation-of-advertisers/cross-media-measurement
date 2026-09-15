@@ -771,20 +771,34 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `legacy group rejects QUEUED state and nonempty WorkItem reference`() = runBlocking {
+  fun `invalid legacy group does not block new direct dispatch`() = runBlocking {
     val groupId = "legacy-invalid-ownership"
+    val existingRequisition =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/existing"
+      }
+    val newRequisition =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/new"
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse {
+          requisitions += listOf(existingRequisition, newRequisition)
+        }
+      )
     val invalidRows =
       listOf(
         RequisitionMetadata.State.QUEUED to "",
         RequisitionMetadata.State.PROCESSING to "workItems/data-watcher-random-id",
       )
-    var dispatchCount = 0
+    val dispatchedGroupIds = mutableListOf<String>()
     val dispatcher =
       object : RequisitionWorkItemDispatcher {
         override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
 
         override suspend fun dispatch(groupId: String, blobUri: String) {
-          dispatchCount++
+          dispatchedGroupIds += groupId
         }
       }
 
@@ -795,7 +809,7 @@ class RequisitionFetcherTest {
             requisitionMetadata += requisitionMetadata {
               name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/legacy"
               this.state = state
-              cmmsRequisition = TestRequisitionData.REQUISITION.name
+              cmmsRequisition = existingRequisition.name
               blobUri = "$BLOB_URI_PREFIX/$STORAGE_PATH_PREFIX/$groupId"
               this.groupId = groupId
               report = "some-report"
@@ -807,9 +821,13 @@ class RequisitionFetcherTest {
       createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
     }
 
-    assertThat(dispatchCount).isEqualTo(0)
+    assertThat(dispatchedGroupIds).hasSize(2)
+    assertThat(dispatchedGroupIds).doesNotContain(groupId)
     assertThat(queueRequisitionMetadataRequests).isEmpty()
-    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(2)
+    assertThat(registerQueuedRequisitionMetadataRequests).hasSize(2)
+    assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
+      .containsExactly(newRequisition.name, newRequisition.name)
+    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(0)
   }
 
   @Test
