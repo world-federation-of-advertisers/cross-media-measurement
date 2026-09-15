@@ -75,7 +75,9 @@ fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
   return retryWorkItem(workItemId, generation, Instant.now())
 }
 
-/** Buffers the state and outbox mutations needed to retry a failed WorkItem at [nextAttemptTime]. */
+/**
+ * Buffers the state and outbox mutations needed to retry a failed WorkItem at [nextAttemptTime].
+ */
 fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
   workItemId: Long,
   generation: Long,

@@ -452,8 +452,7 @@ class SpannerWorkItemAttemptsService(
   }
 
   private fun attemptRetryDelay(workItemAttempt: WorkItemAttempt): Duration {
-    val exponent =
-      (workItemAttempt.attemptNumber - 1).coerceIn(0, MAX_ATTEMPT_RETRY_EXPONENT)
+    val exponent = (workItemAttempt.attemptNumber - 1).coerceIn(0, MAX_ATTEMPT_RETRY_EXPONENT)
     return minOf(initialAttemptRetryDelay.multipliedBy(1L shl exponent), maxAttemptRetryDelay)
   }
 
