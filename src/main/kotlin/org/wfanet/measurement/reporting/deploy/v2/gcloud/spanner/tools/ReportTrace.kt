@@ -55,13 +55,11 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -425,7 +423,6 @@ internal class GoogleCloudReportTraceSpanReader(
   private var maxConcurrency: Int,
   private var requestThrottler: Throttler =
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
-  private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
 ) : ReportTraceSpanReader {
   constructor(
     credentials: GoogleCredentials,
@@ -550,22 +547,11 @@ internal class GoogleCloudReportTraceSpanReader(
   }
 
   private suspend fun sendRequest(request: HttpRequest): HttpResponse<String> {
-    repeat(MAX_HTTP_ATTEMPTS) { attemptIndex ->
-      val response =
-        requestThrottler.onReady {
-          runInterruptible(Dispatchers.IO) {
-            httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-          }
-        }
-      if (
-        response.statusCode() !in RETRYABLE_HTTP_STATUS_CODES ||
-          attemptIndex == MAX_HTTP_ATTEMPTS - 1
-      ) {
-        return response
+    return requestThrottler.onReady {
+      runInterruptible(Dispatchers.IO) {
+        httpClient.send(request, HttpResponse.BodyHandlers.ofString())
       }
-      delay(retryBackoff.durationForAttempt(attemptIndex + 1))
     }
-    error("HTTP retry loop terminated without a response")
   }
 
   companion object {
@@ -582,8 +568,6 @@ internal class GoogleCloudReportTraceSpanReader(
     private const val COMPUTATION_TRACE_ATTRIBUTE = "xmm.computation.name"
     private const val MAX_TRACE_PAGE_SIZE = 1000
     private const val DEFAULT_MAX_CONCURRENCY = 8
-    private const val MAX_HTTP_ATTEMPTS = 4
-    private val RETRYABLE_HTTP_STATUS_CODES = setOf(429, 500, 502, 503, 504)
     private val HTTP_REQUEST_TIMEOUT: Duration = Duration.ofSeconds(30)
 
     private fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
