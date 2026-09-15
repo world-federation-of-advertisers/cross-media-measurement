@@ -88,7 +88,21 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import picocli.CommandLine
 
 private const val REPORT_NOT_CREATED = "(not created)"
+private const val LOGGING_READ_SCOPE = "https://www.googleapis.com/auth/logging.read"
 private val FAILURE_OUTCOMES = setOf("failed", "failure", "error", "refused", "report_failed")
+
+internal fun buildReportTraceLoggingOptions(
+  project: String,
+  credentials: GoogleCredentials = GoogleCredentials.getApplicationDefault(),
+): LoggingOptions {
+  val projectCredentials =
+    credentials.createScoped(LOGGING_READ_SCOPE).createWithQuotaProject(project)
+  return LoggingOptions.newBuilder()
+    .setProjectId(project)
+    .setQuotaProjectId(project)
+    .setCredentials(projectCredentials)
+    .build()
+}
 
 private fun isFailureOutcome(outcome: String?): Boolean {
   val normalized = outcome?.lowercase() ?: return false
@@ -424,7 +438,9 @@ internal class GoogleCloudReportTraceLogReader(
   ): List<ReportTraceLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
     val entries = mutableListOf<ReportTraceLogEntry>()
-    for (filter in ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime)) {
+    val filters =
+      ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime, includeGrpcPayloads)
+    for (filter in filters) {
       entries += readFilter(filter, limit)
     }
     return entries.distinct().sortedByDescending { it.timestamp }.take(readLimit(limit))
@@ -775,6 +791,7 @@ internal object ReportTraceOutput {
     correlationValues: Collection<String>,
     startTime: Instant,
     endTime: Instant,
+    includeGrpcPayloads: Boolean,
   ): List<String> {
     val timeFilter = "timestamp>=\"$startTime\" AND timestamp<=\"$endTime\""
     val identifierPredicates =
@@ -803,10 +820,13 @@ internal object ReportTraceOutput {
     val filters = mutableListOf<String>()
     var chunk = mutableListOf<String>()
     for (predicate in identifierPredicates) {
-      val candidate = buildLogFilter(timeFilter, chunk + predicate)
+      val candidate = buildLogFilter(timeFilter, chunk + predicate, includeGrpcPayloads)
       if (candidate.length > MAX_LOG_FILTER_LENGTH && chunk.isNotEmpty()) {
-        filters += buildLogFilter(timeFilter, chunk)
-        require(buildLogFilter(timeFilter, listOf(predicate)).length <= MAX_LOG_FILTER_LENGTH) {
+        filters += buildLogFilter(timeFilter, chunk, includeGrpcPayloads)
+        require(
+          buildLogFilter(timeFilter, listOf(predicate), includeGrpcPayloads).length <=
+            MAX_LOG_FILTER_LENGTH
+        ) {
           "One correlation value exceeds the Cloud Logging filter-size limit"
         }
         chunk = mutableListOf(predicate)
@@ -818,13 +838,24 @@ internal object ReportTraceOutput {
       }
     }
     if (chunk.isNotEmpty()) {
-      filters += buildLogFilter(timeFilter, chunk)
+      filters += buildLogFilter(timeFilter, chunk, includeGrpcPayloads)
     }
     return filters
   }
 
-  private fun buildLogFilter(timeFilter: String, identifierPredicates: List<String>): String {
-    return "$timeFilter AND (${identifierPredicates.joinToString(" OR ")})"
+  private fun buildLogFilter(
+    timeFilter: String,
+    identifierPredicates: List<String>,
+    includeGrpcPayloads: Boolean,
+  ): String {
+    val payloadFilter =
+      if (includeGrpcPayloads) {
+        ""
+      } else {
+        " AND NOT (textPayload =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
+          "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\")"
+      }
+    return "$timeFilter$payloadFilter AND (${identifierPredicates.joinToString(" OR ")})"
   }
 
   fun render(
@@ -2239,6 +2270,9 @@ internal object ReportTraceOutput {
   }
 
   private const val MAX_LOG_FILTER_LENGTH = 20_000
+  private const val VERBOSE_GRPC_LOG_QUERY_REGEX =
+    "gRPC([[:space:]]+client)?[[:space:]]+[^[:space:]]+[[:space:]]+" +
+      "(headers|request|response|complete|error):?"
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val MEASUREMENT_LIFECYCLE_STAGES =
     listOf(
@@ -3818,11 +3852,7 @@ suspend fun main(args: Array<String>) {
         logReaderFactory = { project, includeGrpcPayloads ->
           GoogleCloudReportTraceLogReader(
             project,
-            LoggingOptions.newBuilder()
-              .setProjectId(project)
-              .setQuotaProjectId(project)
-              .build()
-              .service,
+            buildReportTraceLoggingOptions(project).service,
             includeGrpcPayloads,
           )
         },
