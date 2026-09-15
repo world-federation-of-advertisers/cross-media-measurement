@@ -77,7 +77,11 @@ message AcquireRawImpressionUploadEvictionFenceRequest {
 }
 
 // Response from acquiring the VID-labeling eviction fence.
-message AcquireRawImpressionUploadEvictionFenceResponse {}
+message AcquireRawImpressionUploadEvictionFenceResponse {
+  // Whether this request created the fence instead of reacquiring it for the
+  // same eviction operation.
+  bool newly_acquired = 1;
+}
 
 // Request message for `ReleaseRawImpressionUploadEvictionFence`.
 message ReleaseRawImpressionUploadEvictionFenceRequest {

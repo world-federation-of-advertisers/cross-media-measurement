@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
+import io.grpc.StatusException
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
@@ -34,7 +36,6 @@ import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
-import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
@@ -44,6 +45,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -84,7 +86,7 @@ class EvictUploaderTest {
   @Before
   fun stubEvictionFence(): Unit = runBlocking {
     whenever(uploadService.acquireRawImpressionUploadEvictionFence(any()))
-      .thenReturn(AcquireRawImpressionUploadEvictionFenceResponse.getDefaultInstance())
+      .thenReturn(acquireRawImpressionUploadEvictionFenceResponse { newlyAcquired = true })
     whenever(uploadService.releaseRawImpressionUploadEvictionFence(any()))
       .thenReturn(ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance())
   }
@@ -619,87 +621,112 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict releases fence when memoized upload is registered after confirmation`(): Unit =
-    runBlocking {
-      var includeLaterUpload = false
-      whenever(uploadService.listRawImpressionUploads(any())).thenAnswer {
+  fun `evict releases newly acquired fence when plan changes`(): Unit = runBlocking {
+    var includeLaterUpload = false
+    whenever(uploadService.listRawImpressionUploads(any())).thenAnswer {
+      listRawImpressionUploadsResponse {
+        rawImpressionUploads += rawImpressionUpload {
+          name = uploadName("up1")
+          createTime = T1.toProtoTime()
+        }
+        if (includeLaterUpload) {
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up2")
+            createTime = T2.toProtoTime()
+          }
+        }
+      }
+    }
+    whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+      val ids = mutableListOf("up1")
+      if (includeLaterUpload) ids += "up2"
+      val selected =
+        if (request.parent.endsWith("/rawImpressionUploads/-")) ids
+        else ids.filter { uploadName(it) == request.parent }
+      listRawImpressionUploadModelLinesResponse {
+        for (id in selected) {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = modelLineName(id)
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+            etag = "etag-$id"
+          }
+        }
+      }
+    }
+    whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
+      val ids = mutableListOf("up1")
+      if (includeLaterUpload) ids += "up2"
+      val selected =
+        if (request.parent.endsWith("/rawImpressionUploads/-")) ids
+        else ids.filter { uploadName(it) == request.parent }
+      listRankIndexBlobsResponse {
+        for (id in selected) {
+          rankIndexBlobs += rankIndexBlob {
+            name = snapshotName(id)
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = MODEL_LINE
+          }
+        }
+      }
+    }
+    whenever(modelLineService.getRawImpressionUploadModelLine(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadModelLineRequest
+        >(
+          0
+        )
+      rawImpressionUploadModelLine {
+        name = request.name
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.COMPLETED
+        etag = "etag-${request.name}"
+      }
+    }
+    whenever(modelLineService.markRawImpressionUploadModelLineFailed(any()))
+      .thenReturn(
+        rawImpressionUploadModelLine { state = RawImpressionUploadModelLine.State.FAILED }
+      )
+    whenever(rankIndexBlobService.deleteRankIndexBlob(any())).thenReturn(rankIndexBlob {})
+
+    val confirmedPlan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+    includeLaterUpload = true
+    val error =
+      assertFailsWith<IllegalArgumentException> { evictUploader.evict(confirmedPlan, REASON) }
+
+    assertThat(error).hasMessageThat().contains("plan changed")
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
+    verifyBlocking(uploadService) { releaseRawImpressionUploadEvictionFence(any()) }
+  }
+
+  @Test
+  fun `evict retains reacquired fence when plan refresh fails`(): Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
         listRawImpressionUploadsResponse {
           rawImpressionUploads += rawImpressionUpload {
             name = uploadName("up1")
             createTime = T1.toProtoTime()
           }
-          if (includeLaterUpload) {
-            rawImpressionUploads += rawImpressionUpload {
-              name = uploadName("up2")
-              createTime = T2.toProtoTime()
-            }
-          }
         }
-      }
-      whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
-        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
-        val ids = mutableListOf("up1")
-        if (includeLaterUpload) ids += "up2"
-        val selected =
-          if (request.parent.endsWith("/rawImpressionUploads/-")) ids
-          else ids.filter { uploadName(it) == request.parent }
-        listRawImpressionUploadModelLinesResponse {
-          for (id in selected) {
-            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-              name = modelLineName(id)
-              cmmsModelLine = MODEL_LINE
-              state = RawImpressionUploadModelLine.State.COMPLETED
-              etag = "etag-$id"
-            }
-          }
-        }
-      }
-      whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
-        val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
-        val ids = mutableListOf("up1")
-        if (includeLaterUpload) ids += "up2"
-        val selected =
-          if (request.parent.endsWith("/rawImpressionUploads/-")) ids
-          else ids.filter { uploadName(it) == request.parent }
-        listRankIndexBlobsResponse {
-          for (id in selected) {
-            rankIndexBlobs += rankIndexBlob {
-              name = snapshotName(id)
-              blobType = RankIndexBlob.BlobType.SNAPSHOT
-              cmmsModelLine = MODEL_LINE
-            }
-          }
-        }
-      }
-      whenever(modelLineService.getRawImpressionUploadModelLine(any())).thenAnswer { invocation ->
-        val request =
-          invocation.getArgument<
-            org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadModelLineRequest
-          >(
-            0
-          )
-        rawImpressionUploadModelLine {
-          name = request.name
-          cmmsModelLine = MODEL_LINE
-          state = RawImpressionUploadModelLine.State.COMPLETED
-          etag = "etag-${request.name}"
-        }
-      }
-      whenever(modelLineService.markRawImpressionUploadModelLineFailed(any()))
-        .thenReturn(
-          rawImpressionUploadModelLine { state = RawImpressionUploadModelLine.State.FAILED }
-        )
-      whenever(rankIndexBlobService.deleteRankIndexBlob(any())).thenReturn(rankIndexBlob {})
+      )
+    stubModelLineRows("up1")
+    stubSnapshotRows("up1")
+    val confirmedPlan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+    whenever(uploadService.acquireRawImpressionUploadEvictionFence(any()))
+      .thenReturn(acquireRawImpressionUploadEvictionFenceResponse { newlyAcquired = false })
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
 
-      val confirmedPlan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
-      includeLaterUpload = true
-      val error =
-        assertFailsWith<IllegalArgumentException> { evictUploader.evict(confirmedPlan, REASON) }
+    val error = assertFailsWith<StatusException> { evictUploader.evict(confirmedPlan, REASON) }
 
-      assertThat(error).hasMessageThat().contains("plan changed")
-      verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
-      verifyBlocking(uploadService) { releaseRawImpressionUploadEvictionFence(any()) }
-    }
+    assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
+    verifyBlocking(uploadService, never()) { releaseRawImpressionUploadEvictionFence(any()) }
+  }
 
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp1"

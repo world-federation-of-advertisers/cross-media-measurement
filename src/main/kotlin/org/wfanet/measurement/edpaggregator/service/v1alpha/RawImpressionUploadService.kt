@@ -41,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken as InternalListUploadsPageToken
@@ -180,21 +181,25 @@ class RawImpressionUploadService(
     request: AcquireRawImpressionUploadEvictionFenceRequest
   ): AcquireRawImpressionUploadEvictionFenceResponse {
     val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
-    try {
-      internalUploadStub.acquireRawImpressionUploadEvictionFence(
-        internalAcquireEvictionFenceRequest {
-          dataProviderResourceId = dataProviderKey.dataProviderId
-          evictionOperationId = request.evictionOperationId
+    val internalResponse =
+      try {
+        internalUploadStub.acquireRawImpressionUploadEvictionFence(
+          internalAcquireEvictionFenceRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            evictionOperationId = request.evictionOperationId
+          }
+        )
+      } catch (e: StatusException) {
+        throw if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+          e.status.withCause(e).asRuntimeException()
+        } else {
+          Status.INTERNAL.withCause(e).asRuntimeException()
         }
-      )
-    } catch (e: StatusException) {
-      throw if (e.status.code == Status.Code.FAILED_PRECONDITION) {
-        e.status.withCause(e).asRuntimeException()
-      } else {
-        Status.INTERNAL.withCause(e).asRuntimeException()
       }
+
+    return acquireRawImpressionUploadEvictionFenceResponse {
+      newlyAcquired = internalResponse.newlyAcquired
     }
-    return AcquireRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
   }
 
   override suspend fun releaseRawImpressionUploadEvictionFence(

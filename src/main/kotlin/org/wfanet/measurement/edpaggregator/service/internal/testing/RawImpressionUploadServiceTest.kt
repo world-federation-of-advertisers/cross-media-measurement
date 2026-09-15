@@ -1052,8 +1052,11 @@ abstract class RawImpressionUploadServiceTest {
       evictionOperationId = operationId
     }
 
-    service.acquireRawImpressionUploadEvictionFence(acquireRequest)
-    service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+    val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+    val resumedAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+
+    assertThat(initialAcquire.newlyAcquired).isTrue()
+    assertThat(resumedAcquire.newlyAcquired).isFalse()
 
     val competingOperation =
       assertFailsWith<StatusRuntimeException> {

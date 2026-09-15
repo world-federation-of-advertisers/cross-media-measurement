@@ -66,6 +66,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceG
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsPageToken
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsResponse
@@ -257,37 +258,39 @@ class SpannerRawImpressionUploadService(
     request: AcquireRawImpressionUploadEvictionFenceRequest
   ): AcquireRawImpressionUploadEvictionFenceResponse {
     validateEvictionFenceRequest(request.dataProviderResourceId, request.evictionOperationId)
-    databaseClient
-      .readWriteTransaction(Options.tag("action=acquireRawImpressionUploadEvictionFence"))
-      .run { txn ->
-        val currentOperationId =
-          txn.getVidLabelingEvictionOperationId(request.dataProviderResourceId)
-        if (currentOperationId == request.evictionOperationId) {
-          return@run
+    val newlyAcquired =
+      databaseClient
+        .readWriteTransaction(Options.tag("action=acquireRawImpressionUploadEvictionFence"))
+        .run { txn ->
+          val currentOperationId =
+            txn.getVidLabelingEvictionOperationId(request.dataProviderResourceId)
+          if (currentOperationId == request.evictionOperationId) {
+            return@run false
+          }
+          if (currentOperationId != null) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "VID-labeling eviction $currentOperationId is already in progress for " +
+                  "DataProvider ${request.dataProviderResourceId}"
+              )
+              .asRuntimeException()
+          }
+          if (
+            txn.hasIncompleteRawImpressionUploadRegistration(request.dataProviderResourceId) ||
+              txn.hasActiveRawImpressionUploadModelLine(request.dataProviderResourceId)
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "The VID-labeling pipeline is not idle for DataProvider " +
+                  "${request.dataProviderResourceId}; wait for registration and processing to finish"
+              )
+              .asRuntimeException()
+          }
+          txn.insertVidLabelingEvictionFence(
+            request.dataProviderResourceId,
+            request.evictionOperationId,
+          )
+          true
         }
-        if (currentOperationId != null) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "VID-labeling eviction $currentOperationId is already in progress for " +
-                "DataProvider ${request.dataProviderResourceId}"
-            )
-            .asRuntimeException()
-        }
-        if (
-          txn.hasIncompleteRawImpressionUploadRegistration(request.dataProviderResourceId) ||
-            txn.hasActiveRawImpressionUploadModelLine(request.dataProviderResourceId)
-        ) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "The VID-labeling pipeline is not idle for DataProvider " +
-                "${request.dataProviderResourceId}; wait for registration and processing to finish"
-            )
-            .asRuntimeException()
-        }
-        txn.insertVidLabelingEvictionFence(
-          request.dataProviderResourceId,
-          request.evictionOperationId,
-        )
-      }
-    return AcquireRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+    return acquireRawImpressionUploadEvictionFenceResponse { this.newlyAcquired = newlyAcquired }
   }
 
   override suspend fun releaseRawImpressionUploadEvictionFence(

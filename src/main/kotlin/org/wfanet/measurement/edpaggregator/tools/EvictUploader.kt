@@ -221,12 +221,13 @@ class EvictUploader(
    */
   suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
     val dataProvider = dataProviderOf(plan.badUploads.first())
-    uploadsStub.acquireRawImpressionUploadEvictionFence(
-      acquireRawImpressionUploadEvictionFenceRequest {
-        parent = dataProvider
-        evictionOperationId = plan.evictionOperationId
-      }
-    )
+    val acquireResponse =
+      uploadsStub.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          parent = dataProvider
+          evictionOperationId = plan.evictionOperationId
+        }
+      )
     try {
       val refreshed =
         plan(plan.badUploads, plan.cutoffTime, evictionOperationId = plan.evictionOperationId)
@@ -234,10 +235,14 @@ class EvictUploader(
         "eviction plan changed after confirmation; review the new plan and retry"
       }
     } catch (e: Exception) {
-      try {
-        withContext(NonCancellable) { releaseEvictionFence(dataProvider, plan.evictionOperationId) }
-      } catch (releaseException: Exception) {
-        e.addSuppressed(releaseException)
+      if (acquireResponse.newlyAcquired) {
+        try {
+          withContext(NonCancellable) {
+            releaseEvictionFence(dataProvider, plan.evictionOperationId)
+          }
+        } catch (releaseException: Exception) {
+          e.addSuppressed(releaseException)
+        }
       }
       throw e
     }
