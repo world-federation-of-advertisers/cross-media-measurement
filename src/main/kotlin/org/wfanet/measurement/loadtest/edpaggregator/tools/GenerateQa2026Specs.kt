@@ -99,11 +99,7 @@ object GenerateQa2026Specs {
       Common.UsState.ILLINOIS,
     )
 
-  private data class EntityMetadata(
-    val brand: String,
-    val campaign: String,
-    val placement: String,
-  )
+  private data class EntityMetadata(val brand: String, val campaign: String, val placement: String)
 
   private data class Segment(
     val name: String,
@@ -118,40 +114,168 @@ object GenerateQa2026Specs {
 
   private val SEGMENTS =
     listOf(
-      Segment("e7only", 1, 2_000_000, listOf(EDP7), "campaign", 1, FLIGHT_ALWAYS_ON,
-        EntityMetadata("brand-a", "always-on", "feed")),
-      Segment("metaonly", 2_000_001, 1_600_000, listOf(META), "ad_group", 3, FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "instream")),
-      Segment("videoonly", 3_600_001, 1_200_000, listOf(VIDEO), "creative-id", 3, FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "homepage")),
-      Segment("retailonly", 4_800_001, 1_000_000, listOf(RETAIL), "campaign", 1, FLIGHT_SUMMER,
-        EntityMetadata("brand-a", "summer-sale", "feed")),
-      Segment("e7-meta", 5_800_001, 800_000, listOf(EDP7, META), "ad_group", 1, FLIGHT_SPRING,
-        EntityMetadata("brand-b", "spring-launch", "feed")),
-      Segment("e7-video", 6_600_001, 600_000, listOf(EDP7, VIDEO), "creative-id", 2,
-        FLIGHT_ALWAYS_ON, EntityMetadata("brand-b", "always-on", "homepage")),
-      Segment("e7-retail", 7_200_001, 400_000, listOf(EDP7, RETAIL), "campaign", 1, FLIGHT_SUMMER,
-        EntityMetadata("brand-b", "summer-sale", "feed")),
-      Segment("meta-video", 7_600_001, 500_000, listOf(META, VIDEO), "ad_group", 3, FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "instream")),
-      Segment("meta-retail", 8_100_001, 300_000, listOf(META, RETAIL), "campaign", 1,
-        FLIGHT_SUMMER, EntityMetadata("brand-b", "summer-sale", "feed")),
-      Segment("video-retail", 8_400_001, 400_000, listOf(VIDEO, RETAIL), "creative-id", 2,
-        FLIGHT_ALWAYS_ON, EntityMetadata("brand-a", "always-on", "homepage")),
-      Segment("e7-meta-video", 8_800_001, 500_000, listOf(EDP7, META, VIDEO), "campaign", 1,
-        FLIGHT_SPRING, EntityMetadata("brand-a", "spring-launch", "feed")),
-      Segment("e7-meta-retail", 9_300_001, 300_000, listOf(EDP7, META, RETAIL), "ad_group", 1,
-        FLIGHT_SUMMER, EntityMetadata("brand-b", "summer-sale", "instream")),
-      Segment("e7-video-retail", 9_600_001, 300_000, listOf(EDP7, VIDEO, RETAIL), "creative-id", 1,
-        FLIGHT_ALWAYS_ON, EntityMetadata("brand-b", "always-on", "homepage")),
-      Segment("meta-video-retail", 9_900_001, 400_000, listOf(META, VIDEO, RETAIL), "campaign", 1,
-        FLIGHT_SPRING, EntityMetadata("brand-a", "spring-launch", "feed")),
-      Segment("all4", 10_300_001, 300_000, listOf(EDP7, META, VIDEO, RETAIL), "ad_group", 3,
-        FLIGHT_ALWAYS_ON, EntityMetadata("brand-a", "always-on", "instream")),
+      Segment(
+        "e7only",
+        1,
+        2_000_000,
+        listOf(EDP7),
+        "campaign",
+        1,
+        FLIGHT_ALWAYS_ON,
+        EntityMetadata("brand-a", "always-on", "feed"),
+      ),
+      Segment(
+        "metaonly",
+        2_000_001,
+        1_600_000,
+        listOf(META),
+        "ad_group",
+        3,
+        FLIGHT_SPRING,
+        EntityMetadata("brand-a", "spring-launch", "instream"),
+      ),
+      Segment(
+        "videoonly",
+        3_600_001,
+        1_200_000,
+        listOf(VIDEO),
+        "creative-id",
+        3,
+        FLIGHT_SPRING,
+        EntityMetadata("brand-a", "spring-launch", "homepage"),
+      ),
+      Segment(
+        "retailonly",
+        4_800_001,
+        1_000_000,
+        listOf(RETAIL),
+        "campaign",
+        1,
+        FLIGHT_SUMMER,
+        EntityMetadata("brand-a", "summer-sale", "feed"),
+      ),
+      Segment(
+        "e7-meta",
+        5_800_001,
+        800_000,
+        listOf(EDP7, META),
+        "ad_group",
+        1,
+        FLIGHT_SPRING,
+        EntityMetadata("brand-b", "spring-launch", "feed"),
+      ),
+      Segment(
+        "e7-video",
+        6_600_001,
+        600_000,
+        listOf(EDP7, VIDEO),
+        "creative-id",
+        2,
+        FLIGHT_ALWAYS_ON,
+        EntityMetadata("brand-b", "always-on", "homepage"),
+      ),
+      Segment(
+        "e7-retail",
+        7_200_001,
+        400_000,
+        listOf(EDP7, RETAIL),
+        "campaign",
+        1,
+        FLIGHT_SUMMER,
+        EntityMetadata("brand-b", "summer-sale", "feed"),
+      ),
+      Segment(
+        "meta-video",
+        7_600_001,
+        500_000,
+        listOf(META, VIDEO),
+        "ad_group",
+        3,
+        FLIGHT_SPRING,
+        EntityMetadata("brand-a", "spring-launch", "instream"),
+      ),
+      Segment(
+        "meta-retail",
+        8_100_001,
+        300_000,
+        listOf(META, RETAIL),
+        "campaign",
+        1,
+        FLIGHT_SUMMER,
+        EntityMetadata("brand-b", "summer-sale", "feed"),
+      ),
+      Segment(
+        "video-retail",
+        8_400_001,
+        400_000,
+        listOf(VIDEO, RETAIL),
+        "creative-id",
+        2,
+        FLIGHT_ALWAYS_ON,
+        EntityMetadata("brand-a", "always-on", "homepage"),
+      ),
+      Segment(
+        "e7-meta-video",
+        8_800_001,
+        500_000,
+        listOf(EDP7, META, VIDEO),
+        "campaign",
+        1,
+        FLIGHT_SPRING,
+        EntityMetadata("brand-a", "spring-launch", "feed"),
+      ),
+      Segment(
+        "e7-meta-retail",
+        9_300_001,
+        300_000,
+        listOf(EDP7, META, RETAIL),
+        "ad_group",
+        1,
+        FLIGHT_SUMMER,
+        EntityMetadata("brand-b", "summer-sale", "instream"),
+      ),
+      Segment(
+        "e7-video-retail",
+        9_600_001,
+        300_000,
+        listOf(EDP7, VIDEO, RETAIL),
+        "creative-id",
+        1,
+        FLIGHT_ALWAYS_ON,
+        EntityMetadata("brand-b", "always-on", "homepage"),
+      ),
+      Segment(
+        "meta-video-retail",
+        9_900_001,
+        400_000,
+        listOf(META, VIDEO, RETAIL),
+        "campaign",
+        1,
+        FLIGHT_SPRING,
+        EntityMetadata("brand-a", "spring-launch", "feed"),
+      ),
+      Segment(
+        "all4",
+        10_300_001,
+        300_000,
+        listOf(EDP7, META, VIDEO, RETAIL),
+        "ad_group",
+        3,
+        FLIGHT_ALWAYS_ON,
+        EntityMetadata("brand-a", "always-on", "instream"),
+      ),
       // Sub-sigma noise probe. Sized well under sigma so noise-dominated reports get flagged.
       // At 10x epsilon sigma is ~18k, so 8k is ~0.4 sigma.
-      Segment("noise", 10_600_001, 8_000, listOf(EDP7), "ad_group", 1, FLIGHT_SUMMER,
-        EntityMetadata("brand-b", "summer-sale-promo", "feed")),
+      Segment(
+        "noise",
+        10_600_001,
+        8_000,
+        listOf(EDP7),
+        "ad_group",
+        1,
+        FLIGHT_SUMMER,
+        EntityMetadata("brand-b", "summer-sale-promo", "feed"),
+      ),
     )
 
   private const val POPULATION_SPEC_FILE = "qa2026_population_spec.textproto"
@@ -203,8 +327,7 @@ object GenerateQa2026Specs {
               startVid = REACHED_VID_END + 1
               endVidInclusive = TOTAL_POPULATION
             }
-          attributes +=
-            ProtoAny.pack(DEMOGRAPHIC_TUPLES[stripeCount % DEMOGRAPHIC_TUPLES.size])
+          attributes += ProtoAny.pack(DEMOGRAPHIC_TUPLES[stripeCount % DEMOGRAPHIC_TUPLES.size])
         }
     }
   }
@@ -310,27 +433,25 @@ object GenerateQa2026Specs {
     populationSpecResourcePath = POPULATION_SPEC_FILE
     for (segment in SEGMENTS) {
       for (edp in segment.edps) {
-        eventGroups +=
-          syntheticEventGroup {
-            eventGroupReferenceId = "qa2026-${segment.name}-$edp"
-            edpName = edp
-            outputBasePath = "edp/$edp"
-            outputKey = "qa2026-${segment.name}"
-            for (i in 0 until segment.entityCount) {
-              val suffix = if (segment.entityCount == 1) "" else "-${i + 1}"
-              entityKeySpecs +=
-                entityKeySpec {
-                  entityType = segment.entityType
-                  entityId = "qa2026-${segment.name}-$edp$suffix"
-                  dataSpecResourcePath = segmentFileName(segment.name)
-                }
-            }
-            entityMetadata = struct {
-              fields["brand"] = value { stringValue = segment.metadata.brand }
-              fields["campaign_name"] = value { stringValue = segment.metadata.campaign }
-              fields["placement"] = value { stringValue = segment.metadata.placement }
+        eventGroups += syntheticEventGroup {
+          eventGroupReferenceId = "qa2026-${segment.name}-$edp"
+          edpName = edp
+          outputBasePath = "edp/$edp"
+          outputKey = "qa2026-${segment.name}"
+          for (i in 0 until segment.entityCount) {
+            val suffix = if (segment.entityCount == 1) "" else "-${i + 1}"
+            entityKeySpecs += entityKeySpec {
+              entityType = segment.entityType
+              entityId = "qa2026-${segment.name}-$edp$suffix"
+              dataSpecResourcePath = segmentFileName(segment.name)
             }
           }
+          entityMetadata = struct {
+            fields["brand"] = value { stringValue = segment.metadata.brand }
+            fields["campaign_name"] = value { stringValue = segment.metadata.campaign }
+            fields["placement"] = value { stringValue = segment.metadata.placement }
+          }
+        }
       }
     }
   }
