@@ -55,6 +55,7 @@ import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
@@ -338,26 +339,15 @@ abstract class MillBase(
     errorType: String?,
     errorCode: String?,
   ) {
-    val attributes =
-      Attributes.builder()
-        .putAll(reportTraceAttributes())
-        .put(ReportTraceAttributes.OUTCOME, outcome)
-        .also { builder ->
-          if (errorType != null) {
-            builder.put(ReportTraceAttributes.ERROR_TYPE, errorType)
-          }
-          if (errorCode != null) {
-            builder.put(ReportTraceAttributes.ERROR_CODE, errorCode)
-          }
-        }
-        .build()
-    logger.info {
-      attributes
-        .asMap()
-        .entries
-        .sortedBy { it.key.key }
-        .joinToString(" ") { (key, value) -> "${key.key}=$value" }
+    val fields = buildList {
+      for ((key, value) in reportTraceAttributes().asMap()) {
+        add(key.key to value.toString())
+      }
+      add(ReportTraceAttributes.OUTCOME_STRING to outcome)
+      add(ReportTraceAttributes.ERROR_TYPE_STRING to errorType)
+      add(ReportTraceAttributes.ERROR_CODE_STRING to errorCode)
     }
+    ReportTraceLogging.log(logger, "duchy.mill.process_computation", *fields.toTypedArray())
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {

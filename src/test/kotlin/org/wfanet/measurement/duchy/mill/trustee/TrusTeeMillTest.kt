@@ -308,6 +308,7 @@ class TrusTeeMillTest {
     errorType: String?,
     errorCode: String?,
   ): Map<String, String> = buildMap {
+    put("event", "duchy.mill.process_computation")
     put(ReportTraceAttributes.BASIC_REPORT_NAME_STRING, BASIC_REPORT_NAME)
     put(ReportTraceAttributes.COMPUTATION_NAME_STRING, "computations/$GLOBAL_ID")
     put(ReportTraceAttributes.DUCHY_ID_STRING, DUCHY_ID)

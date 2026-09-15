@@ -34,6 +34,10 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -169,9 +173,24 @@ class BasicReportsReportsJobTest {
   private lateinit var job: BasicReportsReportsJob
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
+  private val traceLogRecords = CopyOnWriteArrayList<LogRecord>()
+  private val traceLogHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        if ("xmm.lifecycle.stage=" in record.message) {
+          traceLogRecords += record
+        }
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initJob() {
+    traceLogRecords.clear()
+    Logger.getLogger(BasicReportsReportsJob::class.java.name).addHandler(traceLogHandler)
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
     spanExporter = InMemorySpanExporter.create()
@@ -198,8 +217,14 @@ class BasicReportsReportsJobTest {
 
   @After
   fun cleanupTelemetry() {
+    Logger.getLogger(BasicReportsReportsJob::class.java.name).removeHandler(traceLogHandler)
     openTelemetry.close()
   }
+
+  private fun reportAssemblyLog(): String =
+    traceLogRecords
+      .single { it.message.contains("xmm.lifecycle.stage=report_result_assembly") }
+      .message
 
   /** Stubs `listBasicReports` to return [response] for the REPORT_CREATED filter. */
   private suspend fun stubListBasicReports(response: ListBasicReportsResponse) {
@@ -875,6 +900,11 @@ class BasicReportsReportsJobTest {
             }
           }
         )
+
+      val traceLog = reportAssemblyLog()
+      assertThat(traceLog).contains("event=reporting.basic_report.assemble_results")
+      assertThat(traceLog).contains("xmm.report.state=SUCCEEDED")
+      assertThat(traceLog).contains("xmm.outcome=succeeded")
     }
 
   @Test
@@ -2486,6 +2516,9 @@ class BasicReportsReportsJobTest {
       )
 
     verify(basicReportsMock, times(0)).failBasicReport(any())
+    val traceLog = reportAssemblyLog()
+    assertThat(traceLog).contains("xmm.report.state=RUNNING")
+    assertThat(traceLog).contains("xmm.outcome=in_progress")
   }
 
   @Test
@@ -2525,6 +2558,9 @@ class BasicReportsReportsJobTest {
         expectedErrorType = null,
         expectedErrorCode = null,
       )
+      val traceLog = reportAssemblyLog()
+      assertThat(traceLog).contains("xmm.report.state=FAILED")
+      assertThat(traceLog).contains("xmm.outcome=report_failed")
     }
 
   @Test
@@ -2603,6 +2639,11 @@ class BasicReportsReportsJobTest {
       expectedErrorType = "StatusException",
       expectedErrorCode = "grpc.UNAVAILABLE",
     )
+    val traceLog = reportAssemblyLog()
+    assertThat(traceLog).contains("xmm.outcome=failed")
+    assertThat(traceLog).contains("xmm.error.type=StatusException")
+    assertThat(traceLog).contains("xmm.error.code=grpc.UNAVAILABLE")
+    assertThat(traceLog).doesNotContain("\n")
   }
 
   @Test

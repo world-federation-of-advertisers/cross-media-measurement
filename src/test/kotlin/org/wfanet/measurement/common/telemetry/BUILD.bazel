@@ -16,6 +16,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ReportTraceLoggingTest",
+    srcs = ["ReportTraceLoggingTest.kt"],
+    test_class = "org.wfanet.measurement.common.telemetry.ReportTraceLoggingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "W3CTraceContextTest",
     srcs = ["W3CTraceContextTest.kt"],
     test_class = "org.wfanet.measurement.common.telemetry.W3CTraceContextTest",

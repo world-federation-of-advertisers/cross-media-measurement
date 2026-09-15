@@ -42,6 +42,10 @@ import java.nio.file.Paths
 import java.security.cert.X509Certificate
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.math.ceil
 import kotlin.math.pow
 import kotlin.math.sqrt
@@ -2729,9 +2733,24 @@ class MetricsServiceTest {
   private lateinit var service: MetricsService
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: ObservingSpanExporter
+  private val traceLogRecords = CopyOnWriteArrayList<LogRecord>()
+  private val traceLogHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        if ("xmm.lifecycle.stage=" in record.message) {
+          traceLogRecords += record
+        }
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initService() {
+    traceLogRecords.clear()
+    Logger.getLogger(MetricsService::class.java.name).addHandler(traceLogHandler)
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
     spanExporter = ObservingSpanExporter(InMemorySpanExporter.create())
@@ -2780,8 +2799,12 @@ class MetricsServiceTest {
 
   @After
   fun cleanupTelemetry() {
+    Logger.getLogger(MetricsService::class.java.name).removeHandler(traceLogHandler)
     openTelemetry.close()
   }
+
+  private fun reportTraceLogMessages(event: String): List<String> =
+    traceLogRecords.map(LogRecord::getMessage).filter { it.contains("event=$event") }
 
   @Test
   fun `createMetric rejects BasicReport from another MeasurementConsumer`() {
@@ -7916,6 +7939,31 @@ class MetricsServiceTest {
         spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
       assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
         .containsExactly(MetricKey(measurementConsumerId, failedMetric.externalMetricId).toName())
+
+      val observedMeasurementLogs = reportTraceLogMessages("reporting.kingdom_measurement.observed")
+      assertThat(observedMeasurementLogs).hasSize(successfulInternalMeasurements.size)
+      assertThat(observedMeasurementLogs.joinToString("\n"))
+        .contains("xmm.measurement.name=$lastSuccessfulMeasurementName")
+      assertThat(observedMeasurementLogs.joinToString("\n"))
+        .doesNotContain("xmm.measurement.name=$failedMeasurementName")
+      val failedMeasurementLogs =
+        reportTraceLogMessages("reporting.kingdom_measurement.sync_failed")
+      assertThat(failedMeasurementLogs).hasSize(1)
+      assertThat(failedMeasurementLogs.single())
+        .contains("xmm.measurement.name=$failedMeasurementName")
+      assertThat(failedMeasurementLogs.single()).contains("xmm.outcome=failed")
+      val failedMetricLogs = reportTraceLogMessages("reporting.metric.result_sync_failed")
+      assertThat(failedMetricLogs).hasSize(1)
+      assertThat(failedMetricLogs.single())
+        .contains(
+          "xmm.metric.name=" +
+            MetricKey(measurementConsumerId, failedMetric.externalMetricId).toName()
+        )
+      assertThat(failedMetricLogs.single())
+        .doesNotContain(
+          "xmm.metric.name=" +
+            MetricKey(measurementConsumerId, successfulMetric.externalMetricId).toName()
+        )
     }
 
   @Test
@@ -9661,6 +9709,19 @@ class MetricsServiceTest {
       assertThat(metricSpan.attributes.get(ReportTraceAttributes.METRIC_STATE))
         .isEqualTo(Metric.State.SUCCEEDED.name)
       assertThat(metricSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+
+      val measurementLog = reportTraceLogMessages("reporting.kingdom_measurement.observed").single()
+      assertThat(measurementLog)
+        .contains(
+          "xmm.measurement.name=${SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_MEASUREMENT.name}"
+        )
+      assertThat(measurementLog).contains("xmm.measurement.state=SUCCEEDED")
+      assertThat(measurementLog).contains("xmm.outcome=succeeded")
+      val metricLog = reportTraceLogMessages("reporting.metric.result_synchronized").single()
+      assertThat(metricLog)
+        .contains("xmm.metric.name=${SUCCEEDED_SINGLE_PUBLISHER_REACH_FREQUENCY_METRIC.name}")
+      assertThat(metricLog).contains("xmm.metric.state=SUCCEEDED")
+      assertThat(metricLog).contains("xmm.outcome=succeeded")
 
       // Verify proto argument of internal
       // MeasurementsCoroutineImplBase::batchSetMeasurementResults
