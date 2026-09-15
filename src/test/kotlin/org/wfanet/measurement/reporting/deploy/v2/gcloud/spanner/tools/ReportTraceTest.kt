@@ -33,6 +33,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Clock
+import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Date
@@ -50,9 +51,11 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
+import org.wfanet.measurement.common.throttler.Throttler
 
 private fun main(args: Array<String>, dependencies: ReportTraceDependencies): Int = runBlocking {
   runReportTrace(args, dependencies)
@@ -897,6 +900,7 @@ class ReportTraceTest {
         GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
         httpClient,
         maxConcurrency = 2,
+        requestThrottler = RecordingThrottler(),
       )
 
     reader.read(
@@ -914,6 +918,41 @@ class ReportTraceTest {
     )
 
     assertThat(maximumActiveRequests.get()).isEqualTo(2)
+  }
+
+  @Test
+  fun `Cloud Trace reader throttles and retries quota responses`() = runBlocking {
+    val rateLimitedResponse = mock<HttpResponse<String>>()
+    whenever(rateLimitedResponse.statusCode()).thenReturn(429)
+    val successfulResponse = mock<HttpResponse<String>>()
+    whenever(successfulResponse.statusCode()).thenReturn(200)
+    whenever(successfulResponse.body()).thenReturn("{\"traces\":[]}")
+    val httpClient = mock<HttpClient>()
+    whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
+      .thenReturn(rateLimitedResponse, successfulResponse)
+    val throttler = RecordingThrottler()
+    val reader =
+      GoogleCloudReportTraceSpanReader(
+        GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
+        httpClient,
+        maxConcurrency = 1,
+        requestThrottler = throttler,
+        retryBackoff =
+          ExponentialBackoff(initialDelay = Duration.ofMillis(1), randomnessFactor = 0.0),
+      )
+
+    val spans =
+      reader.read(
+        project = "trace-project",
+        correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+        traceIds = emptyList(),
+        startTime = Instant.parse("2026-09-10T11:00:00Z"),
+        endTime = Instant.parse("2026-09-10T13:00:00Z"),
+        limit = 100,
+      )
+
+    assertThat(spans).isEmpty()
+    assertThat(throttler.invocationCount).isEqualTo(2)
   }
 
   @Test
@@ -5027,6 +5066,15 @@ class ReportTraceTest {
       telemetryRecoveredMeasurementNames = emptyMap(),
       createTime = NOW,
     )
+  }
+
+  private class RecordingThrottler : Throttler {
+    var invocationCount = 0
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      invocationCount++
+      return block()
+    }
   }
 
   companion object {
