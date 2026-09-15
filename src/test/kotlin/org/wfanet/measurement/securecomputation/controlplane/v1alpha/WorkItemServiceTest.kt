@@ -57,6 +57,7 @@ import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException as InternalQueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException as InternalRequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException as InternalWorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException as InternalWorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
@@ -624,7 +625,10 @@ class WorkItemServiceTest {
     }
     internalServiceMock.stub { onBlocking { retryWorkItem(any()) } doReturn internalWorkItem }
 
-    val request = retryWorkItemRequest { name = "workItems/${internalWorkItem.workItemResourceId}" }
+    val request = retryWorkItemRequest {
+      name = "workItems/${internalWorkItem.workItemResourceId}"
+      expectedWorkItemGeneration = 3L
+    }
     val response = service.retryWorkItem(request)
 
     verifyProtoArgument(
@@ -632,9 +636,51 @@ class WorkItemServiceTest {
         WorkItemsGrpcKt.WorkItemsCoroutineImplBase::retryWorkItem,
       )
       .isEqualTo(
-        internalRetryWorkItemRequest { workItemResourceId = internalWorkItem.workItemResourceId }
+        internalRetryWorkItemRequest {
+          workItemResourceId = internalWorkItem.workItemResourceId
+          expectedWorkItemGeneration = 3L
+        }
       )
     assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
+  }
+
+  @Test
+  fun `retryWorkItem rejects explicit zero expected generation`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.retryWorkItem(
+          retryWorkItemRequest {
+            name = "workItems/work-item"
+            expectedWorkItemGeneration = 0L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_FIELD_VALUE.name)
+  }
+
+  @Test
+  fun `retryWorkItem returns generation mismatch from backend`() = runBlocking {
+    internalServiceMock.stub {
+      onBlocking { retryWorkItem(any()) } doThrow
+        InternalWorkItemGenerationMismatchException("work-item", 1L, 2L)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.retryWorkItem(
+          retryWorkItemRequest {
+            name = "workItems/work-item"
+            expectedWorkItemGeneration = 1L
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
   }
 
   @Test

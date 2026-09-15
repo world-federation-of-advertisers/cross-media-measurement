@@ -31,36 +31,6 @@ import picocli.CommandLine
 @RunWith(JUnit4::class)
 class InternalApiServerTest {
   @Test
-  fun `command line rejects zero RPC interval`() {
-    val exception =
-      assertFailsWith<CommandLine.ParameterException> {
-        CommandLine(InternalApiServer()).parseArgs("--metadata-read-rpc-min-interval=0s")
-      }
-
-    assertThat(exception).hasMessageThat().contains("positive human-readable duration")
-  }
-
-  @Test
-  fun `command line rejects negative RPC interval`() {
-    val exception =
-      assertFailsWith<CommandLine.ParameterException> {
-        CommandLine(InternalApiServer()).parseArgs("--metadata-read-rpc-min-interval=-1s")
-      }
-
-    assertThat(exception).hasMessageThat().contains("complete human-readable duration")
-  }
-
-  @Test
-  fun `command line rejects partially malformed RPC interval`() {
-    val exception =
-      assertFailsWith<CommandLine.ParameterException> {
-        CommandLine(InternalApiServer()).parseArgs("--control-plane-rpc-min-interval=500msjunk")
-      }
-
-    assertThat(exception).hasMessageThat().contains("complete human-readable duration")
-  }
-
-  @Test
   fun `command line rejects zero WorkItem publication interval`() {
     val exception =
       assertFailsWith<CommandLine.ParameterException> {

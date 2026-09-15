@@ -310,6 +310,10 @@ class WorkItemsService(
       throw RequiredFieldNotSetException("name")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
+      throw InvalidFieldValueException("expected_work_item_generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val key =
       WorkItemKey.fromName(request.name)
@@ -319,7 +323,12 @@ class WorkItemsService(
     val internalResponse =
       try {
         internalWorkItemsStub.retryWorkItem(
-          internalRetryWorkItemRequest { workItemResourceId = key.workItemId }
+          internalRetryWorkItemRequest {
+            workItemResourceId = key.workItemId
+            if (request.hasExpectedWorkItemGeneration()) {
+              expectedWorkItemGeneration = request.expectedWorkItemGeneration
+            }
+          }
         )
       } catch (e: StatusException) {
         throw when (InternalErrors.getReason(e)) {
@@ -331,6 +340,9 @@ class WorkItemsService(
           InternalErrors.Reason.WORK_ITEM_PUBLICATION_PENDING ->
             WorkItemPublicationPendingException.fromInternal(e)
               .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH ->
+            WorkItemGenerationMismatchException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
           InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
           InternalErrors.Reason.QUEUE_NOT_FOUND,
           InternalErrors.Reason.QUEUE_NOT_FOUND_FOR_WORK_ITEM,
@@ -339,7 +351,6 @@ class WorkItemsService(
           InternalErrors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE,
           InternalErrors.Reason.WORK_ITEM_ALREADY_EXISTS,
           InternalErrors.Reason.WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
-          InternalErrors.Reason.WORK_ITEM_GENERATION_MISMATCH,
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }

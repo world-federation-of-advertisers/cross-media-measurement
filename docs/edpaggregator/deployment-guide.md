@@ -1104,8 +1104,9 @@ Compatibility and automatic recovery cover producer traffic during that interval
 * Dead-letter consumption is paused before old workers stop. After the zero-instance barrier, a
   current-generation DLQ delivery with an active unleased attempt atomically fails that attempt,
   advances the WorkItem generation, and creates its publication outbox row. A DLQ delivery for an
-  active leased attempt is deferred to the lease reaper. A genuinely exhausted WorkItem with no
-  active attempt remains terminal.
+  active leased attempt is deferred to the lease reaper. A `QUEUED` delivery that exhausted its
+  Pub/Sub delivery budget before any attempt was created is republished at the next generation;
+  only exhausted `RUNNING` work with no active attempt becomes terminal.
 * A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
   that legacy attempt and creates its new leased attempt at the same WorkItem generation. The MIG
   barrier makes this safe by proving that no old TEE instance remains before new workers start.
@@ -1116,7 +1117,9 @@ Compatibility and automatic recovery cover producer traffic during that interval
 
 No subscription drain, database snapshot, active-attempt query, or migration-time
 `FailWorkItemAttempt`/`RetryWorkItem` call is required. New WorkItem creation, `EnsureWorkItem`, and
-`RetryWorkItem` maintain the publication-generation marker and outbox transactionally. The
+`RetryWorkItem` maintain the publication-generation marker and outbox transactionally. Every retry
+must include the generation the operator inspected, so a delayed or replayed request cannot retry a
+later execution. The
 publisher still deletes the outbox row only after Pub/Sub acknowledges the message. This reuses the
 existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Computation API remains
 workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
@@ -1133,7 +1136,7 @@ priority order while still respecting an active publication lease:
 ```bash
 grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
   -authority SECURE_COMPUTATION_CERT_HOST \
-  -d '{"name":"workItems/WORK_ITEM_ID"}' \
+  -d '{"name":"workItems/WORK_ITEM_ID","expectedWorkItemGeneration":"GENERATION"}' \
   SECURE_COMPUTATION_API_TARGET \
   wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
 ```
@@ -1145,9 +1148,9 @@ longer reach the control plane, the lease expires after five minutes by default.
 then atomically fails that exact attempt. If the queue's durable execution-attempt limit has not
 been reached, it advances the WorkItem generation, returns the WorkItem to `QUEUED`, and creates a
 new outbox publication. At the limit, it instead creates an outbox publication for the existing
-dead-letter topic; the existing DLQ listener makes the WorkItem terminal and performs its existing
-best-effort workload-specific failure propagation. A late heartbeat or completion from the
-abandoned worker is rejected because its attempt is no longer active.
+dead-letter topic; the generic DLQ listener makes the WorkItem terminal. Workload-specific failure
+state remains the responsibility of the worker or its owning service. A late heartbeat or
+completion from the abandoned worker is rejected because its attempt is no longer active.
 
 A lease-capable worker that catches a workload failure uses the same transaction before
 acknowledging its original delivery, instead of waiting for lease expiry. A successful failure RPC
