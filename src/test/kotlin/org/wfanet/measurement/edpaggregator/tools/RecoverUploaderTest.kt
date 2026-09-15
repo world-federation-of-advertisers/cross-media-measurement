@@ -92,6 +92,23 @@ class RecoverUploaderTest {
   }
 
   @Test
+  fun `recover starts a new memoized chain when no predecessor remains`() = runBlocking {
+    stubSourceUpload()
+    stubModelLine(RawImpressionUploadModelLine.State.FAILED, recoveryPredecessorUpload = "")
+    stubSnapshot()
+    var rewriteCalled = false
+    val recoverUploader = recoverUploader { _, _, _ ->
+      rewriteCalled = true
+      NEW_GENERATION
+    }
+
+    val result = recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
+
+    assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+    assertThat(rewriteCalled).isTrue()
+  }
+
+  @Test
   fun `recover rejects a rewrite that returns the source generation`() = runBlocking {
     stubSourceUpload()
     stubModelLine(RawImpressionUploadModelLine.State.FAILED)
@@ -370,6 +387,7 @@ class RecoverUploaderTest {
       RawImpressionUploadModelLine.State.COMPLETED,
     recoveryAction: RawImpressionUploadModelLine.RecoveryAction =
       RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+    recoveryPredecessorUpload: String = PREDECESSOR_UPLOAD,
   ) {
     whenever(modelLinesService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
       val request =
@@ -387,7 +405,9 @@ class RecoverUploaderTest {
             failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
             this.recoveryAction = recoveryAction
             evictionOperationId = EVICTION_OPERATION_ID
-            recoveryPredecessorRawImpressionUpload = PREDECESSOR_UPLOAD
+            if (recoveryPredecessorUpload.isNotEmpty()) {
+              recoveryPredecessorRawImpressionUpload = recoveryPredecessorUpload
+            }
           }
         }
       }

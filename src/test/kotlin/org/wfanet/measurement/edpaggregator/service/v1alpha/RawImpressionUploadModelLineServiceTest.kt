@@ -1038,6 +1038,30 @@ class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
+  fun `markRawImpressionUploadModelLineFailed accepts root operator recovery`() = runBlocking {
+    val completed = createCompletedModelLineForMark()
+    val evictionOperationId = UUID.randomUUID().toString()
+
+    val failed =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          name = completed.name
+          etag = completed.etag
+          errorMessage = "Evicted first memoized upload"
+          requestId = UUID.randomUUID().toString()
+          failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+          this.evictionOperationId = evictionOperationId
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+      )
+
+    assertThat(failed.recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+    assertThat(failed.recoveryPredecessorRawImpressionUpload).isEmpty()
+  }
+
+  @Test
   fun `markRawImpressionUploadModelLineFailed validates evicted output recovery fields`() =
     runBlocking {
       val created = createModelLineForMark()
@@ -1079,19 +1103,6 @@ class RawImpressionUploadModelLineServiceTest {
             },
             Errors.Reason.REQUIRED_FIELD_NOT_SET,
             "recovery_action",
-          ),
-          Triple(
-            markRawImpressionUploadModelLineFailedRequest {
-              name = created.name
-              etag = created.etag
-              requestId = UUID.randomUUID().toString()
-              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
-              this.evictionOperationId = evictionOperationId
-              recoveryAction =
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
-            },
-            Errors.Reason.REQUIRED_FIELD_NOT_SET,
-            "recovery_predecessor_raw_impression_upload",
           ),
           Triple(
             markRawImpressionUploadModelLineFailedRequest {
