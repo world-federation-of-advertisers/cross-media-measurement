@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.Any
+import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
@@ -66,10 +67,19 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
   return state
 }
 
-/** Buffers the state and outbox mutations needed to retry a failed WorkItem. */
+/** Buffers the state and outbox mutations needed to retry a failed WorkItem immediately. */
 fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
   workItemId: Long,
   generation: Long,
+): WorkItem.State {
+  return retryWorkItem(workItemId, generation, Instant.now())
+}
+
+/** Buffers the state and outbox mutations needed to retry a failed WorkItem at [nextAttemptTime]. */
+fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
+  workItemId: Long,
+  generation: Long,
+  nextAttemptTime: Instant,
 ): WorkItem.State {
   val state = WorkItem.State.QUEUED
   val nextGeneration = generation + 1L
@@ -80,7 +90,7 @@ fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
     set("PublicationScheduledGeneration").to(nextGeneration)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  insertWorkItemPublication(workItemId)
+  insertWorkItemPublication(workItemId, nextAttemptTime)
   return state
 }
 

@@ -73,10 +73,18 @@ class SpannerWorkItemAttemptsService(
   coroutineContext: CoroutineContext,
   private val clock: Clock = Clock.systemUTC(),
   private val attemptLeaseDuration: Duration = DEFAULT_ATTEMPT_LEASE_DURATION,
+  private val initialAttemptRetryDelay: Duration = DEFAULT_INITIAL_ATTEMPT_RETRY_DELAY,
+  private val maxAttemptRetryDelay: Duration = DEFAULT_MAX_ATTEMPT_RETRY_DELAY,
 ) : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase(coroutineContext) {
 
   init {
     require(attemptLeaseDuration > Duration.ZERO) { "attemptLeaseDuration must be positive" }
+    require(initialAttemptRetryDelay > Duration.ZERO) {
+      "initialAttemptRetryDelay must be positive"
+    }
+    require(maxAttemptRetryDelay >= initialAttemptRetryDelay) {
+      "maxAttemptRetryDelay must not be less than initialAttemptRetryDelay"
+    }
   }
 
   override suspend fun createWorkItemAttempt(
@@ -265,6 +273,7 @@ class SpannerWorkItemAttemptsService(
                     workItemAttemptResult,
                     queue,
                     request.errorMessage.take(MAX_ERROR_MESSAGE_LENGTH),
+                    clock.instant().plus(attemptRetryDelay(workItemAttemptResult.workItemAttempt)),
                   )
                   WorkItemAttempt.State.FAILED
                 } else {
@@ -442,11 +451,20 @@ class SpannerWorkItemAttemptsService(
     }
   }
 
+  private fun attemptRetryDelay(workItemAttempt: WorkItemAttempt): Duration {
+    val exponent =
+      (workItemAttempt.attemptNumber - 1).coerceIn(0, MAX_ATTEMPT_RETRY_EXPONENT)
+    return minOf(initialAttemptRetryDelay.multipliedBy(1L shl exponent), maxAttemptRetryDelay)
+  }
+
   companion object {
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
     private const val INITIAL_GENERATION = 1L
     private const val MAX_ERROR_MESSAGE_LENGTH = 1024
+    private const val MAX_ATTEMPT_RETRY_EXPONENT = 16
     val DEFAULT_ATTEMPT_LEASE_DURATION: Duration = Duration.ofMinutes(5)
+    val DEFAULT_INITIAL_ATTEMPT_RETRY_DELAY: Duration = Duration.ofSeconds(1)
+    val DEFAULT_MAX_ATTEMPT_RETRY_DELAY: Duration = Duration.ofMinutes(1)
   }
 }
