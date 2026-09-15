@@ -3093,18 +3093,24 @@ class ResultsFulfillerTest {
     val kekUri: String,
   )
 
-  /** Runs a TrusTeeV2 requisition through the fulfiller over 130 impressions. */
+  /**
+   * Runs a TrusTeeV2 requisition through the fulfiller over [vidCounts], which gives each VID the
+   * number of impressions it contributes. Defaults to 130 VIDs reached once each.
+   */
   private suspend fun fulfillTrusTeeV2Requisition(
-    resultMinimumThresholds: ResultMinimumThresholds?
+    resultMinimumThresholds: ResultMinimumThresholds?,
+    vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
   ): TrusTeeV2Fulfillment {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
     val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
     val impressions =
-      List(130) {
-        LABELED_IMPRESSION.copy {
-          vid = it.toLong() + 1
-          eventTime = TIME_RANGE.start.toProtoTime()
+      vidCounts.flatMap { (vidValue, count) ->
+        List(count) {
+          LABELED_IMPRESSION.copy {
+            vid = vidValue
+            eventTime = TIME_RANGE.start.toProtoTime()
+          }
         }
       }
 
@@ -3231,17 +3237,9 @@ class ResultsFulfillerTest {
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
-  @Test
-  fun `runWork does not suppress a TrusTeeV2 vector below the minimum thresholds`() = runBlocking {
-    // Far above the 130 impressions in the fixture. The TEE applies the thresholds to the noised
-    // aggregate, so the EDPA must not zero its own contribution first.
-    val fulfillment =
-      fulfillTrusTeeV2Requisition(
-        ResultMinimumThresholds(minUsers = 100_000, minImpressions = 100_000)
-      )
-
+  /** Unwraps the DEK from the header and decrypts the frequency vector the fulfillment carried. */
+  private fun decryptFrequencies(fulfillment: TrusTeeV2Fulfillment): ByteArray {
     val header = fulfillment.requests[0].header
-    assertThat(header.hasTrusTeeV2()).isTrue()
     val encryptedPayload =
       fulfillment.requests
         .filter { it.hasBodyChunk() }
@@ -3254,13 +3252,45 @@ class ResultsFulfillerTest {
         ),
         fulfillment.kmsClient.getAead(fulfillment.kekUri),
       )
-    val frequencies =
-      dekKeysetHandle
-        .getPrimitive(StreamingAead::class.java)
-        .newDecryptingStream(encryptedPayload.newInput(), byteArrayOf())
-        .use { it.readAllBytes() }
+    return dekKeysetHandle
+      .getPrimitive(StreamingAead::class.java)
+      .newDecryptingStream(encryptedPayload.newInput(), byteArrayOf())
+      .use { it.readAllBytes() }
+  }
 
-    assertThat(frequencies.any { it > 0 }).isTrue()
+  @Test
+  fun `runWork does not suppress a TrusTeeV2 vector below the minimum thresholds`() = runBlocking {
+    // Far above the 130 impressions in the fixture. The TEE applies the thresholds to the noised
+    // aggregate, so the EDPA must not zero its own contribution first.
+    val fulfillment =
+      fulfillTrusTeeV2Requisition(
+        ResultMinimumThresholds(minUsers = 100_000, minImpressions = 100_000)
+      )
+
+    assertThat(fulfillment.requests[0].header.hasTrusTeeV2()).isTrue()
+    val frequencies = decryptFrequencies(fulfillment)
+    assertThat(frequencies.count { it > 0 }).isEqualTo(130)
+  }
+
+  @Test
+  fun `runWork does not cap a TrusTeeV2 frequency vector`() = runBlocking {
+    // A MultiMeasurementSpec carries no frequency cap, so a VID's count survives up to the largest
+    // signed byte. The v1 path clamps to the cap on the MeasurementSpec instead.
+    val vidCounts = buildMap {
+      put(1L, 5)
+      put(2L, 200)
+      for (vid in 3L..130L) {
+        put(vid, 1)
+      }
+    }
+
+    val fulfillment =
+      fulfillTrusTeeV2Requisition(resultMinimumThresholds = null, vidCounts = vidCounts)
+
+    val frequencies = decryptFrequencies(fulfillment)
+    assertThat(frequencies.count { it > 0 }).isEqualTo(130)
+    assertThat(frequencies.filter { it > 0 }.map { it.toInt() }.toSet())
+      .containsExactly(1, 5, Byte.MAX_VALUE.toInt())
   }
 
   @Test
