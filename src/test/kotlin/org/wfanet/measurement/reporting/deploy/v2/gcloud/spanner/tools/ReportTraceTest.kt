@@ -780,8 +780,8 @@ class ReportTraceTest {
     assertThat(filter).contains("NOT (textPayload =~")
     assertThat(filter).contains("jsonPayload.message =~")
     assertThat(filter).contains("gRPC([[:space:]]+client)?")
-    assertThat(filter).contains("resource.labels.container_name =~ \".*api-server.*\"")
-    assertThat(filter).contains("^[[:space:]]*[a-z][a-z0-9_.-]*:[[:space:]]")
+    assertThat(filter).contains("severity>=ERROR")
+    assertThat(filter).contains("^[[:space:]]*([a-z][a-z0-9_.-]*[[:space:]]*(:|\\{)|[{}])")
   }
 
   @Test
@@ -4215,30 +4215,26 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `renderLogPayload omits split gRPC protobuf continuation from API server`() {
-    val payload = Payload.StringPayload.of("    work_item: \"workItems/work-item-1\"")
+  fun `renderLogPayload omits error-severity split gRPC protobuf continuation`() {
+    for (message in listOf("    work_item: \"workItems/work-item-1\"", "  requisitions {", "}")) {
+      val rendered =
+        ReportTraceOutput.renderLogPayload(
+          Payload.StringPayload.of(message),
+          includeGrpcPayloads = false,
+          severity = "ERROR",
+        )
 
-    val rendered =
-      ReportTraceOutput.renderLogPayload(
-        payload,
-        includeGrpcPayloads = false,
-        service = "secure-computation-api-server-container",
-      )
-
-    assertThat(rendered).isNull()
+      assertThat(rendered).isNull()
+    }
   }
 
   @Test
-  fun `renderLogPayload keeps similar application message outside API server`() {
+  fun `renderLogPayload keeps similar non-error application message`() {
     val message = "work_item: processing started"
     val payload = Payload.StringPayload.of(message)
 
     val rendered =
-      ReportTraceOutput.renderLogPayload(
-        payload,
-        includeGrpcPayloads = false,
-        service = "results-fulfiller",
-      )
+      ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false, severity = "INFO")
 
     assertThat(rendered).isEqualTo(message)
   }
