@@ -761,6 +761,8 @@ internal fun InternalRecoveryAction.toPublic(): RawImpressionUploadModelLine.Rec
       RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
     InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY ->
       RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+    InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT ->
+      RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
     InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED ->
       RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED
     InternalRecoveryAction.UNRECOGNIZED -> error("Unrecognized recovery action")
@@ -774,6 +776,8 @@ internal fun RawImpressionUploadModelLine.RecoveryAction.toInternal(): InternalR
       InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
     RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY ->
       InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
+      InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
     RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED ->
       InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED
     RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED ->

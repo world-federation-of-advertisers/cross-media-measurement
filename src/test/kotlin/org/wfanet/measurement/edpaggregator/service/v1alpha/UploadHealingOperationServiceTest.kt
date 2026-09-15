@@ -104,6 +104,58 @@ class UploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `create forwards and returns a no-replacement action`() = runBlocking {
+    var captured: InternalCreateRequest? = null
+    val internalResponse =
+      INTERNAL_OPERATION.toBuilder()
+        .setSteps(
+          0,
+          INTERNAL_OPERATION.stepsList
+            .single()
+            .toBuilder()
+            .setRecoveryAction(
+              InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+            ),
+        )
+        .build()
+    org.mockito.kotlin
+      .whenever(internalService.createUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured = invocation.getArgument(0)
+        internalResponse
+      }
+    val request =
+      validCreateRequest()
+        .toBuilder()
+        .setUploadHealingOperation(
+          validCreateRequest()
+            .uploadHealingOperation
+            .toBuilder()
+            .setSteps(
+              0,
+              validCreateRequest()
+                .uploadHealingOperation
+                .stepsList
+                .single()
+                .toBuilder()
+                .setRecoveryAction(
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+                ),
+            )
+        )
+        .build()
+
+    val result = newService().createUploadHealingOperation(request)
+
+    assertThat(captured!!.uploadHealingOperation.stepsList.single().recoveryAction)
+      .isEqualTo(
+        InternalRecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+      )
+    assertThat(result.stepsList.single().recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+  }
+
+  @Test
   fun `advance forwards a server-verified action instead of writable state`() = runBlocking {
     var captured: InternalAdvanceRequest? = null
     org.mockito.kotlin

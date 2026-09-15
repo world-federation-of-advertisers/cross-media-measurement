@@ -1051,6 +1051,34 @@ abstract class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
+  fun `markRawImpressionUploadModelLineFailed records no-replacement eviction`() = runBlocking {
+    val completed = completeSoleModelLine()
+
+    val modelLine =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = completed.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(completed.rawImpressionUploadModelLineResourceId)
+          errorMessage = "upload must be removed"
+          failureReason =
+            FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+          evictionOperationId = EVICTION_OPERATION_ID
+          recoveryAction =
+            RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+        }
+      )
+
+    assertThat(modelLine.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED)
+    assertThat(modelLine.recoveryAction)
+      .isEqualTo(RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT)
+    assertThat(modelLine.recoveryPredecessorRawImpressionUploadResourceId).isEmpty()
+  }
+
+  @Test
   fun `markRawImpressionUploadModelLineFailed rejects processing failure from COMPLETED`() =
     runBlocking {
       val completed = completeSoleModelLine()

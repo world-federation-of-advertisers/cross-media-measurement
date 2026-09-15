@@ -28,4 +28,6 @@ enum RawImpressionUploadModelLineRecoveryAction {
   RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION = 1;
   // Operator recovery of an evicted upload for the memoized path only.
   RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY = 2;
+  // The invalid upload is intentionally removed and has no replacement.
+  RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT = 3;
 }

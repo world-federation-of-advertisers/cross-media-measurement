@@ -181,6 +181,47 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `no-replacement step completes when eviction is confirmed`() = runBlocking {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    insertUploadGraph()
+    val created =
+      service.createUploadHealingOperation(
+        createRequest(
+          memoized = true,
+          recoveryAction =
+            RawImpressionUploadModelLineRecoveryAction
+              .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT,
+          recoveryTarget = false,
+        )
+      )
+
+    val completed =
+      service.advanceUploadHealingStep(
+        advanceUploadHealingStepRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingStepId = 1L
+          etag = created.stepsList.single().etag
+          action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+          requestId = WAITING_REQUEST_ID
+        }
+      )
+
+    assertThat(completed.state)
+      .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
+    assertThat(completed.replacementRawImpressionUploadResourceId).isEmpty()
+    val operation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(operation.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+  }
+
+  @Test
   fun `recovery cannot start before its predecessor completes`() = runBlocking {
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     insertUploadGraph()
@@ -314,7 +355,13 @@ class SpannerUploadHealingOperationServiceTest {
     assertThat(error).hasMessageThat().contains("request_id is required")
   }
 
-  private fun createRequest(memoized: Boolean) = createUploadHealingOperationRequest {
+  private fun createRequest(
+    memoized: Boolean,
+    recoveryAction: RawImpressionUploadModelLineRecoveryAction =
+      RawImpressionUploadModelLineRecoveryAction
+        .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY,
+    recoveryTarget: Boolean = true,
+  ) = createUploadHealingOperationRequest {
     dataProviderResourceId = DATA_PROVIDER_ID
     uploadHealingOperationId = OPERATION_ID
     requestId = CREATE_REQUEST_ID
@@ -330,10 +377,8 @@ class SpannerUploadHealingOperationServiceTest {
         rawImpressionUploadModelLineResourceId = MODEL_LINE_ROW_ID
         cmmsModelLine = CMMS_MODEL_LINE
         this.memoized = memoized
-        recoveryAction =
-          RawImpressionUploadModelLineRecoveryAction
-            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
-        recoveryTarget = true
+        this.recoveryAction = recoveryAction
+        this.recoveryTarget = recoveryTarget
       }
     }
   }
