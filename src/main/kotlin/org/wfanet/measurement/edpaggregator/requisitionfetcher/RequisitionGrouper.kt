@@ -32,6 +32,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.getEventGroupRequest
+import org.wfanet.measurement.api.v2alpha.getRequisitionRequest
 import org.wfanet.measurement.api.v2alpha.refuseRequisitionRequest
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
@@ -144,19 +145,19 @@ abstract class RequisitionGrouper(
    * Refuses a requisition to the Kingdom.
    *
    * ### High-Level Flow
-   * 1. Logs the refusal locally.
-   * 2. Sends a [refuseRequisitionRequest] via [RequisitionsCoroutineStub], paced by
+   * 1. Sends a [refuseRequisitionRequest] via [RequisitionsCoroutineStub], paced by
    *    [kingdomMutationThrottler].
-   * 3. Errors during refusal are caught and logged.
+   * 2. If the mutation loses a race, reads the Requisition and returns the terminal state that won.
+   * 3. Errors that leave the Requisition non-terminal or unresolved are caught and logged.
    *
    * @param requisition The requisition to refuse.
    * @param refusal The reason and message for the refusal.
-   * @return whether the Kingdom accepted the refusal.
+   * @return the authoritative terminal Kingdom state, or `null` if it remains unresolved.
    */
   suspend fun refuseRequisitionToCmms(
     requisition: Requisition,
     refusal: Requisition.Refusal,
-  ): Boolean {
+  ): Requisition.State? {
     return ReportTracing.traceSuspending(
       spanName = "edp_aggregator.requisition_fetcher.refuse_requisition",
       attributes =
@@ -172,36 +173,87 @@ abstract class RequisitionGrouper(
     ) {
       val span = Span.current()
       try {
-        kingdomMutationThrottler.onReady {
-          logger.info("Requisition ${requisition.name} was refused. $refusal")
-          val request = refuseRequisitionRequest {
-            this.name = requisition.name
-            this.refusal =
-              RequisitionKt.refusal {
-                justification = refusal.justification
-                message = refusal.message
-              }
+        val refused =
+          kingdomMutationThrottler.onReady {
+            val request = refuseRequisitionRequest {
+              this.name = requisition.name
+              this.refusal =
+                RequisitionKt.refusal {
+                  justification = refusal.justification
+                  message = refusal.message
+                }
+            }
+            requisitionsClient.refuseRequisition(request)
           }
-          requisitionsClient.refuseRequisition(request)
-        }
+        logger.info("Requisition ${requisition.name} was refused. $refusal")
         span.setAttribute(ReportTraceAttributes.OUTCOME, "refused")
-        true
+        when (refused.state) {
+          Requisition.State.FULFILLED,
+          Requisition.State.REFUSED,
+          Requisition.State.WITHDRAWN -> refused.state
+          Requisition.State.STATE_UNSPECIFIED,
+          Requisition.State.UNFULFILLED,
+          Requisition.State.UNRECOGNIZED -> {
+            recordRefusalFailure(
+              span,
+              requisition.name,
+              IllegalStateException(
+                "RefuseRequisition returned non-terminal state ${refused.state}"
+              ),
+            )
+            null
+          }
+        }
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
-        span
-          .setStatus(StatusCode.ERROR, e.message ?: e::class.java.name)
-          .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
-          .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
-          .recordException(e)
-        val errorCode = ReportTraceAttributes.errorCode(e)
-        if (errorCode != null) {
-          span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+        val current =
+          try {
+            kingdomMutationThrottler.onReady {
+              requisitionsClient.getRequisition(getRequisitionRequest { name = requisition.name })
+            }
+          } catch (lookupError: CancellationException) {
+            throw lookupError
+          } catch (lookupError: Exception) {
+            lookupError.addSuppressed(e)
+            recordRefusalFailure(span, requisition.name, lookupError)
+            return@traceSuspending null
+          }
+        when (current.state) {
+          Requisition.State.FULFILLED,
+          Requisition.State.REFUSED,
+          Requisition.State.WITHDRAWN -> {
+            span
+              .setAttribute(ReportTraceAttributes.OUTCOME, "already_terminal")
+              .setAttribute(ReportTraceAttributes.REQUISITION_STATE, current.state.name)
+            logger.info(
+              "Requisition ${requisition.name} reached terminal state ${current.state} " +
+                "while refusal was in flight"
+            )
+            current.state
+          }
+          Requisition.State.STATE_UNSPECIFIED,
+          Requisition.State.UNFULFILLED,
+          Requisition.State.UNRECOGNIZED -> {
+            recordRefusalFailure(span, requisition.name, e)
+            null
+          }
         }
-        logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
-        false
       }
     }
+  }
+
+  private fun recordRefusalFailure(span: Span, requisitionName: String, error: Exception) {
+    span
+      .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .recordException(error)
+    val errorCode = ReportTraceAttributes.errorCode(error)
+    if (errorCode != null) {
+      span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+    }
+    logger.log(Level.SEVERE, "Error while refusing requisition $requisitionName", error)
   }
 
   companion object {

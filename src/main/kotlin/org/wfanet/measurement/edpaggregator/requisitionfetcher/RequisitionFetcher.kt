@@ -66,8 +66,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.fulfillRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataRequest
@@ -585,7 +587,7 @@ class RequisitionFetcher(
       metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
     val metadataByRequisition = cachedMetadata.associateByTo(mutableMapOf()) { it.cmmsRequisition }
     val eligibleRequisitions = mutableListOf<Requisition>()
-    val reconciledGroupIds = mutableSetOf<String>()
+    val refusedGroupIds = mutableSetOf<String>()
 
     for (requisition in unit.requisitions) {
       if (!isPastRefusalDuration(requisition)) {
@@ -599,8 +601,8 @@ class RequisitionFetcher(
           "Requisition exceeded the configured fulfillment age of " + requisitionRefusalDuration
       }
       val existing = metadataByRequisition[requisition.name]
-      val refused = requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
-      if (!refused) {
+      val terminalState = requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
+      if (terminalState == null) {
         if (existing != null) blockedRecoveryGroupIds += existing.groupId
         logger.warning(
           "Stale Requisition ${requisition.name} could not be refused; it will be retried " +
@@ -612,8 +614,10 @@ class RequisitionFetcher(
       if (existing != null && existing.state.isRecoverable()) {
         try {
           metadataByRequisition[requisition.name] =
-            reconcileRefusedMetadata(existing, refusal.message)
-          reconciledGroupIds += existing.groupId
+            reconcileTerminalMetadata(existing, terminalState, refusal.message)
+          if (terminalState == Requisition.State.REFUSED) {
+            refusedGroupIds += existing.groupId
+          }
         } catch (e: Exception) {
           // The Kingdom refusal is already terminal. Prevent this invocation from redispatching
           // the group if local reconciliation fails; an existing ResultsFulfiller delivery also
@@ -626,7 +630,7 @@ class RequisitionFetcher(
     val existingMetadata = cachedMetadata.map { metadataByRequisition.getValue(it.cmmsRequisition) }
     metadataCache[unit.reportId] = existingMetadata
 
-    for (groupId in reconciledGroupIds) {
+    for (groupId in refusedGroupIds) {
       val groupMetadata = existingMetadata.filter { it.groupId == groupId }
       if (groupMetadata.all { it.state.isTerminal() }) {
         val workItemNames =
@@ -1303,19 +1307,53 @@ class RequisitionFetcher(
     requisitionMetadataStub.refuseRequisitionMetadata(request)
   }
 
-  /** Reconciles a Kingdom-refused Requisition despite concurrent metadata state transitions. */
-  private suspend fun reconcileRefusedMetadata(
+  /** Reconciles an authoritative terminal Kingdom state despite concurrent metadata transitions. */
+  private suspend fun reconcileTerminalMetadata(
     metadata: RequisitionMetadata,
-    message: String,
+    kingdomState: Requisition.State,
+    refusalMessage: String,
   ): RequisitionMetadata {
+    val metadataState =
+      when (kingdomState) {
+        Requisition.State.FULFILLED -> RequisitionMetadata.State.FULFILLED
+        Requisition.State.REFUSED -> RequisitionMetadata.State.REFUSED
+        Requisition.State.WITHDRAWN -> RequisitionMetadata.State.WITHDRAWN
+        Requisition.State.STATE_UNSPECIFIED,
+        Requisition.State.UNFULFILLED,
+        Requisition.State.UNRECOGNIZED ->
+          error("Kingdom Requisition is not terminal: $kingdomState")
+      }
     var current = metadata
     repeat(MAX_METADATA_RECONCILIATION_ATTEMPTS) {
-      if (!current.state.isRecoverable()) return current
+      if (current.state == metadataState) return current
       try {
-        metadataThrottler.onReady { refuseRequisitionMetadata(current, message) }
+        metadataThrottler.onReady {
+          when (kingdomState) {
+            Requisition.State.FULFILLED ->
+              requisitionMetadataStub.fulfillRequisitionMetadata(
+                fulfillRequisitionMetadataRequest {
+                  name = current.name
+                  etag = current.etag
+                }
+              )
+            Requisition.State.REFUSED -> refuseRequisitionMetadata(current, refusalMessage)
+            Requisition.State.WITHDRAWN ->
+              requisitionMetadataStub.markWithdrawnRequisitionMetadata(
+                markWithdrawnRequisitionMetadataRequest {
+                  name = current.name
+                  etag = current.etag
+                }
+              )
+            Requisition.State.STATE_UNSPECIFIED,
+            Requisition.State.UNFULFILLED,
+            Requisition.State.UNRECOGNIZED -> error("Kingdom Requisition became non-terminal")
+          }
+        }
         return current.copy {
-          state = RequisitionMetadata.State.REFUSED
-          refusalMessage = message
+          state = metadataState
+          if (metadataState == RequisitionMetadata.State.REFUSED) {
+            this.refusalMessage = refusalMessage
+          }
         }
       } catch (e: StatusException) {
         if (e.status.code != Status.Code.ABORTED) throw e
