@@ -21,6 +21,7 @@ import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Payload
 import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.sdk.OpenTelemetrySdk
@@ -4752,6 +4753,107 @@ class ReportTraceTest {
       .contains("Cloud Trace query failed for project broken: IllegalStateException")
     assertThat(output.toString()).contains("SPAN [healthy/service] healthy-span")
     assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `Cloud Trace quota exhaustion fails even when partial output is allowed`() {
+    val output = StringWriter()
+    val error = StringWriter()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, _, _, _, _, _ -> error("Cloud Trace API returned HTTP 429") }
+        },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(error),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=measurementConsumers/mc-1/reports/report-1",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(output.toString()).isEmpty()
+    assertThat(error.toString())
+      .contains("Telemetry collection aborted because a read quota was exhausted")
+  }
+
+  @Test
+  fun `Cloud Logging quota exhaustion writes failed artifact and continues batch`() {
+    val output = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("quota-exhausted-traces").toPath()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            if (correlationValues.any { it.endsWith("/report-a") }) {
+              throw Status.RESOURCE_EXHAUSTED.asRuntimeException()
+            }
+            emptyList()
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            ReportTraceContext(
+              basicReportName = key.toName(),
+              basicReportState = "RUNNING",
+              reportName =
+                "measurementConsumers/${key.cmmsMeasurementConsumerId}/reports/${key.basicReportId}",
+              metricNames = emptyList(),
+              metricStates = emptyMap(),
+              reusedMetricNames = emptySet(),
+              unresolvedMetricRequestIds = emptyList(),
+              measurementNames = emptyList(),
+              reusedMeasurementNames = emptySet(),
+              unresolvedMeasurementRequestIds = emptyList(),
+              reportResolvedByRequestId = false,
+              telemetryRecoveredMeasurementNames = emptyMap(),
+              createTime = NOW,
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-a",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-b",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
+      .contains("Collection completeness: FAILED")
+    assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
+      .doesNotContain("Collection completeness: PARTIAL")
+    assertThat(outputDirectory.resolve("mc-1__report-b.md").toFile().readText())
+      .contains("Collection completeness: PARTIAL")
+    assertThat(output.toString())
+      .contains("FAILED  measurementConsumers/mc-1/basicReports/report-a")
+    assertThat(output.toString())
+      .contains("PARTIAL  measurementConsumers/mc-1/basicReports/report-b")
   }
 
   @Test

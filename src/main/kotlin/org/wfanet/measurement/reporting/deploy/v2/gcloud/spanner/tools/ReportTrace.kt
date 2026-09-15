@@ -28,6 +28,9 @@ import com.google.cloud.sql.core.GcpConnectionFactoryProvider
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.google.protobuf.util.Timestamps
+import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.r2dbc.spi.ConnectionFactories
 import io.r2dbc.spi.ConnectionFactory
 import io.r2dbc.spi.ConnectionFactoryOptions
@@ -163,6 +166,25 @@ internal enum class ReportTraceArtifactStatus {
   COMPLETE,
   PARTIAL,
   FAILED,
+}
+
+internal class ReportTraceQuotaExhaustedException(message: String, cause: Throwable) :
+  Exception(message, cause)
+
+private fun Throwable.isQuotaExhaustion(): Boolean {
+  var current: Throwable? = this
+  while (current != null) {
+    when (current) {
+      is ReportTraceQuotaExhaustedException -> return true
+      is StatusException -> if (current.status.code == Status.Code.RESOURCE_EXHAUSTED) return true
+      is StatusRuntimeException ->
+        if (current.status.code == Status.Code.RESOURCE_EXHAUSTED) return true
+    }
+    val message = current.message.orEmpty()
+    if ("HTTP 429" in message || "RESOURCE_EXHAUSTED" in message) return true
+    current = current.cause
+  }
+  return false
 }
 
 internal enum class ReportTraceExecutionOutcome {
@@ -2992,6 +3014,7 @@ internal class ReportTrace(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
+        failOnQuotaExhaustion(e)
         val failure = failureDescription(e)
         logFailures.getOrPut(project) { mutableListOf() } += failure
         warnings += "Cloud Logging query failed for project $project: $failure"
@@ -3033,6 +3056,7 @@ internal class ReportTrace(
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
+        failOnQuotaExhaustion(e)
         val failure = failureDescription(e)
         traceFailures.getOrPut(project) { mutableListOf() } += failure
         warnings += "Cloud Trace query failed for project $project: $failure"
@@ -3076,6 +3100,7 @@ internal class ReportTrace(
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
+          failOnQuotaExhaustion(e)
           val failure = failureDescription(e)
           traceFailures.getOrPut(project) { mutableListOf() } += failure
           warnings += "Cloud Trace ID lookup failed for project $project: $failure"
@@ -3116,6 +3141,7 @@ internal class ReportTrace(
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
+          failOnQuotaExhaustion(e)
           val failure = failureDescription(e)
           traceFailures.getOrPut(project) { mutableListOf() } += failure
           warnings += "Cloud Trace fallback query failed for project $project: $failure"
@@ -3191,6 +3217,7 @@ internal class ReportTrace(
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
+            failOnQuotaExhaustion(e)
             val failure = failureDescription(e)
             logFailures.getOrPut(project) { mutableListOf() } += failure
             warnings +=
@@ -3220,6 +3247,7 @@ internal class ReportTrace(
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
+            failOnQuotaExhaustion(e)
             val failure = failureDescription(e)
             traceFailures.getOrPut(project) { mutableListOf() } += failure
             warnings +=
@@ -3452,6 +3480,16 @@ internal class ReportTrace(
       ReportTraceArtifactStatus.PARTIAL -> if (allowPartial) 0 else 1
       ReportTraceArtifactStatus.FAILED -> 1
     }
+
+  private fun failOnQuotaExhaustion(exception: Exception) {
+    if (exception.isQuotaExhaustion()) {
+      throw ReportTraceQuotaExhaustedException(
+        "Telemetry collection aborted because a read quota was exhausted: " +
+          "${failureDescription(exception)}; retry the report",
+        exception,
+      )
+    }
+  }
 
   private fun failureDescription(exception: Exception): String {
     val type = exception::class.java.simpleName
