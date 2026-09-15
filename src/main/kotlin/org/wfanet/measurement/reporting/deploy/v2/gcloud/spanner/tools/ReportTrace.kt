@@ -53,7 +53,9 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
@@ -66,6 +68,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.reporting.ReportTraceTopologyConfig
@@ -461,7 +464,7 @@ internal class GoogleCloudReportTraceSpanReader(
   private var maxConcurrency: Int,
   private var requestThrottlerFactory: (String) -> Throttler,
 ) : ReportTraceSpanReader {
-  private val requestThrottlers = mutableMapOf<String, Throttler>()
+  private val requestQuotas = mutableMapOf<String, RequestQuota>()
 
   constructor(
     credentials: GoogleCredentials,
@@ -495,7 +498,7 @@ internal class GoogleCloudReportTraceSpanReader(
     requestThrottlerFactory: (String) -> Throttler
   ): ReportTraceSpanReader {
     this.requestThrottlerFactory = requestThrottlerFactory
-    requestThrottlers.clear()
+    requestQuotas.clear()
     return this
   }
 
@@ -508,7 +511,8 @@ internal class GoogleCloudReportTraceSpanReader(
     limit: Int,
   ): List<ReportTraceSpan> {
     runInterruptible(Dispatchers.IO) { credentials.refreshIfExpired() }
-    val requestThrottler = requestThrottlers.getOrPut(project) { requestThrottlerFactory(project) }
+    val requestQuota =
+      requestQuotas.getOrPut(project) { RequestQuota(requestThrottlerFactory(project)) }
     val queries =
       buildList<suspend () -> List<ReportTraceSpan>> {
         for (correlationValue in correlationValues.distinct()) {
@@ -520,13 +524,13 @@ internal class GoogleCloudReportTraceSpanReader(
                 startTime,
                 endTime,
                 limit,
-                requestThrottler,
+                requestQuota,
               )
             }
           }
         }
         for (traceId in traceIds.map { it.substringAfterLast('/') }.distinct()) {
-          add { readTrace(project, traceId, requestThrottler).orEmpty() }
+          add { readTrace(project, traceId, requestQuota).orEmpty() }
         }
       }
     val entries =
@@ -545,7 +549,7 @@ internal class GoogleCloudReportTraceSpanReader(
     startTime: Instant,
     endTime: Instant,
     limit: Int,
-    requestThrottler: Throttler,
+    requestQuota: RequestQuota,
   ): List<ReportTraceSpan> {
     val entries = mutableListOf<ReportTraceSpan>()
     var pageToken: String? = null
@@ -570,7 +574,7 @@ internal class GoogleCloudReportTraceSpanReader(
           .timeout(HTTP_REQUEST_TIMEOUT)
           .GET()
           .build()
-      val response = sendRequest(request, LIST_TRACES_QUOTA_UNITS, requestThrottler)
+      val response = sendRequest(request, LIST_TRACES_QUOTA_UNITS, requestQuota)
       check(response.statusCode() in 200..299) {
         "Cloud Trace API returned HTTP ${response.statusCode()}"
       }
@@ -584,7 +588,7 @@ internal class GoogleCloudReportTraceSpanReader(
   private suspend fun readTrace(
     project: String,
     traceId: String,
-    requestThrottler: Throttler,
+    requestQuota: RequestQuota,
   ): List<ReportTraceSpan>? {
     val request =
       HttpRequest.newBuilder()
@@ -593,7 +597,7 @@ internal class GoogleCloudReportTraceSpanReader(
         .timeout(HTTP_REQUEST_TIMEOUT)
         .GET()
         .build()
-    val response = sendRequest(request, GET_TRACE_QUOTA_UNITS, requestThrottler)
+    val response = sendRequest(request, GET_TRACE_QUOTA_UNITS, requestQuota)
     if (response.statusCode() == 404) return null
     check(response.statusCode() in 200..299) {
       "Cloud Trace API returned HTTP ${response.statusCode()}"
@@ -604,14 +608,16 @@ internal class GoogleCloudReportTraceSpanReader(
   private suspend fun sendRequest(
     request: HttpRequest,
     quotaUnits: Int,
-    requestThrottler: Throttler,
+    requestQuota: RequestQuota,
   ): HttpResponse<String> {
-    repeat(quotaUnits - 1) { requestThrottler.onReady {} }
-    return requestThrottler.onReady {
-      runInterruptible(Dispatchers.IO) {
-        httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-      }
+    requestQuota.mutex.withLock { repeat(quotaUnits) { requestQuota.throttler.onReady {} } }
+    return runInterruptible(Dispatchers.IO) {
+      httpClient.send(request, HttpResponse.BodyHandlers.ofString())
     }
+  }
+
+  private class RequestQuota(val throttler: Throttler) {
+    val mutex = Mutex()
   }
 
   companion object {
@@ -2272,7 +2278,7 @@ internal class ReportTrace(
 
   private val spanReader: ReportTraceSpanReader by lazy {
     spanReaderFactory().withMaxConcurrency(traceMaxConcurrency).withRequestThrottlerFactory {
-      MinimumIntervalThrottler(clock, traceQuotaUnitMinimumInterval)
+      MaximumRateThrottler(traceQuotaUnitsPerSecond)
     }
   }
   private val logReaders = mutableMapOf<Pair<String, Boolean>, ReportTraceLogReader>()
@@ -2280,7 +2286,7 @@ internal class ReportTrace(
   private fun logReader(project: String): ReportTraceLogReader {
     return logReaders.getOrPut(project to includeRawPayloads) {
       logReaderFactory(project, includeRawPayloads)
-        .withRequestThrottler(MinimumIntervalThrottler(clock, loggingRequestMinimumInterval))
+        .withRequestThrottler(MaximumRateThrottler(loggingRequestsPerSecond))
     }
   }
 
@@ -2448,19 +2454,19 @@ internal class ReportTrace(
   )
   private var traceMaxConcurrency by Delegates.notNull<Int>()
 
-  @CommandLine.Option(
-    names = ["--trace-quota-unit-minimum-interval"],
-    defaultValue = "PT0.25S",
-    description = ["Minimum interval between Cloud Trace read quota units per project."],
+  @set:CommandLine.Option(
+    names = ["--trace-quota-units-per-second"],
+    defaultValue = "4.0",
+    description = ["Maximum Cloud Trace read quota units per second for each project."],
   )
-  private lateinit var traceQuotaUnitMinimumInterval: Duration
+  private var traceQuotaUnitsPerSecond by Delegates.notNull<Double>()
 
-  @CommandLine.Option(
-    names = ["--logging-request-minimum-interval"],
-    defaultValue = "PT1.2S",
-    description = ["Minimum interval between Cloud Logging ListLogEntries requests."],
+  @set:CommandLine.Option(
+    names = ["--logging-requests-per-second"],
+    defaultValue = "0.5",
+    description = ["Maximum Cloud Logging read requests per second for each project."],
   )
-  private lateinit var loggingRequestMinimumInterval: Duration
+  private var loggingRequestsPerSecond by Delegates.notNull<Double>()
 
   @set:CommandLine.Option(
     names = ["--max-correlation-values"],
@@ -2533,16 +2539,16 @@ internal class ReportTrace(
         "--trace-max-concurrency must be positive",
       )
     }
-    if (traceQuotaUnitMinimumInterval.isNegative) {
+    if (traceQuotaUnitsPerSecond <= 0.0) {
       throw CommandLine.ParameterException(
         spec.commandLine(),
-        "--trace-quota-unit-minimum-interval must not be negative",
+        "--trace-quota-units-per-second must be positive",
       )
     }
-    if (loggingRequestMinimumInterval.isNegative) {
+    if (loggingRequestsPerSecond <= 0.0) {
       throw CommandLine.ParameterException(
         spec.commandLine(),
-        "--logging-request-minimum-interval must not be negative",
+        "--logging-requests-per-second must be positive",
       )
     }
     if (maxCorrelationValues <= 0) {
