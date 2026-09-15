@@ -54,6 +54,11 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.renewWorkIt
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
 
+private fun canonicalWorkItemName(name: String): String {
+  if (name.isEmpty()) return name
+  return WorkItemKey.fromName(name)?.toName() ?: WorkItemKey(name).toName()
+}
+
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
  * to a specified queue and processes messages as they arrive.
@@ -124,6 +129,7 @@ abstract class BaseTeeApplication(
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
     val body = queueMessage.body
+    val workItemName = canonicalWorkItemName(body.name)
     val traceContext =
       if (body.workItemParams.`is`(WorkItem.WorkItemParams::class.java)) {
         runCatching {
@@ -138,18 +144,19 @@ abstract class BaseTeeApplication(
         spanName = "secure_computation.work_item.process",
         attributes =
           io.opentelemetry.api.common.Attributes.builder()
-            .put(ReportTraceAttributes.WORK_ITEM_NAME, body.name)
+            .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
             .put(ReportTraceAttributes.LIFECYCLE_STAGE, "work_item_processing")
             .put(ReportTraceAttributes.OUTCOME, "started")
             .build(),
       ) {
-        processMessageInContext(queueMessage)
+        processMessageInContext(queueMessage, workItemName)
       }
     }
   }
 
   private suspend fun processMessageInContext(
-    queueMessage: QueueSubscriber.QueueMessage<WorkItem>
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
+    workItemName: String,
   ) {
     logger.info("Starting to process message with ackId: ${queueMessage.ackId}")
     val body: WorkItem = queueMessage.body
@@ -162,7 +169,6 @@ abstract class BaseTeeApplication(
       return
     }
     logger.info("Processing WorkItem: ${body.name}")
-    val workItemName = WorkItemKey(body.name).toName()
     val workItemAttempt: WorkItemAttempt =
       try {
         val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
@@ -268,7 +274,7 @@ abstract class BaseTeeApplication(
         recordFailureWriteback(
           spanName = "secure_computation.work_item.failure_writeback",
           lifecycleStage = "work_item_failure_writeback",
-          workItemName = body.name,
+          workItemName = workItemName,
           workItemAttemptName = workItemAttempt.name,
           error = error,
         )
@@ -292,7 +298,7 @@ abstract class BaseTeeApplication(
           recordFailureWriteback(
             spanName = "secure_computation.work_item_attempt.failure_writeback",
             lifecycleStage = "work_item_attempt_failure_writeback",
-            workItemName = body.name,
+            workItemName = workItemName,
             workItemAttemptName = workItemAttempt.name,
             error = error,
           )

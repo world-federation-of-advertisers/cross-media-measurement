@@ -1238,7 +1238,7 @@ internal object ReportTraceOutput {
             evidence.attributes["xmm.work_item.name"] ?: return@mapNotNull null
           val requisitionName: String =
             evidence.attributes["xmm.requisition.name"] ?: return@mapNotNull null
-          workItemName to requisitionName
+          workItemCorrelationKey(workItemName) to requisitionName
         }
         .groupBy(
           keySelector = { (workItemName) -> workItemName },
@@ -1257,7 +1257,7 @@ internal object ReportTraceOutput {
               if (workItemName == null) {
                 emptyList()
               } else {
-                requisitionsByWorkItem[workItemName].orEmpty().distinct()
+                requisitionsByWorkItem[workItemCorrelationKey(workItemName)].orEmpty().distinct()
               }
             if (requisitions.isEmpty()) {
               listOf(evidence)
@@ -1271,6 +1271,10 @@ internal object ReportTraceOutput {
           }
         }
         .toMutableList()
+  }
+
+  private fun workItemCorrelationKey(name: String): String {
+    return name.removePrefix("workItems/")
   }
 
   private fun lifecycleStage(
