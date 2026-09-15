@@ -422,7 +422,7 @@ jobs:
       continue-on-error: true
       run: |
         gcloud container operations list \
-          --location="$GCLOUD_REGION" \
+          --location=- \
           --limit=20 \
           --sort-by=~startTime \
           --format='table(name,operationType,status,startTime,endTime,statusMessage)'
