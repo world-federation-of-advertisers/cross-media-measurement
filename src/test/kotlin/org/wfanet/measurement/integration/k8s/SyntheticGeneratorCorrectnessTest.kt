@@ -16,9 +16,6 @@
 
 package org.wfanet.measurement.integration.k8s
 
-import com.google.crypto.tink.InsecureSecretKeyAccess
-import com.google.crypto.tink.TinkProtoKeysetFormat
-import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ManagedChannel
 import java.nio.file.Paths
@@ -69,12 +66,10 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readPrivateKey
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
-import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
-import org.wfanet.measurement.config.access.OpenIdProvidersConfig
 import org.wfanet.measurement.integration.common.SyntheticGenerationSpecs
 import org.wfanet.measurement.loadtest.measurementconsumer.EventQueryMeasurementConsumerSimulator
 import org.wfanet.measurement.loadtest.measurementconsumer.MeasurementConsumerData
@@ -299,41 +294,18 @@ class SyntheticGeneratorCorrectnessTest : AbstractCorrectnessTest(measurementSys
           .writeTimeout(Duration.ofSeconds(30))
           .build()
 
-      val openIdProvidersConfigBuilder = OpenIdProvidersConfig.newBuilder()
-      JsonFormat.parser()
-        .ignoringUnknownFields()
-        .merge(OPEN_ID_PROVIDERS_CONFIG_JSON_FILE.readText(), openIdProvidersConfigBuilder)
-      val openIdProvidersConfig = openIdProvidersConfigBuilder.build()
-
-      val principal =
-        createAccessPrincipal(
+      val getAccessToken =
+        reportingAccessTokenProvider(
           TEST_CONFIG.measurementConsumer,
           accessPublicApiChannel,
-          openIdProvidersConfig.providerConfigByIssuerMap.keys.first(),
+          TEST_CONFIG.reportingTokenAudience,
+          setOf(
+            "reporting.basicReports.create",
+            "reporting.reports.create",
+            "reporting.metrics.create",
+            "reporting.basicReports.get",
+          ),
         )
-
-      val getAccessToken = {
-        OpenIdProvider(
-            principal.user.issuer,
-            TinkProtoKeysetFormat.parseKeyset(
-              OPEN_ID_PROVIDERS_TINK_FILE.readBytes(),
-              InsecureSecretKeyAccess.get(),
-            ),
-          )
-          .generateCredentials(
-            audience = TEST_CONFIG.reportingTokenAudience,
-            subject = principal.user.subject,
-            scopes =
-              setOf(
-                "reporting.basicReports.create",
-                "reporting.reports.create",
-                "reporting.metrics.create",
-                "reporting.basicReports.get",
-              ),
-            ttl = Duration.ofMinutes(60),
-          )
-          .token
-      }
 
       val reportingServiceUrl: HttpUrl =
         TEST_CONFIG.reportingServiceEndpoint.toHttpUrlOrNull()

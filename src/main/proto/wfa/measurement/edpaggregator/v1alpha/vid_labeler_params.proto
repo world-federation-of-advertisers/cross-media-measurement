@@ -98,6 +98,22 @@ message VidLabelerParams {
     // entity_type. Keys MUST be disjoint from
     // required_entity_key_field_mapping.
     map<string, string> optional_entity_key_field_mapping = 8;
+
+    // Config-storage blob URI of the model line's `PopulationSpec` textproto
+    // (the same artifact ResultsFulfiller loads).
+    //
+    // A VID model may assign an impression a different demo than the
+    // `DataProvider` uploaded, and it draws the VID from the pool of the demo
+    // it assigned. Each `SubPopulation` pairs its VID ranges with the event
+    // template's population attributes, so the labeler resolves the assigned
+    // VID here and writes those attributes onto the labeled output.
+    //
+    // REQUIRED: without it the labeled output carries the demographics the
+    // DataProvider uploaded rather than the ones the model assigned, and
+    // ResultsFulfiller then groups reports by the uncorrected demo. Enforced by
+    // the dispatcher's config pre-flight and again by the TEE at label time.
+    string population_spec_blob_uri = 9
+        [(google.api.field_behavior) = REQUIRED];
   }
 
   // Map from model line resource name to its configuration.

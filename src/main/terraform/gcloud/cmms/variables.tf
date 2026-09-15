@@ -144,6 +144,18 @@ variable "results_fulfiller_population_spec_file_path" {
   nullable    = false
 }
 
+variable "vid_labeler_population_spec_file_path" {
+  description = "Path to the VID Labeler population spec file. Describes the VID pools of the compiled model the pipeline labels with, so labeled impressions carry the demographics the model assigned rather than the ones the DataProvider declared. Resolved relative to the Terraform working directory."
+  type        = string
+  nullable    = false
+}
+
+variable "vid_labeler_population_spec_blob_uri" {
+  description = "Cloud Storage URI of the uploaded VID Labeler population spec. Not consumed by Terraform: it is the value each model line's `population_spec_blob_uri` must carry in the deployed VidLabelingConfig, and the EDPA cloud-test workflow reads it from here so the two cannot drift."
+  type        = string
+  nullable    = false
+}
+
 variable "kingdom_public_api_target" {
   description = "Kingdom public api target"
   type        = string
