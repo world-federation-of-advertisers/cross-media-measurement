@@ -585,6 +585,7 @@ class RequisitionFetcher(
       metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
     val metadataByRequisition = cachedMetadata.associateByTo(mutableMapOf()) { it.cmmsRequisition }
     val eligibleRequisitions = mutableListOf<Requisition>()
+    val reconciledGroupIds = mutableSetOf<String>()
 
     for (requisition in unit.requisitions) {
       if (!isPastRefusalDuration(requisition)) {
@@ -612,6 +613,7 @@ class RequisitionFetcher(
         try {
           metadataByRequisition[requisition.name] =
             reconcileRefusedMetadata(existing, refusal.message)
+          reconciledGroupIds += existing.groupId
         } catch (e: Exception) {
           // The Kingdom refusal is already terminal. Prevent this invocation from redispatching
           // the group if local reconciliation fails; an existing ResultsFulfiller delivery also
@@ -623,6 +625,26 @@ class RequisitionFetcher(
     }
     val existingMetadata = cachedMetadata.map { metadataByRequisition.getValue(it.cmmsRequisition) }
     metadataCache[unit.reportId] = existingMetadata
+
+    for (groupId in reconciledGroupIds) {
+      val groupMetadata = existingMetadata.filter { it.groupId == groupId }
+      if (groupMetadata.all { it.state.isTerminal() }) {
+        val workItemNames =
+          groupMetadata.mapNotNull { it.workItem.takeIf(String::isNotEmpty) }.toSet()
+        check(workItemNames.size <= 1) {
+          "Requisition group $groupId references multiple WorkItems: $workItemNames"
+        }
+        if (workItemNames.isNotEmpty()) {
+          try {
+            workItemDispatcher.fail(workItemNames.single())
+          } catch (e: Exception) {
+            // Metadata is terminal and therefore cannot be redispatched. The existing WorkItem can
+            // still drain normally and observe the terminal Kingdom state.
+            logger.log(Level.WARNING, "Unable to fail stale WorkItem ${workItemNames.single()}", e)
+          }
+        }
+      }
+    }
 
     val recoverableByGroupId =
       existingMetadata
@@ -1202,6 +1224,19 @@ class RequisitionFetcher(
     return this == RequisitionMetadata.State.STORED ||
       this == RequisitionMetadata.State.QUEUED ||
       this == RequisitionMetadata.State.PROCESSING
+  }
+
+  private fun RequisitionMetadata.State.isTerminal(): Boolean {
+    return when (this) {
+      RequisitionMetadata.State.FULFILLED,
+      RequisitionMetadata.State.REFUSED,
+      RequisitionMetadata.State.WITHDRAWN -> true
+      RequisitionMetadata.State.STATE_UNSPECIFIED,
+      RequisitionMetadata.State.STORED,
+      RequisitionMetadata.State.QUEUED,
+      RequisitionMetadata.State.PROCESSING,
+      RequisitionMetadata.State.UNRECOGNIZED -> false
+    }
   }
 
   private fun resolveGroupLocation(
