@@ -230,6 +230,11 @@ gcloud alpha services quota list \
   --service=logging.googleapis.com
 ```
 
+The CLI charges Cloud Logging reads to each corresponding observability
+project instead of the credential's default consumer project. Its execution
+identity therefore also needs `serviceusage.services.use` on every
+observability project.
+
 Set `--trace-quota-units-per-second` below the smallest applicable Cloud Trace
 read limit divided by 60, with headroom for other readers. Set
 `--logging-requests-per-second` below both the smallest project read limit and
@@ -254,9 +259,9 @@ BasicReport in the batch. The defaults shown above are also the CLI defaults.
 
 By default, the artifact contains complete application log payloads, including
 INFO messages, error messages, and stack traces. It omits entries produced by
-the generic verbose gRPC interceptor because those can contain credentials and
-encrypted request data. Application logs must still follow the normal policy
-of not logging sensitive data.
+the generic verbose gRPC interceptor at query time because those can contain
+credentials and encrypted request data. Application logs must still follow the
+normal policy of not logging sensitive data.
 
 Use `--include-grpc-payloads` only for a locally controlled investigation. The
 resulting artifact is marked `ALL-LOG-PAYLOADS; SENSITIVE` and can contain API

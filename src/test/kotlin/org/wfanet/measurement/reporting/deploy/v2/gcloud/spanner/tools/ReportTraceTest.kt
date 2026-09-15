@@ -759,10 +759,56 @@ class ReportTraceTest {
         (1..100).map { "measurementConsumers/mc-1/measurements/${"m".repeat(50)}-$it" },
         Instant.parse("2026-09-10T11:00:00Z"),
         NOW,
+        includeGrpcPayloads = false,
       )
 
     assertThat(filters.size).isGreaterThan(1)
     assertThat(filters.all { it.length <= 20_000 }).isTrue()
+  }
+
+  @Test
+  fun `buildLogFilters excludes verbose gRPC payloads at query time`() {
+    val filter =
+      ReportTraceOutput.buildLogFilters(
+          listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          Instant.parse("2026-09-10T11:00:00Z"),
+          NOW,
+          includeGrpcPayloads = false,
+        )
+        .single()
+
+    assertThat(filter).contains("NOT (textPayload =~")
+    assertThat(filter).contains("jsonPayload.message =~")
+    assertThat(filter).contains("gRPC([[:space:]]+client)?")
+  }
+
+  @Test
+  fun `buildLogFilters includes verbose gRPC payloads when requested`() {
+    val filter =
+      ReportTraceOutput.buildLogFilters(
+          listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          Instant.parse("2026-09-10T11:00:00Z"),
+          NOW,
+          includeGrpcPayloads = true,
+        )
+        .single()
+
+    assertThat(filter).doesNotContain("NOT (textPayload =~")
+    assertThat(filter).doesNotContain("jsonPayload.message =~")
+  }
+
+  @Test
+  fun `Logging options charge reads to observability project`() {
+    val options =
+      buildReportTraceLoggingOptions(
+        "observability-project",
+        GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
+      )
+
+    assertThat(options.projectId).isEqualTo("observability-project")
+    assertThat(options.quotaProjectId).isEqualTo("observability-project")
+    assertThat((options.credentials as GoogleCredentials).quotaProjectId)
+      .isEqualTo("observability-project")
   }
 
   @Test
