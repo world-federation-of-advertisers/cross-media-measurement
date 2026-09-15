@@ -829,7 +829,7 @@ internal object ReportTraceOutput {
       )
     for ((label, names) in discoveredResources) {
       if (names.isEmpty()) {
-        appendLine("- ${label}s: none observed")
+        appendLine("- ${label}s: none discovered from telemetry")
       } else {
         names.forEach { appendLine("- $label: $it") }
       }
@@ -863,14 +863,27 @@ internal object ReportTraceOutput {
       }
     }
     appendLine()
-    appendLine("| Requisition | State | DataProvider | Fulfillment route |")
-    appendLine("| --- | --- | --- | --- |")
+    appendLine(
+      "| Requisition | State | DataProvider | Fulfillment route | Refusal justification | " +
+        "Refusal message |"
+    )
+    appendLine("| --- | --- | --- | --- | --- | --- |")
     val requisitionRoutes = routeResolution.measurementRoutes.flatMap { it.requisitions }
     if (requisitionRoutes.isEmpty()) {
-      appendLine("| none resolved | UNKNOWN | UNKNOWN | UNKNOWN |")
+      appendLine(
+        "| none resolved | UNKNOWN | UNKNOWN | UNKNOWN | NOT_APPLICABLE | NOT_APPLICABLE |"
+      )
     } else {
       for (route in requisitionRoutes) {
-        appendLine("| ${route.name} | ${route.state} | ${route.dataProvider} | ${route.route} |")
+        val refusalJustification =
+          route.refusalJustification
+            ?: if (route.state == "REFUSED") "UNKNOWN" else "NOT_APPLICABLE"
+        val refusalMessage =
+          route.refusalMessage ?: if (route.state == "REFUSED") "UNKNOWN" else "NOT_APPLICABLE"
+        appendLine(
+          "| ${route.name} | ${route.state} | ${route.dataProvider} | ${route.route} | " +
+            "${sanitizeTableCell(refusalJustification)} | ${sanitizeTableCell(refusalMessage)} |"
+        )
       }
     }
     appendLine()
@@ -2007,6 +2020,8 @@ internal object ReportTraceOutput {
     }
     return sanitized.take(MAX_RENDERED_VALUE_LENGTH)
   }
+
+  private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
 
   private fun safeScalar(value: Any): String? =
     when (value) {
@@ -3333,11 +3348,10 @@ internal class ReportTrace(
     }
 
   private fun failureDescription(exception: Exception): String {
-    return if (includeRawPayloads) {
-      ReportTraceOutput.sanitize(exception.message ?: exception::class.java.name)
-    } else {
-      exception::class.java.simpleName
-    }
+    val type = exception::class.java.simpleName
+    val message =
+      exception.message?.takeIf(String::isNotBlank)?.let(ReportTraceOutput::sanitize) ?: return type
+    return if (includeRawPayloads) message else "$type: $message"
   }
 
   private fun outputFileName(key: BasicReportKey): String {

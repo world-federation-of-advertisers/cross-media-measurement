@@ -2799,6 +2799,55 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `render includes Kingdom refusal details and distinguishes undiscovered telemetry`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val baseRouteResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val measurementRoute = baseRouteResolution.measurementRoutes.single()
+    val routeResolution =
+      baseRouteResolution.copy(
+        measurementRoutes =
+          listOf(
+            measurementRoute.copy(
+              state = "FAILED",
+              requisitions =
+                listOf(
+                  measurementRoute.requisitions
+                    .single()
+                    .copy(
+                      state = "REFUSED",
+                      refusalJustification = "SPEC_INVALID",
+                      refusalMessage = "EventGroup is unsupported | check configuration",
+                    )
+                ),
+            )
+          )
+      )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution = routeResolution,
+        spans = emptyList(),
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeRawPayloads = false,
+      )
+
+    assertThat(output).contains("- Requisitions: none discovered from telemetry")
+    assertThat(output).contains("| Refusal justification | Refusal message |")
+    assertThat(output)
+      .contains("| DIRECT_EDP | SPEC_INVALID | EventGroup is unsupported \\| check configuration |")
+  }
+
+  @Test
   fun `Kingdom terminal child state overrides transitional BasicReport state`() {
     val context = reportTraceContext().copy(basicReportState = "REPORT_CREATED")
     val routeResolution =
@@ -4408,7 +4457,11 @@ class ReportTraceTest {
             )
           }
         },
-        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> error("trace denied") } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, _, _, _, _, _ ->
+            error("trace denied; credential=secret-value")
+          }
+        },
         resolverFactory = { _, _ -> error("Resolver should not be used") },
         resolverOverride = null,
         clock = Clock.fixed(NOW, ZoneOffset.UTC),
@@ -4430,7 +4483,11 @@ class ReportTraceTest {
 
     assertThat(exitCode).isEqualTo(0)
     assertThat(output.toString())
-      .contains("Cloud Trace query failed for project test: IllegalStateException")
+      .contains(
+        "Cloud Trace query failed for project test: " +
+          "IllegalStateException: trace denied; credential=[REDACTED]"
+      )
+    assertThat(output.toString()).doesNotContain("secret-value")
     assertThat(output.toString()).contains("Collection completeness: PARTIAL")
     assertThat(output.toString()).contains("xmm.outcome=failed")
     assertThat(output.toString()).contains("| test | Cloud Trace | FAILED |")

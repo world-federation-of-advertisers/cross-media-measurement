@@ -31,6 +31,7 @@ import org.wfanet.measurement.api.v2alpha.ListRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.Measurement
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt
 import org.wfanet.measurement.api.v2alpha.Requisition
+import org.wfanet.measurement.api.v2alpha.RequisitionKt
 import org.wfanet.measurement.api.v2alpha.batchGetMeasurementsResponse
 import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.measurement
@@ -214,7 +215,14 @@ class KingdomReportTraceResolverTest {
           } else {
             listRequisitionsResponse {
               requisitions +=
-                requisition(EDPA_REQUISITION, Requisition.State.REFUSED, DUCHY_ONE, DUCHY_TWO)
+                requisition(
+                  EDPA_REQUISITION,
+                  Requisition.State.REFUSED,
+                  DUCHY_ONE,
+                  DUCHY_TWO,
+                  refusalJustification = Requisition.Refusal.Justification.SPEC_INVALID,
+                  refusalMessage = "EventGroup is not supported by this simulator",
+                )
             }
           }
         },
@@ -233,6 +241,11 @@ class KingdomReportTraceResolverTest {
     assertThat(batchCalls).isEqualTo(2)
     assertThat(pageTokens).containsExactly("", "page-2").inOrder()
     assertThat(result.measurementRoutes.single().requisitions).hasSize(2)
+    val refusedRoute =
+      result.measurementRoutes.single().requisitions.single { it.state == "REFUSED" }
+    assertThat(refusedRoute.refusalJustification).isEqualTo("SPEC_INVALID")
+    assertThat(refusedRoute.refusalMessage)
+      .isEqualTo("EventGroup is not supported by this simulator")
   }
 
   @Test
@@ -393,11 +406,20 @@ class KingdomReportTraceResolverTest {
     name: String,
     state: Requisition.State,
     vararg duchyIds: String,
+    refusalJustification: Requisition.Refusal.Justification? = null,
+    refusalMessage: String? = null,
   ): Requisition = requisition {
     this.name = name
     this.state = state
     duchies +=
       duchyIds.map { duchyId -> Requisition.DuchyEntry.newBuilder().setKey(duchyId).build() }
+    if (refusalJustification != null) {
+      refusal =
+        RequisitionKt.refusal {
+          justification = refusalJustification
+          if (refusalMessage != null) message = refusalMessage
+        }
+    }
   }
 
   private class FakeKingdomReportTraceClient(
