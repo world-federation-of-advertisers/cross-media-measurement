@@ -43,6 +43,8 @@ import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -899,7 +901,7 @@ class ReportTraceTest {
         GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
         httpClient,
         maxConcurrency = 2,
-        requestThrottlerFactory = { RecordingThrottler() },
+        requestThrottlerFactory = { SerializingThrottler() },
       )
 
     reader.read(
@@ -5102,6 +5104,14 @@ class ReportTraceTest {
     override suspend fun <T> onReady(block: suspend () -> T): T {
       invocationCount++
       return block()
+    }
+  }
+
+  private class SerializingThrottler : Throttler {
+    private val mutex = Mutex()
+
+    override suspend fun <T> onReady(block: suspend () -> T): T {
+      return mutex.withLock { block() }
     }
   }
 
