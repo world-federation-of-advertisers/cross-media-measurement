@@ -252,10 +252,18 @@ a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
 BasicReport in the batch. The defaults shown above are also the CLI defaults.
 
-By default, the artifact contains only allowlisted operational fields and
-sanitized `xmm.*` identifiers. Use `--include-raw-payloads` only for a locally
+By default, the artifact contains allowlisted operational fields, sanitized
+warning and error summaries, and bounded stack-trace context. It still omits verbose
+gRPC request and response payloads because those can contain credentials and
+encrypted request data. Use `--include-raw-payloads` only for a locally
 controlled investigation: the resulting file is marked `RAW-SENSITIVE` and can
 contain credentials, request data, or other secrets. Review it before sharing.
+
+Do not infer an application failure from the displayed Cloud Logging severity
+alone. GKE assigns `ERROR` to container stderr, and Java's verbose gRPC logger
+can write ordinary `INFO` request and response dumps there. Read the retained
+diagnostic text and correlated `xmm.outcome` or gRPC status before classifying
+the entry.
 
 The artifact reports collection completeness (`COMPLETE`, `PARTIAL`, or
 `FAILED`) separately from the report's execution outcome (`SUCCEEDED`, `FAILED`,

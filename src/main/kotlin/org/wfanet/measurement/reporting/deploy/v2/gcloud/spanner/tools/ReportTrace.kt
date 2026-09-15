@@ -24,6 +24,7 @@ import com.google.cloud.logging.Logging.SortingField
 import com.google.cloud.logging.Logging.SortingOrder
 import com.google.cloud.logging.LoggingOptions
 import com.google.cloud.logging.Payload
+import com.google.cloud.logging.Severity
 import com.google.cloud.sql.core.GcpConnectionFactoryProvider
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -469,7 +470,7 @@ internal class GoogleCloudReportTraceLogReader(
       service = service,
       severity = severity.name,
       trace = trace?.takeIf(String::isNotEmpty),
-      message = ReportTraceOutput.renderLogPayload(getPayload(), includeRawPayloads),
+      message = ReportTraceOutput.renderLogPayload(getPayload(), severity, includeRawPayloads),
     )
   }
 
@@ -733,7 +734,11 @@ private fun JsonObject.optionalString(name: String): String? =
   get(name)?.takeUnless { it.isJsonNull }?.asString
 
 internal object ReportTraceOutput {
-  fun renderLogPayload(payload: Payload<*>?, includeRawPayloads: Boolean): String {
+  fun renderLogPayload(
+    payload: Payload<*>?,
+    severity: Severity,
+    includeRawPayloads: Boolean,
+  ): String {
     if (payload == null) return ""
     if (includeRawPayloads) return payload.toString()
     if (payload.type == Payload.Type.STRING) {
@@ -742,11 +747,10 @@ internal object ReportTraceOutput {
         SAFE_TEXT_FIELD_PATTERN.findAll(text)
           .map { match -> "${match.groupValues[1]}=${sanitize(match.groupValues[2])}" }
           .toList()
-      return if (safeFields.isEmpty()) {
-        "[string payload omitted]"
-      } else {
-        safeFields.joinToString(" ")
-      }
+      val diagnostic = safeDiagnostic(text, severity)
+      return (safeFields + listOfNotNull(diagnostic?.let { "diagnostic=${sanitize(it)}" }))
+        .takeIf(List<String>::isNotEmpty)
+        ?.joinToString(" ") ?: "[string payload omitted]"
     }
     if (payload.type != Payload.Type.JSON) {
       return "[${payload.type.name.lowercase()} payload omitted]"
@@ -764,6 +768,7 @@ internal object ReportTraceOutput {
         val value = match.groups[2]?.value ?: return@forEach
         safeValues[key] = sanitize(value)
       }
+      safeDiagnostic(message, severity)?.let { safeValues["diagnostic"] = sanitize(it) }
     }
     val nestedAttributes = values["attributes"] as? Map<*, *>
     if (nestedAttributes != null) {
@@ -2323,15 +2328,41 @@ internal object ReportTraceOutput {
       Regex("(?i)(bearer\\s+)[A-Za-z0-9._~+/=-]+"),
       Regex(
         "(?i)((?:authorization|cookie|set-cookie|x-api-key|api[_-]?key|access[_-]?token|" +
-          "refresh[_-]?token|client[_-]?secret|private[_-]?key|password|passwd|credential|" +
+          "refresh[_-]?token|client[_-]?secret|private[_-]?key|password|passwd|credential|jwt|" +
           "session[_-]?(?:id|token))\\s*[:=]\\s*)[^\\s,;]+"
       ),
       Regex("(?i)(https?://[^\\s?]+\\?)[^\\s]+"),
-      Regex("(?<![A-Za-z0-9_-])[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+(?![A-Za-z0-9_-])"),
+      Regex(
+        "(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\." +
+          "[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])"
+      ),
       Regex("(?is)(-----BEGIN [^-]*PRIVATE KEY-----).*?(-----END [^-]*PRIVATE KEY-----)"),
     )
   private val SAFE_TEXT_FIELD_PATTERN =
     Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
+  private val VERBOSE_GRPC_PAYLOAD_PATTERN = Regex("(?i)\\bgRPC\\s+[^\\n]*(?:request|response):")
+  private val DIAGNOSTIC_TEXT_PATTERN =
+    Regex(
+      "(?i)(?:^|\\b)(?:SEVERE|WARNING):|" +
+        "(?:Exception|Error)(?::|\\b)|" +
+        "\\b(?:failed|failure|refusing|invalid|denied|unavailable|" +
+        "deadline exceeded|resource exhausted|timed out)\\b"
+    )
+  private val DIAGNOSTIC_SEVERITIES =
+    setOf(Severity.WARNING, Severity.ERROR, Severity.CRITICAL, Severity.ALERT, Severity.EMERGENCY)
+
+  private fun safeDiagnostic(text: String, severity: Severity): String? {
+    if (severity !in DIAGNOSTIC_SEVERITIES) return null
+    val trimmed = text.trim()
+    if (
+      trimmed.isEmpty() ||
+        VERBOSE_GRPC_PAYLOAD_PATTERN.containsMatchIn(trimmed) ||
+        !DIAGNOSTIC_TEXT_PATTERN.containsMatchIn(trimmed)
+    ) {
+      return null
+    }
+    return trimmed
+  }
 
   private fun safeTextFields(text: String): Map<String, String> {
     return SAFE_TEXT_FIELD_PATTERN.findAll(text).associate { match ->

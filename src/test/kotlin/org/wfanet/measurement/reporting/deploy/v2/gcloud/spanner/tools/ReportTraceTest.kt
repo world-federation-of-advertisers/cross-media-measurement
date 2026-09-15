@@ -20,6 +20,7 @@ import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Payload
+import com.google.cloud.logging.Severity
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -3883,7 +3884,12 @@ class ReportTraceTest {
         )
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.INFO,
+        includeRawPayloads = false,
+      )
 
     assertThat(rendered).contains("xmm.report.name=measurementConsumers/mc-1/reports/report-1")
     assertThat(rendered).doesNotContain("request failed")
@@ -3902,7 +3908,12 @@ class ReportTraceTest {
           "xmm.lifecycle.stage=noise_correction token=secret-value arbitrary request body"
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.INFO,
+        includeRawPayloads = false,
+      )
 
     assertThat(rendered)
       .contains("xmm.basic_report.name=measurementConsumers/mc-1/basicReports/br-1")
@@ -3923,7 +3934,12 @@ class ReportTraceTest {
         )
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.WARNING,
+        includeRawPayloads = false,
+      )
 
     assertThat(rendered).contains("event=requisition_failed")
     assertThat(rendered).contains("status=failed")
@@ -3931,6 +3947,49 @@ class ReportTraceTest {
     assertThat(rendered).doesNotContain("session-secret")
     assertThat(rendered).doesNotContain("aaa.bbb.ccc")
     assertThat(rendered).doesNotContain("X-Goog-Signature")
+  }
+
+  @Test
+  fun `renderLogPayload keeps sanitized warning stack trace`() {
+    val payload =
+      Payload.StringPayload.of(
+        "Refusing Requisition dataProviders/dp-1/requisitions/r1\n" +
+          "org.example.UnfulfillableRequisitionException: PopulationSpec is invalid\n" +
+          "\tat org.example.Fulfiller.process(Fulfiller.kt:42)\n" +
+          "authorization=secret-token"
+      )
+
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.WARNING,
+        includeRawPayloads = false,
+      )
+
+    assertThat(rendered).contains("Refusing Requisition")
+    assertThat(rendered).contains("UnfulfillableRequisitionException")
+    assertThat(rendered).contains("PopulationSpec is invalid")
+    assertThat(rendered).contains("Fulfiller.process(Fulfiller.kt:42)")
+    assertThat(rendered).contains("authorization=[REDACTED]")
+    assertThat(rendered).doesNotContain("secret-token")
+  }
+
+  @Test
+  fun `renderLogPayload omits verbose gRPC payload mislabeled as error`() {
+    val payload =
+      Payload.StringPayload.of(
+        "INFO: [grpc-worker] gRPC trace-id request: " +
+          "Metadata(x-api-key=secret-key) report: \"reports/report-1\""
+      )
+
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.ERROR,
+        includeRawPayloads = false,
+      )
+
+    assertThat(rendered).isEqualTo("[string payload omitted]")
   }
 
   @Test
