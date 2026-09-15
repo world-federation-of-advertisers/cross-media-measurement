@@ -510,9 +510,22 @@ class RequisitionFetcher(
         .filterValues { metadata -> metadata.any { it.state.isRecoverable() } }
 
     for ((existingGroupId, groupMetadata) in recoverableByGroupId) {
-      val location = resolveGroupLocation(existingGroupId, groupMetadata)
       val metadataList = groupMetadata.filter { it.state.isRecoverable() }
-      validateDispatchOwnership(location.ownership, metadataList)
+      val location =
+        try {
+          resolveGroupLocation(existingGroupId, groupMetadata).also {
+            validateDispatchOwnership(it.ownership, metadataList)
+          }
+        } catch (e: IllegalStateException) {
+          // A malformed historical group must remain untouched, but it must not prevent newly
+          // discovered requisitions in the same long-lived Report from using direct dispatch.
+          logger.log(
+            Level.WARNING,
+            "Skipping recovery for inconsistent requisition group $existingGroupId",
+            e,
+          )
+          continue
+        }
       if (
         location.ownership == DispatchOwnership.LEGACY_DATA_WATCHER &&
           metadataList.any { it.state == RequisitionMetadata.State.PROCESSING }
