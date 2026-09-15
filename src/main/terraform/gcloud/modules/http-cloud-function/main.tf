@@ -48,6 +48,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
     var.config_path != null ? filesha256(var.config_path) : "",
     var.timeout_seconds,
     var.max_instances,
+    var.memory,
   ]
 
   provisioner "local-exec" {
@@ -62,6 +63,7 @@ resource "terraform_data" "deploy_http_cloud_function" {
       UBER_JAR_DIRECTORY  = dirname(var.uber_jar_path)
       TIMEOUT_SECONDS     = var.timeout_seconds == null ? "" : tostring(var.timeout_seconds)
       MAX_INSTANCES       = var.max_instances == null ? "" : tostring(var.max_instances)
+      MEMORY              = var.memory
     }
     command = <<-EOT
       #!/bin/bash
@@ -72,12 +74,11 @@ resource "terraform_data" "deploy_http_cloud_function" {
         "--gen2"
         "--runtime=java17"
         "--entry-point=$ENTRY_POINT"
-        # 512MB suffices for test environments. The requisition-fetcher groups a report's
-        # requisitions in memory before writing one blob; a data provider with large reports
-        # (or rare ~1MB requisitions) can need substantially more headroom — up to 8GiB (Cloud
-        # Functions 2nd gen max) — and its MAX_TOTAL_BUFFERED_BYTES should be raised to match.
-        # Size per environment rather than assuming this default holds for larger workloads.
-        "--memory=512MB"
+        # Callers that buffer large in-memory state before writing (e.g. the
+        # requisition-fetcher, which groups a report's requisitions before writing one blob)
+        # should raise this via the memory variable — up to 8GiB, the Cloud Functions 2nd gen
+        # max — and size MAX_TOTAL_BUFFERED_BYTES to match.
+        "--memory=$MEMORY"
         "--region=$CLOUD_REGION"
         "--run-service-account=$RUN_SERVICE_ACCOUNT"
         "--source=$UBER_JAR_DIRECTORY"

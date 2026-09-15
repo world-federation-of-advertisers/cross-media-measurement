@@ -80,3 +80,9 @@ variable "max_instances" {
   nullable    = true
   default     = null
 }
+
+variable "memory" {
+  description = "The amount of memory allocated to the Cloud Function (e.g. \"512MB\", \"2048MB\")."
+  type        = string
+  default     = "512MB"
+}
