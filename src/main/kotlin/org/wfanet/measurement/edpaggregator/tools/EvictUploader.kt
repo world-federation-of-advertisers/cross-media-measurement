@@ -55,7 +55,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
@@ -372,10 +371,10 @@ class EvictUploader(
    * deleted, so `retry-failed` cannot recreate invalidated output. Raw inputs are retained so a
    * replacement upload can calculate its delta against the evicted upload. Before refreshing the
    * plan, this acquires a durable DataProvider-wide fence that verifies the pipeline is idle and
-   * prevents new upload registration, model-line backfill, or processing restarts until eviction
-   * completes. A partial failure leaves the fence in place so the same operation ID can safely
-   * resume. The caller must pause `DataAvailabilitySync` and wait for existing sync calls to drain,
-   * because an in-flight sync could otherwise restore metadata while its output is being removed.
+   * defers unrelated upload processing until the complete healing workflow finishes. A partial
+   * failure leaves the fence in place so the same operation ID can safely resume. The caller must
+   * pause `DataAvailabilitySync` and wait for existing sync calls to drain, because an in-flight
+   * sync could otherwise restore metadata while its output is being removed.
    *
    * Metadata is deleted before its GCS object. This makes `DataAvailabilityCleanup` harmless when
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
@@ -401,7 +400,6 @@ class EvictUploader(
       "eviction plan changed after confirmation; review the new plan and retry"
     }
     val result = executeEviction(plan, reason, onEntryEvicted)
-    releaseEvictionFence(dataProvider, plan.evictionOperationId)
     return result
   }
 
@@ -745,15 +743,6 @@ class EvictUploader(
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return rows
-  }
-
-  private suspend fun releaseEvictionFence(dataProvider: String, evictionOperationId: String) {
-    uploadsStub.releaseRawImpressionUploadEvictionFence(
-      releaseRawImpressionUploadEvictionFenceRequest {
-        parent = dataProvider
-        this.evictionOperationId = evictionOperationId
-      }
-    )
   }
 
   companion object {

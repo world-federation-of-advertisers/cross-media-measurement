@@ -24,6 +24,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -74,6 +75,55 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
           set("CreateTime").to(Value.COMMIT_TIMESTAMP)
           set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
         }
+      )
+    )
+  }
+
+  override suspend fun createEvictedUpload(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    doneBlobUri: String,
+    evictionOperationId: String,
+  ) {
+    val databaseClient = spannerDatabase.databaseClient
+    databaseClient.write(
+      listOf(
+        insertMutation("RawImpressionUpload") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(2L)
+          set("RawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+          set("DoneBlobUri").to(doneBlobUri)
+          set("DoneBlobGeneration").to(1L)
+          set("DoneBlobCreateTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(1L, 0))
+          set("RegistrationComplete").to(true)
+          set("State")
+            .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED))
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+        insertMutation("RawImpressionUploadModelLine") {
+          set("DataProviderResourceId").to(dataProviderResourceId)
+          set("RawImpressionUploadId").to(2L)
+          set("RawImpressionUploadModelLineId").to(1L)
+          set("RawImpressionUploadModelLineResourceId").to("model-line-evicted")
+          set("CmmsModelLine").to("modelProviders/mp/modelSuites/ms/modelLines/ml")
+          set("State")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
+              )
+            )
+          set("FailureReason")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadModelLineFailureReason
+                  .RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+              )
+            )
+          set("EvictionOperationId").to(evictionOperationId)
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
       )
     )
   }

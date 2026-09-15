@@ -41,6 +41,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationReq
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -128,6 +129,7 @@ class UploadHealingWorkflow(
     var operation = getOperation(operationName)
     var evictionResult: EvictUploader.EvictionResult? = null
     if (operation.state == UploadHealingOperation.State.COMPLETE) {
+      releaseEvictionFence(operation)
       return Progress(operation, "Healing operation ${operation.name} is complete.")
     }
 
@@ -234,7 +236,21 @@ class UploadHealingWorkflow(
     check(operation.state == UploadHealingOperation.State.COMPLETE) {
       "All healing steps are complete but ${operation.name} is still ${operation.state}"
     }
+    releaseEvictionFence(operation)
     return Progress(operation, "Healing operation ${operation.name} is complete.", evictionResult)
+  }
+
+  private suspend fun releaseEvictionFence(operation: UploadHealingOperation) {
+    val operationKey =
+      requireNotNull(UploadHealingOperationKey.fromName(operation.name)) {
+        "Malformed UploadHealingOperation resource name: ${operation.name}"
+      }
+    uploadsStub.releaseRawImpressionUploadEvictionFence(
+      releaseRawImpressionUploadEvictionFenceRequest {
+        parent = dataProviderOf(operation.badRawImpressionUploadsList.first())
+        evictionOperationId = operationKey.uploadHealingOperationId
+      }
+    )
   }
 
   private suspend fun checkpoint(

@@ -90,6 +90,33 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveRawImpressionUploadModelLin
     .singleOrNullIfEmpty() != null
 }
 
+/** Returns whether an upload belongs to the specified eviction operation. */
+suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadHasEvictionOperation(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  evictionOperationId: String,
+): Boolean {
+  val sql =
+    """
+    SELECT RawImpressionUploadModelLineId
+    FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadId
+      AND EvictionOperationId = @evictionOperationId
+    LIMIT 1
+    """
+      .trimIndent()
+  return executeQuery(
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("rawImpressionUploadId").to(rawImpressionUploadId)
+        bind("evictionOperationId").to(evictionOperationId)
+      },
+      Options.tag("action=rawImpressionUploadHasEvictionOperation"),
+    )
+    .singleOrNullIfEmpty() != null
+}
+
 /** Buffers creation of the VID-labeling eviction fence. */
 fun AsyncDatabaseClient.TransactionContext.insertVidLabelingEvictionFence(
   dataProviderResourceId: String,

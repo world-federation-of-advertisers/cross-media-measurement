@@ -347,11 +347,13 @@ class VidLabelingDispatchSequencerTest {
     state: RawImpressionUpload.State,
     createdAt: Instant,
     registrationComplete: Boolean = true,
+    processingDeferred: Boolean = false,
   ) = rawImpressionUpload {
     name = "$DATA_PROVIDER/rawImpressionUploads/$id"
     this.state = state
     createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
     this.registrationComplete = registrationComplete
+    this.processingDeferred = processingDeferred
   }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
@@ -408,6 +410,64 @@ class VidLabelingDispatchSequencerTest {
       listRawImpressionUploadModelLines(any())
     }
     verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `dispatchNext processes deferred uploads oldest first after fence release`() = runBlocking {
+    val d4 =
+      upload("upload-4", RawImpressionUpload.State.CREATED, FIXED_NOW, processingDeferred = true)
+    val d5 =
+      upload(
+        "upload-5",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW.plusSeconds(60),
+        processingDeferred = true,
+      )
+    stubUploads(created = listOf(d4, d5))
+
+    val sequencer = createSequencer()
+    assertThat(sequencer.dispatchNext().dispatchedUpload).isNull()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      listRawImpressionUploadModelLines(any())
+    }
+
+    val releasedD4 = d4.copy { processingDeferred = false }
+    val releasedD5 = d5.copy { processingDeferred = false }
+    stubUploads(created = listOf(releasedD4, releasedD5))
+    stubModelLinesByParent(
+      mapOf(
+        d4.name to
+          listOf(modelLine(d4.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+        d5.name to
+          listOf(modelLine(d5.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED)),
+      )
+    )
+    stubMemoizedDispatch()
+
+    val first = sequencer.dispatchNext()
+    assertThat(first.dispatchedUpload).isEqualTo(d4.name)
+    assertThat(first.queuedUploads).isEqualTo(1)
+
+    stubUploads(created = listOf(releasedD5))
+    stubModelLinesByParent(
+      mapOf(
+        d5.name to
+          listOf(modelLine(d5.name, MODEL_LINE, RawImpressionUploadModelLine.State.CREATED))
+      )
+    )
+    val second = sequencer.dispatchNext()
+    assertThat(second.dispatchedUpload).isEqualTo(d5.name)
+
+    val captor =
+      argumentCaptor<
+        org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
+      >()
+    verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+      markRawImpressionUploadModelLinePoolAssigning(captor.capture())
+    }
+    assertThat(captor.allValues.map { it.name })
+      .containsExactly("${d4.name}/modelLines/ml", "${d5.name}/modelLines/ml")
+      .inOrder()
   }
 
   @Test
