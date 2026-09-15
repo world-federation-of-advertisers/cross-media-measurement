@@ -3206,12 +3206,10 @@ class ReportTraceTest {
             "xmm.work_item.name" to workItemName,
           ),
         "work_item_processing" to
-          mapOf(
-            "xmm.requisition.name" to edpaRequisitionName,
-            "xmm.work_item.name" to workItemName,
-          ),
+          mapOf("xmm.work_item.name" to workItemName.removePrefix("workItems/")),
         "results_fulfillment" to
           mapOf("xmm.requisition.name" to edpaRequisitionName, "xmm.edpa.group_id" to groupId),
+        "results_fulfillment" to mapOf("xmm.edpa.group_id" to groupId),
         "duchy_requisition_acceptance" to
           mapOf("xmm.requisition.name" to edpaRequisitionName, "xmm.duchy.id" to "worker1"),
         "duchy_requisition_kingdom_fulfillment" to
@@ -3358,8 +3356,7 @@ class ReportTraceTest {
         context,
         routeResolution,
         spans.filterNot {
-          (it.attributes["xmm.lifecycle.stage"] == "results_fulfillment" &&
-            it.attributes["xmm.requisition.name"] == edpaRequisitionName) ||
+          it.attributes["xmm.lifecycle.stage"] == "results_fulfillment" ||
             (it.attributes["xmm.lifecycle.stage"] == "duchy_requisition_acceptance" &&
               it.attributes["xmm.requisition.name"] == mpcDirectRequisitionName) ||
             (it.attributes["xmm.lifecycle.stage"] == "measurement_linkage" &&
