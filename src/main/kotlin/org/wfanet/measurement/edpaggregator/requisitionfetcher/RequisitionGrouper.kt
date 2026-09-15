@@ -147,14 +147,17 @@ abstract class RequisitionGrouper(
    * 1. Logs the refusal locally.
    * 2. Sends a [refuseRequisitionRequest] via [RequisitionsCoroutineStub], paced by
    *    [kingdomMutationThrottler].
-   * 3. Errors during refusal are caught and logged; this method does not surface refusal errors to
-   *    the caller.
+   * 3. Errors during refusal are caught and logged.
    *
    * @param requisition The requisition to refuse.
    * @param refusal The reason and message for the refusal.
+   * @return whether the Kingdom accepted the refusal.
    */
-  suspend fun refuseRequisitionToCmms(requisition: Requisition, refusal: Requisition.Refusal) {
-    ReportTracing.traceSuspending(
+  suspend fun refuseRequisitionToCmms(
+    requisition: Requisition,
+    refusal: Requisition.Refusal,
+  ): Boolean {
+    return ReportTracing.traceSuspending(
       spanName = "edp_aggregator.requisition_fetcher.refuse_requisition",
       attributes =
         Attributes.builder()
@@ -182,6 +185,7 @@ abstract class RequisitionGrouper(
           requisitionsClient.refuseRequisition(request)
         }
         span.setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+        true
       } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
@@ -195,6 +199,7 @@ abstract class RequisitionGrouper(
           span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
         }
         logger.log(Level.SEVERE, "Error while refusing requisition ${requisition.name}", e)
+        false
       }
     }
   }

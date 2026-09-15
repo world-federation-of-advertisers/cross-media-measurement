@@ -38,6 +38,8 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
+import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
@@ -290,6 +292,8 @@ class RequisitionFetcherTest {
     metadataThrottler: Throttler = this.throttler,
     workItemDispatcher: RequisitionWorkItemDispatcher = defaultWorkItemDispatcher(),
     directStoragePathPrefix: String = DIRECT_STORAGE_PATH_PREFIX,
+    requisitionRefusalDuration: Duration = RequisitionFetcher.DEFAULT_REQUISITION_REFUSAL_DURATION,
+    clock: Clock = Clock.fixed(DEFAULT_TEST_TIME, ZoneOffset.UTC),
   ): RequisitionFetcher {
     val validator =
       RequisitionsValidator(
@@ -315,6 +319,8 @@ class RequisitionFetcherTest {
       requisitionGrouper = grouper,
       metadataThrottler = metadataThrottler,
       workItemDispatcher = workItemDispatcher,
+      requisitionRefusalDuration = requisitionRefusalDuration,
+      clock = clock,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
       maxRequisitionsPerGroup = maxRequisitionsPerGroup,
@@ -384,6 +390,102 @@ class RequisitionFetcherTest {
   @Test
   fun `constructor rejects non-positive maxTotalBufferedBytes`() {
     assertFailsWith<IllegalArgumentException> { createFetcher(maxTotalBufferedBytes = 0) }
+  }
+
+  @Test
+  fun `constructor rejects non-positive requisition refusal duration`() {
+    assertFailsWith<IllegalArgumentException> {
+      createFetcher(requisitionRefusalDuration = Duration.ZERO)
+    }
+  }
+
+  @Test
+  fun `requisition older than refusal duration is refused and not dispatched`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val refusalDuration = Duration.ofHours(48)
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/stale"
+        updateTime = now.minus(refusalDuration).minusNanos(1L).toProtoTime()
+      }
+    val atBoundary =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/at-boundary"
+        updateTime = now.minus(refusalDuration).toProtoTime()
+      }
+    val fresh =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/fresh"
+        updateTime = now.minus(Duration.ofHours(1)).toProtoTime()
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(stale, atBoundary, fresh) })
+
+    createFetcher(
+        requisitionRefusalDuration = refusalDuration,
+        clock = Clock.fixed(now, ZoneOffset.UTC),
+      )
+      .fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests.map { it.name }).containsExactly(stale.name)
+    assertThat(refuseRequisitionRequests.single().refusal.justification)
+      .isEqualTo(org.wfanet.measurement.api.v2alpha.Requisition.Refusal.Justification.DECLINED)
+    assertThat(
+        registerQueuedRequisitionMetadataRequests.single().requestsList.map {
+          it.requisitionMetadata.cmmsRequisition
+        }
+      )
+      .containsExactly(atBoundary.name, fresh.name)
+    assertThat(ensureWorkItemRequests).hasSize(1)
+  }
+
+  @Test
+  fun `requisition without update time is not refused automatically`() = runBlocking {
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += TestRequisitionData.REQUISITION })
+
+    createFetcher(clock = Clock.fixed(Instant.parse("2026-09-14T12:00:00Z"), ZoneOffset.UTC))
+      .fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests).isEmpty()
+    assertThat(ensureWorkItemRequests).hasSize(1)
+  }
+
+  @Test
+  fun `requisition with invalid update time is not refused automatically`() = runBlocking {
+    val requisition =
+      TestRequisitionData.REQUISITION.copy { updateTime = timestamp { seconds = 253_402_300_800L } }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += requisition })
+
+    createFetcher(clock = Clock.fixed(Instant.parse("2026-09-14T12:00:00Z"), ZoneOffset.UTC))
+      .fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests).isEmpty()
+    assertThat(ensureWorkItemRequests).hasSize(1)
+  }
+
+  @Test
+  fun `failed stale requisition refusal is retried later and never dispatched`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += stale })
+    whenever(requisitionsServiceMock.refuseRequisition(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(ensureWorkItemRequests).isEmpty()
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+    val refusalSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.refuse_requisition"
+      }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
   }
 
   @Test
@@ -783,9 +885,7 @@ class RequisitionFetcherTest {
       }
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(
-        listRequisitionsResponse {
-          requisitions += listOf(existingRequisition, newRequisition)
-        }
+        listRequisitionsResponse { requisitions += listOf(existingRequisition, newRequisition) }
       )
     val invalidRows =
       listOf(
@@ -2780,5 +2880,6 @@ class RequisitionFetcherTest {
     private const val STORAGE_PATH_PREFIX = "test-requisitions"
     private const val DIRECT_STORAGE_PATH_PREFIX = "test-requisitions-v2"
     private const val BLOB_URI_PREFIX = "file:///my-bucket"
+    private val DEFAULT_TEST_TIME: Instant = Instant.EPOCH
   }
 }

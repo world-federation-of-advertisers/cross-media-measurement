@@ -17,12 +17,14 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import com.google.protobuf.Any
+import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
+import java.time.Clock
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
@@ -54,6 +56,7 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt
@@ -96,6 +99,9 @@ import org.wfanet.measurement.storage.StorageClient
  * @property requisitionGrouper the in-memory grouper that builds [GroupedRequisitions].
  * @property metadataThrottler throttles all Requisition Metadata Service RPCs.
  * @property workItemDispatcher dispatcher for the Secure Computation Control Plane.
+ * @property requisitionRefusalDuration maximum age, measured from the Kingdom Requisition's
+ *   `update_time`, before an unfulfilled Requisition is refused rather than dispatched.
+ * @property clock clock used to evaluate Requisition age.
  * @property responsePageSize optional page size for `listRequisitions`.
  * @property metadataPageSize page size for `listRequisitionMetadata`.
  * @property flushInterval wall-clock period between forced drains of every open report buffer. This
@@ -127,6 +133,8 @@ class RequisitionFetcher(
   private val requisitionGrouper: RequisitionGrouperByReportId,
   private val metadataThrottler: Throttler,
   private val workItemDispatcher: RequisitionWorkItemDispatcher,
+  private val requisitionRefusalDuration: Duration,
+  private val clock: Clock,
   private val responsePageSize: Int? = null,
   private val metadataPageSize: Int = DEFAULT_METADATA_PAGE_SIZE,
   private val flushInterval: Duration = DEFAULT_FLUSH_INTERVAL,
@@ -152,6 +160,9 @@ class RequisitionFetcher(
     }
     require(channelCapacity > 0) { "channelCapacity must be positive, was $channelCapacity" }
     require(metadataPageSize > 0) { "metadataPageSize must be positive, was $metadataPageSize" }
+    require(!requisitionRefusalDuration.isZero && !requisitionRefusalDuration.isNegative) {
+      "requisitionRefusalDuration must be positive, was $requisitionRefusalDuration"
+    }
     require(!StoragePathPrefixes.overlap(directStoragePathPrefix, storagePathPrefix)) {
       "directStoragePathPrefix must not overlap storagePathPrefix"
     }
@@ -392,6 +403,22 @@ class RequisitionFetcher(
         // unparseable spec. Only this (single) collector mutates totalFetched, so no lock is
         // needed.
         totalFetched += 1
+        if (isPastRefusalDuration(requisition)) {
+          val refusal = refusal {
+            justification = Requisition.Refusal.Justification.DECLINED
+            message =
+              "Requisition exceeded the configured fulfillment age of " + requisitionRefusalDuration
+          }
+          val refused = requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
+          if (!refused) {
+            logger.warning(
+              "Stale Requisition ${requisition.name} could not be refused; it will be retried " +
+                "on a later fetch"
+            )
+          }
+          return@collect
+        }
+
         val identifiers = extractReportIdentifiers(requisition)
         if (identifiers == null) {
           requisitionGrouper.refuseRequisitionToCmms(
@@ -443,6 +470,18 @@ class RequisitionFetcher(
     drainAndSend()
 
     totalFetched
+  }
+
+  private fun isPastRefusalDuration(requisition: Requisition): Boolean {
+    if (!requisition.hasUpdateTime() || !Timestamps.isValid(requisition.updateTime)) {
+      logger.warning(
+        "Requisition ${requisition.name} has no valid update_time; automatic age-based refusal " +
+          "is skipped"
+      )
+      return false
+    }
+    val refusalCutoff = clock.instant().minus(requisitionRefusalDuration)
+    return requisition.updateTime.toInstant().isBefore(refusalCutoff)
   }
 
   /**
@@ -1227,6 +1266,7 @@ class RequisitionFetcher(
     // safety cap rather than a routine split.
     const val DEFAULT_MAX_REQUISITIONS_PER_GROUP: Int = 1000
     val DEFAULT_FLUSH_INTERVAL: Duration = Duration.ofMinutes(5)
+    val DEFAULT_REQUISITION_REFUSAL_DURATION: Duration = Duration.ofHours(48)
     const val DEFAULT_CHANNEL_CAPACITY: Int = 4
     const val MIN_LIST_REQUISITIONS_PAGE_SIZE: Int = 1
     private const val KINGDOM_LIST_REQUISITIONS_DEFAULT_PAGE_SIZE: Int = 10

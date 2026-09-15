@@ -799,6 +799,9 @@ One `configs` entry per EDP.
 ```textproto
 # proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_config.proto
 # proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherConfig
+requisition_refusal_duration {
+  seconds: 172800  # 48 hours
+}
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
   requisition_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
@@ -846,6 +849,18 @@ configs {
   }
 }
 ```
+
+`requisition_refusal_duration` bounds how long RequisitionFetcher will attempt to fulfill an
+unfulfilled Kingdom Requisition. The field is optional and defaults to 48 hours; when specified it
+must be positive. Age is measured from the public Requisition's Kingdom `update_time`, and the
+Requisition is refused with `DECLINED` only when it is strictly older than the configured duration.
+The exact boundary remains eligible for fulfillment. A Requisition whose `update_time` is absent or
+invalid is logged and is not automatically refused because its age cannot be established.
+
+Stale Requisitions are refused before they are buffered, stored, registered in Requisition
+Metadata, or dispatched as WorkItems. If the Kingdom refusal call fails, that Requisition is still
+excluded from the current fetcher's dispatch and remains `UNFULFILLED`; a later scheduled invocation
+will retry the refusal.
 
 `work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
 new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
