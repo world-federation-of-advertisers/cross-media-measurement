@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
 import kotlinx.coroutines.runBlocking
+import org.junit.Assert.assertThrows
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -40,6 +41,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
@@ -56,6 +59,8 @@ class UploadHealingWorkflowTest {
   private val operationsService = InMemoryOperationsService()
   private val uploadsByName = mutableMapOf<String, RawImpressionUpload>()
   private val modelLinesByUpload = mutableMapOf<String, List<RawImpressionUploadModelLine>>()
+  private val releasedFenceOperationIds = mutableListOf<String>()
+  private var releaseFailuresRemaining = 0
   private val uploadsService =
     object : RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase() {
       override suspend fun getRawImpressionUpload(
@@ -71,6 +76,17 @@ class UploadHealingWorkflowTest {
                   it.doneBlobUri == request.filter.doneBlobUri)
             }
         }
+
+      override suspend fun releaseRawImpressionUploadEvictionFence(
+        request: ReleaseRawImpressionUploadEvictionFenceRequest
+      ): ReleaseRawImpressionUploadEvictionFenceResponse {
+        releasedFenceOperationIds += request.evictionOperationId
+        if (releaseFailuresRemaining > 0) {
+          releaseFailuresRemaining--
+          throw io.grpc.Status.UNAVAILABLE.asException()
+        }
+        return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+      }
     }
   private val modelLinesService =
     object :
@@ -228,11 +244,19 @@ class UploadHealingWorkflowTest {
 
     assertThat(afterD4.nextAction).contains(D5)
     assertThat(recoveredUploads).containsExactly(D3, D5).inOrder()
+    assertThat(releasedFenceOperationIds).isEmpty()
 
     addCompletedReplacement(D5, D5_REPLACEMENT)
+    releaseFailuresRemaining = 1
+    assertThrows(io.grpc.StatusException::class.java) {
+      runBlocking { workflow.resume(started.operation.name) }
+    }
     val completed = workflow.resume(started.operation.name)
 
     assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(releasedFenceOperationIds)
+      .containsExactly(plan.evictionOperationId, plan.evictionOperationId)
+      .inOrder()
     Unit
   }
 

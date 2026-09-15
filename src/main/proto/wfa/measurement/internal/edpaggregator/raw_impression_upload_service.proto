@@ -50,7 +50,7 @@ service RawImpressionUploadService {
       AcquireRawImpressionUploadEvictionFenceRequest)
       returns (AcquireRawImpressionUploadEvictionFenceResponse);
 
-  // Releases the data-provider-wide VID-labeling eviction fence.
+  // Releases the data-provider-wide VID-labeling fence after healing.
   rpc ReleaseRawImpressionUploadEvictionFence(
       ReleaseRawImpressionUploadEvictionFenceRequest)
       returns (ReleaseRawImpressionUploadEvictionFenceResponse);
@@ -89,6 +89,10 @@ message CreateRawImpressionUploadRequest {
 
   // A request ID provided by the client to ensure idempotency.
   string request_id = 3;
+
+  // Eviction operation authorizing this replacement while its fence is
+  // active.
+  string eviction_operation_id = 4;
 }
 
 // Request message for GetRawImpressionUpload.

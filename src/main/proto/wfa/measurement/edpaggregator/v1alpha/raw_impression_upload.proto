@@ -94,4 +94,8 @@ message RawImpressionUpload {
 
   // Entity tag for optimistic concurrency control.
   string etag = 10 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Whether processing is deferred until an active upload-healing operation
+  // completes.
+  bool processing_deferred = 11 [(google.api.field_behavior) = OUTPUT_ONLY];
 }
