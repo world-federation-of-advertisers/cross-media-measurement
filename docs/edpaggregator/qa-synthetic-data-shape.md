@@ -7,17 +7,28 @@ path, and — more importantly — *why* each part of it is sized the way it is.
 spec files encode the what; this encodes the reasoning, so that the next person to
 regenerate the data preserves the properties the reports depend on.
 
-The specs themselves are generated. Do not hand-edit them:
+The specs are build outputs, not source. They are not checked in; a `genrule`
+produces them from
+`src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateQa2026Specs.kt`,
+and targets consume them through the `:specs` filegroup:
 
 ```shell
-python3 src/main/python/wfa/measurement/loadtest/qa2026/generate_specs.py
+bazel build //src/main/proto/wfa/measurement/loadtest/dataprovider:gen_qa2026_specs
 ```
 
-That writes, into `src/main/proto/wfa/measurement/loadtest/dataprovider/`:
+That writes, into the package's output directory:
 
 *   `qa2026_population_spec.textproto` — the `PopulationSpec`
 *   `qa2026_seg_<name>.textproto` — one `SyntheticEventGroupSpec` per segment
 *   `qa2026_impression_test_data_config.textproto` — the `ImpressionTestDataConfig`
+
+To change the data, edit the generator. Since runfiles paths are the same for
+generated and source files, tests resolve these exactly as before.
+
+`qa2026_population_spec.textproto` needs particular care: the Population's
+resource ID is a hash of the spec's serialized bytes, so any semantic change
+provisions a **new** Population and invalidates every expected reach in
+[`Qa2026CloudTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/Qa2026CloudTest.kt).
 
 ## The Noise Floor, and Why It Sets Everything
 
@@ -266,11 +277,12 @@ last state of `{COMPLETED=2, CREATED=1}`.
 Two correctness tests run against a deployed environment, and they exercise
 **different data-delivery paths**. This dataset belongs to exactly one of them.
 
-| | `SyntheticGeneratorCorrectnessTest` | `EdpAggregatorCorrectnessTest` |
-| --- | --- | --- |
-| EDPs | classic simulators `edp1`–`edp6` | aggregator `edp7`, `edpa_meta`, … |
-| Data delivery | generated **in-process** by `SyntheticGeneratorEventQuery` from a spec; nothing is stored | encrypted **blobs in GCS**, read by the results fulfiller |
-| Owns this dataset | no | **yes** |
+| | `SyntheticGeneratorCorrectnessTest` | `EdpAggregatorCorrectnessTest` | `Qa2026CloudTest` |
+| --- | --- | --- | --- |
+| EDPs | classic simulators `edp1`–`edp6` | aggregator `edp7`, `edpa_meta`, … | aggregator `edp7`, `edpa_meta`, … |
+| Data delivery | generated **in-process** by `SyntheticGeneratorEventQuery` from a spec; nothing is stored | encrypted **blobs in GCS**, read by the results fulfiller | same as `EdpAggregatorCorrectnessTest` |
+| Dataset | 2021 fixture | 2021 fixture | **QA 2026** |
+| Asserts at | CMMS `Measurement` | CMMS `Measurement` | Reporting `BasicReport` |
 
 The 2026 data is blob-delivered, so the simulator test has no mechanism to
 consume it — those EDPs compute events on demand rather than reading storage.
@@ -280,26 +292,38 @@ is the one production depends on and the one that could not be validated. The
 classic simulators are also being retired, so building against them would be
 building against a path that is going away.
 
-The reports over this dataset therefore live in `EdpAggregatorCorrectnessTest`
-too, rather than alongside the reporting-layer test in
-`SyntheticGeneratorCorrectnessTest`:
+The QA 2026 dataset therefore uses the aggregator path, but it does **not** live
+in `EdpAggregatorCorrectnessTest`. It has its own test, `Qa2026CloudTest`, which
+owns the whole chain end to end: it provisions the model resources, registers the
+EventGroups, writes the impressions, and only then reads back a `BasicReport`.
+`EdpAggregatorCorrectnessTest` is left on the 2021 fixture, untouched.
 
-*   That test already registers the EventGroups, provisions the model resources
-    and writes the impressions, so a test reading the data runs after the rules
-    that created it. The two correctness tests run as parallel jobs with no
-    dependency between them, so anywhere else the ordering would not hold.
-*   Only the aggregator can serve this data, per the table above.
-*   It raises what the suite covers. `EdpAggregatorCorrectnessTest` otherwise
-    stops at the CMMS `Measurement` layer; a `BasicReport` exercises the layer
-    a Measurement Consumer actually uses — campaign group, per-line-item
-    results, media type and impression qualification filter breakdowns — over
-    the aggregator data path.
+The split exists because the two datasets have no reason to share a test run:
 
-Within `EdpAggregatorCorrectnessTest` the QA 2026 rules are **additive**. The
-2021 fixture keeps its own config, population spec, model line, dates and event
-group reference IDs, and its assertions are untouched. Every QA 2026 rule no-ops
-unless `QA2026_MODEL_LINE` is set, so an environment opts in only once its
-ModelLine has been provisioned.
+*   **Runtime.** Both are cloud tests against a deployed environment, and folding
+    2026 into the existing one made a long job much longer. Separate jobs run in
+    parallel instead of in series.
+*   **Self-containment.** Because `Qa2026CloudTest` creates everything it reads,
+    the ordering it depends on is internal to the test rather than an implicit
+    dependency on rules in another test's class-rule chain.
+*   **Coverage.** It raises what the suite covers. The other two stop at the CMMS
+    `Measurement` layer; a `BasicReport` exercises the layer a Measurement
+    Consumer actually uses — campaign group, per-line-item results, media type
+    and impression qualification filter breakdowns — over the aggregator path.
+
+`Qa2026CloudTest` also needs none of the 2021 fixture's apparatus: not its model
+line, not its VID-labeling configuration, and not its config file. It carries its
+own `qa2026_cloud_test_config.textproto`.
+
+It runs from `.github/workflows/qa2026-cloud-test.yml`, dispatched as a parallel
+job in `update-cmms`. The job is gated so it always runs for `qa` and `head`, and
+for `dev` only when explicitly requested via the `run-qa2026-test` input.
+
+Opting an environment in is a second, independent switch: the `QA2026_MODEL_LINE`
+variable. Every setup rule no-ops while it is unset, so an environment is
+unaffected until its ModelLine has been provisioned. The test method itself does
+not no-op — it fails fast if the variable is missing, so a misconfigured
+environment reports an error rather than a silent pass.
 
 ## Model Line
 
