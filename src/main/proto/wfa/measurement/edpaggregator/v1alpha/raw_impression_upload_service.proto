@@ -122,6 +122,9 @@ message MarkRawImpressionUploadRegistrationCompleteRequest {
 
 // Request message for the `CreateRawImpressionUpload` method.
 message CreateRawImpressionUploadRequest {
+  reserved 4;
+  reserved "eviction_operation_id";
+
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
   string parent = 1 [
@@ -148,14 +151,6 @@ message CreateRawImpressionUploadRequest {
   //     server can deduplicate retries of this server-named resource. --)
   string request_id = 3 [
     (google.api.field_behavior) = REQUIRED,
-    (google.api.field_info).format = UUID4
-  ];
-
-  // UUID4 of the active upload-healing operation authorizing this replacement.
-  // Omit for ordinary uploads, which are registered but not processed until
-  // active healing completes.
-  string eviction_operation_id = 4 [
-    (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
   ];
 }

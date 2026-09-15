@@ -25,6 +25,10 @@ option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "UploadHealingOperationServiceProto";
 
+// (-- api-linter: core::0121::resource-must-support-list=disabled
+//     aip.dev/not-precedent: The CLI prints the operation name used to resume
+//     this bounded operator workflow, so collection discovery is intentionally
+//     unsupported. --)
 // Service for persisting and resuming VID-labeling upload healing workflows.
 service UploadHealingOperationService {
   // Creates a healing operation and all of its ordered steps atomically.

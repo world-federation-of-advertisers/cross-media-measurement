@@ -78,7 +78,8 @@ data class UploadHealingStepKey(
     )
 
   companion object FACTORY : ResourceKey.Factory<UploadHealingStepKey> {
-    const val PATTERN = "${UploadHealingOperationKey.PATTERN}/steps/{upload_healing_step}"
+    const val PATTERN =
+      "${UploadHealingOperationKey.PATTERN}/uploadHealingSteps/{upload_healing_step}"
     private val parser = ResourceNameParser(PATTERN)
 
     override fun fromName(resourceName: String): UploadHealingStepKey? {
