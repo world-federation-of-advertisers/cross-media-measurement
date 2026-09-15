@@ -281,7 +281,20 @@ class ReportTraceTest {
     val queriedBasicReports = mutableSetOf<String>()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            val basicReport =
+              correlationValues.firstOrNull { "/basicReports/" in it }
+                ?: return@ReportTraceLogReader emptyList()
+            listOf(
+              successfulLifecycleLog(
+                "basic_report_creation",
+                mapOf("xmm.basic_report.name" to basicReport),
+                0,
+              )
+            )
+          }
+        },
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
             val basicReport =
@@ -341,6 +354,10 @@ class ReportTraceTest {
       )
     assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
       .contains("Telemetry collection exceeded the per-report deadline")
+    assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
+      .contains(
+        "| basic_report_creation | measurementConsumers/mc-1/basicReports/report-a | SUCCEEDED |"
+      )
     assertThat(outputDirectory.resolve("mc-1__report-b.md").toFile().readText())
       .contains("Collection completeness: PARTIAL")
   }
