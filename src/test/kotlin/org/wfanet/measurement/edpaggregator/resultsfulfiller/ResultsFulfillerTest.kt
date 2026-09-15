@@ -3205,6 +3205,10 @@ class ResultsFulfillerTest {
     )
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4475): Cover TrusTeeV2 in
+  //  `InProcessEdpAggregatorLifeOfAReportTest` once the Kingdom issues v2 requisitions and the
+  //  duchy accepts them. These cases construct the requisition, so capability negotiation, v2
+  //  issuance, fulfillment ingestion and result composition are untested together.
   @Test
   fun `runWork processes TrusTeeV2 requisitions successfully`() = runBlocking {
     val fulfillment = fulfillTrusTeeV2Requisition(resultMinimumThresholds = null)

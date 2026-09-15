@@ -268,6 +268,9 @@ class DefaultFulfillerSelector(
       // `ProtocolConfig.TrusTeeV2` carries no fields. The noise mechanism and the result minimum
       // thresholds are fixed in the attested image, so there is nothing to validate here and the
       // TEE applies the thresholds after noising rather than this EDP applying them first.
+      // TODO(world-federation-of-advertisers/cross-media-measurement#4475): Populate
+      //  `Header.TrusTeeV2.FulfillmentDetails` with the impression count over the whole
+      //  population. The header carries neither member until then.
       if (resultMinimumThresholds != null) {
         logger.warning(
           "Configured result minimum thresholds do not apply to ${requisition.name}: a TrusTeeV2 " +
