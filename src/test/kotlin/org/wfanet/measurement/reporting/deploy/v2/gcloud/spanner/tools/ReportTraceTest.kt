@@ -54,6 +54,10 @@ import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
 
+private fun main(args: Array<String>, dependencies: ReportTraceDependencies): Int = runBlocking {
+  runReportTrace(args, dependencies)
+}
+
 @RunWith(JUnit4::class)
 class ReportTraceTest {
   @get:Rule val temporaryFolder = TemporaryFolder()

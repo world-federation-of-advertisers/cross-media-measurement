@@ -45,13 +45,13 @@ import java.time.Duration
 import java.time.Instant
 import java.time.format.DateTimeParseException
 import kotlin.properties.Delegates
+import kotlin.system.exitProcess
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.toList
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.runInterruptible
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -60,7 +60,6 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.withAuthenticationKey
-import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -2176,7 +2175,7 @@ internal class ReportTrace(
   private val resolverOverride: BasicReportTraceResolver?,
   private val routeResolverOverride: ReportTraceRouteResolver?,
   private val clock: Clock,
-) : Runnable {
+) {
   @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
 
   private val spanReader: ReportTraceSpanReader by lazy {
@@ -2382,17 +2381,7 @@ internal class ReportTrace(
   )
   private lateinit var limit: String
 
-  override fun run() {
-    val exitCode = runBlocking { execute() }
-    if (exitCode != 0) {
-      throw CommandLine.ExecutionException(
-        spec.commandLine(),
-        "One or more BasicReport trace artifacts could not be generated",
-      )
-    }
-  }
-
-  private suspend fun execute(): Int {
+  internal suspend fun execute(): Int {
     val requestedBasicReportNames = basicReportNames.distinct()
     if (requestedBasicReportNames.isEmpty() == (reportName == null)) {
       throw CommandLine.ParameterException(
@@ -3511,42 +3500,75 @@ internal class ReportTraceDependencies(
   val routeResolverOverride: ReportTraceRouteResolver? = null,
 )
 
-internal fun main(args: Array<String>, dependencies: ReportTraceDependencies): Int {
-  return CommandLine(
-      ReportTrace(
-        dependencies.logReaderFactory,
-        dependencies.spanReaderFactory,
-        dependencies.resolverFactory,
-        dependencies.resolverOverride,
-        dependencies.routeResolverOverride,
-        dependencies.clock,
-      )
+internal suspend fun runReportTrace(
+  args: Array<String>,
+  dependencies: ReportTraceDependencies,
+): Int {
+  val command =
+    ReportTrace(
+      dependencies.logReaderFactory,
+      dependencies.spanReaderFactory,
+      dependencies.resolverFactory,
+      dependencies.resolverOverride,
+      dependencies.routeResolverOverride,
+      dependencies.clock,
     )
-    .setOut(dependencies.output)
-    .setErr(dependencies.error)
-    .execute(*args)
+  val commandLine = CommandLine(command).setOut(dependencies.output).setErr(dependencies.error)
+  val parseResult =
+    try {
+      commandLine.parseArgs(*args)
+    } catch (e: CommandLine.ParameterException) {
+      return commandLine.parameterExceptionHandler.handleParseException(e, args)
+    }
+  if (CommandLine.printHelpIfRequested(parseResult)) {
+    return 0
+  }
+  return try {
+    val exitCode = command.execute()
+    if (exitCode != 0) {
+      commandLine.err.println(
+        "Error: One or more BasicReport trace artifacts could not be generated"
+      )
+      commandLine.commandSpec.exitCodeOnExecutionException()
+    } else {
+      0
+    }
+  } catch (e: CommandLine.ParameterException) {
+    commandLine.parameterExceptionHandler.handleParseException(e, args)
+  } catch (e: Exception) {
+    commandLine.err.println("Error: ${e.message ?: e::class.java.simpleName}")
+    commandLine.commandSpec.exitCodeOnExecutionException()
+  }
 }
 
-fun main(args: Array<String>) =
-  commandLineMain(
-    ReportTrace(
-      logReaderFactory = { project, includeRawPayloads ->
-        GoogleCloudReportTraceLogReader(
-          project,
-          LoggingOptions.newBuilder().setProjectId(project).build().service,
-          includeRawPayloads,
-        )
-      },
-      spanReaderFactory = { GoogleCloudReportTraceSpanReader() },
-      resolverFactory = { spanner, postgres ->
-        DatabaseBasicReportTraceResolver(spanner.databaseClient, postgres)
-      },
-      resolverOverride = null,
-      routeResolverOverride = null,
-      clock = Clock.systemUTC(),
-    ),
-    args,
-  )
+/** Runs the report-trace operator tool without blocking a coroutine thread. */
+suspend fun main(args: Array<String>) {
+  val exitCode =
+    runReportTrace(
+      args,
+      ReportTraceDependencies(
+        logReaderFactory = { project, includeRawPayloads ->
+          GoogleCloudReportTraceLogReader(
+            project,
+            LoggingOptions.newBuilder().setProjectId(project).build().service,
+            includeRawPayloads,
+          )
+        },
+        spanReaderFactory = { GoogleCloudReportTraceSpanReader() },
+        resolverFactory = { spanner, postgres ->
+          DatabaseBasicReportTraceResolver(spanner.databaseClient, postgres)
+        },
+        resolverOverride = null,
+        routeResolverOverride = null,
+        clock = Clock.systemUTC(),
+        output = java.io.PrintWriter(System.out, true),
+        error = java.io.PrintWriter(System.err, true),
+      ),
+    )
+  if (exitCode != 0) {
+    exitProcess(exitCode)
+  }
+}
 
 private data class TimelineCollection(
   val spans: List<ReportTraceSpan>,
