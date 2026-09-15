@@ -481,7 +481,8 @@ internal class GoogleCloudReportTraceLogReader(
         resourceLabels[it]
       } ?: resource?.type ?: logName.substringAfterLast('/')
     val message =
-      ReportTraceOutput.renderLogPayload(getPayload(), includeGrpcPayloads, service) ?: return null
+      ReportTraceOutput.renderLogPayload(getPayload(), includeGrpcPayloads, severity.name)
+        ?: return null
     return ReportTraceLogEntry(
       sourceProject = project,
       timestamp = instantTimestamp ?: Instant.EPOCH,
@@ -755,14 +756,14 @@ internal object ReportTraceOutput {
   fun renderLogPayload(
     payload: Payload<*>?,
     includeGrpcPayloads: Boolean,
-    service: String? = null,
+    severity: String? = null,
   ): String? {
     if (payload == null) return ""
     if (payload.type == Payload.Type.STRING) {
       val text = (payload as Payload.StringPayload).data
       return if (
         includeGrpcPayloads ||
-          (!isVerboseGrpcLog(text) && !isVerboseGrpcPayloadContinuation(service, text))
+          (!isVerboseGrpcLog(text) && !isVerboseGrpcPayloadContinuation(severity, text))
       ) {
         text
       } else {
@@ -865,8 +866,7 @@ internal object ReportTraceOutput {
       } else {
         " AND NOT (textPayload =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
           "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
-          "(resource.labels.container_name =~ \".*api-server.*\" AND " +
-          "textPayload =~ \"$VERBOSE_GRPC_CONTINUATION_QUERY_REGEX\"))"
+          "(severity>=ERROR AND textPayload =~ \"$VERBOSE_GRPC_CONTINUATION_QUERY_REGEX\"))"
       }
     return "$timeFilter$payloadFilter AND (${identifierPredicates.joinToString(" OR ")})"
   }
@@ -2302,7 +2302,7 @@ internal object ReportTraceOutput {
     collectionWarnings: List<String>,
   ) {
     val diagnosticEntries =
-      logEntries.filterNot { isVerboseGrpcPayloadContinuation(it.service, it.message) }
+      logEntries.filterNot { isVerboseGrpcPayloadContinuation(it.severity, it.message) }
     val errors = diagnosticEntries.filter { it.severity.uppercase() in ERROR_LOG_SEVERITIES }
     val warnings = diagnosticEntries.filter { it.severity.uppercase() in WARNING_LOG_SEVERITIES }
 
@@ -2428,7 +2428,7 @@ internal object ReportTraceOutput {
     "gRPC([[:space:]]+client)?[[:space:]]+[^[:space:]]+[[:space:]]+" +
       "(headers|request|response|complete|error):?"
   private const val VERBOSE_GRPC_CONTINUATION_QUERY_REGEX =
-    "^[[:space:]]*[a-z][a-z0-9_.-]*:[[:space:]]"
+    "^[[:space:]]*([a-z][a-z0-9_.-]*[[:space:]]*(:|\\{)|[{}])"
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val ERROR_LOG_SEVERITIES = setOf("ERROR", "CRITICAL", "ALERT", "EMERGENCY")
   private val WARNING_LOG_SEVERITIES = setOf("WARNING", "WARN")
@@ -2554,13 +2554,14 @@ internal object ReportTraceOutput {
     Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
   private val VERBOSE_GRPC_LOG_PATTERN =
     Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(?:headers|request|response|complete|error):?")
-  private val VERBOSE_GRPC_CONTINUATION_PATTERN = Regex("""^\s*[a-z][a-z0-9_.-]*:\s""")
+  private val VERBOSE_GRPC_CONTINUATION_PATTERN =
+    Regex("""^\s*(?:[a-z][a-z0-9_.-]*\s*(?::|\{)|[{}])""")
 
   private fun isVerboseGrpcLog(text: String): Boolean =
     VERBOSE_GRPC_LOG_PATTERN.containsMatchIn(text)
 
-  private fun isVerboseGrpcPayloadContinuation(service: String?, text: String): Boolean {
-    return service?.contains("api-server") == true &&
+  private fun isVerboseGrpcPayloadContinuation(severity: String?, text: String): Boolean {
+    return severity?.uppercase() in ERROR_LOG_SEVERITIES &&
       VERBOSE_GRPC_CONTINUATION_PATTERN.containsMatchIn(text)
   }
 
