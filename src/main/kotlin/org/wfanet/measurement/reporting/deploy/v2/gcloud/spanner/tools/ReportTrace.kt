@@ -187,12 +187,14 @@ internal data class ReportTraceSourceStatus(
 )
 
 internal fun interface ReportTraceLogReader {
-  fun read(
+  suspend fun read(
     correlationValues: Collection<String>,
     startTime: Instant,
     endTime: Instant,
     limit: Int,
   ): List<ReportTraceLogEntry>
+
+  fun withRequestThrottler(requestThrottler: Throttler): ReportTraceLogReader = this
 }
 
 internal fun interface ReportTraceSpanReader {
@@ -207,7 +209,10 @@ internal fun interface ReportTraceSpanReader {
 
   fun withMaxConcurrency(maxConcurrency: Int): ReportTraceSpanReader = this
 
-  fun withRequestThrottler(requestThrottler: Throttler): ReportTraceSpanReader = this
+  fun withRequestThrottlers(
+    listTracesThrottler: Throttler,
+    getTraceThrottler: Throttler,
+  ): ReportTraceSpanReader = this
 }
 
 internal fun interface BasicReportTraceResolver {
@@ -368,29 +373,66 @@ internal class GoogleCloudReportTraceLogReader(
   private val project: String,
   private val logging: Logging,
   private val includeRawPayloads: Boolean,
+  private var requestThrottler: Throttler,
 ) : ReportTraceLogReader {
-  override fun read(
+  constructor(
+    project: String,
+    logging: Logging,
+    includeRawPayloads: Boolean,
+  ) : this(
+    project,
+    logging,
+    includeRawPayloads,
+    MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+  )
+
+  override fun withRequestThrottler(requestThrottler: Throttler): ReportTraceLogReader {
+    this.requestThrottler = requestThrottler
+    return this
+  }
+
+  override suspend fun read(
     correlationValues: Collection<String>,
     startTime: Instant,
     endTime: Instant,
     limit: Int,
   ): List<ReportTraceLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
-    return ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime)
-      .flatMap { filter ->
-        logging
-          .listLogEntries(
-            EntryListOption.filter(filter),
-            EntryListOption.pageSize(readLimit(limit).coerceAtMost(MAX_LOG_PAGE_SIZE)),
-            EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.DESCENDING),
-          )
-          .iterateAll()
-          .take(readLimit(limit))
-          .map { it.toReportTraceLogEntry() }
-      }
+    val entries = mutableListOf<ReportTraceLogEntry>()
+    for (filter in ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime)) {
+      entries += readFilter(filter, limit)
+    }
+    return entries
       .distinct()
       .sortedByDescending { it.timestamp }
       .take(readLimit(limit))
+  }
+
+  private suspend fun readFilter(filter: String, limit: Int): List<ReportTraceLogEntry> {
+    val entryLimit = readLimit(limit)
+    val entries = mutableListOf<ReportTraceLogEntry>()
+    var page =
+      requestThrottler.onReady {
+        runInterruptible(Dispatchers.IO) {
+          logging.listLogEntries(
+            EntryListOption.filter(filter),
+            EntryListOption.pageSize(entryLimit.coerceAtMost(MAX_LOG_PAGE_SIZE)),
+            EntryListOption.sortOrder(SortingField.TIMESTAMP, SortingOrder.DESCENDING),
+          )
+        }
+      }
+    while (true) {
+      for (entry in page.values) {
+        entries += entry.toReportTraceLogEntry()
+        if (entries.size == entryLimit) return entries
+      }
+      if (!page.hasNextPage()) return entries
+      val currentPage = page
+      page =
+        requestThrottler.onReady {
+          runInterruptible(Dispatchers.IO) { checkNotNull(currentPage.nextPage) }
+        }
+    }
   }
 
   private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry {
@@ -421,7 +463,9 @@ internal class GoogleCloudReportTraceSpanReader(
   private val credentials: GoogleCredentials,
   private val httpClient: HttpClient,
   private var maxConcurrency: Int,
-  private var requestThrottler: Throttler =
+  private var listTracesThrottler: Throttler =
+    MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+  private var getTraceThrottler: Throttler =
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
 ) : ReportTraceSpanReader {
   constructor(
@@ -446,8 +490,12 @@ internal class GoogleCloudReportTraceSpanReader(
     return this
   }
 
-  override fun withRequestThrottler(requestThrottler: Throttler): ReportTraceSpanReader {
-    this.requestThrottler = requestThrottler
+  override fun withRequestThrottlers(
+    listTracesThrottler: Throttler,
+    getTraceThrottler: Throttler,
+  ): ReportTraceSpanReader {
+    this.listTracesThrottler = listTracesThrottler
+    this.getTraceThrottler = getTraceThrottler
     return this
   }
 
@@ -519,7 +567,7 @@ internal class GoogleCloudReportTraceSpanReader(
           .timeout(HTTP_REQUEST_TIMEOUT)
           .GET()
           .build()
-      val response = sendRequest(request)
+      val response = sendRequest(request, listTracesThrottler)
       check(response.statusCode() in 200..299) {
         "Cloud Trace API returned HTTP ${response.statusCode()}"
       }
@@ -538,7 +586,7 @@ internal class GoogleCloudReportTraceSpanReader(
         .timeout(HTTP_REQUEST_TIMEOUT)
         .GET()
         .build()
-    val response = sendRequest(request)
+    val response = sendRequest(request, getTraceThrottler)
     if (response.statusCode() == 404) return null
     check(response.statusCode() in 200..299) {
       "Cloud Trace API returned HTTP ${response.statusCode()}"
@@ -546,7 +594,10 @@ internal class GoogleCloudReportTraceSpanReader(
     return parseResponse(project, response.body(), traceId)
   }
 
-  private suspend fun sendRequest(request: HttpRequest): HttpResponse<String> {
+  private suspend fun sendRequest(
+    request: HttpRequest,
+    requestThrottler: Throttler,
+  ): HttpResponse<String> {
     return requestThrottler.onReady {
       runInterruptible(Dispatchers.IO) {
         httpClient.send(request, HttpResponse.BodyHandlers.ofString())
@@ -2211,9 +2262,21 @@ internal class ReportTrace(
   private val spanReader: ReportTraceSpanReader by lazy {
     spanReaderFactory()
       .withMaxConcurrency(traceMaxConcurrency)
-      .withRequestThrottler(MinimumIntervalThrottler(clock, traceRequestMinimumInterval))
+      .withRequestThrottlers(
+        MinimumIntervalThrottler(clock, traceListMinimumInterval),
+        MinimumIntervalThrottler(clock, traceGetMinimumInterval),
+      )
   }
   private val logReaders = mutableMapOf<Pair<String, Boolean>, ReportTraceLogReader>()
+
+  private fun logReader(project: String): ReportTraceLogReader {
+    return logReaders.getOrPut(project to includeRawPayloads) {
+      logReaderFactory(project, includeRawPayloads)
+        .withRequestThrottler(
+          MinimumIntervalThrottler(clock, loggingRequestMinimumInterval)
+        )
+    }
+  }
 
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
 
@@ -2367,7 +2430,7 @@ internal class ReportTrace(
 
   @CommandLine.Option(
     names = ["--collection-deadline"],
-    defaultValue = "PT2M",
+    defaultValue = "PT6M",
     description = ["Maximum telemetry collection time for each requested report."],
   )
   private lateinit var collectionDeadline: Duration
@@ -2380,11 +2443,25 @@ internal class ReportTrace(
   private var traceMaxConcurrency by Delegates.notNull<Int>()
 
   @CommandLine.Option(
-    names = ["--trace-request-minimum-interval"],
-    defaultValue = "PT0.2S",
-    description = ["Minimum interval between Cloud Trace API requests."],
+    names = ["--trace-list-minimum-interval"],
+    defaultValue = "PT6S",
+    description = ["Minimum interval between Cloud Trace ListTraces requests."],
   )
-  private lateinit var traceRequestMinimumInterval: Duration
+  private lateinit var traceListMinimumInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--trace-get-minimum-interval"],
+    defaultValue = "PT0.25S",
+    description = ["Minimum interval between Cloud Trace GetTrace requests."],
+  )
+  private lateinit var traceGetMinimumInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--logging-request-minimum-interval"],
+    defaultValue = "PT1.2S",
+    description = ["Minimum interval between Cloud Logging ListLogEntries requests."],
+  )
+  private lateinit var loggingRequestMinimumInterval: Duration
 
   @set:CommandLine.Option(
     names = ["--max-correlation-values"],
@@ -2457,10 +2534,22 @@ internal class ReportTrace(
         "--trace-max-concurrency must be positive",
       )
     }
-    if (traceRequestMinimumInterval.isNegative) {
+    if (traceListMinimumInterval.isNegative) {
       throw CommandLine.ParameterException(
         spec.commandLine(),
-        "--trace-request-minimum-interval must not be negative",
+        "--trace-list-minimum-interval must not be negative",
+      )
+    }
+    if (traceGetMinimumInterval.isNegative) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--trace-get-minimum-interval must not be negative",
+      )
+    }
+    if (loggingRequestMinimumInterval.isNegative) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--logging-request-minimum-interval must not be negative",
       )
     }
     if (maxCorrelationValues <= 0) {
@@ -2893,13 +2982,7 @@ internal class ReportTrace(
     for (project in projects) {
       try {
         val projectLogEntries =
-          runInterruptible(Dispatchers.IO) {
-            logReaders
-              .getOrPut(project to includeRawPayloads) {
-                logReaderFactory(project, includeRawPayloads)
-              }
-              .read(correlationValues, startTime, endTime, entryLimit)
-          }
+          logReader(project).read(correlationValues, startTime, endTime, entryLimit)
         if (projectLogEntries.size > entryLimit) {
           logTruncatedProjects += project
           warnings +=
@@ -3096,13 +3179,8 @@ internal class ReportTrace(
         if (pendingLogCorrelationValues.isNotEmpty()) {
           try {
             val projectLogEntries =
-              runInterruptible(Dispatchers.IO) {
-                logReaders
-                  .getOrPut(project to includeRawPayloads) {
-                    logReaderFactory(project, includeRawPayloads)
-                  }
-                  .read(pendingLogCorrelationValues, startTime, endTime, entryLimit)
-              }
+              logReader(project)
+                .read(pendingLogCorrelationValues, startTime, endTime, entryLimit)
             if (projectLogEntries.size > entryLimit) {
               logTruncatedProjects += project
               warnings +=
