@@ -3176,6 +3176,8 @@ internal class ReportTrace(
     resolutionFailure: String?,
     deadline: Duration,
   ): TimelineCollection {
+    val spanEntries = mutableListOf<ReportTraceSpan>()
+    val logEntries = mutableListOf<ReportTraceLogEntry>()
     return try {
       withTimeout(deadline.toMillis()) {
         collectTimelineWithoutDeadline(
@@ -3185,6 +3187,8 @@ internal class ReportTrace(
           endTime,
           entryLimit,
           resolutionFailure,
+          spanEntries,
+          logEntries,
         )
       }
     } catch (e: TimeoutCancellationException) {
@@ -3195,19 +3199,40 @@ internal class ReportTrace(
       val warning =
         "Telemetry collection exceeded the per-report deadline of $collectionDeadline; " +
           "remaining lookups were skipped"
+      val authoritativeReportResources =
+        authoritativeReportResources(context, routeResolution, resolutionFailure)
+      val retainedSpans =
+        retainReportTraceSpans(
+          spanEntries
+            .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
+            .distinct(),
+          entryLimit,
+        )
+      val retainedLogEntries =
+        retainLogEntries(
+          logEntries
+            .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
+            .distinct(),
+          entryLimit,
+        )
       val lifecycleCoverage =
-        ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), emptyList())
+        ReportTraceOutput.lifecycleCoverage(
+          context,
+          routeResolution,
+          retainedSpans,
+          retainedLogEntries,
+        )
       TimelineCollection(
-        spans = emptyList(),
-        logEntries = emptyList(),
+        spans = retainedSpans,
+        logEntries = retainedLogEntries,
         sourceStatuses =
           listOf(
             ReportTraceSourceStatus(
               project = "collector",
               source = "Per-report deadline",
               status = "TRUNCATED",
-              fetched = 0,
-              retained = 0,
+              fetched = spanEntries.size + logEntries.size,
+              retained = retainedSpans.size + retainedLogEntries.size,
               note = warning,
             )
           ),
@@ -3218,6 +3243,28 @@ internal class ReportTrace(
         endTime = endTime,
         generatedAt = clock.instant(),
       )
+    }
+  }
+
+  private fun authoritativeReportResources(
+    context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution,
+    resolutionFailure: String?,
+  ): Set<String> {
+    if (resolutionFailure != null) {
+      return emptySet()
+    }
+    return buildSet {
+      context.basicReportName?.let(::add)
+      context.reportName.takeUnless { it == REPORT_NOT_CREATED }?.let(::add)
+      addAll(context.metricNames)
+      addAll(context.measurementNames)
+      addAll(context.unresolvedMetricRequestIds)
+      addAll(context.unresolvedMeasurementRequestIds)
+      routeResolution.measurementRoutes.forEach { measurement ->
+        add(measurement.name)
+        measurement.requisitions.mapTo(this) { it.name }
+      }
     }
   }
 
@@ -3249,6 +3296,8 @@ internal class ReportTrace(
     endTime: Instant,
     entryLimit: Int,
     resolutionFailure: String?,
+    spanEntries: MutableList<ReportTraceSpan>,
+    logEntries: MutableList<ReportTraceLogEntry>,
   ): TimelineCollection {
     val startTime =
       explicitStartTime
@@ -3289,8 +3338,6 @@ internal class ReportTrace(
       warnings += "Reporting resource resolution was partial: $unresolvedDescendantNote"
     }
     warnings += routeResolution.warnings
-    val spanEntries = mutableListOf<ReportTraceSpan>()
-    val logEntries = mutableListOf<ReportTraceLogEntry>()
     val traceFailures = mutableMapOf<String, MutableList<String>>()
     val logFailures = mutableMapOf<String, MutableList<String>>()
     val traceTruncatedProjects = mutableSetOf<String>()
@@ -3299,22 +3346,7 @@ internal class ReportTrace(
     val logFetchedCounts = mutableMapOf<String, Int>()
     val projects = observabilityProjects.distinct()
     val authoritativeReportResources =
-      if (resolutionFailure == null) {
-        buildSet {
-          context.basicReportName?.let(::add)
-          context.reportName.takeUnless { it == REPORT_NOT_CREATED }?.let(::add)
-          addAll(context.metricNames)
-          addAll(context.measurementNames)
-          addAll(context.unresolvedMetricRequestIds)
-          addAll(context.unresolvedMeasurementRequestIds)
-          routeResolution.measurementRoutes.forEach { measurement ->
-            add(measurement.name)
-            measurement.requisitions.mapTo(this) { it.name }
-          }
-        }
-      } else {
-        emptySet()
-      }
+      authoritativeReportResources(context, routeResolution, resolutionFailure)
     val primaryCorrelationValues =
       listOfNotNull(
         context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
