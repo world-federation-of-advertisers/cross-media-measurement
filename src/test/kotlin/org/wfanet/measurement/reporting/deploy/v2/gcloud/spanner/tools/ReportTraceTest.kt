@@ -899,8 +899,7 @@ class ReportTraceTest {
         GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
         httpClient,
         maxConcurrency = 2,
-        listTracesThrottler = RecordingThrottler(),
-        getTraceThrottler = RecordingThrottler(),
+        requestThrottlerFactory = { RecordingThrottler() },
       )
 
     reader.read(
@@ -921,22 +920,20 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `Cloud Trace reader throttles list and get requests independently`() = runBlocking {
+  fun `Cloud Trace reader charges list and get requests to shared quota`() = runBlocking {
     val successfulResponse = mock<HttpResponse<String>>()
     whenever(successfulResponse.statusCode()).thenReturn(200)
     whenever(successfulResponse.body()).thenReturn("{\"traces\":[]}")
     val httpClient = mock<HttpClient>()
     whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
       .thenReturn(successfulResponse)
-    val listTracesThrottler = RecordingThrottler()
-    val getTraceThrottler = RecordingThrottler()
+    val requestThrottler = RecordingThrottler()
     val reader =
       GoogleCloudReportTraceSpanReader(
         GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
         httpClient,
         maxConcurrency = 1,
-        listTracesThrottler = listTracesThrottler,
-        getTraceThrottler = getTraceThrottler,
+        requestThrottlerFactory = { requestThrottler },
       )
 
     val spans =
@@ -954,8 +951,7 @@ class ReportTraceTest {
       )
 
     assertThat(spans).isEmpty()
-    assertThat(listTracesThrottler.invocationCount).isEqualTo(2)
-    assertThat(getTraceThrottler.invocationCount).isEqualTo(1)
+    assertThat(requestThrottler.invocationCount).isEqualTo(51)
   }
 
   @Test
