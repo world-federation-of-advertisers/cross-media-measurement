@@ -100,6 +100,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMet
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -120,6 +122,7 @@ class RequisitionFetcherTest {
   private val registerQueuedRequisitionMetadataRequests =
     mutableListOf<RegisterQueuedRequisitionMetadataRequest>()
   private val ensureWorkItemRequests = mutableListOf<EnsureWorkItemRequest>()
+  private val failWorkItemRequests = mutableListOf<FailWorkItemRequest>()
 
   private val requisitionsServiceMock: RequisitionsGrpcKt.RequisitionsCoroutineImplBase =
     mockService {
@@ -153,6 +156,25 @@ class RequisitionFetcherTest {
           queue = request.workItem.queue
           workItemParams = request.workItem.workItemParams
           state = WorkItem.State.QUEUED
+        }
+      }
+    onBlocking { getWorkItem(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<GetWorkItemRequest>(0)
+        workItem {
+          name = request.name
+          state = WorkItem.State.RUNNING
+          generation = 7
+        }
+      }
+    onBlocking { failWorkItem(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<FailWorkItemRequest>(0)
+        failWorkItemRequests += request
+        workItem {
+          name = request.name
+          state = WorkItem.State.FAILED
+          generation = request.expectedWorkItemGeneration
         }
       }
   }
@@ -536,6 +558,10 @@ class RequisitionFetcherTest {
       )
     assertThat(createRequisitionMetadataRequests).isEmpty()
     assertThat(ensureWorkItemRequests).isEmpty()
+    assertThat(failWorkItemRequests).hasSize(1)
+    assertThat(failWorkItemRequests.single().name)
+      .isEqualTo("workItems/results-fulfiller-existing-group")
+    assertThat(failWorkItemRequests.single().expectedWorkItemGeneration).isEqualTo(7)
   }
 
   @Test
@@ -631,6 +657,7 @@ class RequisitionFetcherTest {
     assertThat(refuseRequisitionMetadataRequests.map { it.name })
       .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale")
     assertThat(ensureWorkItemRequests).hasSize(1)
+    assertThat(failWorkItemRequests).isEmpty()
     assertThat(createRequisitionMetadataRequests).isEmpty()
   }
 

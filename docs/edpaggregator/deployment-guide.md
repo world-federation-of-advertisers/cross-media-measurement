@@ -860,11 +860,12 @@ invalid is logged and is not automatically refused because its age cannot be est
 Age-based refusal also applies to Requisitions with existing `STORED`, `QUEUED`, or `PROCESSING`
 metadata. RequisitionFetcher refuses the Kingdom Requisition first, which makes the terminal
 Kingdom state authoritative even if a ResultsFulfiller worker is already running, and then marks
-the matching metadata `REFUSED`. It does not force-fail the WorkItem because one WorkItem can
-contain both stale and eligible Requisitions; ResultsFulfiller skips terminal Kingdom Requisitions
-and continues eligible siblings. If the Kingdom refusal call fails, that Requisition and its group
-are excluded from dispatch for the current run and remain `UNFULFILLED`; a later scheduled
-invocation retries the refusal.
+the matching metadata `REFUSED`. If every metadata member in the group is terminal, the fetcher
+generation-fails its WorkItem; otherwise ResultsFulfiller skips terminal Kingdom Requisitions and
+continues eligible siblings. Failing a WorkItem fences its control-plane state but does not forcibly
+stop an already-running TEE, so the prior Kingdom refusal is the safety boundary. If the Kingdom
+refusal call fails, that Requisition and its group are excluded from dispatch for the current run
+and remain `UNFULFILLED`; a later scheduled invocation retries the refusal.
 
 `work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
 new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
