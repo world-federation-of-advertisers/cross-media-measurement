@@ -56,26 +56,39 @@ sealed interface WorkItemPublicationClaimResult {
   }
 }
 
-/** Buffers an insert mutation for a pending WorkItem publication. */
+/** Buffers an insert mutation for an immediately eligible WorkItem publication. */
 fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(workItemId: Long) {
-  insertWorkItemPublication(workItemId, isDeadLetter = false)
+  insertWorkItemPublication(workItemId, Instant.now())
+}
+
+/** Buffers an insert mutation for a WorkItem publication eligible at [nextAttemptTime]. */
+fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
+  workItemId: Long,
+  nextAttemptTime: Instant,
+) {
+  insertWorkItemPublication(
+    workItemId,
+    isDeadLetter = false,
+    nextAttemptTime = nextAttemptTime,
+  )
 }
 
 /** Buffers an insert mutation for a pending dead-letter WorkItem publication. */
 fun AsyncDatabaseClient.TransactionContext.insertDeadLetterWorkItemPublication(workItemId: Long) {
-  insertWorkItemPublication(workItemId, isDeadLetter = true)
+  insertWorkItemPublication(workItemId, isDeadLetter = true, nextAttemptTime = Instant.now())
 }
 
 private fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
   workItemId: Long,
   isDeadLetter: Boolean,
+  nextAttemptTime: Instant,
 ) {
   bufferInsertMutation("WorkItemPublications") {
     set("WorkItemId").to(workItemId)
     set("IsDeadLetter").to(isDeadLetter)
     set("LeaseOwner").to(null as String?)
     set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
-    set("NextAttemptTime").to(com.google.cloud.Timestamp.now())
+    set("NextAttemptTime").to(nextAttemptTime.toGcloudTimestamp())
     set("QueueResolutionFailed").to(false)
     set("AttemptCount").to(0L)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
