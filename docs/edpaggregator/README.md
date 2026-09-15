@@ -17,6 +17,7 @@ by trusted workloads running in Confidential Space TEEs.
 | [Metadata Operator Guide](metadata-operator-guide.md) | RequisitionFetcher + ImpressionMetadata internals, tuning knobs, behavior at scale, and troubleshooting. |
 | [Report Debugging Guide](report-debugging-guide.md) | Trace a report end-to-end across the stack and diagnose common failure modes. |
 | [Self-Serve Onboarding Guide](self-serve-onboarding.md) | Operator-side linking of Measurement Consumers to client accounts for automatic event-group registration. |
+| [QA Synthetic Data Shape](qa-synthetic-data-shape.md) | Why the QA synthetic data is sized and partitioned as it is: the reach noise floor, demographic striping, per-EDP overlap topology, and the date and frequency mix. |
 
 ### EDP integration (data provider)
 

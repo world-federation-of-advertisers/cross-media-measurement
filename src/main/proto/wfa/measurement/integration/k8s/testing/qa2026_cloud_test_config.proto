@@ -1,0 +1,70 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.integration.k8s.testing;
+
+import "google/api/resource.proto";
+
+option java_package = "org.measurement.integration.k8s.testing";
+option java_multiple_files = true;
+option java_outer_classname = "Qa2026CloudTestConfigProto";
+
+// Configuration for the QA 2026 cloud test, which provisions the QA 2026
+// dataset and reports over it.
+message Qa2026CloudTestConfig {
+  // gRPC target of Kingdom public API server.
+  string kingdom_public_api_target = 1;
+
+  // Expected hostname (DNS-ID) in the Kingdom public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string kingdom_public_api_cert_host = 2;
+
+  // MeasurementConsumer resource name.
+  string measurement_consumer = 3 [(google.api.resource_reference).type =
+                                       "halo.wfanet.org/MeasurementConsumer"];
+
+  // Authentication key for the CMMS public API.
+  string api_authentication_key = 4;
+
+  // Storage bucket holding the EventGroup blobs and impressions.
+  string storage_bucket = 5;
+
+  // http endpoint of Reporting Server.
+  string reporting_service_endpoint = 6;
+
+  // jwt audience for Reporting Server.
+  string reporting_token_audience = 7;
+
+  // gRPC target of Reporting public API server.
+  string reporting_public_api_target = 8;
+
+  // Expected hostname (DNS-ID) in the Reporting public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string reporting_public_api_cert_host = 9;
+
+  // gRPC target of Access public API server.
+  string access_public_api_target = 10;
+
+  // Expected hostname (DNS-ID) in the Access public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string access_public_api_cert_host = 11;
+}
