@@ -18,6 +18,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
 import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Payload
 import com.google.common.truth.Truth.assertThat
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -898,7 +899,8 @@ class ReportTraceTest {
         GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
         httpClient,
         maxConcurrency = 2,
-        requestThrottler = RecordingThrottler(),
+        listTracesThrottler = RecordingThrottler(),
+        getTraceThrottler = RecordingThrottler(),
       )
 
     reader.read(
@@ -919,20 +921,22 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `Cloud Trace reader throttles every request`() = runBlocking {
+  fun `Cloud Trace reader throttles list and get requests independently`() = runBlocking {
     val successfulResponse = mock<HttpResponse<String>>()
     whenever(successfulResponse.statusCode()).thenReturn(200)
     whenever(successfulResponse.body()).thenReturn("{\"traces\":[]}")
     val httpClient = mock<HttpClient>()
     whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
       .thenReturn(successfulResponse)
-    val throttler = RecordingThrottler()
+    val listTracesThrottler = RecordingThrottler()
+    val getTraceThrottler = RecordingThrottler()
     val reader =
       GoogleCloudReportTraceSpanReader(
         GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
         httpClient,
         maxConcurrency = 1,
-        requestThrottler = throttler,
+        listTracesThrottler = listTracesThrottler,
+        getTraceThrottler = getTraceThrottler,
       )
 
     val spans =
@@ -943,14 +947,44 @@ class ReportTraceTest {
             "measurementConsumers/mc-1/basicReports/report-1",
             "measurementConsumers/mc-1/basicReports/report-2",
           ),
-        traceIds = emptyList(),
+        traceIds = listOf("trace-1"),
         startTime = Instant.parse("2026-09-10T11:00:00Z"),
         endTime = Instant.parse("2026-09-10T13:00:00Z"),
         limit = 100,
       )
 
     assertThat(spans).isEmpty()
-    assertThat(throttler.invocationCount).isEqualTo(2)
+    assertThat(listTracesThrottler.invocationCount).isEqualTo(2)
+    assertThat(getTraceThrottler.invocationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `Cloud Logging reader throttles list requests`() = runBlocking {
+    val logging = mock<Logging>()
+    whenever(logging.listLogEntries(any(), any(), any()))
+      .thenThrow(IllegalStateException("stop after request starts"))
+    val throttler = RecordingThrottler()
+    val reader =
+      GoogleCloudReportTraceLogReader(
+        project = "logging-project",
+        logging = logging,
+        includeRawPayloads = false,
+        requestThrottler = throttler,
+      )
+
+    val failure =
+      runCatching {
+          reader.read(
+            correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+            startTime = Instant.parse("2026-09-10T11:00:00Z"),
+            endTime = Instant.parse("2026-09-10T13:00:00Z"),
+            limit = 100,
+          )
+        }
+        .exceptionOrNull()
+
+    assertThat(failure).isInstanceOf(IllegalStateException::class.java)
+    assertThat(throttler.invocationCount).isEqualTo(1)
   }
 
   @Test

@@ -167,9 +167,11 @@ bazel run \
   --cert-collection-file=<KINGDOM_ROOT_CERT_COLLECTION_FILE> \
   --kingdom-api-key=<MEASUREMENT_CONSUMER_API_KEY> \
   --topology-config-file=<REPORT_TRACE_TOPOLOGY_TEXTPROTO> \
-  --collection-deadline=PT2M \
+  --collection-deadline=PT6M \
   --trace-max-concurrency=8 \
-  --trace-request-minimum-interval=PT0.2S \
+  --trace-list-minimum-interval=PT6S \
+  --trace-get-minimum-interval=PT0.25S \
+  --logging-request-minimum-interval=PT1.2S \
   --max-correlation-values=500 \
   --max-trace-ids=500
 ```
@@ -202,8 +204,9 @@ collection.
 Telemetry collection is also bounded independently for each requested report.
 `--collection-deadline` is the total collection budget,
 `--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and
-`--trace-request-minimum-interval` paces those requests with the shared
-`MinimumIntervalThrottler`.
+`--trace-list-minimum-interval` and `--trace-get-minimum-interval` pace the two
+Cloud Trace request types with shared `MinimumIntervalThrottler` instances.
+`--logging-request-minimum-interval` similarly paces Cloud Logging queries.
 `--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
 a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
