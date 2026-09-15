@@ -119,4 +119,10 @@ message ProcessWorkItemDeadLetterRequest {
 
 message RetryWorkItemRequest {
   string work_item_resource_id = 1;
+
+  // Expected execution generation. New callers must populate this field.
+  // Absence is interpreted as generation 1 only for legacy-client
+  // compatibility; an explicit value less than 1 is invalid.
+  optional int64 expected_work_item_generation = 2
+      [(google.api.field_behavior) = OPTIONAL];
 }
