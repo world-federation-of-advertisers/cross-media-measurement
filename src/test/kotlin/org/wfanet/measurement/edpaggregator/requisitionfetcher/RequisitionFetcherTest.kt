@@ -489,6 +489,192 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `stale requisitions reconcile recoverable metadata to refused`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val states =
+      listOf(
+        RequisitionMetadata.State.STORED,
+        RequisitionMetadata.State.QUEUED,
+        RequisitionMetadata.State.PROCESSING,
+      )
+    val staleRequisitions =
+      states.mapIndexed { index, _ ->
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/stale-$index"
+          updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += staleRequisitions })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            staleRequisitions.zip(states).mapIndexed { index, (requisition, metadataState) ->
+              requisitionMetadata {
+                name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale-$index"
+                cmmsRequisition = requisition.name
+                groupId = "existing-group"
+                blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+                state = metadataState
+                if (metadataState != RequisitionMetadata.State.STORED) {
+                  workItem = "workItems/results-fulfiller-existing-group"
+                }
+                etag = "etag-$index"
+              }
+            }
+        }
+      )
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests.map { it.name })
+      .containsExactlyElementsIn(staleRequisitions.map { it.name })
+    assertThat(refuseRequisitionMetadataRequests.map { it.name })
+      .containsExactlyElementsIn(
+        states.indices.map { "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale-$it" }
+      )
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+    assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
+  fun `stale metadata reconciliation retries after concurrent transition`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    val metadataName = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale"
+    val initialMetadata = requisitionMetadata {
+      name = metadataName
+      cmmsRequisition = stale.name
+      groupId = "existing-group"
+      blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+      state = RequisitionMetadata.State.QUEUED
+      workItem = "workItems/results-fulfiller-existing-group"
+      etag = "queued-etag"
+    }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += stale })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(listRequisitionMetadataResponse { requisitionMetadata += initialMetadata })
+    whenever(requisitionMetadataServiceMock.getRequisitionMetadata(any()))
+      .thenReturn(
+        requisitionMetadata {
+          name = metadataName
+          cmmsRequisition = stale.name
+          groupId = "existing-group"
+          blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+          state = RequisitionMetadata.State.PROCESSING
+          workItem = "workItems/results-fulfiller-existing-group"
+          etag = "processing-etag"
+        }
+      )
+    var attempt = 0
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any())).thenAnswer {
+      invocation ->
+      val request = invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
+      refuseRequisitionMetadataRequests += request
+      attempt++
+      if (attempt == 1) throw Status.ABORTED.asRuntimeException()
+      requisitionMetadata {}
+    }
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionMetadataRequests.map { it.etag })
+      .containsExactly("queued-etag", "processing-etag")
+    assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
+  fun `stale metadata does not prevent eligible sibling WorkItem recovery`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val groupId = "existing-group"
+    val workItemName = "workItems/results-fulfiller-$groupId"
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/stale"
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    val fresh =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/fresh"
+        updateTime = now.minus(Duration.ofHours(1)).toProtoTime()
+      }
+    storageClient.writeBlob("$DIRECT_STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(stale, fresh) })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata +=
+            listOf(stale, fresh).map { requisition ->
+              requisitionMetadata {
+                name =
+                  "${TestRequisitionData.EDP_NAME}/requisitionMetadata/${requisition.name.substringAfterLast('/')}"
+                cmmsRequisition = requisition.name
+                this.groupId = groupId
+                blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId"
+                state = RequisitionMetadata.State.QUEUED
+                workItem = workItemName
+                etag = "etag-${requisition.name}"
+              }
+            }
+        }
+      )
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests.map { it.name }).containsExactly(stale.name)
+    assertThat(refuseRequisitionMetadataRequests.map { it.name })
+      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale")
+    assertThat(ensureWorkItemRequests).hasSize(1)
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+  }
+
+  @Test
+  fun `failed stale refusal blocks existing group redispatch`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val groupId = "existing-group"
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    storageClient.writeBlob("$DIRECT_STORAGE_PATH_PREFIX/$groupId", ByteString.EMPTY)
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += stale })
+    whenever(requisitionsServiceMock.refuseRequisition(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale"
+            cmmsRequisition = stale.name
+            this.groupId = groupId
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId"
+            state = RequisitionMetadata.State.QUEUED
+            workItem = "workItems/results-fulfiller-$groupId"
+            etag = "etag"
+          }
+        }
+      )
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionMetadataRequests).isEmpty()
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+    assertThat(ensureWorkItemRequests).isEmpty()
+    val refusalSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.refuse_requisition"
+      }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+  }
+
+  @Test
   fun `constructor rejects direct storage prefix below legacy prefix`() {
     val error =
       assertFailsWith<IllegalArgumentException> {

@@ -64,7 +64,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRespo
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.queueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.refuseRequisitionMetadataRequest
@@ -252,9 +254,10 @@ class RequisitionFetcher(
         val consumer = launch {
           val pendingRecovery = mutableMapOf<String, PendingRecovery>()
           val metadataCache = mutableMapOf<String, List<RequisitionMetadata>>()
+          val blockedRecoveryGroupIds = mutableSetOf<String>()
           try {
             for (unit in channel) {
-              processReport(unit, pendingRecovery, metadataCache)
+              processReport(unit, pendingRecovery, metadataCache, blockedRecoveryGroupIds)
             }
           } finally {
             finalizePendingRecovery(pendingRecovery)
@@ -403,22 +406,6 @@ class RequisitionFetcher(
         // unparseable spec. Only this (single) collector mutates totalFetched, so no lock is
         // needed.
         totalFetched += 1
-        if (isPastRefusalDuration(requisition)) {
-          val refusal = refusal {
-            justification = Requisition.Refusal.Justification.DECLINED
-            message =
-              "Requisition exceeded the configured fulfillment age of " + requisitionRefusalDuration
-          }
-          val refused = requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
-          if (!refused) {
-            logger.warning(
-              "Stale Requisition ${requisition.name} could not be refused; it will be retried " +
-                "on a later fetch"
-            )
-          }
-          return@collect
-        }
-
         val identifiers = extractReportIdentifiers(requisition)
         if (identifiers == null) {
           requisitionGrouper.refuseRequisitionToCmms(
@@ -505,6 +492,7 @@ class RequisitionFetcher(
     unit: ReportWorkUnit,
     pendingRecovery: MutableMap<String, PendingRecovery>,
     metadataCache: MutableMap<String, List<RequisitionMetadata>>,
+    blockedRecoveryGroupIds: MutableSet<String>,
   ) {
     try {
       traceSuspending(
@@ -524,7 +512,7 @@ class RequisitionFetcher(
             }
             .build(),
       ) {
-        processReportInner(unit, pendingRecovery, metadataCache)
+        processReportInner(unit, pendingRecovery, metadataCache, blockedRecoveryGroupIds)
         Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       }
     } catch (e: CancellationException) {
@@ -568,15 +556,20 @@ class RequisitionFetcher(
    *
    * ### High-Level Flow
    * 1. List existing [RequisitionMetadata] for the report.
-   * 2. Recover persisted groups according to the namespace recorded in `blob_uri`. A direct group
+   * 2. Refuse stale Requisitions in the Kingdom, then reconcile any matching recoverable metadata
+   *    to `REFUSED`. Kingdom is updated first so a worker that is already running cannot
+   *    subsequently fulfill the Requisition. The WorkItem itself is left in its existing state: one
+   *    WorkItem can contain both stale and eligible Requisitions, and ResultsFulfiller already
+   *    skips terminal Kingdom Requisitions and reconciles their metadata.
+   * 3. Recover persisted groups according to the namespace recorded in `blob_uri`. A direct group
    *    in `STORED`, `QUEUED`, or `PROCESSING` is validated and deterministically dispatched. A
    *    legacy group containing `PROCESSING` metadata remains owned by its existing DataWatcher
    *    WorkItem and is not rebuilt or directly dispatched. A failed WorkItem is surfaced for
    *    explicit operator recovery rather than retried automatically.
-   * 3. For requisitions that are not yet recorded in metadata, validate them as a group (model-line
-   *    consistency, requisition-spec decryption). On invalid input, refuse each requisition to the
-   *    Kingdom and persist `REFUSED` metadata.
-   * 4. On valid input, group the requisitions in memory, write the blob under the direct prefix,
+   * 4. Validate unregistered eligible requisitions as a group (model-line consistency,
+   *    requisition-spec decryption). On invalid input, refuse each requisition to the Kingdom and
+   *    persist `REFUSED` metadata.
+   * 5. On valid input, group the requisitions in memory, write the blob under the direct prefix,
    *    atomically register `QUEUED` metadata, and then ensure the WorkItem. The ordering makes
    *    every interruption recoverable by a later fetch: no WorkItem can run before its metadata
    *    exists, and deterministic identifiers make ambiguous retries idempotent. The legacy prefix
@@ -586,15 +579,58 @@ class RequisitionFetcher(
     unit: ReportWorkUnit,
     pendingRecovery: MutableMap<String, PendingRecovery>,
     metadataCache: MutableMap<String, List<RequisitionMetadata>>,
+    blockedRecoveryGroupIds: MutableSet<String>,
   ) {
-    val existingMetadata =
+    val cachedMetadata =
       metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
+    val metadataByRequisition = cachedMetadata.associateByTo(mutableMapOf()) { it.cmmsRequisition }
+    val eligibleRequisitions = mutableListOf<Requisition>()
+
+    for (requisition in unit.requisitions) {
+      if (!isPastRefusalDuration(requisition)) {
+        eligibleRequisitions += requisition
+        continue
+      }
+
+      val refusal = refusal {
+        justification = Requisition.Refusal.Justification.DECLINED
+        message =
+          "Requisition exceeded the configured fulfillment age of " + requisitionRefusalDuration
+      }
+      val existing = metadataByRequisition[requisition.name]
+      val refused = requisitionGrouper.refuseRequisitionToCmms(requisition, refusal)
+      if (!refused) {
+        if (existing != null) blockedRecoveryGroupIds += existing.groupId
+        logger.warning(
+          "Stale Requisition ${requisition.name} could not be refused; it will be retried " +
+            "on a later fetch"
+        )
+        continue
+      }
+
+      if (existing != null && existing.state.isRecoverable()) {
+        try {
+          metadataByRequisition[requisition.name] =
+            reconcileRefusedMetadata(existing, refusal.message)
+        } catch (e: Exception) {
+          // The Kingdom refusal is already terminal. Prevent this invocation from redispatching
+          // the group if local reconciliation fails; an existing ResultsFulfiller delivery also
+          // observes the Kingdom state and performs the same metadata reconciliation.
+          blockedRecoveryGroupIds += existing.groupId
+          throw e
+        }
+      }
+    }
+    val existingMetadata = cachedMetadata.map { metadataByRequisition.getValue(it.cmmsRequisition) }
+    metadataCache[unit.reportId] = existingMetadata
+
     val recoverableByGroupId =
       existingMetadata
         .groupBy { it.groupId }
         .filterValues { metadata -> metadata.any { it.state.isRecoverable() } }
 
     for ((existingGroupId, groupMetadata) in recoverableByGroupId) {
+      if (existingGroupId in blockedRecoveryGroupIds) continue
       val metadataList = groupMetadata.filter { it.state.isRecoverable() }
       val location =
         try {
@@ -633,7 +669,7 @@ class RequisitionFetcher(
         continue
       }
       val expectedNames = metadataList.mapTo(mutableSetOf()) { it.cmmsRequisition }
-      val matchingHere = unit.requisitions.filter { it.name in expectedNames }
+      val matchingHere = eligibleRequisitions.filter { it.name in expectedNames }
       // Always enter the wedged group into pendingRecovery so finalizePendingRecovery can surface
       // it via the recovery_skipped_incomplete counter — including the case where this run sees
       // zero matching requisitions for the group.
@@ -683,7 +719,7 @@ class RequisitionFetcher(
     }
 
     val existingNames = existingMetadata.mapTo(mutableSetOf()) { it.cmmsRequisition }
-    val unregistered = unit.requisitions.filter { it.name !in existingNames }
+    val unregistered = eligibleRequisitions.filter { it.name !in existingNames }
     if (unregistered.isEmpty()) return
 
     // Any persist path below mutates RequisitionMetadata for this report, so invalidate the
@@ -1232,6 +1268,33 @@ class RequisitionFetcher(
     requisitionMetadataStub.refuseRequisitionMetadata(request)
   }
 
+  /** Reconciles a Kingdom-refused Requisition despite concurrent metadata state transitions. */
+  private suspend fun reconcileRefusedMetadata(
+    metadata: RequisitionMetadata,
+    message: String,
+  ): RequisitionMetadata {
+    var current = metadata
+    repeat(MAX_METADATA_RECONCILIATION_ATTEMPTS) {
+      if (!current.state.isRecoverable()) return current
+      try {
+        metadataThrottler.onReady { refuseRequisitionMetadata(current, message) }
+        return current.copy {
+          state = RequisitionMetadata.State.REFUSED
+          refusalMessage = message
+        }
+      } catch (e: StatusException) {
+        if (e.status.code != Status.Code.ABORTED) throw e
+        current =
+          metadataThrottler.onReady {
+            requisitionMetadataStub.getRequisitionMetadata(
+              getRequisitionMetadataRequest { name = current.name }
+            )
+          }
+      }
+    }
+    error("Requisition metadata ${current.name} changed during stale-refusal reconciliation")
+  }
+
   private val dataProviderAttrs: Attributes =
     Attributes.of(ATTR_DATA_PROVIDER_KEY, dataProviderName)
 
@@ -1256,6 +1319,7 @@ class RequisitionFetcher(
       ProtoReflection.getTypeUrl(GroupedRequisitions.getDescriptor())
 
     const val DEFAULT_METADATA_PAGE_SIZE: Int = 100
+    private const val MAX_METADATA_RECONCILIATION_ATTEMPTS = 3
     const val DEFAULT_MAX_TOTAL_BUFFERED_BYTES: Long = 256L * 1024L * 1024L
     // Caps requisitions per metadata batch to bound the Spanner mutation count. Each
     // requisition writes a RequisitionMetadata row (~14 columns, 8 indexes) and a
