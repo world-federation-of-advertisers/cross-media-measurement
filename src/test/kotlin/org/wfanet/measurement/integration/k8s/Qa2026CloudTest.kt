@@ -173,9 +173,7 @@ class Qa2026CloudTest {
         .writeBlob(storage.objectKey, eventGroups.asFlow().map { it.toByteString() })
     }
 
-    private fun buildEventGroups(
-      eventGroupMap: Map<String, EventGroupConfig>
-    ): List<EventGroup> {
+    private fun buildEventGroups(eventGroupMap: Map<String, EventGroupConfig>): List<EventGroup> {
       return eventGroupMap.flatMap { (referenceId, config) ->
         when (config) {
           // Every QA 2026 event group carries an entity key: EventGroupSync filters its Kingdom
@@ -516,8 +514,7 @@ class Qa2026CloudTest {
     val MODEL_LINE: String = WriteQa2026ImpressionsRule.MODEL_LINE
 
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
-    private val SECRET_FILES_PATH: Path =
-      Paths.get("src", "main", "k8s", "testing", "secretfiles")
+    private val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
 
     /** Resolves a workspace-relative path in the test's runfiles. */
     private fun runtimePath(workspaceRelativePath: Path): Path =
@@ -526,6 +523,7 @@ class Qa2026CloudTest {
       ) {
         "Runtime path not found for $workspaceRelativePath"
       }
+
     private const val MC_TLS_CERT_NAME = "mc_tls.pem"
     private const val MC_TLS_KEY_NAME = "mc_tls.key"
     private const val REPORTING_ROOT_CERT_NAME = "reporting_root.pem"
