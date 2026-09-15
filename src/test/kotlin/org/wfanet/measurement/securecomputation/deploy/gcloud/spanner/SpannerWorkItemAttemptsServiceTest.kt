@@ -402,7 +402,10 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
     val retryError =
       kotlin.test.assertFailsWith<StatusRuntimeException> {
         workItemsService.retryWorkItem(
-          retryWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+          retryWorkItemRequest {
+            workItemResourceId = workItem.workItemResourceId
+            expectedWorkItemGeneration = pendingDeadLetter.generation
+          }
         )
       }
     assertThat(retryError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
