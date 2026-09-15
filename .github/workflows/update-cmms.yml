@@ -30,6 +30,10 @@ on:
         description: "Run tests"
         type: boolean
         default: true
+      run-qa2026-test:
+        description: "Run the QA 2026 cloud test (always runs for qa and head)"
+        type: boolean
+        default: false
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -48,6 +52,10 @@ on:
         description: "Run tests"
         type: boolean
         default: true
+      run-qa2026-test:
+        description: "Run the QA 2026 cloud test (always runs for qa and head)"
+        type: boolean
+        default: false
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -247,6 +255,29 @@ jobs:
       id-token: write
     with:
       environment: ${{ inputs.environment }}
+  # Provisions the QA 2026 dataset and reports over it. Runs for qa and head; for dev only when
+  # explicitly requested, since dev is the fast-iteration environment.
+  run-qa2026-cloud-test:
+    if: inputs.run-tests && (inputs.environment != 'dev' || inputs.run-qa2026-test)
+    needs: [
+      update-kingdom,
+      update-population-fulfiller,
+      update-aggregator-duchy,
+      update-worker1-duchy,
+      update-worker2-duchy,
+      update-simulators,
+      update-reporting-v2,
+      update-secure-computation,
+      update-edp-aggregator-service
+    ]
+    uses: ./.github/workflows/qa2026-cloud-test.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+
 
   run-dashboard-isolation-test:
     if: inputs.run-tests

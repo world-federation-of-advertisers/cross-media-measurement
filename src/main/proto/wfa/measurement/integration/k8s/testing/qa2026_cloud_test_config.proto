@@ -1,4 +1,4 @@
-// Copyright 2025 The Cross-Media Measurement Authors
+// Copyright 2026 The Cross-Media Measurement Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -20,9 +20,11 @@ import "google/api/resource.proto";
 
 option java_package = "org.measurement.integration.k8s.testing";
 option java_multiple_files = true;
-option java_outer_classname = "CorrectnessTestConfigProto";
+option java_outer_classname = "Qa2026CloudTestConfigProto";
 
-message EdpaCorrectnessTestConfig {
+// Configuration for the QA 2026 cloud test, which provisions the QA 2026
+// dataset and reports over it.
+message Qa2026CloudTestConfig {
   // gRPC target of Kingdom public API server.
   string kingdom_public_api_target = 1;
 
@@ -39,15 +41,30 @@ message EdpaCorrectnessTestConfig {
   // Authentication key for the CMMS public API.
   string api_authentication_key = 4;
 
-  // JWT used to authenticate requests to the RequisitionFetcher Cloud Function.
-  string auth_id_token = 5;
+  // Storage bucket holding the EventGroup blobs and impressions.
+  string storage_bucket = 5;
 
-  // Full HTTP endpoint URL of the RequisitionFetcher Cloud Function.
-  string requisition_fetcher_endpoint = 6;
+  // http endpoint of Reporting Server.
+  string reporting_service_endpoint = 6;
 
-  // Storage bucket.
-  string storage_bucket = 7;
+  // jwt audience for Reporting Server.
+  string reporting_token_audience = 7;
 
-  // The model line to use.
-  string model_line = 8;
+  // gRPC target of Reporting public API server.
+  string reporting_public_api_target = 8;
+
+  // Expected hostname (DNS-ID) in the Reporting public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string reporting_public_api_cert_host = 9;
+
+  // gRPC target of Access public API server.
+  string access_public_api_target = 10;
+
+  // Expected hostname (DNS-ID) in the Access public API server's TLS
+  // certificate.
+  //
+  // If not specified, standard TLS DNS-ID derivation will be used.
+  string access_public_api_cert_host = 11;
 }

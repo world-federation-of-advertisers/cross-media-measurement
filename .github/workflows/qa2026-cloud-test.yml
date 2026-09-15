@@ -1,4 +1,4 @@
-# Copyright 2023 The Cross-Media Measurement Authors
+# Copyright 2026 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Run EDP Aggregator Cloud Test
+name: Run QA 2026 Cloud Test
 
-run-name: Run EDP Aggregator Cloud Test [${{ inputs.environment }}]
+run-name: Run QA 2026 Cloud Test [${{ inputs.environment }}]
 
 on:
   workflow_call:
@@ -55,8 +55,6 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
-          token_format: 'id_token'
-          id_token_audience: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
 
       - name: Write auth.bazelrc
         env:
@@ -71,21 +69,22 @@ jobs:
           KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
           MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
-          AUTH_ID_TOKEN: ${{ steps.auth.outputs.id_token }}
-          REQUISITION_FETCHER_ENDPOINT: ${{ vars.REQUISITION_FETCHER_ENDPOINT }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          MODEL_LINE: ${{ vars.MODEL_LINE_NAME }}
-
+          REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
+          REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
+          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+          ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
           build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
           build --define mc_name=$MC_NAME
           build --define mc_api_key=$MC_API_KEY
-          build --define auth_id_token=$AUTH_ID_TOKEN
-          build --define requisition_fetcher_endpoint=$REQUISITION_FETCHER_ENDPOINT
           build --define storage_bucket=$STORAGE_BUCKET
-          build --define model_line=$MODEL_LINE
+          build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
+          build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
+          build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
+          build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
           test --test_output=streamed
           test --test_timeout=5400
           EOF
@@ -107,9 +106,6 @@ jobs:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
           token_format: 'id_token'
-          # Google->AWS: the aud must be an audience the AWS accounts.google.com OIDC provider
-          # accepts (the edpa_meta identity), NOT sts.amazonaws.com. The CI SA's sub is in the
-          # GcpSyntheticDataKmsRole trust.
           id_token_audience: ${{ vars.EDPA_META_AWS_AUDIENCE }}
           create_credentials_file: false
           export_environment_variables: false
@@ -126,54 +122,26 @@ jobs:
       - name: Run tests
         id: run-tests
         env:
-          MODEL_LINE_NAME: ${{ vars.MODEL_LINE_NAME }}
-          PIPELINED_DATA_PROVIDER: dataProviders/${{ fromJson(vars.DATA_PROVIDER_RESOURCE_IDS).edp7 }}
-          EDPA_PUBLIC_API_TARGET: ${{ vars.METADATA_STORAGE_PUBLIC_API_TARGET }}
-          # Deployed Spanner instance; lets SeedRawImpressionsRule hard-delete this test's own
-          # RawImpressionUpload rows before seeding (scoped by DoneBlobUri prefix) so re-runs do not
-          # collide on the RawImpressionUploadFileByBlobUri unique index.
-          SPANNER_INSTANCE: ${{ vars.SPANNER_INSTANCE }}
-          # edpa_meta publisher AWS KMS settings, used to (re)generate its labeled impressions
-          # in-test. The runner must also produce AWS_WEB_IDENTITY_TOKEN_FILE (AWS web-identity
-          # token); it is forwarded to the test below.
+          QA2026_MODEL_LINE: ${{ vars.QA2026_MODEL_LINE }}
+          QA2026_EDPS: ${{ vars.QA2026_EDPS }}
+          PDP_NAME: ${{ vars.PDP_NAME }}
           EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
           EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
           EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
-          # Storage settings live in the committed per-env tfvars (single source of truth after
-          # #4168/#4227); read them here so this workflow never drifts from what Terraform deployed.
-          TFVARS="src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars"
-          tfvar() { grep -E "^$1 " "$TFVARS" | head -1 | cut -d'"' -f2; }
-          export RAW_IMPRESSIONS_BUCKET="$(tfvar secure_computation_storage_bucket_name)"
-          export EDPA_CONFIG_STORAGE_BUCKET="$(tfvar edpa_config_files_bucket_name)"
-          export EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI="$(tfvar results_fulfiller_event_proto_descriptor_blob_uri)"
-          export EVENT_TEMPLATE_TYPE="$(tfvar results_fulfiller_event_template_type_name)"
-          vid_models_bucket="$(tfvar vid_models_storage_bucket_name)"
-          export MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/memoized_model"
-          export NON_MEMOIZED_MODEL_BLOB_URI="gs://${vid_models_bucket}/edp7/hashonly_model"
-          # Derive the ModelSuite from the ModelLine resource name.
-          export MODEL_SUITE="${MODEL_LINE_NAME%/modelLines/*}"
           bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
-          --test_env=MODEL_SUITE \
-          --test_env=PIPELINED_DATA_PROVIDER \
-          --test_env=EDPA_CONFIG_STORAGE_BUCKET \
-          --test_env=EVENT_TEMPLATE_DESCRIPTOR_BLOB_URI \
-          --test_env=EVENT_TEMPLATE_TYPE \
-          --test_env=MEMOIZED_MODEL_BLOB_URI \
-          --test_env=NON_MEMOIZED_MODEL_BLOB_URI \
-          --test_env=RAW_IMPRESSIONS_BUCKET \
-          --test_env=SPANNER_INSTANCE \
-          --test_env=EDPA_PUBLIC_API_TARGET \
+          --test_env=QA2026_MODEL_LINE \
+          --test_env=QA2026_EDPS \
+          --test_env=PDP_NAME \
           --test_env=EDPA_META_KEK_URI \
           --test_env=EDPA_META_AWS_ROLE_ARN \
           --test_env=EDPA_META_AWS_REGION \
           --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
-          //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorCorrectnessTest
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:Qa2026CloudTest
 
       - name: Upload Bazel testlogs
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
         if: failure() && steps.run-tests.outcome == 'failure'
-          
