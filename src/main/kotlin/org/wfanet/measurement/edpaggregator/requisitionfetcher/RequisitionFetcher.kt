@@ -519,10 +519,8 @@ class RequisitionFetcher(
         } catch (e: IllegalStateException) {
           // A malformed historical group must remain untouched, but it must not prevent newly
           // discovered requisitions in the same long-lived Report from using direct dispatch.
-          logger.log(
-            Level.WARNING,
-            "Skipping recovery for inconsistent requisition group $existingGroupId",
-            e,
+          logger.warning(
+            "Skipping recovery for inconsistent requisition group $existingGroupId: ${e.message}"
           )
           continue
         }
