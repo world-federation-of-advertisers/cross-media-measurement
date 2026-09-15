@@ -200,6 +200,7 @@ internal data class ReportTraceLifecycleStage(
   val resource: String,
   val status: String,
   val evidence: String,
+  val correlationValues: Set<String> = emptySet(),
 )
 
 internal data class ReportTraceSourceStatus(
@@ -593,6 +594,7 @@ internal class GoogleCloudReportTraceSpanReader(
         HttpRequest.newBuilder()
           .uri(URI.create("https://cloudtrace.googleapis.com/v1/projects/$project/traces?$query"))
           .header("Authorization", "Bearer ${checkNotNull(credentials.accessToken).tokenValue}")
+          .header("x-goog-user-project", project)
           .timeout(HTTP_REQUEST_TIMEOUT)
           .GET()
           .build()
@@ -616,6 +618,7 @@ internal class GoogleCloudReportTraceSpanReader(
       HttpRequest.newBuilder()
         .uri(URI.create("https://cloudtrace.googleapis.com/v1/projects/$project/traces/$traceId"))
         .header("Authorization", "Bearer ${checkNotNull(credentials.accessToken).tokenValue}")
+        .header("x-goog-user-project", project)
         .timeout(HTTP_REQUEST_TIMEOUT)
         .GET()
         .build()
@@ -1355,6 +1358,7 @@ internal object ReportTraceOutput {
               }
             }
         },
+      correlationValues = operation.identifyingAttributes.values.toSet(),
     )
   }
 
@@ -2030,7 +2034,12 @@ internal object ReportTraceOutput {
         )
       }
       for (stage in REQUISITION_LIFECYCLE_STAGES) {
-        add(stage, requisitionResource, "xmm.requisition.name", unresolvedMeasurementRequirement)
+        add(
+          stage,
+          requisitionResource,
+          mapOf("xmm.measurement.request_id" to requestId),
+          unresolvedMeasurementRequirement,
+        )
       }
     }
     if (
@@ -2934,6 +2943,22 @@ internal class ReportTrace(
     return collectionDeadline.minusNanos(elapsedNanos.coerceAtLeast(0L))
   }
 
+  private fun missingLifecycleCorrelationValues(
+    context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution,
+    spans: List<ReportTraceSpan>,
+    logEntries: List<ReportTraceLogEntry>,
+    candidates: Collection<String>,
+  ): Set<String> {
+    val candidateSet = candidates.toSet()
+    return ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, logEntries)
+      .asSequence()
+      .filter { it.status in setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN") }
+      .flatMap { stage -> stage.correlationValues.asSequence() }
+      .filter(candidateSet::contains)
+      .toSet()
+  }
+
   private suspend fun collectTimelineWithoutDeadline(
     context: ReportTraceContext,
     routeResolution: ReportTraceRouteResolution,
@@ -2990,10 +3015,18 @@ internal class ReportTrace(
     val traceFetchedCounts = mutableMapOf<String, Int>()
     val logFetchedCounts = mutableMapOf<String, Int>()
     val projects = observabilityProjects.distinct()
+    val primaryCorrelationValues =
+      listOfNotNull(
+        context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
+      )
     val initialCorrelationValues =
-      (context.correlationValues + routeResolution.correlationValues).distinct()
+      (primaryCorrelationValues + context.correlationValues + routeResolution.correlationValues)
+        .distinct()
     val correlationValues = initialCorrelationValues.take(maxCorrelationValues)
-    var correlationValuesTruncated = initialCorrelationValues.size > correlationValues.size
+    val encounteredCorrelationValues = initialCorrelationValues.toMutableSet()
+    val admittedCorrelationValues = correlationValues.toMutableSet()
+    var correlationValuesTruncated =
+      encounteredCorrelationValues.size > admittedCorrelationValues.size
     if (correlationValuesTruncated) {
       warnings +=
         "Correlation values were capped at $maxCorrelationValues for this report; " +
@@ -3029,10 +3062,6 @@ internal class ReportTrace(
       warnings +=
         "Trace IDs were capped at $maxTraceIds for this report; additional lookups were skipped"
     }
-    val primaryCorrelationValues =
-      listOfNotNull(
-        context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
-      )
     val queriedTraceCorrelationValues = primaryCorrelationValues.toMutableSet()
     val queriedTraceIds = logTraceIds.toMutableSet()
     for (project in projects) {
@@ -3108,16 +3137,18 @@ internal class ReportTrace(
       }
     }
 
-    // Resource-name fallback can be expensive for high-cardinality reports. Use it only when
-    // the
-    // primary lineage query and cross-project trace-ID expansion did not cover the lifecycle.
-    val fallbackCorrelationValues = correlationValues - primaryCorrelationValues.toSet()
-    if (
-      fallbackCorrelationValues.isNotEmpty() &&
-        ReportTraceOutput.lifecycleCoverage(context, routeResolution, spanEntries, logEntries).any {
-          it.status == "MISSING"
-        }
-    ) {
+    // Query only resources whose expected lifecycle remains incomplete after the BasicReport
+    // lineage and trace-ID lookups. This preserves fallback discovery without querying every
+    // descendant in a high-cardinality report.
+    val fallbackCorrelationValues =
+      missingLifecycleCorrelationValues(
+        context,
+        routeResolution,
+        spanEntries,
+        logEntries,
+        correlationValues,
+      ) - primaryCorrelationValues.toSet()
+    if (fallbackCorrelationValues.isNotEmpty()) {
       queriedTraceCorrelationValues += fallbackCorrelationValues
       for (project in projects) {
         try {
@@ -3155,11 +3186,17 @@ internal class ReportTrace(
     var expansionRounds = 0
     var expansionTruncated = false
     while (true) {
-      val allKnownCorrelationValues =
-        (correlationValues + ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries))
-          .distinct()
-      val knownCorrelationValues = allKnownCorrelationValues.take(maxCorrelationValues)
-      if (allKnownCorrelationValues.size > knownCorrelationValues.size) {
+      val discoveredCorrelationValues =
+        ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries)
+      encounteredCorrelationValues += discoveredCorrelationValues
+      val remainingCorrelationValueCapacity =
+        (maxCorrelationValues - admittedCorrelationValues.size).coerceAtLeast(0)
+      val newlyAdmittedCorrelationValues =
+        (discoveredCorrelationValues - admittedCorrelationValues)
+          .take(remainingCorrelationValueCapacity)
+          .toSet()
+      admittedCorrelationValues += newlyAdmittedCorrelationValues
+      if (encounteredCorrelationValues.size > admittedCorrelationValues.size) {
         if (!correlationValuesTruncated) {
           warnings +=
             "Correlation values were capped at $maxCorrelationValues for this report; " +
@@ -3167,6 +3204,20 @@ internal class ReportTrace(
         }
         correlationValuesTruncated = true
       }
+      val unresolvedResourceCorrelationValues =
+        missingLifecycleCorrelationValues(
+          context,
+          routeResolution,
+          spanEntries,
+          logEntries,
+          admittedCorrelationValues,
+        )
+      val allKnownCorrelationValues =
+        (primaryCorrelationValues +
+            unresolvedResourceCorrelationValues +
+            newlyAdmittedCorrelationValues)
+          .distinct()
+      val knownCorrelationValues = allKnownCorrelationValues
       val pendingLogCorrelationValues = knownCorrelationValues.toSet() - queriedLogCorrelationValues
       val pendingTraceCorrelationValues =
         knownCorrelationValues.toSet() - queriedTraceCorrelationValues
@@ -3322,8 +3373,8 @@ internal class ReportTrace(
             project = "collector",
             source = "Correlation values",
             status = "TRUNCATED",
-            fetched = initialCorrelationValues.size,
-            retained = queriedTraceCorrelationValues.size,
+            fetched = encounteredCorrelationValues.size,
+            retained = admittedCorrelationValues.size,
             note = "Stopped at the configured per-report cap",
           )
         )
@@ -3708,7 +3759,11 @@ suspend fun main(args: Array<String>) {
         logReaderFactory = { project, includeRawPayloads ->
           GoogleCloudReportTraceLogReader(
             project,
-            LoggingOptions.newBuilder().setProjectId(project).build().service,
+            LoggingOptions.newBuilder()
+              .setProjectId(project)
+              .setQuotaProjectId(project)
+              .build()
+              .service,
             includeRawPayloads,
           )
         },
