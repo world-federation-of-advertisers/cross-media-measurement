@@ -57,6 +57,14 @@ abstract class RawImpressionUploadServiceTest {
   /** Inserts a fully registered upload with an active model line. */
   protected abstract suspend fun createActiveModelLine(dataProviderResourceId: String)
 
+  /** Inserts a fully registered upload evicted by [evictionOperationId]. */
+  protected abstract suspend fun createEvictedUpload(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    doneBlobUri: String,
+    evictionOperationId: String,
+  )
+
   @Before
   fun initService() {
     service = newService()
@@ -1045,37 +1053,100 @@ abstract class RawImpressionUploadServiceTest {
     }
 
   @Test
-  fun `eviction fence is resumable and blocks new uploads until released`(): Unit = runBlocking {
-    val operationId = UUID.randomUUID().toString()
-    val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
-      dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-      evictionOperationId = operationId
-    }
+  fun `eviction fence defers new uploads and release makes them dispatchable`(): Unit =
+    runBlocking {
+      val operationId = UUID.randomUUID().toString()
+      val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        evictionOperationId = operationId
+      }
 
-    service.acquireRawImpressionUploadEvictionFence(acquireRequest)
-    service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+      service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+      service.acquireRawImpressionUploadEvictionFence(acquireRequest)
 
-    val competingOperation =
-      assertFailsWith<StatusRuntimeException> {
-        service.acquireRawImpressionUploadEvictionFence(
-          acquireRawImpressionUploadEvictionFenceRequest {
+      val competingOperation =
+        assertFailsWith<StatusRuntimeException> {
+          service.acquireRawImpressionUploadEvictionFence(
+            acquireRawImpressionUploadEvictionFenceRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              evictionOperationId = UUID.randomUUID().toString()
+            }
+          )
+        }
+      assertThat(competingOperation.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+      val deferredUpload = createUpload()
+      assertThat(deferredUpload.processingDeferred).isTrue()
+
+      service.releaseRawImpressionUploadEvictionFence(
+        releaseRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          evictionOperationId = operationId
+        }
+      )
+      val releasedUpload =
+        service.getRawImpressionUpload(
+          getRawImpressionUploadRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            evictionOperationId = UUID.randomUUID().toString()
+            rawImpressionUploadResourceId = deferredUpload.rawImpressionUploadResourceId
           }
         )
-      }
-    assertThat(competingOperation.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(releasedUpload.processingDeferred).isFalse()
 
-    val createError = assertFailsWith<StatusRuntimeException> { createUpload() }
-    assertThat(createError.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      // Release is idempotent, including after deferred uploads were made eligible.
+      service.releaseRawImpressionUploadEvictionFence(
+        releaseRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          evictionOperationId = operationId
+        }
+      )
+    }
 
-    service.releaseRawImpressionUploadEvictionFence(
-      releaseRawImpressionUploadEvictionFenceRequest {
+  @Test
+  fun `eviction fence authorizes a replacement from its healing operation`(): Unit = runBlocking {
+    val operationId = UUID.randomUUID().toString()
+    createEvictedUpload(DATA_PROVIDER_RESOURCE_ID, "evicted-upload", DONE_BLOB_URI, operationId)
+    service.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         evictionOperationId = operationId
       }
     )
-    assertThat(createUpload().rawImpressionUploadResourceId).isNotEmpty()
+
+    val replacement =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION + 1L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(1).toProtoTime()
+          }
+          requestId = UUID.randomUUID().toString()
+          evictionOperationId = operationId
+        }
+      )
+
+    assertThat(replacement.evictionOperationId).isEqualTo(operationId)
+    assertThat(replacement.processingDeferred).isFalse()
+
+    // A newer retry may directly replace an incomplete recovery row that has no children yet.
+    val resumedReplacement =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION + 2L
+            doneBlobCreateTime = DONE_BLOB_CREATE_TIME.plusSeconds(2).toProtoTime()
+          }
+          requestId = UUID.randomUUID().toString()
+          evictionOperationId = operationId
+        }
+      )
+    assertThat(resumedReplacement.replacesRawImpressionUploadResourceId)
+      .isEqualTo(replacement.rawImpressionUploadResourceId)
+    assertThat(resumedReplacement.processingDeferred).isFalse()
   }
 
   @Test

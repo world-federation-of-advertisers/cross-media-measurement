@@ -61,4 +61,12 @@ message RawImpressionUpload {
 
   // Entity tag for optimistic concurrency control.
   string etag = 11;
+
+  // Eviction operation allowed to process this replacement while its fence is
+  // active.
+  string eviction_operation_id = 12;
+
+  // Whether processing is deferred until the active eviction fence is
+  // released.
+  bool processing_deferred = 13;
 }

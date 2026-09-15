@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import kotlinx.coroutines.flow.single
 import org.junit.ClassRule
@@ -35,6 +36,7 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
   private var nextUploadId: Long = 1L
+  private val uploadIdsByResourceId = mutableMapOf<String, Long>()
 
   override fun newService(
     idGenerator: IdGenerator
@@ -48,6 +50,7 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     rawImpressionUploadResourceId: String,
   ) {
     val uploadId = nextUploadId++
+    uploadIdsByResourceId[rawImpressionUploadResourceId] = uploadId
     val mutation =
       insertMutation("RawImpressionUpload") {
         set("DataProviderResourceId").to(dataProviderResourceId)
@@ -73,6 +76,28 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
           set("EvictionOperationId").to(evictionOperationId)
           set("CreateTime").to(Value.COMMIT_TIMESTAMP)
         }
+      )
+    )
+  }
+
+  override suspend fun setParentUploadEvictionDisposition(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    evictionOperationId: String?,
+    processingDeferred: Boolean,
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(dataProviderResourceId)
+          .set("RawImpressionUploadId")
+          .to(uploadIdsByResourceId.getValue(rawImpressionUploadResourceId))
+          .set("EvictionOperationId")
+          .to(evictionOperationId)
+          .set("ProcessingDeferred")
+          .to(processingDeferred)
+          .build()
       )
     )
   }

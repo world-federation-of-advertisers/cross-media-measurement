@@ -242,11 +242,14 @@ class VidLabelingDispatcher(
                 0
           }
         }
-      if (
-        recoverySourceUpload == null && previousRevision?.state == RawImpressionUpload.State.FAILED
-      ) {
-        validateEdpReplacementOrder(previousRevision)
-      }
+      val evictionOperationId =
+        if (recoverySourceUpload != null) {
+          checkNotNull(recoveryOperationId)
+        } else if (previousRevision?.state == RawImpressionUpload.State.FAILED) {
+          validateEdpReplacementOrder(previousRevision)
+        } else {
+          null
+        }
       val currentBlobVersions = resolveBlobVersions(blobs, doneBlobUri)
       val candidateBlobs =
         if (previousRevision?.state == RawImpressionUpload.State.FAILED) {
@@ -275,7 +278,12 @@ class VidLabelingDispatcher(
       }
 
       val rawImpressionUpload =
-        createRawImpressionUpload(doneBlobPath, doneBlobGeneration, doneBlobMetadata.createTime)
+        createRawImpressionUpload(
+          doneBlobPath,
+          doneBlobGeneration,
+          doneBlobMetadata.createTime,
+          evictionOperationId,
+        )
       if (rawImpressionUpload == null) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
@@ -508,6 +516,7 @@ class VidLabelingDispatcher(
     doneBlobPath: String,
     generation: Long,
     createTime: Instant,
+    evictionOperationId: String?,
   ): RawImpressionUpload? {
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
@@ -517,6 +526,9 @@ class VidLabelingDispatcher(
         doneBlobCreateTime = createTime.toProtoTime()
       }
       requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
+      if (evictionOperationId != null) {
+        this.evictionOperationId = evictionOperationId
+      }
     }
 
     return try {
@@ -754,9 +766,11 @@ class VidLabelingDispatcher(
       "$sourceUploadName does not belong to $dataProviderName"
     }
     val source =
-      rawImpressionUploadStub.getRawImpressionUpload(
-        getRawImpressionUploadRequest { name = sourceUploadName }
-      )
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = sourceUploadName }
+        )
+      }
     require(source.doneBlobUri == doneBlobPath) {
       "$sourceUploadName belongs to ${source.doneBlobUri}, not $doneBlobPath"
     }
@@ -831,7 +845,7 @@ class VidLabelingDispatcher(
   }
 
   /** Enforces the persisted dependency before accepting an EDP correction upload. */
-  private suspend fun validateEdpReplacementOrder(previousRevision: RawImpressionUpload) {
+  private suspend fun validateEdpReplacementOrder(previousRevision: RawImpressionUpload): String? {
     val evictedRows =
       listModelLines(previousRevision.name).filter {
         it.state == RawImpressionUploadModelLine.State.FAILED &&
@@ -848,6 +862,12 @@ class VidLabelingDispatcher(
     for (row in evictedRows.filter { it.recoveryPredecessorRawImpressionUpload.isNotEmpty() }) {
       requireRecoveryPredecessorReady(row)
     }
+    val evictionOperationIds =
+      evictedRows.map { it.evictionOperationId }.filter { it.isNotEmpty() }.distinct()
+    check(evictionOperationIds.size <= 1) {
+      "${previousRevision.name} belongs to multiple eviction operations"
+    }
+    return evictionOperationIds.singleOrNull()
   }
 
   /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */
@@ -857,9 +877,11 @@ class VidLabelingDispatcher(
       "${row.name} does not identify the upload that must complete before recovery"
     }
     val predecessor =
-      rawImpressionUploadStub.getRawImpressionUpload(
-        getRawImpressionUploadRequest { name = predecessorName }
-      )
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = predecessorName }
+        )
+      }
     val revisions = listUploadsByDoneBlob(predecessor.doneBlobUri)
     val latest =
       checkNotNull(findLatestUpload(revisions)) {
@@ -902,12 +924,14 @@ class VidLabelingDispatcher(
     var pageToken = ""
     do {
       val response =
-        rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
-          listRawImpressionUploadModelLinesRequest {
-            parent = uploadName
-            this.pageToken = pageToken
-          }
-        )
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = uploadName
+              this.pageToken = pageToken
+            }
+          )
+        }
       rows += response.rawImpressionUploadModelLinesList
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
@@ -922,17 +946,19 @@ class VidLabelingDispatcher(
     var found = false
     do {
       val response =
-        rankIndexBlobStub.listRankIndexBlobs(
-          listRankIndexBlobsRequest {
-            parent = uploadName
-            showDeleted = true
-            filter = rankIndexFilter {
-              blobType = RankIndexBlob.BlobType.SNAPSHOT
-              this.cmmsModelLine = cmmsModelLine
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = uploadName
+              showDeleted = true
+              filter = rankIndexFilter {
+                blobType = RankIndexBlob.BlobType.SNAPSHOT
+                this.cmmsModelLine = cmmsModelLine
+              }
+              this.pageToken = pageToken
             }
-            this.pageToken = pageToken
-          }
-        )
+          )
+        }
       if (response.rankIndexBlobsList.any { !it.hasDeleteTime() }) return false
       found = found || response.rankIndexBlobsCount > 0
       pageToken = response.nextPageToken
@@ -942,16 +968,18 @@ class VidLabelingDispatcher(
 
   private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
     val response =
-      rankIndexBlobStub.listRankIndexBlobs(
-        listRankIndexBlobsRequest {
-          parent = uploadName
-          pageSize = 1
-          filter = rankIndexFilter {
-            blobType = RankIndexBlob.BlobType.SNAPSHOT
-            this.cmmsModelLine = cmmsModelLine
+      rpcThrottlers.metadataRead.onReady {
+        rankIndexBlobStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = uploadName
+            pageSize = 1
+            filter = rankIndexFilter {
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              this.cmmsModelLine = cmmsModelLine
+            }
           }
-        }
-      )
+        )
+      }
     return response.rankIndexBlobsCount > 0
   }
 
