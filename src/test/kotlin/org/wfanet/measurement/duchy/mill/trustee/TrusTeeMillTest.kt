@@ -37,6 +37,10 @@ import java.io.ByteArrayOutputStream
 import java.security.GeneralSecurityException
 import java.time.Clock
 import java.time.Duration
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.io.path.Path
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
@@ -56,6 +60,7 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.measurementSpec
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
@@ -268,6 +273,58 @@ class TrusTeeMillTest {
     requisitionStore.write(requisitionBlobContext3, RAW_DATA_3.toByteString())
   }
 
+  private suspend fun captureReportTraceLifecycleFields(
+    block: suspend () -> Unit
+  ): List<Map<String, String>> {
+    val messages = CopyOnWriteArrayList<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          messages += record.message
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      rootLogger.removeHandler(handler)
+    }
+    return messages
+      .filter { it.contains("xmm.lifecycle.stage=duchy_stage_attempt") }
+      .map { message ->
+        message.split(' ').associate { field ->
+          field.substringBefore('=') to field.substringAfter('=')
+        }
+      }
+  }
+
+  private fun expectedReportTraceLifecycleFields(
+    outcome: String,
+    errorType: String?,
+    errorCode: String?,
+  ): Map<String, String> = buildMap {
+    put("event", "duchy.mill.process_computation")
+    put(ReportTraceAttributes.BASIC_REPORT_NAME_STRING, BASIC_REPORT_NAME)
+    put(ReportTraceAttributes.COMPUTATION_NAME_STRING, "computations/$GLOBAL_ID")
+    put(ReportTraceAttributes.DUCHY_ID_STRING, DUCHY_ID)
+    put(ReportTraceAttributes.LIFECYCLE_STAGE_STRING, "duchy_stage_attempt")
+    put(ReportTraceAttributes.MEASUREMENT_NAME_STRING, MEASUREMENT_NAME)
+    put(ReportTraceAttributes.METRIC_NAME_STRING, METRIC_NAME)
+    put(ReportTraceAttributes.OUTCOME_STRING, outcome)
+    put(ReportTraceAttributes.REPORT_NAME_STRING, REPORT_NAME)
+    if (errorType != null) {
+      put(ReportTraceAttributes.ERROR_TYPE_STRING, errorType)
+    }
+    if (errorCode != null) {
+      put(ReportTraceAttributes.ERROR_CODE_STRING, errorCode)
+    }
+  }
+
   @Test
   fun `initialized phase has higher priority to be claimed`() = runBlocking {
     fakeComputationDb.addComputation(
@@ -391,7 +448,7 @@ class TrusTeeMillTest {
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
     val mill = createMill()
-    mill.claimAndProcessWork()
+    val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
     assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
@@ -419,6 +476,16 @@ class TrusTeeMillTest {
           resultPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toByteString()
         }
       )
+    assertThat(lifecycleFields)
+      .containsExactly(
+        expectedReportTraceLifecycleFields(outcome = "started", errorType = null, errorCode = null),
+        expectedReportTraceLifecycleFields(
+          outcome = "succeeded",
+          errorType = null,
+          errorCode = null,
+        ),
+      )
+      .inOrder()
   }
 
   @Test
@@ -688,7 +755,7 @@ class TrusTeeMillTest {
       )
 
     val mill = createMill()
-    mill.claimAndProcessWork()
+    val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
     val finalToken = fakeComputationDb[LOCAL_ID]!!
     assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
@@ -702,6 +769,16 @@ class TrusTeeMillTest {
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("IllegalArgumentException")
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
+    assertThat(lifecycleFields)
+      .containsExactly(
+        expectedReportTraceLifecycleFields(outcome = "started", errorType = null, errorCode = null),
+        expectedReportTraceLifecycleFields(
+          outcome = "failed",
+          errorType = "IllegalArgumentException",
+          errorCode = "grpc.UNAVAILABLE",
+        ),
+      )
+      .inOrder()
     openTelemetry.close()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
@@ -880,6 +957,10 @@ class TrusTeeMillTest {
 
     private const val LOCAL_ID = 1234L
     private const val GLOBAL_ID = LOCAL_ID.toString()
+    private const val BASIC_REPORT_NAME = "measurementConsumers/123/basicReports/456"
+    private const val REPORT_NAME = "measurementConsumers/123/reports/789"
+    private const val METRIC_NAME = "measurementConsumers/123/metrics/012"
+    private const val MEASUREMENT_NAME = "measurementConsumers/123/measurements/$GLOBAL_ID"
 
     private const val DUCHY_CERT_NAME = "cert 1"
     private val DUCHY_CERT_DER = TestData.FIXED_SERVER_CERT_DER_FILE.readBytes().toByteString()
@@ -905,6 +986,11 @@ class TrusTeeMillTest {
       nonceHashes += TEST_REQUISITION_3.nonceHash
       reachAndFrequency = MeasurementSpec.ReachAndFrequency.getDefaultInstance()
       vidSamplingInterval = MeasurementSpecKt.vidSamplingInterval { width = 0.5f }
+      reportingMetadata = reportingMetadata {
+        basicReport = BASIC_REPORT_NAME
+        report = REPORT_NAME
+        metric = METRIC_NAME
+      }
     }
 
     private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
@@ -1041,6 +1127,7 @@ class TrusTeeMillTest {
         ComputationDetailsKt.kingdomComputationDetails {
           publicApiVersion = PUBLIC_API_VERSION
           measurementPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toDuchyEncryptionPublicKey()
+          measurement = MEASUREMENT_NAME
           measurementSpec = SERIALIZED_MEASUREMENT_SPEC
           participantCount = 1
         }

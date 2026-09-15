@@ -55,6 +55,7 @@ import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
@@ -253,12 +254,18 @@ abstract class MillBase(
     }
 
   private suspend fun processComputationInTrace(token: ComputationToken) {
+    token.logReportTraceLifecycle(outcome = "started", errorType = null, errorCode = null)
     if (token.attempt > maximumAttempts) {
       val message = "Failing computation due to too many failed ComputationStageAttempts."
       Span.current()
         .setStatus(StatusCode.ERROR, message)
         .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
         .setAttribute(ReportTraceAttributes.ERROR_TYPE, "AttemptsExhausted")
+      token.logReportTraceLifecycle(
+        outcome = "failed",
+        errorType = "AttemptsExhausted",
+        errorCode = null,
+      )
       failComputation(token, message)
       return
     }
@@ -276,19 +283,27 @@ abstract class MillBase(
     try {
       processComputationImpl(token)
       Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+      token.logReportTraceLifecycle(outcome = "succeeded", errorType = null, errorCode = null)
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
+      val errorType = ReportTraceAttributes.errorType(e)
+      val errorCode = ReportTraceAttributes.errorCode(e)
       Span.current()
         .setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
         .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
-        .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
+        .setAttribute(ReportTraceAttributes.ERROR_TYPE, errorType)
         .also { span ->
-          ReportTraceAttributes.errorCode(e)?.let {
-            span.setAttribute(ReportTraceAttributes.ERROR_CODE, it)
+          if (errorCode != null) {
+            span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
           }
         }
         .recordException(e)
+      token.logReportTraceLifecycle(
+        outcome = "failed",
+        errorType = errorType,
+        errorCode = errorCode,
+      )
       handleExceptions(token, e)
     }
     logger.info("$globalId@$millId: Processed computation ")
@@ -316,6 +331,23 @@ abstract class MillBase(
       .getOrNull()
       ?.let { builder.putAll(ReportTraceAttributes.fromMeasurementSpec(it)) }
     return builder.build()
+  }
+
+  /** Logs report-safe lifecycle fields so an attempt remains observable without span export. */
+  private fun ComputationToken.logReportTraceLifecycle(
+    outcome: String,
+    errorType: String?,
+    errorCode: String?,
+  ) {
+    val fields = buildList {
+      for ((key, value) in reportTraceAttributes().asMap()) {
+        add(key.key to value.toString())
+      }
+      add(ReportTraceAttributes.OUTCOME_STRING to outcome)
+      add(ReportTraceAttributes.ERROR_TYPE_STRING to errorType)
+      add(ReportTraceAttributes.ERROR_CODE_STRING to errorCode)
+    }
+    ReportTraceLogging.log(logger, "duchy.mill.process_computation", *fields.toTypedArray())
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {

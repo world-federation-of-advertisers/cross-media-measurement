@@ -123,6 +123,12 @@ the Reporting Cloud SQL instance, and select from the Reporting Postgres
 database. The command also uses the MeasurementConsumer's mTLS identity and API
 key to read its Measurements and Requisitions from the Kingdom public API.
 
+`report-trace` is an operator CLI, not a continuously deployed service. Build
+and run it from a trusted administrative environment with network access to the
+Reporting databases and Kingdom public API. Keep the MeasurementConsumer key,
+certificate, and API key outside the source checkout, and write artifacts to an
+operator-controlled directory.
+
 First create a complete topology config for the deployment. Every DataProvider
 that can appear on a traced Requisition must have an explicit route:
 
@@ -207,6 +213,37 @@ Cloud Trace request types share one quota limiter per project. Each ListTraces
 request consumes 25 units and each GetTrace request consumes one unit;
 `--trace-quota-units-per-second` controls their combined rate.
 `--logging-requests-per-second` independently limits Cloud Logging queries.
+
+Before choosing those two rates, inspect the effective read quotas in **every**
+project supplied with `--observability-project`. The operator needs
+`serviceusage.quotas.get`; `roles/serviceusage.serviceUsageViewer` is a
+read-only predefined role containing that permission. The following commands
+show the effective quota metrics for one project:
+
+```bash
+gcloud alpha services quota list \
+  --consumer=projects/<OBSERVABILITY_PROJECT_ID> \
+  --service=cloudtrace.googleapis.com
+
+gcloud alpha services quota list \
+  --consumer=projects/<OBSERVABILITY_PROJECT_ID> \
+  --service=logging.googleapis.com
+```
+
+Set `--trace-quota-units-per-second` below the smallest applicable Cloud Trace
+read limit divided by 60, with headroom for other readers. Set
+`--logging-requests-per-second` below both the smallest project read limit and
+the per-user read limit, divided by 60. The defaults reserve headroom for a
+Cloud Trace limit of 300 units per minute and a Cloud Logging limit of 60 read
+requests per minute, but those are not universal deployment values. Repeat the
+quota check whenever the project list or execution identity changes.
+
+Readers within one CLI invocation share their per-project limiters. Separate
+CLI processes do not coordinate with one another, so avoid parallel invocations
+or divide the available quota budget across them. A higher concurrency value
+does not bypass the rate limit; it only overlaps requests after permits become
+available.
+
 Cloud Trace HTTP 429 and Cloud Logging `RESOURCE_EXHAUSTED` responses are hard
 per-report failures, even with `--allow-partial`, because the resulting artifact
 cannot establish that collection was complete. Retry at a lower rate.
@@ -215,10 +252,18 @@ a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
 BasicReport in the batch. The defaults shown above are also the CLI defaults.
 
-By default, the artifact contains only allowlisted operational fields and
-sanitized `xmm.*` identifiers. Use `--include-raw-payloads` only for a locally
+By default, the artifact contains allowlisted operational fields, sanitized
+warning and error summaries, and bounded stack-trace context. It still omits verbose
+gRPC request and response payloads because those can contain credentials and
+encrypted request data. Use `--include-raw-payloads` only for a locally
 controlled investigation: the resulting file is marked `RAW-SENSITIVE` and can
 contain credentials, request data, or other secrets. Review it before sharing.
+
+Do not infer an application failure from the displayed Cloud Logging severity
+alone. GKE assigns `ERROR` to container stderr, and Java's verbose gRPC logger
+can write ordinary `INFO` request and response dumps there. Read the retained
+diagnostic text and correlated `xmm.outcome` or gRPC status before classifying
+the entry.
 
 The artifact reports collection completeness (`COMPLETE`, `PARTIAL`, or
 `FAILED`) separately from the report's execution outcome (`SUCCEEDED`, `FAILED`,

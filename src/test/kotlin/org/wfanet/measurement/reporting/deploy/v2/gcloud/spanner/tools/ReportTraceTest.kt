@@ -20,6 +20,7 @@ import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Payload
+import com.google.cloud.logging.Severity
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -3673,6 +3674,80 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Reporting lifecycle logs retain per-child coverage without spans`() {
+    val metricNames =
+      listOf(
+        "measurementConsumers/mc-1/metrics/metric-1",
+        "measurementConsumers/mc-1/metrics/metric-2",
+      )
+    val measurementNames =
+      listOf(
+        "measurementConsumers/mc-1/measurements/measurement-1",
+        "measurementConsumers/mc-1/measurements/measurement-2",
+      )
+    val context =
+      reportTraceContext().copy(metricNames = metricNames, measurementNames = measurementNames)
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topology =
+          ReportTraceTopology(
+            routes = emptyMap(),
+            provenance = "operator-provided --topology-config-file (0 DataProvider routes)",
+          ),
+        measurementRoutes =
+          measurementNames.map { measurementName ->
+            ReportTraceMeasurementRoute(
+              name = measurementName,
+              state = "SUCCEEDED",
+              protocol = "DIRECT",
+              route = ReportTraceMeasurementRouteKind.DIRECT,
+              duchyIds = emptyList(),
+              duchyParticipantsResolved = true,
+              requisitions = emptyList(),
+              requisitionsResolved = true,
+            )
+          },
+        warnings = emptyList(),
+      )
+    val logEntries =
+      listOf(
+        successfulLifecycleLog(
+          "metric_result_sync",
+          mapOf("xmm.metric.name" to metricNames.first()),
+          0,
+        ),
+        successfulLifecycleLog(
+          "kingdom_measurement_sync",
+          mapOf("xmm.measurement.name" to measurementNames.first()),
+          1,
+        ),
+        successfulLifecycleLog(
+          "report_result_assembly",
+          mapOf("xmm.report.name" to context.reportName),
+          2,
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), logEntries)
+
+    assertThat(
+        coverage.filter { it.name == "metric_result_sync" }.associate { it.resource to it.status }
+      )
+      .containsExactly(metricNames[0], "SUCCEEDED", metricNames[1], "MISSING")
+    assertThat(
+        coverage
+          .filter { it.name == "kingdom_measurement_sync" }
+          .associate { it.resource to it.status }
+      )
+      .containsExactly(measurementNames[0], "SUCCEEDED", measurementNames[1], "MISSING")
+    assertThat(coverage.single { it.name == "report_result_assembly" }.status)
+      .isEqualTo("SUCCEEDED")
+  }
+
+  @Test
   fun `structured errors render for every MPC and Duchy lifecycle stage`() {
     val context = reportTraceContext()
     val measurementName = context.measurementNames.single()
@@ -3809,7 +3884,12 @@ class ReportTraceTest {
         )
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.INFO,
+        includeRawPayloads = false,
+      )
 
     assertThat(rendered).contains("xmm.report.name=measurementConsumers/mc-1/reports/report-1")
     assertThat(rendered).doesNotContain("request failed")
@@ -3828,7 +3908,12 @@ class ReportTraceTest {
           "xmm.lifecycle.stage=noise_correction token=secret-value arbitrary request body"
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.INFO,
+        includeRawPayloads = false,
+      )
 
     assertThat(rendered)
       .contains("xmm.basic_report.name=measurementConsumers/mc-1/basicReports/br-1")
@@ -3849,7 +3934,12 @@ class ReportTraceTest {
         )
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.WARNING,
+        includeRawPayloads = false,
+      )
 
     assertThat(rendered).contains("event=requisition_failed")
     assertThat(rendered).contains("status=failed")
@@ -3857,6 +3947,53 @@ class ReportTraceTest {
     assertThat(rendered).doesNotContain("session-secret")
     assertThat(rendered).doesNotContain("aaa.bbb.ccc")
     assertThat(rendered).doesNotContain("X-Goog-Signature")
+  }
+
+  @Test
+  fun `renderLogPayload keeps sanitized warning stack trace`() {
+    val payload =
+      Payload.StringPayload.of(
+        "Refusing Requisition dataProviders/dp-1/requisitions/r1\n" +
+          "org.example.UnfulfillableRequisitionException: PopulationSpec is invalid\n" +
+          "\tat org.example.Fulfiller.process(Fulfiller.kt:42)\n" +
+          "Caused by: org.example.PopulationSpecValidationException: " +
+          "Not all population fields are set: gender, age_group, us_state\n" +
+          "authorization=secret-token"
+      )
+
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.WARNING,
+        includeRawPayloads = false,
+      )
+
+    assertThat(rendered).contains("Refusing Requisition")
+    assertThat(rendered).contains("UnfulfillableRequisitionException")
+    assertThat(rendered).contains("PopulationSpec is invalid")
+    assertThat(rendered).contains("Fulfiller.process(Fulfiller.kt:42)")
+    assertThat(rendered).contains("PopulationSpecValidationException")
+    assertThat(rendered).contains("Not all population fields are set: gender, age_group, us_state")
+    assertThat(rendered).contains("authorization=[REDACTED]")
+    assertThat(rendered).doesNotContain("secret-token")
+  }
+
+  @Test
+  fun `renderLogPayload omits verbose gRPC payload mislabeled as error`() {
+    val payload =
+      Payload.StringPayload.of(
+        "INFO: [grpc-worker] gRPC trace-id request: " +
+          "Metadata(x-api-key=secret-key) report: \"reports/report-1\""
+      )
+
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        payload,
+        severity = Severity.ERROR,
+        includeRawPayloads = false,
+      )
+
+    assertThat(rendered).isEqualTo("[string payload omitted]")
   }
 
   @Test
@@ -5309,6 +5446,25 @@ class ReportTraceTest {
         },
       severity = "ERROR",
       trace = "projects/test/traces/trace-$secondsAfterNow",
+      message = message,
+    )
+  }
+
+  private fun successfulLifecycleLog(
+    stage: String,
+    producerAttributes: Map<String, String>,
+    secondsAfterNow: Int,
+  ): ReportTraceLogEntry {
+    val message =
+      (mapOf("xmm.lifecycle.stage" to stage, "xmm.outcome" to "succeeded") + producerAttributes)
+        .entries
+        .joinToString(" ") { (name, value) -> "$name=$value" }
+    return ReportTraceLogEntry(
+      sourceProject = "test",
+      timestamp = NOW.plusSeconds(secondsAfterNow.toLong()),
+      service = "reporting",
+      severity = "INFO",
+      trace = null,
       message = message,
     )
   }

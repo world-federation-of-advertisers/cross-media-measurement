@@ -122,6 +122,7 @@ import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
@@ -1103,32 +1104,43 @@ class MetricsService(
           )
           .transform { measurements ->
             for (measurement in measurements) {
+              val outcome =
+                when (measurement.state) {
+                  Measurement.State.SUCCEEDED -> "succeeded"
+                  Measurement.State.CANCELLED,
+                  Measurement.State.FAILED -> "failed"
+                  Measurement.State.COMPUTING,
+                  Measurement.State.AWAITING_REQUISITION_FULFILLMENT -> "in_progress"
+                  Measurement.State.STATE_UNSPECIFIED,
+                  Measurement.State.UNRECOGNIZED -> "unknown"
+                }
+              val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
+              val reportAttributes = ReportTraceAttributes.fromMeasurementSpec(measurementSpec)
               ReportTracing.traceSuspending(
                 spanName = "reporting.kingdom_measurement.observed",
                 attributes =
                   Attributes.builder()
-                    .putAll(
-                      ReportTraceAttributes.fromMeasurementSpec(
-                        measurement.measurementSpec.unpack()
-                      )
-                    )
+                    .putAll(reportAttributes)
                     .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_measurement_sync")
                     .put(ReportTraceAttributes.MEASUREMENT_NAME, measurement.name)
                     .put(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
-                    .put(
-                      ReportTraceAttributes.OUTCOME,
-                      when (measurement.state) {
-                        Measurement.State.SUCCEEDED -> "succeeded"
-                        Measurement.State.CANCELLED,
-                        Measurement.State.FAILED -> "failed"
-                        Measurement.State.COMPUTING,
-                        Measurement.State.AWAITING_REQUISITION_FULFILLMENT -> "in_progress"
-                        Measurement.State.STATE_UNSPECIFIED,
-                        Measurement.State.UNRECOGNIZED -> "unknown"
-                      },
-                    )
+                    .put(ReportTraceAttributes.OUTCOME, outcome)
                     .build(),
               ) {}
+              ReportTraceLogging.log(
+                logger,
+                "reporting.kingdom_measurement.observed",
+                ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "kingdom_measurement_sync",
+                ReportTraceAttributes.BASIC_REPORT_NAME_STRING to
+                  reportAttributes.get(ReportTraceAttributes.BASIC_REPORT_NAME),
+                ReportTraceAttributes.REPORT_NAME_STRING to
+                  reportAttributes.get(ReportTraceAttributes.REPORT_NAME),
+                ReportTraceAttributes.METRIC_NAME_STRING to
+                  reportAttributes.get(ReportTraceAttributes.METRIC_NAME),
+                ReportTraceAttributes.MEASUREMENT_NAME_STRING to measurement.name,
+                ReportTraceAttributes.MEASUREMENT_STATE_STRING to measurement.state.name,
+                ReportTraceAttributes.OUTCOME_STRING to outcome,
+              )
               @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
               when (measurement.state) {
                 Measurement.State.SUCCEEDED -> emit(measurement)
@@ -1340,6 +1352,17 @@ class MetricsService(
             spanName = "reporting.kingdom_measurement.sync_failed",
             attributes = attributes,
             error = e,
+          )
+          ReportTraceLogging.log(
+            logger,
+            "reporting.kingdom_measurement.sync_failed",
+            ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "kingdom_measurement_sync",
+            ReportTraceAttributes.MEASUREMENT_NAME_STRING to measurementName,
+            ReportTraceAttributes.MEASUREMENT_REQUEST_ID_STRING to
+              internalMeasurement?.cmmsCreateMeasurementRequestId,
+            ReportTraceAttributes.OUTCOME_STRING to "failed",
+            ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(e),
+            ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(e),
           )
         }
         throw MeasurementSyncException(measurementNames.toSet(), e)
@@ -2503,6 +2526,15 @@ class MetricsService(
           }
         }
         for (metric in publicMetrics) {
+          val outcome =
+            when (metric.state) {
+              Metric.State.SUCCEEDED -> "succeeded"
+              Metric.State.FAILED,
+              Metric.State.INVALID -> "failed"
+              Metric.State.RUNNING -> "in_progress"
+              Metric.State.STATE_UNSPECIFIED,
+              Metric.State.UNRECOGNIZED -> "unknown"
+            }
           ReportTracing.traceSuspending(
             spanName = "reporting.metric.result_synchronized",
             attributes =
@@ -2510,17 +2542,7 @@ class MetricsService(
                 .put(ReportTraceAttributes.LIFECYCLE_STAGE, "metric_result_sync")
                 .put(ReportTraceAttributes.METRIC_NAME, metric.name)
                 .put(ReportTraceAttributes.METRIC_STATE, metric.state.name)
-                .put(
-                  ReportTraceAttributes.OUTCOME,
-                  when (metric.state) {
-                    Metric.State.SUCCEEDED -> "succeeded"
-                    Metric.State.FAILED,
-                    Metric.State.INVALID -> "failed"
-                    Metric.State.RUNNING -> "in_progress"
-                    Metric.State.STATE_UNSPECIFIED,
-                    Metric.State.UNRECOGNIZED -> "unknown"
-                  },
-                )
+                .put(ReportTraceAttributes.OUTCOME, outcome)
                 .also { builder ->
                   if (metric.basicReport.isNotBlank()) {
                     builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, metric.basicReport)
@@ -2531,6 +2553,16 @@ class MetricsService(
                 }
                 .build(),
           ) {}
+          ReportTraceLogging.log(
+            logger,
+            "reporting.metric.result_synchronized",
+            ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+            ReportTraceAttributes.BASIC_REPORT_NAME_STRING to metric.basicReport,
+            ReportTraceAttributes.REPORT_NAME_STRING to metric.containingReport,
+            ReportTraceAttributes.METRIC_NAME_STRING to metric.name,
+            ReportTraceAttributes.METRIC_STATE_STRING to metric.state.name,
+            ReportTraceAttributes.OUTCOME_STRING to outcome,
+          )
         }
         Span.current()
           .setAttribute(
@@ -2594,6 +2626,19 @@ class MetricsService(
               .build(),
           error = error,
         )
+        ReportTraceLogging.log(
+          logger,
+          "reporting.metric.result_sync_failed",
+          ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+          ReportTraceAttributes.BASIC_REPORT_NAME_STRING to internalMetric.details.basicReport,
+          ReportTraceAttributes.REPORT_NAME_STRING to internalMetric.details.containingReport,
+          ReportTraceAttributes.METRIC_NAME_STRING to
+            MetricKey(internalMetric.cmmsMeasurementConsumerId, internalMetric.externalMetricId)
+              .toName(),
+          ReportTraceAttributes.OUTCOME_STRING to "failed",
+          ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error),
+          ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(error),
+        )
       }
       if (affectedInternalMetrics.isEmpty()) {
         ReportTracing.recordFailure(
@@ -2617,6 +2662,26 @@ class MetricsService(
               }
               .build(),
           error = error,
+        )
+        ReportTraceLogging.log(
+          logger,
+          "reporting.metric.result_sync_failed",
+          ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
+          ReportTraceAttributes.BASIC_REPORT_NAME_STRING to
+            internalMetrics
+              .map { it.details.basicReport }
+              .filter(String::isNotBlank)
+              .distinct()
+              .singleOrNull(),
+          ReportTraceAttributes.REPORT_NAME_STRING to
+            internalMetrics
+              .map { it.details.containingReport }
+              .filter(String::isNotBlank)
+              .distinct()
+              .singleOrNull(),
+          ReportTraceAttributes.OUTCOME_STRING to "failed",
+          ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error),
+          ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(error),
         )
       }
       throw error
@@ -2738,7 +2803,7 @@ class MetricsService(
 
   companion object {
     private val RESOURCE_ID_REGEX = ResourceIds.AIP_122_REGEX
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(MetricsService::class.java.name)
   }
 }
 
