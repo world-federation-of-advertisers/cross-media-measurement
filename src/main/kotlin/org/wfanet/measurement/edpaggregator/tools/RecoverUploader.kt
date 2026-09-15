@@ -178,9 +178,7 @@ class RecoverUploader(
     row: RawImpressionUploadModelLine,
   ) {
     val predecessorName = row.recoveryPredecessorRawImpressionUpload
-    require(predecessorName.isNotEmpty()) {
-      "${row.name} does not identify the upload that must complete before recovery"
-    }
+    if (predecessorName.isEmpty()) return
     val predecessor =
       uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = predecessorName })
     val revisions = listUploads(dataProviderName, predecessor.doneBlobUri)

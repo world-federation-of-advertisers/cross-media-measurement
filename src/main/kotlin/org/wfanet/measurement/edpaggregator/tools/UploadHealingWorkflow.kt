@@ -48,6 +48,9 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
 /** Executes an eviction while reporting each durable per-entry checkpoint. */
 fun interface EvictionExecutor {
+  /** Acquires the eviction fence and verifies that [plan] is still current. */
+  suspend fun prepare(plan: EvictUploader.EvictionPlan): EvictUploader.EvictionPlan = plan
+
   suspend fun evict(
     plan: EvictUploader.EvictionPlan,
     reason: String,
@@ -78,25 +81,26 @@ class UploadHealingWorkflow(
     val evictionResult: EvictUploader.EvictionResult? = null,
   )
 
-  /** Persists [plan] before its first mutation, then advances it as far as currently possible. */
+  /** Fences and revalidates [plan], persists it before eviction, then advances the workflow. */
   suspend fun start(
     plan: EvictUploader.EvictionPlan,
     reason: String,
     labeledImpressionsBlobPrefix: String,
   ): Progress {
-    val dataProviderName = dataProviderOf(plan.badUploads.first())
-    val operationId = plan.evictionOperationId
+    val preparedPlan = evictionExecutor.prepare(plan)
+    val dataProviderName = dataProviderOf(preparedPlan.badUploads.first())
+    val operationId = preparedPlan.evictionOperationId
     val operatorRecoveryTargets =
-      plan.recoveryTargets
+      preparedPlan.recoveryTargets
         .flatMap { target -> target.cmmsModelLines.map { target.uploadName to it } }
         .toSet()
     val operation = uploadHealingOperation {
       this.reason = reason
       this.labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix
-      badRawImpressionUploads += plan.badUploads
-      cutoffTime = plan.cutoffTime.toProtoTime()
+      badRawImpressionUploads += preparedPlan.badUploads
+      cutoffTime = preparedPlan.cutoffTime.toProtoTime()
       steps +=
-        plan.cascade.mapIndexed { index, entry ->
+        preparedPlan.cascade.mapIndexed { index, entry ->
           uploadHealingStep {
             sequenceNumber = index.toLong()
             sourceRawImpressionUpload = entry.uploadName

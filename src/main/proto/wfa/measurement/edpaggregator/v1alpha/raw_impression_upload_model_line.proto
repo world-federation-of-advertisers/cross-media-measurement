@@ -152,6 +152,8 @@ message RawImpressionUploadModelLine {
       [(google.api.field_behavior) = OUTPUT_ONLY];
 
   // Upload whose completed replacement must exist before recovery can start.
+  // Empty when recovery starts a new memoized chain after its first upload was
+  // permanently removed.
   string recovery_predecessor_raw_impression_upload = 15 [
     (google.api.field_behavior) = OUTPUT_ONLY,
     (google.api.resource_reference) = {

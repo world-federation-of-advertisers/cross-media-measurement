@@ -71,6 +71,10 @@ message UploadHealingOperation {
       [(google.api.field_behavior) = REQUIRED];
 
   // Ordered checkpoints in the eviction and replacement graph.
+  // (-- api-linter: core::0122::embedded-resource=disabled
+  //     aip.dev/not-precedent: Steps are transactionally owned checkpoints
+  //     returned with their operation so resume observes one consistent
+  //     workflow snapshot. --)
   repeated UploadHealingStep steps = 7 [(google.api.field_behavior) = REQUIRED];
 
   // Time when this operation was created.
@@ -89,7 +93,7 @@ message UploadHealingOperation {
 message UploadHealingStep {
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/UploadHealingStep"
-    pattern: "dataProviders/{data_provider}/uploadHealingOperations/{upload_healing_operation}/steps/{upload_healing_step}"
+    pattern: "dataProviders/{data_provider}/uploadHealingOperations/{upload_healing_operation}/uploadHealingSteps/{upload_healing_step}"
     singular: "uploadHealingStep"
     plural: "uploadHealingSteps"
   };
@@ -149,6 +153,8 @@ message UploadHealingStep {
   ];
 
   // Upload whose replacement must complete before this step can be recovered.
+  // Empty when recovery starts a new memoized chain after its first upload was
+  // permanently removed.
   string recovery_predecessor_raw_impression_upload = 8 [
     (google.api.field_behavior) = IMMUTABLE,
     (google.api.resource_reference) = {

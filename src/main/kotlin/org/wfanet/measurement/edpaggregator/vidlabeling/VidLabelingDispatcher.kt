@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
@@ -53,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt.filter as rankIndexFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequestKt.filter as rawUploadFileFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt.filter as rawUploadFilter
@@ -541,11 +543,16 @@ class VidLabelingDispatcher(
         doneBlobUri = doneBlobPath
         doneBlobGeneration = generation
         doneBlobCreateTime = createTime.toProtoTime()
+        if (evictionOperationId != null) {
+          uploadHealingOperation =
+            UploadHealingOperationKey(
+                requireNotNull(DataProviderKey.fromName(dataProviderName)),
+                evictionOperationId,
+              )
+              .toName()
+        }
       }
       requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
-      if (evictionOperationId != null) {
-        this.evictionOperationId = evictionOperationId
-      }
     }
 
     return try {
@@ -909,9 +916,7 @@ class VidLabelingDispatcher(
   /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */
   private suspend fun requireRecoveryPredecessorReady(row: RawImpressionUploadModelLine) {
     val predecessorName = row.recoveryPredecessorRawImpressionUpload
-    check(predecessorName.isNotEmpty()) {
-      "${row.name} does not identify the upload that must complete before recovery"
-    }
+    if (predecessorName.isEmpty()) return
     val predecessor =
       rpcThrottlers.metadataRead.onReady {
         rawImpressionUploadStub.getRawImpressionUpload(

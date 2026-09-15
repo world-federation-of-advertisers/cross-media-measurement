@@ -925,7 +925,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict releases newly acquired fence when plan changes`(): Unit = runBlocking {
+  fun `prepare releases newly acquired fence when plan changes`(): Unit = runBlocking {
     var includeLaterUpload = false
     whenever(uploadService.listRawImpressionUploads(any())).thenAnswer {
       listRawImpressionUploadsResponse {
@@ -998,8 +998,7 @@ class EvictUploaderTest {
 
     val confirmedPlan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
     includeLaterUpload = true
-    val error =
-      assertFailsWith<IllegalArgumentException> { evictUploader.evict(confirmedPlan, REASON) }
+    val error = assertFailsWith<IllegalArgumentException> { evictUploader.prepare(confirmedPlan) }
 
     assertThat(error).hasMessageThat().contains("plan changed")
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
@@ -1007,7 +1006,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict retains reacquired fence when plan refresh fails`(): Unit = runBlocking {
+  fun `prepare retains reacquired fence when plan refresh fails`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(
         listRawImpressionUploadsResponse {
@@ -1025,7 +1024,7 @@ class EvictUploaderTest {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenThrow(Status.UNAVAILABLE.asRuntimeException())
 
-    val error = assertFailsWith<StatusException> { evictUploader.evict(confirmedPlan, REASON) }
+    val error = assertFailsWith<StatusException> { evictUploader.prepare(confirmedPlan) }
 
     assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }

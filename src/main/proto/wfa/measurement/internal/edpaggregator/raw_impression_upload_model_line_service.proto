@@ -288,6 +288,8 @@ message MarkRawImpressionUploadModelLineFailedRequest {
   // Action required to replace output invalidated by the eviction.
   RawImpressionUploadModelLineRecoveryAction recovery_action = 9;
 
-  // Resource ID of the upload whose completed replacement is required.
+  // Resource ID of the upload whose completed replacement is required. Empty
+  // when recovery starts a new memoized chain after its first upload was
+  // permanently removed.
   string recovery_predecessor_raw_impression_upload_resource_id = 10;
 }
