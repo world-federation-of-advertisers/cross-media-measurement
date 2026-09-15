@@ -46,8 +46,16 @@ import java.time.Instant
 import java.time.format.DateTimeParseException
 import kotlin.properties.Delegates
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withTimeout
 import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
@@ -187,7 +195,7 @@ internal fun interface ReportTraceLogReader {
 }
 
 internal fun interface ReportTraceSpanReader {
-  fun read(
+  suspend fun read(
     project: String,
     correlationValues: Collection<String>,
     traceIds: Collection<String>,
@@ -195,6 +203,8 @@ internal fun interface ReportTraceSpanReader {
     endTime: Instant,
     limit: Int,
   ): List<ReportTraceSpan>
+
+  fun withMaxConcurrency(maxConcurrency: Int): ReportTraceSpanReader = this
 }
 
 internal fun interface BasicReportTraceResolver {
@@ -407,14 +417,31 @@ internal class GoogleCloudReportTraceLogReader(
 internal class GoogleCloudReportTraceSpanReader(
   private val credentials: GoogleCredentials,
   private val httpClient: HttpClient,
+  private var maxConcurrency: Int,
 ) : ReportTraceSpanReader {
+  constructor(
+    credentials: GoogleCredentials,
+    httpClient: HttpClient,
+  ) : this(credentials, httpClient, DEFAULT_MAX_CONCURRENCY)
+
   constructor() :
     this(
       GoogleCredentials.getApplicationDefault().createScoped(TRACE_READ_SCOPE),
       HttpClient.newHttpClient(),
+      DEFAULT_MAX_CONCURRENCY,
     )
 
-  override fun read(
+  init {
+    require(maxConcurrency > 0) { "maxConcurrency must be positive" }
+  }
+
+  override fun withMaxConcurrency(maxConcurrency: Int): ReportTraceSpanReader {
+    require(maxConcurrency > 0) { "maxConcurrency must be positive" }
+    this.maxConcurrency = maxConcurrency
+    return this
+  }
+
+  override suspend fun read(
     project: String,
     correlationValues: Collection<String>,
     traceIds: Collection<String>,
@@ -422,17 +449,37 @@ internal class GoogleCloudReportTraceSpanReader(
     endTime: Instant,
     limit: Int,
   ): List<ReportTraceSpan> {
-    credentials.refreshIfExpired()
-    val entries = mutableListOf<ReportTraceSpan>()
-    for (correlationValue in correlationValues.distinct()) {
-      for (traceAttribute in traceAttributesFor(correlationValue)) {
-        entries +=
-          listTraces(project, "+$traceAttribute:\"$correlationValue\"", startTime, endTime, limit)
+    runInterruptible(Dispatchers.IO) { credentials.refreshIfExpired() }
+    val queries =
+      buildList<() -> List<ReportTraceSpan>> {
+        for (correlationValue in correlationValues.distinct()) {
+          for (traceAttribute in traceAttributesFor(correlationValue)) {
+            add {
+              listTraces(
+                project,
+                "+$traceAttribute:\"$correlationValue\"",
+                startTime,
+                endTime,
+                limit,
+              )
+            }
+          }
+        }
+        for (traceId in traceIds.map { it.substringAfterLast('/') }.distinct()) {
+          add { readTrace(project, traceId).orEmpty() }
+        }
       }
-    }
-    for (traceId in traceIds.map { it.substringAfterLast('/') }.distinct()) {
-      readTrace(project, traceId)?.let { entries += it }
-    }
+    val entries =
+      kotlinx.coroutines
+        .coroutineScope {
+          val semaphore = Semaphore(maxConcurrency)
+          queries
+            .map { query ->
+              async { semaphore.withPermit { runInterruptible(Dispatchers.IO) { query() } } }
+            }
+            .awaitAll()
+        }
+        .flatten()
     return retainReportTraceSpans(entries.distinct(), readLimit(limit))
   }
 
@@ -506,6 +553,7 @@ internal class GoogleCloudReportTraceSpanReader(
     private const val WORK_ITEM_TRACE_ATTRIBUTE = "xmm.work_item.name"
     private const val COMPUTATION_TRACE_ATTRIBUTE = "xmm.computation.name"
     private const val MAX_TRACE_PAGE_SIZE = 1000
+    private const val DEFAULT_MAX_CONCURRENCY = 8
     private val HTTP_REQUEST_TIMEOUT: Duration = Duration.ofSeconds(30)
 
     private fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
@@ -1790,6 +1838,29 @@ internal object ReportTraceOutput {
             edpaRequirement,
             requiredPresenceAttributes = setOf("xmm.edpa.group_id"),
           )
+          val duchyIngressRequirement =
+            when (measurement.route) {
+              ReportTraceMeasurementRouteKind.DIRECT -> ReportTraceStageRequirement.NOT_APPLICABLE
+              ReportTraceMeasurementRouteKind.MPC ->
+                when {
+                  measurementReused -> ReportTraceStageRequirement.REUSED
+                  requisitionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+                  measurementFailed && !requisitionFulfilled ->
+                    ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+                  else -> ReportTraceStageRequirement.REQUIRED
+                }
+              ReportTraceMeasurementRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
+            }
+          for (stage in
+            listOf("duchy_requisition_acceptance", "duchy_requisition_kingdom_fulfillment")) {
+            addWithPresence(
+              stage,
+              requisition.name,
+              "xmm.requisition.name",
+              duchyIngressRequirement,
+              requiredPresenceAttributes = setOf("xmm.duchy.id"),
+            )
+          }
           val requisitionAcceptanceRequirement: ReportTraceStageRequirement =
             when (measurement.route) {
               ReportTraceMeasurementRouteKind.DIRECT ->
@@ -2007,6 +2078,8 @@ internal object ReportTraceOutput {
       "requisition_dispatch",
       "work_item_processing",
       "results_fulfillment",
+      "duchy_requisition_acceptance",
+      "duchy_requisition_kingdom_fulfillment",
       "kingdom_requisition_result_acceptance",
       "kingdom_requisition_refusal_acceptance",
     )
@@ -2106,7 +2179,9 @@ internal class ReportTrace(
 ) : Runnable {
   @CommandLine.Spec private lateinit var spec: CommandLine.Model.CommandSpec
 
-  private val spanReader: ReportTraceSpanReader by lazy(spanReaderFactory)
+  private val spanReader: ReportTraceSpanReader by lazy {
+    spanReaderFactory().withMaxConcurrency(traceMaxConcurrency)
+  }
   private val logReaders = mutableMapOf<Pair<String, Boolean>, ReportTraceLogReader>()
 
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
@@ -2251,9 +2326,41 @@ internal class ReportTrace(
 
   @CommandLine.Option(
     names = ["--report"],
-    description = ["Report resource name for direct mode (does not require reporting databases)."],
+    description =
+      [
+        "Report resource name for break-glass discovery without Reporting databases.",
+        "This mode cannot resolve the authoritative child graph and normally returns PARTIAL.",
+      ],
   )
   private var reportName: String? = null
+
+  @CommandLine.Option(
+    names = ["--collection-deadline"],
+    defaultValue = "PT2M",
+    description = ["Maximum telemetry collection time for each requested report."],
+  )
+  private lateinit var collectionDeadline: Duration
+
+  @set:CommandLine.Option(
+    names = ["--trace-max-concurrency"],
+    defaultValue = "8",
+    description = ["Maximum concurrent Cloud Trace API requests."],
+  )
+  private var traceMaxConcurrency by Delegates.notNull<Int>()
+
+  @set:CommandLine.Option(
+    names = ["--max-correlation-values"],
+    defaultValue = "500",
+    description = ["Maximum distinct correlation values queried for each report."],
+  )
+  private var maxCorrelationValues by Delegates.notNull<Int>()
+
+  @set:CommandLine.Option(
+    names = ["--max-trace-ids"],
+    defaultValue = "500",
+    description = ["Maximum distinct trace IDs queried for each report."],
+  )
+  private var maxTraceIds by Delegates.notNull<Int>()
 
   @CommandLine.Option(
     names = ["--start-time"],
@@ -2310,6 +2417,27 @@ internal class ReportTrace(
       throw CommandLine.ParameterException(spec.commandLine(), "--limit must be non-negative")
     }
     val entryLimit = if (configuredLimit == 0) Int.MAX_VALUE else configuredLimit
+    if (collectionDeadline.isZero || collectionDeadline.isNegative) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--collection-deadline must be positive",
+      )
+    }
+    if (traceMaxConcurrency <= 0) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--trace-max-concurrency must be positive",
+      )
+    }
+    if (maxCorrelationValues <= 0) {
+      throw CommandLine.ParameterException(
+        spec.commandLine(),
+        "--max-correlation-values must be positive",
+      )
+    }
+    if (maxTraceIds <= 0) {
+      throw CommandLine.ParameterException(spec.commandLine(), "--max-trace-ids must be positive")
+    }
 
     val parsedEndTime = endTime?.let { parseTime("--end-time", it) } ?: clock.instant()
     val explicitStartTime = startTime?.let { parseTime("--start-time", it) }
@@ -2359,6 +2487,7 @@ internal class ReportTrace(
           parsedEndTime,
           entryLimit,
           resolutionFailure = null,
+          deadline = collectionDeadline,
         )
       spec
         .commandLine()
@@ -2455,6 +2584,7 @@ internal class ReportTrace(
 
       val fileName = outputFileName(basicReportKey)
       try {
+        val collectionStartNanos = System.nanoTime()
         val resolution: Pair<ReportTraceContext, String?> =
           try {
             resolver.resolve(basicReportKey) to null
@@ -2509,6 +2639,7 @@ internal class ReportTrace(
             endTime,
             entryLimit,
             resolutionFailure,
+            remainingCollectionDeadline(collectionStartNanos),
           )
         val recoveredMeasurementNames =
           ReportTraceOutput.recoveredMeasurementNames(
@@ -2549,6 +2680,7 @@ internal class ReportTrace(
               endTime,
               entryLimit,
               resolutionFailure,
+              remainingCollectionDeadline(collectionStartNanos),
             )
           collection =
             recoveredCollection.copy(
@@ -2599,7 +2731,66 @@ internal class ReportTrace(
     return if (failures == 0) 0 else 1
   }
 
-  private fun collectTimeline(
+  private suspend fun collectTimeline(
+    context: ReportTraceContext,
+    routeResolution: ReportTraceRouteResolution,
+    explicitStartTime: Instant?,
+    endTime: Instant,
+    entryLimit: Int,
+    resolutionFailure: String?,
+    deadline: Duration,
+  ): TimelineCollection {
+    return try {
+      withTimeout(deadline.toMillis()) {
+        collectTimelineWithoutDeadline(
+          context,
+          routeResolution,
+          explicitStartTime,
+          endTime,
+          entryLimit,
+          resolutionFailure,
+        )
+      }
+    } catch (e: TimeoutCancellationException) {
+      val startTime =
+        explicitStartTime
+          ?: context.createTime?.minus(DEFAULT_LEAD_TIME)
+          ?: endTime.minus(DEFAULT_LOOKBACK)
+      val warning =
+        "Telemetry collection exceeded the per-report deadline of $collectionDeadline; " +
+          "remaining lookups were skipped"
+      val lifecycleCoverage =
+        ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), emptyList())
+      TimelineCollection(
+        spans = emptyList(),
+        logEntries = emptyList(),
+        sourceStatuses =
+          listOf(
+            ReportTraceSourceStatus(
+              project = "collector",
+              source = "Per-report deadline",
+              status = "TRUNCATED",
+              fetched = 0,
+              retained = 0,
+              note = warning,
+            )
+          ),
+        warnings = listOf(warning),
+        status = ReportTraceArtifactStatus.PARTIAL,
+        lifecycleCoverage = lifecycleCoverage,
+        startTime = startTime,
+        endTime = endTime,
+        generatedAt = clock.instant(),
+      )
+    }
+  }
+
+  private fun remainingCollectionDeadline(startNanos: Long): Duration {
+    val elapsedNanos = System.nanoTime() - startNanos
+    return collectionDeadline.minusNanos(elapsedNanos.coerceAtLeast(0L))
+  }
+
+  private suspend fun collectTimelineWithoutDeadline(
     context: ReportTraceContext,
     routeResolution: ReportTraceRouteResolution,
     explicitStartTime: Instant?,
@@ -2655,17 +2846,26 @@ internal class ReportTrace(
     val traceFetchedCounts = mutableMapOf<String, Int>()
     val logFetchedCounts = mutableMapOf<String, Int>()
     val projects = observabilityProjects.distinct()
-    val correlationValues =
+    val initialCorrelationValues =
       (context.correlationValues + routeResolution.correlationValues).distinct()
+    val correlationValues = initialCorrelationValues.take(maxCorrelationValues)
+    var correlationValuesTruncated = initialCorrelationValues.size > correlationValues.size
+    if (correlationValuesTruncated) {
+      warnings +=
+        "Correlation values were capped at $maxCorrelationValues for this report; " +
+          "additional lookups were skipped"
+    }
     val queriedLogCorrelationValues = correlationValues.toMutableSet()
     for (project in projects) {
       try {
         val projectLogEntries =
-          logReaders
-            .getOrPut(project to includeRawPayloads) {
-              logReaderFactory(project, includeRawPayloads)
-            }
-            .read(correlationValues, startTime, endTime, entryLimit)
+          runInterruptible(Dispatchers.IO) {
+            logReaders
+              .getOrPut(project to includeRawPayloads) {
+                logReaderFactory(project, includeRawPayloads)
+              }
+              .read(correlationValues, startTime, endTime, entryLimit)
+          }
         if (projectLogEntries.size > entryLimit) {
           logTruncatedProjects += project
           warnings +=
@@ -2673,6 +2873,8 @@ internal class ReportTrace(
         }
         logFetchedCounts[project] = projectLogEntries.size
         logEntries += retainLogEntries(projectLogEntries, entryLimit)
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         val failure = failureDescription(e)
         logFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2680,7 +2882,14 @@ internal class ReportTrace(
       }
     }
 
-    val logTraceIds = logEntries.mapNotNull { it.trace?.substringAfterLast('/') }.distinct()
+    val discoveredLogTraceIds =
+      logEntries.mapNotNull { it.trace?.substringAfterLast('/') }.distinct()
+    val logTraceIds = discoveredLogTraceIds.take(maxTraceIds)
+    var traceIdsTruncated = discoveredLogTraceIds.size > logTraceIds.size
+    if (traceIdsTruncated) {
+      warnings +=
+        "Trace IDs were capped at $maxTraceIds for this report; additional lookups were skipped"
+    }
     val primaryCorrelationValues =
       listOfNotNull(
         context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
@@ -2705,6 +2914,8 @@ internal class ReportTrace(
         traceFetchedCounts[project] =
           traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
         spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         val failure = failureDescription(e)
         traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2715,7 +2926,16 @@ internal class ReportTrace(
     // A trace located by a searchable label in one project may have unlabelled remote spans in
     // another project. Fetch those complete traces by ID in every configured project.
     val spanTraceIds = spanEntries.map { it.traceId }.distinct()
-    val newlyDiscoveredTraceIds = spanTraceIds - logTraceIds.toSet()
+    val allNewlyDiscoveredTraceIds = spanTraceIds - logTraceIds.toSet()
+    val newlyDiscoveredTraceIds =
+      allNewlyDiscoveredTraceIds.take((maxTraceIds - queriedTraceIds.size).coerceAtLeast(0))
+    if (allNewlyDiscoveredTraceIds.size > newlyDiscoveredTraceIds.size) {
+      if (!traceIdsTruncated) {
+        warnings +=
+          "Trace IDs were capped at $maxTraceIds for this report; additional lookups were skipped"
+      }
+      traceIdsTruncated = true
+    }
     if (newlyDiscoveredTraceIds.isNotEmpty()) {
       queriedTraceIds += newlyDiscoveredTraceIds
       for (project in projects) {
@@ -2737,6 +2957,8 @@ internal class ReportTrace(
           traceFetchedCounts[project] =
             traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
           spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
+        } catch (e: CancellationException) {
+          throw e
         } catch (e: Exception) {
           val failure = failureDescription(e)
           traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2745,7 +2967,8 @@ internal class ReportTrace(
       }
     }
 
-    // Resource-name fallback can be expensive for high-cardinality reports. Use it only when the
+    // Resource-name fallback can be expensive for high-cardinality reports. Use it only when
+    // the
     // primary lineage query and cross-project trace-ID expansion did not cover the lifecycle.
     val fallbackCorrelationValues = correlationValues - primaryCorrelationValues.toSet()
     if (
@@ -2774,6 +2997,8 @@ internal class ReportTrace(
           traceFetchedCounts[project] =
             traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
           spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
+        } catch (e: CancellationException) {
+          throw e
         } catch (e: Exception) {
           val failure = failureDescription(e)
           traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2782,20 +3007,40 @@ internal class ReportTrace(
       }
     }
 
-    // Follow identifiers and trace IDs across process boundaries until no new correlation key is
+    // Follow identifiers and trace IDs across process boundaries until no new correlation key
+    // is
     // found. A fixed round limit bounds request growth for cyclic or unexpectedly large graphs.
     var expansionRounds = 0
     var expansionTruncated = false
     while (true) {
-      val knownCorrelationValues =
-        correlationValues + ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries)
+      val allKnownCorrelationValues =
+        (correlationValues + ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries))
+          .distinct()
+      val knownCorrelationValues = allKnownCorrelationValues.take(maxCorrelationValues)
+      if (allKnownCorrelationValues.size > knownCorrelationValues.size) {
+        if (!correlationValuesTruncated) {
+          warnings +=
+            "Correlation values were capped at $maxCorrelationValues for this report; " +
+              "additional lookups were skipped"
+        }
+        correlationValuesTruncated = true
+      }
       val pendingLogCorrelationValues = knownCorrelationValues.toSet() - queriedLogCorrelationValues
       val pendingTraceCorrelationValues =
         knownCorrelationValues.toSet() - queriedTraceCorrelationValues
-      val pendingTraceIds =
+      val allPendingTraceIds =
         (spanEntries.map { it.traceId } +
             logEntries.mapNotNull { it.trace?.substringAfterLast('/') })
           .toSet() - queriedTraceIds
+      val remainingTraceIdCapacity = (maxTraceIds - queriedTraceIds.size).coerceAtLeast(0)
+      val pendingTraceIds = allPendingTraceIds.take(remainingTraceIdCapacity).toSet()
+      if (allPendingTraceIds.size > pendingTraceIds.size) {
+        if (!traceIdsTruncated) {
+          warnings +=
+            "Trace IDs were capped at $maxTraceIds for this report; additional lookups were skipped"
+        }
+        traceIdsTruncated = true
+      }
       if (
         pendingLogCorrelationValues.isEmpty() &&
           pendingTraceCorrelationValues.isEmpty() &&
@@ -2817,11 +3062,13 @@ internal class ReportTrace(
         if (pendingLogCorrelationValues.isNotEmpty()) {
           try {
             val projectLogEntries =
-              logReaders
-                .getOrPut(project to includeRawPayloads) {
-                  logReaderFactory(project, includeRawPayloads)
-                }
-                .read(pendingLogCorrelationValues, startTime, endTime, entryLimit)
+              runInterruptible(Dispatchers.IO) {
+                logReaders
+                  .getOrPut(project to includeRawPayloads) {
+                    logReaderFactory(project, includeRawPayloads)
+                  }
+                  .read(pendingLogCorrelationValues, startTime, endTime, entryLimit)
+              }
             if (projectLogEntries.size > entryLimit) {
               logTruncatedProjects += project
               warnings +=
@@ -2831,6 +3078,8 @@ internal class ReportTrace(
             logFetchedCounts[project] =
               logFetchedCounts.getOrDefault(project, 0) + projectLogEntries.size
             logEntries += retainLogEntries(projectLogEntries, entryLimit)
+          } catch (e: CancellationException) {
+            throw e
           } catch (e: Exception) {
             val failure = failureDescription(e)
             logFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2858,6 +3107,8 @@ internal class ReportTrace(
             traceFetchedCounts[project] =
               traceFetchedCounts.getOrDefault(project, 0) + projectSpans.size
             spanEntries += retainReportTraceSpans(projectSpans, entryLimit)
+          } catch (e: CancellationException) {
+            throw e
           } catch (e: Exception) {
             val failure = failureDescription(e)
             traceFailures.getOrPut(project) { mutableListOf() } += failure
@@ -2924,6 +3175,30 @@ internal class ReportTrace(
             fetched = expansionRounds,
             retained = expansionRounds,
             note = "Stopped at the configured round limit",
+          )
+        )
+      }
+      if (correlationValuesTruncated) {
+        add(
+          ReportTraceSourceStatus(
+            project = "collector",
+            source = "Correlation values",
+            status = "TRUNCATED",
+            fetched = initialCorrelationValues.size,
+            retained = queriedTraceCorrelationValues.size,
+            note = "Stopped at the configured per-report cap",
+          )
+        )
+      }
+      if (traceIdsTruncated) {
+        add(
+          ReportTraceSourceStatus(
+            project = "collector",
+            source = "Trace IDs",
+            status = "TRUNCATED",
+            fetched = discoveredLogTraceIds.size,
+            retained = queriedTraceIds.size,
+            note = "Stopped at the configured per-report cap",
           )
         )
       }

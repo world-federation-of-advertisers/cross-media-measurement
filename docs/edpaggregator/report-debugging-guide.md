@@ -166,7 +166,11 @@ bazel run \
   --tls-key-file=<MEASUREMENT_CONSUMER_TLS_KEY_FILE> \
   --cert-collection-file=<KINGDOM_ROOT_CERT_COLLECTION_FILE> \
   --kingdom-api-key=<MEASUREMENT_CONSUMER_API_KEY> \
-  --topology-config-file=<REPORT_TRACE_TOPOLOGY_TEXTPROTO>
+  --topology-config-file=<REPORT_TRACE_TOPOLOGY_TEXTPROTO> \
+  --collection-deadline=PT2M \
+  --trace-max-concurrency=8 \
+  --max-correlation-values=500 \
+  --max-trace-ids=500
 ```
 
 Repeat `--basic-report` to collect a batch. `--output-dir` is required for a
@@ -193,6 +197,14 @@ provider as a direct EDP. Kingdom lookup is bounded by
 `--kingdom-resolution-timeout`, `--kingdom-max-concurrency`, and
 `--kingdom-max-attempts`; a partial or failed lookup does not prevent telemetry
 collection.
+
+Telemetry collection is also bounded independently for each requested report.
+`--collection-deadline` is the total collection budget, while
+`--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests.
+`--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
+a failed report exposes an unusually large number of descendants. Reaching any
+of these bounds writes a `PARTIAL` artifact and continues with the next
+BasicReport in the batch. The defaults shown above are also the CLI defaults.
 
 By default, the artifact contains only allowlisted operational fields and
 sanitized `xmm.*` identifiers. Use `--include-raw-payloads` only for a locally
@@ -236,6 +248,15 @@ fetcher's dispatch evidence supplies the Requisition, EDPA group, and WorkItem
 link used to attribute a WorkItem-processing span back to each Requisition in
 its group.
 
+For every MPC Requisition, regardless of whether the DataProvider is direct or
+EDPA-managed, the artifact separately requires the Duchy's local acceptance and
+persistence stage (`duchy_requisition_acceptance`) and its subsequent Kingdom
+fulfillment update (`duchy_requisition_kingdom_fulfillment`). Both stages carry
+the canonical public Requisition name and the accepting Duchy ID. This
+distinguishes a missing upload, a Duchy rejection or storage failure, and a
+failure forwarding the accepted fulfillment to the Kingdom. These stages are
+`NOT_APPLICABLE` for direct Measurements.
+
 Lifecycle coverage is evaluated for each expected Metric, Measurement,
 Requisition, and applicable Duchy participant. Direct result acceptance is
 required per Requisition at the Kingdom Requisitions API. MPC result acceptance
@@ -272,7 +293,7 @@ queries Trace and Logging using the requested BasicReport name. Any recovered
 evidence is written to a `PARTIAL` artifact instead of being discarded.
 
 If the BasicReport database is unavailable but the generated Report name is
-known, direct mode needs only observability permissions:
+known, the break-glass direct mode needs only observability permissions:
 
 ```bash
 bazel run \
@@ -282,6 +303,11 @@ bazel run \
   --report=measurementConsumers/<MC_ID>/reports/<REPORT_ID> \
   --start-time=<RFC3339_START_TIME>
 ```
+
+Direct `--report` mode cannot reconstruct the authoritative Metric,
+Measurement, Requisition, protocol, or Duchy graph. It is intended only for
+discovery during a Reporting database outage and normally produces a `PARTIAL`
+artifact. Use `--basic-report` for completeness evaluation.
 
 The stable correlation key is the full `BasicReport` resource name in
 `xmm.basic_report.name`. Reporting copies it through the generated `Report` and
@@ -298,10 +324,11 @@ mills, including HMSS and TrusTEE, label their spans with the canonical
 Measurement name, computation name, and local Duchy ID. Herald uses
 `xmm.lifecycle.stage=duchy_computation` for durable computation status, while
 mills use `xmm.lifecycle.stage=duchy_stage_attempt` for an individual
-stage-processing attempt. The
-post-processing/noise-correction job prefixes its logs while processing a
-BasicReport with `xmm.basic_report.name`, `xmm.report.name`, lifecycle stage, and
-outcome.
+stage-processing attempt. The Duchy RequisitionFulfillment service records the
+public Requisition name and local Duchy ID separately for local acceptance and
+the subsequent Kingdom update. The post-processing/noise-correction job prefixes
+its logs while processing a BasicReport with `xmm.basic_report.name`,
+`xmm.report.name`, lifecycle stage, and outcome.
 
 EDPA route tracing requires the direct RequisitionFetcher dispatcher described
 in the deployment guide. The legacy DataWatcher dispatch route is not supported

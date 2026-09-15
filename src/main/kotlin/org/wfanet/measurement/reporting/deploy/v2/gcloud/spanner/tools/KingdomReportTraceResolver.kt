@@ -99,7 +99,9 @@ internal data class ReportTraceRouteResolution(
   fun requirementFor(stage: String): ReportTraceStageRequirement {
     return when (stage) {
       "duchy_computation",
-      "duchy_stage_attempt" ->
+      "duchy_stage_attempt",
+      "duchy_requisition_acceptance",
+      "duchy_requisition_kingdom_fulfillment" ->
         aggregateRequirements(
           measurementRoutes.map { route ->
             when (route.route) {

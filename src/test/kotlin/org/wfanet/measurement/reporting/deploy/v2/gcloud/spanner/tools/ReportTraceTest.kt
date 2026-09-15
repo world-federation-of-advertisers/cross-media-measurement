@@ -36,7 +36,12 @@ import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Date
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -258,6 +263,144 @@ class ReportTraceTest {
     assertThat(output.toString()).contains("FAILED  not-a-resource-name")
     assertThat(output.toString())
       .contains("PARTIAL  measurementConsumers/mc-1/basicReports/report-a")
+  }
+
+  @Test
+  fun `collection deadline marks one report partial and continues the batch`() {
+    val output = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("deadline-traces").toPath()
+    val queriedBasicReports = mutableSetOf<String>()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
+            val basicReport =
+              correlationValues.firstOrNull { "/basicReports/" in it }
+                ?: return@ReportTraceSpanReader emptyList()
+            queriedBasicReports += basicReport
+            if (basicReport.endsWith("/report-a")) {
+              awaitCancellation()
+            }
+            emptyList()
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            ReportTraceContext(
+              basicReportName = key.toName(),
+              basicReportState = "RUNNING",
+              reportName =
+                "measurementConsumers/${key.cmmsMeasurementConsumerId}/reports/${key.basicReportId}",
+              metricNames = emptyList(),
+              metricStates = emptyMap(),
+              reusedMetricNames = emptySet(),
+              unresolvedMetricRequestIds = emptyList(),
+              measurementNames = emptyList(),
+              reusedMeasurementNames = emptySet(),
+              unresolvedMeasurementRequestIds = emptyList(),
+              reportResolvedByRequestId = false,
+              telemetryRecoveredMeasurementNames = emptyMap(),
+              createTime = NOW,
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-a",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-b",
+          "--output-dir=$outputDirectory",
+          "--collection-deadline=PT0.05S",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(queriedBasicReports)
+      .containsExactly(
+        "measurementConsumers/mc-1/basicReports/report-a",
+        "measurementConsumers/mc-1/basicReports/report-b",
+      )
+    assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
+      .contains("Telemetry collection exceeded the per-report deadline")
+    assertThat(outputDirectory.resolve("mc-1__report-b.md").toFile().readText())
+      .contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `collection caps correlation values and trace IDs per report`() {
+    val outputDirectory = temporaryFolder.newFolder("capped-traces").toPath()
+    val logQueryValues = mutableListOf<Collection<String>>()
+    val traceQueryIds = mutableListOf<Collection<String>>()
+    val context =
+      reportTraceContext()
+        .copy(
+          metricNames =
+            listOf(
+              "measurementConsumers/mc-1/metrics/metric-1",
+              "measurementConsumers/mc-1/metrics/metric-2",
+            )
+        )
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            logQueryValues += correlationValues
+            listOf("trace-1", "trace-2", "trace-3").mapIndexed { index, traceId ->
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW.plusSeconds(index.toLong()),
+                service = "test",
+                severity = "INFO",
+                trace = "projects/test/traces/$traceId",
+                message = "",
+              )
+            }
+          }
+        },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, _, traceIds, _, _, _ ->
+            traceQueryIds += traceIds
+            emptyList()
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { context },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=${context.basicReportName}",
+          "--output-dir=$outputDirectory",
+          "--max-correlation-values=2",
+          "--max-trace-ids=2",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(logQueryValues.flatten().distinct()).hasSize(2)
+    assertThat(traceQueryIds.flatten().distinct()).containsExactly("trace-1", "trace-2")
+    val artifact = outputDirectory.toFile().listFiles().single().readText()
+    assertThat(artifact).contains("| collector | Correlation values | TRUNCATED |")
+    assertThat(artifact).contains("| collector | Trace IDs | TRUNCATED |")
+    assertThat(artifact).contains("Collection completeness: PARTIAL")
   }
 
   @Test
@@ -649,7 +792,7 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `Cloud Trace reader retains failure outside chronological read limit`() {
+  fun `Cloud Trace reader retains failure outside chronological read limit`() = runBlocking {
     val successfulResponse = mock<HttpResponse<String>>()
     whenever(successfulResponse.statusCode()).thenReturn(200)
     whenever(successfulResponse.body())
@@ -725,6 +868,48 @@ class ReportTraceTest {
       )
 
     assertThat(spans.map { it.name }).containsExactly("newer-success", "late-failure").inOrder()
+  }
+
+  @Test
+  fun `Cloud Trace reader bounds concurrent requests`() = runBlocking {
+    val response = mock<HttpResponse<String>>()
+    whenever(response.statusCode()).thenReturn(200)
+    whenever(response.body()).thenReturn("{\"traces\":[]}")
+    val httpClient = mock<HttpClient>()
+    val activeRequests = AtomicInteger()
+    val maximumActiveRequests = AtomicInteger()
+    val firstTwoRequestsStarted = CountDownLatch(2)
+    whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
+      .thenAnswer {
+        val active = activeRequests.incrementAndGet()
+        maximumActiveRequests.accumulateAndGet(active) { current, update -> maxOf(current, update) }
+        firstTwoRequestsStarted.countDown()
+        check(firstTwoRequestsStarted.await(5, TimeUnit.SECONDS))
+        activeRequests.decrementAndGet()
+        response
+      }
+    val reader =
+      GoogleCloudReportTraceSpanReader(
+        GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
+        httpClient,
+        maxConcurrency = 2,
+      )
+
+    reader.read(
+      project = "trace-project",
+      correlationValues =
+        listOf(
+          "measurementConsumers/mc-1/basicReports/report-1",
+          "measurementConsumers/mc-1/basicReports/report-2",
+          "measurementConsumers/mc-1/basicReports/report-3",
+        ),
+      traceIds = emptyList(),
+      startTime = Instant.parse("2026-09-10T11:00:00Z"),
+      endTime = Instant.parse("2026-09-10T13:00:00Z"),
+      limit = 100,
+    )
+
+    assertThat(maximumActiveRequests.get()).isEqualTo(2)
   }
 
   @Test
@@ -1186,6 +1371,10 @@ class ReportTraceTest {
         "work_item_processing" to mapOf("xmm.work_item.name" to workItemName),
         "results_fulfillment" to
           mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to groupId),
+        "duchy_requisition_acceptance" to
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.duchy.id" to "worker1"),
+        "duchy_requisition_kingdom_fulfillment" to
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.duchy.id" to "worker1"),
         "kingdom_computation_result_acceptance" to mapOf("xmm.computation.name" to computationName),
         "kingdom_measurement_sync" to mapOf("xmm.measurement.name" to measurementName),
         "metric_result_sync" to mapOf("xmm.metric.name" to context.metricNames.single()),
@@ -1802,6 +1991,14 @@ class ReportTraceTest {
         failedLifecycleSpan(
           "kingdom_measurement_sync",
           mapOf("xmm.measurement.name" to measurementName),
+        ) +
+        lifecycleSpan(
+          "duchy_requisition_acceptance",
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.duchy.id" to "worker1"),
+        ) +
+        lifecycleSpan(
+          "duchy_requisition_kingdom_fulfillment",
+          mapOf("xmm.requisition.name" to requisitionName, "xmm.duchy.id" to "worker1"),
         ) +
         duchySpans
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
@@ -2726,7 +2923,9 @@ class ReportTraceTest {
     val mpcMetricName = "measurementConsumers/mc-1/metrics/mpc-metric"
     val directMeasurementName = "measurementConsumers/mc-1/measurements/direct-measurement"
     val mpcMeasurementName = "measurementConsumers/mc-1/measurements/mpc-measurement"
-    val directRequisitionName = "dataProviders/direct/requisitions/direct-requisition"
+    val directMeasurementRequisitionName =
+      "dataProviders/direct/requisitions/direct-measurement-requisition"
+    val mpcDirectRequisitionName = "dataProviders/direct/requisitions/mpc-direct-requisition"
     val edpaRequisitionName = "dataProviders/edpa/requisitions/edpa-requisition"
     val workItemName = "workItems/results-fulfiller-group-1"
     val groupId = "group-1"
@@ -2765,7 +2964,7 @@ class ReportTraceTest {
               requisitions =
                 listOf(
                   ReportTraceRequisitionRoute(
-                    name = directRequisitionName,
+                    name = directMeasurementRequisitionName,
                     state = "FULFILLED",
                     dataProvider = "dataProviders/direct",
                     route = ReportTraceRequisitionRouteKind.DIRECT_EDP,
@@ -2783,11 +2982,17 @@ class ReportTraceTest {
               requisitions =
                 listOf(
                   ReportTraceRequisitionRoute(
+                    name = mpcDirectRequisitionName,
+                    state = "FULFILLED",
+                    dataProvider = "dataProviders/direct",
+                    route = ReportTraceRequisitionRouteKind.DIRECT_EDP,
+                  ),
+                  ReportTraceRequisitionRoute(
                     name = edpaRequisitionName,
                     state = "FULFILLED",
                     dataProvider = "dataProviders/edpa",
                     route = ReportTraceRequisitionRouteKind.EDPA,
-                  )
+                  ),
                 ),
               requisitionsResolved = true,
             ),
@@ -2808,9 +3013,15 @@ class ReportTraceTest {
         "measurement_creation" to mapOf("xmm.measurement.name" to mpcMeasurementName),
         "measurement_linkage" to mapOf("xmm.measurement.name" to mpcMeasurementName),
         "kingdom_measurement_sync" to mapOf("xmm.measurement.name" to mpcMeasurementName),
-        "requisition_available" to mapOf("xmm.requisition.name" to directRequisitionName),
+        "requisition_available" to
+          mapOf("xmm.requisition.name" to directMeasurementRequisitionName),
         "kingdom_requisition_result_acceptance" to
-          mapOf("xmm.requisition.name" to directRequisitionName),
+          mapOf("xmm.requisition.name" to directMeasurementRequisitionName),
+        "requisition_available" to mapOf("xmm.requisition.name" to mpcDirectRequisitionName),
+        "duchy_requisition_acceptance" to
+          mapOf("xmm.requisition.name" to mpcDirectRequisitionName, "xmm.duchy.id" to "worker1"),
+        "duchy_requisition_kingdom_fulfillment" to
+          mapOf("xmm.requisition.name" to mpcDirectRequisitionName, "xmm.duchy.id" to "worker1"),
         "requisition_available" to mapOf("xmm.requisition.name" to edpaRequisitionName),
         "requisition_dispatch" to
           mapOf(
@@ -2825,6 +3036,10 @@ class ReportTraceTest {
           ),
         "results_fulfillment" to
           mapOf("xmm.requisition.name" to edpaRequisitionName, "xmm.edpa.group_id" to groupId),
+        "duchy_requisition_acceptance" to
+          mapOf("xmm.requisition.name" to edpaRequisitionName, "xmm.duchy.id" to "worker1"),
+        "duchy_requisition_kingdom_fulfillment" to
+          mapOf("xmm.requisition.name" to edpaRequisitionName, "xmm.duchy.id" to "worker1"),
         "kingdom_computation_result_acceptance" to
           mapOf(
             "xmm.measurement.name" to mpcMeasurementName,
@@ -2938,12 +3153,28 @@ class ReportTraceTest {
         "| kingdom_computation_result_acceptance | $directMeasurementName | NOT_APPLICABLE |"
       )
     assertThat(artifact)
-      .contains("| kingdom_requisition_result_acceptance | $directRequisitionName | SUCCEEDED |")
+      .contains(
+        "| kingdom_requisition_result_acceptance | $directMeasurementRequisitionName | " +
+          "SUCCEEDED |"
+      )
     assertThat(artifact)
       .contains("| kingdom_requisition_result_acceptance | $edpaRequisitionName | NOT_APPLICABLE |")
+    assertThat(artifact)
+      .contains(
+        "| kingdom_requisition_result_acceptance | $mpcDirectRequisitionName | " +
+          "NOT_APPLICABLE |"
+      )
     for (stage in listOf("requisition_dispatch", "work_item_processing", "results_fulfillment")) {
       assertThat(artifact).contains("| $stage | $edpaRequisitionName | SUCCEEDED |")
-      assertThat(artifact).contains("| $stage | $directRequisitionName | NOT_APPLICABLE |")
+      assertThat(artifact)
+        .contains("| $stage | $directMeasurementRequisitionName | NOT_APPLICABLE |")
+      assertThat(artifact).contains("| $stage | $mpcDirectRequisitionName | NOT_APPLICABLE |")
+    }
+    for (stage in listOf("duchy_requisition_acceptance", "duchy_requisition_kingdom_fulfillment")) {
+      assertThat(artifact).contains("| $stage | $edpaRequisitionName | SUCCEEDED |")
+      assertThat(artifact).contains("| $stage | $mpcDirectRequisitionName | SUCCEEDED |")
+      assertThat(artifact)
+        .contains("| $stage | $directMeasurementRequisitionName | NOT_APPLICABLE |")
     }
 
     val incompleteCoverage =
@@ -2953,6 +3184,8 @@ class ReportTraceTest {
         spans.filterNot {
           (it.attributes["xmm.lifecycle.stage"] == "results_fulfillment" &&
             it.attributes["xmm.requisition.name"] == edpaRequisitionName) ||
+            (it.attributes["xmm.lifecycle.stage"] == "duchy_requisition_acceptance" &&
+              it.attributes["xmm.requisition.name"] == mpcDirectRequisitionName) ||
             (it.attributes["xmm.lifecycle.stage"] == "measurement_linkage" &&
               it.attributes["xmm.measurement.name"] == mpcMeasurementName)
         },
@@ -2966,10 +3199,28 @@ class ReportTraceTest {
       .isEqualTo("MISSING")
     assertThat(
         incompleteCoverage
-          .single { it.name == "results_fulfillment" && it.resource == directRequisitionName }
+          .single {
+            it.name == "results_fulfillment" && it.resource == directMeasurementRequisitionName
+          }
           .status
       )
       .isEqualTo("NOT_APPLICABLE")
+    assertThat(
+        incompleteCoverage
+          .single {
+            it.name == "duchy_requisition_acceptance" && it.resource == mpcDirectRequisitionName
+          }
+          .status
+      )
+      .isEqualTo("MISSING")
+    assertThat(
+        incompleteCoverage
+          .single {
+            it.name == "duchy_requisition_acceptance" && it.resource == edpaRequisitionName
+          }
+          .status
+      )
+      .isEqualTo("SUCCEEDED")
     assertThat(
         incompleteCoverage
           .single { it.name == "measurement_linkage" && it.resource == mpcMeasurementName }
