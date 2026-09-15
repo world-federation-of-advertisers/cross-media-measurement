@@ -226,6 +226,8 @@ class UploadHealingWorkflow(
             evictionResult,
           )
         }
+        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
+          error("A no-replacement step for $source must not be a recovery target")
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED,
         RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED ->
           error("Healing step for $source has no recovery action")
@@ -345,6 +347,13 @@ class UploadHealingWorkflow(
       nonMemoizedModelLines =
         cascade.filterNot { it.memoized }.mapTo(mutableSetOf()) { it.cmmsModelLine },
       badUploads = badRawImpressionUploadsList,
+      noReplacementUploads =
+        cascade
+          .filter {
+            it.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+          }
+          .mapTo(mutableSetOf()) { it.uploadName },
       cutoffTime = cutoffTime.toInstant(),
       evictionOperationId = operationId,
       recoveryTargets = recoveryTargets,
