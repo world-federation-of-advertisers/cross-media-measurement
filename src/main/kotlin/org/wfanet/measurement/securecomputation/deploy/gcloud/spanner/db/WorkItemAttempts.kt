@@ -234,13 +234,14 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttemptAndScheduleRecover
   result: WorkItemAttemptResult,
   queue: QueueMapping.Queue,
   errorMessage: String,
+  nextAttemptTime: Instant,
 ): WorkItemAttemptRecoveryOutcome {
   failWorkItemAttempt(result.workItemId, result.workItemAttemptId, errorMessage)
   return if (result.workItemAttempt.attemptNumber >= queue.maxWorkItemAttempts) {
     scheduleWorkItemDeadLetterPublication(result.workItemId, result.generation)
     WorkItemAttemptRecoveryOutcome.DEAD_LETTERED
   } else {
-    retryWorkItem(result.workItemId, result.generation)
+    retryWorkItem(result.workItemId, result.generation, nextAttemptTime)
     WorkItemAttemptRecoveryOutcome.REQUEUED
   }
 }
@@ -337,6 +338,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.recoverExpiredWorkItemAttempt
     ),
     queue,
     "WorkItemAttempt lease expired",
+    now,
   )
 }
 
