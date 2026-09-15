@@ -252,18 +252,22 @@ a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
 BasicReport in the batch. The defaults shown above are also the CLI defaults.
 
-By default, the artifact contains allowlisted operational fields, sanitized
-warning and error summaries, and bounded stack-trace context. It still omits verbose
-gRPC request and response payloads because those can contain credentials and
-encrypted request data. Use `--include-raw-payloads` only for a locally
-controlled investigation: the resulting file is marked `RAW-SENSITIVE` and can
-contain credentials, request data, or other secrets. Review it before sharing.
+By default, the artifact contains complete application log payloads, including
+INFO messages, error messages, and stack traces. It omits entries produced by
+the generic verbose gRPC interceptor because those can contain credentials and
+encrypted request data. Application logs must still follow the normal policy
+of not logging sensitive data.
+
+Use `--include-grpc-payloads` only for a locally controlled investigation. The
+resulting artifact is marked `ALL-LOG-PAYLOADS; SENSITIVE` and can contain API
+keys, credentials, and complete request or response messages. Review it before
+sharing.
 
 Do not infer an application failure from the displayed Cloud Logging severity
 alone. GKE assigns `ERROR` to container stderr, and Java's verbose gRPC logger
-can write ordinary `INFO` request and response dumps there. Read the retained
-diagnostic text and correlated `xmm.outcome` or gRPC status before classifying
-the entry.
+can write ordinary `INFO` request and response dumps there. These entries are
+excluded unless `--include-grpc-payloads` is set. Use correlated `xmm.outcome`
+or gRPC status evidence when classifying an application failure.
 
 The artifact reports collection completeness (`COMPLETE`, `PARTIAL`, or
 `FAILED`) separately from the report's execution outcome (`SUCCEEDED`, `FAILED`,
