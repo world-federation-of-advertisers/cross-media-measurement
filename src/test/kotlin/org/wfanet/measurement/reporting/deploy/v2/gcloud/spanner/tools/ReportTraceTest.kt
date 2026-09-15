@@ -20,7 +20,6 @@ import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Payload
-import com.google.cloud.logging.Severity
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -977,7 +976,7 @@ class ReportTraceTest {
       GoogleCloudReportTraceLogReader(
         project = "logging-project",
         logging = logging,
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
         requestThrottler = throttler,
       )
 
@@ -1026,7 +1025,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("parent=span-1")
@@ -1099,7 +1098,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: COMPLETE")
@@ -1550,7 +1549,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: COMPLETE")
@@ -1646,7 +1645,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: COMPLETE")
@@ -2903,7 +2902,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output)
@@ -2962,7 +2961,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("- Requisitions: none discovered from telemetry")
@@ -3003,7 +3002,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: FAILED")
@@ -3658,7 +3657,7 @@ class ReportTraceTest {
         logEntries = logEntries,
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     for (stage in stageAttributes.keys) {
@@ -3802,7 +3801,7 @@ class ReportTraceTest {
         logEntries = logEntries,
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(coverage.filter { it.name == "duchy_computation" }.map { it.status })
@@ -3868,7 +3867,7 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `renderLogPayload redacts secrets and omits unapproved fields`() {
+  fun `renderLogPayload keeps non-gRPC JSON payload`() {
     val payload =
       Payload.JsonPayload.of(
         mapOf(
@@ -3884,46 +3883,27 @@ class ReportTraceTest {
         )
       )
 
-    val rendered =
-      ReportTraceOutput.renderLogPayload(
-        payload,
-        severity = Severity.INFO,
-        includeRawPayloads = false,
-      )
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
 
+    assertThat(rendered).contains(payload.toString())
     assertThat(rendered).contains("xmm.report.name=measurementConsumers/mc-1/reports/report-1")
-    assertThat(rendered).doesNotContain("request failed")
-    assertThat(rendered).doesNotContain("secret-token")
-    assertThat(rendered).doesNotContain("secret-api-key")
-    assertThat(rendered).doesNotContain("secret-password")
-    assertThat(rendered).doesNotContain("secret-authorization")
-    assertThat(rendered).doesNotContain("secret-customer-data")
   }
 
   @Test
-  fun `renderLogPayload keeps safe fields but omits arbitrary text`() {
+  fun `renderLogPayload keeps non-gRPC string payload`() {
     val payload =
       Payload.StringPayload.of(
         "xmm.basic_report.name=measurementConsumers/mc-1/basicReports/br-1 " +
           "xmm.lifecycle.stage=noise_correction token=secret-value arbitrary request body"
       )
 
-    val rendered =
-      ReportTraceOutput.renderLogPayload(
-        payload,
-        severity = Severity.INFO,
-        includeRawPayloads = false,
-      )
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
 
-    assertThat(rendered)
-      .contains("xmm.basic_report.name=measurementConsumers/mc-1/basicReports/br-1")
-    assertThat(rendered).contains("xmm.lifecycle.stage=noise_correction")
-    assertThat(rendered).doesNotContain("secret-value")
-    assertThat(rendered).doesNotContain("arbitrary request body")
+    assertThat(rendered).isEqualTo(payload.data)
   }
 
   @Test
-  fun `renderLogPayload omits credentials JWTs and signed URLs inside message`() {
+  fun `renderLogPayload keeps non-gRPC fields without redaction`() {
     val payload =
       Payload.JsonPayload.of(
         mapOf(
@@ -3934,48 +3914,25 @@ class ReportTraceTest {
         )
       )
 
-    val rendered =
-      ReportTraceOutput.renderLogPayload(
-        payload,
-        severity = Severity.WARNING,
-        includeRawPayloads = false,
-      )
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
 
-    assertThat(rendered).contains("event=requisition_failed")
-    assertThat(rendered).contains("status=failed")
-    assertThat(rendered).doesNotContain("hunter2")
-    assertThat(rendered).doesNotContain("session-secret")
-    assertThat(rendered).doesNotContain("aaa.bbb.ccc")
-    assertThat(rendered).doesNotContain("X-Goog-Signature")
+    assertThat(rendered).contains(payload.toString())
   }
 
   @Test
-  fun `renderLogPayload keeps sanitized warning stack trace`() {
+  fun `renderLogPayload keeps complete application exception chain`() {
     val payload =
       Payload.StringPayload.of(
         "Refusing Requisition dataProviders/dp-1/requisitions/r1\n" +
           "org.example.UnfulfillableRequisitionException: PopulationSpec is invalid\n" +
           "\tat org.example.Fulfiller.process(Fulfiller.kt:42)\n" +
           "Caused by: org.example.PopulationSpecValidationException: " +
-          "Not all population fields are set: gender, age_group, us_state\n" +
-          "authorization=secret-token"
+          "Not all population fields are set: gender, age_group, us_state"
       )
 
-    val rendered =
-      ReportTraceOutput.renderLogPayload(
-        payload,
-        severity = Severity.WARNING,
-        includeRawPayloads = false,
-      )
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
 
-    assertThat(rendered).contains("Refusing Requisition")
-    assertThat(rendered).contains("UnfulfillableRequisitionException")
-    assertThat(rendered).contains("PopulationSpec is invalid")
-    assertThat(rendered).contains("Fulfiller.process(Fulfiller.kt:42)")
-    assertThat(rendered).contains("PopulationSpecValidationException")
-    assertThat(rendered).contains("Not all population fields are set: gender, age_group, us_state")
-    assertThat(rendered).contains("authorization=[REDACTED]")
-    assertThat(rendered).doesNotContain("secret-token")
+    assertThat(rendered).isEqualTo(payload.data)
   }
 
   @Test
@@ -3986,14 +3943,22 @@ class ReportTraceTest {
           "Metadata(x-api-key=secret-key) report: \"reports/report-1\""
       )
 
-    val rendered =
-      ReportTraceOutput.renderLogPayload(
-        payload,
-        severity = Severity.ERROR,
-        includeRawPayloads = false,
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+    assertThat(rendered).isNull()
+  }
+
+  @Test
+  fun `renderLogPayload includes verbose gRPC payload when requested`() {
+    val payload =
+      Payload.StringPayload.of(
+        "INFO: [grpc-worker] gRPC trace-id request: " +
+          "Metadata(x-api-key=secret-key) report: \"reports/report-1\""
       )
 
-    assertThat(rendered).isEqualTo("[string payload omitted]")
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = true)
+
+    assertThat(rendered).isEqualTo(payload.data)
   }
 
   @Test
@@ -4297,7 +4262,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: PARTIAL")
@@ -4327,7 +4292,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: FAILED")
@@ -4366,7 +4331,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: SUCCEEDED")
@@ -4395,7 +4360,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: UNKNOWN")
@@ -4452,7 +4417,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
-        includeRawPayloads = false,
+        includeGrpcPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: PARTIAL")
