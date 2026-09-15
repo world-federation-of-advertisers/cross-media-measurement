@@ -257,6 +257,7 @@ expand_template(
 kt_jvm_library(
     name = "qa2026_cloud_test",
     srcs = [
+        "Edp7CloudTestConstants.kt",
         "Qa2026CloudTest.kt",
         "Qa2026ExpectedReach.kt",
         "Qa2026ModelResourcesRule.kt",
