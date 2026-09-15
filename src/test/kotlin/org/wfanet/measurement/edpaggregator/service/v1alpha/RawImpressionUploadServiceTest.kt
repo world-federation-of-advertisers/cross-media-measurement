@@ -47,12 +47,14 @@ import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase as InternalUploadServiceCoroutineImplBase
@@ -873,6 +875,55 @@ class RawImpressionUploadServiceTest {
         )
       assertThat(beforeEndResponse.rawImpressionUploadsList).isEmpty()
     }
+
+  @Test
+  fun `eviction fence blocks public upload creation until released`(): Unit = runBlocking {
+    val operationId = UUID.randomUUID().toString()
+    val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
+      parent = DATA_PROVIDER_KEY.toName()
+      evictionOperationId = operationId
+    }
+    val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+    val resumedAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+
+    assertThat(initialAcquire.newlyAcquired).isTrue()
+    assertThat(resumedAcquire.newlyAcquired).isFalse()
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = DONE_BLOB_GENERATION
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(error.status.description).contains("eviction")
+
+    service.releaseRawImpressionUploadEvictionFence(
+      releaseRawImpressionUploadEvictionFenceRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        evictionOperationId = operationId
+      }
+    )
+    val upload =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = DONE_BLOB_URI
+            doneBlobGeneration = DONE_BLOB_GENERATION
+          }
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    assertThat(upload.name).isNotEmpty()
+  }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

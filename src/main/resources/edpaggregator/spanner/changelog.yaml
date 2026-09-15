@@ -73,3 +73,9 @@ databaseChangeLog:
   - include:
       file: add-raw-impression-upload-registration-complete.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-upload-model-line-eviction-index.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-vid-labeling-eviction-fence.sql
+      relativeToChangeLogFile: true
