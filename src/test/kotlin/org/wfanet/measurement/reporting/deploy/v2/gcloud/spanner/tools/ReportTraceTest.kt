@@ -928,8 +928,12 @@ class ReportTraceTest {
     whenever(successfulResponse.statusCode()).thenReturn(200)
     whenever(successfulResponse.body()).thenReturn("{\"traces\":[]}")
     val httpClient = mock<HttpClient>()
+    val requests = mutableListOf<HttpRequest>()
     whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
-      .thenReturn(successfulResponse)
+      .thenAnswer { invocation ->
+        requests += invocation.getArgument<HttpRequest>(0)
+        successfulResponse
+      }
     val requestThrottler = RecordingThrottler()
     val reader =
       GoogleCloudReportTraceSpanReader(
@@ -955,6 +959,11 @@ class ReportTraceTest {
 
     assertThat(spans).isEmpty()
     assertThat(requestThrottler.invocationCount).isEqualTo(51)
+    assertThat(
+        requests.map { request -> request.headers().firstValue("x-goog-user-project").orElse(null) }
+      )
+      .containsExactly("trace-project", "trace-project", "trace-project")
+    Unit
   }
 
   @Test
@@ -1204,6 +1213,7 @@ class ReportTraceTest {
           resource = "Metric request $requestId",
           status = "FAILED",
           evidence = "span metric_creation xmm.outcome=failed xmm.error.type=IllegalStateException",
+          correlationValues = setOf(requestId),
         )
       )
   }
@@ -1289,6 +1299,7 @@ class ReportTraceTest {
           status = "FAILED",
           evidence =
             "span measurement_creation xmm.outcome=failed xmm.error.type=IllegalStateException",
+          correlationValues = setOf(requestId),
         )
       )
   }
@@ -1341,6 +1352,7 @@ class ReportTraceTest {
           evidence =
             "span work_item_processing xmm.outcome=succeeded, " +
               "span work_item_processing xmm.outcome=in_progress",
+          correlationValues = setOf(requisitionName),
         )
       )
   }
@@ -4603,6 +4615,266 @@ class ReportTraceTest {
       .contains("Cloud Trace ID lookup failed for project test: IllegalStateException")
     assertThat(output.toString()).contains("SPAN [test/service] primary-span")
     assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `fallback queries only resources with incomplete lifecycle coverage`() {
+    val outputDirectory = temporaryFolder.newFolder("targeted-fallback").toPath()
+    val basicReportName = "measurementConsumers/mc-1/basicReports/basic-report-1"
+    val coveredMetricName = "measurementConsumers/mc-1/metrics/covered-metric"
+    val missingMetricName = "measurementConsumers/mc-1/metrics/missing-metric"
+    val discoveredWorkItemName = "workItems/discovered-work-item"
+    val context =
+      reportTraceContext()
+        .copy(
+          basicReportName = basicReportName,
+          metricNames = listOf(coveredMetricName, missingMetricName),
+        )
+    val logQueryValues = mutableListOf<Set<String>>()
+    val traceQueryValues = mutableListOf<Set<String>>()
+    val traceQueryIds = mutableListOf<Set<String>>()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            logQueryValues += correlationValues.toSet()
+            if (coveredMetricName in correlationValues) {
+              listOf(
+                ReportTraceLogEntry(
+                  sourceProject = "test",
+                  timestamp = NOW,
+                  service = "reporting",
+                  severity = "INFO",
+                  trace = null,
+                  message =
+                    "xmm.lifecycle.stage=metric_creation " +
+                      "xmm.metric.name=$coveredMetricName xmm.outcome=succeeded " +
+                      "evidence=covered-log-only",
+                )
+              )
+            } else {
+              emptyList()
+            }
+          }
+        },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, traceIds, _, _, _ ->
+            traceQueryValues += correlationValues.toSet()
+            traceQueryIds += traceIds.toSet()
+            when {
+              basicReportName in correlationValues && traceIds.isEmpty() ->
+                listOf(
+                  lifecycleSpan("metric_creation", "xmm.metric.name", coveredMetricName),
+                  lifecycleSpan("metric_result_sync", "xmm.metric.name", coveredMetricName),
+                )
+              missingMetricName in correlationValues ->
+                listOf(
+                  lifecycleSpan("metric_creation", "xmm.metric.name", missingMetricName),
+                  lifecycleSpan("metric_result_sync", "xmm.metric.name", missingMetricName)
+                    .copy(
+                      traceId = "fallback-trace",
+                      attributes =
+                        mapOf(
+                          "xmm.lifecycle.stage" to "metric_result_sync",
+                          "xmm.metric.name" to missingMetricName,
+                          "xmm.work_item.name" to discoveredWorkItemName,
+                          "xmm.outcome" to "succeeded",
+                        ),
+                    ),
+                )
+              else -> emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { context },
+        routeResolverOverride =
+          ReportTraceRouteResolver { _, _ ->
+            routeResolution(
+              context,
+              ReportTraceMeasurementRouteKind.DIRECT,
+              "dataProviders/direct/requisitions/requisition-1",
+              ReportTraceRequisitionRouteKind.DIRECT_EDP,
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$basicReportName",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(logQueryValues.first())
+      .containsAtLeast(basicReportName, coveredMetricName, missingMetricName)
+    assertThat(traceQueryValues.first()).containsExactly(basicReportName)
+    assertThat(traceQueryValues.drop(1).flatten()).contains(missingMetricName)
+    assertThat(traceQueryValues.drop(1).flatten()).doesNotContain(coveredMetricName)
+    assertThat(traceQueryValues.flatten()).contains(discoveredWorkItemName)
+    assertThat(traceQueryIds.flatten()).contains("fallback-trace")
+    val artifact = outputDirectory.toFile().listFiles().single().readText()
+    assertThat(artifact).contains("evidence=covered-log-only")
+    assertThat(artifact).contains("| metric_creation | $missingMetricName | SUCCEEDED |")
+    assertThat(artifact).contains("| metric_result_sync | $missingMetricName | SUCCEEDED |")
+  }
+
+  @Test
+  fun `correlation value cap applies across expansion rounds`() {
+    val outputDirectory = temporaryFolder.newFolder("capped-expansion").toPath()
+    val context = reportTraceContext()
+    val discoveredWorkItemName = "workItems/discovered-work-item"
+    val traceQueryValues = mutableListOf<Set<String>>()
+    val logQueryValues = mutableListOf<Set<String>>()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { correlationValues, _, _, _ ->
+            logQueryValues += correlationValues.toSet()
+            emptyList()
+          }
+        },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
+            traceQueryValues += correlationValues.toSet()
+            if (checkNotNull(context.basicReportName) in correlationValues) {
+              listOf(
+                lifecycleSpan("report_creation", "xmm.report.name", context.reportName),
+                lifecycleSpan("report_result_assembly", "xmm.report.name", context.reportName),
+                traceSpan("discovery", NOW)
+                  .copy(attributes = mapOf("xmm.work_item.name" to discoveredWorkItemName)),
+              )
+            } else {
+              emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { context },
+        routeResolverOverride =
+          ReportTraceRouteResolver { _, _ ->
+            routeResolution(
+              context,
+              ReportTraceMeasurementRouteKind.DIRECT,
+              "dataProviders/direct/requisitions/requisition-1",
+              ReportTraceRequisitionRouteKind.DIRECT_EDP,
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=${context.basicReportName}",
+          "--output-dir=$outputDirectory",
+          "--max-correlation-values=2",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat((logQueryValues + traceQueryValues).flatten().distinct()).hasSize(2)
+    assertThat((logQueryValues + traceQueryValues).flatten()).doesNotContain(discoveredWorkItemName)
+    assertThat(outputDirectory.toFile().listFiles().single().readText())
+      .contains("| collector | Correlation values | TRUNCATED |")
+  }
+
+  @Test
+  fun `unresolved Measurement request ID is used directly for fallback`() {
+    val outputDirectory = temporaryFolder.newFolder("request-id-fallback").toPath()
+    val requestId = "measurement-request-id"
+    val recoveredMeasurementName = "measurementConsumers/mc-1/measurements/measurement-1"
+    val context =
+      reportTraceContext()
+        .copy(measurementNames = emptyList(), unresolvedMeasurementRequestIds = listOf(requestId))
+    val traceQueryValues = mutableListOf<Set<String>>()
+    val routeResolverInputs = mutableListOf<List<String>>()
+    val measurementLifecycleStages =
+      listOf(
+        "measurement_creation",
+        "measurement_linkage",
+        "kingdom_measurement_sync",
+        "duchy_computation",
+        "duchy_stage_attempt",
+        "kingdom_computation_result_acceptance",
+      )
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
+            traceQueryValues += correlationValues.toSet()
+            when {
+              checkNotNull(context.basicReportName) in correlationValues ->
+                measurementLifecycleStages.map { stage ->
+                  lifecycleSpan(stage, "xmm.measurement.request_id", requestId)
+                }
+              requestId in correlationValues ->
+                listOf(
+                  lifecycleSpan(
+                    "measurement_creation",
+                    mapOf(
+                      "xmm.measurement.request_id" to requestId,
+                      "xmm.measurement.name" to recoveredMeasurementName,
+                    ),
+                  )
+                )
+              else -> emptyList()
+            }
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { context },
+        routeResolverOverride =
+          ReportTraceRouteResolver { measurementNames, topology ->
+            routeResolverInputs += measurementNames.toList()
+            ReportTraceRouteResolution.unresolved(
+              measurementNames = measurementNames,
+              topology = topology,
+              status = "SUCCESS",
+              note = "",
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=${context.basicReportName}",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(traceQueryValues.drop(1).flatten()).contains(requestId)
+    assertThat(routeResolverInputs)
+      .containsExactly(emptyList<String>(), listOf(recoveredMeasurementName))
+      .inOrder()
+    val artifact = outputDirectory.toFile().listFiles().single().readText()
+    assertThat(artifact)
+      .contains("Measurement $recoveredMeasurementName was recovered from telemetry")
   }
 
   @Test
