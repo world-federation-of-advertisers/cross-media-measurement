@@ -427,8 +427,11 @@ class BaseTeeApplicationTest {
     }
     assertThat(createRequestCaptor.firstValue.expectedWorkItemGeneration).isEqualTo(7L)
     assertThat(createRequestCaptor.firstValue.supportsAttemptLease).isTrue()
-
     job.cancelAndJoin()
+    val processingSpan =
+      spanExporter.finishedSpanItems.single { it.name == "secure_computation.work_item.process" }
+    assertThat(processingSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME))
+      .isEqualTo(testWorkItemAttempt.name)
   }
 
   @Test

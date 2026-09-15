@@ -481,7 +481,7 @@ internal class GoogleCloudReportTraceLogReader(
         resourceLabels[it]
       } ?: resource?.type ?: logName.substringAfterLast('/')
     val message =
-      ReportTraceOutput.renderLogPayload(getPayload(), includeGrpcPayloads) ?: return null
+      ReportTraceOutput.renderLogPayload(getPayload(), includeGrpcPayloads, service) ?: return null
     return ReportTraceLogEntry(
       sourceProject = project,
       timestamp = instantTimestamp ?: Instant.EPOCH,
@@ -752,11 +752,22 @@ private fun JsonObject.optionalString(name: String): String? =
   get(name)?.takeUnless { it.isJsonNull }?.asString
 
 internal object ReportTraceOutput {
-  fun renderLogPayload(payload: Payload<*>?, includeGrpcPayloads: Boolean): String? {
+  fun renderLogPayload(
+    payload: Payload<*>?,
+    includeGrpcPayloads: Boolean,
+    service: String? = null,
+  ): String? {
     if (payload == null) return ""
     if (payload.type == Payload.Type.STRING) {
       val text = (payload as Payload.StringPayload).data
-      return if (includeGrpcPayloads || !isVerboseGrpcLog(text)) text else null
+      return if (
+        includeGrpcPayloads ||
+          (!isVerboseGrpcLog(text) && !isVerboseGrpcPayloadContinuation(service, text))
+      ) {
+        text
+      } else {
+        null
+      }
     }
     if (payload.type == Payload.Type.JSON) {
       val values = (payload as Payload.JsonPayload).dataAsMap
@@ -853,7 +864,9 @@ internal object ReportTraceOutput {
         ""
       } else {
         " AND NOT (textPayload =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
-          "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\")"
+          "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
+          "(resource.labels.container_name =~ \".*api-server.*\" AND " +
+          "textPayload =~ \"$VERBOSE_GRPC_CONTINUATION_QUERY_REGEX\"))"
       }
     return "$timeFilter$payloadFilter AND (${identifierPredicates.joinToString(" OR ")})"
   }
@@ -917,6 +930,7 @@ internal object ReportTraceOutput {
       )
     }
     appendLine()
+    appendDiagnosticSections(logEntries, warnings)
     appendLine("## Resolved resource chain")
     appendLine()
     append("- Report: ").append(context.reportName)
@@ -974,8 +988,16 @@ internal object ReportTraceOutput {
     appendLine()
     appendLine("Kingdom resolution: ${routeResolution.status}")
     appendLine("DataProvider topology: ${routeResolution.topology.provenance}")
-    if (routeResolution.topology.routes.isNotEmpty()) {
-      routeResolution.topology.routes.toSortedMap().forEach { (dataProvider, route) ->
+    val requisitionRoutes = routeResolution.measurementRoutes.flatMap { it.requisitions }
+    val reportDataProviderRoutes =
+      requisitionRoutes
+        .map { it.dataProvider }
+        .distinct()
+        .associateWith(routeResolution.topology::routeFor)
+    if (reportDataProviderRoutes.isEmpty()) {
+      appendLine("- Report DataProviders: none resolved")
+    } else {
+      reportDataProviderRoutes.toSortedMap().forEach { (dataProvider, route) ->
         appendLine("- DataProvider: $dataProvider [$route]")
       }
     }
@@ -1003,7 +1025,6 @@ internal object ReportTraceOutput {
         "Refusal message |"
     )
     appendLine("| --- | --- | --- | --- | --- | --- |")
-    val requisitionRoutes = routeResolution.measurementRoutes.flatMap { it.requisitions }
     if (requisitionRoutes.isEmpty()) {
       appendLine(
         "| none resolved | UNKNOWN | UNKNOWN | UNKNOWN | NOT_APPLICABLE | NOT_APPLICABLE |"
@@ -1084,16 +1105,6 @@ internal object ReportTraceOutput {
       }
       for (entry in timeline.sortedBy { it.timestamp }) {
         append(entry.timestamp).append("  ").appendLine(entry.text)
-      }
-    }
-    appendLine()
-    appendLine("## Errors and warnings")
-    appendLine()
-    if (warnings.isEmpty()) {
-      appendLine("None.")
-    } else {
-      for (warning in warnings) {
-        appendLine("- ${sanitize(warning)}")
       }
     }
     appendLine()
@@ -1505,16 +1516,30 @@ internal object ReportTraceOutput {
       "INVALID" -> return ReportTraceExecutionOutcome.FAILED
     }
 
+    val reportNames = setOf(context.reportName).filterNot { it == REPORT_NOT_CREATED }.toSet()
     val reportStates =
-      latestResourceStates(spans, logEntries, "xmm.report.name", "xmm.report.state").values
+      latestResourceStates(spans, logEntries, "xmm.report.name", "xmm.report.state")
+        .filterKeys(reportNames::contains)
+        .values
+    val metricNames = context.metricNames.toSet()
     val metricStates =
       context.metricStates.values +
-        latestResourceStates(spans, logEntries, "xmm.metric.name", "xmm.metric.state").values
+        latestResourceStates(spans, logEntries, "xmm.metric.name", "xmm.metric.state")
+          .filterKeys(metricNames::contains)
+          .values
+    val measurementNames =
+      (context.measurementNames + routeResolution.measurementRoutes.map { it.name }).toSet()
     val measurementStates =
       latestResourceStates(spans, logEntries, "xmm.measurement.name", "xmm.measurement.state")
+        .filterKeys(measurementNames::contains)
         .values + routeResolution.measurementRoutes.map { it.state.uppercase() }
+    val requisitionNames =
+      routeResolution.measurementRoutes
+        .flatMap { measurement -> measurement.requisitions.map { it.name } }
+        .toSet()
     val requisitionStates =
       latestResourceStates(spans, logEntries, "xmm.requisition.name", "xmm.requisition.state")
+        .filterKeys(requisitionNames::contains)
         .values +
         routeResolution.measurementRoutes.flatMap { measurement ->
           measurement.requisitions.map { it.state.uppercase() }
@@ -1579,20 +1604,58 @@ internal object ReportTraceOutput {
   fun discoveredCorrelationValues(
     spans: Collection<ReportTraceSpan>,
     logEntries: Collection<ReportTraceLogEntry>,
+    authoritativeReportResources: Set<String> = emptySet(),
   ): Set<String> {
     return buildSet {
         for (span in spans) {
-          DISCOVERABLE_IDENTIFIER_ATTRIBUTES.mapNotNullTo(this) { attribute ->
-            span.attributes[attribute]
-          }
+          addDiscoveredIdentifiers(span.attributes, authoritativeReportResources)
         }
         for (entry in logEntries) {
           val fields = safeTextFields(entry.message)
-          DISCOVERABLE_IDENTIFIER_ATTRIBUTES.mapNotNullTo(this) { attribute -> fields[attribute] }
+          addDiscoveredIdentifiers(fields, authoritativeReportResources)
         }
       }
       .filter(String::isNotBlank)
       .toSet()
+  }
+
+  fun telemetryBelongsToReport(
+    attributes: Map<String, String>,
+    authoritativeReportResources: Set<String>,
+  ): Boolean {
+    if (authoritativeReportResources.isEmpty()) return true
+    val scopedResources =
+      REPORT_SCOPED_IDENTIFIER_ATTRIBUTES.mapNotNull(attributes::get).filter(String::isNotBlank)
+    return scopedResources.isEmpty() ||
+      scopedResources.any { resource ->
+        authoritativeReportResources.any { authoritative ->
+          resource == authoritative ||
+            authoritative.endsWith("/$resource") ||
+            resource.endsWith("/$authoritative")
+        }
+      }
+  }
+
+  fun telemetryBelongsToReport(
+    span: ReportTraceSpan,
+    authoritativeReportResources: Set<String>,
+  ): Boolean = telemetryBelongsToReport(span.attributes, authoritativeReportResources)
+
+  fun telemetryBelongsToReport(
+    logEntry: ReportTraceLogEntry,
+    authoritativeReportResources: Set<String>,
+  ): Boolean =
+    telemetryBelongsToReport(safeTextFields(logEntry.message), authoritativeReportResources)
+
+  private fun MutableSet<String>.addDiscoveredIdentifiers(
+    attributes: Map<String, String>,
+    authoritativeReportResources: Set<String>,
+  ) {
+    if (!telemetryBelongsToReport(attributes, authoritativeReportResources)) return
+    for (attribute in DISCOVERABLE_IDENTIFIER_ATTRIBUTES) {
+      val value = attributes[attribute] ?: continue
+      add(value)
+    }
   }
 
   fun recoveredMeasurementNames(
@@ -2151,10 +2214,10 @@ internal object ReportTraceOutput {
       "report_result_assembly",
       context.reportName,
       "xmm.report.name",
-      if (failedBeforeReport) {
-        ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
-      } else {
-        ReportTraceStageRequirement.REQUIRED
+      when {
+        failedBeforeReport || reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+        executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+        else -> ReportTraceStageRequirement.REQUIRED
       },
     )
     context.basicReportName?.let { basicReportName ->
@@ -2218,6 +2281,80 @@ internal object ReportTraceOutput {
 
   private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
 
+  private fun StringBuilder.appendDiagnosticSections(
+    logEntries: List<ReportTraceLogEntry>,
+    collectionWarnings: List<String>,
+  ) {
+    val diagnosticEntries =
+      logEntries.filterNot { isVerboseGrpcPayloadContinuation(it.service, it.message) }
+    val errors = diagnosticEntries.filter { it.severity.uppercase() in ERROR_LOG_SEVERITIES }
+    val warnings = diagnosticEntries.filter { it.severity.uppercase() in WARNING_LOG_SEVERITIES }
+
+    appendDiagnosticLogSection("Errors", errors)
+    appendLine("## Warnings")
+    appendLine()
+    appendDiagnosticLogTable(warnings)
+    if (collectionWarnings.isNotEmpty()) {
+      appendLine("### Collection warnings")
+      appendLine()
+      collectionWarnings.forEach { appendLine("- ${sanitize(it)}") }
+      appendLine()
+    } else if (warnings.isEmpty()) {
+      appendLine("None.")
+      appendLine()
+    }
+  }
+
+  private fun StringBuilder.appendDiagnosticLogSection(
+    title: String,
+    entries: List<ReportTraceLogEntry>,
+  ) {
+    appendLine("## $title")
+    appendLine()
+    if (entries.isEmpty()) {
+      appendLine("None.")
+      appendLine()
+      return
+    }
+    appendDiagnosticLogTable(entries)
+  }
+
+  private fun StringBuilder.appendDiagnosticLogTable(entries: List<ReportTraceLogEntry>) {
+    if (entries.isEmpty()) return
+    appendLine("| Time | Source | Resource | Message |")
+    appendLine("| --- | --- | --- | --- |")
+    for (entry in entries.sortedBy { it.timestamp }.take(MAX_DIAGNOSTIC_LOG_ENTRIES)) {
+      appendLine(
+        "| ${entry.timestamp} | ${sanitizeTableCell(entry.sourceProject + "/" + entry.service)} | " +
+          "${sanitizeTableCell(diagnosticResource(entry.message))} | " +
+          "${sanitizeTableCell(summarizeDiagnosticMessage(entry.message))} |"
+      )
+    }
+    if (entries.size > MAX_DIAGNOSTIC_LOG_ENTRIES) {
+      appendLine()
+      appendLine(
+        "_${entries.size - MAX_DIAGNOSTIC_LOG_ENTRIES} additional entries remain in the " +
+          "chronological timeline._"
+      )
+    }
+    appendLine()
+  }
+
+  private fun diagnosticResource(message: String): String {
+    val fields = safeTextFields(message)
+    return DIAGNOSTIC_RESOURCE_ATTRIBUTES.firstNotNullOfOrNull(fields::get)
+      ?: REQUISITION_NAME_IN_TEXT.find(message)?.value
+      ?: "(unattributed)"
+  }
+
+  private fun summarizeDiagnosticMessage(message: String): String {
+    return message
+      .replace(STACK_FRAME_PATTERN, " ")
+      .replace(STACK_TRACE_REMAINDER_PATTERN, " ")
+      .replace(WHITESPACE_PATTERN, " ")
+      .trim()
+  }
+
   private fun rawScalar(value: Any): String? =
     when (value) {
       is String,
@@ -2270,10 +2407,30 @@ internal object ReportTraceOutput {
   }
 
   private const val MAX_LOG_FILTER_LENGTH = 20_000
+  private const val MAX_DIAGNOSTIC_LOG_ENTRIES = 50
   private const val VERBOSE_GRPC_LOG_QUERY_REGEX =
     "gRPC([[:space:]]+client)?[[:space:]]+[^[:space:]]+[[:space:]]+" +
       "(headers|request|response|complete|error):?"
+  private const val VERBOSE_GRPC_CONTINUATION_QUERY_REGEX =
+    "^[[:space:]]*[a-z][a-z0-9_.-]*:[[:space:]]"
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
+  private val ERROR_LOG_SEVERITIES = setOf("ERROR", "CRITICAL", "ALERT", "EMERGENCY")
+  private val WARNING_LOG_SEVERITIES = setOf("WARNING", "WARN")
+  private val DIAGNOSTIC_RESOURCE_ATTRIBUTES =
+    listOf(
+      "xmm.requisition.name",
+      "xmm.measurement.name",
+      "xmm.work_item_attempt.name",
+      "xmm.work_item.name",
+      "xmm.computation.name",
+      "xmm.report.name",
+      "xmm.basic_report.name",
+    )
+  private val REQUISITION_NAME_IN_TEXT =
+    Regex("dataProviders/[A-Za-z0-9_-]+/requisitions/[A-Za-z0-9_-]+")
+  private val STACK_FRAME_PATTERN = Regex("""\s+at\s+\S+\([^)]*\)""")
+  private val STACK_TRACE_REMAINDER_PATTERN = Regex("""\s+\.\.\. \d+ more""")
+  private val WHITESPACE_PATTERN = Regex("""\s+""")
   private val MEASUREMENT_LIFECYCLE_STAGES =
     listOf(
       "measurement_creation",
@@ -2333,10 +2490,20 @@ internal object ReportTraceOutput {
       "xmm.report.name",
       "xmm.metric.name",
       "xmm.measurement.name",
+      "xmm.measurement.request_id",
       "xmm.requisition.name",
       "xmm.edpa.group_id",
       "xmm.work_item.name",
       "xmm.computation.name",
+    )
+  private val REPORT_SCOPED_IDENTIFIER_ATTRIBUTES =
+    setOf(
+      "xmm.basic_report.name",
+      "xmm.report.name",
+      "xmm.metric.name",
+      "xmm.measurement.name",
+      "xmm.measurement.request_id",
+      "xmm.requisition.name",
     )
   private val TERMINAL_SUCCESS_OUTCOMES =
     setOf(
@@ -2362,7 +2529,7 @@ internal object ReportTraceOutput {
       ),
       Regex("(?i)(https?://[^\\s?]+\\?)[^\\s]+"),
       Regex(
-        "(?<![A-Za-z0-9_-])[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}\\." +
+        "(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{5,}\\.[A-Za-z0-9_-]{8,}\\." +
           "[A-Za-z0-9_-]{8,}(?![A-Za-z0-9_-])"
       ),
       Regex("(?is)(-----BEGIN [^-]*PRIVATE KEY-----).*?(-----END [^-]*PRIVATE KEY-----)"),
@@ -2371,9 +2538,15 @@ internal object ReportTraceOutput {
     Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
   private val VERBOSE_GRPC_LOG_PATTERN =
     Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(?:headers|request|response|complete|error):?")
+  private val VERBOSE_GRPC_CONTINUATION_PATTERN = Regex("""^\s*[a-z][a-z0-9_.-]*:\s""")
 
   private fun isVerboseGrpcLog(text: String): Boolean =
     VERBOSE_GRPC_LOG_PATTERN.containsMatchIn(text)
+
+  private fun isVerboseGrpcPayloadContinuation(service: String?, text: String): Boolean {
+    return service?.contains("api-server") == true &&
+      VERBOSE_GRPC_CONTINUATION_PATTERN.containsMatchIn(text)
+  }
 
   private fun safeTextFields(text: String): Map<String, String> {
     return SAFE_TEXT_FIELD_PATTERN.findAll(text).associate { match ->
@@ -3108,6 +3281,23 @@ internal class ReportTrace(
     val traceFetchedCounts = mutableMapOf<String, Int>()
     val logFetchedCounts = mutableMapOf<String, Int>()
     val projects = observabilityProjects.distinct()
+    val authoritativeReportResources =
+      if (resolutionFailure == null) {
+        buildSet {
+          context.basicReportName?.let(::add)
+          context.reportName.takeUnless { it == REPORT_NOT_CREATED }?.let(::add)
+          addAll(context.metricNames)
+          addAll(context.measurementNames)
+          addAll(context.unresolvedMetricRequestIds)
+          addAll(context.unresolvedMeasurementRequestIds)
+          routeResolution.measurementRoutes.forEach { measurement ->
+            add(measurement.name)
+            measurement.requisitions.mapTo(this) { it.name }
+          }
+        }
+      } else {
+        emptySet()
+      }
     val primaryCorrelationValues =
       listOfNotNull(
         context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
@@ -3148,7 +3338,10 @@ internal class ReportTrace(
     }
 
     val discoveredLogTraceIds =
-      logEntries.mapNotNull { it.trace?.substringAfterLast('/') }.distinct()
+      logEntries
+        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
+        .mapNotNull { it.trace?.substringAfterLast('/') }
+        .distinct()
     val logTraceIds = discoveredLogTraceIds.take(maxTraceIds)
     var traceIdsTruncated = discoveredLogTraceIds.size > logTraceIds.size
     if (traceIdsTruncated) {
@@ -3187,7 +3380,11 @@ internal class ReportTrace(
 
     // A trace located by a searchable label in one project may have unlabelled remote spans in
     // another project. Fetch those complete traces by ID in every configured project.
-    val spanTraceIds = spanEntries.map { it.traceId }.distinct()
+    val spanTraceIds =
+      spanEntries
+        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
+        .map { it.traceId }
+        .distinct()
     val allNewlyDiscoveredTraceIds = spanTraceIds - logTraceIds.toSet()
     val newlyDiscoveredTraceIds =
       allNewlyDiscoveredTraceIds.take((maxTraceIds - queriedTraceIds.size).coerceAtLeast(0))
@@ -3280,7 +3477,11 @@ internal class ReportTrace(
     var expansionTruncated = false
     while (true) {
       val discoveredCorrelationValues =
-        ReportTraceOutput.discoveredCorrelationValues(spanEntries, logEntries)
+        ReportTraceOutput.discoveredCorrelationValues(
+          spanEntries,
+          logEntries,
+          authoritativeReportResources,
+        )
       encounteredCorrelationValues += discoveredCorrelationValues
       val remainingCorrelationValueCapacity =
         (maxCorrelationValues - admittedCorrelationValues.size).coerceAtLeast(0)
@@ -3315,8 +3516,14 @@ internal class ReportTrace(
       val pendingTraceCorrelationValues =
         knownCorrelationValues.toSet() - queriedTraceCorrelationValues
       val allPendingTraceIds =
-        (spanEntries.map { it.traceId } +
-            logEntries.mapNotNull { it.trace?.substringAfterLast('/') })
+        (spanEntries
+            .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
+            .map { it.traceId } +
+            logEntries
+              .filter {
+                ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources)
+              }
+              .mapNotNull { it.trace?.substringAfterLast('/') })
           .toSet() - queriedTraceIds
       val remainingTraceIdCapacity = (maxTraceIds - queriedTraceIds.size).coerceAtLeast(0)
       val pendingTraceIds = allPendingTraceIds.take(remainingTraceIdCapacity).toSet()
@@ -3401,8 +3608,14 @@ internal class ReportTrace(
       }
     }
 
-    val distinctSpans = spanEntries.distinct()
-    val distinctLogEntries = logEntries.distinct()
+    val distinctSpans =
+      spanEntries
+        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
+        .distinct()
+    val distinctLogEntries =
+      logEntries
+        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
+        .distinct()
     val mergedSpansTruncated = distinctSpans.size > entryLimit
     val mergedLogEntriesTruncated = distinctLogEntries.size > entryLimit
     if (mergedSpansTruncated) {

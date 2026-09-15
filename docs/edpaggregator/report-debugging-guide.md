@@ -206,6 +206,10 @@ provider as a direct EDP. Kingdom lookup is bounded by
 `--kingdom-max-attempts`; a partial or failed lookup does not prevent telemetry
 collection.
 
+The resolved-route section lists only DataProviders referenced by the resolved
+Requisitions for that report. The topology file remains exhaustive even though
+unrelated configured DataProviders are not repeated in each artifact.
+
 Telemetry collection is also bounded independently for each requested report.
 `--collection-deadline` is the total collection budget,
 `--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and all
@@ -286,6 +290,12 @@ Cloud Logging query reads only its newest bounded window; error and terminal
 evidence are prioritized within that window, but an older error outside it may
 be omitted. Truncated output is always marked partial. Set `--limit=0` to collect
 all matching entries.
+
+Application errors and warnings are summarized near the top of the artifact,
+with stack frames collapsed for readability. The complete messages and stack
+traces remain in the chronological timeline. This makes refusal causes and
+other actionable failures visible without treating generic gRPC payload
+fragments written to stderr as application errors.
 
 `COMPLETE` describes the evidence collection, not whether the report succeeded.
 For a terminal failure or refusal, the artifact marks downstream operations that
