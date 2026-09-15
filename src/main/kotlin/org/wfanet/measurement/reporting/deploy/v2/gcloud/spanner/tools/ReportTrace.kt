@@ -1700,11 +1700,25 @@ internal object ReportTraceOutput {
     attribute: String,
   ): List<String> {
     return buildSet {
-        spans.mapNotNullTo(this) { it.attributes[attribute] }
-        logEntries.mapNotNullTo(this) { safeTextFields(it.message)[attribute] }
+        spans.mapNotNullTo(this) { it.attributes[attribute]?.normalizeResourceName(attribute) }
+        logEntries.mapNotNullTo(this) {
+          safeTextFields(it.message)[attribute]?.normalizeResourceName(attribute)
+        }
       }
       .filter(String::isNotBlank)
       .sorted()
+  }
+
+  private fun String.normalizeResourceName(attribute: String): String {
+    return if (
+      attribute == ReportTraceAttributes.WORK_ITEM_NAME_STRING &&
+        isNotBlank() &&
+        !startsWith("workItems/")
+    ) {
+      "workItems/$this"
+    } else {
+      this
+    }
   }
 
   private fun expectedOperations(
@@ -2215,16 +2229,18 @@ internal object ReportTraceOutput {
       context.reportName,
       "xmm.report.name",
       when {
-        failedBeforeReport || reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+        failedBeforeReport -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
         executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+        reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
         else -> ReportTraceStageRequirement.REQUIRED
       },
     )
     context.basicReportName?.let { basicReportName ->
       val postProcessingRequirement =
         when {
-          failedBeforeReport || reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+          failedBeforeReport -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
           executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+          reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
           else -> ReportTraceStageRequirement.REQUIRED
         }
       add("noise_correction", basicReportName, "xmm.basic_report.name", postProcessingRequirement)
@@ -2232,9 +2248,9 @@ internal object ReportTraceOutput {
         when {
           context.basicReportState?.uppercase() == "SUCCEEDED" ->
             ReportTraceStageRequirement.REQUIRED
+          executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
           basicReportFailed || reportFailed || noiseCorrectionFailed ->
             ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
-          executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
           else -> ReportTraceStageRequirement.REQUIRED
         }
       add(
