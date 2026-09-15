@@ -133,6 +133,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/api:public_api_version",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:packed_messages",
         "//src/main/kotlin/org/wfanet/measurement/common/api:resource_ids",
+        "//src/main/kotlin/org/wfanet/measurement/common/grpc:error_info",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",

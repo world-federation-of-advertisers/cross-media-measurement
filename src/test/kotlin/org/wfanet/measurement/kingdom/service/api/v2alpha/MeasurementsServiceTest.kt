@@ -1113,6 +1113,7 @@ class MeasurementsServiceTest {
           runBlocking {
             service.createMeasurement(
               createMeasurementRequest {
+                parent = MEASUREMENT_CONSUMER_NAME
                 measurement =
                   MEASUREMENT.copy {
                     measurementSpec =
@@ -1133,6 +1134,10 @@ class MeasurementsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.domain).isEqualTo("halo.wfanet.org")
+    assertThat(exception.errorInfo?.reason).isEqualTo("REQUIRED_FIELD_NOT_SET")
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("fieldName", "measurement.measurement_spec.model_line")
   }
 
   @Test
@@ -2419,6 +2424,41 @@ class MeasurementsServiceTest {
       )
 
     assertThat(result).ignoringRepeatedFieldOrder().isEqualTo(expected)
+  }
+
+  @Test
+  fun `batchCreateMeasurements identifies missing population model line in child request`() {
+    val populationMeasurementWithoutModelLine =
+      MEASUREMENT.copy {
+        measurementSpec =
+          measurementSpec.copy {
+            setMessage(
+              MEASUREMENT_SPEC.copy {
+                  clearReachAndFrequency()
+                  population = population {}
+                }
+                .pack()
+            )
+          }
+      }
+    val request = batchCreateMeasurementsRequest {
+      parent = MEASUREMENT_CONSUMER_NAME
+      requests += createMeasurementRequest { measurement = MEASUREMENT }
+      requests += createMeasurementRequest { measurement = populationMeasurementWithoutModelLine }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
+          runBlocking { service.batchCreateMeasurements(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo?.domain).isEqualTo("halo.wfanet.org")
+    assertThat(exception.errorInfo?.reason).isEqualTo("REQUIRED_FIELD_NOT_SET")
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsEntry("fieldName", "requests[1].measurement.measurement_spec.model_line")
   }
 
   @Test
