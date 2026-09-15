@@ -20,11 +20,13 @@ import com.google.type.interval
 import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.service.RankIndexBlobKey
@@ -225,10 +227,19 @@ class EvictUploader(
         evictionOperationId = plan.evictionOperationId
       }
     )
-    val refreshed =
-      plan(plan.badUploads, plan.cutoffTime, evictionOperationId = plan.evictionOperationId)
-    require(refreshed.cascade == plan.cascade) {
-      "eviction plan changed after confirmation; review the new plan and retry"
+    try {
+      val refreshed =
+        plan(plan.badUploads, plan.cutoffTime, evictionOperationId = plan.evictionOperationId)
+      require(refreshed.cascade == plan.cascade) {
+        "eviction plan changed after confirmation; review the new plan and retry"
+      }
+    } catch (e: Exception) {
+      try {
+        withContext(NonCancellable) { releaseEvictionFence(dataProvider, plan.evictionOperationId) }
+      } catch (releaseException: Exception) {
+        e.addSuppressed(releaseException)
+      }
+      throw e
     }
     val result = executeEviction(plan, reason)
     releaseEvictionFence(dataProvider, plan.evictionOperationId)

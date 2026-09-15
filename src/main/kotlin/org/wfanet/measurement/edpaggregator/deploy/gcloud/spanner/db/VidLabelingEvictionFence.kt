@@ -25,6 +25,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 
 /** Returns the operation ID holding the VID-labeling eviction fence, if any. */
 suspend fun AsyncDatabaseClient.ReadContext.getVidLabelingEvictionOperationId(
@@ -49,11 +50,16 @@ suspend fun AsyncDatabaseClient.ReadContext.hasIncompleteRawImpressionUploadRegi
     FROM RawImpressionUpload@{FORCE_INDEX=RawImpressionUploadByRegistrationComplete}
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND RegistrationComplete = FALSE
+      AND State = @createdState
     LIMIT 1
     """
       .trimIndent()
   return executeQuery(
-      statement(sql) { bind("dataProviderResourceId").to(dataProviderResourceId) },
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("createdState")
+          .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
+      },
       Options.tag("action=hasIncompleteRawImpressionUploadRegistration"),
     )
     .singleOrNullIfEmpty() != null
