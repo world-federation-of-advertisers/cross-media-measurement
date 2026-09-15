@@ -3273,25 +3273,26 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `runWork does not cap a TrusTeeV2 frequency vector`() = runBlocking {
-    // A MultiMeasurementSpec carries no frequency cap, so a VID's count survives up to the largest
-    // signed byte. The v1 path clamps to the cap on the MeasurementSpec instead.
-    val vidCounts = buildMap {
-      put(1L, 5)
-      put(2L, 200)
-      for (vid in 3L..130L) {
-        put(vid, 1)
+  fun `runWork does not cap a TrusTeeV2 frequency vector`() =
+    runBlocking<Unit> {
+      // A MultiMeasurementSpec carries no frequency cap, so a count survives up to the largest
+      // signed byte. The v1 path clamps to the cap on the MeasurementSpec instead.
+      val vidCounts = buildMap {
+        put(1L, 5)
+        put(2L, 200)
+        for (vid in 3L..130L) {
+          put(vid, 1)
+        }
       }
+
+      val fulfillment =
+        fulfillTrusTeeV2Requisition(resultMinimumThresholds = null, vidCounts = vidCounts)
+
+      val frequencies = decryptFrequencies(fulfillment)
+      assertThat(frequencies.count { it > 0 }).isEqualTo(130)
+      assertThat(frequencies.filter { it > 0 }.map { it.toInt() }.toSet())
+        .containsExactly(1, 5, Byte.MAX_VALUE.toInt())
     }
-
-    val fulfillment =
-      fulfillTrusTeeV2Requisition(resultMinimumThresholds = null, vidCounts = vidCounts)
-
-    val frequencies = decryptFrequencies(fulfillment)
-    assertThat(frequencies.count { it > 0 }).isEqualTo(130)
-    assertThat(frequencies.filter { it > 0 }.map { it.toInt() }.toSet())
-      .containsExactly(1, 5, Byte.MAX_VALUE.toInt())
-  }
 
   @Test
   fun `runWork fulfills TrusTee requisition with unencrypted empty frequency vector when no impression data sources available`() =
