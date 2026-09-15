@@ -1305,6 +1305,47 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `lifecycle correlates bare WorkItem ID to canonical dispatch name`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val workItemId = "results-fulfiller-group-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val spans =
+      listOf(
+        lifecycleSpan(
+          "requisition_dispatch",
+          mapOf(
+            "xmm.requisition.name" to requisitionName,
+            "xmm.edpa.group_id" to "group-1",
+            "xmm.work_item.name" to "workItems/$workItemId",
+          ),
+        ),
+        lifecycleSpan("work_item_processing", mapOf("xmm.work_item.name" to workItemId)),
+      )
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(
+        coverage.single { it.name == "work_item_processing" && it.resource == requisitionName }
+      )
+      .isEqualTo(
+        ReportTraceLifecycleStage(
+          name = "work_item_processing",
+          resource = requisitionName,
+          status = "SUCCEEDED",
+          evidence = "span work_item_processing xmm.outcome=succeeded",
+          correlationValues = setOf(requisitionName),
+        )
+      )
+  }
+
+  @Test
   fun `lifecycle uses completion time when an overlapping duplicate finishes first`() {
     val context = reportTraceContext()
     val requisitionName = "dataProviders/edpa/requisitions/requisition-1"

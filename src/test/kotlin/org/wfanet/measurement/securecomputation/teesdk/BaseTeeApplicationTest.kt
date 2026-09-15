@@ -285,10 +285,11 @@ class BaseTeeApplicationTest {
     val job = launch { app.run() }
     val consumer = TestMessageConsumer()
     val workItem = workItem {
-      name = "workItems/workItem"
+      name = "workItem"
       generation = 1L
       workItemParams = Any.pack(Empty.getDefaultInstance())
     }
+    val canonicalWorkItemName = "workItems/workItem"
 
     fakeSubscriber.send(
       QueueSubscriber.QueueMessage(
@@ -303,7 +304,7 @@ class BaseTeeApplicationTest {
     assertThat(consumer.ackCount).isEqualTo(1)
     assertThat(consumer.nackCount).isEqualTo(0)
     assertFailedProcessingSpan(
-      workItemName = workItem.name,
+      workItemName = canonicalWorkItemName,
       expectedErrorType = "InvalidProtocolBufferException",
       expectedErrorCode = null,
     )
@@ -331,10 +332,11 @@ class BaseTeeApplicationTest {
     val job = launch { app.run() }
     val consumer = TestMessageConsumer()
     val workItem = workItem {
-      name = "workItems/workItem"
+      name = "workItem"
       generation = 1L
       workItemParams = Any.pack(Empty.getDefaultInstance())
     }
+    val canonicalWorkItemName = "workItems/workItem"
 
     fakeSubscriber.send(
       QueueSubscriber.QueueMessage(
@@ -349,14 +351,14 @@ class BaseTeeApplicationTest {
     assertThat(consumer.ackCount).isEqualTo(0)
     assertThat(consumer.nackCount).isEqualTo(1)
     assertFailedProcessingSpan(
-      workItemName = workItem.name,
+      workItemName = canonicalWorkItemName,
       expectedErrorType = "InvalidProtocolBufferException",
       expectedErrorCode = null,
     )
     assertFailureWritebackSpan(
       spanName = "secure_computation.work_item.failure_writeback",
       lifecycleStage = "work_item_failure_writeback",
-      workItemName = workItem.name,
+      workItemName = canonicalWorkItemName,
       workItemAttemptName = workItemAttemptName,
       expectedErrorType = "ControlPlaneApiException",
       expectedErrorCode = "grpc.UNAVAILABLE",
