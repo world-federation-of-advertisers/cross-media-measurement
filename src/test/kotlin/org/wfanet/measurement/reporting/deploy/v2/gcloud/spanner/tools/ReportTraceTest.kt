@@ -1910,8 +1910,8 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `accepted Requisition refusal skips report assembly when it was not reached`() {
-    val context = reportTraceContext().copy(basicReportState = "REPORT_CREATED")
+  fun `accepted Requisition refusal skips downstream work even after BasicReport fails`() {
+    val context = reportTraceContext().copy(basicReportState = "FAILED")
     val baseRoute =
       routeResolution(
         context,
@@ -1942,8 +1942,10 @@ class ReportTraceTest {
     val coverage =
       ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), emptyList())
 
-    assertThat(coverage.single { it.name == "report_result_assembly" }.status)
-      .isEqualTo("SKIPPED_AFTER_REFUSAL")
+    for (stage in
+      listOf("report_result_assembly", "noise_correction", "processed_result_writeback")) {
+      assertThat(coverage.single { it.name == stage }.status).isEqualTo("SKIPPED_AFTER_REFUSAL")
+    }
   }
 
   @Test
@@ -3138,6 +3140,38 @@ class ReportTraceTest {
     assertThat(diagnostics).contains("PopulationSpecValidationException")
     assertThat(diagnostics).contains("Population field Common.gender not set")
     assertThat(diagnostics).doesNotContain("at example.Fulfiller.validate")
+  }
+
+  @Test
+  fun `render canonicalizes duplicate WorkItem identifiers`() {
+    val context = reportTraceContext()
+    val workItemId = "results-fulfiller-group-1"
+    val spans =
+      listOf(
+        traceSpan("dispatch", NOW).copy(attributes = mapOf("xmm.work_item.name" to workItemId)),
+        traceSpan("process", NOW.plusSeconds(1))
+          .copy(attributes = mapOf("xmm.work_item.name" to "workItems/$workItemId")),
+      )
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution =
+          ReportTraceRouteResolution.unresolved(
+            measurementNames = context.measurementNames,
+            topology = ReportTraceTopology.notSupplied(),
+            status = "PARTIAL",
+            note = "test",
+          ),
+        spans = spans,
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+      )
+
+    assertThat(output.lines().filter { it == "- WorkItem: workItems/$workItemId" }).hasSize(1)
+    assertThat(output).doesNotContain("- WorkItem: $workItemId")
   }
 
   @Test
