@@ -111,6 +111,14 @@ class RawImpressionUploadService(
       throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.evictionOperationId.isNotEmpty()) {
+      try {
+        UUID.fromString(request.evictionOperationId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("eviction_operation_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
 
     val internalResponse: InternalRawImpressionUpload =
       try {
@@ -125,6 +133,7 @@ class RawImpressionUploadService(
               }
             }
             requestId = request.requestId
+            evictionOperationId = request.evictionOperationId
           }
         )
       } catch (e: StatusException) {
@@ -506,6 +515,7 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
       doneBlobCreateTime = source.doneBlobCreateTime
     }
     registrationComplete = source.registrationComplete
+    processingDeferred = source.processingDeferred
     if (source.replacesRawImpressionUploadResourceId.isNotEmpty()) {
       replacesRawImpressionUpload =
         RawImpressionUploadKey(

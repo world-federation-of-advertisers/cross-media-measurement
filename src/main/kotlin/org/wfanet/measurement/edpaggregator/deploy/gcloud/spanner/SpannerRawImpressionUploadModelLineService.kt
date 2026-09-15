@@ -36,6 +36,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCom
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLineByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLinesByRequestIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
@@ -119,13 +120,15 @@ class SpannerRawImpressionUploadModelLineService(
             return@run existing.rawImpressionUploadModelLine
           }
 
-          txn.requireNoVidLabelingEvictionFence(request.dataProviderResourceId)
-
           val rawImpressionUploadId =
             txn.getRawImpressionUploadId(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
             )
+          txn.requireRegistrationAllowedDuringEviction(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+          )
 
           val rawImpressionUploadModelLineId =
             idGenerator.generateNewId { id ->
@@ -270,7 +273,10 @@ class SpannerRawImpressionUploadModelLineService(
             )
 
           if (request.requestsList.any { it.requestId !in existingByRequestId }) {
-            txn.requireNoVidLabelingEvictionFence(dataProviderResourceId)
+            txn.requireRegistrationAllowedDuringEviction(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+            )
           }
 
           var anyInserted = false
@@ -812,7 +818,10 @@ class SpannerRawImpressionUploadModelLineService(
         }
 
         if (nextState in PROCESSING_STATES) {
-          txn.requireNoVidLabelingEvictionFence(dataProviderResourceId)
+          txn.requireProcessingAllowedDuringEviction(
+            dataProviderResourceId,
+            rawImpressionUploadResourceId,
+          )
         }
 
         // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
@@ -918,13 +927,34 @@ class SpannerRawImpressionUploadModelLineService(
     )
   }
 
-  private suspend fun AsyncDatabaseClient.ReadContext.requireNoVidLabelingEvictionFence(
-    dataProviderResourceId: String
+  private suspend fun AsyncDatabaseClient.ReadContext.requireRegistrationAllowedDuringEviction(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
   ) {
     val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val upload =
+      getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
+        .rawImpressionUpload
+    if (upload.processingDeferred || upload.evictionOperationId == operationId) return
     throw Status.FAILED_PRECONDITION.withDescription(
         "VID-labeling eviction $operationId is in progress for DataProvider " +
           dataProviderResourceId
+      )
+      .asRuntimeException()
+  }
+
+  private suspend fun AsyncDatabaseClient.ReadContext.requireProcessingAllowedDuringEviction(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+  ) {
+    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val upload =
+      getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
+        .rawImpressionUpload
+    if (upload.evictionOperationId == operationId) return
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "RawImpressionUpload $rawImpressionUploadResourceId is waiting for VID-labeling " +
+          "eviction $operationId to complete"
       )
       .asRuntimeException()
   }

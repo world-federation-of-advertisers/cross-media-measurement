@@ -302,10 +302,17 @@ class VidLabelingDispatcherTest {
 
   private class RecordingThrottler : Throttler {
     var onReadyCalls = 0
+    var inOnReady = false
+      private set
 
     override suspend fun <T> onReady(block: suspend () -> T): T {
       onReadyCalls++
-      return block()
+      inOnReady = true
+      return try {
+        block()
+      } finally {
+        inOnReady = false
+      }
     }
   }
 
@@ -314,6 +321,8 @@ class VidLabelingDispatcherTest {
     latestSourceRevision: RawImpressionUpload = source,
     predecessorModelLineState: RawImpressionUploadModelLine.State =
       RawImpressionUploadModelLine.State.COMPLETED,
+    metadataReadThrottler: RecordingThrottler? = null,
+    paginateRecoveryReads: Boolean = false,
   ) {
     val predecessor = rawImpressionUpload {
       name = RECOVERY_PREDECESSOR_UPLOAD
@@ -329,6 +338,7 @@ class VidLabelingDispatcherTest {
       replacesRawImpressionUpload = predecessor.name
     }
     whenever(rawImpressionUploadService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      check(metadataReadThrottler == null || metadataReadThrottler.inOnReady)
       val request =
         invocation.getArgument<
           org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
@@ -354,6 +364,7 @@ class VidLabelingDispatcherTest {
     }
     whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
       .thenAnswer { invocation ->
+        check(metadataReadThrottler == null || metadataReadThrottler.inOnReady)
         val request =
           invocation.getArgument<
             org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
@@ -361,27 +372,32 @@ class VidLabelingDispatcherTest {
             0
           )
         listRawImpressionUploadModelLinesResponse {
-          when (request.parent) {
-            source.name -> rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-                name = "${source.name}/rawImpressionUploadModelLines/rml1"
-                cmmsModelLine = MODEL_LINE_1
-                state = RawImpressionUploadModelLine.State.FAILED
-                failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
-                recoveryAction =
-                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
-                evictionOperationId = EVICTION_OPERATION_ID
-                recoveryPredecessorRawImpressionUpload = predecessor.name
-              }
-            predecessorReplacement.name -> rawImpressionUploadModelLines +=
-                rawImpressionUploadModelLine {
-                  name = "${predecessorReplacement.name}/rawImpressionUploadModelLines/rml1"
+          if (request.pageToken.isEmpty())
+            when (request.parent) {
+              source.name -> rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                  name = "${source.name}/rawImpressionUploadModelLines/rml1"
                   cmmsModelLine = MODEL_LINE_1
-                  state = predecessorModelLineState
+                  state = RawImpressionUploadModelLine.State.FAILED
+                  failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+                  recoveryAction =
+                    RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+                  evictionOperationId = EVICTION_OPERATION_ID
+                  recoveryPredecessorRawImpressionUpload = predecessor.name
                 }
+              predecessorReplacement.name -> rawImpressionUploadModelLines +=
+                  rawImpressionUploadModelLine {
+                    name = "${predecessorReplacement.name}/rawImpressionUploadModelLines/rml1"
+                    cmmsModelLine = MODEL_LINE_1
+                    state = predecessorModelLineState
+                  }
+            }
+          if (paginateRecoveryReads && request.pageToken.isEmpty()) {
+            nextPageToken = "next"
           }
         }
       }
     whenever(rankIndexBlobService.listRankIndexBlobs(any())).thenAnswer { invocation ->
+      check(metadataReadThrottler == null || metadataReadThrottler.inOnReady)
       val request =
         invocation.getArgument<
           org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
@@ -389,11 +405,16 @@ class VidLabelingDispatcherTest {
           0
         )
       listRankIndexBlobsResponse {
-        rankIndexBlobs += rankIndexBlob {
-          name = "${request.parent}/rankIndexBlobs/snapshot"
-          blobType = RankIndexBlob.BlobType.SNAPSHOT
-          cmmsModelLine = MODEL_LINE_1
-          if (request.parent == source.name) deleteTime = Timestamp.getDefaultInstance()
+        if (request.pageToken.isEmpty()) {
+          rankIndexBlobs += rankIndexBlob {
+            name = "${request.parent}/rankIndexBlobs/snapshot"
+            blobType = RankIndexBlob.BlobType.SNAPSHOT
+            cmmsModelLine = MODEL_LINE_1
+            if (request.parent == source.name) deleteTime = Timestamp.getDefaultInstance()
+          }
+          if (paginateRecoveryReads && request.showDeleted) {
+            nextPageToken = "next"
+          }
         }
       }
     }
@@ -772,8 +793,9 @@ class VidLabelingDispatcherTest {
       doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
     }
     val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    val metadataRead = RecordingThrottler()
     whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
-    stubRecoverySource(source)
+    stubRecoverySource(source, metadataReadThrottler = metadataRead, paginateRecoveryReads = true)
     whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
       .thenReturn(
         rawImpressionUpload {
@@ -794,10 +816,22 @@ class VidLabelingDispatcherTest {
         overrideModelLines = listOf(MODEL_LINE_1),
         recoverySourceUpload = sourceUploadName,
         recoveryOperationId = EVICTION_OPERATION_ID,
+        rpcThrottlers =
+          VidLabelingRpcThrottlers(
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().kingdom,
+            metadataRead,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().metadataWrite,
+            VidLabelingRpcThrottlersTestHelper.alwaysReady().controlPlane,
+          ),
       )
     dispatcher.upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
 
-    verifyBlocking(rawImpressionUploadService) { createRawImpressionUpload(any()) }
+    val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+    verifyBlocking(rawImpressionUploadService) {
+      createRawImpressionUpload(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
+    assertThat(metadataRead.onReadyCalls).isGreaterThan(0)
   }
 
   @Test
@@ -900,6 +934,46 @@ class VidLabelingDispatcherTest {
 
     assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
     verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
+  fun `upload authorizes an EDP correction with its eviction operation`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += source })
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        }
+      )
+    stubFullResolutionChain(MODEL_LINE_1)
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+    verifyBlocking(rawImpressionUploadService) {
+      createRawImpressionUpload(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
   }
 
   @Test

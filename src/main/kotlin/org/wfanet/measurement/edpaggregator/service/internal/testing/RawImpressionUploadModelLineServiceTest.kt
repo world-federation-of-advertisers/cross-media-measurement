@@ -79,6 +79,14 @@ abstract class RawImpressionUploadModelLineServiceTest {
     evictionOperationId: String,
   )
 
+  /** Sets how the parent upload participates in an active eviction operation. */
+  protected abstract suspend fun setParentUploadEvictionDisposition(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    evictionOperationId: String?,
+    processingDeferred: Boolean,
+  )
+
   @Before
   fun initService() {
     service = newService()
@@ -2532,6 +2540,82 @@ abstract class RawImpressionUploadModelLineServiceTest {
       }
 
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `eviction fence allows registration but not processing for a deferred upload`(): Unit =
+    runBlocking {
+      setParentUploadEvictionDisposition(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        evictionOperationId = null,
+        processingDeferred = true,
+      )
+      setEvictionFence(DATA_PROVIDER_RESOURCE_ID, EVICTION_OPERATION_ID)
+
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineLabeling(
+            markRawImpressionUploadModelLineLabelingRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(error.status.description).contains("waiting")
+    }
+
+  @Test
+  fun `eviction fence allows processing for its authorized replacement`(): Unit = runBlocking {
+    setParentUploadEvictionDisposition(
+      DATA_PROVIDER_RESOURCE_ID,
+      RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+      evictionOperationId = EVICTION_OPERATION_ID,
+      processingDeferred = false,
+    )
+    setEvictionFence(DATA_PROVIDER_RESOURCE_ID, EVICTION_OPERATION_ID)
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(labeling.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING)
   }
 
   companion object {
