@@ -1,14 +1,21 @@
 # Healing VID-labeling uploads
 
 Use the `vid-labeling-heal evict-uploads` command when a completed raw-impression upload contains
-bad data and must be replaced. The same command handles memoized and non-memoized model lines; the
-operator supplies the bad upload resource names, not individual model lines.
+bad data and must either be replaced or permanently removed. The same command handles memoized and
+non-memoized model lines; the operator supplies the bad upload resource names, not individual model
+lines.
 
 ## Before eviction
 
 The command checks every upload/model-line under the DataProvider and refuses to run while any VID
 labeling pipeline is queued or running. If this happens, retry later after processing for that
 DataProvider has finished.
+
+Before building the plan, obtain a final decision from the EDP for every explicitly selected bad
+upload: either the EDP will correct and replace it, or it will be permanently removed. Include every
+permanently removed upload in `--no-replacement-upload`. The selected action is persisted when the
+operator confirms the plan and cannot be changed for that healing operation; if the EDP is unsure,
+abort before entering `yes` and create the plan again after the decision is final.
 
 ### Find uploads for an event date
 
@@ -43,6 +50,8 @@ Run the command with:
 * `--bad-uploads`: comma-separated `RawImpressionUpload` resource names containing bad data.
 * `--no-replacement-upload`: optional comma-separated subset of `--bad-uploads` that must be
   permanently removed rather than corrected and re-uploaded by the EDP.
+* `--eviction-operation-id`: optional UUID for resuming an interrupted initial eviction; omit it
+  for a new operation and reuse the value printed by the command after an interruption.
 * `--retention-days`: the bounded history in which the command may inspect and evict uploads.
 * `--reason`: the diagnosis recorded on each failed upload/model-line row.
 * `--labeled-impressions-blob-prefix`: the absolute URI prefix configured for VID-labeled output.
@@ -74,18 +83,19 @@ object-deletion event. Kingdom availability is not narrowed during the repair wi
 interval representation cannot express an interior missing day; Results Fulfiller ignores the
 soft-deleted metadata.
 
-## Re-upload corrected data
+## Complete replacement or permanent removal
 
-After eviction succeeds, the EDP corrects the retained raw-impression directory and writes a new
-generation of its `done` object. This creates a replacement upload containing a complete snapshot
-of every raw-impression object currently present in the directory. Unchanged objects do not need to
-be uploaded again, but the pipeline processes them again together with changed and added objects.
-Objects removed from the directory are excluded from the replacement upload.
+For every bad upload not listed in `--no-replacement-upload`, the EDP corrects the retained
+raw-impression directory after eviction succeeds and writes a new generation of its `done` object.
+This creates a replacement upload containing a complete snapshot of every raw-impression object
+currently present in the directory. Unchanged objects do not need to be uploaded again, but the
+pipeline processes them again together with changed and added objects. Objects removed from the
+directory are excluded from the replacement upload.
 
-For explicitly selected bad uploads, the EDP writes corrected data and a new `done` generation in
-chronological order. That normal path recreates every applicable memoized and non-memoized model
-line recorded by the eviction, even if a model line's active window ends while healing is in
-progress. Give the EDP the
+For explicitly selected bad uploads that require replacement, the EDP writes corrected data and a
+new `done` generation in chronological order. That normal path recreates every applicable memoized
+and non-memoized model line recorded by the eviction, even if a model line's active window ends
+while healing is in progress. Give the EDP the
 [Reference VID impression upload guide](../edpaggregator/reference-vid-impression-upload-guide.md)
 and confirm that eviction completed before the EDP changes the directory or writes the new `done`
 generation.
@@ -95,7 +105,8 @@ If an invalid upload must be removed permanently, include it in both `--bad-uplo
 that upload. For each memoized model line, the workflow skips the removed upload when constructing
 the predecessor chain: the next retained upload is recovered from the latest earlier retained
 snapshot, or starts a new snapshot when no predecessor remains. Multiple adjacent or
-non-contiguous removals are supported.
+non-contiguous removals are supported. This choice cannot be changed after confirmation because it
+is part of the persisted recovery plan.
 
 Later uploads pulled into the eviction only by a memoized cascade do not need their raw data
 re-uploaded. Run `resume` with the operation name printed by `evict-uploads` whenever the requested
@@ -123,6 +134,12 @@ VidLabelingDispatcher independently verifies that the source is the latest revis
 path, that every selected row belongs to that eviction operation and is marked for operator
 recovery, and that its predecessor has a completed replacement with a live snapshot. It then
 creates a replacement upload for only those model lines.
+
+The DataProvider's eviction fence remains active until the healing operation reaches `COMPLETE`.
+New `done` events received during healing are still registered, but their uploads are not
+dispatched. When the final `resume` completes the operation, it releases the fence; the periodic
+dispatcher then automatically processes every deferred upload in chronological order. The EDP does
+not need to rewrite those `done` objects.
 
 ### Example: D2 and D4 contain bad data
 
