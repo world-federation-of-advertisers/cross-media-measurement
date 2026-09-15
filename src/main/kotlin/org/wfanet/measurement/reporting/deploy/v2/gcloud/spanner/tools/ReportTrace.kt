@@ -397,19 +397,12 @@ internal class DatabaseBasicReportTraceResolver(
 internal class GoogleCloudReportTraceLogReader(
   private val project: String,
   private val logging: Logging,
-  private val includeRawPayloads: Boolean,
   private var requestThrottler: Throttler,
 ) : ReportTraceLogReader {
   constructor(
     project: String,
     logging: Logging,
-    includeRawPayloads: Boolean,
-  ) : this(
-    project,
-    logging,
-    includeRawPayloads,
-    MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
-  )
+  ) : this(project, logging, MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO))
 
   override fun withRequestThrottler(requestThrottler: Throttler): ReportTraceLogReader {
     this.requestThrottler = requestThrottler
@@ -469,7 +462,7 @@ internal class GoogleCloudReportTraceLogReader(
       service = service,
       severity = severity.name,
       trace = trace?.takeIf(String::isNotEmpty),
-      message = ReportTraceOutput.renderLogPayload(getPayload(), includeRawPayloads),
+      message = ReportTraceOutput.renderLogPayload(getPayload()),
     )
   }
 
@@ -733,53 +726,7 @@ private fun JsonObject.optionalString(name: String): String? =
   get(name)?.takeUnless { it.isJsonNull }?.asString
 
 internal object ReportTraceOutput {
-  fun renderLogPayload(payload: Payload<*>?, includeRawPayloads: Boolean): String {
-    if (payload == null) return ""
-    if (includeRawPayloads) return payload.toString()
-    if (payload.type == Payload.Type.STRING) {
-      val text = (payload as Payload.StringPayload).data
-      val safeFields =
-        SAFE_TEXT_FIELD_PATTERN.findAll(text)
-          .map { match -> "${match.groupValues[1]}=${sanitize(match.groupValues[2])}" }
-          .toList()
-      return if (safeFields.isEmpty()) {
-        "[string payload omitted]"
-      } else {
-        safeFields.joinToString(" ")
-      }
-    }
-    if (payload.type != Payload.Type.JSON) {
-      return "[${payload.type.name.lowercase()} payload omitted]"
-    }
-
-    val values = (payload as Payload.JsonPayload).dataAsMap
-    val safeValues = mutableMapOf<String, String>()
-    for (key in SAFE_LOG_FIELDS) {
-      values[key]?.let { value -> safeScalar(value)?.let { safeValues[key] = it } }
-    }
-    val message = values["message"]?.toString()
-    if (message != null) {
-      SAFE_TEXT_FIELD_PATTERN.findAll(message).forEach { match ->
-        val key = match.groups[1]?.value ?: return@forEach
-        val value = match.groups[2]?.value ?: return@forEach
-        safeValues[key] = sanitize(value)
-      }
-    }
-    val nestedAttributes = values["attributes"] as? Map<*, *>
-    if (nestedAttributes != null) {
-      for ((key, value) in nestedAttributes) {
-        val keyString = key as? String ?: continue
-        if (keyString in SAFE_LOG_FIELDS && value != null) {
-          safeScalar(value)?.let { safeValues[keyString] = it }
-        }
-      }
-    }
-    return if (safeValues.isEmpty()) {
-      "[json payload omitted]"
-    } else {
-      safeValues.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }
-    }
-  }
+  fun renderLogPayload(payload: Payload<*>?): String = payload?.toString().orEmpty()
 
   fun buildLogFilters(
     correlationValues: Collection<String>,
@@ -850,7 +797,6 @@ internal object ReportTraceOutput {
     logEntries: List<ReportTraceLogEntry>,
     sourceStatuses: List<ReportTraceSourceStatus>,
     warnings: List<String>,
-    includeRawPayloads: Boolean,
     lifecycleCoverage: List<ReportTraceLifecycleStage> =
       lifecycleCoverage(context, routeResolution, spans, logEntries),
     artifactStatus: ReportTraceArtifactStatus =
@@ -885,10 +831,8 @@ internal object ReportTraceOutput {
     if (startTime != null) appendLine("Collection start: $startTime")
     if (endTime != null) appendLine("Collection end: $endTime")
     if (generatedAt != null) appendLine("Generated at: $generatedAt")
-    appendLine("Payload policy: ${if (includeRawPayloads) "RAW-SENSITIVE" else "REDACTED"}")
-    if (includeRawPayloads) {
-      appendLine("WARNING: This artifact contains raw log payloads and may contain secrets.")
-    }
+    appendLine("Payload policy: RAW-SENSITIVE")
+    appendLine("WARNING: This artifact contains raw log payloads and may contain secrets.")
     appendLine()
     appendLine("## Resolved resource chain")
     appendLine()
@@ -2187,14 +2131,6 @@ internal object ReportTraceOutput {
 
   private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
 
-  private fun safeScalar(value: Any): String? =
-    when (value) {
-      is String,
-      is Number,
-      is Boolean -> sanitize(value.toString())
-      else -> null
-    }
-
   private data class RenderedTimelineEntry(val timestamp: Instant, val text: String)
 
   private data class LifecycleEvidence(
@@ -2347,7 +2283,7 @@ internal object ReportTraceOutput {
   showDefaultValues = true,
 )
 internal class ReportTrace(
-  private val logReaderFactory: (String, Boolean) -> ReportTraceLogReader,
+  private val logReaderFactory: (String) -> ReportTraceLogReader,
   private val spanReaderFactory: () -> ReportTraceSpanReader,
   private val resolverFactory:
     (SpannerDatabaseConnector, PostgresDatabaseClient) -> BasicReportTraceResolver,
@@ -2362,12 +2298,11 @@ internal class ReportTrace(
       MaximumRateThrottler(traceQuotaUnitsPerSecond)
     }
   }
-  private val logReaders = mutableMapOf<Pair<String, Boolean>, ReportTraceLogReader>()
+  private val logReaders = mutableMapOf<String, ReportTraceLogReader>()
 
   private fun logReader(project: String): ReportTraceLogReader {
-    return logReaders.getOrPut(project to includeRawPayloads) {
-      logReaderFactory(project, includeRawPayloads)
-        .withRequestThrottler(MaximumRateThrottler(loggingRequestsPerSecond))
+    return logReaders.getOrPut(project) {
+      logReaderFactory(project).withRequestThrottler(MaximumRateThrottler(loggingRequestsPerSecond))
     }
   }
 
@@ -2459,12 +2394,6 @@ internal class ReportTrace(
       ["Google Cloud project containing trace and log data. Repeat for multiple projects."],
   )
   private var observabilityProjects: List<String> = emptyList()
-
-  @CommandLine.Option(
-    names = ["--include-raw-payloads"],
-    description = ["Include raw log payloads. The resulting artifact may contain secrets."],
-  )
-  private var includeRawPayloads: Boolean = false
 
   @CommandLine.Option(
     names = ["--allow-partial"],
@@ -2703,7 +2632,6 @@ internal class ReportTrace(
             collection.logEntries,
             collection.sourceStatuses,
             collection.warnings,
-            includeRawPayloads,
             collection.lifecycleCoverage,
             collection.status,
             collection.startTime,
@@ -2906,7 +2834,6 @@ internal class ReportTrace(
               collection.logEntries,
               collection.sourceStatuses,
               collection.warnings,
-              includeRawPayloads,
               collection.lifecycleCoverage,
               collection.status,
               collection.startTime,
@@ -3596,7 +3523,7 @@ internal class ReportTrace(
     val type = exception::class.java.simpleName
     val message =
       exception.message?.takeIf(String::isNotBlank)?.let(ReportTraceOutput::sanitize) ?: return type
-    return if (includeRawPayloads) message else "$type: $message"
+    return "$type: $message"
   }
 
   private fun outputFileName(key: BasicReportKey): String {
@@ -3748,7 +3675,7 @@ internal class ReportTrace(
 }
 
 internal class ReportTraceDependencies(
-  val logReaderFactory: (String, Boolean) -> ReportTraceLogReader,
+  val logReaderFactory: (String) -> ReportTraceLogReader,
   val spanReaderFactory: () -> ReportTraceSpanReader,
   val resolverFactory:
     (SpannerDatabaseConnector, PostgresDatabaseClient) -> BasicReportTraceResolver,
@@ -3806,7 +3733,7 @@ suspend fun main(args: Array<String>) {
     runReportTrace(
       args,
       ReportTraceDependencies(
-        logReaderFactory = { project, includeRawPayloads ->
+        logReaderFactory = { project ->
           GoogleCloudReportTraceLogReader(
             project,
             LoggingOptions.newBuilder()
@@ -3814,7 +3741,6 @@ suspend fun main(args: Array<String>) {
               .setQuotaProjectId(project)
               .build()
               .service,
-            includeRawPayloads,
           )
         },
         spanReaderFactory = { GoogleCloudReportTraceSpanReader() },
