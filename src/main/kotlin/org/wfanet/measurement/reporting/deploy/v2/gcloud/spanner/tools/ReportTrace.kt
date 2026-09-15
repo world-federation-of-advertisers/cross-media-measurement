@@ -24,7 +24,6 @@ import com.google.cloud.logging.Logging.SortingField
 import com.google.cloud.logging.Logging.SortingOrder
 import com.google.cloud.logging.LoggingOptions
 import com.google.cloud.logging.Payload
-import com.google.cloud.logging.Severity
 import com.google.cloud.sql.core.GcpConnectionFactoryProvider
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
@@ -398,17 +397,17 @@ internal class DatabaseBasicReportTraceResolver(
 internal class GoogleCloudReportTraceLogReader(
   private val project: String,
   private val logging: Logging,
-  private val includeRawPayloads: Boolean,
+  private val includeGrpcPayloads: Boolean,
   private var requestThrottler: Throttler,
 ) : ReportTraceLogReader {
   constructor(
     project: String,
     logging: Logging,
-    includeRawPayloads: Boolean,
+    includeGrpcPayloads: Boolean,
   ) : this(
     project,
     logging,
-    includeRawPayloads,
+    includeGrpcPayloads,
     MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
   )
 
@@ -446,7 +445,8 @@ internal class GoogleCloudReportTraceLogReader(
       }
     while (true) {
       for (entry in page.values) {
-        entries += entry.toReportTraceLogEntry()
+        val reportTraceLogEntry = entry.toReportTraceLogEntry() ?: continue
+        entries += reportTraceLogEntry
         if (entries.size == entryLimit) return entries
       }
       if (!page.hasNextPage()) return entries
@@ -458,19 +458,21 @@ internal class GoogleCloudReportTraceLogReader(
     }
   }
 
-  private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry {
+  private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry? {
     val resourceLabels = resource?.labels.orEmpty()
     val service =
       listOf("service_name", "container_name", "job_name", "function_name").firstNotNullOfOrNull {
         resourceLabels[it]
       } ?: resource?.type ?: logName.substringAfterLast('/')
+    val message =
+      ReportTraceOutput.renderLogPayload(getPayload(), includeGrpcPayloads) ?: return null
     return ReportTraceLogEntry(
       sourceProject = project,
       timestamp = instantTimestamp ?: Instant.EPOCH,
       service = service,
       severity = severity.name,
       trace = trace?.takeIf(String::isNotEmpty),
-      message = ReportTraceOutput.renderLogPayload(getPayload(), severity, includeRawPayloads),
+      message = message,
     )
   }
 
@@ -734,57 +736,39 @@ private fun JsonObject.optionalString(name: String): String? =
   get(name)?.takeUnless { it.isJsonNull }?.asString
 
 internal object ReportTraceOutput {
-  fun renderLogPayload(
-    payload: Payload<*>?,
-    severity: Severity,
-    includeRawPayloads: Boolean,
-  ): String {
+  fun renderLogPayload(payload: Payload<*>?, includeGrpcPayloads: Boolean): String? {
     if (payload == null) return ""
-    if (includeRawPayloads) return payload.toString()
     if (payload.type == Payload.Type.STRING) {
       val text = (payload as Payload.StringPayload).data
-      val safeFields =
-        SAFE_TEXT_FIELD_PATTERN.findAll(text)
-          .map { match -> "${match.groupValues[1]}=${sanitize(match.groupValues[2])}" }
-          .toList()
-      val diagnostic = safeDiagnostic(text, severity)
-      return (safeFields +
-          listOfNotNull(diagnostic?.let { "diagnostic=${sanitizeDiagnostic(it)}" }))
-        .takeIf(List<String>::isNotEmpty)
-        ?.joinToString(" ") ?: "[string payload omitted]"
+      return if (includeGrpcPayloads || !isVerboseGrpcLog(text)) text else null
     }
-    if (payload.type != Payload.Type.JSON) {
-      return "[${payload.type.name.lowercase()} payload omitted]"
-    }
-
-    val values = (payload as Payload.JsonPayload).dataAsMap
-    val safeValues = mutableMapOf<String, String>()
-    for (key in SAFE_LOG_FIELDS) {
-      values[key]?.let { value -> safeScalar(value)?.let { safeValues[key] = it } }
-    }
-    val message = values["message"]?.toString()
-    if (message != null) {
-      SAFE_TEXT_FIELD_PATTERN.findAll(message).forEach { match ->
-        val key = match.groups[1]?.value ?: return@forEach
-        val value = match.groups[2]?.value ?: return@forEach
-        safeValues[key] = sanitize(value)
+    if (payload.type == Payload.Type.JSON) {
+      val values = (payload as Payload.JsonPayload).dataAsMap
+      val message = values["message"]?.toString()
+      if (!includeGrpcPayloads && message != null && isVerboseGrpcLog(message)) {
+        return null
       }
-      safeDiagnostic(message, severity)?.let { safeValues["diagnostic"] = sanitizeDiagnostic(it) }
-    }
-    val nestedAttributes = values["attributes"] as? Map<*, *>
-    if (nestedAttributes != null) {
-      for ((key, value) in nestedAttributes) {
-        val keyString = key as? String ?: continue
-        if (keyString in SAFE_LOG_FIELDS && value != null) {
-          safeScalar(value)?.let { safeValues[keyString] = it }
+      val operationalFields = mutableMapOf<String, String>()
+      for (key in SAFE_LOG_FIELDS) {
+        values[key]?.let { value -> rawScalar(value)?.let { operationalFields[key] = it } }
+      }
+      if (message != null) {
+        operationalFields.putAll(safeTextFields(message))
+      }
+      val nestedAttributes = values["attributes"] as? Map<*, *>
+      if (nestedAttributes != null) {
+        for ((key, value) in nestedAttributes) {
+          val keyString = key as? String ?: continue
+          if (keyString in SAFE_LOG_FIELDS && value != null) {
+            rawScalar(value)?.let { operationalFields[keyString] = it }
+          }
         }
       }
+      val prefix =
+        operationalFields.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }
+      return if (prefix.isEmpty()) payload.toString() else "$prefix ${payload}"
     }
-    return if (safeValues.isEmpty()) {
-      "[json payload omitted]"
-    } else {
-      safeValues.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }
-    }
+    return payload.toString()
   }
 
   fun buildLogFilters(
@@ -856,7 +840,7 @@ internal object ReportTraceOutput {
     logEntries: List<ReportTraceLogEntry>,
     sourceStatuses: List<ReportTraceSourceStatus>,
     warnings: List<String>,
-    includeRawPayloads: Boolean,
+    includeGrpcPayloads: Boolean,
     lifecycleCoverage: List<ReportTraceLifecycleStage> =
       lifecycleCoverage(context, routeResolution, spans, logEntries),
     artifactStatus: ReportTraceArtifactStatus =
@@ -891,9 +875,15 @@ internal object ReportTraceOutput {
     if (startTime != null) appendLine("Collection start: $startTime")
     if (endTime != null) appendLine("Collection end: $endTime")
     if (generatedAt != null) appendLine("Generated at: $generatedAt")
-    appendLine("Payload policy: ${if (includeRawPayloads) "RAW-SENSITIVE" else "REDACTED"}")
-    if (includeRawPayloads) {
-      appendLine("WARNING: This artifact contains raw log payloads and may contain secrets.")
+    appendLine(
+      "Payload policy: " +
+        if (includeGrpcPayloads) "ALL-LOG-PAYLOADS; SENSITIVE" else "APPLICATION-LOGS; GRPC-OMITTED"
+    )
+    if (includeGrpcPayloads) {
+      appendLine(
+        "WARNING: This artifact contains verbose gRPC metadata and request/response payloads " +
+          "and may contain secrets."
+      )
     }
     appendLine()
     appendLine("## Resolved resource chain")
@@ -2184,10 +2174,6 @@ internal object ReportTraceOutput {
     return redact(value).take(MAX_RENDERED_VALUE_LENGTH)
   }
 
-  private fun sanitizeDiagnostic(value: String): String {
-    return redact(value).take(MAX_RENDERED_DIAGNOSTIC_LENGTH)
-  }
-
   private fun redact(value: String): String {
     var sanitized = value.replace('\n', ' ').replace('\r', ' ')
     for (pattern in SECRET_PATTERNS) {
@@ -2201,11 +2187,11 @@ internal object ReportTraceOutput {
 
   private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
 
-  private fun safeScalar(value: Any): String? =
+  private fun rawScalar(value: Any): String? =
     when (value) {
       is String,
       is Number,
-      is Boolean -> sanitize(value.toString())
+      is Boolean -> value.toString()
       else -> null
     }
 
@@ -2254,7 +2240,6 @@ internal object ReportTraceOutput {
 
   private const val MAX_LOG_FILTER_LENGTH = 20_000
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
-  private const val MAX_RENDERED_DIAGNOSTIC_LENGTH = 16 * 1024
   private val MEASUREMENT_LIFECYCLE_STAGES =
     listOf(
       "measurement_creation",
@@ -2350,29 +2335,11 @@ internal object ReportTraceOutput {
     )
   private val SAFE_TEXT_FIELD_PATTERN =
     Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
-  private val VERBOSE_GRPC_PAYLOAD_PATTERN = Regex("(?i)\\bgRPC\\s+[^\\n]*(?:request|response):")
-  private val DIAGNOSTIC_TEXT_PATTERN =
-    Regex(
-      "(?i)(?:^|\\b)(?:SEVERE|WARNING):|" +
-        "(?:Exception|Error)(?::|\\b)|" +
-        "\\b(?:failed|failure|refusing|invalid|denied|unavailable|" +
-        "deadline exceeded|resource exhausted|timed out)\\b"
-    )
-  private val DIAGNOSTIC_SEVERITIES =
-    setOf(Severity.WARNING, Severity.ERROR, Severity.CRITICAL, Severity.ALERT, Severity.EMERGENCY)
+  private val VERBOSE_GRPC_LOG_PATTERN =
+    Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(?:headers|request|response|complete|error):?")
 
-  private fun safeDiagnostic(text: String, severity: Severity): String? {
-    if (severity !in DIAGNOSTIC_SEVERITIES) return null
-    val trimmed = text.trim()
-    if (
-      trimmed.isEmpty() ||
-        VERBOSE_GRPC_PAYLOAD_PATTERN.containsMatchIn(trimmed) ||
-        !DIAGNOSTIC_TEXT_PATTERN.containsMatchIn(trimmed)
-    ) {
-      return null
-    }
-    return trimmed
-  }
+  private fun isVerboseGrpcLog(text: String): Boolean =
+    VERBOSE_GRPC_LOG_PATTERN.containsMatchIn(text)
 
   private fun safeTextFields(text: String): Map<String, String> {
     return SAFE_TEXT_FIELD_PATTERN.findAll(text).associate { match ->
@@ -2406,8 +2373,8 @@ internal class ReportTrace(
   private val logReaders = mutableMapOf<Pair<String, Boolean>, ReportTraceLogReader>()
 
   private fun logReader(project: String): ReportTraceLogReader {
-    return logReaders.getOrPut(project to includeRawPayloads) {
-      logReaderFactory(project, includeRawPayloads)
+    return logReaders.getOrPut(project to includeGrpcPayloads) {
+      logReaderFactory(project, includeGrpcPayloads)
         .withRequestThrottler(MaximumRateThrottler(loggingRequestsPerSecond))
     }
   }
@@ -2502,10 +2469,11 @@ internal class ReportTrace(
   private var observabilityProjects: List<String> = emptyList()
 
   @CommandLine.Option(
-    names = ["--include-raw-payloads"],
-    description = ["Include raw log payloads. The resulting artifact may contain secrets."],
+    names = ["--include-grpc-payloads"],
+    description =
+      ["Include verbose gRPC metadata and request/response payloads. May contain secrets."],
   )
-  private var includeRawPayloads: Boolean = false
+  private var includeGrpcPayloads: Boolean = false
 
   @CommandLine.Option(
     names = ["--allow-partial"],
@@ -2744,7 +2712,7 @@ internal class ReportTrace(
             collection.logEntries,
             collection.sourceStatuses,
             collection.warnings,
-            includeRawPayloads,
+            includeGrpcPayloads,
             collection.lifecycleCoverage,
             collection.status,
             collection.startTime,
@@ -2947,7 +2915,7 @@ internal class ReportTrace(
               collection.logEntries,
               collection.sourceStatuses,
               collection.warnings,
-              includeRawPayloads,
+              includeGrpcPayloads,
               collection.lifecycleCoverage,
               collection.status,
               collection.startTime,
@@ -3637,7 +3605,7 @@ internal class ReportTrace(
     val type = exception::class.java.simpleName
     val message =
       exception.message?.takeIf(String::isNotBlank)?.let(ReportTraceOutput::sanitize) ?: return type
-    return if (includeRawPayloads) message else "$type: $message"
+    return "$type: $message"
   }
 
   private fun outputFileName(key: BasicReportKey): String {
@@ -3847,7 +3815,7 @@ suspend fun main(args: Array<String>) {
     runReportTrace(
       args,
       ReportTraceDependencies(
-        logReaderFactory = { project, includeRawPayloads ->
+        logReaderFactory = { project, includeGrpcPayloads ->
           GoogleCloudReportTraceLogReader(
             project,
             LoggingOptions.newBuilder()
@@ -3855,7 +3823,7 @@ suspend fun main(args: Array<String>) {
               .setQuotaProjectId(project)
               .build()
               .service,
-            includeRawPayloads,
+            includeGrpcPayloads,
           )
         },
         spanReaderFactory = { GoogleCloudReportTraceSpanReader() },
