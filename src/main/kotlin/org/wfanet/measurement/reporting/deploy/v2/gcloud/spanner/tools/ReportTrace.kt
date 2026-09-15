@@ -1117,6 +1117,7 @@ internal object ReportTraceOutput {
     }
     linkComputationEvidenceToMeasurements(observed)
     linkWorkItemEvidenceToRequisitions(observed)
+    linkEdpaGroupEvidenceToRequisitions(observed)
     val expectedOperations =
       expectedOperations(
         context,
@@ -1275,6 +1276,51 @@ internal object ReportTraceOutput {
 
   private fun workItemCorrelationKey(name: String): String {
     return name.removePrefix("workItems/")
+  }
+
+  private fun linkEdpaGroupEvidenceToRequisitions(
+    observed: MutableMap<String, MutableList<LifecycleEvidence>>
+  ) {
+    val requisitionsByGroup: Map<String, List<String>> =
+      observed["requisition_dispatch"]
+        .orEmpty()
+        .mapNotNull { evidence ->
+          val groupId: String = evidence.attributes["xmm.edpa.group_id"] ?: return@mapNotNull null
+          val requisitionName: String =
+            evidence.attributes["xmm.requisition.name"] ?: return@mapNotNull null
+          groupId to requisitionName
+        }
+        .groupBy(
+          keySelector = { (groupId) -> groupId },
+          valueTransform = { (_, requisitionName) -> requisitionName },
+        )
+    val resultsFulfillerEvidence: MutableList<LifecycleEvidence> =
+      observed["results_fulfillment"] ?: return
+    observed["results_fulfillment"] =
+      resultsFulfillerEvidence
+        .flatMap { evidence ->
+          if ("xmm.requisition.name" in evidence.attributes) {
+            listOf(evidence)
+          } else {
+            val groupId: String? = evidence.attributes["xmm.edpa.group_id"]
+            val requisitions: List<String> =
+              if (groupId == null) {
+                emptyList()
+              } else {
+                requisitionsByGroup[groupId].orEmpty().distinct()
+              }
+            if (requisitions.isEmpty()) {
+              listOf(evidence)
+            } else {
+              requisitions.map { requisition ->
+                evidence.copy(
+                  attributes = evidence.attributes + ("xmm.requisition.name" to requisition)
+                )
+              }
+            }
+          }
+        }
+        .toMutableList()
   }
 
   private fun lifecycleStage(
