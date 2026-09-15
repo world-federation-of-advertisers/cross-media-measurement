@@ -98,7 +98,7 @@ class ReportTraceTest {
     val readerEndTimes = mutableListOf<Instant>()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { correlationValues, _, endTime, _ ->
             receivedValues = correlationValues
             readerEndTimes += endTime
@@ -189,7 +189,7 @@ class ReportTraceTest {
     }
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
         resolverFactory = { _, _ -> error("Resolver factory should not be used") },
         resolverOverride = resolver,
@@ -228,7 +228,7 @@ class ReportTraceTest {
     val outputDirectory = temporaryFolder.newFolder("partial-traces").toPath()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
         resolverFactory = { _, _ -> error("Resolver factory should not be used") },
         resolverOverride =
@@ -281,7 +281,7 @@ class ReportTraceTest {
     val queriedBasicReports = mutableSetOf<String>()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
             val basicReport =
@@ -361,7 +361,7 @@ class ReportTraceTest {
         )
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             logQueryValues += correlationValues
             listOf("trace-1", "trace-2", "trace-3").mapIndexed { index, traceId ->
@@ -420,7 +420,7 @@ class ReportTraceTest {
     var resolverCalls = 0
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
         resolverFactory = { _, _ -> error("Resolver factory should not be used") },
         resolverOverride =
@@ -592,7 +592,7 @@ class ReportTraceTest {
     var loggingCorrelationValues: Collection<String> = emptyList()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             loggingCorrelationValues = correlationValues
             listOf(
@@ -645,7 +645,7 @@ class ReportTraceTest {
     val basicReportName = "measurementConsumers/mc-1/basicReports/report-a"
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { _, _, _, _ ->
             listOf(
               ReportTraceLogEntry(
@@ -710,7 +710,7 @@ class ReportTraceTest {
         )
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, _, _, _, _, _ ->
             listOf(lifecycleSpan("basic_report_creation", "xmm.basic_report.name", basicReportName))
@@ -976,6 +976,7 @@ class ReportTraceTest {
       GoogleCloudReportTraceLogReader(
         project = "logging-project",
         logging = logging,
+        includeRawPayloads = false,
         requestThrottler = throttler,
       )
 
@@ -1024,6 +1025,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("parent=span-1")
@@ -1096,6 +1098,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: COMPLETE")
@@ -1546,6 +1549,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: COMPLETE")
@@ -1641,6 +1645,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: COMPLETE")
@@ -2897,6 +2902,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output)
@@ -2955,6 +2961,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("- Requisitions: none discovered from telemetry")
@@ -2995,6 +3002,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: FAILED")
@@ -3016,7 +3024,7 @@ class ReportTraceTest {
     var loggingCorrelationValues: Collection<String> = emptyList()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ ->
+        logReaderFactory = { _, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             loggingCorrelationValues = correlationValues
             emptyList()
@@ -3254,7 +3262,7 @@ class ReportTraceTest {
     var spansReturned = false
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, _, _, _, _, _ ->
             if (spansReturned) {
@@ -3436,7 +3444,7 @@ class ReportTraceTest {
         )
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
             spanCorrelationInputs += correlationValues
@@ -3649,6 +3657,7 @@ class ReportTraceTest {
         logEntries = logEntries,
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     for (stage in stageAttributes.keys) {
@@ -3792,6 +3801,7 @@ class ReportTraceTest {
         logEntries = logEntries,
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(coverage.filter { it.name == "duchy_computation" }.map { it.status })
@@ -3857,7 +3867,7 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `renderLogPayload preserves JSON payload`() {
+  fun `renderLogPayload redacts secrets and omits unapproved fields`() {
     val payload =
       Payload.JsonPayload.of(
         mapOf(
@@ -3873,28 +3883,54 @@ class ReportTraceTest {
         )
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload)
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
 
-    assertThat(rendered).isEqualTo(payload.toString())
+    assertThat(rendered).contains("xmm.report.name=measurementConsumers/mc-1/reports/report-1")
+    assertThat(rendered).doesNotContain("request failed")
+    assertThat(rendered).doesNotContain("secret-token")
+    assertThat(rendered).doesNotContain("secret-api-key")
+    assertThat(rendered).doesNotContain("secret-password")
+    assertThat(rendered).doesNotContain("secret-authorization")
+    assertThat(rendered).doesNotContain("secret-customer-data")
   }
 
   @Test
-  fun `renderLogPayload preserves string payload and stack trace`() {
+  fun `renderLogPayload keeps safe fields but omits arbitrary text`() {
     val payload =
       Payload.StringPayload.of(
-        "Refusing Requisition dataProviders/dp-1/requisitions/r1\n" +
-          "java.lang.IllegalArgumentException: PopulationSpec is invalid\n" +
-          "\tat example.Fulfiller.process(Fulfiller.kt:42)"
+        "xmm.basic_report.name=measurementConsumers/mc-1/basicReports/br-1 " +
+          "xmm.lifecycle.stage=noise_correction token=secret-value arbitrary request body"
       )
 
-    val rendered = ReportTraceOutput.renderLogPayload(payload)
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
 
-    assertThat(rendered).isEqualTo(payload.toString())
+    assertThat(rendered)
+      .contains("xmm.basic_report.name=measurementConsumers/mc-1/basicReports/br-1")
+    assertThat(rendered).contains("xmm.lifecycle.stage=noise_correction")
+    assertThat(rendered).doesNotContain("secret-value")
+    assertThat(rendered).doesNotContain("arbitrary request body")
   }
 
   @Test
-  fun `renderLogPayload handles missing payload`() {
-    assertThat(ReportTraceOutput.renderLogPayload(null)).isEmpty()
+  fun `renderLogPayload omits credentials JWTs and signed URLs inside message`() {
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf(
+          "message" to
+            "status=failed password=hunter2 credential=session-secret " +
+              "jwt=aaa.bbb.ccc url=https://example.test/object?X-Goog-Signature=secret",
+          "event" to "requisition_failed",
+        )
+      )
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeRawPayloads = false)
+
+    assertThat(rendered).contains("event=requisition_failed")
+    assertThat(rendered).contains("status=failed")
+    assertThat(rendered).doesNotContain("hunter2")
+    assertThat(rendered).doesNotContain("session-secret")
+    assertThat(rendered).doesNotContain("aaa.bbb.ccc")
+    assertThat(rendered).doesNotContain("X-Goog-Signature")
   }
 
   @Test
@@ -3902,7 +3938,7 @@ class ReportTraceTest {
     val projects = mutableListOf<String>()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           projects += "logging:$project"
           ReportTraceLogReader { _, _, _, _ -> emptyList() }
         },
@@ -3944,7 +3980,7 @@ class ReportTraceTest {
     val traceIdsByProject = mutableMapOf<String, Collection<String>>()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { _, _, _, _ ->
             if (project == "reporting") {
               listOf(
@@ -4008,7 +4044,7 @@ class ReportTraceTest {
     val reportName = "measurementConsumers/mc-1/reports/report-1"
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             logQueries += correlationValues.toList()
             if (workItemName in correlationValues) {
@@ -4084,7 +4120,7 @@ class ReportTraceTest {
     val computationName = "computations/computation-1"
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             logQueries += correlationValues.toList()
             when {
@@ -4198,6 +4234,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: PARTIAL")
@@ -4227,6 +4264,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: FAILED")
@@ -4265,6 +4303,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: SUCCEEDED")
@@ -4293,6 +4332,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Execution outcome: UNKNOWN")
@@ -4349,6 +4389,7 @@ class ReportTraceTest {
         logEntries = emptyList(),
         sourceStatuses = emptyList(),
         warnings = emptyList(),
+        includeRawPayloads = false,
       )
 
     assertThat(output).contains("Collection completeness: PARTIAL")
@@ -4361,7 +4402,7 @@ class ReportTraceTest {
     val reportName = "measurementConsumers/mc-1/reports/report-1"
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { project, correlationValues, _, _, _, _ ->
             if (project == "reporting" && reportName in correlationValues) {
@@ -4452,7 +4493,7 @@ class ReportTraceTest {
       )
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, traceIds, _, _, _ ->
             when {
@@ -4504,7 +4545,7 @@ class ReportTraceTest {
     val span = traceSpan("span-1", Instant.parse("2026-09-10T12:00:00Z"))
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, _, _, _, _, _ ->
             listOf(span, traceSpan("span-2", Instant.parse("2026-09-10T12:01:00Z")))
@@ -4539,7 +4580,7 @@ class ReportTraceTest {
     val output = StringWriter()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { _, _, _, _ ->
             listOf(
               ReportTraceLogEntry(
@@ -4594,7 +4635,7 @@ class ReportTraceTest {
     val reportName = "measurementConsumers/mc-1/reports/report-1"
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { _, _, _, _ ->
             listOf(
               ReportTraceLogEntry(
@@ -4652,7 +4693,7 @@ class ReportTraceTest {
     val reportName = "measurementConsumers/mc-1/reports/report-1"
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, traceIds, _, _, _ ->
             when {
@@ -4706,7 +4747,7 @@ class ReportTraceTest {
     val traceQueryIds = mutableListOf<Set<String>>()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ ->
+        logReaderFactory = { _, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             logQueryValues += correlationValues.toSet()
             if (coveredMetricName in correlationValues) {
@@ -4808,7 +4849,7 @@ class ReportTraceTest {
     val logQueryValues = mutableListOf<Set<String>>()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ ->
+        logReaderFactory = { _, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             logQueryValues += correlationValues.toSet()
             emptyList()
@@ -4886,7 +4927,7 @@ class ReportTraceTest {
       )
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
             traceQueryValues += correlationValues.toSet()
@@ -4955,7 +4996,7 @@ class ReportTraceTest {
     val basicReportName = checkNotNull(context.basicReportName)
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
             if (basicReportName in correlationValues) {
@@ -4998,7 +5039,7 @@ class ReportTraceTest {
     var logReads = 0
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { project ->
+        logReaderFactory = { project, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             logReads++
             if (workItemName in correlationValues) {
@@ -5062,7 +5103,7 @@ class ReportTraceTest {
     val reportName = "measurementConsumers/mc-1/reports/report-1"
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { project, _, _, _, _, _ ->
             if (project == "broken") {
@@ -5104,7 +5145,7 @@ class ReportTraceTest {
     val error = StringWriter()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
         spanReaderFactory = {
           ReportTraceSpanReader { _, _, _, _, _, _ -> error("Cloud Trace API returned HTTP 429") }
         },
@@ -5139,7 +5180,7 @@ class ReportTraceTest {
     val outputDirectory = temporaryFolder.newFolder("quota-exhausted-traces").toPath()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ ->
+        logReaderFactory = { _, _ ->
           ReportTraceLogReader { correlationValues, _, _, _ ->
             if (correlationValues.any { it.endsWith("/report-a") }) {
               throw Status.RESOURCE_EXHAUSTED.asRuntimeException()
@@ -5204,7 +5245,7 @@ class ReportTraceTest {
     val output = StringWriter()
     val dependencies =
       ReportTraceDependencies(
-        logReaderFactory = { _ -> ReportTraceLogReader { _, _, _, _ -> error("denied") } },
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> error("denied") } },
         spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
         resolverFactory = { _, _ -> error("Resolver should not be used") },
         resolverOverride = null,
