@@ -265,17 +265,24 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
   }
 
   @Test
-  fun `failed leased attempt is durably republished at a new generation`() = runBlocking {
+  fun `failWorkItemAttempt durably republishes leased attempt after retry delay`() = runBlocking {
     val queueMapping = queueMapping(maxWorkItemAttempts = 2)
     val publisher = RecordingPublisher()
+    val clock = MutableClock(Instant.now().plusSeconds(10))
     val publicationRunner =
-      WorkItemPublicationRunner(spannerDatabase.databaseClient, queueMapping, publisher)
+      WorkItemPublicationRunner(
+        spannerDatabase.databaseClient,
+        queueMapping,
+        publisher,
+        clock = clock,
+      )
     val attemptsService =
       SpannerWorkItemAttemptsService(
         spannerDatabase.databaseClient,
         queueMapping,
         IdGenerator.Default,
         Dispatchers.Default,
+        clock = clock,
       )
     val workItemsService =
       SpannerWorkItemsService(
@@ -336,6 +343,8 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
     assertThat(recoveredWorkItem.state).isEqualTo(WorkItem.State.QUEUED)
     assertThat(recoveredWorkItem.generation).isEqualTo(workItem.generation + 1L)
 
+    assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(0)
+    clock.advance(Duration.ofSeconds(1))
     assertThat(publicationRunner.publishPendingWorkItems()).isEqualTo(1)
     assertThat(publisher.queueNames).containsExactly(QUEUE_RESOURCE_ID)
     assertThat((publisher.messages.single() as WorkItem).generation)
