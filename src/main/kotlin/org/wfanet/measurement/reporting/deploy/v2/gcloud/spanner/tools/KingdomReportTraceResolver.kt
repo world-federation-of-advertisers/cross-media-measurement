@@ -70,6 +70,8 @@ internal data class ReportTraceRequisitionRoute(
   val state: String,
   val dataProvider: String,
   val route: ReportTraceRequisitionRouteKind,
+  val refusalJustification: String? = null,
+  val refusalMessage: String? = null,
 )
 
 internal data class ReportTraceMeasurementRoute(
@@ -495,11 +497,14 @@ internal class KingdomReportTraceResolver(
   ): ReportTraceRequisitionRoute {
     val dataProvider = CanonicalRequisitionKey.fromName(requisition.name)?.parentKey?.toName()
     val route = dataProvider?.let(topology::routeFor) ?: ReportTraceRequisitionRouteKind.UNKNOWN
+    val refusal = requisition.refusal.takeIf { requisition.hasRefusal() }
     return ReportTraceRequisitionRoute(
       name = requisition.name,
       state = requisition.state.name,
       dataProvider = dataProvider ?: UNKNOWN_VALUE,
       route = route,
+      refusalJustification = refusal?.justification?.name,
+      refusalMessage = refusal?.message?.takeIf(String::isNotEmpty),
     )
   }
 
@@ -507,7 +512,12 @@ internal class KingdomReportTraceResolver(
     return when (exception) {
       is StatusException,
       is StatusRuntimeException -> "gRPC ${Status.fromThrowable(exception).code}"
-      else -> exception::class.java.simpleName
+      else -> {
+        val type = exception::class.java.simpleName
+        exception.message?.takeIf(String::isNotBlank)?.let { message ->
+          "$type: ${ReportTraceOutput.sanitize(message)}"
+        } ?: type
+      }
     }
   }
 
