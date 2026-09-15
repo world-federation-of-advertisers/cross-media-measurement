@@ -23,37 +23,28 @@ import io.grpc.inprocess.InProcessChannelBuilder
 import io.grpc.inprocess.InProcessServerBuilder
 import java.io.File
 import java.time.Duration
-import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.selects.select
 import org.wfanet.measurement.common.commandLineMain
-import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.InProcessServersMethods
 import org.wfanet.measurement.common.grpc.ServiceFlags
-import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
-import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
-import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageToken
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
-import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
-import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter.DeadLetterQueueListener
@@ -61,21 +52,41 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.publisher.GoogleWo
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import picocli.CommandLine
 
+/** Runs a blocking gRPC server alongside suspending background jobs. */
+internal suspend fun runInternalApiServerJobs(
+  blockingServer: () -> Unit,
+  shutdownServer: () -> Unit,
+  backgroundJobs: List<suspend () -> Unit>,
+) = coroutineScope {
+  val serverJob = async { runInterruptible(Dispatchers.IO) { blockingServer() } }
+  val jobs = backgroundJobs.map { backgroundJob -> async { backgroundJob() } }
+  try {
+    select<Unit> {
+      serverJob.onAwait {}
+      jobs.forEach { job -> job.onAwait {} }
+    }
+  } finally {
+    shutdownServer()
+    serverJob.cancelAndJoin()
+    jobs.forEach { job -> job.cancelAndJoin() }
+  }
+}
+
 /**
  * Internal API Server for the Secure Computation system.
  *
  * This server provides gRPC services for managing work items and optionally runs one Dead Letter
- * Queue (DLQ) listener per configured dead-letter subscription in parallel. Each DLQ listener
- * monitors failed messages, marks the corresponding work item as failed in the database, and (when
- * the EDP-Aggregator metadata-storage channel is configured) marks the EDPA resources the failed
- * WorkItem references FAILED.
+ * Queue (DLQ) listener per configured dead-letter subscription in parallel. Each listener delegates
+ * generic recovery or terminal failure to the WorkItems service.
  *
  * ## Lifecycle:
  * 1. Server initialization reads configuration and sets up dependencies
  * 2. Main gRPC server starts in an async coroutine
- * 3. If configured, one DLQ listener per dead-letter subscription starts in its own async coroutine
- * 4. All components run until shutdown is requested
- * 5. Graceful shutdown ensures all components clean up properly
+ * 3. The WorkItem publication runner starts in its own async coroutine
+ * 4. The WorkItem attempt lease reaper starts in its own async coroutine
+ * 5. If configured, one DLQ listener per dead-letter subscription starts in its own async coroutine
+ * 6. All components run until shutdown is requested
+ * 7. Graceful shutdown ensures all components clean up properly
  */
 @CommandLine.Command(name = InternalApiServer.SERVER_NAME)
 class InternalApiServer : Runnable {
@@ -110,60 +121,18 @@ class InternalApiServer : Runnable {
   private var deadLetterSubscriptionIds: List<String> = emptyList()
 
   @CommandLine.Option(
-    names = ["--edpa-tls-cert-file"],
-    description =
-      [
-        "Path to the EDP-Aggregator client TLS certificate (PEM) used for the metadata-storage " +
-          "mTLS channel. Required when --dead-letter-subscription-id is set."
-      ],
-    required = false,
+    names = ["--dead-letter-processing-enabled"],
+    description = ["Whether configured dead-letter subscriptions may be consumed."],
+    defaultValue = "true",
   )
-  private var edpaTlsCertFile: File? = null
+  private var deadLetterProcessingEnabled: Boolean = true
 
   @CommandLine.Option(
-    names = ["--edpa-tls-key-file"],
-    description =
-      [
-        "Path to the EDP-Aggregator client TLS private key (PEM) used for the metadata-storage " +
-          "mTLS channel. Required when --dead-letter-subscription-id is set."
-      ],
-    required = false,
+    names = ["--work-item-publication-enabled"],
+    description = ["Whether WorkItem publication and legacy reconciliation may run."],
+    defaultValue = "true",
   )
-  private var edpaTlsKeyFile: File? = null
-
-  @CommandLine.Option(
-    names = ["--metadata-storage-cert-collection-file"],
-    description =
-      [
-        "Path to the trusted root certificate collection (PEM) for the EDP-Aggregator " +
-          "metadata-storage public API. Required when --dead-letter-subscription-id is set."
-      ],
-    required = false,
-  )
-  private var metadataStorageCertCollectionFile: File? = null
-
-  @CommandLine.Option(
-    names = ["--metadata-storage-public-api-target"],
-    description =
-      [
-        "gRPC target of the EDP-Aggregator metadata-storage public API server. Required when " +
-          "--dead-letter-subscription-id is set."
-      ],
-    required = false,
-  )
-  private var metadataStoragePublicApiTarget: String? = null
-
-  @CommandLine.Option(
-    names = ["--metadata-storage-public-api-cert-host"],
-    description =
-      [
-        "Expected hostname (DNS-ID) in the metadata-storage public API server's TLS certificate.",
-        "This overrides derivation of the TLS DNS-ID from " +
-          "--metadata-storage-public-api-target.",
-      ],
-    required = false,
-  )
-  private var metadataStoragePublicApiCertHost: String? = null
+  private var workItemPublicationEnabled: Boolean = true
 
   @CommandLine.Option(
     names = ["--channel-shutdown-timeout"],
@@ -173,44 +142,26 @@ class InternalApiServer : Runnable {
   private lateinit var channelShutdownTimeout: Duration
 
   @CommandLine.Option(
-    names = ["--metadata-read-rpc-min-interval"],
-    defaultValue = "100ms",
-    description = ["Minimum interval between outbound EDPA metadata read RPCs from this process."],
+    names = ["--work-item-publication-poll-interval"],
+    defaultValue = "1s",
+    description = ["How often to poll for pending WorkItem publications."],
     converter = [VidLabelingRpcDurationConverter::class],
   )
-  private lateinit var metadataReadRpcMinInterval: Duration
+  private lateinit var workItemPublicationPollInterval: Duration
 
   @CommandLine.Option(
-    names = ["--metadata-write-rpc-min-interval"],
-    defaultValue = "200ms",
-    description = ["Minimum interval between outbound EDPA metadata write RPCs from this process."],
+    names = ["--work-item-publication-lease-duration"],
+    defaultValue = "1m",
+    description = ["How long a WorkItem publication is leased to one server replica."],
     converter = [VidLabelingRpcDurationConverter::class],
   )
-  private lateinit var metadataWriteRpcMinInterval: Duration
-
-  @CommandLine.Option(
-    names = ["--control-plane-rpc-min-interval"],
-    defaultValue = "250ms",
-    description = ["Minimum interval between outbound WorkItems RPCs from this process."],
-    converter = [VidLabelingRpcDurationConverter::class],
-  )
-  private lateinit var controlPlaneRpcMinInterval: Duration
+  private lateinit var workItemPublicationLeaseDuration: Duration
 
   override fun run() {
     val queuesConfig = parseTextProto(queuesConfigFile, QueuesConfig.getDefaultInstance())
     val queueMapping = QueueMapping(queuesConfig)
-
-    // The EDP-Aggregator metadata-storage mTLS channel and stubs are only needed when at least one
-    // DLQ listener runs. When no dead-letter subscription is configured the server runs without
-    // them, so the EDPA cert/key/target flags are not required in that case.
-    val edpaConnection: EdpaConnection? =
-      if (deadLetterSubscriptionIds.isEmpty()) null else buildEdpaConnection()
-    val rpcThrottlers =
-      VidLabelingRpcThrottlers.fromMinimumIntervals(
-        metadataRead = metadataReadRpcMinInterval,
-        metadataWrite = metadataWriteRpcMinInterval,
-        controlPlane = controlPlaneRpcMinInterval,
-      )
+    val activeDeadLetterSubscriptionIds =
+      if (deadLetterProcessingEnabled) deadLetterSubscriptionIds else emptyList()
 
     runBlocking {
       spannerFlags.usingSpanner { spanner ->
@@ -219,7 +170,14 @@ class InternalApiServer : Runnable {
         val workItemPublisher = GoogleWorkItemPublisher(googleProjectId, googlePubSubClient)
 
         val internalApiServices =
-          InternalApiServices(workItemPublisher, databaseClient, queueMapping)
+          InternalApiServices(
+            workItemPublisher,
+            databaseClient,
+            queueMapping,
+            workItemPublicationPollInterval = workItemPublicationPollInterval,
+            workItemPublicationLeaseDuration = workItemPublicationLeaseDuration,
+            workItemPublicationEnabled = workItemPublicationEnabled,
+          )
         val services = internalApiServices.build(serviceFlags.executor.asCoroutineDispatcher())
         val servicesList: List<BindableService> = services.toList()
         val server = createMainServer(servicesList)
@@ -227,18 +185,15 @@ class InternalApiServer : Runnable {
           services.workItems as? SpannerWorkItemsService
             ?: throw RuntimeException("Failed to get work items service")
 
-        val serverJob = async { server.start().blockUntilShutdown() }
-
         // A single in-process server + channel + WorkItems stub is shared by every DLQ listener:
         // they all route to the same SpannerWorkItemsService, so one loopback server suffices, and
         // it is shut down below instead of leaking one server per subscription.
         val (inProcessServer, inProcessChannel) = createInProcessServer(spannerWorkItemsService)
         val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(inProcessChannel)
         try {
-          // Run one DLQ listener per dead-letter subscription (e.g. one per phase queue), each in
-          // its own coroutine.
-          val deadLetterListenerJobs: List<Deferred<Unit>> =
-            deadLetterSubscriptionIds.map { subscriptionId ->
+          // Run one DLQ listener per dead-letter subscription (e.g. one per phase queue).
+          val deadLetterListenerJobs: List<suspend () -> Unit> =
+            activeDeadLetterSubscriptionIds.map { subscriptionId ->
               val subscriber =
                 Subscriber(
                   projectId = googleProjectId,
@@ -252,13 +207,8 @@ class InternalApiServer : Runnable {
                   workItemsStub = workItemsStub,
                   subscriptionId = subscriptionId,
                   queueSubscriber = subscriber,
-                  workItemAttemptsService = services.workItemAttempts,
-                  // Non-null: edpaConnection is built whenever deadLetterSubscriptionIds is
-                  // non-empty, which is exactly when this map iterates.
-                  edpaStubs = checkNotNull(edpaConnection).stubs,
-                  rpcThrottlers = rpcThrottlers,
                 )
-              async {
+              suspend {
                 try {
                   deadLetterListener.run()
                 } finally {
@@ -267,72 +217,21 @@ class InternalApiServer : Runnable {
               }
             }
 
-          awaitAll(serverJob, *deadLetterListenerJobs.toTypedArray())
+          runInternalApiServerJobs(
+            blockingServer = { server.start().blockUntilShutdown() },
+            shutdownServer = { server.shutdown() },
+            backgroundJobs =
+              listOf<suspend () -> Unit>(
+                { internalApiServices.workItemPublicationRunner.run() },
+                { internalApiServices.workItemAttemptLeaseReaper.run() },
+              ) + deadLetterListenerJobs,
+          )
         } finally {
           inProcessChannel.shutdown()
           inProcessServer.shutdown()
-          edpaConnection?.channel?.shutdown()
         }
       }
     }
-  }
-
-  /** The four EDP-Aggregator metadata-storage client stubs used for EDPA resource marking. */
-  private class EdpaStubs(
-    val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
-    val rankerJobsStub: RankerJobServiceCoroutineStub,
-    val vidLabelingJobsStub: VidLabelingJobServiceCoroutineStub,
-    val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
-  )
-
-  /**
-   * The EDP-Aggregator metadata-storage mutual-TLS [channel] and the [stubs] built on it, held
-   * together so the channel can be shut down when the server stops.
-   */
-  private class EdpaConnection(val stubs: EdpaStubs, val channel: ManagedChannel)
-
-  /**
-   * Builds the [EdpaConnection] (mutual-TLS channel + stubs) to the EDP-Aggregator metadata-storage
-   * public API.
-   *
-   * Only called when at least one DLQ listener is configured; the cert/key, trusted root
-   * collection, and target flags are therefore required in that case and validated here.
-   */
-  private fun buildEdpaConnection(): EdpaConnection {
-    val certificateFile =
-      requireNotNull(edpaTlsCertFile) {
-        "--edpa-tls-cert-file is required when --dead-letter-subscription-id is set"
-      }
-    val privateKeyFile =
-      requireNotNull(edpaTlsKeyFile) {
-        "--edpa-tls-key-file is required when --dead-letter-subscription-id is set"
-      }
-    val trustedCertCollectionFile =
-      requireNotNull(metadataStorageCertCollectionFile) {
-        "--metadata-storage-cert-collection-file is required when --dead-letter-subscription-id is set"
-      }
-    val target =
-      requireNotNull(metadataStoragePublicApiTarget) {
-        "--metadata-storage-public-api-target is required when --dead-letter-subscription-id is set"
-      }
-    val clientCerts =
-      SigningCerts.fromPemFiles(
-        certificateFile = certificateFile,
-        privateKeyFile = privateKeyFile,
-        trustedCertCollectionFile = trustedCertCollectionFile,
-      )
-    val channel: ManagedChannel =
-      buildMutualTlsChannel(target, clientCerts, metadataStoragePublicApiCertHost)
-        .withShutdownTimeout(channelShutdownTimeout)
-    val stubs =
-      EdpaStubs(
-        poolAssignmentJobsStub = PoolAssignmentJobServiceCoroutineStub(channel),
-        rankerJobsStub = RankerJobServiceCoroutineStub(channel),
-        vidLabelingJobsStub = VidLabelingJobServiceCoroutineStub(channel),
-        rawImpressionUploadModelLinesStub =
-          RawImpressionUploadModelLineServiceCoroutineStub(channel),
-      )
-    return EdpaConnection(stubs, channel)
   }
 
   private fun createInProcessServer(
@@ -357,55 +256,13 @@ class InternalApiServer : Runnable {
     workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
     subscriptionId: String,
     queueSubscriber: QueueSubscriber,
-    edpaStubs: EdpaStubs,
-    rpcThrottlers: VidLabelingRpcThrottlers,
-    workItemAttemptsService: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase,
   ): DeadLetterQueueListener {
     return DeadLetterQueueListener(
       subscriptionId = subscriptionId,
       queueSubscriber = queueSubscriber,
       parser = WorkItem.parser(),
       workItemsStub = workItemsStub,
-      poolAssignmentJobsStub = edpaStubs.poolAssignmentJobsStub,
-      rankerJobsStub = edpaStubs.rankerJobsStub,
-      vidLabelingJobsStub = edpaStubs.vidLabelingJobsStub,
-      rawImpressionUploadModelLinesStub = edpaStubs.rawImpressionUploadModelLinesStub,
-      rpcThrottlers = rpcThrottlers,
-      getLatestWorkItemAttemptError = { workItemName ->
-        getLatestWorkItemAttemptError(workItemAttemptsService, workItemName)
-      },
     )
-  }
-
-  private suspend fun getLatestWorkItemAttemptError(
-    service: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase,
-    workItemName: String,
-  ): String? {
-    var pageToken: ListWorkItemAttemptsPageToken? = null
-    var latestAttempt: WorkItemAttempt? = null
-    do {
-      val currentPageToken = pageToken
-      val response =
-        service.listWorkItemAttempts(
-          listWorkItemAttemptsRequest {
-            workItemResourceId = workItemName
-            pageSize = WORK_ITEM_ATTEMPT_PAGE_SIZE
-            if (currentPageToken != null) {
-              this.pageToken = currentPageToken
-            }
-          }
-        )
-      for (attempt in response.workItemAttemptsList) {
-        if (
-          attempt.errorMessage.isNotEmpty() &&
-            attempt.attemptNumber > (latestAttempt?.attemptNumber ?: Int.MIN_VALUE)
-        ) {
-          latestAttempt = attempt
-        }
-      }
-      pageToken = if (response.hasNextPageToken()) response.nextPageToken else null
-    } while (pageToken != null)
-    return latestAttempt?.errorMessage
   }
 
   private fun createMainServer(services: List<BindableService>): CommonServer {
@@ -414,7 +271,6 @@ class InternalApiServer : Runnable {
 
   companion object {
     const val SERVER_NAME = "SecureComputationInternalApiServer"
-    private const val WORK_ITEM_ATTEMPT_PAGE_SIZE = 100
 
     @JvmStatic fun main(args: Array<String>) = commandLineMain(InternalApiServer(), args)
   }

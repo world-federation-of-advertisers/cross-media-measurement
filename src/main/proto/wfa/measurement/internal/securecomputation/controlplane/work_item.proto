@@ -60,4 +60,11 @@ message WorkItem {
       [(google.api.field_behavior) = OUTPUT_ONLY];
   google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Execution generation of this WorkItem.
+  //
+  // This advances only when the current execution is retried or retired for
+  // dead-letter handling. Queue consumers use it to reject stale deliveries
+  // from an earlier generation.
+  int64 generation = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

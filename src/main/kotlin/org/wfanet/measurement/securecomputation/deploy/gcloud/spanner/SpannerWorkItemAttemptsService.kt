@@ -20,12 +20,15 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
+import java.time.Clock
+import java.time.Duration
 import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemAttemptRequest
@@ -34,6 +37,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkIte
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemAttemptsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.RenewWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttemptsGrpcKt
@@ -43,10 +47,13 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkIt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemAttemptResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttemptAndScheduleRecovery
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getActiveWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemAttemptByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.renewWorkItemAttemptLease
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemAttemptExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
@@ -55,6 +62,7 @@ import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNo
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptAlreadyExistsException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAttemptNotFoundException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
 
@@ -63,7 +71,21 @@ class SpannerWorkItemAttemptsService(
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
   coroutineContext: CoroutineContext,
+  private val clock: Clock = Clock.systemUTC(),
+  private val attemptLeaseDuration: Duration = DEFAULT_ATTEMPT_LEASE_DURATION,
+  private val initialAttemptRetryDelay: Duration = DEFAULT_INITIAL_ATTEMPT_RETRY_DELAY,
+  private val maxAttemptRetryDelay: Duration = DEFAULT_MAX_ATTEMPT_RETRY_DELAY,
 ) : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase(coroutineContext) {
+
+  init {
+    require(attemptLeaseDuration > Duration.ZERO) { "attemptLeaseDuration must be positive" }
+    require(initialAttemptRetryDelay > Duration.ZERO) {
+      "initialAttemptRetryDelay must be positive"
+    }
+    require(maxAttemptRetryDelay >= initialAttemptRetryDelay) {
+      "maxAttemptRetryDelay must not be less than initialAttemptRetryDelay"
+    }
+  }
 
   override suspend fun createWorkItemAttempt(
     request: CreateWorkItemAttemptRequest
@@ -79,6 +101,21 @@ class SpannerWorkItemAttemptsService(
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be at least 1"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
+    val leaseExpirationTime =
+      if (request.supportsAttemptLease) clock.instant().plus(attemptLeaseDuration) else null
+
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItemAttempt"))
 
@@ -87,6 +124,13 @@ class SpannerWorkItemAttemptsService(
         transactionRunner.run { txn ->
           val result =
             txn.getWorkItemByResourceId(queueMapping, request.workItemAttempt.workItemResourceId)
+          if (result.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              result.workItem.workItemResourceId,
+              expectedGeneration,
+              result.workItem.generation,
+            )
+          }
           val workItemState = result.workItem.state
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
           when (workItemState) {
@@ -98,6 +142,24 @@ class SpannerWorkItemAttemptsService(
             }
             WorkItem.State.QUEUED,
             WorkItem.State.RUNNING -> {
+              val activeAttempt = txn.getActiveWorkItemAttempt(result.workItemId)
+              if (activeAttempt != null) {
+                if (
+                  request.supportsAttemptLease &&
+                    !activeAttempt.workItemAttempt.hasLeaseExpirationTime()
+                ) {
+                  txn.failWorkItemAttempt(
+                    activeAttempt.workItemId,
+                    activeAttempt.workItemAttemptId,
+                    "Replaced by a lease-capable worker",
+                  )
+                } else {
+                  throw WorkItemInvalidStateException(
+                    result.workItem.workItemResourceId,
+                    WorkItem.State.RUNNING,
+                  )
+                }
+              }
               val workItemAttemptId: Long =
                 idGenerator.generateNewId { id -> txn.workItemAttemptExists(result.workItemId, id) }
               val (attemptNumber, state) =
@@ -105,10 +167,14 @@ class SpannerWorkItemAttemptsService(
                   result.workItemId,
                   workItemAttemptId,
                   request.workItemAttempt.workItemAttemptResourceId,
+                  leaseExpirationTime,
                 )
               request.workItemAttempt.copy {
                 this.state = state
                 this.attemptNumber = attemptNumber
+                if (leaseExpirationTime != null) {
+                  this.leaseExpirationTime = leaseExpirationTime.toProtoTime()
+                }
               }
             }
           }
@@ -121,6 +187,8 @@ class SpannerWorkItemAttemptsService(
           throw e
         }
       } catch (e: WorkItemInvalidStateException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      } catch (e: WorkItemGenerationMismatchException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       } catch (e: WorkItemNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
@@ -172,7 +240,7 @@ class SpannerWorkItemAttemptsService(
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=failWorkItemAttempt"))
 
-    val workItemAttempt =
+    val (workItemAttempt, wasUpdated) =
       transactionRunner.run { txn ->
         try {
           val workItemAttemptResult =
@@ -183,7 +251,7 @@ class SpannerWorkItemAttemptsService(
           val workItemAttemptState = workItemAttemptResult.workItemAttempt.state
           @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum accessors cannot return null.
           when (workItemAttemptState) {
-            WorkItemAttempt.State.FAILED,
+            WorkItemAttempt.State.FAILED -> workItemAttemptResult.workItemAttempt to false
             WorkItemAttempt.State.SUCCEEDED,
             WorkItemAttempt.State.STATE_UNSPECIFIED,
             WorkItemAttempt.State.UNRECOGNIZED -> {
@@ -195,11 +263,30 @@ class SpannerWorkItemAttemptsService(
             }
             WorkItemAttempt.State.ACTIVE -> {
               val state =
-                txn.failWorkItemAttempt(
-                  workItemAttemptResult.workItemId,
-                  workItemAttemptResult.workItemAttemptId,
-                )
-              workItemAttemptResult.workItemAttempt.copy { this.state = state }
+                if (workItemAttemptResult.workItemAttempt.hasLeaseExpirationTime()) {
+                  val queue =
+                    queueMapping.getQueueById(workItemAttemptResult.queueId)
+                      ?: throw QueueNotFoundForWorkItem(
+                        workItemAttemptResult.workItemAttempt.workItemResourceId
+                      )
+                  txn.failWorkItemAttemptAndScheduleRecovery(
+                    workItemAttemptResult,
+                    queue,
+                    request.errorMessage.take(MAX_ERROR_MESSAGE_LENGTH),
+                    clock.instant().plus(attemptRetryDelay(workItemAttemptResult.workItemAttempt)),
+                  )
+                  WorkItemAttempt.State.FAILED
+                } else {
+                  txn.failWorkItemAttempt(
+                    workItemAttemptResult.workItemId,
+                    workItemAttemptResult.workItemAttemptId,
+                    request.errorMessage.take(MAX_ERROR_MESSAGE_LENGTH),
+                  )
+                }
+              workItemAttemptResult.workItemAttempt.copy {
+                this.state = state
+                errorMessage = request.errorMessage.take(MAX_ERROR_MESSAGE_LENGTH)
+              } to true
             }
           }
         } catch (e: WorkItemAttemptInvalidStateException) {
@@ -210,8 +297,10 @@ class SpannerWorkItemAttemptsService(
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         }
       }
-    return workItemAttempt.copy {
-      this.updateTime = transactionRunner.getCommitTimestamp().toProto()
+    return if (wasUpdated) {
+      workItemAttempt.copy { this.updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    } else {
+      workItemAttempt
     }
   }
 
@@ -272,6 +361,52 @@ class SpannerWorkItemAttemptsService(
     }
   }
 
+  override suspend fun renewWorkItemAttempt(request: RenewWorkItemAttemptRequest): WorkItemAttempt {
+    if (request.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.workItemAttemptResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_attempt_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val leaseExpirationTime = clock.instant().plus(attemptLeaseDuration)
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=renewWorkItemAttempt"))
+    val workItemAttempt =
+      transactionRunner.run { txn ->
+        try {
+          val result =
+            txn.getWorkItemAttemptByResourceId(
+              request.workItemResourceId,
+              request.workItemAttemptResourceId,
+            )
+          if (result.workItemAttempt.state != WorkItemAttempt.State.ACTIVE) {
+            throw WorkItemAttemptInvalidStateException(
+              result.workItemAttempt.workItemResourceId,
+              result.workItemAttempt.workItemAttemptResourceId,
+              result.workItemAttempt.state,
+            )
+          }
+          txn.renewWorkItemAttemptLease(
+            result.workItemId,
+            result.workItemAttemptId,
+            leaseExpirationTime,
+          )
+          result.workItemAttempt.copy {
+            this.leaseExpirationTime = leaseExpirationTime.toProtoTime()
+          }
+        } catch (e: WorkItemAttemptInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemAttemptNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: QueueNotFoundForWorkItem) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        }
+      }
+    return workItemAttempt.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+  }
+
   override suspend fun listWorkItemAttempts(
     request: ListWorkItemAttemptsRequest
   ): ListWorkItemAttemptsResponse {
@@ -316,8 +451,19 @@ class SpannerWorkItemAttemptsService(
     }
   }
 
+  private fun attemptRetryDelay(workItemAttempt: WorkItemAttempt): Duration {
+    val exponent = (workItemAttempt.attemptNumber - 1).coerceIn(0, MAX_ATTEMPT_RETRY_EXPONENT)
+    return minOf(initialAttemptRetryDelay.multipliedBy(1L shl exponent), maxAttemptRetryDelay)
+  }
+
   companion object {
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
+    private const val INITIAL_GENERATION = 1L
+    private const val MAX_ERROR_MESSAGE_LENGTH = 1024
+    private const val MAX_ATTEMPT_RETRY_EXPONENT = 16
+    val DEFAULT_ATTEMPT_LEASE_DURATION: Duration = Duration.ofMinutes(5)
+    val DEFAULT_INITIAL_ATTEMPT_RETRY_DELAY: Duration = Duration.ofSeconds(1)
+    val DEFAULT_MAX_ATTEMPT_RETRY_DELAY: Duration = Duration.ofMinutes(1)
   }
 }

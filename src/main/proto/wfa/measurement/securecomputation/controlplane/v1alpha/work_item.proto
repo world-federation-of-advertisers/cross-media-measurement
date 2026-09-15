@@ -71,8 +71,8 @@ message WorkItem {
     // Default value if state is omitted.
     STATE_UNSPECIFIED = 0;
 
-    // The `WorkItem` has been queued but has not yet been attempted.
-    // At this stage, there are no `WorkItemAttempt`s associated with it.
+    // The `WorkItem` is waiting to be processed. A retried `WorkItem` retains
+    // its historical `WorkItemAttempt`s.
     QUEUED = 1;
 
     // There is at least one `WorkItemAttempt` associated with the `WorkItem`.
@@ -95,4 +95,11 @@ message WorkItem {
   // Update time.
   google.protobuf.Timestamp update_time = 6
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Execution generation of this `WorkItem`.
+  //
+  // This advances only when the current execution is retried or retired for
+  // dead-letter handling. Queue consumers use it to reject stale deliveries
+  // from an earlier generation.
+  int64 generation = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

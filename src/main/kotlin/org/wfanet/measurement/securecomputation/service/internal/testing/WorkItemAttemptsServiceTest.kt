@@ -44,11 +44,13 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemAttemptRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemAttemptsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.service.internal.Errors
@@ -86,6 +88,7 @@ abstract class WorkItemAttemptsServiceTest {
     val services = initServices()
     val workItem = createWorkItem(services.workItemsService)
     val request = createWorkItemAttemptRequest {
+      expectedWorkItemGeneration = workItem.generation
       workItemAttempt = workItemAttempt {
         workItemResourceId = workItem.workItemResourceId
         workItemAttemptResourceId = "work_item_attempt_resource_id"
@@ -97,6 +100,7 @@ abstract class WorkItemAttemptsServiceTest {
       .ignoringFields(
         WorkItemAttempt.CREATE_TIME_FIELD_NUMBER,
         WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
+        WorkItemAttempt.LEASE_EXPIRATION_TIME_FIELD_NUMBER,
       )
       .isEqualTo(
         request.workItemAttempt.copy {
@@ -120,6 +124,147 @@ abstract class WorkItemAttemptsServiceTest {
   }
 
   @Test
+  fun `createWorkItemAttempt rejects a second active attempt`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    createWorkItemAttempts(services.service, workItem.workItemResourceId, 1)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "duplicate-active-attempt"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
+  }
+
+  @Test
+  fun `createWorkItemAttempt replaces active unleased attempt for lease capable worker`() =
+    runBlocking {
+      val services = initServices()
+      val workItem = createWorkItem(services.workItemsService)
+      val unleasedAttempt =
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "unleased-attempt"
+            }
+          }
+        )
+
+      val replacement =
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            supportsAttemptLease = true
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "leased-replacement"
+            }
+          }
+        )
+
+      val failedAttempt =
+        services.service.getWorkItemAttempt(
+          getWorkItemAttemptRequest {
+            workItemResourceId = unleasedAttempt.workItemResourceId
+            workItemAttemptResourceId = unleasedAttempt.workItemAttemptResourceId
+          }
+        )
+      val currentWorkItem =
+        services.workItemsService.getWorkItem(
+          getWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+        )
+      assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+      assertThat(replacement.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+      assertThat(replacement.hasLeaseExpirationTime()).isTrue()
+      assertThat(replacement.attemptNumber).isEqualTo(2)
+      assertThat(currentWorkItem.state).isEqualTo(WorkItem.State.RUNNING)
+      assertThat(currentWorkItem.generation).isEqualTo(workItem.generation)
+    }
+
+  @Test
+  fun `createWorkItemAttempt does not replace active leased attempt`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val leasedAttempt =
+      services.service.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          supportsAttemptLease = true
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "leased-attempt"
+          }
+        }
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = workItem.generation
+            supportsAttemptLease = true
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "duplicate-leased-attempt"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    val activeAttempt =
+      services.service.getWorkItemAttempt(
+        getWorkItemAttemptRequest {
+          workItemResourceId = leasedAttempt.workItemResourceId
+          workItemAttemptResourceId = leasedAttempt.workItemAttemptResourceId
+        }
+      )
+    assertThat(activeAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(activeAttempt.hasLeaseExpirationTime()).isTrue()
+  }
+
+  @Test
+  fun `createWorkItemAttempt allows retry after active attempt fails`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val firstAttempt =
+      createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).single()
+    services.service.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = firstAttempt.workItemResourceId
+        workItemAttemptResourceId = firstAttempt.workItemAttemptResourceId
+        errorMessage = "retryable failure"
+      }
+    )
+
+    val retryAttempt =
+      services.service.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "retry-attempt"
+          }
+        }
+      )
+
+    assertThat(retryAttempt.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(retryAttempt.attemptNumber).isEqualTo(2)
+  }
+
+  @Test
   fun `createWorkItemAttempt throws INVALID_ARGUMENT if workItemResourceId is missing`() =
     runBlocking {
       val services = initServices()
@@ -138,6 +283,95 @@ abstract class WorkItemAttemptsServiceTest {
           }
         )
     }
+
+  @Test
+  fun `createWorkItemAttempt defaults missing expected generation to one`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val request = createWorkItemAttemptRequest {
+      workItemAttempt = workItemAttempt {
+        workItemResourceId = workItem.workItemResourceId
+        workItemAttemptResourceId = "work-item-attempt"
+      }
+    }
+
+    val response = services.service.createWorkItemAttempt(request)
+
+    assertThat(response.state).isEqualTo(WorkItemAttempt.State.ACTIVE)
+    assertThat(response.attemptNumber).isEqualTo(1)
+  }
+
+  @Test
+  fun `createWorkItemAttempt rejects explicit zero expected generation`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = 0L
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "work-item-attempt"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "expected_work_item_generation"
+        }
+      )
+  }
+
+  @Test
+  fun `createWorkItemAttempt with missing generation rejects generation two`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val firstAttempt =
+      services.service.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "first-attempt"
+          }
+        }
+      )
+    services.service.failWorkItemAttempt(
+      failWorkItemAttemptRequest {
+        workItemResourceId = firstAttempt.workItemResourceId
+        workItemAttemptResourceId = firstAttempt.workItemAttemptResourceId
+      }
+    )
+    services.workItemsService.failWorkItem(
+      failWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+    )
+    services.workItemsService.retryWorkItem(
+      retryWorkItemRequest { workItemResourceId = workItem.workItemResourceId }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        services.service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            workItemAttempt = workItemAttempt {
+              workItemResourceId = workItem.workItemResourceId
+              workItemAttemptResourceId = "stale-attempt"
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+  }
 
   @Test
   fun `createWorkItemAttempt throws INVALID_ARGUMENT if workItemAttemptResourceId is missing`() =
@@ -237,44 +471,65 @@ abstract class WorkItemAttemptsServiceTest {
     val updatedWorkItemAttempt = services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
 
     assertThat(workItemAttempt)
-      .ignoringFields(WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER, WorkItemAttempt.STATE_FIELD_NUMBER)
+      .ignoringFields(
+        WorkItemAttempt.UPDATE_TIME_FIELD_NUMBER,
+        WorkItemAttempt.STATE_FIELD_NUMBER,
+        WorkItemAttempt.ERROR_MESSAGE_FIELD_NUMBER,
+      )
       .isEqualTo(updatedWorkItemAttempt)
     assertThat(updatedWorkItemAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+    assertThat(updatedWorkItemAttempt.errorMessage).isEqualTo("ErrorMessage")
   }
 
   @Test
-  fun `failWorkItemAttempt throws INVALID_WORK_ITEM_ATTEMPT_STATE if workItemAttempt state is not ACTIVE`() =
+  fun `failWorkItemAttempt returns WorkItemAttempt unchanged if state is FAILED`() = runBlocking {
+    val services = initServices()
+    val workItem = createWorkItem(services.workItemsService)
+    val workItemAttempt =
+      createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
+
+    val failWorkItemAttemptRequest = failWorkItemAttemptRequest {
+      workItemResourceId = workItemAttempt.workItemResourceId
+      workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
+      errorMessage = "ErrorMessage"
+    }
+
+    val failedAttempt = services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
+
+    val repeatedResponse =
+      services.service.failWorkItemAttempt(
+        failWorkItemAttemptRequest.copy { errorMessage = "Different error message" }
+      )
+
+    assertThat(repeatedResponse).isEqualTo(failedAttempt)
+  }
+
+  @Test
+  fun `failWorkItemAttempt throws INVALID_WORK_ITEM_ATTEMPT_STATE if state is SUCCEEDED`() =
     runBlocking {
       val services = initServices()
       val workItem = createWorkItem(services.workItemsService)
       val workItemAttempt =
-        createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).get(0)
-
-      val failWorkItemAttemptRequest = failWorkItemAttemptRequest {
+        createWorkItemAttempts(services.service, workItem.workItemResourceId, 1).single()
+      services.service.completeWorkItemAttempt(
+        completeWorkItemAttemptRequest {
+          workItemResourceId = workItemAttempt.workItemResourceId
+          workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
+        }
+      )
+      val request = failWorkItemAttemptRequest {
         workItemResourceId = workItemAttempt.workItemResourceId
         workItemAttemptResourceId = workItemAttempt.workItemAttemptResourceId
-        errorMessage = "ErrorMessage"
       }
 
-      services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
-
       val exception =
-        assertFailsWith<StatusRuntimeException> {
-          services.service.failWorkItemAttempt(failWorkItemAttemptRequest)
-        }
+        assertFailsWith<StatusRuntimeException> { services.service.failWorkItemAttempt(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.errorInfo)
-        .isEqualTo(
-          errorInfo {
-            domain = Errors.DOMAIN
-            reason = Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name
-            metadata[Errors.Metadata.WORK_ITEM_RESOURCE_ID.key] = "work_item_resource_id"
-            metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_RESOURCE_ID.key] =
-              "work_item_attempt_resource_id_1"
-            metadata[Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key] = "FAILED"
-          }
-        )
+      assertThat(exception.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name)
+      assertThat(exception.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key))
+        .isEqualTo(WorkItemAttempt.State.SUCCEEDED.name)
     }
 
   @Test
@@ -592,16 +847,29 @@ abstract class WorkItemAttemptsServiceTest {
     workItemResourceId: String,
     count: Int,
   ): List<WorkItemAttempt> {
-    return (1..count).map {
-      val workItemAttemptResourceId = "work_item_attempt_resource_id_$it"
-      service.createWorkItemAttempt(
-        createWorkItemAttemptRequest {
-          workItemAttempt = workItemAttempt {
+    return (1..count).map { attemptNumber ->
+      val workItemAttemptResourceId = "work_item_attempt_resource_id_$attemptNumber"
+      val created =
+        service.createWorkItemAttempt(
+          createWorkItemAttemptRequest {
+            expectedWorkItemGeneration = 1L
+            workItemAttempt = workItemAttempt {
+              this.workItemResourceId = workItemResourceId
+              this.workItemAttemptResourceId = workItemAttemptResourceId
+            }
+          }
+        )
+      if (attemptNumber == count) {
+        created
+      } else {
+        service.failWorkItemAttempt(
+          failWorkItemAttemptRequest {
             this.workItemResourceId = workItemResourceId
             this.workItemAttemptResourceId = workItemAttemptResourceId
+            errorMessage = "Test failure"
           }
-        }
-      )
+        )
+      }
     }
   }
 

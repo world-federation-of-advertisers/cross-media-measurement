@@ -180,9 +180,9 @@ class ResultsFulfiller(
     // this work item on the blob write, but the RequisitionFetcher creates the RequisitionMetadata
     // *after* writing the blob (writeBlob then batchCreateRequisitionMetadataForGroup), so a
     // dispatch that wins the race against that metadata write reads zero rows here even though they
-    // land moments later. Throwing nacks the work item, which redelivers and self-heals once the
-    // metadata exists — do NOT skip-and-ack, which would abandon requisitions that are about to
-    // become fulfillable and leave the report permanently unfulfilled.
+    // land moments later. Throwing fails the attempt so the control plane durably schedules another
+    // execution once the metadata exists — do NOT skip the work, which would abandon requisitions
+    // that are about to become fulfillable and leave the report permanently unfulfilled.
     //
     // The genuinely-orphaned case (fetcher crashed between blob and metadata, so metadata never
     // arrives) is indistinguishable from the race at read time; it retries up to the queue's
@@ -199,8 +199,9 @@ class ResultsFulfiller(
       )
       throw IllegalStateException(
         "No requisition metadata for groupId=${groupedRequisitions.groupId}; the metadata write " +
-          "likely has not committed yet. Nacking to retry; if this persists for a groupId the blob " +
-          "may be a true orphan from a fetcher crash between blob and metadata writes."
+          "likely has not committed yet. Failing this attempt so the control plane can retry; if " +
+          "this persists for a groupId the blob may be a true orphan from a fetcher crash between " +
+          "blob and metadata writes."
       )
     }
 

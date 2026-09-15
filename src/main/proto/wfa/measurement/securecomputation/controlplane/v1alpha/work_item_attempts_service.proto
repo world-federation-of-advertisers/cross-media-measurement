@@ -29,13 +29,18 @@ option java_outer_classname = "WorkItemAttemptsServiceProto";
 service WorkItemAttempts {
   // Creates a `WorkItemAttempt`.
   //
-  // Creates a new `WorkItemAttempt` with state `ACTIVE`.
-  // Set the state in the parent `WorkItem` as `CLAIMED`.
-  // Any existing `WorkItemAttempt` for the same `WorkItem` will fail.
+  // Creates a new `WorkItemAttempt` with state `ACTIVE` and sets the state of
+  // the parent `WorkItem` to `RUNNING`. Historical attempts are retained. If
+  // there is already an active leased attempt, the request is rejected. A
+  // lease-capable caller may atomically replace an active legacy attempt that
+  // has no lease.
+  // (-- api-linter: core::0133::method-signature=disabled
+  //     aip.dev/not-precedent: The generation precondition must be available to
+  //     flattened clients. --)
   rpc CreateWorkItemAttempt(CreateWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) =
-        "parent,work_item_attempt,work_item_attempt_id";
+        "parent,work_item_attempt,work_item_attempt_id,expected_work_item_generation";
   }
 
   // Returns the `WorkItemAttempt` with the specified resource key.
@@ -57,9 +62,17 @@ service WorkItemAttempts {
     option (google.api.method_signature) = "name";
   }
 
-  // Updates a `WorkItemAttempt`.
+  // Renews the lease for an active `WorkItemAttempt`.
+  rpc RenewWorkItemAttempt(RenewWorkItemAttemptRequest)
+      returns (WorkItemAttempt) {
+    option (google.api.method_signature) = "name";
+  }
+
+  // Fails a `WorkItemAttempt`.
   //
-  // Update the State to `FAILED`
+  // A leased attempt schedules its `WorkItem` for another execution or for
+  // dead-letter processing. If this exact attempt is already `FAILED`, returns
+  // it without changing it.
   rpc FailWorkItemAttempt(FailWorkItemAttemptRequest)
       returns (WorkItemAttempt) {
     option (google.api.method_signature) = "name";
@@ -87,6 +100,24 @@ message CreateWorkItemAttemptRequest {
   // Resource to create.
   WorkItemAttempt work_item_attempt = 3
       [(google.api.field_behavior) = REQUIRED];
+
+  // Expected execution generation of the parent `WorkItem` received from the
+  // queue. New clients must populate this field. Absence is interpreted as
+  // generation 1 only for legacy-client compatibility; an explicit value less
+  // than 1 is invalid. The request is rejected if the resulting generation
+  // does not match the `WorkItem`'s current generation.
+  // (-- api-linter: core::0133::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Queue delivery generation fences stale work. --)
+  optional int64 expected_work_item_generation = 4
+      [(google.api.field_behavior) = OPTIONAL];
+
+  // Whether the caller supports renewing an attempt lease. When false, the
+  // attempt is created without a lease for compatibility with workers that do
+  // not implement lease renewal.
+  // (-- api-linter: core::0133::request-unknown-fields=disabled
+  //     aip.dev/not-precedent: Capability negotiation preserves compatibility
+  //     with workers that do not renew leases. --)
+  bool supports_attempt_lease = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for `GetWorkItemAttempt` method.
@@ -108,24 +139,23 @@ message ListWorkItemAttemptsRequest {
         "control-plane.secure-computation.halo-cmm.org/WorkItem"
   ];
 
-  // The maximum number of reports to return. The service may return fewer than
+  // The maximum number of attempts to return. The service may return fewer than
   // this value.
-  // If unspecified, at most 50 work items will be returned.
-  // The maximum value is 1000; values above 1000 will be coerced to 1000.
+  // If unspecified, at most 50 attempts will be returned.
+  // The maximum value is 100; values above 100 will be coerced to 100.
   int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
 
-  // A page token, received from a previous `ListWorkItems` call.
+  // A page token, received from a previous `ListWorkItemAttempts` call.
   // Provide this to retrieve the subsequent page.
   //
-  // When paginating, all other parameters provided to `ListWorkItems` must
-  // match the call that provided the page token.
+  // When paginating, `parent` must match the call that provided the page token.
   string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Response message for `ListWorkItemAttempts` method.
 message ListWorkItemAttemptsResponse {
   // The work item attempts from the specified work item. Ordered by
-  // `create_time`, descending.
+  // `create_time`, ascending.
   repeated WorkItemAttempt work_item_attempts = 1;
 
   // A token, which can be sent as `page_token` to retrieve the next page.
@@ -136,6 +166,16 @@ message ListWorkItemAttemptsResponse {
 // Request message for `CompleteWorkItemAttempt` method.
 message CompleteWorkItemAttemptRequest {
   // Resource name.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type =
+        "control-plane.secure-computation.halo-cmm.org/WorkItemAttempt"
+  ];
+}
+
+// Request message for `RenewWorkItemAttempt` method.
+message RenewWorkItemAttemptRequest {
+  // Resource name of the active `WorkItemAttempt`.
   string name = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type =

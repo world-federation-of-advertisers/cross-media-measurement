@@ -16,1120 +16,339 @@
 
 package org.wfanet.measurement.securecomputation.deploy.gcloud.deadletter
 
+import com.google.protobuf.Any
 import com.google.protobuf.Parser
+import com.google.rpc.ErrorInfo
 import io.grpc.Status
-import io.grpc.StatusRuntimeException
+import io.grpc.StatusException
+import io.grpc.protobuf.StatusProto
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.test.fail
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withTimeout
+import org.junit.Rule
 import org.junit.Test
 import org.mockito.kotlin.*
-import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobFailedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkRankerJobFailedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobFailedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
-import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
-import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
-import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
-import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
-import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
-import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
-import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
-import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
-import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
-import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
-import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
+import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
+import org.wfanet.measurement.internal.securecomputation.controlplane.ProcessWorkItemDeadLetterRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt
+import org.wfanet.measurement.internal.securecomputation.controlplane.workItem as internalWorkItem
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
 
 class DeadLetterQueueListenerTest {
+  private val staleGenerationWorkItemsService =
+    object : WorkItemsGrpcKt.WorkItemsCoroutineImplBase() {
+      override suspend fun processWorkItemDeadLetter(
+        request: ProcessWorkItemDeadLetterRequest
+      ): InternalWorkItem {
+        throw WorkItemGenerationMismatchException("work-item", 1L, 2L)
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
+    }
+
+  @get:Rule val grpcTestServer = GrpcTestServerRule { addService(staleGenerationWorkItemsService) }
 
   @Test
-  fun `run method verifies subscription`() = runBlocking {
-    // Create mockWorkItemsSers
-    val mockParser = WorkItem.parser()
+  fun `run subscribes and terminates when channel closes`(): Unit = runBlocking {
     val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-    val subscribeCalled = CompletableDeferred<Unit>()
-
-    val mockQueueSubscriber =
+    val subscribed = CompletableDeferred<Unit>()
+    val queueSubscriber =
       mock<QueueSubscriber> {
-        on { subscribe(eq(subscriptionId), any<Parser<WorkItem>>()) } doAnswer
+        on { subscribe(eq(SUBSCRIPTION_ID), any<Parser<WorkItem>>()) } doAnswer
           {
-            subscribeCalled.complete(Unit)
+            subscribed.complete(Unit)
             messageChannel
           }
       }
-    val channel =
-      io.grpc.testing
-        .GrpcCleanupRule()
-        .register(
-          io.grpc.inprocess.InProcessChannelBuilder.forName("test").directExecutor().build()
-        )
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        parser = mockParser,
-        workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(channel),
-      )
-
-    // Start the listener in a separate coroutine that we'll cancel shortly
+    val listener = listener(queueSubscriber)
     val job = launch { listener.run() }
 
-    // Wait for subscribe to be called
-    withTimeout(1000) { subscribeCalled.await() }
-
-    // Verify that the subscribe method was called with the correct parameters
-    verify(mockQueueSubscriber, times(1)).subscribe(eq(subscriptionId), any<Parser<WorkItem>>())
-
-    // Clean up
+    withTimeout(1_000) { subscribed.await() }
     messageChannel.close()
-    job.cancel()
+    withTimeout(5_000) { job.join() }
+
+    verify(queueSubscriber).subscribe(eq(SUBSCRIPTION_ID), any<Parser<WorkItem>>())
   }
 
   @Test
-  fun `run method terminates cleanly when channel is closed`() = runBlocking {
-    // Create mocks
-    val mockParser = WorkItem.parser()
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> { on { subscribe(subscriptionId, mockParser) } doReturn messageChannel }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+  fun `run propagates subscription errors`(): Unit = runBlocking {
+    val expected = RuntimeException("Subscription error")
+    val queueSubscriber =
+      mock<QueueSubscriber> {
+        on { subscribe(eq(SUBSCRIPTION_ID), eq(WorkItem.parser())) } doThrow expected
+      }
+    val caught = CompletableDeferred<Throwable>()
 
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        parser = mockParser,
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    // Set up a completion flag to check if the method completes
-    val completed = CompletableDeferred<Unit>()
-
-    // Start the listener in a separate coroutine
     val job = launch {
       try {
-        listener.run()
-        // If run() returns without exception, mark as completed
-        completed.complete(Unit)
+        listener(queueSubscriber).run()
+        fail("Expected exception")
       } catch (e: Exception) {
-        // If an exception is thrown, fail the test
-        completed.completeExceptionally(e)
+        caught.complete(e)
       }
     }
 
-    // Close the channel to simulate normal termination
-    messageChannel.close()
-
-    // Wait for the run method to complete, with a timeout
-    withTimeout(5000) { completed.await() }
-
-    // If we got here, the run method completed without exception
-    assertTrue(completed.isCompleted)
-
-    // Clean up
+    assertEquals(expected, withTimeout(5_000) { caught.await() })
     job.cancel()
   }
 
   @Test
-  fun `run method propagates subscription errors`() = runBlocking {
-    // Create a mock QueueSubscriber that throws an exception when subscribe is called
-    val expectedError = RuntimeException("Subscription error")
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(eq(subscriptionId), eq(WorkItem.parser())) } doThrow expectedError
-      }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+  fun `close closes subscriber`() {
+    val queueSubscriber = mock<QueueSubscriber>()
 
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
+    listener(queueSubscriber).close()
 
-    // Set up a completion flag to catch the exception
-    val exceptionCaught = CompletableDeferred<Throwable>()
+    verify(queueSubscriber).close()
+  }
 
-    // Start the listener in a separate coroutine
-    val job = launch {
-      try {
-        listener.run()
-        fail("Expected exception was not thrown")
-      } catch (e: Exception) {
-        // Catch the exception and complete the deferred
-        exceptionCaught.complete(e)
-      }
+  @Test
+  fun `delivery sends name and generation and acknowledges failed WorkItem`(): Unit = runBlocking {
+    val item = workItem {
+      name = WORK_ITEM_NAME
+      generation = 7L
     }
+    val requestCaptor = argumentCaptor<ProcessWorkItemDeadLetterRequest>()
+    val fixture = fixture(item, terminalWorkItemsStub())
 
-    // Wait for the exception to be caught, with a timeout
-    val thrownException = withTimeout(5000) { exceptionCaught.await() }
+    fixture.channel.send(fixture.message)
 
-    // Verify that the exception is of the expected type
-    assertEquals(expectedError, thrownException)
-
-    // Clean up
-    job.cancel()
+    verify(fixture.workItemsStub, timeout(5_000))
+      .processWorkItemDeadLetter(requestCaptor.capture(), any())
+    assertEquals(WORK_ITEM_NAME, requestCaptor.firstValue.workItemResourceId)
+    assertEquals(7L, requestCaptor.firstValue.expectedWorkItemGeneration)
+    verify(fixture.message, timeout(5_000)).ack()
+    fixture.close()
   }
 
   @Test
-  fun `close method calls queueSubscriber close`() {
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber = mock<QueueSubscriber>()
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    // Call close on the listener
-    listener.close()
-
-    // Verify that close was called on the QueueSubscriber
-    verify(mockQueueSubscriber, times(1)).close()
-  }
-
-  @Test
-  fun `listener continues processing after error`() = runBlocking {
-    // Create two mock work items - one that will cause an error and one that will succeed
-    val errorWorkItem = workItem { name = "error-item" }
-    val successWorkItem = workItem { name = "success-item" }
-
-    // Create mock QueueMessages
-    val errorQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn errorWorkItem }
-    val successQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn successWorkItem }
-
-    // Create a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-
-    // Create a mock WorkItemsStub that throws an exception for error item and succeeds for success
-    // item
-    val mockWorkItemsStub =
+  fun `republished queued WorkItem is acknowledged`(): Unit = runBlocking {
+    val stub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking {
-          failWorkItem(argThat<FailWorkItemRequest> { workItemResourceId == "error-item" }, any())
-        } doThrow RuntimeException("Simulated processing error")
+        onBlocking { processWorkItemDeadLetter(any(), any()) } doReturn
+          internalWorkItem {
+            state = InternalWorkItem.State.QUEUED
+            generation = 2L
+          }
       }
+    val fixture = fixture(workItem { name = WORK_ITEM_NAME }, stub)
 
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
+    fixture.channel.send(fixture.message)
 
-    // Set up signal to track processing of both messages
-    val errorProcessed = CompletableDeferred<Unit>()
-    val successProcessed = CompletableDeferred<Unit>()
-
-    // Capture when messages are nacked or acked
-    whenever(errorQueueMessage.nack()).thenAnswer {
-      errorProcessed.complete(Unit)
-      Unit
-    }
-
-    whenever(successQueueMessage.ack()).thenAnswer {
-      successProcessed.complete(Unit)
-      Unit
-    }
-
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send the error message
-    messageChannel.send(errorQueueMessage)
-
-    // Wait for the error message to be processed
-    withTimeout(5000) { errorProcessed.await() }
-
-    // Verify the error message was nacked
-    verify(errorQueueMessage, times(1)).nack()
-    verify(errorQueueMessage, never()).ack()
-
-    // Send the success message
-    messageChannel.send(successQueueMessage)
-
-    // Wait for the success message to be processed
-    withTimeout(5000) { successProcessed.await() }
-
-    // Verify the success message was acked
-    verify(successQueueMessage, times(1)).ack()
-    verify(successQueueMessage, never()).nack()
-
-    // Clean up
-    messageChannel.close()
-    job.cancel()
+    verify(fixture.message, timeout(5_000)).ack()
+    verify(fixture.message, never()).nack()
+    fixture.close()
   }
 
   @Test
-  fun `test work item with full resource name is processed correctly`() = runBlocking {
-    // Create a mock work item with full resource name
-    val workItem = workItem { name = workItemId }
+  fun `empty WorkItem name is acknowledged without RPC`(): Unit = runBlocking {
+    val stub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
+    val fixture = fixture(workItem {}, stub)
 
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    fixture.channel.send(fixture.message)
 
-    // Set up a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    // Capture the arguments to the failWorkItem call
-    val requestCaptor = argumentCaptor<FailWorkItemRequest>()
-
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Wait for the message to be processed and verify that the work item resource ID was passed
-    // correctly
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
-    assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
-
-    // Clean up
-    messageChannel.close()
-    job.cancel()
+    verify(fixture.message, timeout(5_000)).ack()
+    verify(stub, never()).processWorkItemDeadLetter(any(), any())
+    fixture.close()
   }
 
   @Test
-  fun `test work item with ID only is processed correctly`() = runBlocking {
-    // Create a mock work item with just the ID (not a full resource name)
-    val workItemIdOnly = workItemId // Using workItemId constant = "test-work-item"
-    val workItem = workItem { name = workItemIdOnly }
+  fun `not found WorkItem is acknowledged`(): Unit = runBlocking {
+    val stub = throwingStub(Status.NOT_FOUND.asException())
+    val fixture = fixture(workItem { name = WORK_ITEM_NAME }, stub)
 
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    fixture.channel.send(fixture.message)
 
-    // Set up a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    // Capture the arguments to the failWorkItem call
-    val requestCaptor = argumentCaptor<FailWorkItemRequest>()
-
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Wait for the message to be processed and verify that the work item resource ID was passed
-    // correctly
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
-    assertEquals(workItemIdOnly, requestCaptor.firstValue.workItemResourceId)
-
-    // Clean up
-    messageChannel.close()
-    job.cancel()
+    verify(fixture.message, timeout(5_000)).ack()
+    verify(fixture.message, never()).nack()
+    fixture.close()
   }
 
   @Test
-  fun `test processing message marks work item as failed`() = runBlocking {
-    // Create a mock work item
-    val workItem = workItem { name = workItemId }
-
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-
-    // Set up a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+  fun `active leased attempt is deferred`(): Unit = runBlocking {
+    val errorInfo =
+      com.google.rpc.errorInfo {
+        reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
+        domain = Errors.DOMAIN
+        metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.RUNNING.name)
       }
-
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
+    val fixture =
+      fixture(
+        workItem { name = WORK_ITEM_NAME },
+        throwingStub(statusException(Status.FAILED_PRECONDITION, errorInfo)),
       )
 
-    // Capture the arguments to the failWorkItem call
-    val requestCaptor = argumentCaptor<FailWorkItemRequest>()
+    fixture.channel.send(fixture.message)
 
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Wait for the message to be processed and verify that the work item resource ID was passed
-    // correctly
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(requestCaptor.capture(), any())
-
-    // Verify the message is acknowledged
-    verify(mockQueueMessage, timeout(5000)).ack()
-
-    // Verify that the work item resource ID was passed correctly
-    assertEquals(workItemId, requestCaptor.firstValue.workItemResourceId)
-
-    // Close the channel and cancel the job
-    messageChannel.close()
-    job.cancel()
+    verify(fixture.message, timeout(5_000)).nack()
+    verify(fixture.message, never()).ack()
+    fixture.close()
   }
 
   @Test
-  fun `test message with empty work item name is acknowledged`() = runBlocking {
-    // Create a mock work item with empty name
-    val workItem = workItem {}
-
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-
-    // Set up a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-
-    // Create a mock WorkItemsStub
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
+  fun `stale generation is acknowledged`(): Unit = runBlocking {
+    val fixture =
+      fixture(
+        workItem {
+          name = WORK_ITEM_NAME
+          generation = 1L
+        },
+        WorkItemsGrpcKt.WorkItemsCoroutineStub(grpcTestServer.channel),
       )
 
-    // Start the listener
-    val job = launch { listener.run() }
+    fixture.channel.send(fixture.message)
 
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Verify the message is acknowledged
-    verify(mockQueueMessage, timeout(5000)).ack()
-
-    // Verify that the failWorkItem method was not called
-    verify(mockWorkItemsStub, never()).failWorkItem(any(), any())
-
-    // Close the channel and cancel the job
-    messageChannel.close()
-    job.cancel()
+    verify(fixture.message, timeout(5_000)).ack()
+    verify(fixture.message, never()).nack()
+    fixture.close()
   }
 
   @Test
-  fun `test work item not found error is acknowledged`() = runBlocking {
-    // Create a mock work item
-    val workItem = workItem { name = workItemId }
-
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-
-    // Set up a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-
-    // Create a mock WorkItemsStub that throws a NOT_FOUND StatusRuntimeException
-    val statusException =
-      StatusRuntimeException(Status.NOT_FOUND.withDescription("Work item not found"))
-
-    val mockWorkItemsStub =
-      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
-      }
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Verify the message is acknowledged
-    verify(mockQueueMessage, timeout(5000)).ack()
-
-    // Drain and let processing finish so the "never nacked" assertion is deterministic: a NOT_FOUND
-    // must NOT fall through to the SEVERE-log + nack() branch (that branch is for unhandled errors,
-    // and nacking an already-acked message is undefined per Pub/Sub).
-    messageChannel.close()
-    withTimeout(5000) { job.join() }
-    verify(mockQueueMessage, times(1)).ack()
-    verify(mockQueueMessage, never()).nack()
-  }
-
-  @Test
-  fun `test already failed work item error is acknowledged`() = runBlocking {
-    // Create a mock work item
-    val workItem = workItem { name = workItemId }
-
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-
-    // Set up a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-
-    // Create a Status with errorInfo indicating the work item is already in FAILED state
-    val errorInfoProto =
+  fun `terminal WorkItem error is acknowledged`(): Unit = runBlocking {
+    val errorInfo =
       com.google.rpc.errorInfo {
         reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
         domain = Errors.DOMAIN
         metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.FAILED.name)
       }
+    val exception = statusException(Status.FAILED_PRECONDITION, errorInfo)
+    val fixture = fixture(workItem { name = WORK_ITEM_NAME }, throwingStub(exception))
 
-    val statusException =
-      org.wfanet.measurement.common.grpc.Errors.buildStatusRuntimeException(
-        Status.FAILED_PRECONDITION.withDescription("Work item already failed"),
-        errorInfoProto,
-      )
+    fixture.channel.send(fixture.message)
 
-    // Create a mock WorkItemsStub that throws the status exception
-    val mockWorkItemsStub =
-      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
-      }
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Verify the message is acknowledged
-    verify(mockQueueMessage, timeout(5000)).ack()
-
-    // Close the channel and cancel the job
-    messageChannel.close()
-    job.cancel()
+    verify(fixture.message, timeout(5_000)).ack()
+    assertTrue(DeadLetterQueueListener.isTerminalWorkItemError(exception))
+    fixture.close()
   }
 
   @Test
-  fun `test other status error is not acknowledged`() = runBlocking {
-    // Create a mock work item
-    val workItem = workItem { name = workItemId }
+  fun `transient status is nacked`(): Unit = runBlocking {
+    val fixture =
+      fixture(workItem { name = WORK_ITEM_NAME }, throwingStub(Status.UNAVAILABLE.asException()))
 
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
+    fixture.channel.send(fixture.message)
 
-    // Set up a channel to simulate subscription
+    verify(fixture.message, timeout(5_000)).nack()
+    verify(fixture.message, never()).ack()
+    fixture.close()
+  }
+
+  @Test
+  fun `listener continues after processing error`(): Unit = runBlocking {
+    val errorItem = workItem { name = "error-item" }
+    val successItem = workItem { name = "success-item" }
+    val errorMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn errorItem }
+    val successProcessed = CompletableDeferred<Unit>()
+    val successMessage =
+      mock<QueueSubscriber.QueueMessage<WorkItem>> {
+        on { body } doReturn successItem
+        on { ack() } doAnswer
+          {
+            successProcessed.complete(Unit)
+            Unit
+          }
+      }
     val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
+    val queueSubscriber =
       mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+        on { subscribe(SUBSCRIPTION_ID, WorkItem.parser()) } doReturn messageChannel
       }
-
-    // Create a Status with general error
-    val statusException = StatusRuntimeException(Status.INTERNAL.withDescription("Internal error"))
-
-    // Create a mock WorkItemsStub that throws the status exception
-    val mockWorkItemsStub =
+    val stub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow statusException
+        onBlocking { processWorkItemDeadLetter(any(), any()) } doAnswer
+          {
+            val request = it.getArgument<ProcessWorkItemDeadLetterRequest>(0)
+            if (request.workItemResourceId == "error-item") {
+              throw RuntimeException("processing error")
+            }
+            terminalWorkItem()
+          }
       }
+    val job = launch { listener(queueSubscriber, stub).run() }
 
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
+    messageChannel.send(errorMessage)
+    verify(errorMessage, timeout(5_000)).nack()
+    messageChannel.send(successMessage)
+    withTimeout(5_000) { successProcessed.await() }
+    verify(successMessage).ack()
 
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Verify the message is not acknowledged
-    verify(mockQueueMessage, timeout(5000)).nack()
-    verify(mockQueueMessage, never()).ack()
-
-    // Close the channel and cancel the job
     messageChannel.close()
     job.cancel()
   }
 
-  @Test
-  fun `test general exception is not acknowledged`() = runBlocking {
-    // Create a mock work item
-    val workItem = workItem { name = workItemId }
-
-    // Create a mock QueueMessage
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-
-    // Set up a channel to simulate subscription
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-
-    // Create a mock QueueSubscriber
-    val mockQueueSubscriber =
+  private fun fixture(
+    item: WorkItem,
+    workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+  ): Fixture {
+    val message = mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn item }
+    val channel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
+    val queueSubscriber =
       mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
+        on { subscribe(SUBSCRIPTION_ID, WorkItem.parser()) } doReturn channel
       }
-
-    // Create a mock WorkItemsStub that throws a general exception
-    val mockWorkItemsStub =
-      mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
-        onBlocking { failWorkItem(any<FailWorkItemRequest>(), any()) } doThrow
-          RuntimeException("Unexpected error")
+    val job =
+      kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+        listener(queueSubscriber, workItemsStub).run()
       }
-
-    // Create the listener
-    val listener =
-      deadLetterQueueListener(
-        queueSubscriber = mockQueueSubscriber,
-        workItemsStub = mockWorkItemsStub,
-      )
-
-    // Start the listener
-    val job = launch { listener.run() }
-
-    // Send a message to the channel
-    messageChannel.send(mockQueueMessage)
-
-    // Verify the message is not acknowledged
-    verify(mockQueueMessage, timeout(5000)).nack()
-    verify(mockQueueMessage, never()).ack()
-
-    // Close the channel and cancel the job
-    messageChannel.close()
-    job.cancel()
+    return Fixture(message, channel, workItemsStub, job)
   }
 
-  @Test
-  fun `phase-0 SubpoolAssignerParams marks pool assignment job and model line failed`() =
-    runBlocking {
-      val appParams = subpoolAssignerParams {
-        rawImpressionUpload = UPLOAD
-        modelLine = MODEL_LINE
-        poolAssignmentJob = POOL_ASSIGNMENT_JOB
-      }
-      val workItem = workItemForAppParams(appParams.pack())
-      val mockQueueMessage =
-        mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-      val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-      val mockQueueSubscriber =
-        mock<QueueSubscriber> {
-          on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-        }
-      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-      val mockPoolAssignmentJobsStub =
-        mock<PoolAssignmentJobServiceCoroutineStub> {
-          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
-            poolAssignmentJob {
-              name = POOL_ASSIGNMENT_JOB
-              state = PoolAssignmentJob.State.CREATED
-              etag = ETAG
-            }
-        }
-      val mockModelLinesStub =
-        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-            listRawImpressionUploadModelLinesResponse {
-              rawImpressionUploadModelLines += parentModelLine()
-            }
-        }
-      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
-
-      val listener =
-        DeadLetterQueueListener(
-          subscriptionId = subscriptionId,
-          queueSubscriber = mockQueueSubscriber,
-          parser = WorkItem.parser(),
-          workItemsStub = mockWorkItemsStub,
-          poolAssignmentJobsStub = mockPoolAssignmentJobsStub,
-          rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
-          vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
-          rawImpressionUploadModelLinesStub = mockModelLinesStub,
-          rpcThrottlers = recordingThrottlers.throttlers,
-          getLatestWorkItemAttemptError = { ACTIONABLE_ERROR },
-        )
-
-      val job = launch { listener.run() }
-      messageChannel.send(mockQueueMessage)
-
-      val poolCaptor = argumentCaptor<MarkPoolAssignmentJobFailedRequest>()
-      verify(mockPoolAssignmentJobsStub, timeout(5000))
-        .markPoolAssignmentJobFailed(poolCaptor.capture(), any())
-      assertEquals(POOL_ASSIGNMENT_JOB, poolCaptor.firstValue.name)
-      assertEquals(ETAG, poolCaptor.firstValue.etag)
-      assertEquals(ACTIONABLE_ERROR, poolCaptor.firstValue.errorMessage)
-      assertEquals(
-        RequestIds.forMarkPoolAssignmentJobFailed(POOL_ASSIGNMENT_JOB),
-        poolCaptor.firstValue.requestId,
-      )
-
-      val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
-      verify(mockModelLinesStub, timeout(5000))
-        .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
-      assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
-      assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-      assertEquals(ACTIONABLE_ERROR, modelLineCaptor.firstValue.errorMessage)
-      assertEquals(
-        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
-        modelLineCaptor.firstValue.failureReason,
-      )
-      assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
-        modelLineCaptor.firstValue.requestId,
-      )
-
-      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
-      verify(mockQueueMessage, timeout(5000)).ack()
-      assertEquals(0, recordingThrottlers.kingdom.invocationCount)
-      assertEquals(2, recordingThrottlers.metadataRead.invocationCount)
-      assertEquals(2, recordingThrottlers.metadataWrite.invocationCount)
-      assertEquals(1, recordingThrottlers.controlPlane.invocationCount)
-
-      messageChannel.close()
+  private data class Fixture(
+    val message: QueueSubscriber.QueueMessage<WorkItem>,
+    val channel: Channel<QueueSubscriber.QueueMessage<WorkItem>>,
+    val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
+    val job: kotlinx.coroutines.Job,
+  ) {
+    fun close() {
+      channel.close()
       job.cancel()
     }
-
-  @Test
-  fun `phase-2 non-memoized VidLabelerParams marks vid labeling job and model line failed`() =
-    runBlocking {
-      val appParams = vidLabelerParams {
-        rawImpressionUpload = UPLOAD
-        vidLabelingJob = VID_LABELING_JOB
-        modelLines += MODEL_LINE
-      }
-      val workItem = workItemForAppParams(appParams.pack())
-      val mockQueueMessage =
-        mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-      val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-      val mockQueueSubscriber =
-        mock<QueueSubscriber> {
-          on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-        }
-      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-      val mockVidLabelingJobsStub =
-        mock<VidLabelingJobServiceCoroutineStub> {
-          onBlocking { getVidLabelingJob(any(), any()) } doReturn
-            vidLabelingJob {
-              name = VID_LABELING_JOB
-              state = VidLabelingJob.State.CREATED
-              etag = ETAG
-            }
-        }
-      val mockModelLinesStub =
-        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-            listRawImpressionUploadModelLinesResponse {
-              rawImpressionUploadModelLines += parentModelLine()
-            }
-        }
-
-      val listener =
-        DeadLetterQueueListener(
-          subscriptionId = subscriptionId,
-          queueSubscriber = mockQueueSubscriber,
-          parser = WorkItem.parser(),
-          workItemsStub = mockWorkItemsStub,
-          poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
-          rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
-          vidLabelingJobsStub = mockVidLabelingJobsStub,
-          rawImpressionUploadModelLinesStub = mockModelLinesStub,
-          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
-        )
-
-      val job = launch { listener.run() }
-      messageChannel.send(mockQueueMessage)
-
-      // The top-level vid_labeling_job (bundled non-memoized job) is marked FAILED.
-      val vljCaptor = argumentCaptor<MarkVidLabelingJobFailedRequest>()
-      verify(mockVidLabelingJobsStub, timeout(5000))
-        .markVidLabelingJobFailed(vljCaptor.capture(), any())
-      assertEquals(VID_LABELING_JOB, vljCaptor.firstValue.name)
-      assertEquals(ETAG, vljCaptor.firstValue.etag)
-      assertEquals(
-        RequestIds.forMarkVidLabelingJobFailed(VID_LABELING_JOB),
-        vljCaptor.firstValue.requestId,
-      )
-
-      val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
-      verify(mockModelLinesStub, timeout(5000))
-        .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
-      assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
-      assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-      assertEquals(
-        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
-        modelLineCaptor.firstValue.failureReason,
-      )
-      assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
-        modelLineCaptor.firstValue.requestId,
-      )
-
-      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
-      verify(mockQueueMessage, timeout(5000)).ack()
-
-      messageChannel.close()
-      job.cancel()
-    }
-
-  @Test
-  fun `phase-2 memoized VidLabelerParams marks vid labeling job and model line failed`() =
-    runBlocking {
-      val appParams = vidLabelerParams {
-        vidLabelingJob = VID_LABELING_JOB
-        modelLines += MODEL_LINE
-        memoizedParams = VidLabelerParamsKt.memoizedParams {}
-      }
-      val workItem = workItemForAppParams(appParams.pack())
-      val mockQueueMessage =
-        mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-      val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-      val mockQueueSubscriber =
-        mock<QueueSubscriber> {
-          on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-        }
-      val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-      val mockVidLabelingJobsStub =
-        mock<VidLabelingJobServiceCoroutineStub> {
-          onBlocking { getVidLabelingJob(any(), any()) } doReturn
-            vidLabelingJob {
-              name = VID_LABELING_JOB
-              state = VidLabelingJob.State.CREATED
-              etag = ETAG
-            }
-        }
-      val mockModelLinesStub =
-        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-            listRawImpressionUploadModelLinesResponse {
-              rawImpressionUploadModelLines += parentModelLine()
-            }
-        }
-
-      val listener =
-        DeadLetterQueueListener(
-          subscriptionId = subscriptionId,
-          queueSubscriber = mockQueueSubscriber,
-          parser = WorkItem.parser(),
-          workItemsStub = mockWorkItemsStub,
-          poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
-          rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
-          vidLabelingJobsStub = mockVidLabelingJobsStub,
-          rawImpressionUploadModelLinesStub = mockModelLinesStub,
-          rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
-        )
-
-      val job = launch { listener.run() }
-      messageChannel.send(mockQueueMessage)
-
-      val vljCaptor = argumentCaptor<MarkVidLabelingJobFailedRequest>()
-      verify(mockVidLabelingJobsStub, timeout(5000))
-        .markVidLabelingJobFailed(vljCaptor.capture(), any())
-      assertEquals(VID_LABELING_JOB, vljCaptor.firstValue.name)
-      assertEquals(ETAG, vljCaptor.firstValue.etag)
-      assertEquals(
-        RequestIds.forMarkVidLabelingJobFailed(VID_LABELING_JOB),
-        vljCaptor.firstValue.requestId,
-      )
-
-      val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
-      verify(mockModelLinesStub, timeout(5000))
-        .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
-      assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
-      assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-      assertEquals(
-        RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
-        modelLineCaptor.firstValue.failureReason,
-      )
-      assertEquals(
-        RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
-        modelLineCaptor.firstValue.requestId,
-      )
-
-      verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
-      verify(mockQueueMessage, timeout(5000)).ack()
-
-      messageChannel.close()
-      job.cancel()
-    }
-
-  @Test
-  fun `phase-1 VidRankBuilderParams marks ranker job and model line failed`() = runBlocking {
-    val appParams = vidRankBuilderParams {
-      rawImpressionUpload = UPLOAD
-      modelLine = MODEL_LINE
-      rankerJob = RANKER_JOB
-    }
-    val workItem = workItemForAppParams(appParams.pack())
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-    val mockRankerJobsStub =
-      mock<RankerJobServiceCoroutineStub> {
-        onBlocking { getRankerJob(any(), any()) } doReturn
-          rankerJob {
-            name = RANKER_JOB
-            state = RankerJob.State.CREATED
-            etag = ETAG
-          }
-      }
-    val mockModelLinesStub =
-      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            rawImpressionUploadModelLines += parentModelLine()
-          }
-      }
-
-    val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
-        queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
-        workItemsStub = mockWorkItemsStub,
-        poolAssignmentJobsStub = mock<PoolAssignmentJobServiceCoroutineStub>(),
-        rankerJobsStub = mockRankerJobsStub,
-        vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
-        rawImpressionUploadModelLinesStub = mockModelLinesStub,
-        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
-      )
-
-    val job = launch { listener.run() }
-    messageChannel.send(mockQueueMessage)
-
-    val rankerCaptor = argumentCaptor<MarkRankerJobFailedRequest>()
-    verify(mockRankerJobsStub, timeout(5000)).markRankerJobFailed(rankerCaptor.capture(), any())
-    assertEquals(RANKER_JOB, rankerCaptor.firstValue.name)
-    assertEquals(ETAG, rankerCaptor.firstValue.etag)
-    assertEquals(RequestIds.forMarkRankerJobFailed(RANKER_JOB), rankerCaptor.firstValue.requestId)
-
-    val modelLineCaptor = argumentCaptor<MarkRawImpressionUploadModelLineFailedRequest>()
-    verify(mockModelLinesStub, timeout(5000))
-      .markRawImpressionUploadModelLineFailed(modelLineCaptor.capture(), any())
-    assertEquals(PARENT_NAME, modelLineCaptor.firstValue.name)
-    assertEquals(MODEL_LINE_ETAG, modelLineCaptor.firstValue.etag)
-    assertEquals(
-      RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE,
-      modelLineCaptor.firstValue.failureReason,
-    )
-    assertEquals(
-      RequestIds.forMarkRawImpressionUploadModelLineFailed(PARENT_NAME, MODEL_LINE_ETAG),
-      modelLineCaptor.firstValue.requestId,
-    )
-
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
-    verify(mockQueueMessage, timeout(5000)).ack()
-
-    messageChannel.close()
-    job.cancel()
   }
 
-  @Test
-  fun `skips marking pool assignment job and model line when already terminal`() = runBlocking {
-    val appParams = subpoolAssignerParams {
-      rawImpressionUpload = UPLOAD
-      modelLine = MODEL_LINE
-      poolAssignmentJob = POOL_ASSIGNMENT_JOB
-    }
-    val workItem = workItemForAppParams(appParams.pack())
-    val mockQueueMessage =
-      mock<QueueSubscriber.QueueMessage<WorkItem>> { on { body } doReturn workItem }
-    val messageChannel = Channel<QueueSubscriber.QueueMessage<WorkItem>>()
-    val mockQueueSubscriber =
-      mock<QueueSubscriber> {
-        on { subscribe(subscriptionId, WorkItem.parser()) } doReturn messageChannel
-      }
-    val mockWorkItemsStub = mock<WorkItemsGrpcKt.WorkItemsCoroutineStub>()
-
-    val mockPoolAssignmentJobsStub =
-      mock<PoolAssignmentJobServiceCoroutineStub> {
-        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
-          poolAssignmentJob {
-            name = POOL_ASSIGNMENT_JOB
-            state = PoolAssignmentJob.State.SUCCEEDED
-            etag = ETAG
-          }
-      }
-    val mockModelLinesStub =
-      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            rawImpressionUploadModelLines +=
-              parentModelLine(RawImpressionUploadModelLine.State.COMPLETED)
-          }
-      }
-
-    val listener =
-      DeadLetterQueueListener(
-        subscriptionId = subscriptionId,
-        queueSubscriber = mockQueueSubscriber,
-        parser = WorkItem.parser(),
-        workItemsStub = mockWorkItemsStub,
-        poolAssignmentJobsStub = mockPoolAssignmentJobsStub,
-        rankerJobsStub = mock<RankerJobServiceCoroutineStub>(),
-        vidLabelingJobsStub = mock<VidLabelingJobServiceCoroutineStub>(),
-        rawImpressionUploadModelLinesStub = mockModelLinesStub,
-        rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
-      )
-
-    val job = launch { listener.run() }
-    messageChannel.send(mockQueueMessage)
-
-    verify(mockWorkItemsStub, timeout(5000)).failWorkItem(any(), any())
-    verify(mockQueueMessage, timeout(5000)).ack()
-    // Already-terminal resources are not re-marked.
-    verify(mockPoolAssignmentJobsStub, never()).markPoolAssignmentJobFailed(any(), any())
-    verify(mockModelLinesStub, never()).markRawImpressionUploadModelLineFailed(any(), any())
-
-    messageChannel.close()
-    job.cancel()
-  }
-
-  /**
-   * Builds a listener for tests that don't exercise EDPA marking, filling the now-required EDPA
-   * stubs with bare mocks (the production constructor takes them as required, non-null params).
-   */
-  private fun deadLetterQueueListener(
+  private fun listener(
     queueSubscriber: QueueSubscriber,
     workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub = mock(),
-    parser: Parser<WorkItem> = WorkItem.parser(),
-  ): DeadLetterQueueListener =
+  ) =
     DeadLetterQueueListener(
-      subscriptionId = subscriptionId,
+      subscriptionId = SUBSCRIPTION_ID,
       queueSubscriber = queueSubscriber,
-      parser = parser,
+      parser = WorkItem.parser(),
       workItemsStub = workItemsStub,
-      poolAssignmentJobsStub = mock(),
-      rankerJobsStub = mock(),
-      vidLabelingJobsStub = mock(),
-      rawImpressionUploadModelLinesStub = mock(),
-      rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     )
 
-  private fun workItemForAppParams(appParams: com.google.protobuf.Any): WorkItem = workItem {
-    name = workItemId
-    workItemParams = workItemParams { this.appParams = appParams }.pack()
+  private fun terminalWorkItemsStub(): WorkItemsGrpcKt.WorkItemsCoroutineStub = mock {
+    onBlocking { processWorkItemDeadLetter(any(), any()) } doReturn terminalWorkItem()
   }
 
-  private fun parentModelLine(
-    state: RawImpressionUploadModelLine.State = RawImpressionUploadModelLine.State.LABELING
-  ): RawImpressionUploadModelLine = rawImpressionUploadModelLine {
-    name = PARENT_NAME
-    cmmsModelLine = MODEL_LINE
-    this.state = state
-    etag = MODEL_LINE_ETAG
+  private fun terminalWorkItem(): InternalWorkItem = internalWorkItem {
+    state = InternalWorkItem.State.FAILED
+  }
+
+  private fun throwingStub(exception: Exception): WorkItemsGrpcKt.WorkItemsCoroutineStub = mock {
+    onBlocking { processWorkItemDeadLetter(any(), any()) } doAnswer { throw exception }
+  }
+
+  private fun statusException(status: Status, errorInfo: ErrorInfo): StatusException {
+    val statusProto =
+      com.google.rpc.Status.newBuilder()
+        .setCode(status.code.value())
+        .setMessage(status.description.orEmpty())
+        .addDetails(Any.pack(errorInfo))
+        .build()
+    return StatusProto.toStatusException(statusProto)
   }
 
   companion object {
-    private val subscriptionId = "test-subscription"
-    private val workItemId = "test-work-item"
-    private const val UPLOAD = "dataProviders/dp/rawImpressionUploads/up1"
-    private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
-    private const val POOL_ASSIGNMENT_JOB =
-      "dataProviders/dp/rawImpressionUploads/up1/poolAssignmentJobs/paj-0"
-    private const val PARENT_NAME =
-      "dataProviders/dp/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
-    private const val VID_LABELING_JOB =
-      "dataProviders/dp/rawImpressionUploads/up1/vidLabelingJobs/vlj-0"
-    private const val RANKER_JOB = "dataProviders/dp/rawImpressionUploads/up1/rankerJobs/rj-0"
-    private const val ETAG = "etag-1"
-    private const val MODEL_LINE_ETAG = "etag-ml-1"
-    private const val ACTIONABLE_ERROR =
-      "Raw-impression object changed; the EDP must write a new done blob"
+    private const val SUBSCRIPTION_ID = "test-subscription"
+    private const val WORK_ITEM_NAME = "workItems/test-work-item"
   }
 }

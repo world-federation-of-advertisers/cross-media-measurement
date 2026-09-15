@@ -16,8 +16,10 @@ package k8s
 
 #SecureComputation: {
 
-	_verboseGrpcServerLogging: bool | *false
-	_verboseGrpcClientLogging: bool | *false
+	_verboseGrpcServerLogging:    bool | *false
+	_verboseGrpcClientLogging:    bool | *false
+	_deadLetterProcessingEnabled: string | *"true"
+	_workItemPublicationEnabled:  string | *"true"
 
 	_spannerConfig: #SpannerConfig & {
 		database: "secure-computation"
@@ -28,13 +30,6 @@ package k8s
 		certificateHost:       "localhost"
 		targetOption:          "--secure-computation-internal-api-target"
 		certificateHostOption: "--secure-computation-internal-api-cert-host"
-	}
-
-	_edpAggregatorSystemApiTarget: #GrpcTarget & {
-		serviceName:           "edp-aggregator-system-api-server"
-		certificateHost:       "localhost"
-		targetOption:          "--metadata-storage-public-api-target"
-		certificateHostOption: "--metadata-storage-public-api-cert-host"
 	}
 
 	_imageSuffixes: [_=string]: string
@@ -83,6 +78,8 @@ package k8s
 	deployments: {
 		"secure-computation-internal-api-server": {
 			_container: args: [
+						"--dead-letter-processing-enabled=" + _deadLetterProcessingEnabled,
+						"--work-item-publication-enabled=" + _workItemPublicationEnabled,
 						_debugVerboseGrpcServerLoggingFlag,
 						"--cert-collection-file=/var/run/secrets/files/secure_computation_root.pem",
 						"--tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
@@ -90,17 +87,12 @@ package k8s
 						"--queue-config=/etc/\(#AppName)/config-files/queues_config.textproto",
 						"--google-project-id=" + #GCloudProject,
 
-				// Dead-letter listeners: one per EDP-Aggregator phase DLQ. On Pub/Sub retry
-				// exhaustion each marks the EDPA pipeline resources FAILED via the
-				// metadata-storage public API (mTLS, reusing the secure-computation identity
-				// the EDPA trusted_certs already trusts).
+				// Dead-letter listeners perform only generic WorkItem recovery or failure.
 				"--dead-letter-subscription-id=subpool-assigner-queue-dlq-sub",
 				"--dead-letter-subscription-id=vid-rank-builder-queue-dlq-sub",
 				"--dead-letter-subscription-id=vid-labeler-queue-dlq-sub",
-				"--edpa-tls-cert-file=/var/run/secrets/files/secure_computation_tls.pem",
-				"--edpa-tls-key-file=/var/run/secrets/files/secure_computation_tls.key",
-				"--metadata-storage-cert-collection-file=/var/run/secrets/files/all_root_certs.pem",
-			] + _spannerConfig.flags + _edpAggregatorSystemApiTarget.args
+				"--dead-letter-subscription-id=results-fulfiller-queue-dlq-sub",
+			] + _spannerConfig.flags
 
 			_updateSchemaContainer: Container=#Container & {
 				image:            _images[Container.name]

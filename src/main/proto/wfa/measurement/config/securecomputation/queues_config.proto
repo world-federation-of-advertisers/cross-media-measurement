@@ -29,6 +29,14 @@ message QueuesConfig {
     // (-- api-linter: core::0140::uri=disabled
     //     aip.dev/not-precedent: Referring to a type url. --)
     string app_params_type_url = 2 [(google.api.field_behavior) = REQUIRED];
+
+    // Maximum number of worker execution attempts before the `WorkItem` is
+    // published to the dead-letter queue. A value of 0 defaults to 5.
+    int32 max_work_item_attempts = 3;
+
+    // Pub/Sub topic resource ID for exhausted `WorkItem`s. If omitted, this
+    // defaults to the queue resource ID with "-dlq" appended.
+    string dead_letter_queue_resource_id = 4;
   }
 
   repeated QueueInfo queueInfos = 1;

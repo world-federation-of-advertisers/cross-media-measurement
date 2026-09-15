@@ -420,11 +420,19 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
+resource "google_pubsub_subscription_iam_member" "result_fulfiller_dead_letter_subscriber" {
+  subscription = module.result_fulfiller_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
 module "result_fulfiller_tee_app" {
   source = "../mig"
 
   depends_on = [module.secrets]
 
+  enabled                       = var.tee_consumers_enabled
+  work_item_consumption_enabled = var.tee_consumers_enabled
   instance_template_name        = var.requisition_fulfiller_config.worker.instance_template_name
   base_instance_name            = var.requisition_fulfiller_config.worker.base_instance_name
   managed_instance_group_name   = var.requisition_fulfiller_config.worker.managed_instance_group_name
@@ -788,6 +796,8 @@ module "vid_labeling_tee_app" {
 
   depends_on = [module.secrets]
 
+  enabled                       = var.tee_consumers_enabled
+  work_item_consumption_enabled = var.tee_consumers_enabled
   instance_template_name        = each.value.worker.instance_template_name
   base_instance_name            = each.value.worker.base_instance_name
   managed_instance_group_name   = each.value.worker.managed_instance_group_name
