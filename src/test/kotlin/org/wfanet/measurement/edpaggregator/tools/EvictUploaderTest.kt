@@ -176,14 +176,20 @@ class EvictUploaderTest {
             rawImpressionUploads += rawImpressionUpload {
               name = uploadName("up1")
               createTime = T1.toProtoTime()
+              doneBlobUri = "gs://raw/up1/done"
+              doneBlobGeneration = 1L
             }
             rawImpressionUploads += rawImpressionUpload {
               name = uploadName("up2")
               createTime = T2.toProtoTime()
+              doneBlobUri = "gs://raw/up2/done"
+              doneBlobGeneration = 1L
             }
             rawImpressionUploads += rawImpressionUpload {
               name = uploadName("up3")
               createTime = T3.toProtoTime()
+              doneBlobUri = "gs://raw/up3/done"
+              doneBlobGeneration = 1L
             }
           }
         )
@@ -205,6 +211,17 @@ class EvictUploaderTest {
       .containsExactly(uploadName("up2"), uploadName("up3"))
       .inOrder()
     assertThat(plan.extraUploads).containsExactly(uploadName("up3"))
+    assertThat(plan.recoveryTargets)
+      .containsExactly(EvictUploader.RecoveryTarget(uploadName("up3"), listOf(MODEL_LINE)))
+    assertThat(plan.cascade.map { it.recoveryAction })
+      .containsExactly(
+        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+      )
+      .inOrder()
+    assertThat(plan.cascade.map { it.recoveryPredecessorUploadName })
+      .containsExactly(uploadName("up1"), uploadName("up2"))
+      .inOrder()
     assertThat(plan.memoizedModelLines).containsExactly(MODEL_LINE)
     assertThat(plan.nonMemoizedModelLines).isEmpty()
     // Both cascade model lines are failed and each has its SNAPSHOT soft-deleted.
@@ -218,8 +235,201 @@ class EvictUploaderTest {
       assertThat(request.requestId).isNotEmpty()
       assertThat(request.failureReason)
         .isEqualTo(RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT)
+      assertThat(request.evictionOperationId).isEqualTo(plan.evictionOperationId)
     }
+    assertThat(requestCaptor.allValues.map { it.recoveryAction })
+      .containsExactly(
+        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+      )
+      .inOrder()
     assertThat(requestCaptor.allValues.map { it.requestId }).containsNoDuplicates()
+  }
+
+  @Test
+  fun `recovery targets include only latest revision for each later done path`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up1")
+              createTime = T1.toProtoTime()
+              doneBlobUri = "gs://raw/d1/done"
+              doneBlobGeneration = 1L
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2-old")
+              createTime = T2.toProtoTime()
+              doneBlobUri = "gs://raw/d2/done"
+              doneBlobGeneration = 200L
+              doneBlobCreateTime = T2.toProtoTime()
+            }
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName("up2-new")
+              createTime = T3.toProtoTime()
+              doneBlobUri = "gs://raw/d2/done"
+              doneBlobGeneration = 100L
+              doneBlobCreateTime = T3.toProtoTime()
+              replacesRawImpressionUpload = uploadName("up2-old")
+            }
+          }
+        )
+      stubModelLineRows("up1", "up2-old", "up2-new")
+      stubSnapshotRows("up1", "up2-old", "up2-new")
+
+      val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+
+      assertThat(plan.recoveryTargets)
+        .containsExactly(EvictUploader.RecoveryTarget(uploadName("up2-new"), listOf(MODEL_LINE)))
+      assertThat(
+          plan.cascade
+            .single { it.uploadName == uploadName("up2-new") }
+            .recoveryPredecessorUploadName
+        )
+        .isEqualTo(uploadName("up1"))
+    }
+
+  @Test
+  fun `plan keeps recovery dependencies in chronological order`(): Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          for ((id, time) in
+            listOf("up1" to T1, "up2" to T2, "up3" to T3, "up4" to T4, "up5" to T5)) {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName(id)
+              createTime = time.toProtoTime()
+              doneBlobUri = "gs://raw/$id/done"
+              doneBlobGeneration = 1L
+            }
+          }
+        }
+      )
+    stubModelLineRows("up1", "up2", "up3", "up4", "up5")
+    stubSnapshotRows("up1", "up2", "up3", "up4", "up5")
+
+    val plan = evictUploader.plan(listOf(uploadName("up2"), uploadName("up4")), cutoffTime = T0)
+    val entries = plan.cascade.associateBy { it.uploadName }
+
+    assertThat(entries.getValue(uploadName("up2")).recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION)
+    assertThat(entries.getValue(uploadName("up2")).recoveryPredecessorUploadName)
+      .isEqualTo(uploadName("up1"))
+    assertThat(entries.getValue(uploadName("up4")).recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION)
+    assertThat(entries.getValue(uploadName("up4")).recoveryPredecessorUploadName)
+      .isEqualTo(uploadName("up3"))
+    assertThat(entries.getValue(uploadName("up3")).recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+    assertThat(entries.getValue(uploadName("up3")).recoveryPredecessorUploadName)
+      .isEqualTo(uploadName("up2"))
+    assertThat(entries.getValue(uploadName("up5")).recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+    assertThat(entries.getValue(uploadName("up5")).recoveryPredecessorUploadName)
+      .isEqualTo(uploadName("up4"))
+  }
+
+  @Test
+  fun `plan skips noncontiguous permanently removed uploads in recovery dependencies`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            for ((id, time) in
+              listOf("up1" to T1, "up2" to T2, "up3" to T3, "up4" to T4, "up5" to T5)) {
+              rawImpressionUploads += rawImpressionUpload {
+                name = uploadName(id)
+                createTime = time.toProtoTime()
+                doneBlobUri = "gs://raw/$id/done"
+                doneBlobGeneration = 1L
+              }
+            }
+          }
+        )
+      stubModelLineRows("up1", "up2", "up3", "up4", "up5")
+      stubSnapshotRows("up1", "up2", "up3", "up4", "up5")
+
+      val plan =
+        evictUploader.plan(
+          listOf(uploadName("up2"), uploadName("up4")),
+          cutoffTime = T0,
+          noReplacementUploads = setOf(uploadName("up2"), uploadName("up4")),
+        )
+      val entries = plan.cascade.associateBy { it.uploadName }
+
+      assertThat(entries.getValue(uploadName("up2")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+      assertThat(entries.getValue(uploadName("up2")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up1"))
+      assertThat(entries.getValue(uploadName("up3")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+      assertThat(entries.getValue(uploadName("up3")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up1"))
+      assertThat(entries.getValue(uploadName("up4")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+      assertThat(entries.getValue(uploadName("up4")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up3"))
+      assertThat(entries.getValue(uploadName("up5")).recoveryAction)
+        .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY)
+      assertThat(entries.getValue(uploadName("up5")).recoveryPredecessorUploadName)
+        .isEqualTo(uploadName("up3"))
+      assertThat(plan.recoveryTargets)
+        .containsExactly(
+          EvictUploader.RecoveryTarget(uploadName("up3"), listOf(MODEL_LINE)),
+          EvictUploader.RecoveryTarget(uploadName("up5"), listOf(MODEL_LINE)),
+        )
+        .inOrder()
+    }
+
+  @Test
+  fun `plan starts recovery without a predecessor when first upload is permanently removed`():
+    Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          for ((id, time) in listOf("up1" to T1, "up2" to T2, "up3" to T3)) {
+            rawImpressionUploads += rawImpressionUpload {
+              name = uploadName(id)
+              createTime = time.toProtoTime()
+              doneBlobUri = "gs://raw/$id/done"
+              doneBlobGeneration = 1L
+            }
+          }
+        }
+      )
+    stubModelLineRows("up1", "up2", "up3")
+    stubSnapshotRows("up1", "up2", "up3")
+
+    val plan =
+      evictUploader.plan(
+        listOf(uploadName("up1")),
+        cutoffTime = T0,
+        noReplacementUploads = setOf(uploadName("up1")),
+      )
+    val entries = plan.cascade.associateBy { it.uploadName }
+
+    assertThat(entries.getValue(uploadName("up1")).recoveryAction)
+      .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+    assertThat(entries.getValue(uploadName("up2")).recoveryPredecessorUploadName).isEmpty()
+    assertThat(entries.getValue(uploadName("up3")).recoveryPredecessorUploadName)
+      .isEqualTo(uploadName("up2"))
+  }
+
+  @Test
+  fun `plan rejects no-replacement upload outside bad uploads`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        runBlocking {
+          evictUploader.plan(
+            listOf(uploadName("up1")),
+            cutoffTime = T0,
+            noReplacementUploads = setOf(uploadName("up2")),
+          )
+        }
+      }
+
+    assertThat(error).hasMessageThat().contains("must also be listed in badUploads")
   }
 
   @Test
@@ -296,8 +506,13 @@ class EvictUploaderTest {
           }
         )
       stubModelLineRows("up1")
-      // evict() re-fetches current state before marking. This row is already classified as
-      // evicted, so Mark is skipped.
+      stubSnapshotRows("up1")
+      whenever(rankIndexBlobService.deleteRankIndexBlob(any())).thenAnswer { rankIndexBlob {} }
+
+      val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+      val entry = plan.cascade.single()
+      // evict() re-fetches current state before marking. This row already has this operation's
+      // complete recovery metadata, so Mark is skipped.
       whenever(modelLineService.getRawImpressionUploadModelLine(any()))
         .thenReturn(
           rawImpressionUploadModelLine {
@@ -305,12 +520,11 @@ class EvictUploaderTest {
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.FAILED
             failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            evictionOperationId = plan.evictionOperationId
+            recoveryAction = entry.recoveryAction
+            recoveryPredecessorRawImpressionUpload = entry.recoveryPredecessorUploadName
           }
         )
-      stubSnapshotRows("up1")
-      whenever(rankIndexBlobService.deleteRankIndexBlob(any())).thenAnswer { rankIndexBlob {} }
-
-      val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
       evictUploader.evict(plan, REASON)
     }
 
@@ -711,7 +925,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict releases newly acquired fence when plan changes`(): Unit = runBlocking {
+  fun `prepare releases newly acquired fence when plan changes`(): Unit = runBlocking {
     var includeLaterUpload = false
     whenever(uploadService.listRawImpressionUploads(any())).thenAnswer {
       listRawImpressionUploadsResponse {
@@ -784,8 +998,7 @@ class EvictUploaderTest {
 
     val confirmedPlan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
     includeLaterUpload = true
-    val error =
-      assertFailsWith<IllegalArgumentException> { evictUploader.evict(confirmedPlan, REASON) }
+    val error = assertFailsWith<IllegalArgumentException> { evictUploader.prepare(confirmedPlan) }
 
     assertThat(error).hasMessageThat().contains("plan changed")
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
@@ -793,7 +1006,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict retains reacquired fence when plan refresh fails`(): Unit = runBlocking {
+  fun `prepare retains reacquired fence when plan refresh fails`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(
         listRawImpressionUploadsResponse {
@@ -811,7 +1024,7 @@ class EvictUploaderTest {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenThrow(Status.UNAVAILABLE.asRuntimeException())
 
-    val error = assertFailsWith<StatusException> { evictUploader.evict(confirmedPlan, REASON) }
+    val error = assertFailsWith<StatusException> { evictUploader.prepare(confirmedPlan) }
 
     assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
     verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
@@ -957,5 +1170,7 @@ class EvictUploaderTest {
     private val T1: Instant = Instant.parse("2026-07-01T00:00:00Z")
     private val T2: Instant = Instant.parse("2026-07-02T00:00:00Z")
     private val T3: Instant = Instant.parse("2026-07-03T00:00:00Z")
+    private val T4: Instant = Instant.parse("2026-07-04T00:00:00Z")
+    private val T5: Instant = Instant.parse("2026-07-05T00:00:00Z")
   }
 }

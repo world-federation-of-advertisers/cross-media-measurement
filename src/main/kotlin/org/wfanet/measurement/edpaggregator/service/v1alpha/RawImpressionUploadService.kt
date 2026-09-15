@@ -29,6 +29,7 @@ import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceResponse
@@ -111,6 +112,20 @@ class RawImpressionUploadService(
       throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    val uploadHealingOperationKey =
+      request.rawImpressionUpload.uploadHealingOperation
+        .takeIf { it.isNotEmpty() }
+        ?.let {
+          UploadHealingOperationKey.fromName(it)
+            ?: throw InvalidFieldValueException("raw_impression_upload.upload_healing_operation")
+              .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+    if (
+      uploadHealingOperationKey != null && uploadHealingOperationKey.parentKey != dataProviderKey
+    ) {
+      throw InvalidFieldValueException("raw_impression_upload.upload_healing_operation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val internalResponse: InternalRawImpressionUpload =
       try {
@@ -125,6 +140,7 @@ class RawImpressionUploadService(
               }
             }
             requestId = request.requestId
+            evictionOperationId = uploadHealingOperationKey?.uploadHealingOperationId.orEmpty()
           }
         )
       } catch (e: StatusException) {
@@ -506,6 +522,12 @@ fun InternalRawImpressionUpload.toPublic(): RawImpressionUpload {
       doneBlobCreateTime = source.doneBlobCreateTime
     }
     registrationComplete = source.registrationComplete
+    processingDeferred = source.processingDeferred
+    if (source.evictionOperationId.isNotEmpty()) {
+      uploadHealingOperation =
+        UploadHealingOperationKey(source.dataProviderResourceId, source.evictionOperationId)
+          .toName()
+    }
     if (source.replacesRawImpressionUploadResourceId.isNotEmpty()) {
       replacesRawImpressionUpload =
         RawImpressionUploadKey(
