@@ -166,6 +166,13 @@ resource "google_project_iam_member" "report_trace_operator_service_usage_consum
   member   = google_service_account.report_trace_operator.member
 }
 
+resource "google_project_iam_member" "report_trace_operator_service_usage_viewer" {
+  for_each = local.report_trace_observability_projects
+  project  = each.value
+  role     = "roles/serviceusage.serviceUsageViewer"
+  member   = google_service_account.report_trace_operator.member
+}
+
 resource "google_spanner_database" "reporting" {
   instance         = var.spanner_instance.name
   name             = var.reporting_spanner_database_name
