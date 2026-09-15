@@ -26,4 +26,4 @@ CREATE TABLE VidLabelingEvictionFence (
 ) PRIMARY KEY (DataProviderResourceId);
 
 CREATE INDEX RawImpressionUploadByRegistrationComplete
-  ON RawImpressionUpload(DataProviderResourceId, RegistrationComplete);
+  ON RawImpressionUpload(DataProviderResourceId, RegistrationComplete, State);

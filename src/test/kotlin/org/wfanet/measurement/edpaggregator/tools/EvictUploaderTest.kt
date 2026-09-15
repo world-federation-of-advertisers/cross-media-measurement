@@ -619,7 +619,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict retains fence when memoized upload is registered after confirmation`(): Unit =
+  fun `evict releases fence when memoized upload is registered after confirmation`(): Unit =
     runBlocking {
       var includeLaterUpload = false
       whenever(uploadService.listRawImpressionUploads(any())).thenAnswer {
@@ -698,7 +698,7 @@ class EvictUploaderTest {
 
       assertThat(error).hasMessageThat().contains("plan changed")
       verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
-      verifyBlocking(uploadService, never()) { releaseRawImpressionUploadEvictionFence(any()) }
+      verifyBlocking(uploadService) { releaseRawImpressionUploadEvictionFence(any()) }
     }
 
   companion object {
