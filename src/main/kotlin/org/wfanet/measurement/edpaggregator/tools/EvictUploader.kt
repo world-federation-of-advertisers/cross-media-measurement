@@ -20,11 +20,13 @@ import com.google.type.interval
 import java.time.Instant
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
@@ -55,6 +57,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
@@ -400,7 +403,48 @@ class EvictUploader(
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
    * carrying the resource ID treats the already-deleted row as an idempotent `NOT_FOUND`.
    */
-  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult = evict(plan, reason) {}
+  suspend fun evict(plan: EvictionPlan, reason: String): EvictionResult {
+    val preparedPlan = prepare(plan)
+    return evict(preparedPlan, reason) {}
+  }
+
+  /** Acquires the eviction fence and rejects a plan that changed after operator confirmation. */
+  override suspend fun prepare(plan: EvictionPlan): EvictionPlan {
+    val dataProvider = dataProviderOf(plan.badUploads.first())
+    uploadsStub.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        parent = dataProvider
+        evictionOperationId = plan.evictionOperationId
+      }
+    )
+    try {
+      val refreshed =
+        plan(
+          plan.badUploads,
+          plan.cutoffTime,
+          evictionOperationId = plan.evictionOperationId,
+          noReplacementUploads = plan.noReplacementUploads,
+        )
+      require(refreshed.cascade == plan.cascade) {
+        "eviction plan changed after confirmation; review the new plan and retry"
+      }
+      return refreshed
+    } catch (e: Throwable) {
+      try {
+        withContext(NonCancellable) {
+          uploadsStub.releaseRawImpressionUploadEvictionFence(
+            releaseRawImpressionUploadEvictionFenceRequest {
+              parent = dataProvider
+              evictionOperationId = plan.evictionOperationId
+            }
+          )
+        }
+      } catch (releaseException: Throwable) {
+        e.addSuppressed(releaseException)
+      }
+      throw e
+    }
+  }
 
   override suspend fun evict(
     plan: EvictionPlan,
@@ -414,16 +458,6 @@ class EvictUploader(
         evictionOperationId = plan.evictionOperationId
       }
     )
-    val refreshed =
-      plan(
-        plan.badUploads,
-        plan.cutoffTime,
-        evictionOperationId = plan.evictionOperationId,
-        noReplacementUploads = plan.noReplacementUploads,
-      )
-    require(refreshed.cascade == plan.cascade) {
-      "eviction plan changed after confirmation; review the new plan and retry"
-    }
     val result = executeEviction(plan, reason, onEntryEvicted)
     return result
   }

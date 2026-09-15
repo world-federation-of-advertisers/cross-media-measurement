@@ -681,14 +681,6 @@ class SpannerRawImpressionUploadModelLineService(
         throw RequiredFieldNotSetException("recovery_action")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (
-        request.recoveryAction ==
-          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY &&
-          request.recoveryPredecessorRawImpressionUploadResourceId.isEmpty()
-      ) {
-        throw RequiredFieldNotSetException("recovery_predecessor_raw_impression_upload_resource_id")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
     } else if (
       request.evictionOperationId.isNotEmpty() ||
         request.recoveryAction !=

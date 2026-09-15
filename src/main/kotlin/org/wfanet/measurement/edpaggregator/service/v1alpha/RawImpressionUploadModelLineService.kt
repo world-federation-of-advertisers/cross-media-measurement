@@ -515,14 +515,6 @@ class RawImpressionUploadModelLineService(
         throw RequiredFieldNotSetException("recovery_action")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (
-        request.recoveryAction ==
-          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY &&
-          recoveryPredecessorKey == null
-      ) {
-        throw RequiredFieldNotSetException("recovery_predecessor_raw_impression_upload")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
     } else if (
       request.evictionOperationId.isNotEmpty() ||
         request.recoveryAction !=

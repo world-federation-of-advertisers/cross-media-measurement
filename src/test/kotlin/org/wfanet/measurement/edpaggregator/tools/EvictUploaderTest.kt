@@ -923,7 +923,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `evict retains fence when memoized upload is registered after confirmation`(): Unit =
+  fun `prepare releases fence when memoized upload is registered after confirmation`(): Unit =
     runBlocking {
       var includeLaterUpload = false
       whenever(uploadService.listRawImpressionUploads(any())).thenAnswer {
@@ -997,12 +997,11 @@ class EvictUploaderTest {
 
       val confirmedPlan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
       includeLaterUpload = true
-      val error =
-        assertFailsWith<IllegalArgumentException> { evictUploader.evict(confirmedPlan, REASON) }
+      val error = assertFailsWith<IllegalArgumentException> { evictUploader.prepare(confirmedPlan) }
 
       assertThat(error).hasMessageThat().contains("plan changed")
       verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
-      verifyBlocking(uploadService, never()) { releaseRawImpressionUploadEvictionFence(any()) }
+      verifyBlocking(uploadService) { releaseRawImpressionUploadEvictionFence(any()) }
     }
 
   @Test

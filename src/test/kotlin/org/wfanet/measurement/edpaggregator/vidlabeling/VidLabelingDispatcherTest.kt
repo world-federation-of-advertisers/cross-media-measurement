@@ -321,6 +321,7 @@ class VidLabelingDispatcherTest {
     latestSourceRevision: RawImpressionUpload = source,
     predecessorModelLineState: RawImpressionUploadModelLine.State =
       RawImpressionUploadModelLine.State.COMPLETED,
+    recoveryPredecessorUpload: String = RECOVERY_PREDECESSOR_UPLOAD,
     metadataReadThrottler: RecordingThrottler? = null,
     paginateRecoveryReads: Boolean = false,
   ) {
@@ -382,7 +383,9 @@ class VidLabelingDispatcherTest {
                   recoveryAction =
                     RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
                   evictionOperationId = EVICTION_OPERATION_ID
-                  recoveryPredecessorRawImpressionUpload = predecessor.name
+                  if (recoveryPredecessorUpload.isNotEmpty()) {
+                    recoveryPredecessorRawImpressionUpload = recoveryPredecessorUpload
+                  }
                 }
               predecessorReplacement.name -> rawImpressionUploadModelLines +=
                   rawImpressionUploadModelLine {
@@ -830,8 +833,52 @@ class VidLabelingDispatcherTest {
     verifyBlocking(rawImpressionUploadService) {
       createRawImpressionUpload(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
+    assertThat(requestCaptor.firstValue.rawImpressionUpload.uploadHealingOperation)
+      .isEqualTo("$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID")
     assertThat(metadataRead.onReadyCalls).isGreaterThan(0)
+  }
+
+  @Test
+  fun `upload accepts root recovery when no predecessor remains`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRecoverySource(source, recoveryPredecessorUpload = "")
+    whenever(rawImpressionUploadService.createRawImpressionUpload(any()))
+      .thenReturn(
+        rawImpressionUpload {
+          name = "$DATA_PROVIDER_NAME/rawImpressionUploads/$RAW_IMPRESSION_UPLOAD_ID"
+          doneBlobUri = DONE_BLOB_PATH
+          doneBlobGeneration = DONE_BLOB_GENERATION
+          doneBlobCreateTime = DONE_BLOB_CREATE_TIME.toProtoTime()
+        }
+      )
+    whenever(rawImpressionUploadFileService.batchCreateRawImpressionUploadFiles(any()))
+      .thenReturn(batchCreateRawImpressionUploadFilesResponse {})
+    whenever(rawImpressionUploadModelLineService.batchCreateRawImpressionUploadModelLines(any()))
+      .thenReturn(batchCreateRawImpressionUploadModelLinesResponse {})
+    stubOverrideResolutionChain()
+
+    createDispatcher(
+        overrideModelLines = listOf(MODEL_LINE_1),
+        recoverySourceUpload = sourceUploadName,
+        recoveryOperationId = EVICTION_OPERATION_ID,
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requestCaptor = argumentCaptor<CreateRawImpressionUploadRequest>()
+    verifyBlocking(rawImpressionUploadService) {
+      createRawImpressionUpload(requestCaptor.capture())
+    }
+    assertThat(requestCaptor.firstValue.rawImpressionUpload.uploadHealingOperation)
+      .isEqualTo("$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID")
   }
 
   @Test
@@ -973,7 +1020,8 @@ class VidLabelingDispatcherTest {
     verifyBlocking(rawImpressionUploadService) {
       createRawImpressionUpload(requestCaptor.capture())
     }
-    assertThat(requestCaptor.firstValue.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
+    assertThat(requestCaptor.firstValue.rawImpressionUpload.uploadHealingOperation)
+      .isEqualTo("$DATA_PROVIDER_NAME/uploadHealingOperations/$EVICTION_OPERATION_ID")
   }
 
   @Test

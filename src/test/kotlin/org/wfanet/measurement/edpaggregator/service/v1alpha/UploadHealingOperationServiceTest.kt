@@ -169,7 +169,7 @@ class UploadHealingOperationServiceTest {
     val result =
       service.advanceUploadHealingStep(
         advanceUploadHealingStepRequest {
-          name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/steps/1"
+          name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
           etag = "etag"
           action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
           recoveryDoneBlobGeneration = 123L
@@ -204,7 +204,7 @@ class UploadHealingOperationServiceTest {
         newService()
           .advanceUploadHealingStep(
             advanceUploadHealingStepRequest {
-              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/steps/1"
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
               etag = "etag"
               action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
             }
@@ -259,7 +259,7 @@ class UploadHealingOperationServiceTest {
         newService()
           .advanceUploadHealingStep(
             advanceUploadHealingStepRequest {
-              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/steps/1"
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
               etag = "etag"
               action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
               requestId = REQUEST_ID

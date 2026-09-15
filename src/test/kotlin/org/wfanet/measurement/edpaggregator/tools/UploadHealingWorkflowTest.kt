@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertThrows
 import org.junit.Before
@@ -155,6 +156,70 @@ class UploadHealingWorkflowTest {
     recoveredUploads.clear()
     releasedFenceOperationIds.clear()
     releaseFailuresRemaining = 0
+  }
+
+  @Test
+  fun `start validates the plan before persisting the operation`(): Unit = runBlocking {
+    val plan =
+      EvictUploader.EvictionPlan(
+        cascade =
+          listOf(
+            EvictUploader.CascadeEntry(
+              uploadName = D2,
+              modelLineName = M2,
+              cmmsModelLine = MODEL_LINE,
+              memoized = true,
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+              recoveryPredecessorUploadName = D1,
+            )
+          ),
+        extraUploads = emptyList(),
+        memoizedModelLines = setOf(MODEL_LINE),
+        nonMemoizedModelLines = emptySet(),
+        badUploads = listOf(D2),
+        noReplacementUploads = emptySet(),
+        cutoffTime = Instant.EPOCH,
+        evictionOperationId = "123e4567-e89b-42d3-a456-426614174000",
+        recoveryTargets = emptyList(),
+      )
+    var evictCalled = false
+    val channel = grpcTestServerRule.channel
+    val workflow =
+      UploadHealingWorkflow(
+        UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(channel),
+        RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(channel),
+        RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub(
+          channel
+        ),
+        RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel),
+        object : EvictionExecutor {
+          override suspend fun prepare(
+            plan: EvictUploader.EvictionPlan
+          ): EvictUploader.EvictionPlan {
+            throw IllegalArgumentException("plan changed")
+          }
+
+          override suspend fun evict(
+            plan: EvictUploader.EvictionPlan,
+            reason: String,
+            onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
+          ): EvictUploader.EvictionResult {
+            evictCalled = true
+            error("eviction must not run")
+          }
+        },
+        RecoveryExecutor { _, _ -> error("recovery must not run") },
+      )
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        workflow.start(plan, "bad source data", "gs://output/vid")
+      }
+
+    assertThat(error).hasMessageThat().contains("plan changed")
+    assertThat(operationsService.hasOperation).isFalse()
+    assertThat(evictCalled).isFalse()
   }
 
   @Test
@@ -382,6 +447,8 @@ class UploadHealingWorkflowTest {
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase() {
     private var operation: UploadHealingOperation? = null
     private var etagSequence = 0
+    val hasOperation: Boolean
+      get() = operation != null
 
     fun reset() {
       operation = null
@@ -404,7 +471,7 @@ class UploadHealingWorkflowTest {
           steps +=
             request.uploadHealingOperation.stepsList.mapIndexed { index, step ->
               step.copy {
-                name = "$operationName/steps/${index + 1}"
+                name = "$operationName/uploadHealingSteps/${index + 1}"
                 state = UploadHealingStep.State.PENDING_EVICTION
                 etag = "etag-${++etagSequence}"
               }
