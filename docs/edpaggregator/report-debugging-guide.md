@@ -203,8 +203,7 @@ Telemetry collection is also bounded independently for each requested report.
 `--collection-deadline` is the total collection budget,
 `--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and
 `--trace-request-minimum-interval` paces those requests with the shared
-`MinimumIntervalThrottler`. Cloud Trace `429` and transient `5xx` responses are
-retried with bounded exponential backoff inside the same report deadline.
+`MinimumIntervalThrottler`.
 `--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
 a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
