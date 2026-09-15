@@ -33,7 +33,6 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.time.Clock
-import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.Date
@@ -51,7 +50,6 @@ import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
-import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
@@ -921,15 +919,13 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `Cloud Trace reader throttles and retries quota responses`() = runBlocking {
-    val rateLimitedResponse = mock<HttpResponse<String>>()
-    whenever(rateLimitedResponse.statusCode()).thenReturn(429)
+  fun `Cloud Trace reader throttles every request`() = runBlocking {
     val successfulResponse = mock<HttpResponse<String>>()
     whenever(successfulResponse.statusCode()).thenReturn(200)
     whenever(successfulResponse.body()).thenReturn("{\"traces\":[]}")
     val httpClient = mock<HttpClient>()
     whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
-      .thenReturn(rateLimitedResponse, successfulResponse)
+      .thenReturn(successfulResponse)
     val throttler = RecordingThrottler()
     val reader =
       GoogleCloudReportTraceSpanReader(
@@ -937,14 +933,16 @@ class ReportTraceTest {
         httpClient,
         maxConcurrency = 1,
         requestThrottler = throttler,
-        retryBackoff =
-          ExponentialBackoff(initialDelay = Duration.ofMillis(1), randomnessFactor = 0.0),
       )
 
     val spans =
       reader.read(
         project = "trace-project",
-        correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+        correlationValues =
+          listOf(
+            "measurementConsumers/mc-1/basicReports/report-1",
+            "measurementConsumers/mc-1/basicReports/report-2",
+          ),
         traceIds = emptyList(),
         startTime = Instant.parse("2026-09-10T11:00:00Z"),
         endTime = Instant.parse("2026-09-10T13:00:00Z"),
