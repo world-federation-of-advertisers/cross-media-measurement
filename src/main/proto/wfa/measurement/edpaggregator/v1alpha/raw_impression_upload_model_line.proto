@@ -76,6 +76,8 @@ message RawImpressionUploadModelLine {
     RECOVERY_ACTION_EDP_CORRECTION = 1;
     // Operator recovery of an evicted upload for the memoized path only.
     RECOVERY_ACTION_OPERATOR_RECOVERY = 2;
+    // The invalid upload is intentionally removed and has no replacement.
+    RECOVERY_ACTION_NO_REPLACEMENT = 3;
   }
 
   // Resource name.

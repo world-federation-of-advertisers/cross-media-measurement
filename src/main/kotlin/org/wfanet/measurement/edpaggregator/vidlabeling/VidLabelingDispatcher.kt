@@ -145,6 +145,11 @@ class VidLabelingDispatcher(
     val sizeBytes: Long,
   )
 
+  private data class EdpReplacementAuthorization(
+    val evictionOperationId: String?,
+    val requiredModelLines: List<String>,
+  )
+
   /** Caps concurrent Parquet-footer reads so footer fan-out stays well under GCS per-bucket QPS. */
   private val readSemaphore = Semaphore(FOOTER_READ_PARALLELISM)
 
@@ -242,13 +247,20 @@ class VidLabelingDispatcher(
                 0
           }
         }
-      val evictionOperationId =
-        if (recoverySourceUpload != null) {
-          checkNotNull(recoveryOperationId)
-        } else if (previousRevision?.state == RawImpressionUpload.State.FAILED) {
+      val edpReplacementAuthorization =
+        if (
+          recoverySourceUpload == null &&
+            previousRevision?.state == RawImpressionUpload.State.FAILED
+        ) {
           validateEdpReplacementOrder(previousRevision)
         } else {
           null
+        }
+      val evictionOperationId =
+        if (recoverySourceUpload != null) {
+          checkNotNull(recoveryOperationId)
+        } else {
+          edpReplacementAuthorization?.evictionOperationId
         }
       val currentBlobVersions = resolveBlobVersions(blobs, doneBlobUri)
       val candidateBlobs =
@@ -346,7 +358,8 @@ class VidLabelingDispatcher(
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobsToRegister)
 
-      val resolvedModelLineNames = resolveModelLines()
+      val resolvedModelLineNames =
+        resolveModelLines(edpReplacementAuthorization?.requiredModelLines.orEmpty())
 
       if (resolvedModelLineNames.isEmpty()) {
         markRegistrationComplete(rawImpressionUpload)
@@ -405,19 +418,21 @@ class VidLabelingDispatcher(
   /**
    * Resolves the active model lines whose model shard is available in the VID Repository.
    *
-   * If [overrideModelLines] is non-empty, uses those directly without active window filtering. This
-   * supports backfilling past data where the model line may no longer be in the active window.
-   * Model shard availability is checked via [dispatchSequencer] so the resolution logic is shared
-   * with the dispatch path.
+   * If [overrideModelLines] or [edpCorrectionModelLines] is non-empty, uses that persisted set
+   * directly without active-window filtering. This supports backfilling or correcting historical
+   * data after a model line is no longer active. Model-shard availability is checked via
+   * [dispatchSequencer] so the resolution logic is shared with the dispatch path.
    *
    * @return resource names of model lines that should be registered for this upload.
    */
-  private suspend fun resolveModelLines(): List<String> {
+  private suspend fun resolveModelLines(edpCorrectionModelLines: List<String>): List<String> {
+    val requiredModelLineNames =
+      if (overrideModelLines.isNotEmpty()) overrideModelLines else edpCorrectionModelLines
     val activeModelLineNames: List<String> =
-      if (overrideModelLines.isNotEmpty()) {
-        // Override model lines bypass active window checks to support backfilling past data.
-        logger.info("Using ${overrideModelLines.size} override model lines")
-        overrideModelLines
+      if (requiredModelLineNames.isNotEmpty()) {
+        // Healing model lines bypass active-window checks because they reproduce historical work.
+        logger.info("Using ${requiredModelLineNames.size} required healing model lines")
+        requiredModelLineNames
       } else {
         resolveActiveModelLinesFromApi()
       }
@@ -428,6 +443,8 @@ class VidLabelingDispatcher(
       for (modelLineName in activeModelLineNames) {
         if (dispatchSequencer.resolveShardInfo(modelLineName) != null) {
           add(modelLineName)
+        } else if (requiredModelLineNames.isNotEmpty()) {
+          error("Required healing model line $modelLineName has no available model shard")
         } else {
           logger.warning("Could not resolve model shard for $modelLineName, skipping")
         }
@@ -845,12 +862,15 @@ class VidLabelingDispatcher(
   }
 
   /** Enforces the persisted dependency before accepting an EDP correction upload. */
-  private suspend fun validateEdpReplacementOrder(previousRevision: RawImpressionUpload): String? {
+  private suspend fun validateEdpReplacementOrder(
+    previousRevision: RawImpressionUpload
+  ): EdpReplacementAuthorization? {
     val evictedRows =
       listModelLines(previousRevision.name).filter {
         it.state == RawImpressionUploadModelLine.State.FAILED &&
           it.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
       }
+    if (evictedRows.isEmpty()) return null
     check(
       evictedRows.none {
         it.recoveryAction ==
@@ -858,6 +878,14 @@ class VidLabelingDispatcher(
       }
     ) {
       "${previousRevision.name} requires the operator recovery command, not an EDP upload"
+    }
+    check(
+      evictedRows.none {
+        it.recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+      }
+    ) {
+      "${previousRevision.name} was permanently removed and does not accept an EDP replacement"
     }
     for (row in evictedRows.filter { it.recoveryPredecessorRawImpressionUpload.isNotEmpty() }) {
       requireRecoveryPredecessorReady(row)
@@ -867,7 +895,15 @@ class VidLabelingDispatcher(
     check(evictionOperationIds.size <= 1) {
       "${previousRevision.name} belongs to multiple eviction operations"
     }
-    return evictionOperationIds.singleOrNull()
+    return EdpReplacementAuthorization(
+      evictionOperationIds.singleOrNull(),
+      evictedRows
+        .filter {
+          it.recoveryAction ==
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+        }
+        .map { it.cmmsModelLine },
+    )
   }
 
   /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */

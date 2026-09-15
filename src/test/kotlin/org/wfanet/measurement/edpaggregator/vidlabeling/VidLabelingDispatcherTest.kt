@@ -977,6 +977,97 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `EDP correction retains evicted model lines after their active windows end`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
+      listRawImpressionUploadsResponse {
+        if (request.filter.doneBlobUri == DONE_BLOB_PATH) rawImpressionUploads += source
+      }
+    }
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          for ((id, modelLine) in listOf("rml1" to MODEL_LINE_1, "rml2" to MODEL_LINE_2)) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = "$sourceUploadName/rawImpressionUploadModelLines/$id"
+              cmmsModelLine = modelLine
+              state = RawImpressionUploadModelLine.State.FAILED
+              failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+              recoveryAction =
+                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+              evictionOperationId = EVICTION_OPERATION_ID
+            }
+          }
+        }
+      )
+    // No ListModelLines response is configured: the replacement must use the persisted evicted
+    // rows even though those model lines are no longer returned as active by the VID Repository.
+    stubOverrideResolutionChain()
+
+    createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val requestCaptor = argumentCaptor<BatchCreateRawImpressionUploadModelLinesRequest>()
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      batchCreateRawImpressionUploadModelLines(requestCaptor.capture())
+    }
+    assertThat(
+        requestCaptor.firstValue.requestsList.map { it.rawImpressionUploadModelLine.cmmsModelLine }
+      )
+      .containsExactly(MODEL_LINE_1, MODEL_LINE_2)
+      .inOrder()
+    verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `EDP upload cannot replace a permanently removed upload`() = runBlocking {
+    val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
+    val source = rawImpressionUpload {
+      name = sourceUploadName
+      state = RawImpressionUpload.State.FAILED
+      doneBlobUri = DONE_BLOB_PATH
+      doneBlobGeneration = DONE_BLOB_GENERATION + 100
+      doneBlobCreateTime = DONE_BLOB_CREATE_TIME.minusSeconds(1).toProtoTime()
+    }
+    val blob = createMockBlob("$FOLDER_PREFIX/file1.parquet")
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += source })
+    whenever(rawImpressionUploadModelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$sourceUploadName/rawImpressionUploadModelLines/rml1"
+            cmmsModelLine = MODEL_LINE_1
+            state = RawImpressionUploadModelLine.State.FAILED
+            failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+            recoveryAction =
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        }
+      )
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+      }
+
+    assertThat(error).hasMessageThat().contains("permanently removed")
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
   fun `upload resumes an already registered recovery generation`() = runBlocking {
     val sourceUploadName = "$DATA_PROVIDER_NAME/rawImpressionUploads/source-upload"
     val source = rawImpressionUpload {
