@@ -169,8 +169,7 @@ bazel run \
   --topology-config-file=<REPORT_TRACE_TOPOLOGY_TEXTPROTO> \
   --collection-deadline=PT6M \
   --trace-max-concurrency=8 \
-  --trace-list-minimum-interval=PT6S \
-  --trace-get-minimum-interval=PT0.25S \
+  --trace-quota-unit-minimum-interval=PT0.25S \
   --logging-request-minimum-interval=PT1.2S \
   --max-correlation-values=500 \
   --max-trace-ids=500
@@ -203,9 +202,10 @@ collection.
 
 Telemetry collection is also bounded independently for each requested report.
 `--collection-deadline` is the total collection budget,
-`--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and
-`--trace-list-minimum-interval` and `--trace-get-minimum-interval` pace the two
-Cloud Trace request types with shared `MinimumIntervalThrottler` instances.
+`--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and all
+Cloud Trace request types share one quota limiter per project. Each ListTraces
+request consumes 25 units and each GetTrace request consumes one unit;
+`--trace-quota-unit-minimum-interval` controls the interval between units.
 `--logging-request-minimum-interval` similarly paces Cloud Logging queries.
 `--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
 a failed report exposes an unusually large number of descendants. Reaching any
