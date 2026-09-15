@@ -169,6 +169,7 @@ bazel run \
   --topology-config-file=<REPORT_TRACE_TOPOLOGY_TEXTPROTO> \
   --collection-deadline=PT2M \
   --trace-max-concurrency=8 \
+  --trace-request-minimum-interval=PT0.2S \
   --max-correlation-values=500 \
   --max-trace-ids=500
 ```
@@ -199,8 +200,11 @@ provider as a direct EDP. Kingdom lookup is bounded by
 collection.
 
 Telemetry collection is also bounded independently for each requested report.
-`--collection-deadline` is the total collection budget, while
-`--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests.
+`--collection-deadline` is the total collection budget,
+`--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and
+`--trace-request-minimum-interval` paces those requests with the shared
+`MinimumIntervalThrottler`. Cloud Trace `429` and transient `5xx` responses are
+retried with bounded exponential backoff inside the same report deadline.
 `--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
 a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
