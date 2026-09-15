@@ -1,8 +1,8 @@
 # Reference VID impression upload guide
 
 This guide describes how an Event Data Provider (EDP) submits reference VID impressions to the
-VID-labeling pipeline and how to correct an upload that contains bad data. The market operator
-provides the Cloud Storage bucket and raw-impression path assigned to the EDP.
+VID-labeling pipeline and how to correct or permanently remove an upload that contains bad data.
+The market operator provides the Cloud Storage bucket and raw-impression path assigned to the EDP.
 
 ## Submit a new date
 
@@ -88,21 +88,39 @@ before modifying the directory. If the existing files are correct and the only p
 additional files were forgotten, use one of the backfill strategies above instead; eviction is not
 required for a purely additive backfill.
 
+Before the operator starts eviction, choose and communicate one final outcome for each affected
+upload:
+
+* **Correct and replace:** keep the valid files, fix or remove the bad files, and publish a new
+  `done` generation after eviction.
+* **Permanently remove:** remove the entire upload without publishing a replacement `done`
+  generation. Do not create an empty replacement upload.
+
+The choice applies to the entire upload directory identified by its `done` object. For example, if
+one file is bad but other files in that directory must remain in the dataset, choose **correct and
+replace**. Treat the choice as final once it is communicated to the operator: the operator persists
+it when the eviction plan is confirmed, and it cannot be changed for that healing operation.
+
 When bad data is discovered:
 
 1. Contact the market operator and provide:
    * the DataProvider resource name;
-   * every affected date and `done` object URI.
+   * every affected date and `done` object URI; and
+   * whether each affected upload will be corrected and replaced or permanently removed.
 2. Do not modify the raw-impression directory or its `done` object while the operator investigates
    or runs eviction.
 3. Wait for the operator to confirm that eviction completed successfully.
-4. Make each affected date directory contain the complete corrected dataset:
+4. For an upload being corrected and replaced, make its directory contain the complete corrected
+   dataset:
    * leave unchanged objects in place;
    * overwrite corrupted objects with corrected data;
    * add missing objects; and
    * remove objects that must no longer contribute impressions.
-5. After the directory is final, overwrite its empty `done` object to create a new generation.
-6. When correcting multiple dates, process them from oldest to newest and wait for each replacement
+5. After a replacement directory is final, overwrite its empty `done` object to create a new
+   generation.
+6. For an upload being permanently removed, delete its bad raw objects if desired, but do not write
+   a new `done` generation; no replacement upload is required.
+7. When replacing multiple dates, process them from oldest to newest and wait for each replacement
    to complete before writing the next `done` generation.
 
 The replacement upload processes every object remaining in the directory, including unchanged
