@@ -78,7 +78,9 @@ class W3CTraceContextTest {
   @Test
   fun `extract without valid persisted context does not inherit ambient span`() {
     val ambientSpan =
-      Span.wrap(SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getSampled(), TraceState.getDefault()))
+      Span.wrap(
+        SpanContext.create(TRACE_ID, SPAN_ID, TraceFlags.getSampled(), TraceState.getDefault())
+      )
 
     val emptyContext: Context
     val malformedContext: Context
