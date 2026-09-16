@@ -278,20 +278,9 @@ variable "results_fulfiller_event_template_type_name" {
   type        = string
 }
 
-variable "results_fulfiller_population_spec_blob_uri" {
-  description = "GCS blob uri of the Results Fulfiller population spec."
-  type        = string
-}
-
-variable "edpa_model_lines" {
-  description = "Model lines the Results Fulfiller should know how to fulfill measurements for."
-  type        = list(string)
-}
-
 variable "edpa_model_line_population_spec_blob_uris" {
-  description = "Population spec blob uri by model line, for lines whose population differs from results_fulfiller_population_spec_blob_uri."
+  description = "GCS blob uri of the population spec by model line, for each model line the Results Fulfiller should fulfill measurements for."
   type        = map(string)
-  default     = {}
 }
 
 variable "duchy_worker1_id" {
