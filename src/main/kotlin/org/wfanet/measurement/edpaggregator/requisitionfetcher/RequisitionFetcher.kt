@@ -1394,7 +1394,13 @@ class RequisitionFetcher(
           }
         }
       } catch (e: StatusException) {
-        if (e.status.code != Status.Code.ABORTED) throw e
+        if (
+          e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
+        ) {
+          throw e
+        }
+        // FAILED_PRECONDITION is the public API's etag-mismatch status. ABORTED is retained for
+        // compatibility with internal implementations.
         current =
           metadataThrottler.onReady {
             requisitionMetadataStub.getRequisitionMetadata(
@@ -1403,6 +1409,7 @@ class RequisitionFetcher(
           }
       }
     }
+    if (current.state == metadataState) return current
     error("Requisition metadata ${current.name} changed during stale-refusal reconciliation")
   }
 

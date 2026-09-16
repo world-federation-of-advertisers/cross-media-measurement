@@ -70,6 +70,8 @@ private fun canonicalWorkItemName(name: String): String {
  * @param controlPlaneThrottler optional process-scoped limiter for `WorkItems` and
  *   `WorkItemAttempts` RPCs.
  * @param attemptUpdateRetryDelay suspends before retrying a transient attempt-state update.
+ * @param activeAttemptRetryDelay suspends before retrying ownership of a delivery whose WorkItem
+ *   already has an active attempt.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -80,6 +82,9 @@ abstract class BaseTeeApplication(
   private val controlPlaneThrottler: Throttler? = null,
   private val attemptUpdateRetryDelay: suspend (Int) -> Unit = { attempt ->
     delay(ATTEMPT_UPDATE_RETRY_BACKOFF.durationForAttempt(attempt).toMillis())
+  },
+  private val activeAttemptRetryDelay: suspend () -> Unit = {
+    delay(ACTIVE_ATTEMPT_RETRY_DELAY.toMillis())
   },
   private val attemptLeaseRenewalInterval: Duration = DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL,
   private val workItemConsumptionEnabled: Boolean = workItemConsumptionEnabledFromEnvironment(),
@@ -169,55 +174,12 @@ abstract class BaseTeeApplication(
       return
     }
     logger.info("Processing WorkItem: ${body.name}")
-    val workItemAttempt: WorkItemAttempt =
-      try {
-        val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
-        logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
-        createWorkItemAttempt(
-          parent = workItemName,
-          workItemAttemptId = workItemAttemptId,
-          expectedWorkItemGeneration = body.generation.takeUnless { it == 0L } ?: 1L,
-        )
-      } catch (e: ControlPlaneApiException) {
-        val cause = e.cause
-        var activeAttempt = false
-        if (cause is StatusException) {
-          val reason = cause.errorInfo?.reason
-          val workItemState = cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
-          val invalidTerminalState =
-            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
-              workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
-          activeAttempt =
-            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
-              workItemState == WorkItem.State.RUNNING.name
-          if (
-            invalidTerminalState ||
-              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
-              reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
-          ) {
-            logger.log(Level.WARNING, e) {
-              "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
-            }
-            when {
-              workItemState == WorkItem.State.SUCCEEDED.name ->
-                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "already_completed")
-              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ->
-                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "stale_delivery")
-              else -> recordCurrentSpanError(e)
-            }
-            queueMessage.ack()
-            return
-          }
-        }
-        if (activeAttempt) {
-          Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
-        } else {
-          recordCurrentSpanError(e)
-        }
-        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
-        queueMessage.nack()
-        return
-      }
+    val workItemAttempt =
+      awaitWorkItemAttempt(
+        queueMessage,
+        workItemName,
+        body.generation.takeUnless { it == 0L } ?: 1L,
+      ) ?: return
     Span.current().setAttribute(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttempt.name)
 
     try {
@@ -364,6 +326,67 @@ abstract class BaseTeeApplication(
     }
   }
 
+  private suspend fun awaitWorkItemAttempt(
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
+    workItemName: String,
+    expectedWorkItemGeneration: Long,
+  ): WorkItemAttempt? {
+    while (true) {
+      try {
+        val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
+        logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
+        return createWorkItemAttempt(
+          parent = workItemName,
+          workItemAttemptId = workItemAttemptId,
+          expectedWorkItemGeneration = expectedWorkItemGeneration,
+        )
+      } catch (e: ControlPlaneApiException) {
+        val cause = e.cause
+        if (cause is StatusException) {
+          val reason = cause.errorInfo?.reason
+          val workItemState = cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
+          if (
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState == WorkItem.State.RUNNING.name
+          ) {
+            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
+            logger.info(
+              "WorkItem $workItemName already has an active attempt; retaining delivery while " +
+                "waiting for ownership"
+            )
+            activeAttemptRetryDelay()
+            continue
+          }
+          val invalidTerminalState =
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
+          if (
+            invalidTerminalState ||
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
+              reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
+          ) {
+            when {
+              workItemState == WorkItem.State.SUCCEEDED.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "already_completed")
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "stale_delivery")
+              else -> recordCurrentSpanError(e)
+            }
+            logger.log(Level.WARNING, e) {
+              "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
+            }
+            queueMessage.ack()
+            return null
+          }
+        }
+        recordCurrentSpanError(e)
+        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
+        queueMessage.nack()
+        return null
+      }
+    }
+  }
+
   private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
     try {
       retryAttemptUpdate("CompleteWorkItemAttempt", workItemAttempt.name) {
@@ -495,6 +518,7 @@ abstract class BaseTeeApplication(
     private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
     private const val WORK_ITEM_CONSUMPTION_ENABLED_ENV = "WORK_ITEM_CONSUMPTION_ENABLED"
     val DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL: Duration = Duration.ofMinutes(1)
+    private val ACTIVE_ATTEMPT_RETRY_DELAY: Duration = Duration.ofSeconds(30)
     private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
     private val RETRYABLE_ATTEMPT_UPDATE_CODES =
       setOf(
