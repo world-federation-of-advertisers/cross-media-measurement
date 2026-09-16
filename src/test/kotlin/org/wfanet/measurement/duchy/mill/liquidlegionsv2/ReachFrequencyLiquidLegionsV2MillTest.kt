@@ -39,6 +39,10 @@ import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -636,6 +640,36 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     Instrumentation.resetForTest()
   }
 
+  private suspend fun captureReportTraceLifecycleFields(
+    block: suspend () -> Unit
+  ): List<Map<String, String>> {
+    val messages = CopyOnWriteArrayList<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          messages += record.message
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      rootLogger.removeHandler(handler)
+    }
+    return messages
+      .filter { it.contains("xmm.lifecycle.stage=duchy_stage_attempt") }
+      .map { message ->
+        message.split(' ').associate { field ->
+          field.substringBefore('=') to field.substringAfter('=')
+        }
+      }
+  }
+
   @Test
   fun `exceeding max attempt should fail the computation`() = runBlocking {
     // Stage 0. preparing the database and set up mock
@@ -677,7 +711,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       fakeComputationDb.claimedComputations.clear()
     }
 
-    nonAggregatorMill.claimAndProcessWork()
+    val lifecycleFields = captureReportTraceLifecycleFields {
+      nonAggregatorMill.claimAndProcessWork()
+    }
 
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
@@ -706,6 +742,15 @@ class ReachFrequencyLiquidLegionsV2MillTest {
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
       .isEqualTo(ComputationKey(GLOBAL_ID).toName())
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ONE_NAME)
+    assertThat(lifecycleFields.map { it.getValue(ReportTraceAttributes.OUTCOME_STRING) })
+      .containsExactly("started", "failed")
+      .inOrder()
+    val failureLog = lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "failed" }
+    assertThat(failureLog[ReportTraceAttributes.ERROR_TYPE_STRING]).isEqualTo("AttemptsExhausted")
+    assertThat(failureLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING]).isEqualTo(measurementName)
+    assertThat(failureLog[ReportTraceAttributes.COMPUTATION_NAME_STRING])
+      .isEqualTo(ComputationKey(GLOBAL_ID).toName())
+    assertThat(failureLog[ReportTraceAttributes.DUCHY_ID_STRING]).isEqualTo(DUCHY_ONE_NAME)
   }
 
   @Test

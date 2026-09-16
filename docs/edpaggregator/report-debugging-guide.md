@@ -214,8 +214,9 @@ The resolved-route section lists only DataProviders referenced by the resolved
 Requisitions for that report. The topology file remains exhaustive even though
 unrelated configured DataProviders are not repeated in each artifact.
 
-Telemetry collection is also bounded independently for each requested report.
-`--collection-deadline` is the total collection budget,
+Report collection is also bounded independently for each requested report.
+`--collection-deadline` is the total budget for Reporting resource resolution,
+Kingdom route resolution, and telemetry collection, while
 `--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and all
 Cloud Trace request types share one quota limiter per project. Each ListTraces
 request consumes 25 units and each GetTrace request consumes one unit;

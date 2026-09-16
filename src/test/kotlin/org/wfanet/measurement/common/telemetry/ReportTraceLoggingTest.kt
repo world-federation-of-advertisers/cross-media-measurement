@@ -67,6 +67,46 @@ class ReportTraceLoggingTest {
     }
   }
 
+  @Test
+  fun `log rejects invalid event names`() {
+    val logger = Logger.getAnonymousLogger()
+
+    for (event in listOf("", "event with spaces", "event\nwith-newline")) {
+      assertFailsWith<IllegalArgumentException> { ReportTraceLogging.log(logger, event) }
+    }
+  }
+
+  @Test
+  fun `log omits null and blank field values`() {
+    val records = mutableListOf<LogRecord>()
+    val logger = Logger.getAnonymousLogger().apply { addHandler(recordingHandler(records)) }
+
+    ReportTraceLogging.log(
+      logger,
+      "reporting.metric.result_synchronized",
+      ReportTraceAttributes.METRIC_NAME_STRING to null,
+      ReportTraceAttributes.OUTCOME_STRING to "",
+      ReportTraceAttributes.ERROR_CODE_STRING to "   ",
+    )
+
+    assertThat(records.single().message).isEqualTo("event=reporting.metric.result_synchronized")
+  }
+
+  @Test
+  fun `log bounds field values to 1000 characters`() {
+    val records = mutableListOf<LogRecord>()
+    val logger = Logger.getAnonymousLogger().apply { addHandler(recordingHandler(records)) }
+
+    ReportTraceLogging.log(
+      logger,
+      "reporting.metric.result_synchronized",
+      ReportTraceAttributes.METRIC_NAME_STRING to "m".repeat(1001),
+    )
+
+    val metricName = records.single().message.substringAfter("xmm.metric.name=")
+    assertThat(metricName).hasLength(1000)
+  }
+
   private fun recordingHandler(records: MutableList<LogRecord>): Handler =
     object : Handler() {
       override fun publish(record: LogRecord) {

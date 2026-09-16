@@ -1383,13 +1383,20 @@ internal object ReportTraceOutput {
   ): ReportTraceLifecycleStage {
     val evidence = matchingEvidence.map { it.description }
     val latestOutcome = matchingEvidence.maxByOrNull { it.timestamp }?.outcome?.lowercase()
+    val requirement = operation.requirement
+    val terminalReportSupersedesSiblingSync =
+      operation.stage in REPORT_TERMINAL_SUPERSEDED_SYNC_STAGES &&
+        requirement in
+          setOf(
+            ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE,
+            ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL,
+          )
     val durableTerminalEvidenceFound =
       when (durableTerminalStatus) {
         "SUCCEEDED" -> matchingEvidence.any { it.outcome?.lowercase() in TERMINAL_SUCCESS_OUTCOMES }
         "REFUSED" -> matchingEvidence.any { it.outcome?.lowercase() == "refused" }
         else -> false
       }
-    val requirement = operation.requirement
     return ReportTraceLifecycleStage(
       name = operation.stage,
       resource = operation.resource,
@@ -1410,6 +1417,12 @@ internal object ReportTraceOutput {
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE &&
             operation.stage in EDPA_REQUISITION_LIFECYCLE_STAGES -> "NOT_APPLICABLE"
           latestOutcome != null && latestOutcome in TERMINAL_SUCCESS_OUTCOMES -> "SUCCEEDED"
+          terminalReportSupersedesSiblingSync &&
+            requirement == ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE ->
+            "SKIPPED_AFTER_FAILURE"
+          terminalReportSupersedesSiblingSync &&
+            requirement == ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL ->
+            "SKIPPED_AFTER_REFUSAL"
           requirement == ReportTraceStageRequirement.OPTIONAL -> "OPTIONAL"
           latestOutcome != null && latestOutcome in IN_PROGRESS_OUTCOMES -> "IN_PROGRESS"
           latestOutcome == "unknown" -> "UNKNOWN"
@@ -1883,6 +1896,7 @@ internal object ReportTraceOutput {
     }
 
     for (metricName in context.metricNames) {
+      val metricState = context.metricStates[metricName]?.uppercase()
       add(
         "metric_creation",
         metricName,
@@ -1897,10 +1911,12 @@ internal object ReportTraceOutput {
         "metric_result_sync",
         metricName,
         "xmm.metric.name",
-        if (failedBeforeReport) {
-          ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
-        } else {
-          ReportTraceStageRequirement.REQUIRED
+        when {
+          failedBeforeReport -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+          metricState in TERMINAL_METRIC_STATES -> ReportTraceStageRequirement.REQUIRED
+          executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+          reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+          else -> ReportTraceStageRequirement.REQUIRED
         },
       )
     }
@@ -1957,7 +1973,14 @@ internal object ReportTraceOutput {
         "kingdom_measurement_sync",
         measurement.name,
         "xmm.measurement.name",
-        historicalRequirement,
+        when {
+          measurementReused -> ReportTraceStageRequirement.REUSED
+          measurement.state.uppercase() in TERMINAL_MEASUREMENT_STATES || measurementRefused ->
+            ReportTraceStageRequirement.REQUIRED
+          executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+          reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+          else -> ReportTraceStageRequirement.REQUIRED
+        },
       )
       when (measurement.route) {
         ReportTraceMeasurementRouteKind.DIRECT -> {
@@ -2551,6 +2574,10 @@ internal object ReportTraceOutput {
     )
   private val IN_PROGRESS_OUTCOMES =
     setOf("started", "prepared", "in_progress", "pending", "retryable_failure", "stale_delivery")
+  private val REPORT_TERMINAL_SUPERSEDED_SYNC_STAGES =
+    setOf("metric_result_sync", "kingdom_measurement_sync")
+  private val TERMINAL_METRIC_STATES = setOf("FAILED", "INVALID")
+  private val TERMINAL_MEASUREMENT_STATES = setOf("FAILED", "CANCELLED")
   private val SAFE_TRACE_ATTRIBUTES =
     setOf("error", "service.name", "g.co/agent/name", "/http/host")
   private val SECRET_PATTERNS =
@@ -2779,7 +2806,7 @@ internal class ReportTrace(
   @CommandLine.Option(
     names = ["--collection-deadline"],
     defaultValue = "PT6M",
-    description = ["Maximum telemetry collection time for each requested report."],
+    description = ["Maximum resource resolution and telemetry collection time per report."],
   )
   private lateinit var collectionDeadline: Duration
 
@@ -3045,32 +3072,32 @@ internal class ReportTrace(
         val collectionStartNanos = System.nanoTime()
         val resolution: Pair<ReportTraceContext, String?> =
           try {
-            resolver.resolve(basicReportKey) to null
+            withTimeout(remainingCollectionDeadline(collectionStartNanos).toMillis()) {
+              resolver.resolve(basicReportKey)
+            } to null
+          } catch (e: TimeoutCancellationException) {
+            unresolvedContext(basicReportKey) to
+              "Reporting resource resolution exceeded the per-report deadline"
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
-            ReportTraceContext(
-              basicReportName = basicReportKey.toName(),
-              basicReportState = null,
-              reportName = REPORT_NOT_CREATED,
-              metricNames = emptyList(),
-              metricStates = emptyMap(),
-              reusedMetricNames = emptySet(),
-              unresolvedMetricRequestIds = emptyList(),
-              measurementNames = emptyList(),
-              reusedMeasurementNames = emptySet(),
-              unresolvedMeasurementRequestIds = emptyList(),
-              reportResolvedByRequestId = false,
-              telemetryRecoveredMeasurementNames = emptyMap(),
-              createTime = null,
-            ) to failureDescription(e)
+            unresolvedContext(basicReportKey) to failureDescription(e)
           }
         var context = resolution.first
         val resolutionFailure = resolution.second
         var routeResolution =
           if (resolutionFailure == null) {
             try {
-              routeResolver.resolve(context.measurementNames, topology)
+              withTimeout(remainingCollectionDeadline(collectionStartNanos).toMillis()) {
+                routeResolver.resolve(context.measurementNames, topology)
+              }
+            } catch (e: TimeoutCancellationException) {
+              ReportTraceRouteResolution.unresolved(
+                measurementNames = context.measurementNames,
+                topology = topology,
+                status = "FAILED",
+                note = "Kingdom route resolution exceeded the per-report deadline",
+              )
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
@@ -3119,7 +3146,16 @@ internal class ReportTrace(
             )
           routeResolution =
             try {
-              routeResolver.resolve(context.measurementNames, topology)
+              withTimeout(remainingCollectionDeadline(collectionStartNanos).toMillis()) {
+                routeResolver.resolve(context.measurementNames, topology)
+              }
+            } catch (e: TimeoutCancellationException) {
+              ReportTraceRouteResolution.unresolved(
+                measurementNames = context.measurementNames,
+                topology = topology,
+                status = "FAILED",
+                note = "Kingdom route resolution exceeded the per-report deadline",
+              )
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
@@ -3189,6 +3225,24 @@ internal class ReportTrace(
     return if (failures == 0) 0 else 1
   }
 
+  private fun unresolvedContext(basicReportKey: BasicReportKey): ReportTraceContext {
+    return ReportTraceContext(
+      basicReportName = basicReportKey.toName(),
+      basicReportState = null,
+      reportName = REPORT_NOT_CREATED,
+      metricNames = emptyList(),
+      metricStates = emptyMap(),
+      reusedMetricNames = emptySet(),
+      unresolvedMetricRequestIds = emptyList(),
+      measurementNames = emptyList(),
+      reusedMeasurementNames = emptySet(),
+      unresolvedMeasurementRequestIds = emptyList(),
+      reportResolvedByRequestId = false,
+      telemetryRecoveredMeasurementNames = emptyMap(),
+      createTime = null,
+    )
+  }
+
   private suspend fun collectTimeline(
     context: ReportTraceContext,
     routeResolution: ReportTraceRouteResolution,
@@ -3219,8 +3273,15 @@ internal class ReportTrace(
           ?: context.createTime?.minus(DEFAULT_LEAD_TIME)
           ?: endTime.minus(DEFAULT_LOOKBACK)
       val warning =
-        "Telemetry collection exceeded the per-report deadline of $collectionDeadline; " +
+        "Report collection exceeded the per-report deadline of $collectionDeadline; " +
           "remaining lookups were skipped"
+      val warnings = buildList {
+        if (resolutionFailure != null) {
+          add("Reporting resource resolution failed: $resolutionFailure")
+        }
+        addAll(routeResolution.warnings)
+        add(warning)
+      }
       val authoritativeReportResources =
         authoritativeReportResources(context, routeResolution, resolutionFailure)
       val retainedSpans =
@@ -3258,7 +3319,7 @@ internal class ReportTrace(
               note = warning,
             )
           ),
-        warnings = listOf(warning),
+        warnings = warnings.distinct(),
         status = ReportTraceArtifactStatus.PARTIAL,
         lifecycleCoverage = lifecycleCoverage,
         startTime = startTime,
