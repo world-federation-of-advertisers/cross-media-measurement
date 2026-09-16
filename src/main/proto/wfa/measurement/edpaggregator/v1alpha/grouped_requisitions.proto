@@ -96,4 +96,14 @@ message GroupedRequisitions {
 
   // The ID for the group of requisitions this entry belongs to.
   string group_id = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // The Reporting `Report` that originated these requisitions.
+  string report = 5 [
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+  ];
+
+  // The `BasicReport` that originated these requisitions, if any.
+  string basic_report = 6 [(google.api.resource_reference) = {
+    type: "reporting.halo-cmm.org/BasicReport"
+  }];
 }

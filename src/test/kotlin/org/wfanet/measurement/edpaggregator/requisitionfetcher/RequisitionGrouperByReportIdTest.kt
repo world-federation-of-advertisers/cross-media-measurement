@@ -52,6 +52,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
+import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
@@ -174,6 +175,8 @@ class RequisitionGrouperByReportIdTest {
 
     assertThat(result).isNotNull()
     assertThat(result!!.groupId).isEqualTo(GROUP_ID)
+    assertThat(result.report).isEqualTo(REPORT_ID)
+    assertThat(result.basicReport).isEqualTo("measurementConsumers/mc/basicReports/basic-report")
     assertThat(result.modelLine).isEqualTo("some-model-line")
     assertThat(result.eventGroupMapList.single())
       .isEqualTo(
@@ -189,6 +192,32 @@ class RequisitionGrouperByReportIdTest {
         }
       )
     assertThat(result.requisitionsList).hasSize(2)
+  }
+
+  @Test
+  fun `groupForReport keeps sole non-empty BasicReport`() = runBlocking {
+    val requisitions =
+      listOf(
+        requisitionWithBasicReport("foo-1", "measurementConsumers/mc/basicReports/report-1"),
+        requisitionWithBasicReport("foo-2", ""),
+      )
+
+    val result = grouper.groupForReport(REPORT_ID, requisitions, GROUP_ID)
+
+    assertThat(result!!.basicReport).isEqualTo("measurementConsumers/mc/basicReports/report-1")
+  }
+
+  @Test
+  fun `groupForReport omits conflicting BasicReports`() = runBlocking {
+    val requisitions =
+      listOf(
+        requisitionWithBasicReport("foo-1", "measurementConsumers/mc/basicReports/report-1"),
+        requisitionWithBasicReport("foo-2", "measurementConsumers/mc/basicReports/report-2"),
+      )
+
+    val result = grouper.groupForReport(REPORT_ID, requisitions, GROUP_ID)
+
+    assertThat(result!!.basicReport).isEmpty()
   }
 
   @Test
@@ -347,6 +376,21 @@ class RequisitionGrouperByReportIdTest {
       runBlocking {
         grouper.groupForReport(REPORT_ID, listOf(TestRequisitionData.REQUISITION), GROUP_ID)
       }
+    }
+  }
+
+  private fun requisitionWithBasicReport(
+    requisitionId: String,
+    basicReportName: String,
+  ): Requisition {
+    val measurementSpec =
+      TestRequisitionData.MEASUREMENT_SPEC.copy {
+        reportingMetadata = reportingMetadata.copy { basicReport = basicReportName }
+      }
+    return TestRequisitionData.REQUISITION.copy {
+      name = "${TestRequisitionData.EDP_NAME}/requisitions/$requisitionId"
+      this.measurementSpec =
+        signMeasurementSpec(measurementSpec, TestRequisitionData.MC_SIGNING_KEY)
     }
   }
 

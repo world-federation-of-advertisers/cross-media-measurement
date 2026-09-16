@@ -21,6 +21,9 @@ import com.google.protobuf.Timestamp
 import com.google.type.Date
 import com.google.type.date
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -35,6 +38,9 @@ import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BasicReport
@@ -134,90 +140,192 @@ class BasicReportsReportsJob(
 
       resourceLists.collect { resourceList ->
         for (basicReport in resourceList.resources) {
+          val basicReportName =
+            basicReport.externalBasicReportId.takeIf(String::isNotEmpty)?.let {
+              BasicReportKey(basicReport.cmmsMeasurementConsumerId, it).toName()
+            }
+          val reportName =
+            ReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()
           try {
-            val report =
-              reportsStub
-                .withCallCredentials(
-                  TrustedPrincipalAuthInterceptor.Credentials(
-                    // TODO(@SanjayVas): Read full Principal from Access.
-                    principal { name = measurementConsumerConfig.offlinePrincipal },
-                    setOf("reporting.reports.get", "reporting.metrics.get"),
-                  )
-                )
-                .getReport(
-                  getReportRequest {
-                    name =
-                      ReportKey(
-                          cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                          reportId = basicReport.externalReportId,
-                        )
-                        .toName()
+            ReportTracing.traceSuspending(
+              spanName = "reporting.basic_report.assemble_results",
+              attributes =
+                Attributes.builder()
+                  .put(ReportTraceAttributes.REPORT_NAME, reportName)
+                  .put(ReportTraceAttributes.BASIC_REPORT_STATE, basicReport.state.name)
+                  .put(ReportTraceAttributes.LIFECYCLE_STAGE, "report_result_assembly")
+                  .also { builder ->
+                    if (basicReportName != null) {
+                      builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+                    }
                   }
-                )
+                  .build(),
+            ) trace@{
+              val span = Span.current()
+              span.addEvent(
+                "reporting.basic_report.report_fetch_started",
+                Attributes.of(ReportTraceAttributes.REPORT_NAME, reportName),
+              )
+              val report =
+                reportsStub
+                  .withCallCredentials(
+                    TrustedPrincipalAuthInterceptor.Credentials(
+                      // TODO(@SanjayVas): Read full Principal from Access.
+                      principal { name = measurementConsumerConfig.offlinePrincipal },
+                      setOf("reporting.reports.get", "reporting.metrics.get"),
+                    )
+                  )
+                  .getReport(getReportRequest { name = reportName })
 
-            @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
-            when (report.state) {
-              Report.State.SUCCEEDED -> {
-                val reportResult =
-                  reportResultsStub.createReportResult(
-                    createReportResultRequest {
-                      this.cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
-                      reportResult = reportResult {
-                        reportStart = report.reportingInterval.reportStart
+              span.setAttribute(ReportTraceAttributes.REPORT_STATE, report.state.name)
+              span.addEvent(
+                "reporting.basic_report.report_observed",
+                Attributes.of(ReportTraceAttributes.REPORT_STATE, report.state.name),
+              )
+              @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
+              when (report.state) {
+                Report.State.SUCCEEDED -> {
+                  span.addEvent("reporting.report_result.create_started")
+                  val reportResult =
+                    reportResultsStub.createReportResult(
+                      createReportResultRequest {
+                        this.cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId
+                        reportResult = reportResult {
+                          reportStart = report.reportingInterval.reportStart
+                        }
                       }
+                    )
+                  val reportingSetResultRequests: List<CreateReportingSetResultRequest> =
+                    try {
+                      span.addEvent("reporting.report_result.transform_started")
+                      transformReportResults(
+                          reportResult,
+                          basicReport,
+                          report,
+                          eventTemplateFieldsByPath,
+                          eventTemplateFieldByPredicate,
+                        )
+                        .also { span.addEvent("reporting.report_result.transform_succeeded") }
+                      // There is a bug with CreateBasicReports involving the storing of
+                      // ImpressionQualificationFilter information that has been fixed.
+                      // BasicReports affected by the bug will be FAILED.
+                    } catch (e: InvalidBasicReportException) {
+                      span
+                        .setStatus(StatusCode.ERROR, "Invalid BasicReport result transformation")
+                        .setAttribute(
+                          ReportTraceAttributes.ERROR_TYPE,
+                          ReportTraceAttributes.errorType(e),
+                        )
+                        .recordException(e)
+                      val errorCode = ReportTraceAttributes.errorCode(e)
+                      if (errorCode != null) {
+                        span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+                      }
+                      span.addEvent(
+                        "reporting.basic_report.failed",
+                        Attributes.builder()
+                          .put(
+                            ReportTraceAttributes.LIFECYCLE_STAGE,
+                            "report_result_transformation",
+                          )
+                          .put(ReportTraceAttributes.OUTCOME, "failed")
+                          .build(),
+                      )
+                      logger.log(
+                        Level.WARNING,
+                        "BasicReport is affected by a bug that has been fixed and must be FAILED",
+                        e,
+                      )
+                      failBasicReport(
+                        cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                        externalBasicReportId = basicReport.externalBasicReportId,
+                      )
+                      span.setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+                      logReportResultAssembly(
+                        basicReportName,
+                        reportName,
+                        report.state,
+                        "failed",
+                        error = e,
+                      )
+                      return@trace
+                    }
+
+                  reportResultsStub.batchCreateReportingSetResults(
+                    batchCreateReportingSetResultsRequest {
+                      this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
+                      externalReportResultId = reportResult.externalReportResultId
+                      requests += reportingSetResultRequests
+                      externalBasicReportId = basicReport.externalBasicReportId
                     }
                   )
-                val reportingSetResultRequests: List<CreateReportingSetResultRequest> =
-                  try {
-                    transformReportResults(
-                      reportResult,
-                      basicReport,
-                      report,
-                      eventTemplateFieldsByPath,
-                      eventTemplateFieldByPredicate,
-                    )
-                    // There is a bug with CreateBasicReports involving the storing of
-                    // ImpressionQualificationFilter information that has been fixed. BasicReports
-                    // affected by the bug will be FAILED.
-                  } catch (e: InvalidBasicReportException) {
-                    logger.log(
-                      Level.WARNING,
-                      "BasicReport is affected by a bug that has been fixed and must be FAILED",
-                      e,
-                    )
-                    failBasicReport(
-                      cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                      externalBasicReportId = basicReport.externalBasicReportId,
-                    )
-                    continue
-                  }
+                  span.addEvent(
+                    "reporting.basic_report.unprocessed_results_persisted",
+                    Attributes.builder()
+                      .put(
+                        ReportTraceAttributes.BASIC_REPORT_STATE,
+                        BasicReport.State.UNPROCESSED_RESULTS_READY.name,
+                      )
+                      .put(ReportTraceAttributes.OUTCOME, "succeeded")
+                      .build(),
+                  )
+                  span.setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+                  logReportResultAssembly(
+                    basicReportName,
+                    reportName,
+                    report.state,
+                    "succeeded",
+                    error = null,
+                  )
+                }
+                Report.State.FAILED -> {
+                  failBasicReport(
+                    cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                    externalBasicReportId = basicReport.externalBasicReportId,
+                  )
+                  span.addEvent(
+                    "reporting.basic_report.failed",
+                    Attributes.of(ReportTraceAttributes.OUTCOME, "report_failed"),
+                  )
+                  span.setAttribute(ReportTraceAttributes.OUTCOME, "report_failed")
+                  logReportResultAssembly(
+                    basicReportName,
+                    reportName,
+                    report.state,
+                    "report_failed",
+                    error = null,
+                  )
+                }
 
-                reportResultsStub.batchCreateReportingSetResults(
-                  batchCreateReportingSetResultsRequest {
-                    this.cmmsMeasurementConsumerId = reportResult.cmmsMeasurementConsumerId
-                    externalReportResultId = reportResult.externalReportResultId
-                    requests += reportingSetResultRequests
-                    externalBasicReportId = basicReport.externalBasicReportId
-                  }
-                )
-              }
-              Report.State.FAILED -> {
-                failBasicReport(
-                  cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
-                  externalBasicReportId = basicReport.externalBasicReportId,
-                )
-              }
-
-              Report.State.STATE_UNSPECIFIED,
-              Report.State.RUNNING,
-              Report.State.UNRECOGNIZED -> {
-                // Do nothing
+                Report.State.STATE_UNSPECIFIED,
+                Report.State.RUNNING,
+                Report.State.UNRECOGNIZED -> {
+                  span.addEvent(
+                    "reporting.basic_report.waiting_for_report",
+                    Attributes.of(ReportTraceAttributes.REPORT_STATE, report.state.name),
+                  )
+                  logReportResultAssembly(
+                    basicReportName,
+                    reportName,
+                    report.state,
+                    "in_progress",
+                    error = null,
+                  )
+                }
               }
             }
           } catch (e: Exception) {
+            logReportResultAssembly(
+              basicReportName,
+              reportName,
+              reportState = null,
+              outcome = "failed",
+              error = e,
+            )
             logger.log(
               Level.WARNING,
-              "Failed to get Report Results for BasicReport ${BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalReportId).toName()}",
+              "Failed to get Report Results for BasicReport " +
+                (basicReportName ?: "with Report $reportName"),
               e,
             )
           }
@@ -265,17 +373,35 @@ class BasicReportsReportsJob(
           continue
         }
 
+        val basicReportName =
+          BasicReportKey(cmmsMeasurementConsumerId, basicReport.externalBasicReportId).toName()
+        val traceAttributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_creation")
+            .put(ReportTraceAttributes.ERROR_CODE, "BasicReportCreationTimeout")
+            .build()
         try {
           failBasicReport(
             cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
             externalBasicReportId = basicReport.externalBasicReportId,
           )
-        } catch (e: StatusException) {
-          logger.log(
-            Level.WARNING,
-            "Failed to fail stuck BasicReport ${BasicReportKey(cmmsMeasurementConsumerId, basicReport.externalBasicReportId).toName()}",
-            e,
+          ReportTracing.recordFailure(
+            spanName = "reporting.basic_reports.watchdog_timeout",
+            attributes = traceAttributes,
+            error = BasicReportCreationTimeout(),
           )
+        } catch (e: StatusException) {
+          ReportTracing.recordFailure(
+            spanName = "reporting.basic_reports.watchdog_writeback",
+            attributes =
+              Attributes.builder()
+                .putAll(traceAttributes)
+                .put(ReportTraceAttributes.LIFECYCLE_STAGE, "basic_report_failure_writeback")
+                .build(),
+            error = e,
+          )
+          logger.log(Level.WARNING, "Failed to fail stuck BasicReport $basicReportName", e)
         }
       }
     }
@@ -784,6 +910,26 @@ class BasicReportsReportsJob(
     )
   }
 
+  private fun logReportResultAssembly(
+    basicReportName: String?,
+    reportName: String,
+    reportState: Report.State?,
+    outcome: String,
+    error: Throwable?,
+  ) {
+    ReportTraceLogging.log(
+      logger,
+      "reporting.basic_report.assemble_results",
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "report_result_assembly",
+      ReportTraceAttributes.BASIC_REPORT_NAME_STRING to basicReportName,
+      ReportTraceAttributes.REPORT_NAME_STRING to reportName,
+      ReportTraceAttributes.REPORT_STATE_STRING to reportState?.name,
+      ReportTraceAttributes.OUTCOME_STRING to outcome,
+      ReportTraceAttributes.ERROR_TYPE_STRING to error?.let(ReportTraceAttributes::errorType),
+      ReportTraceAttributes.ERROR_CODE_STRING to error?.let(ReportTraceAttributes::errorCode),
+    )
+  }
+
   private data class MetricCalculationSpecInfo(
     val metricFrequencySpec: MetricCalculationSpec.MetricFrequencySpec,
     val hasTrailingWindow: Boolean,
@@ -794,6 +940,8 @@ class BasicReportsReportsJob(
     val reportingSetResultInfoByReportingSetResultInfoKey:
       Map<ReportingSetResultInfoKey, ReportingSetResultInfo>,
   )
+
+  private class BasicReportCreationTimeout : Exception("BasicReport creation timed out")
 
   private data class PopulationResultKey(val filter: String, val groupingPredicates: Set<String>)
 
@@ -828,7 +976,7 @@ class BasicReportsReportsJob(
   )
 
   companion object {
-    private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private val logger: Logger = Logger.getLogger(BasicReportsReportsJob::class.java.name)
     private const val BATCH_SIZE = 10
   }
 }

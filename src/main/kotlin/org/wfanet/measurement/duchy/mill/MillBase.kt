@@ -23,6 +23,8 @@ import io.grpc.serviceconfig.methodConfig
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.DoubleHistogram
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
@@ -33,6 +35,7 @@ import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.TimeSource
 import kotlin.time.toJavaDuration
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
@@ -42,6 +45,7 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.time.delay
 import kotlinx.coroutines.yield
 import org.wfanet.measurement.api.Version
+import org.wfanet.measurement.api.v2alpha.MeasurementSpec
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.asBufferedFlow
@@ -50,6 +54,9 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.ProtobufServiceConfig
 import org.wfanet.measurement.common.logAndSuppressExceptionSuspend
 import org.wfanet.measurement.common.protoTimestamp
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDuration
 import org.wfanet.measurement.common.toProtoTime
@@ -238,9 +245,28 @@ abstract class MillBase(
   }
 
   /** Process the computation according to its protocol and status. */
-  private suspend fun processComputation(token: ComputationToken) {
+  private suspend fun processComputation(token: ComputationToken) =
+    ReportTracing.traceSuspending(
+      spanName = "duchy.mill.process_computation",
+      attributes = token.reportTraceAttributes(),
+    ) {
+      processComputationInTrace(token)
+    }
+
+  private suspend fun processComputationInTrace(token: ComputationToken) {
+    token.logReportTraceLifecycle(outcome = "started", errorType = null, errorCode = null)
     if (token.attempt > maximumAttempts) {
-      failComputation(token, "Failing computation due to too many failed ComputationStageAttempts.")
+      val message = "Failing computation due to too many failed ComputationStageAttempts."
+      Span.current()
+        .setStatus(StatusCode.ERROR, message)
+        .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+        .setAttribute(ReportTraceAttributes.ERROR_TYPE, "AttemptsExhausted")
+      token.logReportTraceLifecycle(
+        outcome = "failed",
+        errorType = "AttemptsExhausted",
+        errorCode = null,
+      )
+      failComputation(token, message)
       return
     }
 
@@ -256,7 +282,28 @@ abstract class MillBase(
 
     try {
       processComputationImpl(token)
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+      token.logReportTraceLifecycle(outcome = "succeeded", errorType = null, errorCode = null)
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
+      val errorType = ReportTraceAttributes.errorType(e)
+      val errorCode = ReportTraceAttributes.errorCode(e)
+      Span.current()
+        .setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
+        .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+        .setAttribute(ReportTraceAttributes.ERROR_TYPE, errorType)
+        .also { span ->
+          if (errorCode != null) {
+            span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+          }
+        }
+        .recordException(e)
+      token.logReportTraceLifecycle(
+        outcome = "failed",
+        errorType = errorType,
+        errorCode = errorCode,
+      )
       handleExceptions(token, e)
     }
     logger.info("$globalId@$millId: Processed computation ")
@@ -266,6 +313,41 @@ abstract class MillBase(
       STAGE_WALL_CLOCK_DURATION,
       stageWallClockDurationHistogram,
     )
+  }
+
+  private fun ComputationToken.reportTraceAttributes(): Attributes {
+    val builder =
+      Attributes.builder()
+        .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(globalComputationId).toName())
+        .put(ReportTraceAttributes.DUCHY_ID, duchyId)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_stage_attempt")
+    if (computationDetails.kingdomComputation.measurement.isNotEmpty()) {
+      builder.put(
+        ReportTraceAttributes.MEASUREMENT_NAME,
+        computationDetails.kingdomComputation.measurement,
+      )
+    }
+    runCatching { MeasurementSpec.parseFrom(computationDetails.kingdomComputation.measurementSpec) }
+      .getOrNull()
+      ?.let { builder.putAll(ReportTraceAttributes.fromMeasurementSpec(it)) }
+    return builder.build()
+  }
+
+  /** Logs report-safe lifecycle fields so an attempt remains observable without span export. */
+  private fun ComputationToken.logReportTraceLifecycle(
+    outcome: String,
+    errorType: String?,
+    errorCode: String?,
+  ) {
+    val fields = buildList {
+      for ((key, value) in reportTraceAttributes().asMap()) {
+        add(key.key to value.toString())
+      }
+      add(ReportTraceAttributes.OUTCOME_STRING to outcome)
+      add(ReportTraceAttributes.ERROR_TYPE_STRING to errorType)
+      add(ReportTraceAttributes.ERROR_CODE_STRING to errorCode)
+    }
+    ReportTraceLogging.log(logger, "duchy.mill.process_computation", *fields.toTypedArray())
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
@@ -801,8 +883,8 @@ abstract class MillBase(
         throw when (e.status.code) {
           Status.Code.UNAVAILABLE,
           // The mill will get the latest ComputationToken before attempting to update the details.
-          // Updating only succeeds with the latest Computation version. So it is safe to retry for
-          // DEADLINE_EXCEEDED.
+          // Updating only succeeds with the latest Computation version, so DEADLINE_EXCEEDED is
+          // safe to retry.
           Status.Code.DEADLINE_EXCEEDED,
           Status.Code.ABORTED -> ComputationDataClients.TransientErrorException(message, e)
           else -> ComputationDataClients.PermanentErrorException(message, e)
