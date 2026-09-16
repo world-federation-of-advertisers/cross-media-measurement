@@ -260,6 +260,12 @@ message MarkRawImpressionUploadModelLinePoolAssigningRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
+
+  // Phase-0 dispatch information to persist with the initial transition.
+  // Omitted when retrying a failed model line whose snapshot is already
+  // stored.
+  RawImpressionUploadModelLine.PhaseZeroDispatch phase_zero_dispatch = 4
+      [(google.api.field_behavior) = OPTIONAL];
 }
 
 // Request message for the

@@ -666,6 +666,20 @@ class VidLabelingDispatchSequencerTest {
         markRawImpressionUploadModelLinePoolAssigning(captor.capture())
       }
       assertThat(captor.firstValue.etag).isEqualTo(ETAG)
+      assertThat(captor.firstValue.phaseZeroDispatch.workItemQueue)
+        .isEqualTo(POOL_ASSIGNER_QUEUE_NAME)
+      val params =
+        WorkItemParams.parseFrom(captor.firstValue.phaseZeroDispatch.workItemParams)
+          .appParams
+          .unpack<SubpoolAssignerParams>()
+      assertThat(params.rawImpressionUpload)
+        .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(params.modelLine).isEqualTo(MODEL_LINE)
+      assertThat(params.modelBlobPath).isEqualTo(MODEL_BLOB_PATH)
+      assertThat(params.poolAssignmentJob)
+        .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1/poolAssignmentJobs/job-0")
+      assertThat(params.shardIndex).isEqualTo(0)
+      assertThat(params.totalShards).isEqualTo(NUMBER_OF_SHARDS)
     }
 
   @Test

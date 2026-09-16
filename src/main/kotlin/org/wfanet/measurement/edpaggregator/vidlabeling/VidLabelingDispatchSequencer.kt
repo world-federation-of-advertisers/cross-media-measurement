@@ -44,6 +44,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineKt.phaseZeroDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
@@ -324,7 +325,18 @@ class VidLabelingDispatchSequencer(
       "Expected ${persistedParams.totalShards} persisted PoolAssignmentJobs for " +
         "${modelLine.cmmsModelLine}; found shards ${jobsByShard.keys.sorted()}"
     }
-    if (!markPoolAssigning(modelLine.name, modelLine.etag)) return false
+    if (
+      !markPoolAssigning(
+        modelLine.name,
+        modelLine.etag,
+        phaseZeroDispatch {
+          workItemQueue = queue
+          this.workItemParams = workItemParams { appParams = persistedParams.pack() }.toByteString()
+        },
+      )
+    ) {
+      return false
+    }
     for (shardIndex in 0 until persistedParams.totalShards) {
       val job = checkNotNull(jobsByShard[shardIndex])
       createSubpoolAssignerWorkItem(
@@ -534,9 +546,33 @@ class VidLabelingDispatchSequencer(
         poolAssignmentJobsByShard.keys.sorted()
     }
 
-    // Claim the parent before workers can consume their messages. If publication is interrupted,
-    // the monitor re-enters this idempotent method and fills in the missing deterministic IDs.
-    if (!markPoolAssigning(modelLine.name, modelLine.etag)) return false
+    val firstPoolAssignmentJob = checkNotNull(poolAssignmentJobsByShard[0])
+    val dispatchParams =
+      buildSubpoolAssignerParams(
+        uploadName,
+        modelLine.cmmsModelLine,
+        shardInfo.modelBlobPath,
+        resolvedModelLine,
+        modelLineConfig,
+        firstPoolAssignmentJob,
+        shardIndex = 0,
+        totalShards = totalShards,
+      )
+
+    // Claim the parent and persist the immutable dispatch snapshot before workers can consume
+    // their messages. This makes recovery possible even if publication stops before shard 0.
+    if (
+      !markPoolAssigning(
+        modelLine.name,
+        modelLine.etag,
+        phaseZeroDispatch {
+          workItemQueue = poolAssignerQueueName
+          this.workItemParams = workItemParams { appParams = dispatchParams.pack() }.toByteString()
+        },
+      )
+    ) {
+      return false
+    }
 
     for (shardIndex in 0 until totalShards) {
       val poolAssignmentJob: String =
@@ -545,14 +581,11 @@ class VidLabelingDispatchSequencer(
             modelLine.cmmsModelLine
         }
       createSubpoolAssignerWorkItem(
-        uploadName = uploadName,
-        modelLineName = modelLine.cmmsModelLine,
-        modelBlobPath = shardInfo.modelBlobPath,
-        resolvedModelLine = resolvedModelLine,
-        modelLineConfig = modelLineConfig,
-        poolAssignmentJob = poolAssignmentJob,
-        shardIndex = shardIndex,
-        totalShards = totalShards,
+        dispatchParams.copy {
+          this.poolAssignmentJob = poolAssignmentJob
+          this.shardIndex = shardIndex
+        },
+        poolAssignerQueueName,
       )
     }
     return true
@@ -777,7 +810,11 @@ class VidLabelingDispatchSequencer(
     }
   }
 
-  private suspend fun markPoolAssigning(modelLineName: String, etag: String): Boolean =
+  private suspend fun markPoolAssigning(
+    modelLineName: String,
+    etag: String,
+    dispatch: RawImpressionUploadModelLine.PhaseZeroDispatch,
+  ): Boolean =
     transitionWithFreshEtag(
       modelLineName,
       etag,
@@ -796,6 +833,7 @@ class VidLabelingDispatchSequencer(
             name = modelLineName
             this.etag = currentEtag
             requestId = RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName)
+            phaseZeroDispatch = dispatch
           }
         )
       }
@@ -894,15 +932,8 @@ class VidLabelingDispatchSequencer(
     return jobsByShard
   }
 
-  /**
-   * Creates one Phase-0 SubpoolAssigner `WorkItem` on the [poolAssignerQueueName] queue for a
-   * single shard, packing a [SubpoolAssignerParams] that references the shard's pre-created
-   * [poolAssignmentJob].
-   *
-   * Idempotent on a deterministic [workItemId]: a retry returns `ALREADY_EXISTS` (handled below)
-   * rather than publishing a duplicate, exactly like [createWorkItem].
-   */
-  private suspend fun createSubpoolAssignerWorkItem(
+  /** Builds the immutable Phase-0 parameters for one shard. */
+  private fun buildSubpoolAssignerParams(
     uploadName: String,
     modelLineName: String,
     modelBlobPath: String,
@@ -911,38 +942,35 @@ class VidLabelingDispatchSequencer(
     poolAssignmentJob: String,
     shardIndex: Int,
     totalShards: Int,
-  ) {
+  ): SubpoolAssignerParams {
     // Start from the shared template (data provider, storage params, TLS connection) and fill in
     // the per-shard fields. `copy` carries every template field, so a field added to the template
     // later is propagated automatically.
-    val params =
-      subpoolAssignerParamsTemplate.copy {
-        rawImpressionUpload = uploadName
-        modelLine = modelLineName
-        this.modelBlobPath = modelBlobPath
-        activeStartTime = resolvedModelLine.activeStartTime
-        if (resolvedModelLine.hasActiveEndTime()) {
-          activeEndTime = resolvedModelLine.activeEndTime
-        }
-        this.shardIndex = shardIndex
-        this.totalShards = totalShards
-        labelerInputFieldMapping.addAll(modelLineConfig.labelerInputFieldMappingList)
-        eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
-        // Pass-through so the Phase-1 last-out can stamp the event-template descriptor (which
-        // Phase-2 requires) onto the memoized VidLabeler ModelLineConfig.
-        eventTemplateDescriptorBlobUri = modelLineConfig.eventTemplateDescriptorBlobUri
-        eventTemplateType = modelLineConfig.eventTemplateType
-        // Pass-through for the same reason: Phase-2 resolves each assigned VID's population
-        // attributes from this spec and rejects a WorkItem without it.
-        populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
-        // Pass-through so the Phase-1 last-out can stamp the per-impression entity-key columns on
-        // the memoized VidLabeler ModelLineConfig.
-        requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)
-        optionalEntityKeyFieldMapping.putAll(modelLineConfig.optionalEntityKeyFieldMappingMap)
-        this.poolAssignmentJob = poolAssignmentJob
+    return subpoolAssignerParamsTemplate.copy {
+      rawImpressionUpload = uploadName
+      modelLine = modelLineName
+      this.modelBlobPath = modelBlobPath
+      activeStartTime = resolvedModelLine.activeStartTime
+      if (resolvedModelLine.hasActiveEndTime()) {
+        activeEndTime = resolvedModelLine.activeEndTime
       }
-
-    createSubpoolAssignerWorkItem(params, poolAssignerQueueName)
+      this.shardIndex = shardIndex
+      this.totalShards = totalShards
+      labelerInputFieldMapping.addAll(modelLineConfig.labelerInputFieldMappingList)
+      eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
+      // Pass-through so the Phase-1 last-out can stamp the event-template descriptor (which
+      // Phase-2 requires) onto the memoized VidLabeler ModelLineConfig.
+      eventTemplateDescriptorBlobUri = modelLineConfig.eventTemplateDescriptorBlobUri
+      eventTemplateType = modelLineConfig.eventTemplateType
+      // Pass-through for the same reason: Phase-2 resolves each assigned VID's population
+      // attributes from this spec and rejects a WorkItem without it.
+      populationSpecBlobUri = modelLineConfig.populationSpecBlobUri
+      // Pass-through so the Phase-1 last-out can stamp the per-impression entity-key columns on
+      // the memoized VidLabeler ModelLineConfig.
+      requiredEntityKeyFieldMapping.putAll(modelLineConfig.requiredEntityKeyFieldMappingMap)
+      optionalEntityKeyFieldMapping.putAll(modelLineConfig.optionalEntityKeyFieldMappingMap)
+      this.poolAssignmentJob = poolAssignmentJob
+    }
   }
 
   /** Publishes one Phase-0 WorkItem with already-resolved immutable [params]. */

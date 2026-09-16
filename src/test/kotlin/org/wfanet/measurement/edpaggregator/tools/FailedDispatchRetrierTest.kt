@@ -43,8 +43,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineKt.phaseZeroDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -56,6 +58,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
@@ -343,6 +346,69 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed reconstructs partial non-memoized Phase 2 publication`() = runBlocking {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob {
+            name = VID_JOB_NAME
+            state = VidLabelingJob.State.FAILED
+          }
+          vidLabelingJobs += vidLabelingJob {
+            name = SECOND_VID_JOB_NAME
+            state = VidLabelingJob.State.CREATED
+          }
+        }
+      )
+    val firstWorkItemId = WorkItemIds.forVidLabeler(VID_JOB_NAME)
+    val secondWorkItemId = WorkItemIds.forVidLabeler(SECOND_VID_JOB_NAME)
+    val firstParams = vidLabelerParams {
+      rawImpressionUpload = UPLOAD_NAME
+      modelLines += MODEL_LINE
+      modelBlobPaths[MODEL_LINE] = "gs://models/original-model"
+      vidLabelingJob = VID_JOB_NAME
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      when (val name = invocation.getArgument<GetWorkItemRequest>(0).name) {
+        "workItems/$firstWorkItemId" ->
+          workItem {
+            queue = "q"
+            workItemParams =
+              WorkItemParams.newBuilder().setAppParams(firstParams.pack()).build().pack()
+          }
+        "workItems/$secondWorkItemId" -> throw Status.NOT_FOUND.asRuntimeException()
+        else -> error("Unexpected WorkItem lookup: $name")
+      }
+    }
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+      .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+    val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    assertThat(result.workItemsRepublished).isEqualTo(2)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(createCaptor.capture()) }
+    val reconstructed =
+      createCaptor.allValues.single {
+        it.workItemId == RequestIds.forRetriedWorkItem(secondWorkItemId, FAILURE_ATTEMPT_ID)
+      }
+    val reconstructedParams =
+      reconstructed.workItem.workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(VidLabelerParams::class.java)
+    assertThat(reconstructed.workItem.queue).isEqualTo("q")
+    assertThat(reconstructedParams.vidLabelingJob).isEqualTo(SECOND_VID_JOB_NAME)
+    assertThat(reconstructedParams.modelBlobPathsMap)
+      .containsExactly(MODEL_LINE, "gs://models/original-model")
+    assertThat(reconstructedParams.hasMemoizedParams()).isFalse()
+    verifyBlocking(rankerJobService, never()) { listRankerJobs(any()) }
+  }
+
+  @Test
   fun `retryFailed recognizes a preceding-phase fallback after its response was lost`() =
     runBlocking<Unit> {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
@@ -457,6 +523,81 @@ class FailedDispatchRetrierTest {
     assertThat(reconstructedParams.shardIndex).isEqualTo(1)
     assertThat(reconstructedParams.totalShards).isEqualTo(2)
   }
+
+  @Test
+  fun `retryFailed reconstructs Phase 0 when no original WorkItem was published`() =
+    runBlocking<Unit> {
+      val persistedParams = subpoolAssignerParams {
+        rawImpressionUpload = UPLOAD_NAME
+        modelLine = MODEL_LINE
+        modelBlobPath = "gs://models/original-model"
+        poolAssignmentJob = FIRST_POOL_JOB_NAME
+        shardIndex = 0
+        totalShards = 2
+      }
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy {
+                phaseZeroDispatch = phaseZeroDispatch {
+                  workItemQueue = "q"
+                  workItemParams =
+                    WorkItemParams.newBuilder()
+                      .setAppParams(persistedParams.pack())
+                      .build()
+                      .toByteString()
+                }
+              }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(listVidLabelingJobsResponse {})
+      whenever(rankerJobService.listRankerJobs(any())).thenReturn(listRankerJobsResponse {})
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob {
+              name = FIRST_POOL_JOB_NAME
+              shardIndex = 0
+            }
+            poolAssignmentJobs += poolAssignmentJob {
+              name = SECOND_POOL_JOB_NAME
+              shardIndex = 1
+            }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenAnswer {
+        throw Status.NOT_FOUND.asRuntimeException()
+      }
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
+        .thenReturn(
+          failedModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
+
+      val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+      assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+      assertThat(result.workItemsRepublished).isEqualTo(2)
+      val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(2)) { createWorkItem(createCaptor.capture()) }
+      val publishedParams =
+        createCaptor.allValues.associate { request ->
+          val params =
+            request.workItem.workItemParams
+              .unpack(WorkItemParams::class.java)
+              .appParams
+              .unpack(SubpoolAssignerParams::class.java)
+          params.shardIndex to params
+        }
+      assertThat(publishedParams.keys).containsExactly(0, 1)
+      assertThat(publishedParams.getValue(0).poolAssignmentJob).isEqualTo(FIRST_POOL_JOB_NAME)
+      assertThat(publishedParams.getValue(1).poolAssignmentJob).isEqualTo(SECOND_POOL_JOB_NAME)
+      assertThat(publishedParams.values.map { it.modelBlobPath }.toSet())
+        .containsExactly("gs://models/original-model")
+      assertThat(createCaptor.allValues.map { it.workItem.queue }.toSet()).containsExactly("q")
+    }
 
   @Test
   fun `retryFailed replays Phase 1 when Phase 2 publication was partial`() = runBlocking {

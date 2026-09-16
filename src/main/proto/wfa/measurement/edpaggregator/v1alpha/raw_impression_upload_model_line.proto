@@ -80,6 +80,17 @@ message RawImpressionUploadModelLine {
     RECOVERY_ACTION_NO_REPLACEMENT = 3;
   }
 
+  // Immutable information needed to publish Phase-0 WorkItems.
+  message PhaseZeroDispatch {
+    // Secure Computation queue for Phase-0 WorkItems.
+    string work_item_queue = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // Serialized WorkItem parameters captured before Phase-0 publication
+    // starts. Recovery replaces the shard-specific application parameters for
+    // each persisted PoolAssignmentJob.
+    bytes work_item_params = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
@@ -160,4 +171,10 @@ message RawImpressionUploadModelLine {
       type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
     }
   ];
+
+  // Phase-0 dispatch information captured atomically when processing starts.
+  // Preserved across later state transitions so interrupted publication can be
+  // reconstructed even when no original WorkItem exists.
+  PhaseZeroDispatch phase_zero_dispatch = 16
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

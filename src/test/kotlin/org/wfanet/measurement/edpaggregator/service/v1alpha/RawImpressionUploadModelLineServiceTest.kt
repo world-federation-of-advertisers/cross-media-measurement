@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineKt.phaseZeroDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
@@ -753,18 +754,29 @@ class RawImpressionUploadModelLineServiceTest {
         }
       )
 
+    val dispatch = phaseZeroDispatch {
+      workItemQueue = "queues/pool-assigner"
+      workItemParams = ByteString.copyFromUtf8("serialized-work-item-params")
+    }
     val poolAssigning =
       service.markRawImpressionUploadModelLinePoolAssigning(
         markRawImpressionUploadModelLinePoolAssigningRequest {
           name = created.name
           etag = created.etag
           requestId = UUID.randomUUID().toString()
+          phaseZeroDispatch = dispatch
         }
       )
 
     assertThat(poolAssigning.state).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
     assertThat(poolAssigning.name).isEqualTo(created.name)
+    assertThat(poolAssigning.phaseZeroDispatch).isEqualTo(dispatch)
     assertThat(poolAssigning.updateTime.toInstant()).isGreaterThan(created.updateTime.toInstant())
+    val persisted =
+      service.getRawImpressionUploadModelLine(
+        getRawImpressionUploadModelLineRequest { name = created.name }
+      )
+    assertThat(persisted.phaseZeroDispatch).isEqualTo(dispatch)
   }
 
   @Test
@@ -803,6 +815,72 @@ class RawImpressionUploadModelLineServiceTest {
             domain = Errors.DOMAIN
             reason = Errors.Reason.INVALID_FIELD_VALUE.name
             metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+          }
+        )
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning rejects snapshot without queue`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              name =
+                RawImpressionUploadModelLineKey(
+                    DATA_PROVIDER_ID,
+                    RAW_IMPRESSION_UPLOAD_ID,
+                    "model-line",
+                  )
+                  .toName()
+              etag = "etag"
+              requestId = UUID.randomUUID().toString()
+              phaseZeroDispatch = phaseZeroDispatch {
+                workItemParams = ByteString.copyFromUtf8("serialized-work-item-params")
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "phase_zero_dispatch.work_item_queue"
+          }
+        )
+    }
+
+  @Test
+  fun `markRawImpressionUploadModelLinePoolAssigning rejects snapshot without params`() =
+    runBlocking {
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              name =
+                RawImpressionUploadModelLineKey(
+                    DATA_PROVIDER_ID,
+                    RAW_IMPRESSION_UPLOAD_ID,
+                    "model-line",
+                  )
+                  .toName()
+              etag = "etag"
+              requestId = UUID.randomUUID().toString()
+              phaseZeroDispatch = phaseZeroDispatch { workItemQueue = "queues/pool-assigner" }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+      assertThat(exception.errorInfo)
+        .isEqualTo(
+          errorInfo {
+            domain = Errors.DOMAIN
+            reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+            metadata[Errors.Metadata.FIELD_NAME.key] = "phase_zero_dispatch.work_item_params"
           }
         )
     }

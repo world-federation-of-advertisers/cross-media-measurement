@@ -201,6 +201,9 @@ message MarkRawImpressionUploadModelLinePoolAssigningRequest {
 
   // A request ID provided by the client to ensure idempotency on retry.
   string request_id = 5;
+
+  // Serialized public PhaseZeroDispatch to persist with the transition.
+  bytes phase_zero_dispatch = 6;
 }
 
 // Request message for MarkRawImpressionUploadModelLineRanking.

@@ -88,3 +88,6 @@ databaseChangeLog:
   - include:
       file: create-upload-healing-operation-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-upload-model-line-phase-zero-dispatch.sql
+      relativeToChangeLogFile: true

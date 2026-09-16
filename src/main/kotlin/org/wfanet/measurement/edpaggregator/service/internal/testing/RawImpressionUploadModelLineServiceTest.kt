@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -669,6 +670,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
   @Test
   fun `markRawImpressionUploadModelLinePoolAssigning transitions CREATED to POOL_ASSIGNING`() =
     runBlocking {
+      val phaseZeroDispatch = ByteString.copyFromUtf8("persisted-phase-zero-dispatch")
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
@@ -689,6 +691,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
             etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+            this.phaseZeroDispatch = phaseZeroDispatch
           }
         )
 
@@ -696,6 +699,16 @@ abstract class RawImpressionUploadModelLineServiceTest {
         .isEqualTo(
           RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
         )
+      assertThat(modelLine.phaseZeroDispatch).isEqualTo(phaseZeroDispatch)
+      val persisted =
+        service.getRawImpressionUploadModelLine(
+          getRawImpressionUploadModelLineRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          }
+        )
+      assertThat(persisted.phaseZeroDispatch).isEqualTo(phaseZeroDispatch)
     }
 
   @Test
@@ -763,6 +776,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
   fun `markRawImpressionUploadModelLinePoolAssigning succeeds from FAILED and clears error_message`() =
     runBlocking {
       val failureAttemptId = UUID.randomUUID().toString()
+      val phaseZeroDispatch = ByteString.copyFromUtf8("persisted-phase-zero-dispatch")
       val created: RawImpressionUploadModelLine =
         service.createRawImpressionUploadModelLine(
           createRawImpressionUploadModelLineRequest {
@@ -782,6 +796,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
             rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
             rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
             etag = created.etag
+            this.phaseZeroDispatch = phaseZeroDispatch
           }
         )
       val failed =
@@ -815,6 +830,7 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(resumed.failureAttemptId).isEqualTo(failureAttemptId)
       assertThat(resumed.failureReason)
         .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_PROCESSING_FAILURE)
+      assertThat(resumed.phaseZeroDispatch).isEqualTo(phaseZeroDispatch)
 
       val nextFailureAttemptId = UUID.randomUUID().toString()
       val failedAgain =

@@ -88,4 +88,7 @@ message RawImpressionUploadModelLine {
 
   // Resource ID of the upload whose completed replacement is required.
   string recovery_predecessor_raw_impression_upload_resource_id = 17;
+
+  // Serialized public PhaseZeroDispatch captured before WorkItem publication.
+  bytes phase_zero_dispatch = 18;
 }

@@ -342,6 +342,16 @@ class RawImpressionUploadModelLineService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
 
     validateEtagAndRequestId(request.etag, request.requestId)
+    if (request.hasPhaseZeroDispatch()) {
+      if (request.phaseZeroDispatch.workItemQueue.isEmpty()) {
+        throw RequiredFieldNotSetException("phase_zero_dispatch.work_item_queue")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (request.phaseZeroDispatch.workItemParams.isEmpty) {
+        throw RequiredFieldNotSetException("phase_zero_dispatch.work_item_params")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
     val internalResponse: InternalRawImpressionUploadModelLine =
       try {
         internalModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
@@ -351,6 +361,9 @@ class RawImpressionUploadModelLineService(
             rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
             etag = request.etag
             requestId = request.requestId
+            if (request.hasPhaseZeroDispatch()) {
+              phaseZeroDispatch = request.phaseZeroDispatch.toByteString()
+            }
           }
         )
       } catch (e: StatusException) {
@@ -669,6 +682,10 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
             source.recoveryPredecessorRawImpressionUploadResourceId,
           )
           .toName()
+    }
+    if (!source.phaseZeroDispatch.isEmpty) {
+      phaseZeroDispatch =
+        RawImpressionUploadModelLine.PhaseZeroDispatch.parseFrom(source.phaseZeroDispatch)
     }
   }
 }

@@ -54,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesResponse
@@ -501,7 +502,8 @@ class SpannerRawImpressionUploadModelLineService(
   override suspend fun markRawImpressionUploadModelLinePoolAssigning(
     request: MarkRawImpressionUploadModelLinePoolAssigningRequest
   ): RawImpressionUploadModelLine {
-    return transitionState(
+    val transitionResult =
+      transitionState(
         request.dataProviderResourceId,
         request.rawImpressionUploadResourceId,
         request.rawImpressionUploadModelLineResourceId,
@@ -515,8 +517,27 @@ class SpannerRawImpressionUploadModelLineService(
           ),
         markRequestIdColumn = "MarkPoolAssigningRequestId",
         currentMarkRequestId = { it.markPoolAssigningRequestId },
-      )
-      .modelLine
+      ) { current ->
+        if (
+          !current.phaseZeroDispatch.isEmpty &&
+            !request.phaseZeroDispatch.isEmpty &&
+            current.phaseZeroDispatch != request.phaseZeroDispatch
+        ) {
+          throw InvalidFieldValueException("phase_zero_dispatch")
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        if (current.phaseZeroDispatch.isEmpty && !request.phaseZeroDispatch.isEmpty) {
+          set("PhaseZeroDispatch").to(request.phaseZeroDispatch.toGcloudByteArray())
+        }
+      }
+    if (
+      transitionResult.isReplay ||
+        request.phaseZeroDispatch.isEmpty ||
+        !transitionResult.modelLine.phaseZeroDispatch.isEmpty
+    ) {
+      return transitionResult.modelLine
+    }
+    return transitionResult.modelLine.copy { phaseZeroDispatch = request.phaseZeroDispatch }
   }
 
   override suspend fun markRawImpressionUploadModelLineRanking(
@@ -627,7 +648,7 @@ class SpannerRawImpressionUploadModelLineService(
         validPreviousStates = validPreviousStates,
         markRequestIdColumn = "MarkFailedRequestId",
         currentMarkRequestId = { it.markFailedRequestId },
-      ) {
+      ) { _ ->
         set("ErrorMessage").to(request.errorMessage)
         set("FailureReason").to(failureReason)
         set("EvictionOperationId").to(request.evictionOperationId.ifEmpty { null })
@@ -721,7 +742,9 @@ class SpannerRawImpressionUploadModelLineService(
     validPreviousStates: Set<State>,
     markRequestIdColumn: String,
     currentMarkRequestId: (RawImpressionUploadModelLineResult) -> String,
-    block: (com.google.cloud.spanner.Mutation.WriteBuilder.() -> Unit)? = null,
+    block:
+      (com.google.cloud.spanner.Mutation.WriteBuilder.(RawImpressionUploadModelLine) -> Unit)? =
+      null,
   ): TransactionResult {
     if (dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("data_provider_resource_id")
@@ -847,7 +870,7 @@ class SpannerRawImpressionUploadModelLineService(
         ) {
           if (clearError) set("ErrorMessage").to(null as String?)
           set(markRequestIdColumn).to(requestId)
-          block?.invoke(this)
+          block?.invoke(this, result.rawImpressionUploadModelLine)
         }
 
         // Cascade the child transition up to the parent RawImpressionUpload in this same

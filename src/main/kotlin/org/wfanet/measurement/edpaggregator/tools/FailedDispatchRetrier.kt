@@ -31,6 +31,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.Ranke
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
@@ -170,7 +171,8 @@ class FailedDispatchRetrier(
           workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, modelLine.state),
         )
       }
-    val retrySources = resolveRetrySources(rawImpressionUpload, cmmsModelLine, phaseWorkItems)
+    val retrySources =
+      resolveRetrySources(rawImpressionUpload, cmmsModelLine, modelLine, phaseWorkItems)
 
     // Claim the retry before publishing. The service rejects an evicted row atomically, while the
     // deterministic request ID lets a later invocation replay a claim whose publication crashed.
@@ -201,14 +203,15 @@ class FailedDispatchRetrier(
   )
 
   /**
-   * Loads every original WorkItem for [phaseWorkItems]. A partial Phase-0 publication is rebuilt
-   * from an existing sibling's immutable parameters. For a partial later-phase publication, this
-   * recursively replays every WorkItem from the nearest reconstructible preceding phase, whose
-   * idempotent last-out recreates the missing fan-out.
+   * Loads every original WorkItem for [phaseWorkItems]. Partial Phase-0 and Phase-2 publications
+   * are rebuilt from persisted immutable parameters. A partial Phase-1 publication recursively
+   * replays every WorkItem from the nearest reconstructible preceding phase, whose idempotent
+   * last-out recreates the missing fan-out.
    */
   private suspend fun resolveRetrySources(
     uploadName: String,
     cmmsModelLine: String,
+    modelLine: RawImpressionUploadModelLine,
     phaseWorkItems: PhaseWorkItems,
   ): RetrySources {
     if (phaseWorkItems.workItemIds.isEmpty()) {
@@ -230,7 +233,17 @@ class FailedDispatchRetrier(
     if (!missingWorkItem) return RetrySources(phaseWorkItems.phase, sourceWorkItems)
 
     if (phaseWorkItems.phase == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
-      return reconstructPhaseZeroSources(uploadName, cmmsModelLine, sourceWorkItems)
+      return reconstructPhaseZeroSources(uploadName, cmmsModelLine, modelLine, sourceWorkItems)
+    }
+    if (phaseWorkItems.phase == RawImpressionUploadModelLine.State.LABELING) {
+      val phaseTwoSources =
+        reconstructPhaseTwoSources(
+          uploadName,
+          cmmsModelLine,
+          phaseWorkItems.workItemIds,
+          sourceWorkItems,
+        )
+      if (phaseTwoSources != null) return phaseTwoSources
     }
 
     val precedingPhase =
@@ -244,6 +257,7 @@ class FailedDispatchRetrier(
       resolveRetrySources(
         uploadName,
         cmmsModelLine,
+        modelLine,
         PhaseWorkItems(
           precedingPhase,
           workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, precedingPhase),
@@ -260,14 +274,11 @@ class FailedDispatchRetrier(
   private suspend fun reconstructPhaseZeroSources(
     uploadName: String,
     cmmsModelLine: String,
+    modelLine: RawImpressionUploadModelLine,
     existingWorkItems: Map<String, WorkItem>,
   ): RetrySources {
     val templateWorkItem =
-      existingWorkItems.values.firstOrNull()
-        ?: throw IllegalStateException(
-          "No original Phase-0 WorkItem remains for $cmmsModelLine under $uploadName; the phase " +
-            "cannot be re-published."
-        )
+      existingWorkItems.values.firstOrNull() ?: persistedPhaseZeroWorkItem(modelLine)
     val workItemParams = templateWorkItem.workItemParams.unpack(WorkItemParams::class.java)
     val templateParams = workItemParams.appParams.unpack(SubpoolAssignerParams::class.java)
     check(
@@ -307,6 +318,67 @@ class FailedDispatchRetrier(
           }
     }
     return RetrySources(RawImpressionUploadModelLine.State.POOL_ASSIGNING, reconstructed)
+  }
+
+  /** Returns the persisted Phase-0 publication template when no original WorkItem exists. */
+  private fun persistedPhaseZeroWorkItem(modelLine: RawImpressionUploadModelLine): WorkItem {
+    check(modelLine.hasPhaseZeroDispatch()) {
+      "No original Phase-0 WorkItem or persisted dispatch snapshot remains for ${modelLine.name}; " +
+        "the phase cannot be re-published."
+    }
+    return workItem {
+      queue = modelLine.phaseZeroDispatch.workItemQueue
+      workItemParams = WorkItemParams.parseFrom(modelLine.phaseZeroDispatch.workItemParams).pack()
+    }
+  }
+
+  /** Rebuilds missing Phase-2 WorkItems from any sibling publication for the same fan-out. */
+  private suspend fun reconstructPhaseTwoSources(
+    uploadName: String,
+    cmmsModelLine: String,
+    targetWorkItemIds: List<String>,
+    existingTargetWorkItems: Map<String, WorkItem>,
+  ): RetrySources? {
+    val jobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+    val jobsByWorkItemId = jobs.associateBy { WorkItemIds.forVidLabeler(it.name) }
+    var templateWorkItem = existingTargetWorkItems.values.firstOrNull()
+    if (templateWorkItem == null) {
+      for (job in jobs) {
+        templateWorkItem = getWorkItemOrNull(WorkItemIds.forVidLabeler(job.name))
+        if (templateWorkItem != null) break
+      }
+    }
+    val template = templateWorkItem ?: return null
+    if (!template.workItemParams.`is`(WorkItemParams::class.java)) return null
+    val workItemParams = template.workItemParams.unpack(WorkItemParams::class.java)
+    if (!workItemParams.appParams.`is`(VidLabelerParams::class.java)) return null
+    val templateParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
+    check(
+      templateParams.rawImpressionUpload == uploadName &&
+        cmmsModelLine in templateParams.modelLinesList
+    ) {
+      "Persisted Phase-2 parameters do not belong to $cmmsModelLine under $uploadName"
+    }
+
+    val reconstructed = linkedMapOf<String, WorkItem>()
+    for (workItemId in targetWorkItemIds) {
+      val job =
+        checkNotNull(jobsByWorkItemId[workItemId]) {
+          "No VidLabelingJob found for WorkItem $workItemId under $uploadName"
+        }
+      reconstructed[workItemId] =
+        existingTargetWorkItems[workItemId]
+          ?: workItem {
+            queue = template.queue
+            this.workItemParams =
+              workItemParams
+                .toBuilder()
+                .setAppParams(templateParams.toBuilder().setVidLabelingJob(job.name).build().pack())
+                .build()
+                .pack()
+          }
+    }
+    return RetrySources(RawImpressionUploadModelLine.State.LABELING, reconstructed)
   }
 
   /** Returns the phase of an existing retry for [failureAttemptId], or `null` if none exists. */

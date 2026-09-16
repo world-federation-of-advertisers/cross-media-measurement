@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.map
@@ -536,6 +537,7 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.EvictionOperationId,
       RawImpressionUploadModelLine.RecoveryAction,
       RawImpressionUploadModelLine.RecoveryPredecessorRawImpressionUploadResourceId,
+      RawImpressionUploadModelLine.PhaseZeroDispatch,
     FROM
       RawImpressionUploadModelLine
     """
@@ -591,6 +593,9 @@ private object RawImpressionUploadModelLineEntity {
         if (!struct.isNull("RecoveryPredecessorRawImpressionUploadResourceId")) {
           recoveryPredecessorRawImpressionUploadResourceId =
             struct.getString("RecoveryPredecessorRawImpressionUploadResourceId")
+        }
+        if (!struct.isNull("PhaseZeroDispatch")) {
+          phaseZeroDispatch = struct.getBytes("PhaseZeroDispatch").toByteArray().toByteString()
         }
       },
       struct.getLong("RawImpressionUploadId"),
