@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import io.grpc.Status
-import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
@@ -70,8 +69,8 @@ class SecureComputationRequisitionWorkItemDispatcher(
     val ensured =
       try {
         controlPlaneThrottler.onReady { workItemsStub.ensureWorkItem(request) }
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+      } catch (e: Exception) {
+        if (Status.fromThrowable(e).code != Status.Code.ALREADY_EXISTS) throw e
         val existing =
           controlPlaneThrottler.onReady {
             workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName(groupId) })

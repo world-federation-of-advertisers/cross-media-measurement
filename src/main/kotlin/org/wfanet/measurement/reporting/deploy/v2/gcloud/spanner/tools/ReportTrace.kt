@@ -587,7 +587,14 @@ internal class GoogleCloudReportTraceSpanReader(
           queries.map { query -> async { semaphore.withPermit { query() } } }.awaitAll()
         }
         .flatten()
-    return retainReportTraceSpans(entries.distinct(), readLimit(limit))
+    return retainReportTraceSpans(
+      entries
+        .filter { span ->
+          !span.startTime.isAfter(endTime) && !(span.endTime ?: span.startTime).isBefore(startTime)
+        }
+        .distinct(),
+      readLimit(limit),
+    )
   }
 
   private suspend fun listTraces(
@@ -3438,11 +3445,9 @@ internal class ReportTrace(
     routeResolution: ReportTraceRouteResolution,
     resolutionFailure: String?,
   ): Set<String> {
-    if (resolutionFailure != null) {
-      return emptySet()
-    }
     return buildSet {
       context.basicReportName?.let(::add)
+      if (resolutionFailure != null) return@buildSet
       context.reportName.takeUnless { it == REPORT_NOT_CREATED }?.let(::add)
       addAll(context.metricNames)
       addAll(context.measurementNames)

@@ -433,6 +433,61 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Reporting resolution failure retains only requested BasicReport telemetry`() {
+    val outputDirectory = temporaryFolder.newFolder("failed-resolution-isolation").toPath()
+    val requested = "measurementConsumers/mc-1/basicReports/report-a"
+    val unrelated = "measurementConsumers/mc-1/basicReports/report-b"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            listOf(
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW.minusSeconds(2),
+                service = "reporting",
+                severity = "ERROR",
+                trace = null,
+                message = "xmm.basic_report.name=$requested requested failure",
+              ),
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW.minusSeconds(1),
+                service = "reporting",
+                severity = "ERROR",
+                trace = null,
+                message = "xmm.basic_report.name=$unrelated unrelated failure",
+              ),
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride = BasicReportTraceResolver { throw IllegalStateException("database down") },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$requested",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    val artifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
+    assertThat(artifact).contains("requested failure")
+    assertThat(artifact).doesNotContain("unrelated failure")
+  }
+
+  @Test
   fun `collection deadline bounds Kingdom resolution and continues the batch`() {
     val output = StringWriter()
     val outputDirectory = temporaryFolder.newFolder("kingdom-deadline-traces").toPath()
@@ -1016,6 +1071,71 @@ class ReportTraceTest {
     assertThat(spans).hasSize(1)
     assertThat(spans.single().name).isEqualTo("reporting.metrics.sync_results")
     assertThat(spans.single().attributes["xmm.lifecycle.stage"]).isEqualTo("metric_result_sync")
+  }
+
+  @Test
+  fun `Cloud Trace reader excludes spans outside requested time window`() = runBlocking {
+    val listResponse = mock<HttpResponse<String>>()
+    whenever(listResponse.statusCode()).thenReturn(200)
+    whenever(listResponse.body()).thenReturn("{\"traces\":[]}")
+    val traceResponse = mock<HttpResponse<String>>()
+    whenever(traceResponse.statusCode()).thenReturn(200)
+    whenever(traceResponse.body())
+      .thenReturn(
+        """
+        {
+          "projectId": "trace-project",
+          "traceId": "11111111111111111111111111111111",
+          "spans": [
+            {
+              "spanId": "1",
+              "name": "before",
+              "startTime": "2026-09-10T10:00:00Z",
+              "endTime": "2026-09-10T10:30:00Z"
+            },
+            {
+              "spanId": "2",
+              "name": "overlapping",
+              "startTime": "2026-09-10T10:59:59Z",
+              "endTime": "2026-09-10T11:00:01Z"
+            },
+            {
+              "spanId": "3",
+              "name": "inside",
+              "startTime": "2026-09-10T12:00:00Z",
+              "endTime": "2026-09-10T12:00:01Z"
+            },
+            {
+              "spanId": "4",
+              "name": "after",
+              "startTime": "2026-09-10T13:00:01Z",
+              "endTime": "2026-09-10T13:00:02Z"
+            }
+          ]
+        }
+        """
+          .trimIndent()
+      )
+    val httpClient = mock<HttpClient>()
+    whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
+      .thenReturn(listResponse, traceResponse)
+    val reader =
+      GoogleCloudReportTraceSpanReader(
+        GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
+        httpClient,
+      )
+
+    val spans =
+      reader.read(
+        project = "trace-project",
+        correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+        traceIds = listOf("11111111111111111111111111111111"),
+        startTime = Instant.parse("2026-09-10T11:00:00Z"),
+        endTime = Instant.parse("2026-09-10T13:00:00Z"),
+        limit = 100,
+      )
+
+    assertThat(spans.map { it.name }).containsExactly("overlapping", "inside").inOrder()
   }
 
   @Test

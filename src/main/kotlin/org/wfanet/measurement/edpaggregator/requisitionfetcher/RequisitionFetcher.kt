@@ -583,13 +583,15 @@ class RequisitionFetcher(
       if (storageClient.getBlob(location.blobKey) != null) {
         if (location.ownership == DispatchOwnership.DIRECT) {
           metadataCache.remove(unit.reportId)
-          traceDispatchTransaction(
-            requisitionNames = metadataList.map { it.cmmsRequisition },
-            reportName = unit.reportId,
-            basicReportName = unit.identifiers.basicReportName,
-            groupId = existingGroupId,
-          ) {
-            dispatchGroupOrLog(existingGroupId, metadataList, location.blobUri, unit.reportId)
+          dispatchGroupOrLog(existingGroupId, unit.reportId) {
+            traceDispatchTransaction(
+              requisitionNames = metadataList.map { it.cmmsRequisition },
+              reportName = unit.reportId,
+              basicReportName = unit.identifiers.basicReportName,
+              groupId = existingGroupId,
+            ) {
+              queueAndDispatchGroup(existingGroupId, metadataList, location.blobUri)
+            }
           }
         }
         continue
@@ -624,16 +626,18 @@ class RequisitionFetcher(
           }
         if (rebuilt != null) {
           if (location.ownership == DispatchOwnership.DIRECT) {
-            traceDispatchTransaction(
-              requisitionNames = pending.metadata.map { it.cmmsRequisition },
-              reportName = unit.reportId,
-              basicReportName = unit.identifiers.basicReportName,
-              groupId = existingGroupId,
-            ) {
-              writeBlob(rebuilt, location.blobKey)
-              metrics.recoveryRebuilds.add(1, dataProviderAttrs)
-              metadataCache.remove(unit.reportId)
-              dispatchGroupOrLog(existingGroupId, pending.metadata, location.blobUri, unit.reportId)
+            dispatchGroupOrLog(existingGroupId, unit.reportId) {
+              traceDispatchTransaction(
+                requisitionNames = pending.metadata.map { it.cmmsRequisition },
+                reportName = unit.reportId,
+                basicReportName = unit.identifiers.basicReportName,
+                groupId = existingGroupId,
+              ) {
+                writeBlob(rebuilt, location.blobKey)
+                metrics.recoveryRebuilds.add(1, dataProviderAttrs)
+                metadataCache.remove(unit.reportId)
+                queueAndDispatchGroup(existingGroupId, pending.metadata, location.blobUri)
+              }
             }
           } else {
             writeBlob(rebuilt, location.blobKey)
@@ -692,16 +696,18 @@ class RequisitionFetcher(
         priorBlobForReport = true
         val newBlobKey = blobKey(directStoragePathPrefix, groupId)
         val newBlobUri = blobUri(directStoragePathPrefix, groupId)
-        traceDispatchTransaction(
-          requisitionNames = chunk.map { it.name },
-          reportName = unit.reportId,
-          basicReportName = unit.identifiers.basicReportName,
-          groupId = groupId,
-        ) {
-          writeBlob(grouped, newBlobKey)
-          val createdMetadata =
-            registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
-          dispatchGroupOrLog(groupId, createdMetadata, newBlobUri, unit.reportId)
+        dispatchGroupOrLog(groupId, unit.reportId) {
+          traceDispatchTransaction(
+            requisitionNames = chunk.map { it.name },
+            reportName = unit.reportId,
+            basicReportName = unit.identifiers.basicReportName,
+            groupId = groupId,
+          ) {
+            writeBlob(grouped, newBlobKey)
+            val createdMetadata =
+              registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
+            queueAndDispatchGroup(groupId, createdMetadata, newBlobUri)
+          }
         }
       }
     } finally {
@@ -989,13 +995,11 @@ class RequisitionFetcher(
 
   private suspend fun dispatchGroupOrLog(
     groupId: String,
-    metadata: List<RequisitionMetadata>,
-    blobUri: String,
     reportId: String,
-  ): Boolean {
-    return try {
-      queueAndDispatchGroup(groupId, metadata, blobUri)
-      true
+    block: suspend () -> Unit,
+  ) {
+    try {
+      block()
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
@@ -1012,7 +1016,6 @@ class RequisitionFetcher(
         "Failed to dispatch requisition group $groupId for report $reportId and $dataProviderName",
         e,
       )
-      false
     }
   }
 

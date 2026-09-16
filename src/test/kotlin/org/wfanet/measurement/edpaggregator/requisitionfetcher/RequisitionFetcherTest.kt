@@ -558,7 +558,7 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `later dispatch failure does not overwrite earlier group success`() = runBlocking {
+  fun `dispatch failure preserves outcomes and does not block later groups`() = runBlocking {
     val requisitions =
       (1..5).map { index ->
         TestRequisitionData.REQUISITION.copy {
@@ -595,7 +595,7 @@ class RequisitionFetcherTest {
     assertThat(outcomesByRequisition[requisitions[1].name]).isEqualTo("succeeded")
     assertThat(outcomesByRequisition[requisitions[2].name]).isEqualTo("failed")
     assertThat(outcomesByRequisition[requisitions[3].name]).isEqualTo("failed")
-    assertThat(outcomesByRequisition).doesNotContainKey(requisitions[4].name)
+    assertThat(outcomesByRequisition[requisitions[4].name]).isEqualTo("succeeded")
   }
 
   @Test
