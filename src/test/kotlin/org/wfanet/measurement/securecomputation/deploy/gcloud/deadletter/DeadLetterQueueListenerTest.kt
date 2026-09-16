@@ -161,8 +161,48 @@ class DeadLetterQueueListenerTest {
   }
 
   @Test
+  fun `missing queue mapping is nacked`(): Unit = runBlocking {
+    val errorInfo =
+      com.google.rpc.errorInfo {
+        domain = INTERNAL_ERRORS_DOMAIN
+        reason = "QUEUE_NOT_FOUND_FOR_WORK_ITEM"
+      }
+    val fixture =
+      fixture(
+        workItem { name = WORK_ITEM_NAME },
+        throwingStub(statusException(Status.NOT_FOUND, errorInfo)),
+      )
+
+    fixture.channel.send(fixture.message)
+
+    verify(fixture.message, timeout(5_000)).nack()
+    verify(fixture.message, never()).ack()
+    fixture.close()
+  }
+
+  @Test
+  fun `unstructured not found error is nacked`(): Unit = runBlocking {
+    val fixture =
+      fixture(
+        workItem { name = WORK_ITEM_NAME },
+        throwingStub(Status.NOT_FOUND.asException()),
+      )
+
+    fixture.channel.send(fixture.message)
+
+    verify(fixture.message, timeout(5_000)).nack()
+    verify(fixture.message, never()).ack()
+    fixture.close()
+  }
+
+  @Test
   fun `not found WorkItem is acknowledged`(): Unit = runBlocking {
-    val stub = throwingStub(Status.NOT_FOUND.asException())
+    val errorInfo =
+      com.google.rpc.errorInfo {
+        domain = INTERNAL_ERRORS_DOMAIN
+        reason = Errors.Reason.WORK_ITEM_NOT_FOUND.name
+      }
+    val stub = throwingStub(statusException(Status.NOT_FOUND, errorInfo))
     val fixture = fixture(workItem { name = WORK_ITEM_NAME }, stub)
 
     fixture.channel.send(fixture.message)
@@ -177,7 +217,7 @@ class DeadLetterQueueListenerTest {
     val errorInfo =
       com.google.rpc.errorInfo {
         reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
-        domain = Errors.DOMAIN
+        domain = INTERNAL_ERRORS_DOMAIN
         metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.RUNNING.name)
       }
     val fixture =
@@ -216,7 +256,7 @@ class DeadLetterQueueListenerTest {
     val errorInfo =
       com.google.rpc.errorInfo {
         reason = Errors.Reason.INVALID_WORK_ITEM_STATE.name
-        domain = Errors.DOMAIN
+        domain = INTERNAL_ERRORS_DOMAIN
         metadata.put(Errors.Metadata.WORK_ITEM_STATE.key, WorkItem.State.FAILED.name)
       }
     val exception = statusException(Status.FAILED_PRECONDITION, errorInfo)
@@ -348,6 +388,7 @@ class DeadLetterQueueListenerTest {
   }
 
   companion object {
+    private const val INTERNAL_ERRORS_DOMAIN = "internal.control-plane.secure-computation.halo-cmm.org"
     private const val SUBSCRIPTION_ID = "test-subscription"
     private const val WORK_ITEM_NAME = "workItems/test-work-item"
   }

@@ -1073,9 +1073,9 @@ performs the required order:
 3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
    then verify that each has target size zero and no remaining instances.
 4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
-   reconciliation, and dead-letter consumption enabled. The DLQ listener automatically retries
-   only while a current-generation WorkItem still has a valid leased attempt; otherwise it
-   terminalizes the exhausted WorkItem.
+   reconciliation, and dead-letter consumption enabled. The DLQ listener defers a delivery while a
+   current-generation WorkItem still has a valid leased attempt; otherwise it terminalizes the
+   exhausted WorkItem.
 5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
 6. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers,
    changes the process-level gate to enabled, and starts only the new worker version.
@@ -1164,14 +1164,15 @@ stopped worker's Pub/Sub delivery is either redelivered to a new lease-capable w
 by the upgraded DLQ listener. Main-queue takeover fails the exact unleased attempt and creates the
 replacement leased attempt in one Spanner transaction without advancing the WorkItem generation.
 DLQ handling atomically fails the unleased attempt and WorkItem. Both paths are automatic and
-generation-fenced. A leased active attempt is never replaced by a duplicate delivery; the
-duplicate is NACKed and lease expiry remains the authoritative abandonment signal.
+generation-fenced. A leased active attempt is never replaced by a duplicate delivery; the worker
+retains that delivery, with its acknowledgment deadline extended, until the active attempt becomes
+terminal or its lease can be replaced.
 
 #### Monitoring active attempts
 
-Alert on expired leased attempts and on unleased `ACTIVE` attempts. The internal API normally
-recovers an expired lease within its polling interval, and a new worker normally replaces an
-unleased attempt on redelivery after the automated quiescence step. Either result remaining for
+Alert on expired leased attempts and on unleased `ACTIVE` attempts. A new worker normally replaces
+either kind of abandoned attempt when Pub/Sub redelivers the WorkItem after the automated
+quiescence step. Either result remaining for
 more than a short grace period needs investigation:
 
 ```bash
