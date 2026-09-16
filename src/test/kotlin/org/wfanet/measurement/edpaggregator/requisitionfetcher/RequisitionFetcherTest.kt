@@ -590,7 +590,7 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `stale metadata reconciliation retries after concurrent transition`() = runBlocking {
+  fun `stale metadata reconciliation retries public etag conflict`() = runBlocking {
     val now = Instant.parse("2026-09-14T12:00:00Z")
     val stale =
       TestRequisitionData.REQUISITION.copy {
@@ -628,7 +628,7 @@ class RequisitionFetcherTest {
       val request = invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
       refuseRequisitionMetadataRequests += request
       attempt++
-      if (attempt == 1) throw Status.ABORTED.asRuntimeException()
+      if (attempt == 1) throw Status.FAILED_PRECONDITION.asRuntimeException()
       requisitionMetadata {}
     }
 
@@ -636,6 +636,102 @@ class RequisitionFetcherTest {
 
     assertThat(refuseRequisitionMetadataRequests.map { it.etag })
       .containsExactly("queued-etag", "processing-etag")
+    assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
+  fun `stale metadata reconciliation accepts success on final refresh`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    val metadataName = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale"
+    val initialMetadata = requisitionMetadata {
+      name = metadataName
+      cmmsRequisition = stale.name
+      groupId = "existing-group"
+      blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+      state = RequisitionMetadata.State.QUEUED
+      workItem = "workItems/results-fulfiller-existing-group"
+      etag = "etag-0"
+    }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += stale })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(listRequisitionMetadataResponse { requisitionMetadata += initialMetadata })
+    var refreshAttempt = 0
+    whenever(requisitionMetadataServiceMock.getRequisitionMetadata(any())).thenAnswer {
+      refreshAttempt++
+      requisitionMetadata {
+        name = metadataName
+        cmmsRequisition = stale.name
+        groupId = "existing-group"
+        blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+        state =
+          if (refreshAttempt == 3) {
+            RequisitionMetadata.State.REFUSED
+          } else {
+            RequisitionMetadata.State.PROCESSING
+          }
+        workItem = "workItems/results-fulfiller-existing-group"
+        etag = "etag-$refreshAttempt"
+      }
+    }
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any())).thenAnswer {
+      invocation ->
+      refuseRequisitionMetadataRequests +=
+        invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
+      throw Status.FAILED_PRECONDITION.asRuntimeException()
+    }
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionMetadataRequests.map { it.etag })
+      .containsExactly("etag-0", "etag-1", "etag-2")
+      .inOrder()
+    assertThat(refreshAttempt).isEqualTo(3)
+    assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
+  fun `stale metadata reconciliation does not retry unrelated failure`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    val metadataName = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale"
+    val initialMetadata = requisitionMetadata {
+      name = metadataName
+      cmmsRequisition = stale.name
+      groupId = "existing-group"
+      blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+      state = RequisitionMetadata.State.QUEUED
+      workItem = "workItems/results-fulfiller-existing-group"
+      etag = "queued-etag"
+    }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += stale })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(listRequisitionMetadataResponse { requisitionMetadata += initialMetadata })
+    var refreshAttempts = 0
+    whenever(requisitionMetadataServiceMock.getRequisitionMetadata(any())).thenAnswer {
+      refreshAttempts++
+      initialMetadata
+    }
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any())).thenAnswer {
+      invocation ->
+      refuseRequisitionMetadataRequests +=
+        invocation.getArgument<RefuseRequisitionMetadataRequest>(0)
+      throw Status.INVALID_ARGUMENT.asRuntimeException()
+    }
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionMetadataRequests).hasSize(1)
+    assertThat(refreshAttempts).isEqualTo(0)
+    assertThat(failWorkItemRequests).isEmpty()
     assertThat(ensureWorkItemRequests).isEmpty()
   }
 
