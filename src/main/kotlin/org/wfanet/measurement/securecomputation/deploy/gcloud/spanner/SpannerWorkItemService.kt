@@ -390,6 +390,7 @@ class SpannerWorkItemsService(
               result.workItem.generation,
             )
           }
+          var resultGeneration = result.workItem.generation
           val state =
             when (result.workItem.state) {
               WorkItem.State.FAILED,
@@ -403,6 +404,7 @@ class SpannerWorkItemsService(
                 if (txn.workItemPublicationExists(result.workItemId)) {
                   throw WorkItemPublicationPendingException(result.workItem.workItemResourceId)
                 }
+                resultGeneration++
                 txn.retryWorkItem(result.workItemId, result.workItem.generation)
               }
               WorkItem.State.QUEUED -> {
@@ -418,10 +420,8 @@ class SpannerWorkItemsService(
                         result.publicationScheduledGeneration,
                       )
                     if (!scheduled) {
-                      throw WorkItemInvalidStateException(
-                        result.workItem.workItemResourceId,
-                        result.workItem.state,
-                      )
+                      resultGeneration++
+                      txn.retryWorkItem(result.workItemId, result.workItem.generation)
                     }
                   }
                 }
@@ -438,11 +438,7 @@ class SpannerWorkItemsService(
           result.workItemId to
             result.workItem.copy {
               this.state = state
-              if (
-                state == WorkItem.State.QUEUED && result.workItem.state != WorkItem.State.QUEUED
-              ) {
-                generation = result.workItem.generation + 1L
-              }
+              generation = resultGeneration
             }
         } catch (e: WorkItemNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)

@@ -78,6 +78,7 @@ class BaseTeeApplicationImpl(
   workItemsClient: WorkItemsCoroutineStub,
   workItemAttemptsClient: WorkItemAttemptsCoroutineStub,
   controlPlaneThrottler: Throttler? = null,
+  activeAttemptRetryDelay: suspend () -> Unit = {},
   private val failure: Exception? = null,
   workItemConsumptionEnabled: Boolean = true,
 ) :
@@ -89,6 +90,7 @@ class BaseTeeApplicationImpl(
     workItemAttemptsStub = workItemAttemptsClient,
     controlPlaneThrottler = controlPlaneThrottler,
     attemptUpdateRetryDelay = {},
+    activeAttemptRetryDelay = activeAttemptRetryDelay,
     workItemConsumptionEnabled = workItemConsumptionEnabled,
   ) {
   val messageProcessed = CompletableDeferred<TestWork>()
@@ -386,7 +388,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `nacks redelivery when WorkItem has an active attempt`() = runBlocking {
+  fun `retains active-attempt delivery until WorkItem becomes terminal`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     whenever(
@@ -396,6 +398,7 @@ class BaseTeeApplicationTest {
         )
       )
       .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.SUCCEEDED) }
 
     val fakeSubscriber = FakeQueueSubscriber()
     val app =
@@ -418,14 +421,17 @@ class BaseTeeApplicationTest {
     )
     consumer.disposition.await()
 
-    assertThat(consumer.ackCount).isEqualTo(0)
-    assertThat(consumer.nackCount).isEqualTo(1)
+    assertThat(consumer.ackCount).isEqualTo(1)
+    assertThat(consumer.nackCount).isEqualTo(0)
+    verifyBlocking(workItemAttemptsStub, times(2)) {
+      createWorkItemAttempt(any(), any<io.grpc.Metadata>())
+    }
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
   }
 
   @Test
-  fun `nacks active-attempt redelivery after completion RPC failure`() = runBlocking {
+  fun `holds redelivery after completion RPC failure until completion is observed`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -439,6 +445,7 @@ class BaseTeeApplicationTest {
       )
       .thenReturn(workItemAttempt)
       .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.SUCCEEDED) }
     whenever(
         workItemAttemptsStub.completeWorkItemAttempt(
           any<CompleteWorkItemAttemptRequest>(),
@@ -479,10 +486,13 @@ class BaseTeeApplicationTest {
 
     assertThat(firstDelivery.ackCount).isEqualTo(0)
     assertThat(firstDelivery.nackCount).isEqualTo(1)
-    assertThat(redelivery.ackCount).isEqualTo(0)
-    assertThat(redelivery.nackCount).isEqualTo(1)
+    assertThat(redelivery.ackCount).isEqualTo(1)
+    assertThat(redelivery.nackCount).isEqualTo(0)
     verifyBlocking(workItemAttemptsStub, times(3)) {
       completeWorkItemAttempt(any(), any<io.grpc.Metadata>())
+    }
+    verifyBlocking(workItemAttemptsStub, times(3)) {
+      createWorkItemAttempt(any(), any<io.grpc.Metadata>())
     }
     job.cancelAndJoin()
   }
@@ -687,7 +697,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `nacks active-attempt redelivery after failure RPC failure`() = runBlocking {
+  fun `holds redelivery after failure RPC failure until failure is observed`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -701,6 +711,7 @@ class BaseTeeApplicationTest {
       )
       .thenReturn(workItemAttempt)
       .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.FAILED) }
     whenever(
         workItemAttemptsStub.failWorkItemAttempt(
           any<FailWorkItemAttemptRequest>(),
@@ -742,10 +753,13 @@ class BaseTeeApplicationTest {
 
     assertThat(firstDelivery.ackCount).isEqualTo(0)
     assertThat(firstDelivery.nackCount).isEqualTo(1)
-    assertThat(redelivery.ackCount).isEqualTo(0)
-    assertThat(redelivery.nackCount).isEqualTo(1)
+    assertThat(redelivery.ackCount).isEqualTo(1)
+    assertThat(redelivery.nackCount).isEqualTo(0)
     verifyBlocking(workItemAttemptsStub, times(3)) {
       failWorkItemAttempt(any(), any<io.grpc.Metadata>())
+    }
+    verifyBlocking(workItemAttemptsStub, times(3)) {
+      createWorkItemAttempt(any(), any<io.grpc.Metadata>())
     }
     job.cancelAndJoin()
   }
@@ -913,83 +927,111 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `leased worker failure and concurrent delivery are both nacked`() = runBlocking {
-    val workItemsStub = mock<WorkItemsCoroutineStub>()
-    val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
-    val workItemAttempt = workItemAttempt {
-      name = "workItems/workItem/workItemAttempts/workItemAttempt"
-      leaseExpirationTime = timestamp { seconds = 300L }
-    }
-    whenever(
-        workItemAttemptsStub.createWorkItemAttempt(
-          any<CreateWorkItemAttemptRequest>(),
-          any<io.grpc.Metadata>(),
-        )
-      )
-      .thenReturn(workItemAttempt)
-      .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
-    whenever(
-        workItemAttemptsStub.failWorkItemAttempt(
-          any<FailWorkItemAttemptRequest>(),
-          any<io.grpc.Metadata>(),
-        )
-      )
-      .thenReturn(workItemAttempt)
-    val originalSubscriber = FakeQueueSubscriber()
-    val duplicateSubscriber = FakeQueueSubscriber()
-    val workerStarted = CompletableDeferred<Unit>()
-    val releaseWorker = CompletableDeferred<Unit>()
-    val originalApp =
-      object :
-        BaseTeeApplication(
-          subscriptionId = SUBSCRIPTION_ID,
-          queueSubscriber = originalSubscriber,
-          parser = WorkItem.parser(),
-          workItemsStub = workItemsStub,
-          workItemAttemptsStub = workItemAttemptsStub,
-        ) {
-        override suspend fun runWork(message: Any) {
-          message.unpack(TestWork::class.java)
-          workerStarted.complete(Unit)
-          releaseWorker.await()
-          error("worker failed")
-        }
+  fun `duplicate physical message waits without nack and becomes replacement attempt`() =
+    runBlocking {
+      val workItemsStub = mock<WorkItemsCoroutineStub>()
+      val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
+      val originalAttempt = workItemAttempt {
+        name = "workItems/workItem/workItemAttempts/original"
+        leaseExpirationTime = timestamp { seconds = 300L }
       }
-    val duplicateApp =
-      BaseTeeApplicationImpl(
-        subscriptionId = SUBSCRIPTION_ID,
-        queueSubscriber = duplicateSubscriber,
-        parser = WorkItem.parser(),
-        workItemsStub,
-        workItemAttemptsStub,
+      val replacementAttempt = workItemAttempt {
+        name = "workItems/workItem/workItemAttempts/replacement"
+        leaseExpirationTime = timestamp { seconds = 600L }
+      }
+      whenever(
+          workItemAttemptsStub.createWorkItemAttempt(
+            any<CreateWorkItemAttemptRequest>(),
+            any<io.grpc.Metadata>(),
+          )
+        )
+        .thenReturn(originalAttempt)
+        .thenAnswer { throw makeCreateAttemptInvalidStateException(WorkItem.State.RUNNING) }
+        .thenReturn(replacementAttempt)
+      whenever(
+          workItemAttemptsStub.failWorkItemAttempt(
+            any<FailWorkItemAttemptRequest>(),
+            any<io.grpc.Metadata>(),
+          )
+        )
+        .thenReturn(originalAttempt)
+      whenever(
+          workItemAttemptsStub.completeWorkItemAttempt(
+            any<CompleteWorkItemAttemptRequest>(),
+            any<io.grpc.Metadata>(),
+          )
+        )
+        .thenReturn(replacementAttempt)
+      val originalSubscriber = FakeQueueSubscriber()
+      val duplicateSubscriber = FakeQueueSubscriber()
+      val workerStarted = CompletableDeferred<Unit>()
+      val releaseWorker = CompletableDeferred<Unit>()
+      val duplicateWaiting = CompletableDeferred<Unit>()
+      val releaseDuplicate = CompletableDeferred<Unit>()
+      val originalApp =
+        object :
+          BaseTeeApplication(
+            subscriptionId = SUBSCRIPTION_ID,
+            queueSubscriber = originalSubscriber,
+            parser = WorkItem.parser(),
+            workItemsStub = workItemsStub,
+            workItemAttemptsStub = workItemAttemptsStub,
+          ) {
+          override suspend fun runWork(message: Any) {
+            message.unpack(TestWork::class.java)
+            workerStarted.complete(Unit)
+            releaseWorker.await()
+            error("worker failed")
+          }
+        }
+      val duplicateApp =
+        BaseTeeApplicationImpl(
+          subscriptionId = SUBSCRIPTION_ID,
+          queueSubscriber = duplicateSubscriber,
+          parser = WorkItem.parser(),
+          workItemsStub,
+          workItemAttemptsStub,
+          activeAttemptRetryDelay = {
+            duplicateWaiting.complete(Unit)
+            releaseDuplicate.await()
+          },
+        )
+      val originalJob = launch { originalApp.run() }
+      val duplicateJob = launch { duplicateApp.run() }
+      val workItem = createWorkItem(createTestWork())
+      val originalConsumer = TestMessageConsumer()
+      val duplicateConsumer = TestMessageConsumer()
+
+      originalSubscriber.send(
+        QueueSubscriber.QueueMessage(workItem, "original-message", originalConsumer)
       )
-    val originalJob = launch { originalApp.run() }
-    val duplicateJob = launch { duplicateApp.run() }
-    val workItem = createWorkItem(createTestWork())
-    val broker = ReplacingAckBroker(workItem)
-    val originalDelivery = broker.deliver("original-ack-id")
+      withTimeout(5_000) { workerStarted.await() }
+      duplicateSubscriber.send(
+        QueueSubscriber.QueueMessage(workItem, "duplicate-message", duplicateConsumer)
+      )
+      withTimeout(5_000) { duplicateWaiting.await() }
+      assertThat(duplicateConsumer.disposition.isCompleted).isFalse()
+      releaseWorker.complete(Unit)
+      withTimeout(5_000) { originalConsumer.disposition.await() }
+      releaseDuplicate.complete(Unit)
+      withTimeout(5_000) { duplicateConsumer.disposition.await() }
 
-    originalSubscriber.send(originalDelivery.message)
-    workerStarted.await()
-    val duplicateDelivery = broker.deliver("duplicate-ack-id")
-    duplicateSubscriber.send(duplicateDelivery.message)
-    duplicateDelivery.disposition.await()
-    releaseWorker.complete(Unit)
-    originalDelivery.disposition.await()
-
-    assertThat(broker.acknowledged).isFalse()
-    assertThat(duplicateDelivery.ackCount).isEqualTo(0)
-    assertThat(duplicateDelivery.nackCount).isEqualTo(1)
-    assertThat(originalDelivery.ackCount).isEqualTo(0)
-    assertThat(originalDelivery.ackCallCount).isEqualTo(0)
-    assertThat(originalDelivery.nackCallCount).isEqualTo(1)
-    assertThat(originalDelivery.nackCount).isEqualTo(0)
-    verifyBlocking(workItemAttemptsStub, times(1)) {
-      failWorkItemAttempt(any(), any<io.grpc.Metadata>())
+      assertThat(originalConsumer.ackCount).isEqualTo(0)
+      assertThat(originalConsumer.nackCount).isEqualTo(1)
+      assertThat(duplicateConsumer.ackCount).isEqualTo(1)
+      assertThat(duplicateConsumer.nackCount).isEqualTo(0)
+      verifyBlocking(workItemAttemptsStub, times(3)) {
+        createWorkItemAttempt(any(), any<io.grpc.Metadata>())
+      }
+      verifyBlocking(workItemAttemptsStub, times(1)) {
+        failWorkItemAttempt(any(), any<io.grpc.Metadata>())
+      }
+      verifyBlocking(workItemAttemptsStub, times(1)) {
+        completeWorkItemAttempt(any(), any<io.grpc.Metadata>())
+      }
+      originalJob.cancelAndJoin()
+      duplicateJob.cancelAndJoin()
     }
-    originalJob.cancelAndJoin()
-    duplicateJob.cancelAndJoin()
-  }
 
   @Test
   fun `disabled worker waits without subscribing`() = runBlocking {
@@ -1199,50 +1241,6 @@ class BaseTeeApplicationTest {
         nackCount++
       }
       _disposition.complete(Disposition.NACK)
-    }
-  }
-
-  /** Models Pub/Sub replacing the acknowledgement ID for one logical delivery. */
-  private class ReplacingAckBroker(private val workItem: WorkItem) {
-    private var currentAckId: String? = null
-    var acknowledged = false
-      private set
-
-    fun deliver(ackId: String): Delivery {
-      currentAckId = ackId
-      val consumer =
-        TestMessageConsumer(
-          acceptAck = {
-            val current = currentAckId == ackId
-            if (current) acknowledged = true
-            current
-          },
-          acceptNack = { currentAckId == ackId },
-        )
-      return Delivery(
-        QueueSubscriber.QueueMessage(body = workItem, consumer = consumer, ackId = ackId),
-        consumer,
-      )
-    }
-
-    data class Delivery(
-      val message: QueueSubscriber.QueueMessage<WorkItem>,
-      val consumer: TestMessageConsumer,
-    ) {
-      val disposition: Deferred<Disposition>
-        get() = consumer.disposition
-
-      val ackCount: Int
-        get() = consumer.ackCount
-
-      val ackCallCount: Int
-        get() = consumer.ackCallCount
-
-      val nackCount: Int
-        get() = consumer.nackCount
-
-      val nackCallCount: Int
-        get() = consumer.nackCallCount
     }
   }
 

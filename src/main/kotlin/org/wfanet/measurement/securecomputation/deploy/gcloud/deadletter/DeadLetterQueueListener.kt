@@ -29,7 +29,7 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsG
 import org.wfanet.measurement.internal.securecomputation.controlplane.processWorkItemDeadLetterRequest
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.service.Errors
+import org.wfanet.measurement.securecomputation.service.internal.Errors
 
 /**
  * Consumes a dead-letter subscription and delegates generic WorkItem recovery to the WorkItems
@@ -93,7 +93,7 @@ class DeadLetterQueueListener(
       queueMessage.ack()
     } catch (e: StatusException) {
       when {
-        e.status.code == Status.Code.NOT_FOUND -> {
+        isWorkItemNotFound(e) -> {
           logger.warning("WorkItem not found: ${workItem.name}. Acknowledging message.")
           queueMessage.ack()
         }
@@ -124,15 +124,24 @@ class DeadLetterQueueListener(
   companion object {
     private val logger = Logger.getLogger(DeadLetterQueueListener::class.java.name)
 
+    fun isWorkItemNotFound(e: StatusException): Boolean {
+      val errorInfo = e.errorInfo
+      return e.status.code == Status.Code.NOT_FOUND &&
+        errorInfo?.domain == Errors.DOMAIN &&
+        errorInfo.reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
+    }
+
     fun isTerminalWorkItemError(e: StatusException): Boolean {
       val state = e.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
       return e.status.code == Status.Code.FAILED_PRECONDITION &&
+        e.errorInfo?.domain == Errors.DOMAIN &&
         e.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
         (state == WorkItem.State.FAILED.name || state == WorkItem.State.SUCCEEDED.name)
     }
 
     fun isStaleGenerationError(e: StatusException): Boolean {
       return e.status.code == Status.Code.FAILED_PRECONDITION &&
+        e.errorInfo?.domain == Errors.DOMAIN &&
         e.errorInfo?.reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name
     }
   }

@@ -40,9 +40,9 @@ service WorkItems {
 
   // Processes a delivery from a WorkItem dead-letter queue.
   //
-  // An active legacy attempt without a lease is failed and its WorkItem is
-  // atomically retried at the next generation. An active leased attempt is
-  // rejected so the delivery can be retried after the lease is recovered.
+  // An active unleased or expired attempt and its WorkItem are failed
+  // terminally. An active attempt with a current lease is rejected so the
+  // delivery can be retried after the worker completes or the lease expires.
   // Otherwise, the WorkItem is failed terminally.
   // (-- api-linter: core::0136::response-message-name=disabled
   //     aip.dev/not-precedent: This internal recovery RPC returns the affected
@@ -52,7 +52,8 @@ service WorkItems {
       returns (WorkItem);
 
   // Retries a FAILED WorkItem or a RUNNING WorkItem with no active attempt, or
-  // repairs publication for a QUEUED WorkItem.
+  // republishes a QUEUED WorkItem. If the previous QUEUED publication was
+  // acknowledged, the retry advances the WorkItem generation.
   //
   // An abandoned active attempt must be failed separately before retrying its
   // WorkItem.

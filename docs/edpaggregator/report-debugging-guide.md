@@ -698,13 +698,12 @@ Trace:
    [MIG not scaling to demand](#mig-not-scaling-to-demand)).
 
    **On the results-fulfiller dead-letter queue** (`results-fulfiller-queue-dlq-sub`
-   — distinct from the legacy data-watcher DLQ in step 3; this one holds work items
-   the fulfiller couldn't process): a message lands in the DLQ only after the
-   fulfiller has failed it `max_delivery_attempts` times (5 by default) — so a
-   requisition in the DLQ is one that repeatedly failed and **will not be retried**
-   automatically. The `CloudPubSubDeadLetterSourceDeliveryCount` attribute shows the
-   attempt count. Match a DLQ message to your requisition by its work-item payload
-   (it carries the requisitions blob path / groupId). If your requisition is in the
+   — distinct from the legacy data-watcher DLQ in step 3; this one holds WorkItems
+   whose delivery exhausted `max_delivery_attempts` (5 by default). The
+   workload-agnostic DLQ listener terminalizes the WorkItem but does not update
+   Requisition Metadata. The `CloudPubSubDeadLetterSourceDeliveryCount` attribute
+   shows the attempt count. Match a DLQ message to your requisition by its WorkItem
+   payload (it carries the requisitions blob path / groupId). If your requisition is in the
    DLQ, the fulfiller logs from those attempt windows hold the actual error
    (model-line, blob, or KMS above); the DLQ tells you it is terminally stuck, the
    logs tell you why. A metric cross-check:

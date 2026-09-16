@@ -679,7 +679,7 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `retryWorkItem does not republish queued WorkItem after publication is acknowledged`() =
+  fun `retryWorkItem republishes acknowledged queued WorkItem at new generation`() =
     runBlocking {
       var publicationCount = 0
       val services =
@@ -703,6 +703,18 @@ abstract class WorkItemsServiceTest {
           }
         )
 
+      val retried =
+        services.service.retryWorkItem(
+          retryWorkItemRequest {
+            workItemResourceId = created.workItemResourceId
+            expectedWorkItemGeneration = created.generation
+          }
+        )
+
+      assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(retried.generation).isEqualTo(created.generation + 1L)
+      assertThat(publicationCount).isEqualTo(2)
+
       val exception =
         assertFailsWith<StatusRuntimeException> {
           services.service.retryWorkItem(
@@ -714,8 +726,9 @@ abstract class WorkItemsServiceTest {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
-      assertThat(publicationCount).isEqualTo(1)
+      assertThat(exception.errorInfo?.reason)
+        .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+      assertThat(publicationCount).isEqualTo(2)
     }
 
   @Test
