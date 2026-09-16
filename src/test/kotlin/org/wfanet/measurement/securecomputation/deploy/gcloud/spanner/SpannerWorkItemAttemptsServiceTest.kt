@@ -202,6 +202,137 @@ class SpannerWorkItemAttemptsServiceTest : WorkItemAttemptsServiceTest() {
     }
 
   @Test
+  fun `expired attempt cannot be renewed or completed`() = runBlocking {
+    val clock = MutableClock(Instant.now())
+    val publicationRunner =
+      WorkItemPublicationRunner(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        RecordingPublisher(),
+        clock = clock,
+      )
+    val attemptsService =
+      SpannerWorkItemAttemptsService(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        Dispatchers.Default,
+        clock = clock,
+        attemptLeaseDuration = Duration.ofMinutes(5),
+      )
+    val workItemsService =
+      SpannerWorkItemsService(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        publicationRunner,
+      )
+    val workItem =
+      workItemsService.createWorkItem(
+        createWorkItemRequest {
+          this.workItem = workItem {
+            workItemResourceId = "expired-lease-work-item"
+            queueResourceId = QUEUE_RESOURCE_ID
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val attempt =
+      attemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          supportsAttemptLease = true
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "expired-lease-attempt"
+          }
+        }
+      )
+    clock.advance(Duration.ofMinutes(5))
+
+    val renewException =
+      kotlin.test.assertFailsWith<StatusRuntimeException> {
+        attemptsService.renewWorkItemAttempt(
+          renewWorkItemAttemptRequest {
+            workItemResourceId = attempt.workItemResourceId
+            workItemAttemptResourceId = attempt.workItemAttemptResourceId
+          }
+        )
+      }
+    val completeException =
+      kotlin.test.assertFailsWith<StatusRuntimeException> {
+        attemptsService.completeWorkItemAttempt(
+          completeWorkItemAttemptRequest {
+            workItemResourceId = attempt.workItemResourceId
+            workItemAttemptResourceId = attempt.workItemAttemptResourceId
+          }
+        )
+      }
+
+    assertThat(renewException.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(completeException.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `attempt without lease cannot be renewed`() = runBlocking {
+    val clock = MutableClock(Instant.now())
+    val publicationRunner =
+      WorkItemPublicationRunner(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        RecordingPublisher(),
+        clock = clock,
+      )
+    val attemptsService =
+      SpannerWorkItemAttemptsService(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        Dispatchers.Default,
+        clock = clock,
+      )
+    val workItemsService =
+      SpannerWorkItemsService(
+        spannerDatabase.databaseClient,
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        publicationRunner,
+      )
+    val workItem =
+      workItemsService.createWorkItem(
+        createWorkItemRequest {
+          this.workItem = workItem {
+            workItemResourceId = "unleased-renewal-work-item"
+            queueResourceId = QUEUE_RESOURCE_ID
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val attempt =
+      attemptsService.createWorkItemAttempt(
+        createWorkItemAttemptRequest {
+          expectedWorkItemGeneration = workItem.generation
+          workItemAttempt = workItemAttempt {
+            workItemResourceId = workItem.workItemResourceId
+            workItemAttemptResourceId = "unleased-attempt"
+          }
+        }
+      )
+
+    val exception =
+      kotlin.test.assertFailsWith<StatusRuntimeException> {
+        attemptsService.renewWorkItemAttempt(
+          renewWorkItemAttemptRequest {
+            workItemResourceId = attempt.workItemResourceId
+            workItemAttemptResourceId = attempt.workItemAttemptResourceId
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
   fun `attempt from caller without lease support is not reaped`() = runBlocking {
     val clock = MutableClock(Instant.now().plusSeconds(10))
     val publisher = RecordingPublisher()

@@ -152,6 +152,54 @@ class RequisitionFetcherConfigValidatorTest {
   }
 
   @Test
+  fun `deployment config requires requisition metadata storage connection`() {
+    val config =
+      RequisitionFetcherConfig.newBuilder()
+        .addConfigs(
+          validDataProviderConfig().toBuilder().clearRequisitionMetadataStorageConnection()
+        )
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        RequisitionFetcherConfigValidator.validate(
+          config,
+          CONTROL_PLANE_TARGET,
+          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+        )
+      }
+
+    assertThat(exception)
+      .hasMessageThat()
+      .contains("Missing 'requisition_metadata_storage_connection'")
+  }
+
+  @Test
+  fun `deployment config rejects non-canonical storage prefixes`() {
+    for (prefix in listOf("/direct", "direct/")) {
+      val config =
+        RequisitionFetcherConfig.newBuilder()
+          .addConfigs(
+            validDataProviderConfig().toBuilder().setWorkItemDispatch(
+              validDataProviderConfig().workItemDispatch.toBuilder().setStoragePathPrefix(prefix)
+            )
+          )
+          .build()
+
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          RequisitionFetcherConfigValidator.validate(
+            config,
+            CONTROL_PLANE_TARGET,
+            dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+          )
+        }
+
+      assertThat(exception).hasMessageThat().contains("must not start or end with '/'")
+    }
+  }
+
+  @Test
   fun `CLI validates textproto files`() {
     val fetcherFile = temporaryFolder.newFile("requisition-fetcher-config.textproto")
     fetcherFile.writeText(TextFormat.printer().printToString(validFetcherConfig()))
@@ -184,6 +232,7 @@ class RequisitionFetcherConfigValidatorTest {
       .setStoragePathPrefix("legacy")
       .setEdpPrivateKeyPath("/secrets/edp.key")
       .setCmmsConnection(tlsParams())
+      .setRequisitionMetadataStorageConnection(tlsParams())
       .setWorkItemDispatch(
         RequisitionWorkItemDispatchConfig.newBuilder()
           .setStoragePathPrefix("direct")

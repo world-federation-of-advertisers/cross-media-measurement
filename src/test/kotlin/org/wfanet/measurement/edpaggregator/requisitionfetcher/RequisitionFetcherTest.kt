@@ -954,7 +954,7 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `later dispatch failure does not overwrite earlier group success`() = runBlocking {
+  fun `dispatch failure preserves outcomes and does not block later groups`() = runBlocking {
     val requisitions =
       (1..5).map { index ->
         TestRequisitionData.REQUISITION.copy {
@@ -991,7 +991,7 @@ class RequisitionFetcherTest {
     assertThat(outcomesByRequisition[requisitions[1].name]).isEqualTo("succeeded")
     assertThat(outcomesByRequisition[requisitions[2].name]).isEqualTo("failed")
     assertThat(outcomesByRequisition[requisitions[3].name]).isEqualTo("failed")
-    assertThat(outcomesByRequisition).doesNotContainKey(requisitions[4].name)
+    assertThat(outcomesByRequisition[requisitions[4].name]).isEqualTo("succeeded")
   }
 
   @Test
@@ -1222,6 +1222,62 @@ class RequisitionFetcherTest {
     assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
       .containsExactly(newRequisition.name, newRequisition.name)
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(0)
+  }
+
+  @Test
+  fun `direct group dispatch failure does not block new group in same report`() = runBlocking {
+    val existingGroupId = "existing-direct-group"
+    val existingRequisition =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/existing"
+      }
+    val newRequisition =
+      TestRequisitionData.REQUISITION.copy {
+        name = "${TestRequisitionData.EDP_NAME}/requisitions/new"
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(
+        listRequisitionsResponse { requisitions += listOf(existingRequisition, newRequisition) }
+      )
+    storageClient.writeBlob("$DIRECT_STORAGE_PATH_PREFIX/$existingGroupId", ByteString.EMPTY)
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/existing"
+            state = RequisitionMetadata.State.QUEUED
+            cmmsRequisition = existingRequisition.name
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$existingGroupId"
+            groupId = existingGroupId
+            report = "some-report"
+            workItem = "workItems/results-fulfiller-$existingGroupId"
+            etag = "queued-etag"
+          }
+        }
+      )
+    val dispatchedGroupIds = mutableListOf<String>()
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String =
+          "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatchedGroupIds += groupId
+          if (groupId == existingGroupId) {
+            throw IllegalStateException("existing WorkItem is terminal")
+          }
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+    assertThat(dispatchedGroupIds).hasSize(2)
+    assertThat(dispatchedGroupIds.first()).isEqualTo(existingGroupId)
+    assertThat(dispatchedGroupIds.last()).isNotEqualTo(existingGroupId)
+    assertThat(registerQueuedRequisitionMetadataRequests).hasSize(1)
+    assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
+      .containsExactly(newRequisition.name)
+    assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
   }
 
   @Test
