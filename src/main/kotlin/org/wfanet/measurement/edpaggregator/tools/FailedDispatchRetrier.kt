@@ -48,13 +48,14 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * dead-lettered dispatch. Only `PROCESSING_FAILURE` rows are retryable; `EVICTED_OUTPUT` rows
  * require a replacement upload.
  *
- * It re-triggers the **furthest phase the model line reached** — detected from which per-phase job
- * rows exist: `VidLabelingJob`s ⇒ Phase 2 (`LABELING`), else `RankerJob`s ⇒ Phase 1 (`RANKING`),
- * else `PoolAssignmentJob`s ⇒ Phase 0 (`POOL_ASSIGNING`). It re-publishes that phase's original
- * WorkItem(s) under a fresh, deterministic id (a same-key re-publish would collide on the
- * producers' deterministic ids and never re-enqueue), then transitions the model line out of
- * `FAILED`. The TEE apps' idempotency gates (SUCCEEDED jobs, existing SNAPSHOT) skip
- * already-completed work.
+ * It normally re-triggers the **furthest phase the model line reached** — detected from which
+ * per-phase job rows exist: `VidLabelingJob`s ⇒ Phase 2 (`LABELING`), else `RankerJob`s ⇒ Phase 1
+ * (`RANKING`), else `PoolAssignmentJob`s ⇒ Phase 0 (`POOL_ASSIGNING`). If publication of that
+ * phase's WorkItems was interrupted, it replays the preceding phase so that phase's idempotent
+ * last-out recreates the missing fan-out. It publishes under fresh, deterministic IDs (a same-key
+ * re-publish would collide on the producers' deterministic IDs and never re-enqueue), then
+ * transitions the model line out of `FAILED`. The TEE apps' idempotency gates (SUCCEEDED jobs,
+ * existing SNAPSHOT) skip already-completed work.
  *
  * Re-triggering the *furthest* phase (rather than always Phase 0) matters for the memoized path: a
  * completed Phase-0 last-shard-out has already merged and deleted its temp per-shard blobs, so
@@ -97,8 +98,8 @@ class FailedDispatchRetrier(
    * @throws IllegalArgumentException if the model line is missing, was not a processing failure,
    *   has no failure-attempt identity, is neither `FAILED` nor the result of that failure's retry,
    *   [fromPhase] is not a phase state, or no jobs exist for the target phase to re-publish.
-   * @throws IllegalStateException if the claimed model line no longer represents this retry, or a
-   *   job's original WorkItem no longer exists (its dispatch never enqueued).
+   * @throws IllegalStateException if the claimed model line no longer represents this retry, or
+   *   missing original WorkItems cannot be reconstructed from the preceding phase.
    */
   suspend fun retryFailed(
     rawImpressionUpload: String,
@@ -164,24 +165,19 @@ class FailedDispatchRetrier(
           workItemIdsForPhase(rawImpressionUpload, cmmsModelLine, modelLine.state),
         )
       }
-    // Validate every source before claiming the model line so a missing WorkItem cannot strand the
-    // retry in an active state with nothing runnable.
-    val sourceWorkItems = mutableMapOf<String, WorkItem>()
-    for (oldId in phaseWorkItems.workItemIds) {
-      sourceWorkItems[oldId] = getRequiredWorkItem(oldId)
-    }
+    val retrySources = resolveRetrySources(rawImpressionUpload, cmmsModelLine, phaseWorkItems)
 
     // Claim the retry before publishing. The service rejects an evicted row atomically, while the
     // deterministic request ID lets a later invocation replay a claim whose publication crashed.
-    val updated = transition(modelLine, phaseWorkItems.phase, modelLine.failureAttemptId)
+    val updated = transition(modelLine, retrySources.phase, modelLine.failureAttemptId)
     check(
-      updated.state == phaseWorkItems.phase && updated.failureReason in RETRYABLE_FAILURE_REASONS
+      updated.state == retrySources.phase && updated.failureReason in RETRYABLE_FAILURE_REASONS
     ) {
       "${updated.name} changed to ${updated.state} with failure_reason " +
         "${updated.failureReason} while claiming the retry; no WorkItems were published"
     }
     var republished = 0
-    for ((oldId, sourceWorkItem) in sourceWorkItems) {
+    for ((oldId, sourceWorkItem) in retrySources.workItems) {
       if (republishWorkItem(oldId, sourceWorkItem, modelLine.failureAttemptId)) republished++
     }
 
@@ -190,6 +186,62 @@ class FailedDispatchRetrier(
       republished,
       updated.state,
       wasAlreadyStarted = modelLine.state != RawImpressionUploadModelLine.State.FAILED,
+    )
+  }
+
+  /** A phase and the existing WorkItems that can safely re-trigger it. */
+  private data class RetrySources(
+    val phase: RawImpressionUploadModelLine.State,
+    val workItems: Map<String, WorkItem>,
+  )
+
+  /**
+   * Loads every original WorkItem for [phaseWorkItems]. If a Phase-1 or Phase-2 fan-out was only
+   * partially published, replays one WorkItem from the preceding completed phase instead; that
+   * phase's idempotent last-out recreates all missing jobs and WorkItems from its persisted params.
+   */
+  private suspend fun resolveRetrySources(
+    uploadName: String,
+    cmmsModelLine: String,
+    phaseWorkItems: PhaseWorkItems,
+  ): RetrySources {
+    val sourceWorkItems = linkedMapOf<String, WorkItem>()
+    var missingWorkItem = false
+    for (workItemId in phaseWorkItems.workItemIds) {
+      val workItem = getWorkItemOrNull(workItemId)
+      if (workItem == null) {
+        missingWorkItem = true
+      } else {
+        sourceWorkItems[workItemId] = workItem
+      }
+    }
+    if (!missingWorkItem) return RetrySources(phaseWorkItems.phase, sourceWorkItems)
+
+    val precedingPhase =
+      when (phaseWorkItems.phase) {
+        RawImpressionUploadModelLine.State.RANKING ->
+          RawImpressionUploadModelLine.State.POOL_ASSIGNING
+        RawImpressionUploadModelLine.State.LABELING -> RawImpressionUploadModelLine.State.RANKING
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+          throw IllegalStateException(
+            "A Phase-0 WorkItem for $cmmsModelLine under $uploadName was never published and " +
+              "there is no preceding phase to reconstruct it."
+          )
+        else -> error("unreachable: ${phaseWorkItems.phase} is not a retry phase")
+      }
+    val precedingIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, precedingPhase)
+    for (workItemId in precedingIds) {
+      val workItem = getWorkItemOrNull(workItemId) ?: continue
+      logger.info(
+        "Some ${phaseWorkItems.phase} WorkItems were never published; re-triggering " +
+          "$precedingPhase through $workItemId to reconstruct the fan-out."
+      )
+      return RetrySources(precedingPhase, mapOf(workItemId to workItem))
+    }
+    throw IllegalStateException(
+      "Some ${phaseWorkItems.phase} WorkItems for $cmmsModelLine under $uploadName were never " +
+        "published, and no $precedingPhase WorkItem remains to reconstruct them; the phase " +
+        "cannot be re-published."
     )
   }
 
@@ -420,20 +472,16 @@ class FailedDispatchRetrier(
     return shards
   }
 
-  private suspend fun getRequiredWorkItem(workItemId: String): WorkItem =
-    try {
+  private suspend fun getWorkItemOrNull(workItemId: String): WorkItem? {
+    return try {
       rpcThrottlers.controlPlane.onReady {
         workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
       }
     } catch (e: StatusException) {
-      if (e.status.code == Status.Code.NOT_FOUND) {
-        throw IllegalStateException(
-          "WorkItem workItems/$workItemId not found; its dispatch never enqueued, so it " +
-            "cannot be re-published standalone."
-        )
-      }
+      if (e.status.code == Status.Code.NOT_FOUND) return null
       throw e
     }
+  }
 
   /**
    * Re-publishes [sourceWorkItem] as a retry of [oldWorkItemId] for [failureAttemptId]. Returns

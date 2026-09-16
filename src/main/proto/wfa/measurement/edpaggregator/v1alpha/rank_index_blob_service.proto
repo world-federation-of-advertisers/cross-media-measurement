@@ -21,6 +21,7 @@ import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/type/date.proto";
 import "wfa/measurement/edpaggregator/v1alpha/rank_index_blob.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_model_line.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -170,6 +171,17 @@ message ListRankIndexBlobsRequest {
     //     aip.dev/not-precedent: Explicit semantics for
     //     date comparison filter. --)
     google.type.Date max_event_date_on_or_before = 4
+        [(google.api.field_behavior) = OPTIONAL];
+
+    // Filter to blobs whose owning upload model line is in this set. Empty
+    // matches all states.
+    // (-- api-linter: core::0216::state-field-output-only=disabled
+    //     aip.dev/not-precedent: This is a filter input field, not
+    //     a resource state field. --)
+    // (-- api-linter: core::0140::prepositions=disabled
+    //     aip.dev/not-precedent: `_in` is the established repo convention
+    //     for set-membership filter fields. --)
+    repeated RawImpressionUploadModelLine.State model_line_state_in = 5
         [(google.api.field_behavior) = OPTIONAL];
   }
 

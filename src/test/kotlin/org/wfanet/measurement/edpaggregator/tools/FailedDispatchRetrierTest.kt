@@ -279,6 +279,88 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed replays Phase 0 when Phase 1 publication was partial`() = runBlocking {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(listVidLabelingJobsResponse {})
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(
+        listRankerJobsResponse {
+          rankerJobs += rankerJob { name = RANKER_JOB_NAME }
+          rankerJobs += rankerJob { name = SECOND_RANKER_JOB_NAME }
+        }
+      )
+    whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+      .thenReturn(
+        listPoolAssignmentJobsResponse {
+          poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
+        }
+      )
+    val firstRankerWorkItem = WorkItemIds.forVidRankBuilder(RANKER_JOB_NAME)
+    val missingRankerWorkItem = WorkItemIds.forVidRankBuilder(SECOND_RANKER_JOB_NAME)
+    val poolWorkItem = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 0)
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      when (val name = invocation.getArgument<GetWorkItemRequest>(0).name) {
+        "workItems/$firstRankerWorkItem",
+        "workItems/$poolWorkItem" -> workItem { queue = "q" }
+        "workItems/$missingRankerWorkItem" -> throw Status.NOT_FOUND.asRuntimeException()
+        else -> error("Unexpected WorkItem lookup: $name")
+      }
+    }
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
+      .thenReturn(
+        failedModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+      )
+
+    val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+    assertThat(createCaptor.firstValue.workItemId)
+      .isEqualTo(RequestIds.forRetriedWorkItem(poolWorkItem, FAILURE_ATTEMPT_ID))
+  }
+
+  @Test
+  fun `retryFailed replays Phase 1 when Phase 2 publication was partial`() = runBlocking {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME }
+          vidLabelingJobs += vidLabelingJob { name = SECOND_VID_JOB_NAME }
+        }
+      )
+    whenever(rankerJobService.listRankerJobs(any()))
+      .thenReturn(listRankerJobsResponse { rankerJobs += rankerJob { name = RANKER_JOB_NAME } })
+    val firstLabelingWorkItem = WorkItemIds.forVidLabeler(VID_JOB_NAME)
+    val missingLabelingWorkItem = WorkItemIds.forVidLabeler(SECOND_VID_JOB_NAME)
+    val rankerWorkItem = WorkItemIds.forVidRankBuilder(RANKER_JOB_NAME)
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      when (val name = invocation.getArgument<GetWorkItemRequest>(0).name) {
+        "workItems/$firstLabelingWorkItem",
+        "workItems/$rankerWorkItem" -> workItem { queue = "q" }
+        "workItems/$missingLabelingWorkItem" -> throw Status.NOT_FOUND.asRuntimeException()
+        else -> error("Unexpected WorkItem lookup: $name")
+      }
+    }
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLineRanking(any()))
+      .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.RANKING })
+
+    val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+    assertThat(createCaptor.firstValue.workItemId)
+      .isEqualTo(RequestIds.forRetriedWorkItem(rankerWorkItem, FAILURE_ATTEMPT_ID))
+  }
+
+  @Test
   fun `retryFailed re-triggers Phase 0 when only PoolAssignmentJobs exist`() {
     val result = runBlocking {
       stubFailedModelLine()
@@ -766,6 +848,7 @@ class FailedDispatchRetrierTest {
     private const val VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj1"
     private const val SECOND_VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj2"
     private const val RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj1"
+    private const val SECOND_RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj2"
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
   }

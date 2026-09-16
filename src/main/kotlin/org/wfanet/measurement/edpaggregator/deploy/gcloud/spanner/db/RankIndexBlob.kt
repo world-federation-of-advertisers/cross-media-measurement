@@ -37,6 +37,7 @@ import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlob
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.rankIndexBlob
 
 /**
@@ -249,6 +250,9 @@ fun AsyncDatabaseClient.ReadContext.readRankIndexBlobs(
       if (filter.hasMaxEventDateOnOrBefore()) {
         conjuncts.add("RankIndexBlob.MaxEventDate <= @maxEventDateOnOrBefore")
       }
+      if (filter.modelLineStateInList.isNotEmpty()) {
+        conjuncts.add("RawImpressionUploadModelLine.State IN UNNEST(@modelLineStateIn)")
+      }
     }
 
     if (after != null) {
@@ -284,6 +288,13 @@ fun AsyncDatabaseClient.ReadContext.readRankIndexBlobs(
         }
         if (filter.hasMaxEventDateOnOrBefore()) {
           bind("maxEventDateOnOrBefore").to(filter.maxEventDateOnOrBefore.toCloudDate())
+        }
+        if (filter.modelLineStateInList.isNotEmpty()) {
+          bind("modelLineStateIn")
+            .toProtoEnumArray(
+              filter.modelLineStateInList,
+              RawImpressionUploadModelLineState.getDescriptor(),
+            )
         }
       }
 
@@ -370,6 +381,10 @@ private object RankIndexBlobEntity {
     FROM
       RankIndexBlob
     JOIN RawImpressionUpload USING (DataProviderResourceId, RawImpressionUploadId)
+    JOIN RawImpressionUploadModelLine
+      ON RankIndexBlob.DataProviderResourceId = RawImpressionUploadModelLine.DataProviderResourceId
+      AND RankIndexBlob.RawImpressionUploadId = RawImpressionUploadModelLine.RawImpressionUploadId
+      AND RankIndexBlob.CmmsModelLine = RawImpressionUploadModelLine.CmmsModelLine
     """
       .trimIndent()
 

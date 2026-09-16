@@ -35,6 +35,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 import org.wfanet.measurement.edpaggregator.vidrankbuilder.EventIdDigestBytes
@@ -210,12 +211,13 @@ private constructor(
     }
 
     /**
-     * The cheap discovery half of [load]: lists every non-deleted `SNAPSHOT` blob for the
-     * `(dataProvider, modelLine)` across all uploads, keeps per `pool_offset` the one with the
+     * The cheap discovery half of [load]: lists non-deleted `SNAPSHOT` blobs owned by completed
+     * model lines or the currently labeling upload, keeps per `pool_offset` the one with the
      * greatest `create_time` (tie-broken by name), and returns those chosen blobs together with a
-     * content-identity [Key]. No blob bytes are downloaded here — this is the part that runs on
-     * EVERY WorkItem so [MemoizedRankIndexCache] can detect a changed snapshot set. Throws if no
-     * SNAPSHOT exists (the same fail-loud contract [load] had).
+     * content-identity [Key]. Snapshots owned by failed uploads are excluded. No blob bytes are
+     * downloaded here — this is the part that runs on EVERY WorkItem so [MemoizedRankIndexCache]
+     * can detect a changed snapshot set. Throws if no SNAPSHOT exists (the same fail-loud contract
+     * [load] had).
      */
     suspend fun resolveLatestBlobs(
       rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
@@ -235,6 +237,11 @@ private constructor(
                     ListRankIndexBlobsRequestKt.filter {
                       blobType = RankIndexBlob.BlobType.SNAPSHOT
                       cmmsModelLine = modelLine
+                      modelLineStateIn +=
+                        listOf(
+                          RawImpressionUploadModelLine.State.LABELING,
+                          RawImpressionUploadModelLine.State.COMPLETED,
+                        )
                     }
                   this.pageToken = pageToken
                 }

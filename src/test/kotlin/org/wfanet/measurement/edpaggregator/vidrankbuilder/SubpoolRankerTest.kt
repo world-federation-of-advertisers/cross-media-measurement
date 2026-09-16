@@ -52,6 +52,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
@@ -226,6 +227,13 @@ class SubpoolRankerTest {
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
+    val priorSnapshotRequest =
+      fake.listRequests.single {
+        it.parent.endsWith("/-") && it.filter.blobType == RankIndexBlob.BlobType.SNAPSHOT
+      }
+    assertThat(priorSnapshotRequest.filter.modelLineStateInList)
+      .containsExactly(RawImpressionUploadModelLine.State.COMPLETED)
+      .inOrder()
   }
 
   @Test
@@ -783,6 +791,7 @@ class SubpoolRankerTest {
   /** In-memory fake of the `RankIndexBlobService` honoring parent wildcard + filters. */
   private class FakeRankIndexBlobs {
     val rows = mutableListOf<RankIndexBlob>()
+    val listRequests = mutableListOf<ListRankIndexBlobsRequest>()
     private var clock = 10L
 
     fun seed(row: RankIndexBlob) {
@@ -793,6 +802,7 @@ class SubpoolRankerTest {
       onBlocking { listRankIndexBlobs(any(), any()) } doAnswer
         { invocation ->
           val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
+          listRequests += request
           val filter = request.filter
           val matched =
             rows.filter { row ->

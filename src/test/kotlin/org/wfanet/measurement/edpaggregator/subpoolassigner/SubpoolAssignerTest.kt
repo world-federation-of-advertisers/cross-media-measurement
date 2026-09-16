@@ -346,7 +346,7 @@ class SubpoolAssignerTest {
   }
 
   @Test
-  fun `last shard with no in-window impressions completes the model line`() = runBlocking {
+  fun `last shard with no timestamped impressions completes the model line`() = runBlocking {
     val store = storeMock()
     val ranker = rankerStubMock()
     val workItems = workItemsStubMock()

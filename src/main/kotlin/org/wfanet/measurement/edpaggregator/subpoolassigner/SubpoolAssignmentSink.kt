@@ -58,10 +58,11 @@ class SubpoolAssignmentSink(
     get() = labeledCounter.get()
 
   /**
-   * Latest event timestamp (epoch microseconds) among in-window events, or `null` if none exist.
-   * [SubpoolAssigner] reduces this with the other shards' values into the `max_event_date` it
-   * reports on `MarkPoolAssignmentJobSucceeded`. Tracking hash-fallback events too lets an upload
-   * with no ranked-subpool matches continue through Phase 1 and into Phase 2.
+   * Latest set event timestamp (epoch microseconds), including events outside [activeWindow], or
+   * `null` if none exist. [SubpoolAssigner] reduces this with the other shards' values into the
+   * `max_event_date` it reports on `MarkPoolAssignmentJobSucceeded`. Tracking every timestamp lets
+   * an upload with no in-window or ranked-subpool matches continue to Phase 2, which publishes its
+   * availability marker even when it produces no labeled impressions.
    */
   val maxTimestampUsec: Long?
     get() = maxTimestampUsecValue.get().let { if (it == Long.MIN_VALUE) null else it }
@@ -85,12 +86,16 @@ class SubpoolAssignmentSink(
     var maxTimestampInBatch = Long.MIN_VALUE
     for (event in events) {
       val input = mapper.project(event.row)
-      if (!input.hasTimestampUsec() || !activeWindow.contains(input.timestampUsec)) {
+      if (!input.hasTimestampUsec()) {
         droppedInBatch++
         continue
       }
       if (input.timestampUsec > maxTimestampInBatch) {
         maxTimestampInBatch = input.timestampUsec
+      }
+      if (!activeWindow.contains(input.timestampUsec)) {
+        droppedInBatch++
+        continue
       }
       // Hand each primitive pool offset straight to the accumulator (no boxed List<Long>); the
       // return count says whether the event routed anywhere.

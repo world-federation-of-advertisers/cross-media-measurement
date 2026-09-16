@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import io.grpc.Status
@@ -59,9 +60,9 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
-import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
@@ -87,7 +88,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
@@ -107,6 +107,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -914,19 +916,26 @@ class VidLabelingMonitorTest {
           }
         }
       )
-    stubShardResolution(memoized = true)
-    whenever(modelLinesService.getModelLine(any()))
-      .thenReturn(org.wfanet.measurement.api.v2alpha.modelLine { name = MODEL_LINE })
-    whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer { invocation
-      ->
-      val request = invocation.getArgument<BatchCreatePoolAssignmentJobsRequest>(0)
-      batchCreatePoolAssignmentJobsResponse {
-        request.requestsList.forEachIndexed { index, createRequest ->
-          poolAssignmentJobs +=
-            createRequest.poolAssignmentJob.copy {
-              name = "$uploadName/poolAssignmentJobs/pa$index"
-            }
+    val originalParams =
+      SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy {
+        rawImpressionUpload = uploadName
+        modelLine = MODEL_LINE
+        modelBlobPath = "gs://models/original-model"
+        poolAssignmentJob = "$uploadName/poolAssignmentJobs/pa0"
+        shardIndex = 0
+        totalShards = NUMBER_OF_SHARDS
+      }
+    val originalWorkItem = WorkItemIds.forSubpoolAssigner(uploadName, MODEL_LINE, 0)
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<GetWorkItemRequest>(0)
+      if (request.name == "workItems/$originalWorkItem") {
+        workItem {
+          queue = "queues/original-pool-assigner"
+          workItemParams =
+            WorkItemParams.newBuilder().setAppParams(originalParams.pack()).build().pack()
         }
+      } else {
+        throw Status.NOT_FOUND.asRuntimeException()
       }
     }
     var publicationCount = 0
@@ -946,8 +955,25 @@ class VidLabelingMonitorTest {
     val result = createMonitor().runHealth()
 
     assertThat(result.recoveredTransitions).isEqualTo(1)
-    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
-    verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+      createWorkItem(createCaptor.capture())
+    }
+    val missingShardRequest =
+      createCaptor.allValues.single {
+        it.workItemId == WorkItemIds.forSubpoolAssigner(uploadName, MODEL_LINE, 1)
+      }
+    val resumedParams =
+      missingShardRequest.workItem.workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(SubpoolAssignerParams::class.java)
+    assertThat(missingShardRequest.workItem.queue).isEqualTo("queues/original-pool-assigner")
+    assertThat(resumedParams.modelBlobPath).isEqualTo("gs://models/original-model")
+    assertThat(resumedParams.shardIndex).isEqualTo(1)
+    verifyBlocking(modelRolloutsService, never()) { listModelRollouts(any()) }
+    verifyBlocking(modelShardsService, never()) { listModelShards(any()) }
+    verifyBlocking(modelLinesService, never()) { getModelLine(any()) }
   }
 
   @Test

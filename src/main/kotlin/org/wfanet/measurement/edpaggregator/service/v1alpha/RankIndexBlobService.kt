@@ -42,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
@@ -52,6 +53,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsResponse as InternalListResponse
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlob as InternalRankIndexBlob
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub as InternalRankIndexBlobServiceStub
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as InternalModelLineState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRankIndexBlobsRequest as internalBatchCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteRankIndexBlobsRequest as internalBatchDeleteRequest
 import org.wfanet.measurement.internal.edpaggregator.createRankIndexBlobRequest as internalCreateRequest
@@ -218,6 +220,15 @@ class RankIndexBlobService(
       throw InvalidFieldValueException("filter.blob_type")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (
+      request.hasFilter() &&
+        request.filter.modelLineStateInList.any {
+          it == RawImpressionUploadModelLine.State.UNRECOGNIZED
+        }
+    ) {
+      throw InvalidFieldValueException("filter.model_line_state_in")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val internalPageToken: InternalListPageToken? =
       if (request.pageToken.isEmpty()) {
@@ -259,6 +270,8 @@ class RankIndexBlobService(
                   if (request.filter.hasMaxEventDateOnOrBefore()) {
                     maxEventDateOnOrBefore = request.filter.maxEventDateOnOrBefore
                   }
+                  modelLineStateIn +=
+                    request.filter.modelLineStateInList.map { it.toInternalModelLineState() }
                 }
             }
           }
@@ -546,3 +559,23 @@ internal fun RankIndexBlob.BlobType.toInternal(): InternalBlobType {
     RankIndexBlob.BlobType.UNRECOGNIZED -> error("Unrecognized blob type")
   }
 }
+
+/** Converts a public model-line state to its internal representation for list filtering. */
+private fun RawImpressionUploadModelLine.State.toInternalModelLineState(): InternalModelLineState =
+  when (this) {
+    RawImpressionUploadModelLine.State.STATE_UNSPECIFIED ->
+      InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_UNSPECIFIED
+    RawImpressionUploadModelLine.State.CREATED ->
+      InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED
+    RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+      InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+    RawImpressionUploadModelLine.State.RANKING ->
+      InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING
+    RawImpressionUploadModelLine.State.LABELING ->
+      InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+    RawImpressionUploadModelLine.State.COMPLETED ->
+      InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+    RawImpressionUploadModelLine.State.FAILED ->
+      InternalModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
+    RawImpressionUploadModelLine.State.UNRECOGNIZED -> error("Unrecognized model-line state")
+  }

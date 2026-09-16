@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
@@ -37,6 +38,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
@@ -62,9 +64,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /**
@@ -241,10 +245,97 @@ class VidLabelingDispatchSequencer(
   suspend fun resumeMemoizedDispatch(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
+    poolAssignmentJobs: List<PoolAssignmentJob>,
   ): Boolean {
+    val persistedDispatch =
+      findPersistedPhaseZeroDispatch(uploadName, modelLine.cmmsModelLine, poolAssignmentJobs)
+    if (persistedDispatch != null) {
+      return resumePersistedMemoizedDispatch(
+        uploadName,
+        modelLine,
+        poolAssignmentJobs,
+        persistedDispatch.queue,
+        persistedDispatch.params,
+      )
+    }
     val shardInfo = resolveShardInfo(modelLine.cmmsModelLine) ?: return false
     if (!shardInfo.memoizationEnabled) return false
-    return dispatchMemoized(uploadName, modelLine, shardInfo)
+    return dispatchMemoized(uploadName, modelLine, shardInfo, poolAssignmentJobs)
+  }
+
+  /** The original queue and parameters copied from an already-published Phase-0 WorkItem. */
+  private data class PersistedPhaseZeroDispatch(
+    val queue: String,
+    val params: SubpoolAssignerParams,
+  )
+
+  /**
+   * Returns the first original Phase-0 publication for this dispatch. A partial publication has at
+   * least one such WorkItem, whose immutable parameters are the authoritative dispatch snapshot.
+   */
+  private suspend fun findPersistedPhaseZeroDispatch(
+    uploadName: String,
+    modelLineName: String,
+    poolAssignmentJobs: List<PoolAssignmentJob>,
+  ): PersistedPhaseZeroDispatch? {
+    for (job in poolAssignmentJobs.sortedBy { it.shardIndex }) {
+      val shardIndex = job.shardIndex
+      val workItemId = WorkItemIds.forSubpoolAssigner(uploadName, modelLineName, shardIndex)
+      val existing =
+        try {
+          rpcThrottlers.controlPlane.onReady {
+            workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+          }
+        } catch (e: StatusException) {
+          if (e.status.code == Status.Code.NOT_FOUND) continue
+          throw e
+        }
+      val params =
+        existing.workItemParams
+          .unpack(WorkItemParams::class.java)
+          .appParams
+          .unpack(SubpoolAssignerParams::class.java)
+      return PersistedPhaseZeroDispatch(existing.queue, params)
+    }
+    return null
+  }
+
+  /** Re-publishes missing shards from the parameters captured by an earlier Phase-0 publication. */
+  private suspend fun resumePersistedMemoizedDispatch(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+    poolAssignmentJobs: List<PoolAssignmentJob>,
+    queue: String,
+    persistedParams: SubpoolAssignerParams,
+  ): Boolean {
+    check(persistedParams.rawImpressionUpload == uploadName) {
+      "Persisted Phase-0 parameters belong to ${persistedParams.rawImpressionUpload}, not " +
+        uploadName
+    }
+    check(persistedParams.modelLine == modelLine.cmmsModelLine) {
+      "Persisted Phase-0 parameters belong to ${persistedParams.modelLine}, not " +
+        modelLine.cmmsModelLine
+    }
+    val jobsByShard = poolAssignmentJobs.associateBy { it.shardIndex }
+    check(
+      jobsByShard.size == persistedParams.totalShards &&
+        jobsByShard.keys == (0 until persistedParams.totalShards).toSet()
+    ) {
+      "Expected ${persistedParams.totalShards} persisted PoolAssignmentJobs for " +
+        "${modelLine.cmmsModelLine}; found shards ${jobsByShard.keys.sorted()}"
+    }
+    if (!markPoolAssigning(modelLine.name, modelLine.etag)) return false
+    for (shardIndex in 0 until persistedParams.totalShards) {
+      val job = checkNotNull(jobsByShard[shardIndex])
+      createSubpoolAssignerWorkItem(
+        persistedParams.copy {
+          poolAssignmentJob = job.name
+          this.shardIndex = shardIndex
+        },
+        queue,
+      )
+    }
+    return true
   }
 
   /**
@@ -399,6 +490,7 @@ class VidLabelingDispatchSequencer(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
+    precreatedJobs: List<PoolAssignmentJob>? = null,
   ): Boolean {
     // `vid_rank_map_storage_params`, `subpool_map_storage_params`, and `model_storage_params` are
     // REQUIRED on `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for
@@ -431,13 +523,22 @@ class VidLabelingDispatchSequencer(
 
     // Pre-create the shard rows first; the server assigns each a name we thread into its WorkItem.
     val poolAssignmentJobsByShard: Map<Int, String> =
-      createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
+      precreatedJobs?.associate { it.shardIndex to it.name }
+        ?: createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
+    val totalShards = precreatedJobs?.size ?: numberOfShards
+    check(
+      poolAssignmentJobsByShard.size == totalShards &&
+        poolAssignmentJobsByShard.keys == (0 until totalShards).toSet()
+    ) {
+      "Expected $totalShards PoolAssignmentJobs for ${modelLine.cmmsModelLine}; found shards " +
+        poolAssignmentJobsByShard.keys.sorted()
+    }
 
     // Claim the parent before workers can consume their messages. If publication is interrupted,
     // the monitor re-enters this idempotent method and fills in the missing deterministic IDs.
     if (!markPoolAssigning(modelLine.name, modelLine.etag)) return false
 
-    for (shardIndex in 0 until numberOfShards) {
+    for (shardIndex in 0 until totalShards) {
       val poolAssignmentJob: String =
         requireNotNull(poolAssignmentJobsByShard[shardIndex]) {
           "BatchCreatePoolAssignmentJobs returned no job for shard $shardIndex of " +
@@ -451,6 +552,7 @@ class VidLabelingDispatchSequencer(
         modelLineConfig = modelLineConfig,
         poolAssignmentJob = poolAssignmentJob,
         shardIndex = shardIndex,
+        totalShards = totalShards,
       )
     }
     return true
@@ -808,6 +910,7 @@ class VidLabelingDispatchSequencer(
     modelLineConfig: VidLabelerParams.ModelLineConfig,
     poolAssignmentJob: String,
     shardIndex: Int,
+    totalShards: Int,
   ) {
     // Start from the shared template (data provider, storage params, TLS connection) and fill in
     // the per-shard fields. `copy` carries every template field, so a field added to the template
@@ -822,7 +925,7 @@ class VidLabelingDispatchSequencer(
           activeEndTime = resolvedModelLine.activeEndTime
         }
         this.shardIndex = shardIndex
-        totalShards = numberOfShards
+        this.totalShards = totalShards
         labelerInputFieldMapping.addAll(modelLineConfig.labelerInputFieldMappingList)
         eventTemplateFieldMapping.putAll(modelLineConfig.eventTemplateFieldMappingMap)
         // Pass-through so the Phase-1 last-out can stamp the event-template descriptor (which
@@ -839,11 +942,21 @@ class VidLabelingDispatchSequencer(
         this.poolAssignmentJob = poolAssignmentJob
       }
 
-    val workItemId = WorkItemIds.forSubpoolAssigner(uploadName, modelLineName, shardIndex)
+    createSubpoolAssignerWorkItem(params, poolAssignerQueueName)
+  }
+
+  /** Publishes one Phase-0 WorkItem with already-resolved immutable [params]. */
+  private suspend fun createSubpoolAssignerWorkItem(params: SubpoolAssignerParams, queue: String) {
+    val workItemId =
+      WorkItemIds.forSubpoolAssigner(
+        params.rawImpressionUpload,
+        params.modelLine,
+        params.shardIndex,
+      )
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {
-        queue = poolAssignerQueueName
+        this.queue = queue
         workItemParams = workItemParams { appParams = params.pack() }.pack()
       }
     }
@@ -859,7 +972,8 @@ class VidLabelingDispatchSequencer(
       throw e
     }
     logger.info(
-      "Created SubpoolAssigner WorkItem $workItemId for model line $modelLineName shard $shardIndex"
+      "Created SubpoolAssigner WorkItem $workItemId for model line ${params.modelLine} shard " +
+        params.shardIndex
     )
   }
 

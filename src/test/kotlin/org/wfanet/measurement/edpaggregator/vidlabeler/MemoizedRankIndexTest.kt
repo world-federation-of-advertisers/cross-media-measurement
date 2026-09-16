@@ -34,6 +34,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.mock
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
@@ -41,9 +42,11 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
@@ -109,8 +112,16 @@ class MemoizedRankIndexTest {
   }
 
   private fun stubReturning(rows: List<RankIndexBlob>): RankIndexBlobServiceCoroutineStub = mock {
-    onBlocking { listRankIndexBlobs(any(), any()) } doReturn
-      listRankIndexBlobsResponse { rankIndexBlobs += rows }
+    onBlocking { listRankIndexBlobs(any(), any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<ListRankIndexBlobsRequest>(0)
+        assertThat(request.filter.modelLineStateInList)
+          .containsExactly(
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+        listRankIndexBlobsResponse { rankIndexBlobs += rows }
+      }
   }
 
   @Test

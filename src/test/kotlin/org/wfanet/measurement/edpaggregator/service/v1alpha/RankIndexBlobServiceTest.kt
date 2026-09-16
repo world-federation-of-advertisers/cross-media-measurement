@@ -50,6 +50,7 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -553,6 +554,29 @@ class RankIndexBlobServiceTest {
       assertThat(response.rankIndexBlobsList).hasSize(1)
       assertThat(response.rankIndexBlobsList.first().blobType)
         .isEqualTo(RankIndexBlob.BlobType.DAY_ONLY)
+    }
+
+  @Test
+  fun `listRankIndexBlobs filters by owning model line state`() =
+    runBlocking<Unit> {
+      createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
+      createBlob()
+      setParentModelLineState(
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED
+      )
+
+      val response =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = UPLOAD_KEY.toName()
+            filter =
+              ListRankIndexBlobsRequestKt.filter {
+                modelLineStateIn += RawImpressionUploadModelLine.State.COMPLETED
+              }
+          }
+        )
+
+      assertThat(response.rankIndexBlobsList).isEmpty()
     }
 
   @Test

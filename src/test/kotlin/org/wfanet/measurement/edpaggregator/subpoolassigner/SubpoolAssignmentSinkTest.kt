@@ -138,7 +138,7 @@ class SubpoolAssignmentSinkTest {
     }
 
   @Test
-  fun `max event timestamp is null when every event is outside the active window`() =
+  fun `max event timestamp is retained when every event is outside the active window`() =
     runBlocking<Unit> {
       val accumulator = SubpoolFingerprintsAccumulator()
       val labeler = FakePoolEmitLabeler { listOf(1L) }
@@ -146,7 +146,7 @@ class SubpoolAssignmentSinkTest {
 
       sink.processBatch(listOf(event("early", ts = 100L, hi = 1L, lo = 1)))
 
-      assertThat(sink.maxTimestampUsec).isNull()
+      assertThat(sink.maxTimestampUsec).isEqualTo(100L)
     }
 
   @Test

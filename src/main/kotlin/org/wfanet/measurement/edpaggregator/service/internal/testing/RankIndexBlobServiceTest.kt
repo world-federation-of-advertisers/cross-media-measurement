@@ -790,6 +790,44 @@ abstract class RankIndexBlobServiceTest {
     }
 
   @Test
+  fun `listRankIndexBlobs filters by owning model line state`() =
+    runBlocking<Unit> {
+      val failedBlob = createBlob(poolOffset = 0L)
+      setParentModelLineState(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        CMMS_MODEL_LINE,
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
+      )
+      createParentUpload(DATA_PROVIDER_RESOURCE_ID, SECOND_UPLOAD_RESOURCE_ID)
+      val completedBlob = createBlob(uploadResourceId = SECOND_UPLOAD_RESOURCE_ID, poolOffset = 1L)
+      setParentModelLineState(
+        DATA_PROVIDER_RESOURCE_ID,
+        SECOND_UPLOAD_RESOURCE_ID,
+        CMMS_MODEL_LINE,
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
+      )
+
+      val response =
+        service.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            filter =
+              ListRankIndexBlobsRequestKt.filter {
+                cmmsModelLine = CMMS_MODEL_LINE
+                modelLineStateIn +=
+                  RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+              }
+          }
+        )
+
+      assertThat(response.rankIndexBlobsList.map { it.rankIndexBlobResourceId })
+        .containsExactly(completedBlob.rankIndexBlobResourceId)
+      assertThat(response.rankIndexBlobsList.map { it.rankIndexBlobResourceId })
+        .doesNotContain(failedBlob.rankIndexBlobResourceId)
+    }
+
+  @Test
   fun `listRankIndexBlobs filters by pool_offset`() =
     runBlocking<Unit> {
       createBlob(poolOffset = 0L)

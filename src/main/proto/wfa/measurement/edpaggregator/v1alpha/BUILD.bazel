@@ -436,6 +436,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":rank_index_blob_proto",
+        ":raw_impression_upload_model_line_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",

@@ -634,7 +634,7 @@ class VidLabelingMonitor(
       return RecoveryOutcome.NOOP
     }
     if (jobs.any { it.state == PoolAssignmentJob.State.CREATED }) {
-      return if (dispatchSequencer.resumeMemoizedDispatch(uploadName, modelLine)) {
+      return if (dispatchSequencer.resumeMemoizedDispatch(uploadName, modelLine, jobs)) {
         RecoveryOutcome.RECOVERED
       } else {
         RecoveryOutcome.NOOP

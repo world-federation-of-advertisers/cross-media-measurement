@@ -42,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
@@ -607,9 +608,11 @@ class SubpoolRanker(
   /**
    * The newest non-deleted `SNAPSHOT` blob for [poolOffset] of this (data provider, model line)
    * across all uploads, or `null` on a cold (Day-1) subpool. The most recent `create_time` is the
-   * current cumulative state (the design's N−1 recovery baseline). A backfill writes a `SNAPSHOT`
-   * too (the latest cumulative plus the backfill's fingerprints), so the most recent `create_time`
-   * always reflects the most complete cumulative.
+   * current cumulative state (the design's N−1 recovery baseline). Only snapshots owned by a
+   * completed model line are eligible, so a snapshot committed immediately before its upload fails
+   * cannot become a later upload's starting point. A backfill writes a `SNAPSHOT` too (the latest
+   * cumulative plus the backfill's fingerprints), so the most recent `create_time` always reflects
+   * the most complete cumulative.
    *
    * TODO(world-federation-of-advertisers/cross-media-measurement#4008): this lists every
    *   non-deleted SNAPSHOT across all uploads and scans for the newest — O(all snapshots), which
@@ -630,6 +633,7 @@ class SubpoolRanker(
                     blobType = RankIndexBlob.BlobType.SNAPSHOT
                     cmmsModelLine = modelLine
                     this.poolOffset = poolOffset
+                    modelLineStateIn += RawImpressionUploadModelLine.State.COMPLETED
                   }
                 this.pageToken = pageToken
               }
@@ -712,6 +716,7 @@ class SubpoolRanker(
                     cmmsModelLine = modelLine
                     this.poolOffset = poolOffset
                     maxEventDateOnOrBefore = cutoff
+                    modelLineStateIn += RawImpressionUploadModelLine.State.COMPLETED
                   }
                 this.pageToken = pageToken
               }

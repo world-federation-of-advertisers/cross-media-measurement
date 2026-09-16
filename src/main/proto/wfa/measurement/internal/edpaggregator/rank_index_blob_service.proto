@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "wfa/measurement/internal/edpaggregator/blob_type.proto";
 import "wfa/measurement/internal/edpaggregator/rank_index_blob.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -127,6 +128,10 @@ message ListRankIndexBlobsRequest {
     // Filter for blobs with max_event_date on or before
     // this value. Used for retention policy queries.
     google.type.Date max_event_date_on_or_before = 4;
+
+    // Filter to blobs whose owning upload model line is in this set. Empty
+    // matches all states.
+    repeated RawImpressionUploadModelLineState model_line_state_in = 5;
   }
   Filter filter = 5;
 
