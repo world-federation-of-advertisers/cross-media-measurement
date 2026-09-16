@@ -25,6 +25,7 @@ import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.ReceiveChannel
@@ -144,12 +145,8 @@ abstract class BaseTeeApplication(
           val invalidTerminalState =
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
               workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
-          val activeAttempt =
-            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
-              workItemState == WorkItem.State.RUNNING.name
           if (
             invalidTerminalState ||
-              activeAttempt ||
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {
@@ -198,27 +195,27 @@ abstract class BaseTeeApplication(
         failWorkItem(workItemName, body.generation.takeUnless { it == 0L } ?: 1L)
         logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
         queueMessage.ack()
+      } catch (error: CancellationException) {
+        throw error
       } catch (error: Throwable) {
         logger.log(Level.SEVERE, error) {
           "Failed to report work item failure. Nacking message ${queueMessage.ackId}"
         }
         queueMessage.nack()
       }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      val failureReported =
-        runCatching { failWorkItemAttempt(workItemAttempt, e) }
-          .onFailure { error ->
-            logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
-          }
-          .isSuccess
-      if (workItemAttempt.hasLeaseExpirationTime() && failureReported) {
-        logger.info("WorkItemAttempt failure reported. Acking message ${queueMessage.ackId}")
-        queueMessage.ack()
-      } else {
-        logger.info("Nacking message ${queueMessage.ackId} after error")
-        queueMessage.nack()
+      try {
+        failWorkItemAttempt(workItemAttempt, e)
+        logger.info("WorkItemAttempt failure reported. Nacking message ${queueMessage.ackId}")
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Exception) {
+        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
       }
+      queueMessage.nack()
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }

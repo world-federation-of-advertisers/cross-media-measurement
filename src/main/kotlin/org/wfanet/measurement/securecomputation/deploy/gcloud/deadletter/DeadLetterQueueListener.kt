@@ -21,6 +21,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.channels.ReceiveChannel
 import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem as InternalWorkItem
@@ -57,6 +58,8 @@ class DeadLetterQueueListener(
     for (message in messageChannel) {
       try {
         processMessage(message)
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         logger.log(Level.SEVERE, "Unexpected error processing dead letter queue message", e)
       }
@@ -106,6 +109,8 @@ class DeadLetterQueueListener(
           queueMessage.nack()
         }
       }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       logger.log(Level.SEVERE, "Unexpected error processing message", e)
       queueMessage.nack()
