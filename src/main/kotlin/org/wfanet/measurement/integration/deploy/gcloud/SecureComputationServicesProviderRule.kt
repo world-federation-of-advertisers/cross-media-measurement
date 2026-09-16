@@ -50,7 +50,6 @@ class SecureComputationServicesProviderRule(
             InternalApiServices(workItemPublisher, spannerDatabase.databaseClient, queueMapping)
           val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
           backgroundScope.launch { internalServices.workItemPublicationRunner.run() }
-          backgroundScope.launch { internalServices.workItemAttemptLeaseReaper.run() }
           try {
             base.evaluate()
           } finally {

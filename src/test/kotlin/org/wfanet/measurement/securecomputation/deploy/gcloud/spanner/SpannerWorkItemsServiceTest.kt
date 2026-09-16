@@ -85,7 +85,7 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
   }
 
   @Test
-  fun `legacy DLQ recovery keeps outbox row when immediate publication fails`() = runBlocking {
+  fun `legacy DLQ terminalization removes outbox without publishing`() = runBlocking {
     var publicationCount = 0
     val services =
       initServices(
@@ -118,7 +118,7 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
       }
     )
 
-    val recovered =
+    val failed =
       services.service.processWorkItemDeadLetter(
         processWorkItemDeadLetterRequest {
           workItemResourceId = created.workItemResourceId
@@ -136,9 +136,10 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
         transaction.workItemPublicationExists(workItemId)
       }
 
-    assertThat(recovered.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(recovered.generation).isEqualTo(2L)
-    assertThat(publicationExists).isTrue()
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(created.generation)
+    assertThat(publicationExists).isFalse()
+    assertThat(publicationCount).isEqualTo(1)
   }
 
   @Test
@@ -210,7 +211,7 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
   }
 
   @Test
-  fun `queued dead letter replaces existing publication`() = runBlocking {
+  fun `queued dead letter removes existing publication`() = runBlocking {
     val services =
       initServices(
         TestConfig.QUEUE_MAPPING,
@@ -239,7 +240,7 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
       transaction.insertWorkItemPublication(workItemId, Instant.now().plusSeconds(3600))
     }
 
-    val retried =
+    val failed =
       services.service.processWorkItemDeadLetter(
         processWorkItemDeadLetterRequest {
           workItemResourceId = created.workItemResourceId
@@ -247,8 +248,8 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
         }
       )
 
-    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(retried.generation).isEqualTo(created.generation + 1L)
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(created.generation)
     val publicationExists =
       spannerDatabase.databaseClient.singleUse().use { transaction ->
         transaction.workItemPublicationExists(workItemId)

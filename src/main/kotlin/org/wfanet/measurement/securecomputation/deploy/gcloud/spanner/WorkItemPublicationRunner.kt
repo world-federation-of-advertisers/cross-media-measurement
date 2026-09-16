@@ -173,11 +173,18 @@ class WorkItemPublicationRunner(
   }
 
   private fun logSkippedPublication(claim: WorkItemPublicationClaimResult.Skipped) {
-    if (claim.reason == WorkItemPublicationClaimResult.Skipped.Reason.QUEUE_NOT_FOUND) {
-      logger.warning(
-        "Deferring WorkItem ${claim.workItemResourceId}: queue ID ${claim.queueId} is not in the " +
-          "configured queue mapping"
-      )
+    when (claim.reason) {
+      WorkItemPublicationClaimResult.Skipped.Reason.QUEUE_NOT_FOUND ->
+        logger.warning(
+          "Deferring WorkItem ${claim.workItemResourceId}: queue ID ${claim.queueId} is not in " +
+            "the configured queue mapping"
+        )
+      WorkItemPublicationClaimResult.Skipped.Reason.LEGACY_DEAD_LETTER_TERMINALIZED ->
+        logger.warning(
+          "Terminalized WorkItem ${claim.workItemResourceId} from a legacy application-managed " +
+            "dead-letter publication"
+        )
+      WorkItemPublicationClaimResult.Skipped.Reason.WORK_ITEM_STATE_MISMATCH -> Unit
     }
   }
 
