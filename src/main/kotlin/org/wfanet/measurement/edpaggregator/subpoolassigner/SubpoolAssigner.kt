@@ -86,8 +86,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * Idempotent on Pub/Sub redelivery at the per-shard granularity (a job already `SUCCEEDED` short-
  * circuits the mark). On failure the error propagates so the TEE framework nacks (Pub/Sub retries
- * -> dead-letter); this worker never marks the job `FAILED` itself — the single authoritative
- * terminal `FAILED` transition is owned by the DLQ listener on retry exhaustion.
+ * -> dead-letter). Neither this worker nor the workload-agnostic DLQ listener changes the
+ * `PoolAssignmentJob`; it remains available for explicit workload recovery.
  */
 class SubpoolAssigner(
   private val rawImpressionSource: RawImpressionSource<ParquetDigestedEvent>,
@@ -134,8 +134,8 @@ class SubpoolAssigner(
 
   /**
    * Runs the full Phase-0 work for one shard. Any exception propagates so the TEE framework nacks
-   * the message; this worker never marks the job `FAILED` (the DLQ listener owns the terminal
-   * `FAILED` transition on retry exhaustion).
+   * the message. Neither this worker nor the workload-agnostic DLQ listener changes the
+   * `PoolAssignmentJob` state on retry exhaustion.
    */
   suspend fun assign(): Result = runShard()
 
