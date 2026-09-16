@@ -84,6 +84,26 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "upload_healing_operation_service",
+    srcs = ["UploadHealingOperationService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_recovery_action_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "raw_impression_upload_model_line_service",
     srcs = [
         "RawImpressionUploadModelLineService.kt",
@@ -99,6 +119,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/edpaggregator:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_failure_reason_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_recovery_action_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_state_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
@@ -140,6 +161,7 @@ kt_jvm_library(
         ":raw_impression_upload_model_line_service",
         ":raw_impression_upload_service",
         ":requisition_metadata_service",
+        ":upload_healing_operation_service",
         ":vid_labeling_job_service",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
@@ -149,6 +171,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:pool_assignment_job_service_kt_jvm_grpc_proto",
@@ -158,6 +181,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_service_kt_jvm_grpc_proto",
     ],
 )

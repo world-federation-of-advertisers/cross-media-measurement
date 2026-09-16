@@ -36,9 +36,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.countNonCom
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findInProgressModelLinesForModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLineByRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadModelLinesByRequestIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
@@ -67,6 +69,7 @@ import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as FailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as RecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -122,6 +125,10 @@ class SpannerRawImpressionUploadModelLineService(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
             )
+          txn.requireRegistrationAllowedDuringEviction(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+          )
 
           val rawImpressionUploadModelLineId =
             idGenerator.generateNewId { id ->
@@ -264,6 +271,13 @@ class SpannerRawImpressionUploadModelLineService(
               rawImpressionUploadResourceId,
               request.requestsList.map { it.requestId },
             )
+
+          if (request.requestsList.any { it.requestId !in existingByRequestId }) {
+            txn.requireRegistrationAllowedDuringEviction(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+            )
+          }
 
           var anyInserted = false
           val created =
@@ -582,6 +596,7 @@ class SpannerRawImpressionUploadModelLineService(
       } else {
         request.failureReason
       }
+    validateRecoveryFields(request, failureReason)
 
     val validPreviousStates =
       when (failureReason) {
@@ -615,6 +630,10 @@ class SpannerRawImpressionUploadModelLineService(
       ) {
         set("ErrorMessage").to(request.errorMessage)
         set("FailureReason").to(failureReason)
+        set("EvictionOperationId").to(request.evictionOperationId.ifEmpty { null })
+        set("RecoveryAction").to(request.recoveryAction)
+        set("RecoveryPredecessorRawImpressionUploadResourceId")
+          .to(request.recoveryPredecessorRawImpressionUploadResourceId.ifEmpty { null })
       }
     // On an AIP-155 replay the stored (first) error_message is authoritative and returned as-is;
     // only a fresh transition adopts this request's error_message (the row read before the write
@@ -626,7 +645,50 @@ class SpannerRawImpressionUploadModelLineService(
         errorMessage = request.errorMessage
         failureAttemptId = request.requestId
         this.failureReason = failureReason
+        evictionOperationId = request.evictionOperationId
+        recoveryAction = request.recoveryAction
+        recoveryPredecessorRawImpressionUploadResourceId =
+          request.recoveryPredecessorRawImpressionUploadResourceId
       }
+    }
+  }
+
+  private fun validateRecoveryFields(
+    request: MarkRawImpressionUploadModelLineFailedRequest,
+    failureReason: FailureReason,
+  ) {
+    if (request.recoveryAction == RecoveryAction.UNRECOGNIZED) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      failureReason == FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+    ) {
+      if (request.evictionOperationId.isEmpty()) {
+        throw RequiredFieldNotSetException("eviction_operation_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      try {
+        UUID.fromString(request.evictionOperationId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("eviction_operation_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (
+        request.recoveryAction ==
+          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED
+      ) {
+        throw RequiredFieldNotSetException("recovery_action")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    } else if (
+      request.evictionOperationId.isNotEmpty() ||
+        request.recoveryAction !=
+          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED ||
+        request.recoveryPredecessorRawImpressionUploadResourceId.isNotEmpty()
+    ) {
+      throw InvalidFieldValueException("recovery_action")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
@@ -747,6 +809,13 @@ class SpannerRawImpressionUploadModelLineService(
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
+        if (nextState in PROCESSING_STATES) {
+          txn.requireProcessingAllowedDuringEviction(
+            dataProviderResourceId,
+            rawImpressionUploadResourceId,
+          )
+        }
+
         // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
         // would corrupt the shared cumulative rank index.
         if (nextState in PROCESSING_STATES) {
@@ -848,6 +917,38 @@ class SpannerRawImpressionUploadModelLineService(
         etag = ETags.computeETag(commitTimestamp.toInstant())
       }
     )
+  }
+
+  private suspend fun AsyncDatabaseClient.ReadContext.requireRegistrationAllowedDuringEviction(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+  ) {
+    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val upload =
+      getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
+        .rawImpressionUpload
+    if (upload.processingDeferred || upload.evictionOperationId == operationId) return
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "VID-labeling eviction $operationId is in progress for DataProvider " +
+          dataProviderResourceId
+      )
+      .asRuntimeException()
+  }
+
+  private suspend fun AsyncDatabaseClient.ReadContext.requireProcessingAllowedDuringEviction(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+  ) {
+    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val upload =
+      getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
+        .rawImpressionUpload
+    if (upload.evictionOperationId == operationId) return
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "RawImpressionUpload $rawImpressionUploadResourceId is waiting for VID-labeling " +
+          "eviction $operationId to complete"
+      )
+      .asRuntimeException()
   }
 
   /**

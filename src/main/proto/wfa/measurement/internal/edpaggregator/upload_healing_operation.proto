@@ -1,0 +1,74 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_recovery_action.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "UploadHealingOperationProto";
+
+// Internal representation of a durable upload-healing workflow.
+message UploadHealingOperation {
+  enum State {
+    UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED = 0;
+    UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS = 1;
+    UPLOAD_HEALING_OPERATION_STATE_COMPLETE = 2;
+  }
+
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  State state = 3;
+  string reason = 4;
+  string labeled_impressions_blob_prefix = 5;
+  repeated string bad_raw_impression_upload_resource_ids = 6;
+  google.protobuf.Timestamp cutoff_time = 7;
+  repeated UploadHealingStep steps = 8;
+  google.protobuf.Timestamp create_time = 9;
+  google.protobuf.Timestamp update_time = 10;
+  string etag = 11;
+}
+
+// Internal representation of one ordered workflow checkpoint.
+message UploadHealingStep {
+  enum State {
+    UPLOAD_HEALING_STEP_STATE_UNSPECIFIED = 0;
+    UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION = 1;
+    UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT = 2;
+    UPLOAD_HEALING_STEP_STATE_RECOVERY_STARTED = 3;
+    UPLOAD_HEALING_STEP_STATE_COMPLETE = 4;
+  }
+
+  int64 upload_healing_step_id = 1;
+  int64 sequence_number = 2;
+  string source_raw_impression_upload_resource_id = 3;
+  string raw_impression_upload_model_line_resource_id = 4;
+  string cmms_model_line = 5;
+  bool memoized = 6;
+  RawImpressionUploadModelLineRecoveryAction recovery_action = 7;
+  string recovery_predecessor_raw_impression_upload_resource_id = 8;
+  bool recovery_target = 9;
+  State state = 10;
+  string replacement_raw_impression_upload_resource_id = 11;
+  google.protobuf.Timestamp eviction_complete_time = 12;
+  google.protobuf.Timestamp recovery_start_time = 13;
+  google.protobuf.Timestamp complete_time = 14;
+  google.protobuf.Timestamp update_time = 15;
+  string etag = 16;
+  int64 recovery_done_blob_generation = 17;
+}
