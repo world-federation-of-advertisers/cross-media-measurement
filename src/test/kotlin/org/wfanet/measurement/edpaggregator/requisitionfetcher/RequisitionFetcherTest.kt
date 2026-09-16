@@ -656,9 +656,7 @@ class RequisitionFetcherTest {
       }
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(
-        listRequisitionsResponse {
-          requisitions += listOf(existingRequisition, newRequisition)
-        }
+        listRequisitionsResponse { requisitions += listOf(existingRequisition, newRequisition) }
       )
     val invalidRows =
       listOf(
@@ -737,8 +735,7 @@ class RequisitionFetcherTest {
     val dispatchedGroupIds = mutableListOf<String>()
     val dispatcher =
       object : RequisitionWorkItemDispatcher {
-        override fun workItemName(groupId: String): String =
-          "workItems/results-fulfiller-$groupId"
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
 
         override suspend fun dispatch(groupId: String, blobUri: String) {
           dispatchedGroupIds += groupId
