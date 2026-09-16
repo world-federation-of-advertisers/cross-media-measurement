@@ -42,6 +42,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -639,10 +640,10 @@ class RequisitionFetcherTest {
   }
 
   @Test
-  fun `stale metadata reconciles terminal Kingdom state that wins refusal race`() = runBlocking {
+  fun `terminal Kingdom race without refusal fails completed group WorkItem`() = runBlocking {
     val now = Instant.parse("2026-09-14T12:00:00Z")
     val kingdomStates =
-      listOf(Requisition.State.REFUSED, Requisition.State.WITHDRAWN, Requisition.State.FULFILLED)
+      listOf(Requisition.State.WITHDRAWN, Requisition.State.FULFILLED)
     val staleRequisitions =
       kingdomStates.mapIndexed { index, _ ->
         TestRequisitionData.REQUISITION.copy {
@@ -685,14 +686,53 @@ class RequisitionFetcherTest {
 
     createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
 
-    assertThat(refuseRequisitionMetadataRequests.map { it.name })
-      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-0")
+    assertThat(refuseRequisitionMetadataRequests).isEmpty()
     assertThat(markWithdrawnRequisitionMetadataRequests.map { it.name })
-      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-1")
+      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-0")
     assertThat(fulfillRequisitionMetadataRequests.map { it.name })
-      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-2")
+      .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-1")
     assertThat(failWorkItemRequests).hasSize(1)
     assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
+  fun `cancellation while failing a terminal group WorkItem propagates`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += stale })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale"
+            cmmsRequisition = stale.name
+            groupId = "existing-group"
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/existing-group"
+            state = RequisitionMetadata.State.QUEUED
+            workItem = "workItems/results-fulfiller-existing-group"
+            etag = "etag"
+          }
+        }
+      )
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String) = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) = Unit
+
+        override suspend fun fail(workItemName: String): Unit =
+          throw CancellationException("cancelled")
+      }
+
+    assertFailsWith<CancellationException> {
+      createFetcher(workItemDispatcher = dispatcher, clock = Clock.fixed(now, ZoneOffset.UTC))
+        .fetchAndStoreRequisitions()
+    }
+    Unit
   }
 
   @Test

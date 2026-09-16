@@ -32,6 +32,7 @@ import java.util.logging.Logger
 import kotlin.time.TimeSource
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
@@ -253,7 +254,7 @@ class RequisitionFetcher(
         // one consumer, so `pendingRecovery` and `metadataCache` are one map each (no per-consumer
         // replication) and there is no cross-consumer routing to reason about.
         val channel = Channel<ReportWorkUnit>(channelCapacity)
-        val consumer = launch {
+        val consumer = async {
           val pendingRecovery = mutableMapOf<String, PendingRecovery>()
           val metadataCache = mutableMapOf<String, List<RequisitionMetadata>>()
           val blockedRecoveryGroupIds = mutableSetOf<String>()
@@ -271,7 +272,7 @@ class RequisitionFetcher(
         } finally {
           channel.close()
         }
-        consumer.join()
+        consumer.await()
       }
       metrics.requisitionsFetched.add(totalFetched, dataProviderAttrs)
       Span.current()
@@ -559,10 +560,11 @@ class RequisitionFetcher(
    * ### High-Level Flow
    * 1. List existing [RequisitionMetadata] for the report.
    * 2. Refuse stale Requisitions in the Kingdom, then reconcile any matching recoverable metadata
-   *    to `REFUSED`. Kingdom is updated first so a worker that is already running cannot
-   *    subsequently fulfill the Requisition. The WorkItem itself is left in its existing state: one
-   *    WorkItem can contain both stale and eligible Requisitions, and ResultsFulfiller already
-   *    skips terminal Kingdom Requisitions and reconciles their metadata.
+   *    to the Kingdom's terminal state. Kingdom is updated first so a worker that is already
+   *    running cannot subsequently fulfill a refused Requisition. If every Requisition in a group
+   *    is terminal, its generation-fenced WorkItem is failed. A mixed group's WorkItem remains in
+   *    its existing state because ResultsFulfiller skips terminal Kingdom Requisitions and
+   *    processes the eligible siblings.
    * 3. Recover persisted groups according to the namespace recorded in `blob_uri`. A direct group
    *    in `STORED`, `QUEUED`, or `PROCESSING` is validated and deterministically dispatched. A
    *    legacy group containing `PROCESSING` metadata remains owned by its existing DataWatcher
@@ -588,7 +590,7 @@ class RequisitionFetcher(
       metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
     val metadataByRequisition = cachedMetadata.associateByTo(mutableMapOf()) { it.cmmsRequisition }
     val eligibleRequisitions = mutableListOf<Requisition>()
-    val refusedGroupIds = mutableSetOf<String>()
+    val terminalGroupIds = mutableSetOf<String>()
 
     for (requisition in unit.requisitions) {
       if (!isPastRefusalDuration(requisition)) {
@@ -616,9 +618,7 @@ class RequisitionFetcher(
         try {
           metadataByRequisition[requisition.name] =
             reconcileTerminalMetadata(existing, terminalState, refusal.message)
-          if (terminalState == Requisition.State.REFUSED) {
-            refusedGroupIds += existing.groupId
-          }
+          terminalGroupIds += existing.groupId
         } catch (e: Exception) {
           // The Kingdom refusal is already terminal. Prevent this invocation from redispatching
           // the group if local reconciliation fails; an existing ResultsFulfiller delivery also
@@ -631,7 +631,7 @@ class RequisitionFetcher(
     val existingMetadata = cachedMetadata.map { metadataByRequisition.getValue(it.cmmsRequisition) }
     metadataCache[unit.reportId] = existingMetadata
 
-    for (groupId in refusedGroupIds) {
+    for (groupId in terminalGroupIds) {
       val groupMetadata = existingMetadata.filter { it.groupId == groupId }
       if (groupMetadata.all { it.state.isTerminal() }) {
         val workItemNames =
@@ -642,6 +642,8 @@ class RequisitionFetcher(
         if (workItemNames.isNotEmpty()) {
           try {
             workItemDispatcher.fail(workItemNames.single())
+          } catch (e: CancellationException) {
+            throw e
           } catch (e: Exception) {
             // Metadata is terminal and therefore cannot be redispatched. The existing WorkItem can
             // still drain normally and observe the terminal Kingdom state.

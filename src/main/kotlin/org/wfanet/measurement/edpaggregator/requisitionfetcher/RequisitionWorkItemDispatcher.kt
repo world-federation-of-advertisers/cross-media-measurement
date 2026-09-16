@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.requisitionfetcher
 
 import io.grpc.Status
+import io.grpc.StatusException
 import java.util.logging.Logger
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
