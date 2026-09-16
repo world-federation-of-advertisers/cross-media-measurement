@@ -59,8 +59,8 @@ resource "google_pubsub_subscription" "dead_letter_subscription" {
   ack_deadline_seconds = 30
 
   retry_policy {
-    minimum_backoff = "10s"
-    maximum_backoff = "600s"
+    minimum_backoff = var.minimum_backoff
+    maximum_backoff = var.maximum_backoff
   }
 }
 
