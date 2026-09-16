@@ -16,10 +16,13 @@
 
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
+import com.google.api.gax.paging.Page
 import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.logging.LogEntry
 import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Payload
+import com.google.cloud.logging.SourceLocation
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.opentelemetry.api.GlobalOpenTelemetry
@@ -983,7 +986,6 @@ class ReportTraceTest {
         (1..100).map { "measurementConsumers/mc-1/measurements/${"m".repeat(50)}-$it" },
         Instant.parse("2026-09-10T11:00:00Z"),
         NOW,
-        includeGrpcPayloads = false,
       )
 
     assertThat(filters.size).isGreaterThan(1)
@@ -991,37 +993,17 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `buildLogFilters excludes verbose gRPC payloads at query time`() {
+  fun `buildLogFilters retains gRPC preambles for contextual filtering`() {
     val filter =
       ReportTraceOutput.buildLogFilters(
           listOf("measurementConsumers/mc-1/basicReports/report-1"),
           Instant.parse("2026-09-10T11:00:00Z"),
           NOW,
-          includeGrpcPayloads = false,
-        )
-        .single()
-
-    assertThat(filter).contains("NOT (textPayload =~")
-    assertThat(filter).contains("jsonPayload.message =~")
-    assertThat(filter).contains("jsonPayload.MESSAGE =~")
-    assertThat(filter).contains("gRPC([[:space:]]+client)?")
-    assertThat(filter).doesNotContain("severity>=ERROR")
-  }
-
-  @Test
-  fun `buildLogFilters includes verbose gRPC payloads when requested`() {
-    val filter =
-      ReportTraceOutput.buildLogFilters(
-          listOf("measurementConsumers/mc-1/basicReports/report-1"),
-          Instant.parse("2026-09-10T11:00:00Z"),
-          NOW,
-          includeGrpcPayloads = true,
         )
         .single()
 
     assertThat(filter).doesNotContain("NOT (textPayload =~")
-    assertThat(filter).doesNotContain("jsonPayload.message =~")
-    assertThat(filter).doesNotContain("jsonPayload.MESSAGE =~")
+    assertThat(filter).contains("jsonPayload.message:")
   }
 
   @Test
@@ -1331,6 +1313,60 @@ class ReportTraceTest {
 
     assertThat(failure).isInstanceOf(IllegalStateException::class.java)
     assertThat(throttler.invocationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `Cloud Logging reader excludes split gRPC entries by logger context`() = runBlocking {
+    val logging = mock<Logging>()
+    val page = mock<Page<LogEntry>>()
+    val logName = "projects/logging-project/logs/stdout"
+    val grpcSource =
+      SourceLocation.newBuilder().setFunction("wfa.measurement.Service.Create").build()
+    val applicationSource =
+      SourceLocation.newBuilder().setFunction("org.example.Worker.process").build()
+    val grpcPreamble =
+      LogEntry.newBuilder(
+          Payload.StringPayload.of(
+            "[grpc-worker] gRPC trace-id request: " +
+              "measurementConsumers/mc-1/basicReports/report-1"
+          )
+        )
+        .setLogName(logName)
+        .setSourceLocation(grpcSource)
+        .setTimestamp(NOW.minusMillis(2))
+        .build()
+    val grpcContinuation =
+      LogEntry.newBuilder(Payload.StringPayload.of("status: FAILED"))
+        .setLogName(logName)
+        .setSourceLocation(grpcSource)
+        .setTimestamp(NOW.minusMillis(1))
+        .build()
+    val applicationError =
+      LogEntry.newBuilder(Payload.StringPayload.of("status: failed"))
+        .setLogName(logName)
+        .setSourceLocation(applicationSource)
+        .setTimestamp(NOW)
+        .build()
+    whenever(page.values).thenReturn(listOf(applicationError, grpcContinuation, grpcPreamble))
+    whenever(page.hasNextPage()).thenReturn(false)
+    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(page)
+    val reader =
+      GoogleCloudReportTraceLogReader(
+        project = "logging-project",
+        logging = logging,
+        includeGrpcPayloads = false,
+      )
+
+    val entries =
+      reader.read(
+        correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+        startTime = NOW.minusSeconds(1),
+        endTime = NOW.plusSeconds(1),
+        limit = 100,
+      )
+
+    assertThat(entries.map { it.message }).containsExactly("status: failed")
+    Unit
   }
 
   @Test
@@ -3016,6 +3052,35 @@ class ReportTraceTest {
       .isEqualTo("MISSING")
     assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
       .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `transient assembly failure does not require BasicReport failure writeback`() {
+    val context = reportTraceContext().copy(basicReportState = "REPORT_CREATED")
+    val assemblyFailure =
+      failedLifecycleSpan("report_result_assembly", mapOf("xmm.report.name" to context.reportName))
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "report_result_assembly",
+              "xmm.outcome" to "failed",
+              "xmm.report.name" to context.reportName,
+              "xmm.error.code" to "UNAVAILABLE",
+            )
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        unresolvedRouteResolution(context),
+        listOf(assemblyFailure),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "report_result_assembly" }.status).isEqualTo("FAILED")
+    assertThat(coverage.single { it.name == "basic_report_failure_writeback" }.status)
+      .isEqualTo("NOT_APPLICABLE")
+    assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
   }
 
   @Test
@@ -5014,8 +5079,7 @@ class ReportTraceTest {
   @Test
   fun `buildLogFilters searches Confidential Space launcher messages`() {
     val filter =
-      ReportTraceOutput.buildLogFilters(listOf("computations/computation-1"), NOW, NOW, false)
-        .single()
+      ReportTraceOutput.buildLogFilters(listOf("computations/computation-1"), NOW, NOW).single()
 
     assertThat(filter).contains("jsonPayload.MESSAGE:\"computations/computation-1\"")
     assertThat(filter).contains("jsonPayload.MESSAGE:\"computation-1\"")

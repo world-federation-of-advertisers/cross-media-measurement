@@ -10,7 +10,7 @@ kt_jvm_library(
         "DeadLetterQueueListener.kt",
     ],
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:errors",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:errors",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_items_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",

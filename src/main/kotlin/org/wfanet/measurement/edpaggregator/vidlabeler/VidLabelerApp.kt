@@ -79,10 +79,10 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * downstream DataAvailabilitySync.
  *
  * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
- * out of [runWork] so the TEE framework nacks the message, leaving the job in `LABELING`/`CREATED`
- * for Pub/Sub to redeliver and retry. The terminal `FAILED` state is written by the DLQ listener on
- * retry exhaustion (see the design's failure model), which owns the single authoritative FAILED
- * transition.
+ * out of [runWork] so the TEE framework retains the delivery while another attempt owns the
+ * WorkItem, or nacks after an execution failure. On retry exhaustion the workload-agnostic DLQ
+ * listener fails only the WorkItem; it does not change the `VidLabelingJob`, which remains
+ * available for explicit workload recovery.
  *
  * @param subscriptionId Pub/Sub subscription for VID labeling queue.
  * @param queueSubscriber handles Pub/Sub pull.
@@ -167,9 +167,8 @@ class VidLabelerApp(
    *
    * Any exception thrown here propagates (including a coroutine `CancellationException`) so the TEE
    * framework nacks the message: a transient failure is retried by Pub/Sub and the job state stays
-   * in `LABELING`/`CREATED`. This worker never marks the job `FAILED` itself — the single
-   * authoritative terminal `FAILED` transition is owned by the DLQ listener on retry exhaustion
-   * (see the class-level failure model).
+   * in `LABELING`/`CREATED`. This worker never marks the job `FAILED` itself, and the
+   * workload-agnostic DLQ listener fails only the WorkItem on retry exhaustion.
    */
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)

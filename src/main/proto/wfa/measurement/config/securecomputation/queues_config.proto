@@ -30,7 +30,8 @@ message QueuesConfig {
     //     aip.dev/not-precedent: Referring to a type url. --)
     string app_params_type_url = 2 [(google.api.field_behavior) = REQUIRED];
 
-    // Deprecated. Pub/Sub subscription policy controls ordinary delivery attempts.
+    // Deprecated. Pub/Sub subscription policy controls ordinary delivery
+    // attempts.
     int32 max_work_item_attempts = 3 [deprecated = true];
 
     // Deprecated. Pub/Sub forwards exhausted deliveries to its configured
