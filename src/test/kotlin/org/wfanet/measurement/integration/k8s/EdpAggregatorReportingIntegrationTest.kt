@@ -180,44 +180,47 @@ class EdpAggregatorReportingIntegrationTest {
           // listing by entity type, so one without a key would be re-created on every sync.
           is EventGroupConfig.LegacySpec ->
             error("QA 2026 event group $referenceId has no entity key")
+          // One EventGroup per entity key, spanning every date spec. The Kingdom enforces
+          // uniqueness on both reference ID and entity key, so a row per date spec would
+          // collide.
           is EventGroupConfig.MultiEntityKey ->
-            config.entityKeySpecs.flatMap { entityKeySpec ->
-              entityKeySpec.spec.dateSpecsList.map { dateSpec ->
-                val dateRange = dateSpec.dateRange
-                val startTime =
-                  LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
-                    .atStartOfDay(ZONE_ID)
-                    .toInstant()
-                val endTime =
-                  dateRange.endExclusive
-                    .toLocalDate()
-                    .minusDays(1)
-                    .atTime(23, 59, 59)
-                    .atZone(ZONE_ID)
-                    .toInstant()
-                eventGroup {
-                  eventGroupReferenceId =
-                    "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}"
-                  measurementConsumer = TEST_CONFIG.measurementConsumer
-                  dataAvailabilityInterval = interval {
-                    this.startTime = timestamp { seconds = startTime.epochSecond }
-                    this.endTime = timestamp { seconds = endTime.epochSecond }
-                  }
-                  eventGroupMetadata = eventGroupMetadata {
-                    adMetadata = adMetadata {
-                      campaignMetadata = campaignMetadata {
-                        brand = "some-brand"
-                        campaign = "some-campaign"
-                      }
-                    }
-                    entityKeySpec.entityMetadata?.let { entityMetadata = it }
-                  }
-                  entityKey = entityKey {
-                    entityType = entityKeySpec.entityKey.entityType
-                    entityId = entityKeySpec.entityKey.entityId
-                  }
-                  mediaTypes += MediaType.VIDEO
+            config.entityKeySpecs.map { entityKeySpec ->
+              val dateRanges = entityKeySpec.spec.dateSpecsList.map { it.dateRange }
+              val startTime =
+                dateRanges
+                  .minOf { LocalDate.of(it.start.year, it.start.month, it.start.day) }
+                  .atStartOfDay(ZONE_ID)
+                  .toInstant()
+              val endTime =
+                dateRanges
+                  .maxOf { it.endExclusive.toLocalDate() }
+                  .minusDays(1)
+                  .atTime(23, 59, 59)
+                  .atZone(ZONE_ID)
+                  .toInstant()
+              eventGroup {
+                eventGroupReferenceId =
+                  "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}"
+                measurementConsumer = TEST_CONFIG.measurementConsumer
+                dataAvailabilityInterval = interval {
+                  this.startTime = timestamp { seconds = startTime.epochSecond }
+                  this.endTime = timestamp { seconds = endTime.epochSecond }
                 }
+                eventGroupMetadata = eventGroupMetadata {
+                  adMetadata = adMetadata {
+                    campaignMetadata = campaignMetadata {
+                      brand = "some-brand"
+                      campaign = "some-campaign"
+                    }
+                  }
+                  entityKeySpec.entityMetadata?.let { entityMetadata = it }
+                }
+                entityKey = entityKey {
+                  entityType = entityKeySpec.entityKey.entityType
+                  entityId = entityKeySpec.entityKey.entityId
+                }
+                // Every segment alternates media per stripe.
+                mediaTypes += listOf(MediaType.VIDEO, MediaType.DISPLAY)
               }
             }
         }

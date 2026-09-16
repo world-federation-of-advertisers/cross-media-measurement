@@ -45,7 +45,7 @@ object Qa2026ExpectedReach {
    * @param singleEdpName the EDP the single-EDP result group reports on
    * @param populationSpec the QA 2026 population spec
    * @param reportStart first event date, inclusive
-   * @param reportEnd last event date, inclusive
+   * @param reportEnd end of the reporting interval, exclusive
    * @param metricSpecConfig the deployed metric spec config, for the noise parameters
    */
   fun computeRangesByGroupAndFilter(
@@ -97,7 +97,7 @@ object Qa2026ExpectedReach {
     reportEnd: LocalDate,
   ): Map<String, Map<String, Set<Long>>> {
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
-    val endExclusive = reportEnd.plusDays(1).atStartOfDay().toInstant(ZoneOffset.UTC)
+    val endExclusive = reportEnd.atStartOfDay().toInstant(ZoneOffset.UTC)
     val timeRange: OpenEndRange<Instant> = start..<endExclusive
 
     val byEdp = mutableMapOf<String, Map<String, MutableSet<Long>>>()
