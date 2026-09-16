@@ -92,6 +92,55 @@ private fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
   }
 }
 
+/** Schedules a publication, replacing any stale publication for an older generation. */
+suspend fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemPublication(
+  workItemId: Long,
+  isDeadLetter: Boolean,
+  nextAttemptTime: Instant,
+) {
+  if (!workItemPublicationExists(workItemId)) {
+    insertWorkItemPublication(workItemId, isDeadLetter, nextAttemptTime)
+    return
+  }
+  bufferUpdateMutation("WorkItemPublications") {
+    set("WorkItemId").to(workItemId)
+    set("IsDeadLetter").to(isDeadLetter)
+    set("LeaseOwner").to(null as String?)
+    set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
+    set("NextAttemptTime").to(nextAttemptTime.toGcloudTimestamp())
+    set("QueueResolutionFailed").to(false)
+    set("AttemptCount").to(0L)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+enum class WorkItemPublicationResetResult {
+  MISSING,
+  LEASED,
+  RESET,
+}
+
+/** Makes an existing, unleased publication immediately eligible for an operator retry. */
+suspend fun AsyncDatabaseClient.TransactionContext.resetWorkItemPublication(
+  workItemId: Long,
+  now: Instant,
+): WorkItemPublicationResetResult {
+  val row =
+    readRow("WorkItemPublications", Key.of(workItemId), listOf("LeaseOwner"))
+      ?: return WorkItemPublicationResetResult.MISSING
+  if (!row.isNull("LeaseOwner")) {
+    return WorkItemPublicationResetResult.LEASED
+  }
+  bufferUpdateMutation("WorkItemPublications") {
+    set("WorkItemId").to(workItemId)
+    set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
+    set("NextAttemptTime").to(now.toGcloudTimestamp())
+    set("QueueResolutionFailed").to(false)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+  return WorkItemPublicationResetResult.RESET
+}
+
 /** Removes a pending WorkItem publication. Deleting a missing row is a no-op. */
 fun AsyncDatabaseClient.TransactionContext.deleteWorkItemPublication(workItemId: Long) {
   buffer(Mutation.delete("WorkItemPublications", Key.of(workItemId)))
