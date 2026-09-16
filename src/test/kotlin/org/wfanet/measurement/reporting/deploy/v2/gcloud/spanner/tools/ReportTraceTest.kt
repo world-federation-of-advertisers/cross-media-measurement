@@ -4690,7 +4690,8 @@ class ReportTraceTest {
 
     val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
 
-    assertThat(rendered).contains(message)
+    assertThat(rendered).isEqualTo(message)
+    assertThat(ReportTraceOutput.effectiveLogSeverity("DEFAULT", rendered!!)).isEqualTo("INFO")
   }
 
   @Test
@@ -4700,6 +4701,20 @@ class ReportTraceTest {
         .single()
 
     assertThat(filter).contains("jsonPayload.MESSAGE:\"computations/computation-1\"")
+    assertThat(filter).contains("jsonPayload.MESSAGE:\"computation-1\"")
+  }
+
+  @Test
+  fun `renderLogPayload promotes Confidential Space severe message to error`() {
+    val message =
+      "SEVERE: computation-1@trustee-mill: Failing Computation. " +
+        "Input vector size 342888 does not match expected size 999"
+    val payload = Payload.JsonPayload.of(mapOf("MESSAGE" to message, "PRIORITY" to "6"))
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+    assertThat(rendered).isEqualTo(message)
+    assertThat(ReportTraceOutput.effectiveLogSeverity("DEFAULT", rendered!!)).isEqualTo("ERROR")
   }
 
   @Test

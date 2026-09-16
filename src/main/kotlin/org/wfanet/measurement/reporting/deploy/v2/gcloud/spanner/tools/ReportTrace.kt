@@ -786,7 +786,9 @@ internal object ReportTraceOutput {
     }
     if (payload.type == Payload.Type.JSON) {
       val values = (payload as Payload.JsonPayload).dataAsMap
-      val message = (values["message"] ?: values["MESSAGE"])?.toString()
+      val structuredMessage = values["message"]?.toString()
+      val confidentialSpaceMessage = values["MESSAGE"]?.toString()
+      val message = structuredMessage ?: confidentialSpaceMessage
       if (!includeGrpcPayloads && message != null && isVerboseGrpcLog(message)) {
         return null
       }
@@ -808,6 +810,9 @@ internal object ReportTraceOutput {
       }
       val prefix =
         operationalFields.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }
+      if (confidentialSpaceMessage != null) {
+        return confidentialSpaceMessage
+      }
       return if (prefix.isEmpty()) payload.toString() else "$prefix ${payload}"
     }
     return payload.toString()
@@ -823,8 +828,17 @@ internal object ReportTraceOutput {
     val identifierPredicates =
       correlationValues.distinct().map { value ->
         val escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+        val unqualifiedComputationPredicate =
+          if (value.startsWith("computations/")) {
+            val unqualified =
+              value.substringAfterLast('/').replace("\\", "\\\\").replace("\"", "\\\"")
+            " OR textPayload:\"$unqualified\" OR jsonPayload.message:\"$unqualified\" OR " +
+              "jsonPayload.MESSAGE:\"$unqualified\""
+          } else {
+            ""
+          }
         "(textPayload:\"$escaped\" OR jsonPayload.message:\"$escaped\" OR " +
-          "jsonPayload.MESSAGE:\"$escaped\" OR " +
+          "jsonPayload.MESSAGE:\"$escaped\"$unqualifiedComputationPredicate OR " +
           "jsonPayload.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.metric.name\"=\"$escaped\" OR " +
