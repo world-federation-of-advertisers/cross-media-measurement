@@ -620,6 +620,9 @@ class RequisitionFetcher(
             reconcileTerminalMetadata(existing, terminalState, refusal.message)
           terminalGroupIds += existing.groupId
         } catch (e: Exception) {
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4515): Persist terminal
+          // reconciliation intent so a local metadata failure remains discoverable after the
+          // Requisition leaves Kingdom's UNFULFILLED stream.
           // The Kingdom refusal is already terminal. Prevent this invocation from redispatching
           // the group if local reconciliation fails; an existing ResultsFulfiller delivery also
           // observes the Kingdom state and performs the same metadata reconciliation.

@@ -832,7 +832,7 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `dead letter retries active legacy attempt at next generation`() = runBlocking {
+  fun `dead letter terminalizes active legacy attempt`() = runBlocking {
     var publicationCount = 0
     val services =
       initServices(
@@ -847,7 +847,7 @@ abstract class WorkItemsServiceTest {
     val created = createWorkItem(services.service)
     val attempt = createWorkItemAttempt(services, created, "legacy-attempt")
 
-    val recovered =
+    val failed =
       services.service.processWorkItemDeadLetter(
         processWorkItemDeadLetterRequest {
           workItemResourceId = created.workItemResourceId
@@ -862,14 +862,14 @@ abstract class WorkItemsServiceTest {
           workItemAttemptResourceId = attempt.workItemAttemptResourceId
         }
       )
-    assertThat(recovered.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(recovered.generation).isEqualTo(2L)
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(created.generation)
     assertThat(failedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
-    assertThat(publicationCount).isEqualTo(2)
+    assertThat(publicationCount).isEqualTo(1)
   }
 
   @Test
-  fun `dead letter recovery remains durable when immediate publication fails`() = runBlocking {
+  fun `dead letter terminalization does not publish`() = runBlocking {
     var publicationCount = 0
     val services =
       initServices(
@@ -885,7 +885,7 @@ abstract class WorkItemsServiceTest {
     val created = createWorkItem(services.service)
     createWorkItemAttempt(services, created, "legacy-attempt")
 
-    val queued =
+    val failed =
       services.service.processWorkItemDeadLetter(
         processWorkItemDeadLetterRequest {
           workItemResourceId = created.workItemResourceId
@@ -893,13 +893,13 @@ abstract class WorkItemsServiceTest {
         }
       )
 
-    assertThat(queued.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(queued.generation).isEqualTo(2L)
-    assertThat(publicationCount).isEqualTo(2)
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(created.generation)
+    assertThat(publicationCount).isEqualTo(1)
   }
 
   @Test
-  fun `stale repeated dead letter recovery cannot advance generation twice`() = runBlocking {
+  fun `repeated dead letter terminalization is idempotent`() = runBlocking {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
     createWorkItemAttempt(services, created, "legacy-attempt")
@@ -907,26 +907,21 @@ abstract class WorkItemsServiceTest {
       workItemResourceId = created.workItemResourceId
       expectedWorkItemGeneration = created.generation
     }
-    services.service.processWorkItemDeadLetter(request)
-
-    val exception =
-      assertFailsWith<StatusRuntimeException> {
-        services.service.processWorkItemDeadLetter(request)
-      }
+    val first = services.service.processWorkItemDeadLetter(request)
+    val repeated = services.service.processWorkItemDeadLetter(request)
     val current =
       services.service.getWorkItem(
         getWorkItemRequest { workItemResourceId = created.workItemResourceId }
       )
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(exception.errorInfo?.reason)
-      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
-    assertThat(current.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(current.generation).isEqualTo(2L)
+    assertThat(first.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(repeated.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(current.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(current.generation).isEqualTo(created.generation)
   }
 
   @Test
-  fun `racing dead letter recovery advances generation once`() = runBlocking {
+  fun `racing dead letter terminalization is idempotent`() = runBlocking {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
     createWorkItemAttempt(services, created, "legacy-attempt")
@@ -950,10 +945,9 @@ abstract class WorkItemsServiceTest {
         getWorkItemRequest { workItemResourceId = created.workItemResourceId }
       )
 
-    assertThat(results.count { it.isSuccess }).isEqualTo(1)
-    assertThat(results.count { it.isFailure }).isEqualTo(1)
-    assertThat(current.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(current.generation).isEqualTo(2L)
+    assertThat(results.all { it.isSuccess }).isTrue()
+    assertThat(current.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(current.generation).isEqualTo(created.generation)
   }
 
   @Test
@@ -985,11 +979,11 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `dead letter for queued WorkItem republishes at next generation`() = runBlocking {
+  fun `dead letter for queued WorkItem fails terminally`() = runBlocking {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
 
-    val retried =
+    val failed =
       services.service.processWorkItemDeadLetter(
         processWorkItemDeadLetterRequest {
           workItemResourceId = created.workItemResourceId
@@ -997,8 +991,8 @@ abstract class WorkItemsServiceTest {
         }
       )
 
-    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(retried.generation).isEqualTo(created.generation + 1L)
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(created.generation)
   }
 
   @Test
@@ -1031,23 +1025,28 @@ abstract class WorkItemsServiceTest {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
 
-    val retried =
+    val failed =
       services.service.processWorkItemDeadLetter(
         processWorkItemDeadLetterRequest { workItemResourceId = created.workItemResourceId }
       )
 
-    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
-    assertThat(retried.generation).isEqualTo(2L)
+    assertThat(failed.state).isEqualTo(WorkItem.State.FAILED)
+    assertThat(failed.generation).isEqualTo(created.generation)
   }
 
   @Test
   fun `dead letter with missing expected generation rejects generation two`() = runBlocking {
     val services = initServicesWithNoOpPublisher()
     val created = createWorkItem(services.service)
-    createWorkItemAttempt(services, created, "legacy-attempt")
+    services.service.failWorkItem(
+      failWorkItemRequest {
+        workItemResourceId = created.workItemResourceId
+        expectedWorkItemGeneration = created.generation
+      }
+    )
     val retried =
-      services.service.processWorkItemDeadLetter(
-        processWorkItemDeadLetterRequest {
+      services.service.retryWorkItem(
+        retryWorkItemRequest {
           workItemResourceId = created.workItemResourceId
           expectedWorkItemGeneration = created.generation
         }

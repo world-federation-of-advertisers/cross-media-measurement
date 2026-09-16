@@ -1005,8 +1005,7 @@ class ReportTraceTest {
     assertThat(filter).contains("jsonPayload.message =~")
     assertThat(filter).contains("jsonPayload.MESSAGE =~")
     assertThat(filter).contains("gRPC([[:space:]]+client)?")
-    assertThat(filter).contains("severity>=ERROR")
-    assertThat(filter).contains("^[[:space:]]*([a-z][a-z0-9_.-]*[[:space:]]*(:|\\{)|[{}])")
+    assertThat(filter).doesNotContain("severity>=ERROR")
   }
 
   @Test
@@ -2495,7 +2494,8 @@ class ReportTraceTest {
         failedLifecycleSpan(
           "kingdom_measurement_sync",
           mapOf("xmm.measurement.name" to context.measurementNames.single()),
-        )
+        ) +
+        successfulFailureWritebackSpan(context)
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
     assertThat(coverage.single { it.name == "kingdom_requisition_result_acceptance" }.status)
@@ -2580,7 +2580,8 @@ class ReportTraceTest {
           "duchy_requisition_kingdom_fulfillment",
           mapOf("xmm.requisition.name" to requisitionName, "xmm.duchy.id" to "worker1"),
         ) +
-        duchySpans
+        duchySpans +
+        successfulFailureWritebackSpan(context)
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
     assertThat(coverage.filter { it.name == "duchy_stage_attempt" }.map { it.status })
@@ -2614,7 +2615,8 @@ class ReportTraceTest {
         failedLifecycleSpan(
           "report_result_assembly",
           mapOf("xmm.report.name" to context.reportName, "xmm.report.state" to "FAILED"),
-        )
+        ) +
+        successfulFailureWritebackSpan(context)
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
     assertThat(coverage.single { it.name == "report_result_assembly" }.status).isEqualTo("FAILED")
@@ -2709,6 +2711,7 @@ class ReportTraceTest {
             "xmm.measurement.name",
             measurementNames[1],
           ),
+          successfulFailureWritebackSpan(context),
         )
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
@@ -2802,6 +2805,7 @@ class ReportTraceTest {
             "xmm.measurement.name",
             measurementNames[1],
           ),
+          successfulFailureWritebackSpan(context),
         )
     val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
 
@@ -2925,7 +2929,7 @@ class ReportTraceTest {
           "NO_INPUT",
           "No Measurement was created",
         ),
-        listOf(basicReportFailure),
+        listOf(basicReportFailure, successfulFailureWritebackSpan(context)),
         emptyList(),
       )
 
@@ -2938,13 +2942,126 @@ class ReportTraceTest {
       .containsExactly("SKIPPED_AFTER_FAILURE")
     assertThat(
         ReportTraceOutput.artifactStatus(
-          listOf(basicReportFailure),
+          listOf(basicReportFailure, successfulFailureWritebackSpan(context)),
           emptyList(),
           emptyList(),
           coverage,
         )
       )
       .isEqualTo(ReportTraceArtifactStatus.COMPLETE)
+  }
+
+  @Test
+  fun `successful BasicReport failure writeback is complete`() {
+    val context = reportTraceContext().copy(basicReportState = "FAILED")
+    val basicReportName = checkNotNull(context.basicReportName)
+    val writeback =
+      lifecycleSpan("basic_report_failure_writeback", "xmm.basic_report.name", basicReportName)
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        unresolvedRouteResolution(context),
+        listOf(writeback),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "basic_report_failure_writeback" }.status)
+      .isEqualTo("SUCCEEDED")
+  }
+
+  @Test
+  fun `failed BasicReport failure writeback is reported`() {
+    val context = reportTraceContext().copy(basicReportState = "UNPROCESSED_RESULTS_READY")
+    val basicReportName = checkNotNull(context.basicReportName)
+    val spans =
+      listOf(
+        failedLifecycleSpan("noise_correction", mapOf("xmm.basic_report.name" to basicReportName)),
+        failedLifecycleSpan(
+          "basic_report_failure_writeback",
+          mapOf("xmm.basic_report.name" to basicReportName),
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        unresolvedRouteResolution(context),
+        spans,
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "basic_report_failure_writeback" }.status)
+      .isEqualTo("FAILED")
+  }
+
+  @Test
+  fun `missing BasicReport failure writeback is partial when required`() {
+    val context = reportTraceContext().copy(basicReportState = "UNPROCESSED_RESULTS_READY")
+    val basicReportName = checkNotNull(context.basicReportName)
+    val spans =
+      listOf(
+        failedLifecycleSpan("noise_correction", mapOf("xmm.basic_report.name" to basicReportName))
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        unresolvedRouteResolution(context),
+        spans,
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "basic_report_failure_writeback" }.status)
+      .isEqualTo("MISSING")
+    assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
+      .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `successful execution does not require BasicReport failure writeback`() {
+    val context = reportTraceContext()
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        unresolvedRouteResolution(context),
+        emptyList(),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "basic_report_failure_writeback" }.status)
+      .isEqualTo("NOT_APPLICABLE")
+  }
+
+  @Test
+  fun `failed writeback is not hidden by durable failed BasicReport`() {
+    val context = reportTraceContext().copy(basicReportState = "FAILED")
+    val basicReportName = checkNotNull(context.basicReportName)
+    val spans =
+      listOf(
+        failedLifecycleSpan(
+          "basic_report_failure_writeback",
+          mapOf("xmm.basic_report.name" to basicReportName),
+        )
+      )
+    val routeResolution = unresolvedRouteResolution(context)
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution = routeResolution,
+        spans = spans,
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+        lifecycleCoverage = coverage,
+      )
+
+    assertThat(coverage.single { it.name == "basic_report_failure_writeback" }.status)
+      .isEqualTo("FAILED")
+    assertThat(output).contains("| basic_report_failure_writeback | FAILED |")
   }
 
   @Test
@@ -5035,28 +5152,41 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `renderLogPayload omits error-severity split gRPC protobuf continuation`() {
-    for (message in listOf("    work_item: \"workItems/work-item-1\"", "  requisitions {", "}")) {
+  fun `renderLogPayload omits multiline gRPC protobuf payload by explicit context`() {
+    val message =
+      "INFO: [grpc-worker] gRPC trace-id request:\n" +
+        "  work_item: \"workItems/work-item-1\"\n" +
+        "  requisitions {\n" +
+        "  }"
+
+    val rendered =
+      ReportTraceOutput.renderLogPayload(
+        Payload.StringPayload.of(message),
+        includeGrpcPayloads = false,
+      )
+
+    assertThat(rendered).isNull()
+  }
+
+  @Test
+  fun `renderLogPayload keeps isolated application errors shaped like protobuf fields`() {
+    val messages =
+      listOf(
+        "status: failed",
+        "details {",
+        "{failed to read required blob}",
+        "work_item: processing failed",
+      )
+
+    for (message in messages) {
       val rendered =
         ReportTraceOutput.renderLogPayload(
           Payload.StringPayload.of(message),
           includeGrpcPayloads = false,
-          severity = "ERROR",
         )
 
-      assertThat(rendered).isNull()
+      assertThat(rendered).isEqualTo(message)
     }
-  }
-
-  @Test
-  fun `renderLogPayload keeps similar non-error application message`() {
-    val message = "work_item: processing started"
-    val payload = Payload.StringPayload.of(message)
-
-    val rendered =
-      ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false, severity = "INFO")
-
-    assertThat(rendered).isEqualTo(message)
   }
 
   @Test
@@ -6760,6 +6890,23 @@ class ReportTraceTest {
               listOf(measurementRoute.requisitions.single().copy(state = requisitionState)),
           )
         )
+    )
+  }
+
+  private fun successfulFailureWritebackSpan(context: ReportTraceContext): ReportTraceSpan {
+    return lifecycleSpan(
+      "basic_report_failure_writeback",
+      "xmm.basic_report.name",
+      checkNotNull(context.basicReportName),
+    )
+  }
+
+  private fun unresolvedRouteResolution(context: ReportTraceContext): ReportTraceRouteResolution {
+    return ReportTraceRouteResolution.unresolved(
+      measurementNames = context.measurementNames,
+      topology = ReportTraceTopology.notSupplied(),
+      status = "NOT_ATTEMPTED",
+      note = "Test route resolution",
     )
   }
 
