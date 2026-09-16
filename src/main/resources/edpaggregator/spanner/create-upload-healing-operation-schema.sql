@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:1 dbms:cloudspanner
+-- changeset marcopremier:15 dbms:cloudspanner
 -- comment: Persist resumable VID-labeling upload-healing operations and steps.
 
 START BATCH DDL;

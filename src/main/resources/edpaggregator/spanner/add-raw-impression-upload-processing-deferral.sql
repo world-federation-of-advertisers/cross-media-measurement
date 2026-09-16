@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:add-raw-impression-upload-processing-deferral dbms:cloudspanner
+-- changeset marcopremier:13 dbms:cloudspanner
 -- comment: Track uploads deferred by a VID-labeling eviction operation.
 ALTER TABLE RawImpressionUpload ADD COLUMN EvictionOperationId STRING(36);
 ALTER TABLE RawImpressionUpload ADD COLUMN ProcessingDeferred BOOL NOT NULL DEFAULT (FALSE);
