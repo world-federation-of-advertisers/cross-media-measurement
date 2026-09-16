@@ -404,8 +404,7 @@ object GenerateQa2026Specs {
         "QA 2026 segment ${segment.name}: VIDs ${grouped(segment.vidStart)}-${grouped(vidEnd - 1)}" +
           " over $flightStart..$flightEnd"
       for (tranche in 0 until trancheCount) {
-        val frequencies =
-          blocks.keys.filter { it.tranche == tranche }.map { it.frequency }.sorted()
+        val frequencies = blocks.keys.filter { it.tranche == tranche }.map { it.frequency }.sorted()
         if (frequencies.isEmpty()) continue
         val startDate = flightStart.plusDays(flightDays * tranche / trancheCount)
         dateSpecs +=
