@@ -642,8 +642,7 @@ class RequisitionFetcherTest {
   @Test
   fun `terminal Kingdom race without refusal fails completed group WorkItem`() = runBlocking {
     val now = Instant.parse("2026-09-14T12:00:00Z")
-    val kingdomStates =
-      listOf(Requisition.State.WITHDRAWN, Requisition.State.FULFILLED)
+    val kingdomStates = listOf(Requisition.State.WITHDRAWN, Requisition.State.FULFILLED)
     val staleRequisitions =
       kingdomStates.mapIndexed { index, _ ->
         TestRequisitionData.REQUISITION.copy {
@@ -1298,8 +1297,7 @@ class RequisitionFetcherTest {
     val dispatchedGroupIds = mutableListOf<String>()
     val dispatcher =
       object : RequisitionWorkItemDispatcher {
-        override fun workItemName(groupId: String): String =
-          "workItems/results-fulfiller-$groupId"
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
 
         override suspend fun dispatch(groupId: String, blobUri: String) {
           dispatchedGroupIds += groupId
