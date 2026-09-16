@@ -1395,8 +1395,7 @@ class RequisitionFetcher(
         }
       } catch (e: StatusException) {
         if (
-          e.status.code != Status.Code.FAILED_PRECONDITION &&
-            e.status.code != Status.Code.ABORTED
+          e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
         ) {
           throw e
         }
