@@ -475,13 +475,17 @@ internal class GoogleCloudReportTraceLogReader(
   }
 
   private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry? {
+    val payload = getPayload<Payload<*>>()
     val resourceLabels = resource?.labels.orEmpty()
     val service =
-      listOf("service_name", "container_name", "job_name", "function_name").firstNotNullOfOrNull {
-        resourceLabels[it]
-      } ?: resource?.type ?: logName.substringAfterLast('/')
+      ReportTraceOutput.logServiceName(
+        resourceLabels,
+        payload,
+        resource?.type,
+        logName.substringAfterLast('/'),
+      )
     val message =
-      ReportTraceOutput.renderLogPayload(getPayload(), includeGrpcPayloads, severity.name)
+      ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads, severity.name)
         ?: return null
     return ReportTraceLogEntry(
       sourceProject = project,
@@ -583,7 +587,14 @@ internal class GoogleCloudReportTraceSpanReader(
           queries.map { query -> async { semaphore.withPermit { query() } } }.awaitAll()
         }
         .flatten()
-    return retainReportTraceSpans(entries.distinct(), readLimit(limit))
+    return retainReportTraceSpans(
+      entries
+        .filter { span ->
+          !span.startTime.isAfter(endTime) && !(span.endTime ?: span.startTime).isBefore(startTime)
+        }
+        .distinct(),
+      readLimit(limit),
+    )
   }
 
   private suspend fun listTraces(
@@ -767,6 +778,25 @@ internal object ReportTraceOutput {
     }
   }
 
+  fun logServiceName(
+    resourceLabels: Map<String, String>,
+    payload: Payload<*>?,
+    resourceType: String?,
+    fallbackLogName: String,
+  ): String {
+    val resourceService =
+      listOf("service_name", "container_name", "job_name", "function_name").firstNotNullOfOrNull {
+        resourceLabels[it]
+      }
+    val confidentialSpaceHost =
+      (payload as? Payload.JsonPayload)
+        ?.dataAsMap
+        ?.get("_HOSTNAME")
+        ?.toString()
+        ?.takeIf(String::isNotBlank)
+    return resourceService ?: confidentialSpaceHost ?: resourceType ?: fallbackLogName
+  }
+
   fun renderLogPayload(
     payload: Payload<*>?,
     includeGrpcPayloads: Boolean,
@@ -786,7 +816,9 @@ internal object ReportTraceOutput {
     }
     if (payload.type == Payload.Type.JSON) {
       val values = (payload as Payload.JsonPayload).dataAsMap
-      val message = values["message"]?.toString()
+      val structuredMessage = values["message"]?.toString()
+      val confidentialSpaceMessage = values["MESSAGE"]?.toString()
+      val message = structuredMessage ?: confidentialSpaceMessage
       if (!includeGrpcPayloads && message != null && isVerboseGrpcLog(message)) {
         return null
       }
@@ -808,6 +840,9 @@ internal object ReportTraceOutput {
       }
       val prefix =
         operationalFields.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }
+      if (confidentialSpaceMessage != null) {
+        return confidentialSpaceMessage
+      }
       return if (prefix.isEmpty()) payload.toString() else "$prefix ${payload}"
     }
     return payload.toString()
@@ -823,7 +858,17 @@ internal object ReportTraceOutput {
     val identifierPredicates =
       correlationValues.distinct().map { value ->
         val escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
+        val unqualifiedComputationPredicate =
+          if (value.startsWith("computations/")) {
+            val unqualified =
+              value.substringAfterLast('/').replace("\\", "\\\\").replace("\"", "\\\"")
+            " OR textPayload:\"$unqualified\" OR jsonPayload.message:\"$unqualified\" OR " +
+              "jsonPayload.MESSAGE:\"$unqualified\""
+          } else {
+            ""
+          }
         "(textPayload:\"$escaped\" OR jsonPayload.message:\"$escaped\" OR " +
+          "jsonPayload.MESSAGE:\"$escaped\"$unqualifiedComputationPredicate OR " +
           "jsonPayload.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.metric.name\"=\"$escaped\" OR " +
@@ -880,6 +925,7 @@ internal object ReportTraceOutput {
       } else {
         " AND NOT (textPayload =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
           "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
+          "jsonPayload.MESSAGE =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
           "(severity>=ERROR AND textPayload =~ \"$VERBOSE_GRPC_CONTINUATION_QUERY_REGEX\"))"
       }
     return "$timeFilter$payloadFilter AND (${identifierPredicates.joinToString(" OR ")})"
@@ -913,6 +959,35 @@ internal object ReportTraceOutput {
     appendLine()
     appendLine("Collection completeness: $artifactStatus")
     appendLine("Execution outcome: $executionOutcome")
+    if (artifactStatus == ReportTraceArtifactStatus.PARTIAL) {
+      val incompleteStages =
+        lifecycleCoverage.filter { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
+      val incompleteSources =
+        sourceStatuses.filter { it.status in INCOMPLETE_SOURCE_STATUSES }
+      appendLine()
+      appendLine("Incomplete lifecycle evidence:")
+      if (incompleteStages.isEmpty()) {
+        appendLine("- None identified")
+      } else {
+        for (stage in incompleteStages) {
+          appendLine(
+            "- `${sanitize(stage.name)}` — `${sanitize(stage.resource)}` " +
+              "(`${sanitize(stage.status)}`)"
+          )
+        }
+      }
+      if (incompleteSources.isNotEmpty()) {
+        appendLine()
+        appendLine("Incomplete telemetry sources:")
+        for (source in incompleteSources) {
+          val note = source.note.takeIf(String::isNotBlank)?.let { ": ${sanitize(it)}" }.orEmpty()
+          appendLine(
+            "- `${sanitize(source.project)}/${sanitize(source.source)}` — " +
+              "`${sanitize(source.status)}`$note"
+          )
+        }
+      }
+    }
     appendLine()
     appendLine("## Identity and collection window")
     appendLine()
@@ -1121,6 +1196,25 @@ internal object ReportTraceOutput {
         append(entry.timestamp).append("  ").appendLine(entry.text)
       }
     }
+    appendLine()
+    appendLine("## Final disposition")
+    appendLine()
+    appendLine("Execution outcome: $executionOutcome")
+    val finalDispositionStages =
+      lifecycleCoverage.filter { it.name in FINAL_DISPOSITION_LIFECYCLE_STAGES }
+    if (finalDispositionStages.isNotEmpty()) {
+      appendLine()
+      appendLine("| Stage | Status | Evidence |")
+      appendLine("| --- | --- | --- |")
+      for (stage in finalDispositionStages) {
+        appendLine("| ${stage.name} | ${stage.status} | ${sanitize(stage.evidence)} |")
+      }
+    }
+    appendLine()
+    appendLine(
+      "_This disposition is authoritative for the report. The last chronological event may " +
+        "belong to a child operation that finished concurrently after the report became terminal._"
+    )
     appendLine()
     appendLine("## Collection metadata")
     appendLine()
@@ -1383,13 +1477,20 @@ internal object ReportTraceOutput {
   ): ReportTraceLifecycleStage {
     val evidence = matchingEvidence.map { it.description }
     val latestOutcome = matchingEvidence.maxByOrNull { it.timestamp }?.outcome?.lowercase()
+    val requirement = operation.requirement
+    val terminalReportSupersedesSiblingSync =
+      operation.stage in REPORT_TERMINAL_SUPERSEDED_SYNC_STAGES &&
+        requirement in
+          setOf(
+            ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE,
+            ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL,
+          )
     val durableTerminalEvidenceFound =
       when (durableTerminalStatus) {
         "SUCCEEDED" -> matchingEvidence.any { it.outcome?.lowercase() in TERMINAL_SUCCESS_OUTCOMES }
         "REFUSED" -> matchingEvidence.any { it.outcome?.lowercase() == "refused" }
         else -> false
       }
-    val requirement = operation.requirement
     return ReportTraceLifecycleStage(
       name = operation.stage,
       resource = operation.resource,
@@ -1410,6 +1511,12 @@ internal object ReportTraceOutput {
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE &&
             operation.stage in EDPA_REQUISITION_LIFECYCLE_STAGES -> "NOT_APPLICABLE"
           latestOutcome != null && latestOutcome in TERMINAL_SUCCESS_OUTCOMES -> "SUCCEEDED"
+          terminalReportSupersedesSiblingSync &&
+            requirement == ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE ->
+            "SKIPPED_AFTER_FAILURE"
+          terminalReportSupersedesSiblingSync &&
+            requirement == ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL ->
+            "SKIPPED_AFTER_REFUSAL"
           requirement == ReportTraceStageRequirement.OPTIONAL -> "OPTIONAL"
           latestOutcome != null && latestOutcome in IN_PROGRESS_OUTCOMES -> "IN_PROGRESS"
           latestOutcome == "unknown" -> "UNKNOWN"
@@ -1509,10 +1616,8 @@ internal object ReportTraceOutput {
       }
     }
     return if (
-      sourceStatuses.any { it.status in setOf("FAILED", "PARTIAL", "TRUNCATED") } ||
-        lifecycleCoverage.any {
-          it.status in setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN", "UNEXPECTED")
-        }
+      sourceStatuses.any { it.status in INCOMPLETE_SOURCE_STATUSES } ||
+        lifecycleCoverage.any { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
     ) {
       ReportTraceArtifactStatus.PARTIAL
     } else {
@@ -1883,6 +1988,7 @@ internal object ReportTraceOutput {
     }
 
     for (metricName in context.metricNames) {
+      val metricState = context.metricStates[metricName]?.uppercase()
       add(
         "metric_creation",
         metricName,
@@ -1897,10 +2003,12 @@ internal object ReportTraceOutput {
         "metric_result_sync",
         metricName,
         "xmm.metric.name",
-        if (failedBeforeReport) {
-          ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
-        } else {
-          ReportTraceStageRequirement.REQUIRED
+        when {
+          failedBeforeReport -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+          metricState in TERMINAL_METRIC_STATES -> ReportTraceStageRequirement.REQUIRED
+          executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+          reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+          else -> ReportTraceStageRequirement.REQUIRED
         },
       )
     }
@@ -1957,7 +2065,15 @@ internal object ReportTraceOutput {
         "kingdom_measurement_sync",
         measurement.name,
         "xmm.measurement.name",
-        historicalRequirement,
+        when {
+          measurementReused -> ReportTraceStageRequirement.REUSED
+          measurementRefused -> ReportTraceStageRequirement.REQUIRED
+          executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+          measurement.state.uppercase() in TERMINAL_MEASUREMENT_STATES ->
+            ReportTraceStageRequirement.REQUIRED
+          reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
+          else -> ReportTraceStageRequirement.REQUIRED
+        },
       )
       when (measurement.route) {
         ReportTraceMeasurementRouteKind.DIRECT -> {
@@ -2313,6 +2429,9 @@ internal object ReportTraceOutput {
 
   private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
 
+  private fun sanitizeDiagnosticTableCell(value: String): String =
+    redact(value).replace("|", "\\|")
+
   private fun StringBuilder.appendDiagnosticSections(
     logEntries: List<ReportTraceLogEntry>,
     collectionWarnings: List<String>,
@@ -2359,7 +2478,7 @@ internal object ReportTraceOutput {
       appendLine(
         "| ${entry.timestamp} | ${sanitizeTableCell(entry.sourceProject + "/" + entry.service)} | " +
           "${sanitizeTableCell(diagnosticResource(entry.message))} | " +
-          "${sanitizeTableCell(summarizeDiagnosticMessage(entry.message))} |"
+          "${sanitizeDiagnosticTableCell(summarizeDiagnosticMessage(entry.message))} |"
       )
     }
     if (entries.size > MAX_DIAGNOSTIC_LOG_ENTRIES) {
@@ -2376,6 +2495,9 @@ internal object ReportTraceOutput {
     val fields = safeTextFields(message)
     return DIAGNOSTIC_RESOURCE_ATTRIBUTES.firstNotNullOfOrNull(fields::get)
       ?: REQUISITION_NAME_IN_TEXT.find(message)?.value
+      ?: MILL_COMPUTATION_IN_TEXT.find(message)?.groupValues?.get(1)?.let {
+        "computations/$it"
+      }
       ?: "(unattributed)"
   }
 
@@ -2460,6 +2582,8 @@ internal object ReportTraceOutput {
     )
   private val REQUISITION_NAME_IN_TEXT =
     Regex("dataProviders/[A-Za-z0-9_-]+/requisitions/[A-Za-z0-9_-]+")
+  private val MILL_COMPUTATION_IN_TEXT =
+    Regex("(?:^|\\s)([A-Za-z0-9_-]+)@[A-Za-z0-9_-]*mill[A-Za-z0-9_-]*(?:\\s|:)")
   private val STACK_FRAME_PATTERN = Regex("""\s+at\s+\S+\([^)]*\)""")
   private val STACK_TRACE_REMAINDER_PATTERN = Regex("""\s+\.\.\. \d+ more""")
   private val WHITESPACE_PATTERN = Regex("""\s+""")
@@ -2551,6 +2675,20 @@ internal object ReportTraceOutput {
     )
   private val IN_PROGRESS_OUTCOMES =
     setOf("started", "prepared", "in_progress", "pending", "retryable_failure", "stale_delivery")
+  private val REPORT_TERMINAL_SUPERSEDED_SYNC_STAGES =
+    setOf("metric_result_sync", "kingdom_measurement_sync")
+  private val FINAL_DISPOSITION_LIFECYCLE_STAGES =
+    setOf(
+      "report_result_assembly",
+      "noise_correction",
+      "processed_result_writeback",
+      "basic_report_available",
+    )
+  private val INCOMPLETE_SOURCE_STATUSES = setOf("FAILED", "PARTIAL", "TRUNCATED")
+  private val INCOMPLETE_LIFECYCLE_STATUSES =
+    setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN", "UNEXPECTED")
+  private val TERMINAL_METRIC_STATES = setOf("FAILED", "INVALID")
+  private val TERMINAL_MEASUREMENT_STATES = setOf("FAILED", "CANCELLED")
   private val SAFE_TRACE_ATTRIBUTES =
     setOf("error", "service.name", "g.co/agent/name", "/http/host")
   private val SECRET_PATTERNS =
@@ -2779,7 +2917,7 @@ internal class ReportTrace(
   @CommandLine.Option(
     names = ["--collection-deadline"],
     defaultValue = "PT6M",
-    description = ["Maximum telemetry collection time for each requested report."],
+    description = ["Maximum resource resolution and telemetry collection time per report."],
   )
   private lateinit var collectionDeadline: Duration
 
@@ -3045,32 +3183,32 @@ internal class ReportTrace(
         val collectionStartNanos = System.nanoTime()
         val resolution: Pair<ReportTraceContext, String?> =
           try {
-            resolver.resolve(basicReportKey) to null
+            withTimeout(remainingCollectionDeadline(collectionStartNanos).toMillis()) {
+              resolver.resolve(basicReportKey)
+            } to null
+          } catch (e: TimeoutCancellationException) {
+            unresolvedContext(basicReportKey) to
+              "Reporting resource resolution exceeded the per-report deadline"
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
-            ReportTraceContext(
-              basicReportName = basicReportKey.toName(),
-              basicReportState = null,
-              reportName = REPORT_NOT_CREATED,
-              metricNames = emptyList(),
-              metricStates = emptyMap(),
-              reusedMetricNames = emptySet(),
-              unresolvedMetricRequestIds = emptyList(),
-              measurementNames = emptyList(),
-              reusedMeasurementNames = emptySet(),
-              unresolvedMeasurementRequestIds = emptyList(),
-              reportResolvedByRequestId = false,
-              telemetryRecoveredMeasurementNames = emptyMap(),
-              createTime = null,
-            ) to failureDescription(e)
+            unresolvedContext(basicReportKey) to failureDescription(e)
           }
         var context = resolution.first
         val resolutionFailure = resolution.second
         var routeResolution =
           if (resolutionFailure == null) {
             try {
-              routeResolver.resolve(context.measurementNames, topology)
+              withTimeout(remainingCollectionDeadline(collectionStartNanos).toMillis()) {
+                routeResolver.resolve(context.measurementNames, topology)
+              }
+            } catch (e: TimeoutCancellationException) {
+              ReportTraceRouteResolution.unresolved(
+                measurementNames = context.measurementNames,
+                topology = topology,
+                status = "FAILED",
+                note = "Kingdom route resolution exceeded the per-report deadline",
+              )
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
@@ -3119,7 +3257,16 @@ internal class ReportTrace(
             )
           routeResolution =
             try {
-              routeResolver.resolve(context.measurementNames, topology)
+              withTimeout(remainingCollectionDeadline(collectionStartNanos).toMillis()) {
+                routeResolver.resolve(context.measurementNames, topology)
+              }
+            } catch (e: TimeoutCancellationException) {
+              ReportTraceRouteResolution.unresolved(
+                measurementNames = context.measurementNames,
+                topology = topology,
+                status = "FAILED",
+                note = "Kingdom route resolution exceeded the per-report deadline",
+              )
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
@@ -3189,6 +3336,24 @@ internal class ReportTrace(
     return if (failures == 0) 0 else 1
   }
 
+  private fun unresolvedContext(basicReportKey: BasicReportKey): ReportTraceContext {
+    return ReportTraceContext(
+      basicReportName = basicReportKey.toName(),
+      basicReportState = null,
+      reportName = REPORT_NOT_CREATED,
+      metricNames = emptyList(),
+      metricStates = emptyMap(),
+      reusedMetricNames = emptySet(),
+      unresolvedMetricRequestIds = emptyList(),
+      measurementNames = emptyList(),
+      reusedMeasurementNames = emptySet(),
+      unresolvedMeasurementRequestIds = emptyList(),
+      reportResolvedByRequestId = false,
+      telemetryRecoveredMeasurementNames = emptyMap(),
+      createTime = null,
+    )
+  }
+
   private suspend fun collectTimeline(
     context: ReportTraceContext,
     routeResolution: ReportTraceRouteResolution,
@@ -3219,8 +3384,15 @@ internal class ReportTrace(
           ?: context.createTime?.minus(DEFAULT_LEAD_TIME)
           ?: endTime.minus(DEFAULT_LOOKBACK)
       val warning =
-        "Telemetry collection exceeded the per-report deadline of $collectionDeadline; " +
+        "Report collection exceeded the per-report deadline of $collectionDeadline; " +
           "remaining lookups were skipped"
+      val warnings = buildList {
+        if (resolutionFailure != null) {
+          add("Reporting resource resolution failed: $resolutionFailure")
+        }
+        addAll(routeResolution.warnings)
+        add(warning)
+      }
       val authoritativeReportResources =
         authoritativeReportResources(context, routeResolution, resolutionFailure)
       val retainedSpans =
@@ -3258,7 +3430,7 @@ internal class ReportTrace(
               note = warning,
             )
           ),
-        warnings = listOf(warning),
+        warnings = warnings.distinct(),
         status = ReportTraceArtifactStatus.PARTIAL,
         lifecycleCoverage = lifecycleCoverage,
         startTime = startTime,
@@ -3273,11 +3445,9 @@ internal class ReportTrace(
     routeResolution: ReportTraceRouteResolution,
     resolutionFailure: String?,
   ): Set<String> {
-    if (resolutionFailure != null) {
-      return emptySet()
-    }
     return buildSet {
       context.basicReportName?.let(::add)
+      if (resolutionFailure != null) return@buildSet
       context.reportName.takeUnless { it == REPORT_NOT_CREATED }?.let(::add)
       addAll(context.metricNames)
       addAll(context.measurementNames)

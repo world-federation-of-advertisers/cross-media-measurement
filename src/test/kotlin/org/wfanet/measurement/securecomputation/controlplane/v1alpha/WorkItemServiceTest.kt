@@ -112,9 +112,11 @@ class WorkItemServiceTest {
         WorkItem.CREATE_TIME_FIELD_NUMBER,
         WorkItem.UPDATE_TIME_FIELD_NUMBER,
         WorkItem.STATE_FIELD_NUMBER,
+        WorkItem.GENERATION_FIELD_NUMBER,
       )
       .isEqualTo(request.workItem)
     assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(response.generation).isEqualTo(1L)
   }
 
   @Test
@@ -451,6 +453,7 @@ class WorkItemServiceTest {
         workItem {
           name = request.name
           this.workItemParams = workItemParams
+          generation = 1L
         }
       )
   }

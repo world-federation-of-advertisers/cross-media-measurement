@@ -570,6 +570,46 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         )
 
     @mock.patch.object(logging, "warning", autospec=True)
+    def test_execute_fails_basic_report_on_permanent_grpc_error(
+        self, mock_warning
+    ):
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_invalid",
+            cmms_measurement_consumer_id="mc_id_1",
+            external_report_result_id=101,
+        )
+        self.mock_basic_reports_stub.ListBasicReports.return_value = (
+            basic_reports_service_pb2.ListBasicReportsResponse(
+                basic_reports=[mock_report]
+            )
+        )
+        request = report_results_service_pb2.AddProcessedResultValuesRequest()
+        self.mock_post_processor.process.return_value = request
+        rpc_error = grpc.RpcError()
+        rpc_error.code = lambda: grpc.StatusCode.INVALID_ARGUMENT
+        rpc_error.details = lambda: "invalid result"
+        self.mock_report_results_stub.AddProcessedResultValues.side_effect = (
+            rpc_error
+        )
+
+        result = self.job.execute()
+
+        self.assertFalse(result)
+        self.mock_basic_reports_stub.FailBasicReport.assert_called_once_with(
+            basic_reports_service_pb2.FailBasicReportRequest(
+                cmms_measurement_consumer_id="mc_id_1",
+                external_basic_report_id="basic_report_invalid",
+            )
+        )
+        self.assertTrue(
+            any(
+                "Permanent gRPC failure" in call.args[0]
+                and call.args[2] == "INVALID_ARGUMENT"
+                for call in mock_warning.call_args_list
+            )
+        )
+
+    @mock.patch.object(logging, "warning", autospec=True)
     def test_execute_structures_non_grpc_writeback_failure(
         self, mock_warning
     ):

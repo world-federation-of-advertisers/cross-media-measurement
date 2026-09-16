@@ -37,7 +37,7 @@ object W3CTraceContext {
 
   /** Extracts a parent OpenTelemetry context from W3C trace-context [fields]. */
   fun extract(fields: Map<String, String>): Context {
-    return propagator.extract(Context.current(), fields, MapGetter)
+    return propagator.extract(Context.root(), fields, MapGetter)
   }
 
   /** Runs [block] with the W3C trace context from [fields] bound to the coroutine. */

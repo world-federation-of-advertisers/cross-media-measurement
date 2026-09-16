@@ -91,6 +91,14 @@ _STATES_PAST_UNPROCESSED = frozenset({
     ),
 })
 
+_RETRYABLE_GRPC_STATUS_CODES = frozenset({
+    grpc.StatusCode.ABORTED,
+    grpc.StatusCode.DEADLINE_EXCEEDED,
+    grpc.StatusCode.INTERNAL,
+    grpc.StatusCode.RESOURCE_EXHAUSTED,
+    grpc.StatusCode.UNAVAILABLE,
+})
+
 
 def _extract_error_info(
     rpc_error: grpc.RpcError,
@@ -343,10 +351,21 @@ class PostProcessReportResultJob:
                 )
                 self._fail_basic_report(basic_report)
                 return False
-            # Any other gRPC error (UNAVAILABLE, DEADLINE_EXCEEDED, etc.) is
-            # treated as transient. Leave the BasicReport in
-            # UNPROCESSED_RESULTS_READY so the next tick can retry; do not
-            # mark it FAILED.
+            if e.code() not in _RETRYABLE_GRPC_STATUS_CODES:
+                logging.warning(
+                    "xmm.lifecycle.stage=processed_result_writeback "
+                    "xmm.outcome=failed %s "
+                    "Permanent gRPC failure (%s) updating ReportResult for "
+                    "BasicReport %s, MeasurementConsumer %s; marking FAILED",
+                    _error_fields(e),
+                    e.code().name,
+                    basic_report.external_basic_report_id,
+                    basic_report.cmms_measurement_consumer_id,
+                    exc_info=True,
+                )
+                self._fail_basic_report(basic_report)
+                return False
+            # Retry transient service and transport failures on the next tick.
             logging.warning(
                 "xmm.lifecycle.stage=processed_result_writeback "
                 "xmm.outcome=in_progress xmm.error.retryable=true "

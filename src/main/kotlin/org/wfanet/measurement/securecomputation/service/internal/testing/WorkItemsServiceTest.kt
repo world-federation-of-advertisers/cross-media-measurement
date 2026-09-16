@@ -703,15 +703,18 @@ abstract class WorkItemsServiceTest {
           }
         )
 
-      val repaired =
-        services.service.retryWorkItem(
-          retryWorkItemRequest {
-            workItemResourceId = created.workItemResourceId
-            expectedWorkItemGeneration = created.generation
-          }
-        )
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          services.service.retryWorkItem(
+            retryWorkItemRequest {
+              workItemResourceId = created.workItemResourceId
+              expectedWorkItemGeneration = created.generation
+            }
+          )
+        }
 
-      assertThat(repaired.state).isEqualTo(WorkItem.State.QUEUED)
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception.errorInfo?.reason).isEqualTo(Errors.Reason.INVALID_WORK_ITEM_STATE.name)
       assertThat(publicationCount).isEqualTo(1)
     }
 

@@ -25,6 +25,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "ReportTraceLoggingIntegrationTest",
+    srcs = ["ReportTraceLoggingIntegrationTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
+    test_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.ReportTraceLoggingIntegrationTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "KingdomReportTraceResolverTest",
     srcs = ["KingdomReportTraceResolverTest.kt"],
     associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
