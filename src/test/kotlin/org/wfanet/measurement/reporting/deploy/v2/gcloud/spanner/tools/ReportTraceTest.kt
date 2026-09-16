@@ -3210,6 +3210,37 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `not applicable route ignores unattributed evidence from another requisition`() {
+    val context = reportTraceContext()
+    val directRequisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val unrelatedWorkItemEvidence =
+      lifecycleSpan(
+        "work_item_processing",
+        mapOf("xmm.work_item.name" to "workItems/results-fulfiller-other-group"),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution(
+          context,
+          ReportTraceMeasurementRouteKind.DIRECT,
+          directRequisitionName,
+          ReportTraceRequisitionRouteKind.DIRECT_EDP,
+        ),
+        listOf(unrelatedWorkItemEvidence),
+        emptyList(),
+      )
+
+    assertThat(
+        coverage
+          .single { it.name == "work_item_processing" && it.resource == directRequisitionName }
+          .status
+      )
+      .isEqualTo("NOT_APPLICABLE")
+  }
+
+  @Test
   fun `render canonicalizes duplicate WorkItem identifiers`() {
     val context = reportTraceContext()
     val workItemId = "results-fulfiller-group-1"
