@@ -438,8 +438,7 @@ internal class GoogleCloudReportTraceLogReader(
   ): List<ReportTraceLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
     val entries = mutableListOf<ReportTraceLogEntry>()
-    val filters =
-      ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime, includeGrpcPayloads)
+    val filters = ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime)
     for (filter in filters) {
       entries += readFilter(filter, limit)
     }
@@ -448,7 +447,8 @@ internal class GoogleCloudReportTraceLogReader(
 
   private suspend fun readFilter(filter: String, limit: Int): List<ReportTraceLogEntry> {
     val entryLimit = readLimit(limit)
-    val entries = mutableListOf<ReportTraceLogEntry>()
+    val rawEntryLimit = rawReadLimit(entryLimit)
+    val entries = mutableListOf<LogEntry>()
     var page =
       requestThrottler.onReady {
         runInterruptible(Dispatchers.IO) {
@@ -461,17 +461,91 @@ internal class GoogleCloudReportTraceLogReader(
       }
     while (true) {
       for (entry in page.values) {
-        val reportTraceLogEntry = entry.toReportTraceLogEntry() ?: continue
-        entries += reportTraceLogEntry
-        if (entries.size == entryLimit) return entries
+        entries += entry
+        if (entries.size == rawEntryLimit) return renderEntries(entries).take(entryLimit)
       }
-      if (!page.hasNextPage()) return entries
+      if (!page.hasNextPage()) return renderEntries(entries).take(entryLimit)
       val currentPage = page
       page =
         requestThrottler.onReady {
           runInterruptible(Dispatchers.IO) { checkNotNull(currentPage.nextPage) }
         }
     }
+  }
+
+  private fun renderEntries(entries: List<LogEntry>): List<ReportTraceLogEntry> {
+    return filterVerboseGrpcEntries(entries).mapNotNull { it.toReportTraceLogEntry() }
+  }
+
+  private fun filterVerboseGrpcEntries(entries: List<LogEntry>): List<LogEntry> {
+    if (includeGrpcPayloads) return entries
+    val activeGrpcOrigins = mutableSetOf<LogOrigin>()
+    val retainedEntries = mutableListOf<LogEntry>()
+    for (
+      entry in
+        entries.withIndex().sortedWith(
+          compareBy<IndexedValue<LogEntry>> { it.value.instantTimestamp ?: Instant.EPOCH }
+            .thenByDescending { it.index }
+        )
+    ) {
+      val message = entry.value.rawMessage()
+      val origin = entry.value.logOrigin()
+      when (ReportTraceOutput.verboseGrpcLogKind(message)) {
+        "headers",
+        "request",
+        "response" -> {
+          if (origin != null) activeGrpcOrigins += origin
+          continue
+        }
+        "complete",
+        "error" -> {
+          if (origin != null) activeGrpcOrigins -= origin
+          continue
+        }
+      }
+      if (
+        origin != null &&
+          origin in activeGrpcOrigins &&
+          ReportTraceOutput.isGrpcContinuation(message)
+      ) {
+        continue
+      }
+      if (origin != null) activeGrpcOrigins -= origin
+      retainedEntries += entry.value
+    }
+    return retainedEntries
+  }
+
+  private fun LogEntry.rawMessage(): String {
+    val payload = getPayload<Payload<*>>() ?: return ""
+    return when (payload.type) {
+      Payload.Type.STRING -> (payload as Payload.StringPayload).data
+      Payload.Type.JSON -> {
+        val values = (payload as Payload.JsonPayload).dataAsMap
+        (values["message"] ?: values["MESSAGE"])?.toString() ?: payload.toString()
+      }
+      else -> payload.toString()
+    }
+  }
+
+  private fun LogEntry.logOrigin(): LogOrigin? {
+    val payload = getPayload<Payload<*>>()
+    val loggerIdentity =
+      LOGGER_LABEL_KEYS.firstNotNullOfOrNull { labels[it]?.takeIf(String::isNotBlank) }
+        ?: sourceLocation?.function?.takeIf(String::isNotBlank)
+        ?: (payload as? Payload.JsonPayload)
+          ?.dataAsMap
+          ?.get("logging.googleapis.com/sourceLocation")
+          ?.let { it as? Map<*, *> }
+          ?.let { source -> (source["function"] ?: source["file"])?.toString() }
+          ?.takeIf(String::isNotBlank)
+        ?: return null
+    return LogOrigin(
+      logName = logName.orEmpty(),
+      resourceType = resource?.type,
+      resourceLabels = resource?.labels.orEmpty().toMap(),
+      loggerIdentity = loggerIdentity,
+    )
   }
 
   private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry? {
@@ -495,10 +569,34 @@ internal class GoogleCloudReportTraceLogReader(
     )
   }
 
+  private data class LogOrigin(
+    val logName: String,
+    val resourceType: String?,
+    val resourceLabels: Map<String, String>,
+    val loggerIdentity: String,
+  )
+
   companion object {
     private const val MAX_LOG_PAGE_SIZE = 1000
+    private const val MAX_GRPC_CONTEXT_ENTRIES = 1000
+    private val LOGGER_LABEL_KEYS =
+      listOf(
+        "logger",
+        "logger_name",
+        "loggerName",
+        "logging.googleapis.com/logger",
+      )
 
     private fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
+
+    private fun rawReadLimit(entryLimit: Int): Int =
+      if (entryLimit == Int.MAX_VALUE) {
+        entryLimit
+      } else {
+        (entryLimit.toLong() + MAX_GRPC_CONTEXT_ENTRIES)
+          .coerceAtMost(Int.MAX_VALUE.toLong())
+          .toInt()
+      }
   }
 }
 
@@ -843,7 +941,6 @@ internal object ReportTraceOutput {
     correlationValues: Collection<String>,
     startTime: Instant,
     endTime: Instant,
-    includeGrpcPayloads: Boolean,
   ): List<String> {
     val timeFilter = "timestamp>=\"$startTime\" AND timestamp<=\"$endTime\""
     val identifierPredicates =
@@ -882,11 +979,11 @@ internal object ReportTraceOutput {
     val filters = mutableListOf<String>()
     var chunk = mutableListOf<String>()
     for (predicate in identifierPredicates) {
-      val candidate = buildLogFilter(timeFilter, chunk + predicate, includeGrpcPayloads)
+      val candidate = buildLogFilter(timeFilter, chunk + predicate)
       if (candidate.length > MAX_LOG_FILTER_LENGTH && chunk.isNotEmpty()) {
-        filters += buildLogFilter(timeFilter, chunk, includeGrpcPayloads)
+        filters += buildLogFilter(timeFilter, chunk)
         require(
-          buildLogFilter(timeFilter, listOf(predicate), includeGrpcPayloads).length <=
+          buildLogFilter(timeFilter, listOf(predicate)).length <=
             MAX_LOG_FILTER_LENGTH
         ) {
           "One correlation value exceeds the Cloud Logging filter-size limit"
@@ -900,7 +997,7 @@ internal object ReportTraceOutput {
       }
     }
     if (chunk.isNotEmpty()) {
-      filters += buildLogFilter(timeFilter, chunk, includeGrpcPayloads)
+      filters += buildLogFilter(timeFilter, chunk)
     }
     return filters
   }
@@ -908,17 +1005,8 @@ internal object ReportTraceOutput {
   private fun buildLogFilter(
     timeFilter: String,
     identifierPredicates: List<String>,
-    includeGrpcPayloads: Boolean,
   ): String {
-    val payloadFilter =
-      if (includeGrpcPayloads) {
-        ""
-      } else {
-        " AND NOT (textPayload =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
-          "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
-          "jsonPayload.MESSAGE =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\")"
-      }
-    return "$timeFilter$payloadFilter AND (${identifierPredicates.joinToString(" OR ")})"
+    return "$timeFilter AND (${identifierPredicates.joinToString(" OR ")})"
   }
 
   fun render(
@@ -2562,9 +2650,6 @@ internal object ReportTraceOutput {
 
   private const val MAX_LOG_FILTER_LENGTH = 20_000
   private const val MAX_DIAGNOSTIC_LOG_ENTRIES = 50
-  private const val VERBOSE_GRPC_LOG_QUERY_REGEX =
-    "gRPC([[:space:]]+client)?[[:space:]]+[^[:space:]]+[[:space:]]+" +
-      "(headers|request|response|complete|error):?"
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val ERROR_LOG_SEVERITIES = setOf("ERROR", "CRITICAL", "ALERT", "EMERGENCY")
   private val WARNING_LOG_SEVERITIES = setOf("WARNING", "WARN")
@@ -2710,10 +2795,21 @@ internal object ReportTraceOutput {
   private val APPLICATION_LOG_LEVEL_PATTERN =
     Regex("^\\s*(SEVERE|WARNING|WARN|INFO|CONFIG|FINE|FINER|FINEST):\\s")
   private val VERBOSE_GRPC_LOG_PATTERN =
-    Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(?:headers|request|response|complete|error):?")
+    Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(headers|request|response|complete|error):?")
+  private val GRPC_CONTINUATION_PATTERN =
+    Regex(
+      "(?s)^\\s*(?:[A-Za-z_][A-Za-z0-9_.-]*\\s*(?::.*|\\{)|[{}]|" +
+        "\\[[^]]*]|[A-Za-z0-9_.-]+\\s*=.*)\\s*$"
+    )
 
   private fun isVerboseGrpcLog(text: String): Boolean =
-    VERBOSE_GRPC_LOG_PATTERN.containsMatchIn(text)
+    verboseGrpcLogKind(text) != null
+
+  internal fun verboseGrpcLogKind(text: String): String? =
+    VERBOSE_GRPC_LOG_PATTERN.find(text)?.groupValues?.get(1)?.lowercase()
+
+  internal fun isGrpcContinuation(text: String): Boolean =
+    GRPC_CONTINUATION_PATTERN.matches(text)
 
   private fun safeTextFields(text: String): Map<String, String> {
     return buildMap {

@@ -269,8 +269,12 @@ BasicReport in the batch. The defaults shown above are also the CLI defaults.
 By default, the artifact contains complete application log payloads, including
 INFO messages, error messages, and stack traces. It omits entries produced by
 the generic verbose gRPC interceptor when the payload contains the interceptor's
-gRPC request/response preamble. It does not suppress an isolated application
-message merely because it resembles a protobuf field or brace. gRPC payloads can contain
+gRPC request/response preamble. When a logging backend ingests a multiline
+payload as separate entries, the tool suppresses continuations only while they
+share the same logger and log-stream context as that preamble. It does not
+suppress an isolated application message merely because it resembles a protobuf
+field or brace.
+gRPC payloads can contain
 credentials and encrypted request data. Application logs must still follow the
 normal policy of not logging sensitive data.
 
