@@ -20,7 +20,7 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
-import java.time.Instant
+import java.time.Clock
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.EnsureWorkItemRequest
@@ -76,6 +77,7 @@ class SpannerWorkItemsService(
   private val idGenerator: IdGenerator,
   private val workItemPublicationRunner: WorkItemPublicationRunner,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val clock: Clock = Clock.systemUTC(),
 ) : WorkItemsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
@@ -218,7 +220,8 @@ class SpannerWorkItemsService(
         if (e.errorCode != ErrorCode.ALREADY_EXISTS) {
           throw e
         }
-        // Another idempotent producer may have committed the same deterministic resource ID.
+        // Another idempotent producer may have committed the same deterministic resource
+        // ID.
         readConcurrentEnsureWinner(request)
       }
 
@@ -403,7 +406,7 @@ class SpannerWorkItemsService(
                 txn.retryWorkItem(result.workItemId, result.workItem.generation)
               }
               WorkItem.State.QUEUED -> {
-                when (txn.resetWorkItemPublication(result.workItemId, Instant.now())) {
+                when (txn.resetWorkItemPublication(result.workItemId, clock.instant())) {
                   WorkItemPublicationResetResult.RESET -> Unit
                   WorkItemPublicationResetResult.LEASED ->
                     throw WorkItemPublicationPendingException(result.workItem.workItemResourceId)
@@ -480,7 +483,7 @@ class SpannerWorkItemsService(
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=processWorkItemDeadLetter"))
-    val (workItemId, workItem) =
+    val workItem =
       transactionRunner.run { txn ->
         try {
           val result = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
@@ -493,44 +496,40 @@ class SpannerWorkItemsService(
           }
 
           val activeAttempt = txn.getActiveWorkItemAttempt(result.workItemId)
-          val nextState =
-            when (result.workItem.state) {
+          val state =
+            when (val currentState = result.workItem.state) {
+              WorkItem.State.QUEUED,
+              WorkItem.State.FAILED -> txn.failWorkItem(result.workItemId)
               WorkItem.State.RUNNING -> {
-                if (activeAttempt?.workItemAttempt?.hasLeaseExpirationTime() == true) {
+                if (
+                  activeAttempt?.workItemAttempt?.hasLeaseExpirationTime() == true &&
+                    activeAttempt.workItemAttempt.leaseExpirationTime
+                      .toInstant()
+                      .isAfter(clock.instant())
+                ) {
                   throw WorkItemInvalidStateException(
                     result.workItem.workItemResourceId,
-                    result.workItem.state,
+                    currentState,
                   )
                 }
                 if (activeAttempt != null) {
                   txn.failWorkItemAttempt(
                     result.workItemId,
                     activeAttempt.workItemAttemptId,
-                    "Recovered from dead-letter delivery",
+                    "Pub/Sub delivery attempts exhausted",
                   )
-                  txn.retryWorkItem(result.workItemId, result.workItem.generation)
-                } else {
-                  txn.failWorkItem(result.workItemId)
                 }
+                txn.failWorkItem(result.workItemId)
               }
-              WorkItem.State.QUEUED ->
-                txn.retryWorkItem(result.workItemId, result.workItem.generation)
-              WorkItem.State.FAILED -> txn.failWorkItem(result.workItemId)
               WorkItem.State.SUCCEEDED,
               WorkItem.State.STATE_UNSPECIFIED,
               WorkItem.State.UNRECOGNIZED ->
                 throw WorkItemInvalidStateException(
                   result.workItem.workItemResourceId,
-                  result.workItem.state,
+                  currentState,
                 )
             }
-          result.workItemId to
-            result.workItem.copy {
-              state = nextState
-              if (nextState == WorkItem.State.QUEUED) {
-                generation = result.workItem.generation + 1L
-              }
-            }
+          result.workItem.copy { this.state = state }
         } catch (e: WorkItemNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         } catch (e: QueueNotFoundForWorkItem) {
@@ -542,11 +541,7 @@ class SpannerWorkItemsService(
         }
       }
 
-    val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
-    if (result.state == WorkItem.State.QUEUED) {
-      workItemPublicationRunner.publishWorkItem(workItemId)
-    }
-    return result
+    return workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
   }
 
   /**

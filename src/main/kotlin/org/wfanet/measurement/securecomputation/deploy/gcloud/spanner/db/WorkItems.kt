@@ -92,23 +92,8 @@ suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
     set("PublicationScheduledGeneration").to(nextGeneration)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  scheduleWorkItemPublication(workItemId, isDeadLetter = false, nextAttemptTime = nextAttemptTime)
+  scheduleWorkItemPublication(workItemId, nextAttemptTime)
   return state
-}
-
-/** Advances the generation and schedules a dead-letter publication for a running WorkItem. */
-suspend fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemDeadLetterPublication(
-  workItemId: Long,
-  generation: Long,
-) {
-  val nextGeneration = generation + 1L
-  bufferUpdateMutation("WorkItems") {
-    set("WorkItemId").to(workItemId)
-    set("Generation").to(nextGeneration)
-    set("PublicationScheduledGeneration").to(nextGeneration)
-    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-  }
-  scheduleWorkItemPublication(workItemId, isDeadLetter = true, nextAttemptTime = Instant.now())
 }
 
 /**

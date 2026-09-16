@@ -484,8 +484,7 @@ internal class GoogleCloudReportTraceLogReader(
         resource?.type,
         logName.substringAfterLast('/'),
       )
-    val message =
-      ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads, severity.name) ?: return null
+    val message = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads) ?: return null
     return ReportTraceLogEntry(
       sourceProject = project,
       timestamp = instantTimestamp ?: Instant.EPOCH,
@@ -796,18 +795,11 @@ internal object ReportTraceOutput {
     return resourceService ?: confidentialSpaceHost ?: resourceType ?: fallbackLogName
   }
 
-  fun renderLogPayload(
-    payload: Payload<*>?,
-    includeGrpcPayloads: Boolean,
-    severity: String? = null,
-  ): String? {
+  fun renderLogPayload(payload: Payload<*>?, includeGrpcPayloads: Boolean): String? {
     if (payload == null) return ""
     if (payload.type == Payload.Type.STRING) {
       val text = (payload as Payload.StringPayload).data
-      return if (
-        includeGrpcPayloads ||
-          (!isVerboseGrpcLog(text) && !isVerboseGrpcPayloadContinuation(severity, text))
-      ) {
+      return if (includeGrpcPayloads || !isVerboseGrpcLog(text)) {
         text
       } else {
         null
@@ -924,8 +916,7 @@ internal object ReportTraceOutput {
       } else {
         " AND NOT (textPayload =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
           "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
-          "jsonPayload.MESSAGE =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
-          "(severity>=ERROR AND textPayload =~ \"$VERBOSE_GRPC_CONTINUATION_QUERY_REGEX\"))"
+          "jsonPayload.MESSAGE =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\")"
       }
     return "$timeFilter$payloadFilter AND (${identifierPredicates.joinToString(" OR ")})"
   }
@@ -1954,6 +1945,12 @@ internal object ReportTraceOutput {
       context.basicReportName?.let { basicReportName ->
         hasFailedEvidence("noise_correction", "xmm.basic_report.name", basicReportName)
       } == true
+    val processedResultWritebackFailed =
+      context.basicReportName?.let { basicReportName ->
+        hasFailedEvidence("processed_result_writeback", "xmm.basic_report.name", basicReportName)
+      } == true
+    val failureWritebackRequired =
+      basicReportFailed || reportFailed || noiseCorrectionFailed || processedResultWritebackFailed
 
     context.basicReportName?.let { basicReportName ->
       add("basic_report_creation", basicReportName, "xmm.basic_report.name")
@@ -2388,6 +2385,16 @@ internal object ReportTraceOutput {
         "xmm.basic_report.name",
         completionRequirement,
       )
+      add(
+        "basic_report_failure_writeback",
+        basicReportName,
+        "xmm.basic_report.name",
+        if (failureWritebackRequired) {
+          ReportTraceStageRequirement.REQUIRED
+        } else {
+          ReportTraceStageRequirement.NOT_APPLICABLE
+        },
+      )
       add("basic_report_available", basicReportName, "xmm.basic_report.name", completionRequirement)
     }
   }
@@ -2432,8 +2439,7 @@ internal object ReportTraceOutput {
     logEntries: List<ReportTraceLogEntry>,
     collectionWarnings: List<String>,
   ) {
-    val diagnosticEntries =
-      logEntries.filterNot { isVerboseGrpcPayloadContinuation(it.severity, it.message) }
+    val diagnosticEntries = logEntries
     val errors = diagnosticEntries.filter { it.severity.uppercase() in ERROR_LOG_SEVERITIES }
     val warnings = diagnosticEntries.filter { it.severity.uppercase() in WARNING_LOG_SEVERITIES }
 
@@ -2559,8 +2565,6 @@ internal object ReportTraceOutput {
   private const val VERBOSE_GRPC_LOG_QUERY_REGEX =
     "gRPC([[:space:]]+client)?[[:space:]]+[^[:space:]]+[[:space:]]+" +
       "(headers|request|response|complete|error):?"
-  private const val VERBOSE_GRPC_CONTINUATION_QUERY_REGEX =
-    "^[[:space:]]*([a-z][a-z0-9_.-]*[[:space:]]*(:|\\{)|[{}])"
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val ERROR_LOG_SEVERITIES = setOf("ERROR", "CRITICAL", "ALERT", "EMERGENCY")
   private val WARNING_LOG_SEVERITIES = setOf("WARNING", "WARN")
@@ -2676,6 +2680,7 @@ internal object ReportTraceOutput {
       "report_result_assembly",
       "noise_correction",
       "processed_result_writeback",
+      "basic_report_failure_writeback",
       "basic_report_available",
     )
   private val INCOMPLETE_SOURCE_STATUSES = setOf("FAILED", "PARTIAL", "TRUNCATED")
@@ -2706,16 +2711,9 @@ internal object ReportTraceOutput {
     Regex("^\\s*(SEVERE|WARNING|WARN|INFO|CONFIG|FINE|FINER|FINEST):\\s")
   private val VERBOSE_GRPC_LOG_PATTERN =
     Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(?:headers|request|response|complete|error):?")
-  private val VERBOSE_GRPC_CONTINUATION_PATTERN =
-    Regex("""^\s*(?:[a-z][a-z0-9_.-]*\s*(?::|\{)|[{}])""")
 
   private fun isVerboseGrpcLog(text: String): Boolean =
     VERBOSE_GRPC_LOG_PATTERN.containsMatchIn(text)
-
-  private fun isVerboseGrpcPayloadContinuation(severity: String?, text: String): Boolean {
-    return severity?.uppercase() in ERROR_LOG_SEVERITIES &&
-      VERBOSE_GRPC_CONTINUATION_PATTERN.containsMatchIn(text)
-  }
 
   private fun safeTextFields(text: String): Map<String, String> {
     return buildMap {

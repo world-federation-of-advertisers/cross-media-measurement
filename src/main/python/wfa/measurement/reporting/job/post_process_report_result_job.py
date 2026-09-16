@@ -403,6 +403,13 @@ class PostProcessReportResultJob:
     def _fail_basic_report(
         self, basic_report: basic_report_pb2.BasicReport
     ) -> bool:
+        logging.info(
+            "xmm.lifecycle.stage=basic_report_failure_writeback "
+            "xmm.outcome=started Marking BasicReport %s for "
+            "MeasurementConsumer %s as FAILED",
+            basic_report.external_basic_report_id,
+            basic_report.cmms_measurement_consumer_id,
+        )
         try:
             self._basic_reports_stub.FailBasicReport(
                 basic_reports_service_pb2.FailBasicReportRequest(
@@ -413,6 +420,13 @@ class PostProcessReportResultJob:
                         basic_report.external_basic_report_id
                     ),
                 )
+            )
+            logging.info(
+                "xmm.lifecycle.stage=basic_report_failure_writeback "
+                "xmm.outcome=succeeded Marked BasicReport %s for "
+                "MeasurementConsumer %s as FAILED",
+                basic_report.external_basic_report_id,
+                basic_report.cmms_measurement_consumer_id,
             )
             return True
         except Exception as error:
