@@ -33,7 +33,9 @@ message RequisitionWorkItemDispatchConfig {
   //
   // This must not overlap any legacy or direct-dispatch path prefix that uses
   // the same storage namespace. No legacy DataWatcher source_path_regex may
-  // match this prefix.
+  // match this prefix. Keep this unchanged while any recoverable group uses it:
+  // RequisitionFetcher identifies direct groups by comparing their persisted
+  // `blob_uri` with the URI derived from this prefix.
   string storage_path_prefix = 1;
 
   // How the EDP connects to the Secure Computation Control Plane Public API.

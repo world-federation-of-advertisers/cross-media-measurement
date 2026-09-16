@@ -130,7 +130,7 @@ class DeadLetterQueueListenerTest {
   }
 
   @Test
-  fun `republished queued WorkItem is acknowledged`(): Unit = runBlocking {
+  fun `unexpected queued WorkItem response is nacked`(): Unit = runBlocking {
     val stub =
       mock<WorkItemsGrpcKt.WorkItemsCoroutineStub> {
         onBlocking { processWorkItemDeadLetter(any(), any()) } doReturn
@@ -143,8 +143,8 @@ class DeadLetterQueueListenerTest {
 
     fixture.channel.send(fixture.message)
 
-    verify(fixture.message, timeout(5_000)).ack()
-    verify(fixture.message, never()).nack()
+    verify(fixture.message, timeout(5_000)).nack()
+    verify(fixture.message, never()).ack()
     fixture.close()
   }
 

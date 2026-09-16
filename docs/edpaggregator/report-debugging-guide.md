@@ -988,6 +988,10 @@ Trace:
    WorkItem while an active leased attempt remains. A `SUCCEEDED` WorkItem paired with unfinished
    metadata is inconsistent and still requires investigation.
 
+   Keep the configured direct-dispatch prefix unchanged while any direct group remains `STORED`,
+   `QUEUED`, or `PROCESSING`. Recovery compares the persisted `blob_uri` with the URI derived from
+   the current prefix; changing it earlier makes those groups unrecognizable to RequisitionFetcher.
+
    The **data-watcher** remains running for pre-cutover groups under the top-level legacy
    requisition prefix while the automated rollout quiesces the WorkItem consumers. It must not
    match the dedicated direct-dispatch `storage_path_prefix`. Updated DataWatcher revisions use a

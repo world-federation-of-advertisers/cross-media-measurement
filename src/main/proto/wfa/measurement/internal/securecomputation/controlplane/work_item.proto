@@ -63,8 +63,7 @@ message WorkItem {
 
   // Execution generation of this WorkItem.
   //
-  // This advances only when the current execution is retried or retired for
-  // dead-letter handling. Queue consumers use it to reject stale deliveries
-  // from an earlier generation.
+  // This advances only when the current execution is retried. Queue consumers
+  // use it to reject stale deliveries from an earlier generation.
   int64 generation = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
 }

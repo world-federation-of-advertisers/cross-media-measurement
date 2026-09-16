@@ -82,14 +82,10 @@ class DeadLetterQueueListener(
             expectedWorkItemGeneration = workItem.generation.takeUnless { it == 0L } ?: 1L
           }
         )
-      when (processedWorkItem.state) {
-        InternalWorkItem.State.QUEUED ->
-          logger.info("Republished ${workItem.name} at generation ${processedWorkItem.generation}")
-        InternalWorkItem.State.FAILED ->
-          logger.info("Marked WorkItem ${workItem.name} FAILED after retries were exhausted")
-        else ->
-          error("Unexpected state ${processedWorkItem.state} after processing ${workItem.name}")
+      check(processedWorkItem.state == InternalWorkItem.State.FAILED) {
+        "Unexpected state ${processedWorkItem.state} after processing ${workItem.name}"
       }
+      logger.info("Marked WorkItem ${workItem.name} FAILED after retries were exhausted")
       queueMessage.ack()
     } catch (e: StatusException) {
       when {
