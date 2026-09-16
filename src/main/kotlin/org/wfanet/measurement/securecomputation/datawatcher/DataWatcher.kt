@@ -103,6 +103,15 @@ class DataWatcher(
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
       onProcessingFailed(config, path, elapsedSeconds, e)
+      if (
+        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
+      ) {
+        // Recovery must be at-least-once: surfacing the failure keeps the Eventarc delivery
+        // unacknowledged so it is retried and, after exhaustion, retained in the configured DLQ.
+        throw e
+      }
     }
   }
 
@@ -159,6 +168,25 @@ class DataWatcher(
         DATA_WATCHER_GENERATION_HEADER,
         objectMetadata.getValue(GENERATION_METADATA_KEY),
       )
+    }
+
+    val overrideModelLines = objectMetadata[WatchedBlobs.OVERRIDE_MODEL_LINES_KEY]
+    val recoverySourceUpload = objectMetadata[WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY]
+    val evictionOperationId = objectMetadata[WatchedBlobs.EVICTION_OPERATION_ID_KEY]
+    require(
+      listOf(overrideModelLines, recoverySourceUpload, evictionOperationId).all { it == null } ||
+        listOf(overrideModelLines, recoverySourceUpload, evictionOperationId).all { it != null }
+    ) {
+      "Recovery metadata must include ${WatchedBlobs.OVERRIDE_MODEL_LINES_KEY}, " +
+        "${WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY}, and " +
+        WatchedBlobs.EVICTION_OPERATION_ID_KEY
+    }
+    if (overrideModelLines != null) {
+      checkNotNull(recoverySourceUpload)
+      checkNotNull(evictionOperationId)
+      requestBuilder.header(OVERRIDE_MODEL_LINES_HEADER, overrideModelLines)
+      requestBuilder.header(RECOVERY_SOURCE_UPLOAD_HEADER, recoverySourceUpload)
+      requestBuilder.header(EVICTION_OPERATION_ID_HEADER, evictionOperationId)
     }
 
     val request =
@@ -265,6 +293,9 @@ class DataWatcher(
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
+    private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
+    private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
+    private const val EVICTION_OPERATION_ID_HEADER: String = "X-Eviction-Operation-Id"
 
     /**
      * Reserved objectMetadata key DataWatcherFunction uses to carry the GCS object generation. If

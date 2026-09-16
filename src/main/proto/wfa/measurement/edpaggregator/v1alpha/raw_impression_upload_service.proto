@@ -53,7 +53,7 @@ service RawImpressionUploadService {
       AcquireRawImpressionUploadEvictionFenceRequest)
       returns (AcquireRawImpressionUploadEvictionFenceResponse) {}
 
-  // Releases the data-provider-wide fence after eviction completes.
+  // Releases the data-provider-wide fence after upload healing completes.
   rpc ReleaseRawImpressionUploadEvictionFence(
       ReleaseRawImpressionUploadEvictionFenceRequest)
       returns (ReleaseRawImpressionUploadEvictionFenceResponse) {}
@@ -126,6 +126,9 @@ message MarkRawImpressionUploadRegistrationCompleteRequest {
 
 // Request message for the `CreateRawImpressionUpload` method.
 message CreateRawImpressionUploadRequest {
+  reserved 4;
+  reserved "eviction_operation_id";
+
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
   string parent = 1 [

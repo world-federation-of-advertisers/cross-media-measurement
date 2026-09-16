@@ -34,6 +34,8 @@ internal enum class IdVariable {
   RANK_INDEX_BLOB,
   POOL_ASSIGNMENT_JOB,
   WORK_ITEM,
+  UPLOAD_HEALING_OPERATION,
+  UPLOAD_HEALING_STEP,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
