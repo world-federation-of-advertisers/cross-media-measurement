@@ -25,6 +25,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServ
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt
 
 /** Edp Aggregator internal API services. */
@@ -35,6 +36,8 @@ data class Services(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionUpload:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
+  val uploadHealingOperation:
+    UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase,
   val rawImpressionUploadFile:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase,
   val rawImpressionUploadModelLine:
@@ -49,6 +52,7 @@ data class Services(
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,
+      uploadHealingOperation,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,
       vidLabelingJob,
