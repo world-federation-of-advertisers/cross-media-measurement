@@ -4718,6 +4718,54 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Confidential Space hostname identifies log service`() {
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf(
+          "MESSAGE" to "INFO: processing computation-1",
+          "_HOSTNAME" to "trustee-mill-instance",
+        )
+      )
+
+    val service =
+      ReportTraceOutput.logServiceName(
+        resourceLabels = emptyMap(),
+        payload = payload,
+        resourceType = "gce_instance",
+        fallbackLogName = "confidential-space-launcher",
+      )
+
+    assertThat(service).isEqualTo("trustee-mill-instance")
+  }
+
+  @Test
+  fun `render attributes Trustee failure to computation`() {
+    val context = reportTraceContext()
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = emptyList(),
+        logEntries =
+          listOf(
+            ReportTraceLogEntry(
+              "test",
+              NOW,
+              "trustee-mill-instance",
+              "ERROR",
+              null,
+              "SEVERE: computation-1@trustee-mill: Failing Computation. bad input",
+            )
+          ),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+      )
+
+    assertThat(output)
+      .contains("| $NOW | test/trustee-mill-instance | computations/computation-1 |")
+  }
+
+  @Test
   fun `renderLogPayload keeps non-gRPC string payload`() {
     val payload =
       Payload.StringPayload.of(

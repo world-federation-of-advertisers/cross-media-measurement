@@ -475,13 +475,17 @@ internal class GoogleCloudReportTraceLogReader(
   }
 
   private fun LogEntry.toReportTraceLogEntry(): ReportTraceLogEntry? {
+    val payload = getPayload<Payload<*>>()
     val resourceLabels = resource?.labels.orEmpty()
     val service =
-      listOf("service_name", "container_name", "job_name", "function_name").firstNotNullOfOrNull {
-        resourceLabels[it]
-      } ?: resource?.type ?: logName.substringAfterLast('/')
+      ReportTraceOutput.logServiceName(
+        resourceLabels,
+        payload,
+        resource?.type,
+        logName.substringAfterLast('/'),
+      )
     val message =
-      ReportTraceOutput.renderLogPayload(getPayload(), includeGrpcPayloads, severity.name)
+      ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads, severity.name)
         ?: return null
     return ReportTraceLogEntry(
       sourceProject = project,
@@ -765,6 +769,25 @@ internal object ReportTraceOutput {
       "FINEST" -> "INFO"
       else -> reportedSeverity
     }
+  }
+
+  fun logServiceName(
+    resourceLabels: Map<String, String>,
+    payload: Payload<*>?,
+    resourceType: String?,
+    fallbackLogName: String,
+  ): String {
+    val resourceService =
+      listOf("service_name", "container_name", "job_name", "function_name").firstNotNullOfOrNull {
+        resourceLabels[it]
+      }
+    val confidentialSpaceHost =
+      (payload as? Payload.JsonPayload)
+        ?.dataAsMap
+        ?.get("_HOSTNAME")
+        ?.toString()
+        ?.takeIf(String::isNotBlank)
+    return resourceService ?: confidentialSpaceHost ?: resourceType ?: fallbackLogName
   }
 
   fun renderLogPayload(
@@ -2434,6 +2457,9 @@ internal object ReportTraceOutput {
     val fields = safeTextFields(message)
     return DIAGNOSTIC_RESOURCE_ATTRIBUTES.firstNotNullOfOrNull(fields::get)
       ?: REQUISITION_NAME_IN_TEXT.find(message)?.value
+      ?: MILL_COMPUTATION_IN_TEXT.find(message)?.groupValues?.get(1)?.let {
+        "computations/$it"
+      }
       ?: "(unattributed)"
   }
 
@@ -2518,6 +2544,8 @@ internal object ReportTraceOutput {
     )
   private val REQUISITION_NAME_IN_TEXT =
     Regex("dataProviders/[A-Za-z0-9_-]+/requisitions/[A-Za-z0-9_-]+")
+  private val MILL_COMPUTATION_IN_TEXT =
+    Regex("(?:^|\\s)([A-Za-z0-9_-]+)@[A-Za-z0-9_-]*mill(?:\\s|:)")
   private val STACK_FRAME_PATTERN = Regex("""\s+at\s+\S+\([^)]*\)""")
   private val STACK_TRACE_REMAINDER_PATTERN = Regex("""\s+\.\.\. \d+ more""")
   private val WHITESPACE_PATTERN = Regex("""\s+""")
