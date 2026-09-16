@@ -20,11 +20,11 @@ import "google/api/resource.proto";
 
 option java_package = "org.measurement.integration.k8s.testing";
 option java_multiple_files = true;
-option java_outer_classname = "Qa2026CloudTestConfigProto";
+option java_outer_classname = "EdpaReportingIntegrationTestConfigProto";
 
-// Configuration for the QA 2026 cloud test, which provisions the QA 2026
-// dataset and reports over it.
-message Qa2026CloudTestConfig {
+// Configuration for the EDPA reporting integration test, which provisions the
+// QA 2026 dataset and reports over it.
+message EdpaReportingIntegrationTestConfig {
   // gRPC target of Kingdom public API server.
   string kingdom_public_api_target = 1;
 

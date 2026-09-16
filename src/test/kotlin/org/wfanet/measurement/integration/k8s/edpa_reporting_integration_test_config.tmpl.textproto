@@ -1,5 +1,5 @@
-# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/qa2026_cloud_test_config.proto
-# proto-message: Qa2026CloudTestConfig
+# proto-file: src/main/proto/wfa/measurement/integration/k8s/testing/edpa_reporting_integration_test_config.proto
+# proto-message: EdpaReportingIntegrationTestConfig
 kingdom_public_api_target: "{kingdom_public_api_target}"
 kingdom_public_api_cert_host: "{kingdom_public_api_cert_host}"
 measurement_consumer: "{mc_name}"

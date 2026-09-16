@@ -28,7 +28,7 @@ generated and source files, tests resolve these exactly as before.
 `qa2026_population_spec.textproto` needs particular care: the Population's
 resource ID is a hash of the spec's serialized bytes, so any semantic change
 provisions a **new** Population and invalidates every expected reach in
-[`Qa2026CloudTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/Qa2026CloudTest.kt).
+[`EdpAggregatorReportingIntegrationTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/EdpAggregatorReportingIntegrationTest.kt).
 
 ## The Noise Floor, and Why It Sets Everything
 
@@ -277,7 +277,7 @@ last state of `{COMPLETED=2, CREATED=1}`.
 Two correctness tests run against a deployed environment, and they exercise
 **different data-delivery paths**. This dataset belongs to exactly one of them.
 
-| | `SyntheticGeneratorCorrectnessTest` | `EdpAggregatorCorrectnessTest` | `Qa2026CloudTest` |
+| | `SyntheticGeneratorCorrectnessTest` | `EdpAggregatorCorrectnessTest` | `EdpAggregatorReportingIntegrationTest` |
 | --- | --- | --- | --- |
 | EDPs | classic simulators `edp1`–`edp6` | aggregator `edp7`, `edpa_meta`, … | aggregator `edp7`, `edpa_meta`, … |
 | Data delivery | generated **in-process** by `SyntheticGeneratorEventQuery` from a spec; nothing is stored | encrypted **blobs in GCS**, read by the results fulfiller | same as `EdpAggregatorCorrectnessTest` |
@@ -293,7 +293,7 @@ classic simulators are also being retired, so building against them would be
 building against a path that is going away.
 
 The QA 2026 dataset therefore uses the aggregator path, but it does **not** live
-in `EdpAggregatorCorrectnessTest`. It has its own test, `Qa2026CloudTest`, which
+in `EdpAggregatorCorrectnessTest`. It has its own test, `EdpAggregatorReportingIntegrationTest`, which
 owns the whole chain end to end: it provisions the model resources, registers the
 EventGroups, writes the impressions, and only then reads back a `BasicReport`.
 `EdpAggregatorCorrectnessTest` is left on the 2021 fixture, untouched.
@@ -303,7 +303,7 @@ The split exists because the two datasets have no reason to share a test run:
 *   **Runtime.** Both are cloud tests against a deployed environment, and folding
     2026 into the existing one made a long job much longer. Separate jobs run in
     parallel instead of in series.
-*   **Self-containment.** Because `Qa2026CloudTest` creates everything it reads,
+*   **Self-containment.** Because `EdpAggregatorReportingIntegrationTest` creates everything it reads,
     the ordering it depends on is internal to the test rather than an implicit
     dependency on rules in another test's class-rule chain.
 *   **Coverage.** It raises what the suite covers. The other two stop at the CMMS
@@ -311,13 +311,13 @@ The split exists because the two datasets have no reason to share a test run:
     Consumer actually uses — campaign group, per-line-item results, media type
     and impression qualification filter breakdowns — over the aggregator path.
 
-`Qa2026CloudTest` also needs none of the 2021 fixture's apparatus: not its model
+`EdpAggregatorReportingIntegrationTest` also needs none of the 2021 fixture's apparatus: not its model
 line, not its VID-labeling configuration, and not its config file. It carries its
-own `qa2026_cloud_test_config.textproto`.
+own `edpa_reporting_integration_test_config.textproto`.
 
-It runs from `.github/workflows/qa2026-cloud-test.yml`, dispatched as a parallel
+It runs from `.github/workflows/edpa-reporting-integration-test.yml`, dispatched as a parallel
 job in `update-cmms`. The job is gated so it always runs for `qa` and `head`, and
-for `dev` only when explicitly requested via the `run-qa2026-test` input.
+for `dev` only when explicitly requested via the `run-edpa-reporting-integration-test` input.
 
 Opting an environment in is a second, independent switch: the `QA2026_MODEL_LINE`
 variable. Every setup rule no-ops while it is unset, so an environment is

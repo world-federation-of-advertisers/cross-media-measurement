@@ -54,8 +54,8 @@ import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
+import org.measurement.integration.k8s.testing.EdpaReportingIntegrationTestConfig
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
-import org.measurement.integration.k8s.testing.Qa2026CloudTestConfig
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
@@ -94,7 +94,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * here. Every rule is a no-op unless `QA2026_MODEL_LINE` is set, so an environment opts in only
  * once its ModelLine has been provisioned.
  */
-class Qa2026CloudTest {
+class EdpAggregatorReportingIntegrationTest {
 
   /** Writes the QA 2026 EventGroup blob and waits for `EventGroupSync` to register them. */
   private class UploadEventGroups : TestRule {
@@ -503,11 +503,11 @@ class Qa2026CloudTest {
 
     private val CONFIG_PATH: Path =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
-    private const val TEST_CONFIG_NAME = "qa2026_cloud_test_config.textproto"
+    private const val TEST_CONFIG_NAME = "edpa_reporting_integration_test_config.textproto"
 
-    val TEST_CONFIG: Qa2026CloudTestConfig by lazy {
+    val TEST_CONFIG: EdpaReportingIntegrationTestConfig by lazy {
       val configFile = runtimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
-      parseTextProto(configFile, Qa2026CloudTestConfig.getDefaultInstance())
+      parseTextProto(configFile, EdpaReportingIntegrationTestConfig.getDefaultInstance())
     }
 
     /** Resource name of the QA 2026 ModelLine, or empty where the dataset is not provisioned. */

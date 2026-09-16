@@ -30,7 +30,7 @@ on:
         description: "Run tests"
         type: boolean
         default: true
-      run-qa2026-test:
+      run-edpa-reporting-integration-test:
         description: "Run the QA 2026 cloud test (always runs for qa and head)"
         type: boolean
         default: false
@@ -52,7 +52,7 @@ on:
         description: "Run tests"
         type: boolean
         default: true
-      run-qa2026-test:
+      run-edpa-reporting-integration-test:
         description: "Run the QA 2026 cloud test (always runs for qa and head)"
         type: boolean
         default: false
@@ -260,8 +260,8 @@ jobs:
       environment: ${{ inputs.environment }}
   # Provisions the QA 2026 dataset and reports over it. Runs for qa and head; for dev only when
   # explicitly requested, since dev is the fast-iteration environment.
-  run-qa2026-cloud-test:
-    if: inputs.run-tests && (inputs.environment != 'dev' || inputs.run-qa2026-test)
+  run-edpa-reporting-integration-test:
+    if: inputs.run-tests && (inputs.environment != 'dev' || inputs.run-edpa-reporting-integration-test)
     needs: [
       update-kingdom,
       update-population-fulfiller,
@@ -273,7 +273,7 @@ jobs:
       update-secure-computation,
       update-edp-aggregator-service
     ]
-    uses: ./.github/workflows/qa2026-cloud-test.yml
+    uses: ./.github/workflows/edpa-reporting-integration-test.yml
     secrets: inherit
     permissions:
       contents: read
