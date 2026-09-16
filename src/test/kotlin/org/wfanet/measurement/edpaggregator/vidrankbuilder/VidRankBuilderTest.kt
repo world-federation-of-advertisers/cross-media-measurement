@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -479,6 +480,56 @@ class VidRankBuilderTest {
   }
 
   @Test
+  fun `early successful ranker retries until the parent reaches RANKING`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = parentState.get()
+              }
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.LABELING
+          }
+      }
+    val jobs = mutableListOf<BatchCreateVidLabelingJobsRequest>()
+    val published = mutableListOf<CreateWorkItemRequest>()
+    val subject =
+      builder(
+        ranker,
+        rankerJobs,
+        modelLines,
+        recordingVidLabelingJobs(jobs),
+        workItemsStub = recordingWorkItems(published),
+      )
+
+    val exception = assertFailsWith<IllegalStateException> { subject.run() }
+
+    assertThat(exception).hasMessageThat().contains("has not reached RANKING")
+    assertThat(jobs).isEmpty()
+    assertThat(published).isEmpty()
+
+    parentState.set(RawImpressionUploadModelLine.State.RANKING)
+    val result = subject.run()
+
+    assertThat(result.lastJobOut).isTrue()
+    assertThat(jobs).hasSize(1)
+    assertThat(published).hasSize(1)
+    verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+  }
+
+  @Test
   fun `redelivery of an already-succeeded last job re-runs the idempotent fan-out without re-ranking`() =
     runBlocking {
       val ranker = rankerMock()
@@ -725,6 +776,33 @@ class VidRankBuilderTest {
   fun `last job out tolerates a benign race flipping the parent to LABELING`() = runBlocking {
     // Another runner (or the Monitor) already advanced the parent: the flip comes back ABORTED.
     // The last-job-out must treat it as done, not fail.
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.RANKING)
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = parentState.get()
+              }
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doAnswer
+          {
+            parentState.set(RawImpressionUploadModelLine.State.LABELING)
+            throw StatusException(Status.ABORTED)
+          }
+      }
+
+    val result = builder(rankerMock(), rankerJobsMock(isLastJob = true), modelLines).run()
+
+    assertThat(result.lastJobOut).isTrue()
+  }
+
+  @Test
+  fun `labeling transition conflict retries when the parent remains RANKING`() = runBlocking {
     val modelLines =
       mock<RawImpressionUploadModelLineServiceCoroutineStub> {
         onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
@@ -739,11 +817,20 @@ class VidRankBuilderTest {
           {
             throw StatusException(Status.ABORTED)
           }
+        onBlocking { getRawImpressionUploadModelLine(any(), any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.RANKING
+          }
       }
 
-    val result = builder(rankerMock(), rankerJobsMock(isLastJob = true), modelLines).run()
+    val exception =
+      assertFailsWith<StatusException> {
+        builder(rankerMock(), rankerJobsMock(isLastJob = true), modelLines).run()
+      }
 
-    assertThat(result.lastJobOut).isTrue()
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
   }
 
   @Test
@@ -800,6 +887,31 @@ class VidRankBuilderTest {
     assertThat(result.lastJobOut).isFalse()
     verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
     verifyBlocking(vidLabelingJobs, never()) { listVidLabelingJobs(any(), any()) }
+    assertThat(published).isEmpty()
+    verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+  }
+
+  @Test
+  fun `redelivery recovery does not revive a FAILED parent`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
+    val vidLabelingJobs = vidLabelingJobsMock()
+    val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.FAILED)
+    val published = mutableListOf<CreateWorkItemRequest>()
+
+    val result =
+      builder(
+          ranker,
+          rankerJobs,
+          modelLines,
+          vidLabelingJobs,
+          workItemsStub = recordingWorkItems(published),
+        )
+        .run()
+
+    assertThat(result.lastJobOut).isFalse()
+    verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
+    verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
     assertThat(published).isEmpty()
     verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
   }

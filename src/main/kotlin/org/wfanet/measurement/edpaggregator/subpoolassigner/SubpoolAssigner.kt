@@ -266,9 +266,12 @@ class SubpoolAssigner(
       logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; not last-shard-out")
       return Result(0, 0, 0, 0, lastShardOut = false)
     }
-    if (parent.state in COMPLETED_FANOUT_STATES) {
+    if (
+      parent.state in COMPLETED_FANOUT_STATES ||
+        parent.state == RawImpressionUploadModelLine.State.FAILED
+    ) {
       logger.info(
-        "PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; last-shard-out already complete " +
+        "PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; no recovery needed " +
           "(parent state=${parent.state})"
       )
       return Result(0, 0, 0, 0, lastShardOut = true)
@@ -297,6 +300,22 @@ class SubpoolAssigner(
     maxEventDate: Date,
     mergedDek: EncryptedDek,
   ) {
+    if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
+      logger.info("Parent ${parent.name} is FAILED; not reviving its Phase-0 fan-out")
+      return
+    }
+    if (parent.state in COMPLETED_FANOUT_STATES) {
+      logger.info(
+        "Parent ${parent.name} already advanced past POOL_ASSIGNING to ${parent.state}; " +
+          "last-shard-out already complete"
+      )
+      return
+    }
+    check(parent.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
+      "Parent ${parent.name} has not reached POOL_ASSIGNING; retry this WorkItem after the " +
+        "dispatcher commits the phase transition"
+    }
+
     logger.info(
       "Shard $shardIndex is last-out for $modelLine; merging ${poolOffsets.size} subpools"
     )
@@ -443,9 +462,9 @@ class SubpoolAssigner(
   }
 
   /**
-   * Flips the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`. Only attempted
-   * when the parent is still `POOL_ASSIGNING`; any failure is swallowed so a redelivered
-   * last-shard-out (where another runner may have already advanced the state) is a no-op.
+   * Flips the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`. On an optimistic
+   * locking conflict, re-reads the parent and treats the call as successful only when another
+   * runner actually advanced it; a changed etag while it remains `POOL_ASSIGNING` is retried.
    */
   private suspend fun markParentRanking(parent: RawImpressionUploadModelLine) {
     if (parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING) return
@@ -464,23 +483,28 @@ class SubpoolAssigner(
         )
       }
     } catch (e: StatusException) {
-      // Swallow only the benign "already advanced" races: the parent read at getParent() time is
-      // stale, so a concurrent runner that already flipped this row (or bumped its etag) surfaces
-      // as
-      // FAILED_PRECONDITION/ABORTED (the latter is the etag-mismatch code) and re-doing the flip is
-      // unnecessary. Any other error (e.g. UNAVAILABLE) is transient and must propagate so the
-      // message nacks and the idempotent last-shard-out is retried — otherwise the POOL_ASSIGNING
-      // ->
-      // RANKING flip (the completion marker that recovery gates on) is silently lost on ack.
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
       ) {
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineRanking(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
-      )
+      val current =
+        requireNotNull(getParent()) {
+          "RawImpressionUploadModelLine ${parent.name} disappeared after ${e.status.code}"
+        }
+      if (
+        current.state in COMPLETED_FANOUT_STATES ||
+          current.state == RawImpressionUploadModelLine.State.FAILED
+      ) {
+        logger.info(
+          "markRawImpressionUploadModelLineRanking(${parent.name}) observed ${current.state} " +
+            "after ${e.status.code}; treating as done"
+        )
+        return
+      }
+      // The etag changed, but the parent did not advance. Nack so a redelivery retries the
+      // idempotent fan-out and the state transition instead of deleting its recovery inputs.
+      throw e
     }
   }
 

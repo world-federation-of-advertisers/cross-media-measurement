@@ -54,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRe
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
@@ -89,10 +90,11 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * Because the fast path and the monitor can run concurrently, two callers can momentarily both pick
  * the same model line. Each transition is therefore guarded by an etag compare-and-swap: the first
- * caller to call `Mark*` with the model line's etag wins, and the loser observes `ABORTED` (or
- * `FAILED_PRECONDITION` if the line already advanced) and no-ops. Every create is idempotent
- * (deterministic `WorkItem` IDs; deterministic `PoolAssignmentJob` `request_id`s), so the loser's
- * redundant create calls are harmless.
+ * caller to call `Mark*` with the model line's etag wins. A losing caller re-reads the model line
+ * and no-ops only when the requested transition was actually completed; otherwise it propagates the
+ * conflict so the dispatch is retried. Every create is idempotent (deterministic `WorkItem` IDs;
+ * deterministic `PoolAssignmentJob` `request_id`s), so the loser's redundant create calls are
+ * harmless.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
@@ -643,14 +645,15 @@ class VidLabelingDispatchSequencer(
         )
       }
     } catch (e: StatusException) {
-      if (isConcurrentClaimLoss(e)) {
-        logger.info(
-          "Skipping LABELING for $modelLineName: ${e.status.code} (claimed by a concurrent " +
-            "dispatch)"
-        )
-        return
-      }
-      throw e
+      resolveTransitionConflict(
+        e,
+        modelLineName,
+        setOf(
+          RawImpressionUploadModelLine.State.LABELING,
+          RawImpressionUploadModelLine.State.COMPLETED,
+        ),
+        "LABELING",
+      )
     }
   }
 
@@ -666,15 +669,50 @@ class VidLabelingDispatchSequencer(
         )
       }
     } catch (e: StatusException) {
-      if (isConcurrentClaimLoss(e)) {
-        logger.info(
-          "Skipping POOL_ASSIGNING for $modelLineName: ${e.status.code} (claimed by a concurrent " +
-            "dispatch)"
-        )
-        return
-      }
-      throw e
+      resolveTransitionConflict(
+        e,
+        modelLineName,
+        setOf(
+          RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+          RawImpressionUploadModelLine.State.RANKING,
+          RawImpressionUploadModelLine.State.LABELING,
+          RawImpressionUploadModelLine.State.COMPLETED,
+        ),
+        "POOL_ASSIGNING",
+      )
     }
+  }
+
+  /** Resolves an optimistic-lock failure without mistaking a stale etag for a completed claim. */
+  private suspend fun resolveTransitionConflict(
+    exception: StatusException,
+    modelLineName: String,
+    completedStates: Set<RawImpressionUploadModelLine.State>,
+    targetState: String,
+  ) {
+    if (!isConcurrentClaimLoss(exception)) throw exception
+
+    val current =
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadModelLineStub.getRawImpressionUploadModelLine(
+          getRawImpressionUploadModelLineRequest { name = modelLineName }
+        )
+      }
+    if (current.state in completedStates) {
+      logger.info(
+        "Skipping $targetState for $modelLineName: a concurrent dispatch advanced it to " +
+          current.state
+      )
+      return
+    }
+    if (current.state == RawImpressionUploadModelLine.State.FAILED) {
+      logger.info("Skipping $targetState for $modelLineName: the model line is FAILED")
+      return
+    }
+
+    // A changed etag does not prove that this transition happened. Propagate the original conflict
+    // so the upload-triggered dispatcher or periodic monitor retries the idempotent dispatch.
+    throw exception
   }
 
   /** Fetches the `ModelLine` to read its active window (`active_start_time`/`active_end_time`). */
@@ -816,18 +854,7 @@ class VidLabelingDispatchSequencer(
         RawImpressionUploadModelLine.State.LABELING,
       )
 
-    /**
-     * Whether [e] indicates this caller lost a concurrent dispatch race for a model line.
-     *
-     * `ABORTED` is the etag CAS failure (another caller claimed the line first);
-     * `FAILED_PRECONDITION` means the line already advanced out of the expected state. Both mean
-     * "someone else already did this transition," so the caller should skip rather than fail.
-     *
-     * TODO(world-federation-of-advertisers/cross-media-measurement#4018): Once #4018 adds
-     *   `MarkRequestId` to `RawImpressionUploadModelLine`, switch these transitions to AIP-155
-     *   request-id idempotency so a redelivered `Mark*` returns the prior response instead of
-     *   relying on this etag-CAS swallow.
-     */
+    /** Whether [e] may be a concurrent transition and therefore requires a state re-read. */
     private fun isConcurrentClaimLoss(e: StatusException): Boolean {
       val code: Status.Code = e.status.code
       return code == Status.Code.ABORTED || code == Status.Code.FAILED_PRECONDITION

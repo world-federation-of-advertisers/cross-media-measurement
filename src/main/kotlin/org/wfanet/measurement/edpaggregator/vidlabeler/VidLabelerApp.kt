@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
@@ -654,11 +655,10 @@ class VidLabelerApp(
   }
 
   /**
-   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. Swallows
-   * only the benign already-advanced races (FAILED_PRECONDITION / ABORTED) so a redelivered
-   * last-job-out — or a concurrent worker that already advanced the line — is a no-op, and rethrows
-   * everything else so a transient failure nacks the message. The etag CAS (not a client-side state
-   * pre-check) is the source of truth, so a stale [parent] snapshot is safe.
+   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. On an
+   * optimistic-lock failure, re-reads the parent and treats the call as successful only when it is
+   * already `COMPLETED` (or terminally `FAILED`). If it is still in an earlier phase, the error is
+   * rethrown so the prematurely delivered WorkItem is retried after the phase transition commits.
    */
   private suspend fun markParentCompleted(
     parent: RawImpressionUploadModelLine,
@@ -689,10 +689,32 @@ class VidLabelerApp(
         )
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineCompleted(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+            getRawImpressionUploadModelLineRequest { name = parent.name }
+          )
+        }
+      if (
+        current.state == RawImpressionUploadModelLine.State.COMPLETED ||
+          current.state == RawImpressionUploadModelLine.State.FAILED
+      ) {
+        logger.info(
+          "markRawImpressionUploadModelLineCompleted(${parent.name}) observed ${current.state} " +
+            "after ${e.status.code}; treating as done"
+        )
+        return
+      }
+      metrics.markCompletedFailuresCounter.add(
+        1,
+        Attributes.of(
+          metrics.DATA_PROVIDER_ATTR,
+          dataProvider,
+          metrics.MODEL_LINE_ATTR,
+          parent.cmmsModelLine,
+        ),
       )
+      throw e
     }
   }
 

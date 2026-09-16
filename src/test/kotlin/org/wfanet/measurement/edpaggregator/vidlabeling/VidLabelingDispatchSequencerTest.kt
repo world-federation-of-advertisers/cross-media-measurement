@@ -710,11 +710,42 @@ class VidLabelingDispatchSequencerTest {
           rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
         )
         .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          modelLine(
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1",
+            MODEL_LINE,
+            RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+          )
+        )
 
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    }
+
+  @Test
+  fun `dispatchNext retries a memoized claim conflict that did not advance the model line`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(createdModelLine())
+
+      val exception = assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
     }
 
   @Test
@@ -1087,6 +1118,14 @@ class VidLabelingDispatchSequencerTest {
       // ABORTED.
       whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
         .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          modelLine(
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1",
+            MODEL_LINE,
+            RawImpressionUploadModelLine.State.LABELING,
+          )
+        )
 
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
@@ -1109,6 +1148,62 @@ class VidLabelingDispatchSequencerTest {
         .thenAnswer {
           throw StatusException(Status.FAILED_PRECONDITION.withDescription("already LABELING"))
         }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          modelLine(
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1",
+            MODEL_LINE,
+            RawImpressionUploadModelLine.State.LABELING,
+          )
+        )
+
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    }
+
+  @Test
+  fun `dispatchNext retries a non-memoized claim conflict that leaves the model line CREATED`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      stubNonMemoizedFilesAndJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(createdModelLine())
+
+      val exception = assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    }
+
+  @Test
+  fun `dispatchNext does not revive a FAILED model line after a claim conflict`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      stubNonMemoizedFilesAndJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          modelLine(
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1",
+            MODEL_LINE,
+            RawImpressionUploadModelLine.State.FAILED,
+          )
+        )
 
       val result = createSequencer().dispatchNext()
 

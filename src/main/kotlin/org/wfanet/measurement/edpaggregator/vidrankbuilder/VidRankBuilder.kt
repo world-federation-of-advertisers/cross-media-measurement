@@ -226,9 +226,19 @@ class VidRankBuilder(
       requireNotNull(getParent()) {
         "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
       }
-    if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
+    if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
+      logger.info(
+        "RankerJob $rankerJob already SUCCEEDED; parent is FAILED and will not be revived"
+      )
+      return Result(0, lastJobOut = false)
+    }
+    if (parent.state in COMPLETED_FANOUT_STATES) {
       logger.info("RankerJob $rankerJob already SUCCEEDED; nothing to recover (parent advanced)")
       return Result(0, lastJobOut = false)
+    }
+    check(parent.state == RawImpressionUploadModelLine.State.RANKING) {
+      "Parent ${parent.name} has not reached RANKING; retry this WorkItem after Phase 0 commits " +
+        "the transition"
     }
     if (!allRankerJobsSucceeded()) {
       logger.info("RankerJob $rankerJob already SUCCEEDED; other jobs still pending")
@@ -257,9 +267,17 @@ class VidRankBuilder(
    * post-`CREATED`, recovery would need a different strategy.
    */
   private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine) {
-    if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
+    if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
+      logger.info("Parent ${parent.name} is FAILED; not reviving its Phase-1 fan-out")
+      return
+    }
+    if (parent.state in COMPLETED_FANOUT_STATES) {
       logger.info("Parent ${parent.name} already past RANKING; last-job-out already complete")
       return
+    }
+    check(parent.state == RawImpressionUploadModelLine.State.RANKING) {
+      "Parent ${parent.name} has not reached RANKING; retry this WorkItem after Phase 0 commits " +
+        "the transition"
     }
     val published = fanOutLabeling()
     markParentLabeling(parent)
@@ -403,7 +421,9 @@ class VidRankBuilder(
   private fun labelingJobRequestId(batchIndex: Int): String =
     deterministicUuid("$rawImpressionUpload|$modelLine|labelingJob|$batchIndex")
 
-  /** Flips the parent `RANKING` -> `LABELING`, swallowing the benign "already advanced" races. */
+  /**
+   * Flips the parent `RANKING` -> `LABELING`, verifying optimistic-lock conflicts by re-reading.
+   */
   private suspend fun markParentLabeling(parent: RawImpressionUploadModelLine) {
     try {
       rpcThrottlers.metadataWrite.onReady {
@@ -421,10 +441,21 @@ class VidRankBuilder(
       ) {
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineLabeling(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
-      )
+      val current =
+        requireNotNull(getParent()) {
+          "RawImpressionUploadModelLine ${parent.name} disappeared after ${e.status.code}"
+        }
+      if (
+        current.state in COMPLETED_FANOUT_STATES ||
+          current.state == RawImpressionUploadModelLine.State.FAILED
+      ) {
+        logger.info(
+          "markRawImpressionUploadModelLineLabeling(${parent.name}) observed ${current.state} " +
+            "after ${e.status.code}; treating as done"
+        )
+        return
+      }
+      throw e
     }
   }
 
@@ -451,10 +482,21 @@ class VidRankBuilder(
       ) {
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineCompleted(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
-      )
+      val current =
+        requireNotNull(getParent()) {
+          "RawImpressionUploadModelLine ${parent.name} disappeared after ${e.status.code}"
+        }
+      if (
+        current.state == RawImpressionUploadModelLine.State.COMPLETED ||
+          current.state == RawImpressionUploadModelLine.State.FAILED
+      ) {
+        logger.info(
+          "markRawImpressionUploadModelLineCompleted(${parent.name}) observed ${current.state} " +
+            "after ${e.status.code}; treating as done"
+        )
+        return
+      }
+      throw e
     }
   }
 
@@ -547,6 +589,12 @@ class VidRankBuilder(
   }
 
   companion object {
+    private val COMPLETED_FANOUT_STATES =
+      setOf(
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.COMPLETED,
+      )
+
     /**
      * Default max `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call (the
      * service's per-batch limit).

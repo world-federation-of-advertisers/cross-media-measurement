@@ -30,6 +30,7 @@ import io.grpc.StatusRuntimeException
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -47,6 +48,7 @@ import org.mockito.kotlin.doThrow
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -558,6 +560,116 @@ class VidLabelerAppTest {
     }
 
   @Test
+  fun `completion conflict does not revive a FAILED model line`() = runBlocking {
+    seedRankIndexBlob()
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.CREATED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
+            }
+        }
+    }
+    stubModelLineList(
+      preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.LABELING),
+      postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.FAILED),
+    )
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doThrow
+        StatusRuntimeException(Status.FAILED_PRECONDITION)
+    }
+    tempFolder.root.resolve("output-bucket").mkdirs()
+
+    createApp().runWork(buildMessage(memoizedParams()))
+
+    verifyBlocking(rawImpressionUploadModelLinesService) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+  }
+
+  @Test
+  fun `early Phase 2 completion retries until the parent reaches LABELING`() = runBlocking {
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.RANKING)
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.SUCCEEDED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
+            }
+        }
+    }
+    rawImpressionUploadModelLinesService.stub {
+      onBlocking { listRawImpressionUploadModelLines(any()) } doAnswer
+        {
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = PARENT_NAME
+              cmmsModelLine = MODEL_LINE
+              state = parentState.get()
+              etag = "parent-etag"
+            }
+          }
+        }
+      onBlocking { getRawImpressionUploadModelLine(any()) } doAnswer
+        {
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = parentState.get()
+            etag = "parent-etag"
+          }
+        }
+      onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
+        {
+          if (parentState.get() != RawImpressionUploadModelLine.State.LABELING) {
+            throw StatusRuntimeException(Status.FAILED_PRECONDITION)
+          }
+          parentState.set(RawImpressionUploadModelLine.State.COMPLETED)
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+    }
+    tempFolder.root.resolve("output-bucket").mkdirs()
+    val app = createApp()
+
+    assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+    assertThat(parentState.get()).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
+
+    parentState.set(RawImpressionUploadModelLine.State.LABELING)
+    app.runWork(buildMessage(memoizedParams()))
+
+    assertThat(parentState.get()).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+    verifyBlocking(rawImpressionUploadModelLinesService, times(2)) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+  }
+
+  @Test
   fun `runWork completes the model line even while a sibling is still labeling`() = runBlocking {
     seedRankIndexBlob()
     vidLabelingJobsService.stub {
@@ -635,6 +747,13 @@ class VidLabelerAppTest {
               }
             }
           }
+        }
+      onBlocking { getRawImpressionUploadModelLine(any()) } doReturn
+        rawImpressionUploadModelLine {
+          name = PARENT_NAME
+          cmmsModelLine = postMark.first().first
+          state = postMark.first().second
+          etag = "parent-etag"
         }
     }
   }
