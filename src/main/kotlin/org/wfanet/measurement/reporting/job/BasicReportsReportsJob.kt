@@ -32,6 +32,7 @@ import java.time.ZoneOffset
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.access.client.v1alpha.TrustedPrincipalAuthInterceptor
 import org.wfanet.measurement.access.v1alpha.principal
 import org.wfanet.measurement.api.v2alpha.EventMessageDescriptor
@@ -902,12 +903,44 @@ class BasicReportsReportsJob(
     cmmsMeasurementConsumerId: String,
     externalBasicReportId: String,
   ) {
-    internalBasicReportsStub.failBasicReport(
-      failBasicReportRequest {
-        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
-        this.externalBasicReportId = externalBasicReportId
-      }
+    val basicReportName = BasicReportKey(cmmsMeasurementConsumerId, externalBasicReportId).toName()
+    ReportTraceLogging.log(
+      logger,
+      "reporting.basic_report.failure_writeback",
+      ReportTraceAttributes.BASIC_REPORT_NAME_STRING to basicReportName,
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "basic_report_failure_writeback",
+      ReportTraceAttributes.OUTCOME_STRING to "started",
     )
+    try {
+      internalBasicReportsStub.failBasicReport(
+        failBasicReportRequest {
+          this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+          this.externalBasicReportId = externalBasicReportId
+        }
+      )
+      ReportTraceLogging.log(
+        logger,
+        "reporting.basic_report.failure_writeback",
+        ReportTraceAttributes.BASIC_REPORT_NAME_STRING to basicReportName,
+        ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "basic_report_failure_writeback",
+        ReportTraceAttributes.OUTCOME_STRING to "succeeded",
+      )
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      ReportTraceLogging.log(
+        logger,
+        Level.WARNING,
+        e,
+        "reporting.basic_report.failure_writeback",
+        ReportTraceAttributes.BASIC_REPORT_NAME_STRING to basicReportName,
+        ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "basic_report_failure_writeback",
+        ReportTraceAttributes.OUTCOME_STRING to "failed",
+        ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(e),
+        ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(e),
+      )
+      throw e
+    }
   }
 
   private fun logReportResultAssembly(
