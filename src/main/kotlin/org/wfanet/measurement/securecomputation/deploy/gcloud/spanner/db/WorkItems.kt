@@ -68,7 +68,7 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItem(workItemId: Long): WorkI
 }
 
 /** Buffers the state and outbox mutations needed to retry a failed WorkItem immediately. */
-fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
+suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
   workItemId: Long,
   generation: Long,
 ): WorkItem.State {
@@ -78,7 +78,7 @@ fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
 /**
  * Buffers the state and outbox mutations needed to retry a failed WorkItem at [nextAttemptTime].
  */
-fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
+suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
   workItemId: Long,
   generation: Long,
   nextAttemptTime: Instant,
@@ -92,12 +92,16 @@ fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
     set("PublicationScheduledGeneration").to(nextGeneration)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  insertWorkItemPublication(workItemId, nextAttemptTime)
+  scheduleWorkItemPublication(
+    workItemId,
+    isDeadLetter = false,
+    nextAttemptTime = nextAttemptTime,
+  )
   return state
 }
 
 /** Advances the generation and schedules a dead-letter publication for a running WorkItem. */
-fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemDeadLetterPublication(
+suspend fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemDeadLetterPublication(
   workItemId: Long,
   generation: Long,
 ) {
@@ -108,7 +112,11 @@ fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemDeadLetterPublication
     set("PublicationScheduledGeneration").to(nextGeneration)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  insertDeadLetterWorkItemPublication(workItemId)
+  scheduleWorkItemPublication(
+    workItemId,
+    isDeadLetter = true,
+    nextAttemptTime = Instant.now(),
+  )
 }
 
 /**

@@ -28,6 +28,7 @@ import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CompleteWorkItemAttemptRequest
@@ -340,6 +341,14 @@ class SpannerWorkItemAttemptsService(
               )
             }
             WorkItemAttempt.State.ACTIVE -> {
+              if (
+                workItemAttemptResult.workItemAttempt.hasLeaseExpirationTime() &&
+                  !workItemAttemptResult.workItemAttempt.leaseExpirationTime
+                    .toInstant()
+                    .isAfter(clock.instant())
+              ) {
+                throw expiredLeaseException(workItemAttemptResult)
+              }
               val state =
                 txn.completeWorkItemAttempt(
                   workItemAttemptResult.workItemId,
@@ -387,6 +396,12 @@ class SpannerWorkItemAttemptsService(
               result.workItemAttempt.workItemAttemptResourceId,
               result.workItemAttempt.state,
             )
+          }
+          if (
+            !result.workItemAttempt.hasLeaseExpirationTime() ||
+              !result.workItemAttempt.leaseExpirationTime.toInstant().isAfter(clock.instant())
+          ) {
+            throw expiredLeaseException(result)
           }
           txn.renewWorkItemAttemptLease(
             result.workItemId,
@@ -455,6 +470,14 @@ class SpannerWorkItemAttemptsService(
     val exponent = (workItemAttempt.attemptNumber - 1).coerceIn(0, MAX_ATTEMPT_RETRY_EXPONENT)
     return minOf(initialAttemptRetryDelay.multipliedBy(1L shl exponent), maxAttemptRetryDelay)
   }
+
+  private fun expiredLeaseException(result: WorkItemAttemptResult) =
+    WorkItemAttemptInvalidStateException(
+      result.workItemAttempt.workItemResourceId,
+      result.workItemAttempt.workItemAttemptResourceId,
+      result.workItemAttempt.state,
+      IllegalStateException("WorkItemAttempt lease is absent or expired"),
+    )
 
   companion object {
     private const val MAX_PAGE_SIZE = 100
