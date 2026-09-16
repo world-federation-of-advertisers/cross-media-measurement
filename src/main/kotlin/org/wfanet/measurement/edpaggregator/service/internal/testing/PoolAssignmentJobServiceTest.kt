@@ -1416,10 +1416,10 @@ abstract class PoolAssignmentJobServiceTest {
     }
 
   @Test
-  fun `markPoolAssignmentJobSucceeded omits last_shard_result when no shard wrote impressions`() =
+  fun `markPoolAssignmentJobSucceeded returns empty last_shard_result for zero impressions`() =
     runBlocking {
-      // A last shard that wrote no impressions (no pool offsets, no max event date) must omit
-      // last_shard_result entirely rather than emit a malformed all-empty result.
+      // The presence of last_shard_result is the durable last-shard signal, even when no shard
+      // observed an in-window impression and both aggregate fields are empty.
       val shard: PoolAssignmentJob =
         service.createPoolAssignmentJob(
           createPoolAssignmentJobRequest {
@@ -1445,7 +1445,9 @@ abstract class PoolAssignmentJobServiceTest {
           }
         )
 
-      assertThat(response.hasLastShardResult()).isFalse()
+      assertThat(response.hasLastShardResult()).isTrue()
+      assertThat(response.lastShardResult.poolOffsetsList).isEmpty()
+      assertThat(response.lastShardResult.hasMaxEventDate()).isFalse()
     }
 
   @Test

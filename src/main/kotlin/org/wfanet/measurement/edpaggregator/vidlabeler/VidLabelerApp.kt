@@ -632,16 +632,23 @@ class VidLabelerApp(
         )
         continue
       }
-      // Write the `done` marker BEFORE the COMPLETED transition so COMPLETED is the last,
-      // truth-bearing signal. A persistent writeDoneBlob failure then leaves the model line in
-      // LABELING (recoverable) instead of stranding a COMPLETED-but-unavailable upload: on Pub/Sub
-      // redelivery the idempotent markVidLabelingJobSucceeded replay re-reports this completed
-      // model line (recomputed from sibling job states), so writeDoneBlob is retried; only once it
-      // succeeds does markParentCompleted commit COMPLETED. Only this TEE reached last-job-out for
-      // `completedModelLine`, so only it finalizes the (model line, date): it drops the single
+      if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
+        logger.info(
+          "Skipping availability publication for ${parent.name}: the model line is FAILED"
+        )
+        continue
+      }
+      // Commit COMPLETED before publishing availability. A stale worker cannot transition a FAILED
+      // model line and therefore cannot recreate its `done` marker. If the marker write fails after
+      // the transition, the unacknowledged WorkItem is redelivered and retries the deterministic
+      // marker. Only this TEE reached last-job-out for `completedModelLine`, so only it finalizes
+      // the (model line, date): it drops the single
       // `done` marker in that model line's shared-event-date folder — the one VidLabelingSink wrote
       // its labeled output to — and DataAvailabilitySync finalizes it. Independent per model line:
       // a FAILED/stuck sibling no longer withholds this line's availability.
+      if (!markParentCompleted(parent, dataProvider)) {
+        continue
+      }
       if (eventDate != null) {
         writeDoneBlob(
           params.vidLabeledImpressionsStorageParams,
@@ -650,20 +657,19 @@ class VidLabelerApp(
           dataProvider,
         )
       }
-      markParentCompleted(parent, dataProvider)
     }
   }
 
   /**
    * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. On an
-   * optimistic-lock failure, re-reads the parent and treats the call as successful only when it is
-   * already `COMPLETED` (or terminally `FAILED`). If it is still in an earlier phase, the error is
-   * rethrown so the prematurely delivered WorkItem is retried after the phase transition commits.
+   * optimistic-lock failure, re-reads the parent: `COMPLETED` is a successful replay, `FAILED`
+   * returns false so no availability marker is published, and an earlier phase rethrows so the
+   * prematurely delivered WorkItem is retried after the phase transition commits.
    */
   private suspend fun markParentCompleted(
     parent: RawImpressionUploadModelLine,
     dataProvider: String,
-  ) {
+  ): Boolean {
     try {
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
@@ -674,6 +680,7 @@ class VidLabelerApp(
           }
         )
       }
+      return true
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
@@ -703,7 +710,7 @@ class VidLabelerApp(
           "markRawImpressionUploadModelLineCompleted(${parent.name}) observed ${current.state} " +
             "after ${e.status.code}; treating as done"
         )
-        return
+        return current.state == RawImpressionUploadModelLine.State.COMPLETED
       }
       metrics.markCompletedFailuresCounter.add(
         1,

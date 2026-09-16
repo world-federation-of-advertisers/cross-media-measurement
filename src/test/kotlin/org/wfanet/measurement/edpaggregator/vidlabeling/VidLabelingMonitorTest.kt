@@ -61,6 +61,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
@@ -81,10 +82,12 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
@@ -98,6 +101,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -246,7 +251,7 @@ class VidLabelingMonitorTest {
       modelLinesStub = modelLinesStub,
       dataProviderName = DATA_PROVIDER,
       vidLabelerParamsTemplate = VID_LABELER_PARAMS_TEMPLATE,
-      subpoolAssignerParamsTemplate = SubpoolAssignerParams.getDefaultInstance(),
+      subpoolAssignerParamsTemplate = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
       queueName = QUEUE_NAME,
       poolAssignerQueueName = POOL_ASSIGNER_QUEUE_NAME,
       numberOfShards = NUMBER_OF_SHARDS,
@@ -882,7 +887,7 @@ class VidLabelingMonitorTest {
     }
 
   @Test
-  fun `does not recover POOL_ASSIGNING while a shard job is unfinished`() = runBlocking {
+  fun `recovers missing Phase 0 publication while a shard job is still CREATED`() = runBlocking {
     val uploadName = "$DATA_PROVIDER/rawImpressionUploads/active-1"
     stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
     stubModelLines(
@@ -909,14 +914,40 @@ class VidLabelingMonitorTest {
           }
         }
       )
+    stubShardResolution(memoized = true)
+    whenever(modelLinesService.getModelLine(any()))
+      .thenReturn(org.wfanet.measurement.api.v2alpha.modelLine { name = MODEL_LINE })
+    whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer { invocation
+      ->
+      val request = invocation.getArgument<BatchCreatePoolAssignmentJobsRequest>(0)
+      batchCreatePoolAssignmentJobsResponse {
+        request.requestsList.forEachIndexed { index, createRequest ->
+          poolAssignmentJobs +=
+            createRequest.poolAssignmentJob.copy {
+              name = "$uploadName/poolAssignmentJobs/pa$index"
+            }
+        }
+      }
+    }
+    var publicationCount = 0
+    whenever(workItemsService.createWorkItem(any())).thenAnswer {
+      if (publicationCount++ == 0) {
+        throw Status.ALREADY_EXISTS.asRuntimeException()
+      }
+      workItem {}
+    }
+    whenever(
+        rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+      )
+      .thenReturn(rawImpressionUploadModelLine {})
     whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
       .thenReturn(listRawImpressionUploadFilesResponse {})
 
     val result = createMonitor().runHealth()
 
-    assertThat(result.recoveredTransitions).isEqualTo(0)
+    assertThat(result.recoveredTransitions).isEqualTo(1)
     verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
-    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
   }
 
   @Test
@@ -1268,6 +1299,30 @@ class VidLabelingMonitorTest {
           gcsProjectId = "test-project"
           impressionsBlobPrefix = "gs://vid-labeled-bucket"
         }
+    }
+
+    private val SUBPOOL_ASSIGNER_PARAMS_TEMPLATE: SubpoolAssignerParams = subpoolAssignerParams {
+      dataProvider = DATA_PROVIDER
+      vidRankMapStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://vid-rank-map-bucket"
+        }
+      subpoolMapStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://subpool-map-bucket"
+        }
+      modelStorageParams =
+        SubpoolAssignerParamsKt.storageParams {
+          gcsProjectId = "test-project"
+          blobPrefix = "gs://model-bucket"
+        }
+      rawImpressionMetadataStorageConnection = transportLayerSecurityParams {
+        clientCertResourcePath = "cert"
+        clientPrivateKeyResourcePath = "key"
+      }
+      maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES
     }
 
     private val MODEL_LINE_CONFIGS: Map<String, VidLabelerParams.ModelLineConfig> =

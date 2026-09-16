@@ -625,20 +625,13 @@ class SpannerPoolAssignmentJobService(
         }
 
       if (txnResult.isLastShard) {
-        val hasOffsets = txnResult.poolOffsets.isNotEmpty()
-        val hasMaxEventDate = txnResult.maxEventDate != null
-        check(hasOffsets == hasMaxEventDate) {
-          "LastShardResult invariant violated: pool_offsets present=$hasOffsets but " +
-            "max_event_date present=$hasMaxEventDate"
-        }
-        // Omit LastShardResult when no shard wrote impressions.
-        if (hasOffsets) {
-          lastShardResult =
-            MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
-              poolOffsets += txnResult.poolOffsets
-              maxEventDate = txnResult.maxEventDate!!
+        lastShardResult =
+          MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+            poolOffsets += txnResult.poolOffsets
+            if (txnResult.maxEventDate != null) {
+              maxEventDate = txnResult.maxEventDate
             }
-        }
+          }
       }
     }
   }

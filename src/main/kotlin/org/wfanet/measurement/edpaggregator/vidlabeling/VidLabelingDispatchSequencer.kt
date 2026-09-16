@@ -211,9 +211,10 @@ class VidLabelingDispatchSequencer(
           continue
         }
         if (shardInfo.memoizationEnabled) {
-          dispatchMemoized(upload.name, modelLine, shardInfo)
-          busyModelLines += modelLine.cmmsModelLine
-          if (dispatchedUpload == null) dispatchedUpload = upload.name
+          if (dispatchMemoized(upload.name, modelLine, shardInfo)) {
+            busyModelLines += modelLine.cmmsModelLine
+            if (dispatchedUpload == null) dispatchedUpload = upload.name
+          }
         } else {
           nonMemoized += BundledModelLine(modelLine, shardInfo)
         }
@@ -229,6 +230,21 @@ class VidLabelingDispatchSequencer(
       logger.info("Dispatched model line(s) for $dataProviderName starting with $dispatchedUpload")
     }
     return DispatchResult(dispatchedUpload = dispatchedUpload, queuedUploads = queuedModelLines)
+  }
+
+  /**
+   * Replays the idempotent Phase-0 publication for a model line whose dispatch was interrupted.
+   *
+   * The job request IDs and WorkItem IDs are deterministic, so this recreates only publications
+   * that are missing. Returns false when the model line no longer resolves to a memoized shard.
+   */
+  suspend fun resumeMemoizedDispatch(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+  ): Boolean {
+    val shardInfo = resolveShardInfo(modelLine.cmmsModelLine) ?: return false
+    if (!shardInfo.memoizationEnabled) return false
+    return dispatchMemoized(uploadName, modelLine, shardInfo)
   }
 
   /**
@@ -371,20 +387,19 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Memoized (Phase-0) dispatch: pre-create a `PoolAssignmentJob` per shard, publish one
-   * SubpoolAssigner `WorkItem` per shard on [poolAssignerQueueName] (each carrying the resource
-   * name of its pre-created job), then transition the model line to `POOL_ASSIGNING`.
+   * Memoized (Phase-0) dispatch: pre-create a `PoolAssignmentJob` per shard, transition the model
+   * line to `POOL_ASSIGNING`, then publish one SubpoolAssigner `WorkItem` per shard on
+   * [poolAssignerQueueName] (each carrying the resource name of its pre-created job).
    *
-   * Mirrors [dispatchNonMemoized]'s create-then-mark order. Every create is idempotent
-   * (deterministic `request_id` for the jobs, deterministic `workItemId` for the WorkItems), so a
-   * caller that loses the per-model-line etag CAS at [markPoolAssigning] has only repeated harmless
-   * creates.
+   * The state claim precedes WorkItem publication so a worker never observes a `CREATED` parent.
+   * Every create is idempotent (deterministic `request_id` for the jobs, deterministic `workItemId`
+   * for the WorkItems), and the monitor resumes any publication interrupted after the claim.
    */
   private suspend fun dispatchMemoized(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
-  ) {
+  ): Boolean {
     // `vid_rank_map_storage_params`, `subpool_map_storage_params`, and `model_storage_params` are
     // REQUIRED on `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for
     // EDPs with at least one memoized model line). Enforce that intent here: fail fast at the first
@@ -418,6 +433,10 @@ class VidLabelingDispatchSequencer(
     val poolAssignmentJobsByShard: Map<Int, String> =
       createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
 
+    // Claim the parent before workers can consume their messages. If publication is interrupted,
+    // the monitor re-enters this idempotent method and fills in the missing deterministic IDs.
+    if (!markPoolAssigning(modelLine.name, modelLine.etag)) return false
+
     for (shardIndex in 0 until numberOfShards) {
       val poolAssignmentJob: String =
         requireNotNull(poolAssignmentJobsByShard[shardIndex]) {
@@ -434,7 +453,7 @@ class VidLabelingDispatchSequencer(
         shardIndex = shardIndex,
       )
     }
-    markPoolAssigning(modelLine.name, modelLine.etag)
+    return true
   }
 
   /** Lists this DataProvider's uploads in [state]. */
@@ -634,85 +653,95 @@ class VidLabelingDispatchSequencer(
   }
 
   private suspend fun markLabeling(modelLineName: String, etag: String) {
-    try {
+    transitionWithFreshEtag(
+      modelLineName,
+      etag,
+      RawImpressionUploadModelLine.State.CREATED,
+      setOf(
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.COMPLETED,
+      ),
+      "LABELING",
+    ) { currentEtag ->
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineLabeling(
           markRawImpressionUploadModelLineLabelingRequest {
             name = modelLineName
-            this.etag = etag
+            this.etag = currentEtag
             requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(modelLineName)
           }
         )
       }
-    } catch (e: StatusException) {
-      resolveTransitionConflict(
-        e,
-        modelLineName,
-        setOf(
-          RawImpressionUploadModelLine.State.LABELING,
-          RawImpressionUploadModelLine.State.COMPLETED,
-        ),
-        "LABELING",
-      )
     }
   }
 
-  private suspend fun markPoolAssigning(modelLineName: String, etag: String) {
-    try {
+  private suspend fun markPoolAssigning(modelLineName: String, etag: String): Boolean =
+    transitionWithFreshEtag(
+      modelLineName,
+      etag,
+      RawImpressionUploadModelLine.State.CREATED,
+      setOf(
+        RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+        RawImpressionUploadModelLine.State.RANKING,
+        RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.COMPLETED,
+      ),
+      "POOL_ASSIGNING",
+    ) { currentEtag ->
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
           markRawImpressionUploadModelLinePoolAssigningRequest {
             name = modelLineName
-            this.etag = etag
+            this.etag = currentEtag
             requestId = RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName)
           }
         )
       }
-    } catch (e: StatusException) {
-      resolveTransitionConflict(
-        e,
-        modelLineName,
-        setOf(
-          RawImpressionUploadModelLine.State.POOL_ASSIGNING,
-          RawImpressionUploadModelLine.State.RANKING,
-          RawImpressionUploadModelLine.State.LABELING,
-          RawImpressionUploadModelLine.State.COMPLETED,
-        ),
-        "POOL_ASSIGNING",
-      )
     }
-  }
 
-  /** Resolves an optimistic-lock failure without mistaking a stale etag for a completed claim. */
-  private suspend fun resolveTransitionConflict(
-    exception: StatusException,
+  /** Retries an optimistic transition while concurrent child updates only rotate the etag. */
+  private suspend fun transitionWithFreshEtag(
     modelLineName: String,
+    initialEtag: String,
+    sourceState: RawImpressionUploadModelLine.State,
     completedStates: Set<RawImpressionUploadModelLine.State>,
     targetState: String,
-  ) {
-    if (!isConcurrentClaimLoss(exception)) throw exception
+    transition: suspend (etag: String) -> Unit,
+  ): Boolean {
+    var etag = initialEtag
+    while (true) {
+      try {
+        transition(etag)
+        return true
+      } catch (e: StatusException) {
+        if (!isConcurrentClaimLoss(e)) throw e
 
-    val current =
-      rpcThrottlers.metadataRead.onReady {
-        rawImpressionUploadModelLineStub.getRawImpressionUploadModelLine(
-          getRawImpressionUploadModelLineRequest { name = modelLineName }
+        val current =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLineStub.getRawImpressionUploadModelLine(
+              getRawImpressionUploadModelLineRequest { name = modelLineName }
+            )
+          }
+        if (current.state in completedStates) {
+          logger.info(
+            "Skipping $targetState for $modelLineName: a concurrent dispatch advanced it to " +
+              current.state
+          )
+          return true
+        }
+        if (current.state == RawImpressionUploadModelLine.State.FAILED) {
+          logger.info("Skipping $targetState for $modelLineName: the model line is FAILED")
+          return false
+        }
+        if (current.state != sourceState) throw e
+
+        logger.info(
+          "Retrying $targetState for $modelLineName with its refreshed etag after a concurrent " +
+            "child update"
         )
+        etag = current.etag
       }
-    if (current.state in completedStates) {
-      logger.info(
-        "Skipping $targetState for $modelLineName: a concurrent dispatch advanced it to " +
-          current.state
-      )
-      return
     }
-    if (current.state == RawImpressionUploadModelLine.State.FAILED) {
-      logger.info("Skipping $targetState for $modelLineName: the model line is FAILED")
-      return
-    }
-
-    // A changed etag does not prove that this transition happened. Propagate the original conflict
-    // so the upload-triggered dispatcher or periodic monitor retries the idempotent dispatch.
-    throw exception
   }
 
   /** Fetches the `ModelLine` to read its active window (`active_start_time`/`active_end_time`). */

@@ -234,23 +234,18 @@ class RankerJobServiceTest {
   }
 
   @Test
-  fun `createRankerJob throws INVALID_ARGUMENT for empty pool_offsets`() = runBlocking {
+  fun `createRankerJob forwards empty pool_offsets for zero-rank continuation`() = runBlocking {
+    createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
     val request = createRankerJobRequest {
       requestId = UUID.randomUUID().toString()
       parent = UPLOAD_KEY.toName()
       rankerJob = rankerJob { cmmsModelLine = CMMS_MODEL_LINE }
     }
 
-    val exception = assertFailsWith<StatusRuntimeException> { service.createRankerJob(request) }
-    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.errorInfo)
-      .isEqualTo(
-        errorInfo {
-          domain = Errors.DOMAIN
-          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
-          metadata[Errors.Metadata.FIELD_NAME.key] = "ranker_job.pool_offsets"
-        }
-      )
+    val result = service.createRankerJob(request)
+
+    assertThat(result.cmmsModelLine).isEqualTo(CMMS_MODEL_LINE)
+    assertThat(result.poolOffsetsList).isEmpty()
   }
 
   @Test

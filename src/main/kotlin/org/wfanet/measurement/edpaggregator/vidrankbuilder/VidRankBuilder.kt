@@ -162,6 +162,19 @@ class VidRankBuilder(
       return recoverIfLastJobOut()
     }
 
+    val parentBeforeRanking =
+      requireNotNull(getParent()) {
+        "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
+      }
+    if (parentBeforeRanking.state == RawImpressionUploadModelLine.State.FAILED) {
+      logger.info("Parent ${parentBeforeRanking.name} is FAILED; skipping stale Phase-1 work")
+      return Result(0, lastJobOut = false)
+    }
+    check(parentBeforeRanking.state == RawImpressionUploadModelLine.State.RANKING) {
+      "Parent ${parentBeforeRanking.name} has not reached RANKING; retry this WorkItem after " +
+        "Phase 0 commits the transition"
+    }
+
     // Rank this job's subpools sequentially; each subpool's own rank build is already parallelized
     // across cores by [SubpoolRanker]. A failure propagates so the framework nacks and Pub/Sub
     // retries.

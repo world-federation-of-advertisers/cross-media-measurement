@@ -599,6 +599,39 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `last job out publishes no completion for a model line already FAILED`() = runBlocking {
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.SUCCEEDED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
+            }
+        }
+    }
+    stubModelLineList(
+      preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.FAILED),
+      postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.FAILED),
+    )
+
+    createApp().runWork(buildMessage(memoizedParams()))
+
+    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+  }
+
+  @Test
   fun `early Phase 2 completion retries until the parent reaches LABELING`() = runBlocking {
     val parentState = AtomicReference(RawImpressionUploadModelLine.State.RANKING)
     vidLabelingJobsService.stub {

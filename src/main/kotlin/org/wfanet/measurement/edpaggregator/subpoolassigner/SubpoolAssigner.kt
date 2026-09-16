@@ -57,6 +57,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -238,7 +240,11 @@ class SubpoolAssigner(
       runLastShardOut(
         parent,
         markResponse.lastShardResult.poolOffsetsList,
-        markResponse.lastShardResult.maxEventDate,
+        if (markResponse.lastShardResult.hasMaxEventDate()) {
+          markResponse.lastShardResult.maxEventDate
+        } else {
+          null
+        },
         mergedDek = dek,
       )
     }
@@ -250,7 +256,7 @@ class SubpoolAssigner(
    * discovered subpool offsets, the max event date, and the merged-blob DEK were persisted on the
    * parent `RawImpressionUploadModelLine` by the last-shard-out's `MarkPoolAssignmentJobSucceeded`,
    * so we read them back:
-   * - empty `pool_offsets` -> this shard was not the last out; nothing to do,
+   * - no persisted merged DEK -> this shard was not the last out; nothing to do,
    * - parent state already `RANKING`/`LABELING`/`COMPLETED` -> the last-shard-out fully finished
    *   (the state flip is its last step), so there is nothing to recover,
    * - otherwise -> a crash interrupted the last-shard-out; re-run it. The merge, RankerJob
@@ -262,9 +268,25 @@ class SubpoolAssigner(
    */
   private suspend fun recoverIfLastShardOut(): Result {
     val parent = getParent()
-    if (parent == null || parent.poolOffsetsList.isEmpty()) {
+    if (parent == null) {
       logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; not last-shard-out")
       return Result(0, 0, 0, 0, lastShardOut = false)
+    }
+    require(parent.poolOffsetsList.isEmpty() || parent.hasEncryptedMergedDek()) {
+      "RawImpressionUploadModelLine ${parent.name} has pool_offsets but no encrypted_merged_dek; " +
+        "cannot recover the merge with a consistent DEK"
+    }
+    if (!parent.hasEncryptedMergedDek()) {
+      logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; not last-shard-out")
+      return Result(0, 0, 0, 0, lastShardOut = false)
+    }
+    if (
+      parent.poolOffsetsList.isEmpty() &&
+        !parent.hasMaxEventDate() &&
+        parent.state == RawImpressionUploadModelLine.State.LABELING
+    ) {
+      completeModelLineWithNoInWindowImpressions(parent)
+      return Result(0, 0, 0, 0, lastShardOut = true)
     }
     if (
       parent.state in COMPLETED_FANOUT_STATES ||
@@ -276,15 +298,11 @@ class SubpoolAssigner(
       )
       return Result(0, 0, 0, 0, lastShardOut = true)
     }
-    require(parent.hasEncryptedMergedDek()) {
-      "RawImpressionUploadModelLine ${parent.name} has pool_offsets but no encrypted_merged_dek; " +
-        "cannot recover the merge with a consistent DEK"
-    }
     logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; recovering last-shard-out")
     runLastShardOut(
       parent,
       parent.poolOffsetsList,
-      parent.maxEventDate,
+      if (parent.hasMaxEventDate()) parent.maxEventDate else null,
       mergedDek = parent.encryptedMergedDek,
     )
     return Result(0, 0, 0, 0, lastShardOut = true)
@@ -297,7 +315,7 @@ class SubpoolAssigner(
   private suspend fun runLastShardOut(
     parent: RawImpressionUploadModelLine,
     poolOffsets: List<Long>,
-    maxEventDate: Date,
+    maxEventDate: Date?,
     mergedDek: EncryptedDek,
   ) {
     if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
@@ -383,19 +401,89 @@ class SubpoolAssigner(
   private suspend fun fanOutRanking(
     parent: RawImpressionUploadModelLine,
     poolOffsets: List<Long>,
-    maxEventDate: Date,
+    maxEventDate: Date?,
     mergedDek: EncryptedDek,
   ) {
-    for (poolOffset in poolOffsets) {
-      val offsets = listOf(poolOffset)
+    if (poolOffsets.isEmpty() && maxEventDate == null) {
+      completeModelLineWithNoInWindowImpressions(parent)
+      return
+    }
+
+    val jobOffsets: List<List<Long>> =
+      if (poolOffsets.isEmpty()) listOf(emptyList()) else poolOffsets.map(::listOf)
+    for (offsets in jobOffsets) {
       val rankerJob = createRankerJob(offsets)
-      publishVidRankBuilderWorkItem(rankerJob, offsets, maxEventDate, mergedDek)
+      publishVidRankBuilderWorkItem(
+        rankerJob,
+        offsets,
+        requireNotNull(maxEventDate) { "max_event_date missing for Phase-1 work" },
+        mergedDek,
+      )
     }
 
     markParentRanking(parent)
     logger.info(
-      "Fanned out ${poolOffsets.size} RankerJob(s) for $modelLine; parent advanced to RANKING"
+      "Fanned out ${jobOffsets.size} RankerJob(s) for $modelLine; parent advanced to RANKING"
     )
+  }
+
+  /** Completes a model line whose Phase 0 observed no in-window impressions. */
+  private suspend fun completeModelLineWithNoInWindowImpressions(
+    parent: RawImpressionUploadModelLine
+  ) {
+    var current = parent
+    if (current.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
+      current =
+        try {
+          rpcThrottlers.metadataWrite.onReady {
+            rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
+              markRawImpressionUploadModelLineLabelingRequest {
+                name = current.name
+                etag = current.etag
+                requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(current.name)
+              }
+            )
+          }
+        } catch (e: StatusException) {
+          if (
+            e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
+          ) {
+            throw e
+          }
+          requireNotNull(getParent()) { "RawImpressionUploadModelLine ${parent.name} disappeared" }
+        }
+    }
+    if (current.state == RawImpressionUploadModelLine.State.FAILED) return
+    if (current.state == RawImpressionUploadModelLine.State.COMPLETED) return
+    check(current.state == RawImpressionUploadModelLine.State.LABELING) {
+      "Parent ${current.name} has not reached LABELING for its empty completion"
+    }
+    try {
+      rpcThrottlers.metadataWrite.onReady {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
+          markRawImpressionUploadModelLineCompletedRequest {
+            name = current.name
+            etag = current.etag
+            requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(current.name)
+          }
+        )
+      }
+    } catch (e: StatusException) {
+      if (
+        e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
+      ) {
+        throw e
+      }
+      val latest =
+        requireNotNull(getParent()) { "RawImpressionUploadModelLine ${parent.name} disappeared" }
+      if (
+        latest.state != RawImpressionUploadModelLine.State.COMPLETED &&
+          latest.state != RawImpressionUploadModelLine.State.FAILED
+      ) {
+        throw e
+      }
+    }
+    logger.info("No in-window impressions for $modelLine; parent advanced to COMPLETED")
   }
 
   /**

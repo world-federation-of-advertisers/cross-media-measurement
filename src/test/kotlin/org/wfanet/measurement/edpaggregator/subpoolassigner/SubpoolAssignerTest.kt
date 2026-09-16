@@ -49,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionSource
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
@@ -235,7 +236,14 @@ class SubpoolAssignerTest {
         onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
           markPoolAssignmentJobSucceededResponse {
             lastShardResult =
-              MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
+              MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+                poolOffsets += 7L
+                maxEventDate = date {
+                  year = 2026
+                  month = 6
+                  day = 15
+                }
+              }
           }
         onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
           listPoolAssignmentJobsResponse {
@@ -286,6 +294,109 @@ class SubpoolAssignerTest {
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `last shard with zero ranked subpools still fans out Phase 1`() = runBlocking {
+    val store = storeMock()
+    val ranker = rankerStubMock()
+    val workItems = workItemsStubMock()
+    val paj =
+      mock<PoolAssignmentJobServiceCoroutineStub> {
+        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+          jobResponse(PoolAssignmentJob.State.CREATED)
+        onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+          markPoolAssignmentJobSucceededResponse {
+            lastShardResult =
+              MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
+                maxEventDate = date {
+                  year = 2026
+                  month = 6
+                  day = 15
+                }
+              }
+          }
+        onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob {
+              shardIndex = 0
+              encryptedDek = DEK_SHARD0
+            }
+          }
+      }
+    val ruml =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+          }
+        onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doReturn
+          parent(RawImpressionUploadModelLine.State.RANKING)
+      }
+
+    val result = assigner(store, paj, ruml, ranker, workItems).assign()
+
+    assertThat(result.lastShardOut).isTrue()
+    val request = argumentCaptor<CreateRankerJobRequest>()
+    verifyBlocking(ranker) { createRankerJob(request.capture(), any()) }
+    assertThat(request.firstValue.rankerJob.poolOffsetsList).isEmpty()
+    verifyBlocking(workItems) { createWorkItem(any(), any()) }
+    verifyBlocking(ruml) { markRawImpressionUploadModelLineRanking(any(), any()) }
+  }
+
+  @Test
+  fun `last shard with no in-window impressions completes the model line`() = runBlocking {
+    val store = storeMock()
+    val ranker = rankerStubMock()
+    val workItems = workItemsStubMock()
+    val paj =
+      mock<PoolAssignmentJobServiceCoroutineStub> {
+        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+          jobResponse(PoolAssignmentJob.State.CREATED)
+        onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+          markPoolAssignmentJobSucceededResponse {
+            lastShardResult = MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {}
+          }
+        onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob {
+              shardIndex = 0
+              encryptedDek = DEK_SHARD0
+            }
+          }
+      }
+    val ruml =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = PARENT_NAME
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.LABELING
+          }
+        onBlocking { markRawImpressionUploadModelLineCompleted(any(), any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+      }
+
+    val result = assigner(store, paj, ruml, ranker, workItems).assign()
+
+    assertThat(result.lastShardOut).isTrue()
+    verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
+    verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
+    verifyBlocking(ruml) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+    verifyBlocking(ruml) { markRawImpressionUploadModelLineCompleted(any(), any()) }
   }
 
   @Test
@@ -651,6 +762,11 @@ class SubpoolAssignerTest {
               lastShardResult =
                 MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {
                   poolOffsets += listOf(7L, 11L)
+                  maxEventDate = date {
+                    year = 2026
+                    month = 6
+                    day = 15
+                  }
                 }
             }
           onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn

@@ -89,10 +89,6 @@ class RankerJobService(
       throw RequiredFieldNotSetException("ranker_job.cmms_model_line")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    if (request.rankerJob.poolOffsetsList.isEmpty()) {
-      throw RequiredFieldNotSetException("ranker_job.pool_offsets")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -158,10 +154,6 @@ class RankerJobService(
       }
       if (createRequest.rankerJob.cmmsModelLine.isEmpty()) {
         throw RequiredFieldNotSetException("requests.$index.ranker_job.cmms_model_line")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
-      if (createRequest.rankerJob.poolOffsetsList.isEmpty()) {
-        throw RequiredFieldNotSetException("requests.$index.ranker_job.pool_offsets")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (createRequest.requestId.isEmpty()) {

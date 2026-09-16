@@ -228,6 +228,8 @@ class VidRankBuilderTest {
     workItemsStub: WorkItemsCoroutineStub = mock(),
     maxFileBatchSizeBytes: Long = 1_000_000_000,
     vidLabelerQueue: String = QUEUE,
+    subpoolMapBlobUris: Map<Long, String> = this.subpoolMapBlobUris,
+    subpoolRankedSizes: Map<Long, Int> = this.subpoolRankedSizes,
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
   ) =
     VidRankBuilder(
@@ -309,10 +311,48 @@ class VidRankBuilderTest {
       assertThat(params.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
       assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
       assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
     }
+
+  @Test
+  fun `failed parent prevents stale Phase 1 rank mutation`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock()
+    val modelLines = modelLinesMock(RawImpressionUploadModelLine.State.FAILED)
+
+    val result = builder(ranker, rankerJobs, modelLines).run()
+
+    assertThat(result.subpoolsRanked).isEqualTo(0)
+    assertThat(result.lastJobOut).isFalse()
+    verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
+    verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
+  }
+
+  @Test
+  fun `zero-rank continuation skips ranking and still fans out Phase 2`() = runBlocking {
+    val ranker = rankerMock()
+    val jobs = mutableListOf<BatchCreateVidLabelingJobsRequest>()
+    val published = mutableListOf<CreateWorkItemRequest>()
+
+    val result =
+      builder(
+          subpoolRanker = ranker,
+          rankerJobsStub = rankerJobsMock(isLastJob = true),
+          vidLabelingJobsStub = recordingVidLabelingJobs(jobs),
+          workItemsStub = recordingWorkItems(published),
+          subpoolMapBlobUris = emptyMap(),
+          subpoolRankedSizes = emptyMap(),
+        )
+        .run()
+
+    assertThat(result.subpoolsRanked).isEqualTo(0)
+    assertThat(result.lastJobOut).isTrue()
+    verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
+    assertThat(jobs).hasSize(1)
+    assertThat(published).hasSize(1)
+  }
 
   @Test
   fun `last job out bin-packs files by size across multiple VidLabelingJobs`() =

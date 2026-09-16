@@ -581,7 +581,7 @@ class VidLabelingMonitor(
         val outcome =
           when (modelLine.state) {
             RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
-              recoverIfAllPoolAssignmentJobsSucceeded(upload.name, modelLine.cmmsModelLine)
+              recoverPoolAssignment(upload.name, modelLine)
             RawImpressionUploadModelLine.State.RANKING ->
               recoverIfAllRankerJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.LABELING ->
@@ -622,17 +622,28 @@ class VidLabelingMonitor(
     )
   }
 
-  /** Re-publishes a successful Phase-0 shard when every shard job has succeeded. */
-  private suspend fun recoverIfAllPoolAssignmentJobsSucceeded(
+  /**
+   * Repairs missing Phase-0 publications or re-publishes last-shard-out after every job succeeds.
+   */
+  private suspend fun recoverPoolAssignment(
     uploadName: String,
-    modelLine: String,
+    modelLine: RawImpressionUploadModelLine,
   ): RecoveryOutcome {
-    val jobs = listPoolAssignmentJobs(uploadName, modelLine)
-    if (jobs.isEmpty() || jobs.any { it.state != PoolAssignmentJob.State.SUCCEEDED }) {
+    val jobs = listPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
+    if (jobs.isEmpty() || jobs.any { it.state == PoolAssignmentJob.State.FAILED }) {
       return RecoveryOutcome.NOOP
     }
+    if (jobs.any { it.state == PoolAssignmentJob.State.CREATED }) {
+      return if (dispatchSequencer.resumeMemoizedDispatch(uploadName, modelLine)) {
+        RecoveryOutcome.RECOVERED
+      } else {
+        RecoveryOutcome.NOOP
+      }
+    }
     val job = jobs.minBy { it.shardIndex }
-    return republishWorkItem(WorkItemIds.forSubpoolAssigner(uploadName, modelLine, job.shardIndex))
+    return republishWorkItem(
+      WorkItemIds.forSubpoolAssigner(uploadName, modelLine.cmmsModelLine, job.shardIndex)
+    )
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)

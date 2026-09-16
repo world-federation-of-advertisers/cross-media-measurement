@@ -58,11 +58,10 @@ class SubpoolAssignmentSink(
     get() = labeledCounter.get()
 
   /**
-   * Latest event timestamp (epoch microseconds) among the events that routed to a subpool, or
-   * `null` if none did. [SubpoolAssigner] reduces this with the other shards' values into the
-   * `max_event_date` it reports on `MarkPoolAssignmentJobSucceeded`; the rank-map retention sweep
-   * later ages out blobs against it. Tracked over labeled (written) events only, since those are
-   * the impressions whose fingerprints land in the `SubpoolFingerprints` blobs.
+   * Latest event timestamp (epoch microseconds) among in-window events, or `null` if none exist.
+   * [SubpoolAssigner] reduces this with the other shards' values into the `max_event_date` it
+   * reports on `MarkPoolAssignmentJobSucceeded`. Tracking hash-fallback events too lets an upload
+   * with no ranked-subpool matches continue through Phase 1 and into Phase 2.
    */
   val maxTimestampUsec: Long?
     get() = maxTimestampUsecValue.get().let { if (it == Long.MIN_VALUE) null else it }
@@ -90,6 +89,9 @@ class SubpoolAssignmentSink(
         droppedInBatch++
         continue
       }
+      if (input.timestampUsec > maxTimestampInBatch) {
+        maxTimestampInBatch = input.timestampUsec
+      }
       // Hand each primitive pool offset straight to the accumulator (no boxed List<Long>); the
       // return count says whether the event routed anywhere.
       val routed =
@@ -103,9 +105,6 @@ class SubpoolAssignmentSink(
         continue
       }
       labeledInBatch++
-      if (input.timestampUsec > maxTimestampInBatch) {
-        maxTimestampInBatch = input.timestampUsec
-      }
     }
     if (droppedInBatch > 0L) {
       droppedOutsideWindowCounter.addAndGet(droppedInBatch)

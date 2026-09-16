@@ -186,20 +186,16 @@ message MarkPoolAssignmentJobSucceededResponse {
   PoolAssignmentJob pool_assignment_job = 1;
 
   // Present when this is the last shard to complete for the
-  // (upload, model line). Contains the pool offsets discovered
-  // during Phase 0, used to create RankerJob rows and trigger
-  // Phase 1.
+  // (upload, model line), including when no ranked subpools were found.
   LastShardResult last_shard_result = 2;
 
-  // Result of the last shard completing. Present only when the
-  // last-shard mark resulted in non-empty cross-shard work; omitted
-  // if no shard wrote impressions.
+  // Result of the last shard completing.
   message LastShardResult {
     // The pool offsets discovered during Phase 0.
     repeated int64 pool_offsets = 1;
 
-    // The maximum event date (UTC) across all shards. Always set on the
-    // last-shard result.
+    // The maximum event date (UTC) across all shards, if any in-window event
+    // was observed.
     google.type.Date max_event_date = 2;
   }
 }

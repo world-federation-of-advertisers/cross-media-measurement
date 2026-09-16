@@ -669,6 +669,31 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext claims Phase 0 before publishing worker messages`() = runBlocking {
+    stubUploads(created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW)))
+    stubModelLines(createdModelLine())
+    stubShardResolution(memoized = true)
+    stubModelLine()
+    stubPoolAssignmentJobs()
+    val events = mutableListOf<String>()
+    whenever(
+        rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+      )
+      .thenAnswer {
+        events += "claim"
+        createdModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+      }
+    whenever(workItemsService.createWorkItem(any())).thenAnswer {
+      events += "publish"
+      workItem {}
+    }
+
+    createSequencer().dispatchNext()
+
+    assertThat(events).containsExactly("claim", "publish", "publish").inOrder()
+  }
+
+  @Test
   fun `dispatchNext tolerates an already-existing SubpoolAssigner WorkItem`() =
     runBlocking<Unit> {
       stubUploads(
@@ -740,12 +765,20 @@ class VidLabelingDispatchSequencerTest {
           rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
         )
         .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+        .thenReturn(
+          createdModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
       whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
-        .thenReturn(createdModelLine())
+        .thenReturn(createdModelLine().copy { etag = "fresh-etag" })
 
-      val exception = assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+      val result = createSequencer().dispatchNext()
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      val requests = argumentCaptor<MarkRawImpressionUploadModelLinePoolAssigningRequest>()
+      verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+        markRawImpressionUploadModelLinePoolAssigning(requests.capture())
+      }
+      assertThat(requests.allValues.map { it.etag }).containsExactly(ETAG, "fresh-etag").inOrder()
     }
 
   @Test
@@ -1175,12 +1208,18 @@ class VidLabelingDispatchSequencerTest {
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineLabeling(any()))
         .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+        .thenReturn(createdModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
       whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
-        .thenReturn(createdModelLine())
+        .thenReturn(createdModelLine().copy { etag = "fresh-etag" })
 
-      val exception = assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+      val result = createSequencer().dispatchNext()
 
-      assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      val requests = argumentCaptor<MarkRawImpressionUploadModelLineLabelingRequest>()
+      verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+        markRawImpressionUploadModelLineLabeling(requests.capture())
+      }
+      assertThat(requests.allValues.map { it.etag }).containsExactly(ETAG, "fresh-etag").inOrder()
     }
 
   @Test

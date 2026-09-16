@@ -41,7 +41,8 @@ message RankerJob {
   // The CMMS model line resource name.
   string cmms_model_line = 4;
 
-  // The pool offsets this ranker job is responsible for processing.
+  // The pool offsets this ranker job is responsible for processing. Empty
+  // identifies the zero-rank continuation job.
   repeated int64 pool_offsets = 5;
 
   // The processing state of this job.

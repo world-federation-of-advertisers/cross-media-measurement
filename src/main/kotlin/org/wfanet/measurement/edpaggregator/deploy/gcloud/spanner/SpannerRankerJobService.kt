@@ -200,10 +200,6 @@ class SpannerRankerJobService(
         throw RequiredFieldNotSetException("requests[$index].ranker_job.cmms_model_line")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
-      if (subRequest.rankerJob.poolOffsetsList.isEmpty()) {
-        throw RequiredFieldNotSetException("requests[$index].ranker_job.pool_offsets")
-          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-      }
 
       val requestId = subRequest.requestId
       if (requestId.isEmpty()) {
@@ -661,9 +657,6 @@ class SpannerRankerJobService(
     }
     if (request.rankerJob.cmmsModelLine.isEmpty()) {
       throw RequiredFieldNotSetException("ranker_job.cmms_model_line")
-    }
-    if (request.rankerJob.poolOffsetsList.isEmpty()) {
-      throw RequiredFieldNotSetException("ranker_job.pool_offsets")
     }
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")

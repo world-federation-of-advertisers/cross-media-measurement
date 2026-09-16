@@ -104,10 +104,10 @@ class SubpoolAssignmentSinkTest {
     }
 
   @Test
-  fun `tracks the max event timestamp over labeled events only`() =
+  fun `tracks the max event timestamp over all in-window events`() =
     runBlocking<Unit> {
       val accumulator = SubpoolFingerprintsAccumulator()
-      // ts=300 routes to no subpool, so it must not raise the max past the labeled ts=250.
+      // ts=300 routes to no ranked subpool but still needs Phase 2 hash-fallback processing.
       val labeler = FakePoolEmitLabeler {
         if (it.timestampUsec == 300L) emptyList() else listOf(1L)
       }
@@ -122,17 +122,29 @@ class SubpoolAssignmentSinkTest {
         )
       )
 
-      assertThat(sink.maxTimestampUsec).isEqualTo(250L)
+      assertThat(sink.maxTimestampUsec).isEqualTo(300L)
     }
 
   @Test
-  fun `max event timestamp is null when no event is labeled`() =
+  fun `max event timestamp is retained when all in-window events use hash fallback`() =
     runBlocking<Unit> {
       val accumulator = SubpoolFingerprintsAccumulator()
       val labeler = FakePoolEmitLabeler { emptyList() }
       val sink = newSink(accumulator, labeler, ActiveWindow(0, Long.MAX_VALUE))
 
       sink.processBatch(listOf(event("a", ts = 100L, hi = 1L, lo = 1)))
+
+      assertThat(sink.maxTimestampUsec).isEqualTo(100L)
+    }
+
+  @Test
+  fun `max event timestamp is null when every event is outside the active window`() =
+    runBlocking<Unit> {
+      val accumulator = SubpoolFingerprintsAccumulator()
+      val labeler = FakePoolEmitLabeler { listOf(1L) }
+      val sink = newSink(accumulator, labeler, ActiveWindow(200, 300))
+
+      sink.processBatch(listOf(event("early", ts = 100L, hi = 1L, lo = 1)))
 
       assertThat(sink.maxTimestampUsec).isNull()
     }

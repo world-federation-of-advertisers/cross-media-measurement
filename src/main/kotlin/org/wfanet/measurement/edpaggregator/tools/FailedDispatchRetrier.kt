@@ -27,6 +27,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
@@ -219,6 +220,22 @@ class FailedDispatchRetrier(
     val candidatePhases =
       if (fromPhase == null) possiblePhases else possiblePhases.filter { it == fromPhase }
     for (phase in candidatePhases) {
+      if (phase == RawImpressionUploadModelLine.State.LABELING) {
+        val jobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+        val originalIds = jobs.map { WorkItemIds.forVidLabeler(it.name) }
+        val unfinishedIds =
+          jobs
+            .filter { it.state != VidLabelingJob.State.SUCCEEDED }
+            .map { WorkItemIds.forVidLabeler(it.name) }
+        val retryExists =
+          if (unfinishedIds.isNotEmpty()) {
+            unfinishedIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }
+          } else {
+            originalIds.any { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }
+          }
+        if (originalIds.isNotEmpty() && retryExists) return phase
+        continue
+      }
       val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
       if (
         originalWorkItemIds.isNotEmpty() &&
@@ -270,11 +287,11 @@ class FailedDispatchRetrier(
     uploadName: String,
     cmmsModelLine: String,
   ): PhaseWorkItems {
-    val vidLabelingJobNames = listVidLabelingJobNames(uploadName, cmmsModelLine)
-    if (vidLabelingJobNames.isNotEmpty()) {
+    val vidLabelingJobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+    if (vidLabelingJobs.isNotEmpty()) {
       return PhaseWorkItems(
         RawImpressionUploadModelLine.State.LABELING,
-        vidLabelingJobNames.map { WorkItemIds.forVidLabeler(it) },
+        phaseTwoWorkItemIds(vidLabelingJobs),
       )
     }
     val rankerJobNames = listRankerJobNames(uploadName, cmmsModelLine)
@@ -313,8 +330,7 @@ class FailedDispatchRetrier(
     phase: RawImpressionUploadModelLine.State,
   ): List<String> =
     when (phase) {
-      RawImpressionUploadModelLine.State.LABELING ->
-        listVidLabelingJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidLabeler(it) }
+      RawImpressionUploadModelLine.State.LABELING -> phaseTwoWorkItemIds(uploadName, cmmsModelLine)
       RawImpressionUploadModelLine.State.RANKING ->
         listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
@@ -324,11 +340,25 @@ class FailedDispatchRetrier(
       else -> error("unreachable: $phase is not a retry phase")
     }
 
-  private suspend fun listVidLabelingJobNames(
+  /**
+   * Selects only unfinished Phase-2 jobs. If every job succeeded but the parent transition failed,
+   * one successful job is replayed to recompute last-job-out and finish the parent.
+   */
+  private suspend fun phaseTwoWorkItemIds(uploadName: String, cmmsModelLine: String): List<String> =
+    phaseTwoWorkItemIds(listVidLabelingJobs(uploadName, cmmsModelLine))
+
+  private fun phaseTwoWorkItemIds(jobs: List<VidLabelingJob>): List<String> {
+    val unfinished = jobs.filter { it.state != VidLabelingJob.State.SUCCEEDED }
+    return (if (unfinished.isNotEmpty()) unfinished else jobs.take(1)).map {
+      WorkItemIds.forVidLabeler(it.name)
+    }
+  }
+
+  private suspend fun listVidLabelingJobs(
     uploadName: String,
     cmmsModelLine: String,
-  ): List<String> {
-    val names = mutableListOf<String>()
+  ): List<VidLabelingJob> {
+    val jobs = mutableListOf<VidLabelingJob>()
     var pageToken = ""
     do {
       val response =
@@ -341,10 +371,10 @@ class FailedDispatchRetrier(
             }
           )
         }
-      response.vidLabelingJobsList.forEach { names.add(it.name) }
+      jobs.addAll(response.vidLabelingJobsList)
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
-    return names
+    return jobs
   }
 
   private suspend fun listRankerJobNames(uploadName: String, cmmsModelLine: String): List<String> {
