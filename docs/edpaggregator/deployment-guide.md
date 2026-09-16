@@ -888,6 +888,11 @@ target from `secure_computation_public_api_target` and mounts the
 The legacy and direct paths use separate object namespaces. All new groups are created atomically in
 `QUEUED` under the direct prefix. Pre-cutover legacy groups remain `STORED` under the original
 prefix. Recovery uses each group's persisted `blob_uri`; it never moves a group between namespaces.
+Keep the direct prefix unchanged while any direct group remains `STORED`, `QUEUED`, or `PROCESSING`.
+RequisitionFetcher determines ownership by comparing each persisted `blob_uri` with the URI derived
+from the currently configured prefix; changing it sooner makes those groups unrecognizable and
+strands their recovery.
+
 A legacy group with any `PROCESSING` row remains owned by its existing
 DataWatcher WorkItem: RequisitionFetcher neither dispatches it directly nor rebuilds a missing blob.
 It still processes newly discovered requisitions for the same report through the direct namespace.
