@@ -2548,7 +2548,7 @@ internal object ReportTraceOutput {
   private val REQUISITION_NAME_IN_TEXT =
     Regex("dataProviders/[A-Za-z0-9_-]+/requisitions/[A-Za-z0-9_-]+")
   private val MILL_COMPUTATION_IN_TEXT =
-    Regex("(?:^|\\s)([A-Za-z0-9_-]+)@[A-Za-z0-9_-]*mill(?:\\s|:)")
+    Regex("(?:^|\\s)([A-Za-z0-9_-]+)@[A-Za-z0-9_-]*mill[A-Za-z0-9_-]*(?:\\s|:)")
   private val STACK_FRAME_PATTERN = Regex("""\s+at\s+\S+\([^)]*\)""")
   private val STACK_TRACE_REMAINDER_PATTERN = Regex("""\s+\.\.\. \d+ more""")
   private val WHITESPACE_PATTERN = Regex("""\s+""")

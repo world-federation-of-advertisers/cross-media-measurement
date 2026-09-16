@@ -4755,7 +4755,7 @@ class ReportTraceTest {
               "trustee-mill-instance",
               "ERROR",
               null,
-              "SEVERE: computation-1@trustee-mill: Failing Computation. bad input",
+              "SEVERE: computation-1@trustee-mill-7b5q: Failing Computation. bad input",
             )
           ),
         sourceStatuses = emptyList(),
