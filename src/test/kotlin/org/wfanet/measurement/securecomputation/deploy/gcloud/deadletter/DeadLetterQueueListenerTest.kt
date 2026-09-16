@@ -183,10 +183,7 @@ class DeadLetterQueueListenerTest {
   @Test
   fun `unstructured not found error is nacked`(): Unit = runBlocking {
     val fixture =
-      fixture(
-        workItem { name = WORK_ITEM_NAME },
-        throwingStub(Status.NOT_FOUND.asException()),
-      )
+      fixture(workItem { name = WORK_ITEM_NAME }, throwingStub(Status.NOT_FOUND.asException()))
 
     fixture.channel.send(fixture.message)
 
@@ -388,7 +385,8 @@ class DeadLetterQueueListenerTest {
   }
 
   companion object {
-    private const val INTERNAL_ERRORS_DOMAIN = "internal.control-plane.secure-computation.halo-cmm.org"
+    private const val INTERNAL_ERRORS_DOMAIN =
+      "internal.control-plane.secure-computation.halo-cmm.org"
     private const val SUBSCRIPTION_ID = "test-subscription"
     private const val WORK_ITEM_NAME = "workItems/test-work-item"
   }

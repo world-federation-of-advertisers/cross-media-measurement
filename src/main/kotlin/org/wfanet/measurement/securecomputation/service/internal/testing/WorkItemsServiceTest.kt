@@ -679,57 +679,56 @@ abstract class WorkItemsServiceTest {
   }
 
   @Test
-  fun `retryWorkItem republishes acknowledged queued WorkItem at new generation`() =
-    runBlocking {
-      var publicationCount = 0
-      val services =
-        initServices(
-          TestConfig.QUEUE_MAPPING,
-          IdGenerator.Default,
-          object : WorkItemPublisher {
-            override suspend fun publishMessage(queueName: String, message: Message) {
-              publicationCount++
-            }
-          },
-        )
-      val created =
-        services.service.createWorkItem(
-          createWorkItemRequest {
-            workItem = workItem {
-              workItemResourceId = workItemId
-              queueResourceId = topicId
-              workItemParams = Any.pack(testWork { userName = "UserName" })
-            }
+  fun `retryWorkItem republishes acknowledged queued WorkItem at new generation`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
           }
-        )
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = workItemId
+            queueResourceId = topicId
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
 
-      val retried =
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(retried.generation).isEqualTo(created.generation + 1L)
+    assertThat(publicationCount).isEqualTo(2)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
         services.service.retryWorkItem(
           retryWorkItemRequest {
             workItemResourceId = created.workItemResourceId
             expectedWorkItemGeneration = created.generation
           }
         )
+      }
 
-      assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
-      assertThat(retried.generation).isEqualTo(created.generation + 1L)
-      assertThat(publicationCount).isEqualTo(2)
-
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          services.service.retryWorkItem(
-            retryWorkItemRequest {
-              workItemResourceId = created.workItemResourceId
-              expectedWorkItemGeneration = created.generation
-            }
-          )
-        }
-
-      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception.errorInfo?.reason)
-        .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
-      assertThat(publicationCount).isEqualTo(2)
-    }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name)
+    assertThat(publicationCount).isEqualTo(2)
+  }
 
   @Test
   fun `retryWorkItem rejects explicit zero expected generation`() = runBlocking {
