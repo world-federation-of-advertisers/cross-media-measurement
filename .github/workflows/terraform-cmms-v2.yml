@@ -19,6 +19,10 @@ run-name: >-
   apply=${{ inputs.apply }},
   image-tag=${{ inputs.image-tag }}
 
+concurrency:
+  group: terraform-cmms-${{ inputs.environment }}
+  cancel-in-progress: false
+
 on:
   workflow_call:
     inputs:
@@ -402,3 +406,13 @@ jobs:
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
+
+    - name: Show recent GKE operations after Terraform failure
+      if: ${{ failure() }}
+      continue-on-error: true
+      run: |
+        gcloud container operations list \
+          --location="$GCLOUD_REGION" \
+          --limit=20 \
+          --sort-by=~startTime \
+          --format='table(name,operationType,status,startTime,endTime,statusMessage)'
