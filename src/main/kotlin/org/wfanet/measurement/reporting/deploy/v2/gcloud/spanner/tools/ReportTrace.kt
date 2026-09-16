@@ -3785,7 +3785,6 @@ internal class ReportTrace(
     val traceFetchedCounts = mutableMapOf<String, Int>()
     val logFetchedCounts = mutableMapOf<String, Int>()
     val grpcContextEntriesExamined = mutableMapOf<String, Int>()
-    val grpcContextEntryLimits = mutableMapOf<String, Int>()
     fun recordGrpcContextTruncation(
       project: String,
       queryDescription: String,
@@ -3797,8 +3796,6 @@ internal class ReportTrace(
       logEntries += retainLogEntries(exception.partialEntries, entryLimit)
       grpcContextEntriesExamined[project] =
         grpcContextEntriesExamined.getOrDefault(project, 0) + exception.contextEntriesExamined
-      grpcContextEntryLimits[project] =
-        grpcContextEntryLimits.getOrDefault(project, 0) + exception.contextEntryLimit
       warnings +=
         "$queryDescription gRPC payload context was truncated for project $project; " +
           "ambiguous continuation entries were omitted"
@@ -4243,8 +4240,7 @@ internal class ReportTrace(
               fetched = grpcContextEntriesExamined.getValue(project),
               retained = 0,
               note =
-                "Context collection reached its bounded " +
-                  "${grpcContextEntryLimits.getValue(project)}-entry limit; ambiguous " +
+                "One or more bounded context queries reached their entry limit; ambiguous " +
                   "continuation entries were omitted",
             )
           )
