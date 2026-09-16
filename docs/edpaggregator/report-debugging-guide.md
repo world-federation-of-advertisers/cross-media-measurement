@@ -168,6 +168,7 @@ DataWatcher dispatch path, and an operator must not classify a legacy EDPA as
 deployment cannot emit.
 
 ```bash
+SPANNER_DISABLE_BUILTIN_METRICS=true \
 bazel run \
   //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
   -- \
@@ -198,6 +199,9 @@ bazel run \
   --max-correlation-values=500 \
   --max-trace-ids=500
 ```
+
+The tool does not need to export Spanner client metrics. Disabling them keeps
+the operator identity read-only and avoids irrelevant metric-export warnings.
 
 Repeat `--basic-report` to collect a batch. `--output-dir` is required for a
 batch and produces one path-safe Markdown file per distinct BasicReport. It can
