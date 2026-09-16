@@ -2864,6 +2864,49 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `successful BasicReport without noise correction names missing stage and is partial`() {
+    val metricName = "measurementConsumers/mc-1/metrics/metric-1"
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val context =
+      reportTraceContext()
+        .copy(metricNames = listOf(metricName), metricStates = mapOf(metricName to "SUCCEEDED"))
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val spans =
+      successfulDirectUpstreamSpans(context, metricName, requisitionName) +
+        lifecycleSpan("report_result_assembly", "xmm.report.name", context.reportName) +
+        lifecycleSpan(
+          "processed_result_writeback",
+          "xmm.basic_report.name",
+          checkNotNull(context.basicReportName),
+        )
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution = routeResolution,
+        spans = spans,
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+        lifecycleCoverage = coverage,
+      )
+
+    assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
+    assertThat(output).contains("Collection completeness: PARTIAL")
+    assertThat(output)
+      .contains(
+        "- `noise_correction` — `${context.basicReportName}` (`MISSING`)"
+      )
+  }
+
+  @Test
   fun `nonterminal BasicReport requires final writeback and availability`() {
     val metricName = "measurementConsumers/mc-1/metrics/metric-1"
     val requisitionName = "dataProviders/direct/requisitions/requisition-1"
