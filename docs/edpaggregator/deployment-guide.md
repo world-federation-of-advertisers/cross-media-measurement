@@ -1163,8 +1163,10 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
 The repository's top-level **Update CMMS** workflow is the supported upgrade path. Do not invoke its
 child deployment workflows independently; doing so bypasses the worker-quiescence barrier.
 
-Configure the deployment, then run **Update CMMS** once. An environment-scoped concurrency lock
-prevents two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
+Configure the deployment, then run **Update CMMS** once. Before changing a deployment, the workflow
+validates the RequisitionFetcher and DataWatcher configuration, including direct/legacy namespace
+separation and required control-plane settings. An environment-scoped concurrency lock prevents
+two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 
 1. Roll `secure-computation-internal-api-server` and
@@ -1177,9 +1179,9 @@ performs the required order:
 3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
    then verify that each has target size zero and no remaining instances.
 4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
-   reconciliation, and dead-letter consumption enabled. The DLQ listener automatically retries
-   only while a current-generation WorkItem still has a valid leased attempt; otherwise it
-   terminalizes the exhausted WorkItem.
+   reconciliation, and dead-letter consumption enabled. The DLQ listener defers a delivery while a
+   current-generation WorkItem still has a valid leased attempt; otherwise it terminalizes the
+   exhausted WorkItem.
 5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
 6. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
    the TEE autoscalers, changes both process-level gates to enabled, and starts only the new worker
@@ -1269,14 +1271,15 @@ stopped worker's Pub/Sub delivery is either redelivered to a new lease-capable w
 by the upgraded DLQ listener. Main-queue takeover fails the exact unleased attempt and creates the
 replacement leased attempt in one Spanner transaction without advancing the WorkItem generation.
 DLQ handling atomically fails the unleased attempt and WorkItem. Both paths are automatic and
-generation-fenced. A leased active attempt is never replaced by a duplicate delivery; the
-duplicate is NACKed and lease expiry remains the authoritative abandonment signal.
+generation-fenced. A leased active attempt is never replaced by a duplicate delivery; the worker
+retains that delivery, with its acknowledgment deadline extended, until the active attempt becomes
+terminal or its lease can be replaced.
 
 #### Monitoring active attempts
 
-Alert on expired leased attempts and on unleased `ACTIVE` attempts. The internal API normally
-recovers an expired lease within its polling interval, and a new worker normally replaces an
-unleased attempt on redelivery after the automated quiescence step. Either result remaining for
+Alert on expired leased attempts and on unleased `ACTIVE` attempts. A new worker normally replaces
+either kind of abandoned attempt when Pub/Sub redelivers the WorkItem after the automated
+quiescence step. Either result remaining for
 more than a short grace period needs investigation:
 
 ```bash
