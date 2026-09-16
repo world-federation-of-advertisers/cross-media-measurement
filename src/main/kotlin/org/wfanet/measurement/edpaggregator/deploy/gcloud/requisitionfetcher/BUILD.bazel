@@ -14,6 +14,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_params_validator",
         "//src/main/proto/wfa/measurement/config/edpaggregator:requisition_fetcher_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf/util",
     ],
 )
 
@@ -21,6 +22,7 @@ kt_jvm_library(
     name = "requisition_fetcher_function",
     srcs = ["RequisitionFetcherFunction.kt"],
     deps = [
+        ":requisition_fetcher_config_validator",
         "//imports/java/io/opentelemetry/instrumentation/grpc",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/common:env_vars",

@@ -18,6 +18,7 @@ package wfa.measurement.config.edpaggregator;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/duration.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 import "wfa/measurement/edpaggregator/v1alpha/results_fulfiller_params.proto";
@@ -71,4 +72,14 @@ message DataProviderRequisitionConfig {
 message RequisitionFetcherConfig {
   // All the configs per EDP
   repeated DataProviderRequisitionConfig configs = 1;
+
+  // Maximum age of an unfulfilled Requisition before RequisitionFetcher
+  // refuses it with DECLINED justification.
+  //
+  // Age is measured from the Requisition's Kingdom `update_time`. If this
+  // field is absent, RequisitionFetcher uses 48 hours. If present, the value
+  // must be positive. A Requisition without a valid `update_time` is not
+  // refused automatically.
+  google.protobuf.Duration requisition_refusal_duration = 2
+      [(google.api.field_behavior) = OPTIONAL];
 }

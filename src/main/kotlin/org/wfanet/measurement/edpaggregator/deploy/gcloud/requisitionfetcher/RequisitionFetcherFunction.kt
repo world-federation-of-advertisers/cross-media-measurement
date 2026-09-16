@@ -98,6 +98,9 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  * - `PAGE_SIZE`: Optional. Starting page size for `listRequisitions`. If a page exceeds the gRPC
  *   inbound message size limit (gRPC `RESOURCE_EXHAUSTED`), the page size is halved and the page is
  *   retried, down to a floor of 1.
+ *
+ * The RequisitionFetcher config's `requisition_refusal_duration` controls when old unfulfilled
+ * Requisitions are refused. If omitted, it defaults to 48 hours.
  */
 class RequisitionFetcherFunction : HttpFunction {
   private val channels = ConcurrentHashMap<ChannelKey, Channel>()
@@ -299,6 +302,8 @@ class RequisitionFetcherFunction : HttpFunction {
       requisitionGrouper = requisitionGrouper,
       metadataThrottler = metadataThrottler,
       workItemDispatcher = workItemDispatcher,
+      requisitionRefusalDuration = requisitionRefusalDuration,
+      clock = Clock.systemUTC(),
       responsePageSize = pageSize,
       flushInterval = flushInterval,
       maxTotalBufferedBytes = maxTotalBufferedBytes,
@@ -454,6 +459,9 @@ class RequisitionFetcherFunction : HttpFunction {
       runBlocking {
         getConfigAsProtoMessage(CONFIG_BLOB_KEY, RequisitionFetcherConfig.getDefaultInstance())
       }
+    }
+    private val requisitionRefusalDuration by lazy {
+      RequisitionFetcherConfigValidator.requisitionRefusalDuration(requisitionFetcherConfig)
     }
 
     /**

@@ -28,6 +28,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
@@ -38,6 +39,9 @@ interface RequisitionWorkItemDispatcher {
 
   /** Ensures the WorkItem that will process [blobUri]. */
   suspend fun dispatch(groupId: String, blobUri: String)
+
+  /** Fails [workItemName] if it still belongs to the observed execution generation. */
+  suspend fun fail(workItemName: String) {}
 }
 
 /** [RequisitionWorkItemDispatcher] backed by the Secure Computation WorkItems API. */
@@ -98,6 +102,44 @@ class SecureComputationRequisitionWorkItemDispatcher(
     logger.info(
       "Ensured WorkItem $workItemId for requisition group $groupId in state ${ensured.state}"
     )
+  }
+
+  override suspend fun fail(workItemName: String) {
+    val existing =
+      try {
+        controlPlaneThrottler.onReady {
+          workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
+        }
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.NOT_FOUND) return
+        throw e
+      }
+
+    when (existing.state) {
+      WorkItem.State.QUEUED,
+      WorkItem.State.RUNNING -> {
+        try {
+          controlPlaneThrottler.onReady {
+            workItemsStub.failWorkItem(
+              failWorkItemRequest {
+                name = workItemName
+                expectedWorkItemGeneration = existing.generation
+              }
+            )
+          }
+        } catch (e: StatusException) {
+          // A concurrent completion or retry owns the new state or generation.
+          if (e.status.code != Status.Code.FAILED_PRECONDITION) throw e
+          return
+        }
+        logger.info("Failed stale WorkItem $workItemName at generation ${existing.generation}")
+      }
+      WorkItem.State.FAILED,
+      WorkItem.State.SUCCEEDED -> return
+      WorkItem.State.STATE_UNSPECIFIED,
+      WorkItem.State.UNRECOGNIZED ->
+        error("WorkItem $workItemName has invalid state ${existing.state}")
+    }
   }
 
   private fun validateExistingWorkItem(
