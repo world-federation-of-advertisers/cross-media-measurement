@@ -2394,6 +2394,9 @@ internal object ReportTraceOutput {
 
   private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
 
+  private fun sanitizeDiagnosticTableCell(value: String): String =
+    redact(value).replace("|", "\\|")
+
   private fun StringBuilder.appendDiagnosticSections(
     logEntries: List<ReportTraceLogEntry>,
     collectionWarnings: List<String>,
@@ -2440,7 +2443,7 @@ internal object ReportTraceOutput {
       appendLine(
         "| ${entry.timestamp} | ${sanitizeTableCell(entry.sourceProject + "/" + entry.service)} | " +
           "${sanitizeTableCell(diagnosticResource(entry.message))} | " +
-          "${sanitizeTableCell(summarizeDiagnosticMessage(entry.message))} |"
+          "${sanitizeDiagnosticTableCell(summarizeDiagnosticMessage(entry.message))} |"
       )
     }
     if (entries.size > MAX_DIAGNOSTIC_LOG_ENTRIES) {

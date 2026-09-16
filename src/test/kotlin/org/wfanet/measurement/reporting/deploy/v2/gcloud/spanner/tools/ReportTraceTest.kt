@@ -3549,6 +3549,7 @@ class ReportTraceTest {
         "Caused by: org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException: " +
         "Not all population fields are set\n" +
         "  Population field Common.gender not set in subpopulations[0]"
+    val longDiagnosticTail = "Population field Common.us_state not set in subpopulations[99]"
     val logEntries =
       listOf(
         ReportTraceLogEntry("test", NOW, "reporting", "ERROR", null, errorMessage),
@@ -3558,7 +3559,7 @@ class ReportTraceTest {
           "population-fulfiller",
           "WARNING",
           null,
-          warningMessage,
+          warningMessage + " detail".repeat(200) + " $longDiagnosticTail",
         ),
       )
 
@@ -3589,6 +3590,7 @@ class ReportTraceTest {
       .contains("org.wfanet.measurement.dataprovider.UnfulfillableRequisitionException")
     assertThat(diagnostics).contains("PopulationSpecValidationException")
     assertThat(diagnostics).contains("Population field Common.gender not set")
+    assertThat(diagnostics).contains(longDiagnosticTail)
     assertThat(diagnostics).doesNotContain("at example.Fulfiller.validate")
   }
 
