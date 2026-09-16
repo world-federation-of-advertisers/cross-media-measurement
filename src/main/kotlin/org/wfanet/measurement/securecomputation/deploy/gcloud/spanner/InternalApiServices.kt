@@ -40,7 +40,6 @@ class InternalApiServices(
   workItemPublicationEnabled: Boolean = true,
   private val workItemAttemptLeaseDuration: Duration =
     SpannerWorkItemAttemptsService.DEFAULT_ATTEMPT_LEASE_DURATION,
-  workItemAttemptReaperPollInterval: Duration = WorkItemAttemptLeaseReaper.DEFAULT_POLL_INTERVAL,
 ) {
   val workItemPublicationRunner =
     WorkItemPublicationRunner(
@@ -50,13 +49,6 @@ class InternalApiServices(
       pollInterval = workItemPublicationPollInterval,
       leaseDuration = workItemPublicationLeaseDuration,
       publicationEnabled = workItemPublicationEnabled,
-    )
-
-  val workItemAttemptLeaseReaper =
-    WorkItemAttemptLeaseReaper(
-      databaseClient,
-      queueMapping,
-      pollInterval = workItemAttemptReaperPollInterval,
     )
 
   /**

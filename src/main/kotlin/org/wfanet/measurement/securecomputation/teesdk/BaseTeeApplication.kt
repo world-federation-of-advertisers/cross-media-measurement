@@ -180,18 +180,18 @@ abstract class BaseTeeApplication(
         )
       } catch (e: ControlPlaneApiException) {
         val cause = e.cause
+        var activeAttempt = false
         if (cause is StatusException) {
           val reason = cause.errorInfo?.reason
           val workItemState = cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
           val invalidTerminalState =
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
               workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
-          val activeAttempt =
+          activeAttempt =
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
               workItemState == WorkItem.State.RUNNING.name
           if (
             invalidTerminalState ||
-              activeAttempt ||
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {
@@ -199,8 +199,6 @@ abstract class BaseTeeApplication(
               "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
             }
             when {
-              activeAttempt ->
-                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
               workItemState == WorkItem.State.SUCCEEDED.name ->
                 Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "already_completed")
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ->
@@ -211,7 +209,11 @@ abstract class BaseTeeApplication(
             return
           }
         }
-        recordCurrentSpanError(e)
+        if (activeAttempt) {
+          Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
+        } else {
+          recordCurrentSpanError(e)
+        }
         logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
         queueMessage.nack()
         return
@@ -289,30 +291,22 @@ abstract class BaseTeeApplication(
     } catch (e: Exception) {
       recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      val failureReported =
-        try {
-          failWorkItemAttempt(workItemAttempt, e)
-          true
-        } catch (error: CancellationException) {
-          throw error
-        } catch (error: Throwable) {
-          recordFailureWriteback(
-            spanName = "secure_computation.work_item_attempt.failure_writeback",
-            lifecycleStage = "work_item_attempt_failure_writeback",
-            workItemName = workItemName,
-            workItemAttemptName = workItemAttempt.name,
-            error = error,
-          )
-          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
-          false
-        }
-      if (workItemAttempt.hasLeaseExpirationTime() && failureReported) {
-        logger.info("WorkItemAttempt failure reported. Acking message ${queueMessage.ackId}")
-        queueMessage.ack()
-      } else {
-        logger.info("Nacking message ${queueMessage.ackId} after error")
-        queueMessage.nack()
+      try {
+        failWorkItemAttempt(workItemAttempt, e)
+        logger.info("WorkItemAttempt failure reported. Nacking message ${queueMessage.ackId}")
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item_attempt.failure_writeback",
+          lifecycleStage = "work_item_attempt_failure_writeback",
+          workItemName = workItemName,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
+        )
+        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
       }
+      queueMessage.nack()
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }
