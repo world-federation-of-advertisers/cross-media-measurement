@@ -41,6 +41,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
@@ -52,11 +53,17 @@ import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlobUri
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt.filter as rankIndexFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequestKt.filter as rawUploadFileFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt.filter as rawUploadFilter
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
+import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
@@ -65,7 +72,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRawImpressionUplo
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadRegistrationCompleteRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
@@ -88,6 +98,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param rawImpressionUploadStub gRPC stub for the `RawImpressionUploadService`.
  * @param rawImpressionUploadFilesStub gRPC stub for the `RawImpressionUploadFileService`.
  * @param rawImpressionUploadModelLineStub gRPC stub for the `RawImpressionUploadModelLineService`.
+ * @param rankIndexBlobStub gRPC stub used to verify memoized snapshot history during recovery.
  * @param modelLinesStub gRPC stub for the VID Repository ModelLines API.
  * @param dispatchSequencer shared sequencer that resolves model shards and starts pipeline work;
  *   shared with `VidLabelingMonitor` so dispatch logic lives in one place.
@@ -95,6 +106,10 @@ import org.wfanet.measurement.storage.StorageClient
  * @param modelSuiteName resource name of the model suite for ListModelLines.
  * @param overrideModelLines if non-empty, use these model lines instead of querying the API.
  *   Overrides bypass active window checks to support backfilling past data.
+ * @param recoverySourceUpload evicted source upload that authorizes a metadata-originated override,
+ *   or null for normal dispatch and trusted direct backfill requests.
+ * @param recoveryOperationId eviction operation that authorized [recoverySourceUpload], or null
+ *   outside operator recovery.
  * @param modelLineConfigs field mapping configuration keyed by model line resource name.
  * @param readEventDate reads a raw-impression file's UTC event date from its plaintext Parquet
  *   footer (no decryption needed).
@@ -109,11 +124,14 @@ class VidLabelingDispatcher(
   private val rawImpressionUploadStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val rawImpressionUploadModelLineStub: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val rankIndexBlobStub: RankIndexBlobServiceCoroutineStub,
   private val modelLinesStub: ModelLinesCoroutineStub,
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val modelSuiteName: String,
   private val overrideModelLines: List<String>,
+  private val recoverySourceUpload: String?,
+  private val recoveryOperationId: String?,
   private val modelLineConfigs: Map<String, VidLabelerParams.ModelLineConfig>,
   private val readEventDate: suspend (blobKey: String) -> LocalDate,
   private val readBlobMetadata: suspend (blobKey: String) -> RawImpressionBlobMetadata,
@@ -127,6 +145,11 @@ class VidLabelingDispatcher(
     val blobUri: String,
     val generation: Long,
     val sizeBytes: Long,
+  )
+
+  private data class EdpReplacementAuthorization(
+    val evictionOperationId: String?,
+    val requiredModelLines: List<String>,
   )
 
   /** Caps concurrent Parquet-footer reads so footer fan-out stays well under GCS per-bucket QPS. */
@@ -146,6 +169,9 @@ class VidLabelingDispatcher(
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
 
     try {
+      require((recoverySourceUpload == null) == (recoveryOperationId == null)) {
+        "Recovery requests must include both source upload and eviction operation ID"
+      }
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix: String =
         doneBlobUri.key.substringBeforeLast("/", missingDelimiterValue = "")
@@ -154,6 +180,21 @@ class VidLabelingDispatcher(
       val doneBlobMetadata = readBlobMetadata(doneBlobUri.key)
       if (doneBlobMetadata.generation != doneBlobGeneration) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
+        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+        return
+      }
+
+      if (
+        recoverySourceUpload != null &&
+          !validateRecovery(
+            doneBlobPath,
+            doneBlobGeneration,
+            doneBlobMetadata.createTime,
+            recoverySourceUpload,
+            checkNotNull(recoveryOperationId),
+          )
+      ) {
+        logger.info("Ignoring stale recovery generation $doneBlobGeneration for $doneBlobPath")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
@@ -189,7 +230,11 @@ class VidLabelingDispatcher(
         return
       }
       val exactRevision = revisions.firstOrNull { it.doneBlobGeneration == doneBlobGeneration }
-      if (exactRevision != null && isRegistrationComplete(exactRevision)) {
+      if (
+        recoverySourceUpload == null &&
+          exactRevision != null &&
+          isRegistrationComplete(exactRevision)
+      ) {
         logger.info("RawImpressionUpload ${exactRevision.name} is already registered")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
@@ -203,6 +248,21 @@ class VidLabelingDispatcher(
               Timestamps.compare(it.doneBlobCreateTime, doneBlobMetadata.createTime.toProtoTime()) <
                 0
           }
+        }
+      val edpReplacementAuthorization =
+        if (
+          recoverySourceUpload == null &&
+            previousRevision?.state == RawImpressionUpload.State.FAILED
+        ) {
+          validateEdpReplacementOrder(previousRevision)
+        } else {
+          null
+        }
+      val evictionOperationId =
+        if (recoverySourceUpload != null) {
+          checkNotNull(recoveryOperationId)
+        } else {
+          edpReplacementAuthorization?.evictionOperationId
         }
       val currentBlobVersions = resolveBlobVersions(blobs, doneBlobUri)
       val candidateBlobs =
@@ -232,7 +292,12 @@ class VidLabelingDispatcher(
       }
 
       val rawImpressionUpload =
-        createRawImpressionUpload(doneBlobPath, doneBlobGeneration, doneBlobMetadata.createTime)
+        createRawImpressionUpload(
+          doneBlobPath,
+          doneBlobGeneration,
+          doneBlobMetadata.createTime,
+          evictionOperationId,
+        )
       if (rawImpressionUpload == null) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
@@ -295,7 +360,8 @@ class VidLabelingDispatcher(
 
       createRawImpressionUploadFiles(rawImpressionUpload.name, blobsToRegister)
 
-      val resolvedModelLineNames = resolveModelLines()
+      val resolvedModelLineNames =
+        resolveModelLines(edpReplacementAuthorization?.requiredModelLines.orEmpty())
 
       if (resolvedModelLineNames.isEmpty()) {
         markRegistrationComplete(rawImpressionUpload)
@@ -354,19 +420,21 @@ class VidLabelingDispatcher(
   /**
    * Resolves the active model lines whose model shard is available in the VID Repository.
    *
-   * If [overrideModelLines] is non-empty, uses those directly without active window filtering. This
-   * supports backfilling past data where the model line may no longer be in the active window.
-   * Model shard availability is checked via [dispatchSequencer] so the resolution logic is shared
-   * with the dispatch path.
+   * If [overrideModelLines] or [edpCorrectionModelLines] is non-empty, uses that persisted set
+   * directly without active-window filtering. This supports backfilling or correcting historical
+   * data after a model line is no longer active. Model-shard availability is checked via
+   * [dispatchSequencer] so the resolution logic is shared with the dispatch path.
    *
    * @return resource names of model lines that should be registered for this upload.
    */
-  private suspend fun resolveModelLines(): List<String> {
+  private suspend fun resolveModelLines(edpCorrectionModelLines: List<String>): List<String> {
+    val requiredModelLineNames =
+      if (overrideModelLines.isNotEmpty()) overrideModelLines else edpCorrectionModelLines
     val activeModelLineNames: List<String> =
-      if (overrideModelLines.isNotEmpty()) {
-        // Override model lines bypass active window checks to support backfilling past data.
-        logger.info("Using ${overrideModelLines.size} override model lines")
-        overrideModelLines
+      if (requiredModelLineNames.isNotEmpty()) {
+        // Healing model lines bypass active-window checks because they reproduce historical work.
+        logger.info("Using ${requiredModelLineNames.size} required healing model lines")
+        requiredModelLineNames
       } else {
         resolveActiveModelLinesFromApi()
       }
@@ -377,6 +445,8 @@ class VidLabelingDispatcher(
       for (modelLineName in activeModelLineNames) {
         if (dispatchSequencer.resolveShardInfo(modelLineName) != null) {
           add(modelLineName)
+        } else if (requiredModelLineNames.isNotEmpty()) {
+          error("Required healing model line $modelLineName has no available model shard")
         } else {
           logger.warning("Could not resolve model shard for $modelLineName, skipping")
         }
@@ -465,6 +535,7 @@ class VidLabelingDispatcher(
     doneBlobPath: String,
     generation: Long,
     createTime: Instant,
+    evictionOperationId: String?,
   ): RawImpressionUpload? {
     val request = createRawImpressionUploadRequest {
       parent = dataProviderName
@@ -472,6 +543,14 @@ class VidLabelingDispatcher(
         doneBlobUri = doneBlobPath
         doneBlobGeneration = generation
         doneBlobCreateTime = createTime.toProtoTime()
+        if (evictionOperationId != null) {
+          uploadHealingOperation =
+            UploadHealingOperationKey(
+                requireNotNull(DataProviderKey.fromName(dataProviderName)),
+                evictionOperationId,
+              )
+              .toName()
+        }
       }
       requestId = RequestIds.forRawImpressionUpload(doneBlobPath, generation)
     }
@@ -687,6 +766,263 @@ class VidLabelingDispatcher(
       }
       .parentKey
       .toName()
+
+  /**
+   * Validates an object-metadata recovery request before honoring its model-line override.
+   *
+   * @return false when this is a stale Eventarc delivery older than an already-registered recovery.
+   */
+  private suspend fun validateRecovery(
+    doneBlobPath: String,
+    doneBlobGeneration: Long,
+    doneBlobCreateTime: Instant,
+    sourceUploadName: String,
+    operationId: String,
+  ): Boolean {
+    require(overrideModelLines.isNotEmpty()) {
+      "A recovery source upload requires at least one override model line"
+    }
+    val sourceKey =
+      requireNotNull(RawImpressionUploadKey.fromName(sourceUploadName)) {
+        "Malformed recovery source upload name: $sourceUploadName"
+      }
+    require(sourceKey.parentKey.toName() == dataProviderName) {
+      "$sourceUploadName does not belong to $dataProviderName"
+    }
+    val source =
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = sourceUploadName }
+        )
+      }
+    require(source.doneBlobUri == doneBlobPath) {
+      "$sourceUploadName belongs to ${source.doneBlobUri}, not $doneBlobPath"
+    }
+    require(doneBlobGeneration != source.doneBlobGeneration) {
+      "Recovery generation $doneBlobGeneration must differ from source generation " +
+        source.doneBlobGeneration
+    }
+    val doneBlobCreateTimestamp = doneBlobCreateTime.toProtoTime()
+    if (source.hasDoneBlobCreateTime()) {
+      require(Timestamps.compare(doneBlobCreateTimestamp, source.doneBlobCreateTime) > 0) {
+        "Recovery object creation time must be newer than the source upload"
+      }
+    }
+    val latest = findLatestUploadByDoneBlob(doneBlobPath)
+    if (
+      latest != null &&
+        latest.doneBlobGeneration != doneBlobGeneration &&
+        latest.hasDoneBlobCreateTime() &&
+        Timestamps.compare(latest.doneBlobCreateTime, doneBlobCreateTimestamp) >= 0
+    ) {
+      return false
+    }
+    val registeredRecovery = findUploadByDoneBlob(doneBlobPath, doneBlobGeneration)
+    val isInitialDelivery = latest?.name == sourceUploadName
+    val isRetryOfLatestRecovery =
+      registeredRecovery != null &&
+        latest?.name == registeredRecovery.name &&
+        registeredRecovery.replacesRawImpressionUpload == sourceUploadName
+    val isRetryAfterIncompleteRecovery =
+      latest != null &&
+        latest.replacesRawImpressionUpload == sourceUploadName &&
+        !isRegistrationComplete(latest)
+    require(isInitialDelivery || isRetryOfLatestRecovery || isRetryAfterIncompleteRecovery) {
+      "$sourceUploadName has been superseded by ${latest?.name}; recover the latest revision"
+    }
+
+    val rowsByCmmsModelLine = listModelLines(sourceUploadName).associateBy { it.cmmsModelLine }
+    val requestedRows = overrideModelLines.mapNotNull { rowsByCmmsModelLine[it] }
+    require(
+      requestedRows.size == overrideModelLines.size &&
+        requestedRows.all { it.state == RawImpressionUploadModelLine.State.FAILED }
+    ) {
+      "Recovery override must identify FAILED source model-line rows"
+    }
+    require(
+      requestedRows.all {
+        it.recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY &&
+          it.evictionOperationId == operationId
+      }
+    ) {
+      "Recovery source rows are not operator-recovery actions from eviction operation $operationId"
+    }
+    for (row in requestedRows) {
+      requireRecoveryPredecessorReady(row)
+    }
+    val recoverableModelLines =
+      rowsByCmmsModelLine.values
+        .filter { it.state == RawImpressionUploadModelLine.State.FAILED }
+        .filter {
+          it.recoveryAction ==
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+        .filter { it.evictionOperationId == operationId }
+        .filter { hasDeletedSnapshotHistory(sourceUploadName, it.cmmsModelLine) }
+        .mapTo(mutableSetOf()) { it.cmmsModelLine }
+    require(overrideModelLines.toSet() == recoverableModelLines) {
+      "Recovery override must contain the complete set of FAILED memoized model lines whose " +
+        "snapshots were deleted; requested=$overrideModelLines, recoverable=$recoverableModelLines"
+    }
+    return true
+  }
+
+  /** Enforces the persisted dependency before accepting an EDP correction upload. */
+  private suspend fun validateEdpReplacementOrder(
+    previousRevision: RawImpressionUpload
+  ): EdpReplacementAuthorization? {
+    val evictedRows =
+      listModelLines(previousRevision.name).filter {
+        it.state == RawImpressionUploadModelLine.State.FAILED &&
+          it.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+      }
+    if (evictedRows.isEmpty()) return null
+    check(
+      evictedRows.none {
+        it.recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+      }
+    ) {
+      "${previousRevision.name} requires the operator recovery command, not an EDP upload"
+    }
+    check(
+      evictedRows.none {
+        it.recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+      }
+    ) {
+      "${previousRevision.name} was permanently removed and does not accept an EDP replacement"
+    }
+    for (row in evictedRows.filter { it.recoveryPredecessorRawImpressionUpload.isNotEmpty() }) {
+      requireRecoveryPredecessorReady(row)
+    }
+    val evictionOperationIds =
+      evictedRows.map { it.evictionOperationId }.filter { it.isNotEmpty() }.distinct()
+    check(evictionOperationIds.size <= 1) {
+      "${previousRevision.name} belongs to multiple eviction operations"
+    }
+    return EdpReplacementAuthorization(
+      evictionOperationIds.singleOrNull(),
+      evictedRows
+        .filter {
+          it.recoveryAction ==
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+        }
+        .map { it.cmmsModelLine },
+    )
+  }
+
+  /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */
+  private suspend fun requireRecoveryPredecessorReady(row: RawImpressionUploadModelLine) {
+    val predecessorName = row.recoveryPredecessorRawImpressionUpload
+    if (predecessorName.isEmpty()) return
+    val predecessor =
+      rpcThrottlers.metadataRead.onReady {
+        rawImpressionUploadStub.getRawImpressionUpload(
+          getRawImpressionUploadRequest { name = predecessorName }
+        )
+      }
+    val revisions = listUploadsByDoneBlob(predecessor.doneBlobUri)
+    val latest =
+      checkNotNull(findLatestUpload(revisions)) {
+        "No upload revision found for recovery predecessor $predecessorName"
+      }
+    check(
+      latest.name == predecessorName || replacesUpload(latest.name, predecessorName, revisions)
+    ) {
+      "Latest upload ${latest.name} does not replace recovery predecessor $predecessorName"
+    }
+    val replacementRow =
+      listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
+    check(replacementRow?.state == RawImpressionUploadModelLine.State.COMPLETED) {
+      "Recovery predecessor $predecessorName has not been replaced by a completed upload for " +
+        row.cmmsModelLine
+    }
+    check(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {
+      "Recovery predecessor $predecessorName has no live replacement snapshot for " +
+        row.cmmsModelLine
+    }
+  }
+
+  private fun replacesUpload(
+    candidateName: String,
+    predecessorName: String,
+    revisions: List<RawImpressionUpload>,
+  ): Boolean {
+    val revisionsByName = revisions.associateBy { it.name }
+    val visited = mutableSetOf<String>()
+    var current = revisionsByName[candidateName]?.replacesRawImpressionUpload.orEmpty()
+    while (current.isNotEmpty() && visited.add(current)) {
+      if (current == predecessorName) return true
+      current = revisionsByName[current]?.replacesRawImpressionUpload.orEmpty()
+    }
+    return false
+  }
+
+  private suspend fun listModelLines(uploadName: String): List<RawImpressionUploadModelLine> {
+    val rows = mutableListOf<RawImpressionUploadModelLine>()
+    var pageToken = ""
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadModelLineStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = uploadName
+              this.pageToken = pageToken
+            }
+          )
+        }
+      rows += response.rawImpressionUploadModelLinesList
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return rows
+  }
+
+  private suspend fun hasDeletedSnapshotHistory(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): Boolean {
+    var pageToken = ""
+    var found = false
+    do {
+      val response =
+        rpcThrottlers.metadataRead.onReady {
+          rankIndexBlobStub.listRankIndexBlobs(
+            listRankIndexBlobsRequest {
+              parent = uploadName
+              showDeleted = true
+              filter = rankIndexFilter {
+                blobType = RankIndexBlob.BlobType.SNAPSHOT
+                this.cmmsModelLine = cmmsModelLine
+              }
+              this.pageToken = pageToken
+            }
+          )
+        }
+      if (response.rankIndexBlobsList.any { !it.hasDeleteTime() }) return false
+      found = found || response.rankIndexBlobsCount > 0
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return found
+  }
+
+  private suspend fun hasActiveSnapshot(uploadName: String, cmmsModelLine: String): Boolean {
+    val response =
+      rpcThrottlers.metadataRead.onReady {
+        rankIndexBlobStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = uploadName
+            pageSize = 1
+            filter = rankIndexFilter {
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              this.cmmsModelLine = cmmsModelLine
+            }
+          }
+        )
+      }
+    return response.rankIndexBlobsCount > 0
+  }
 
   private fun LocalDate.toProtoDate(): Date = date {
     year = this@toProtoDate.year

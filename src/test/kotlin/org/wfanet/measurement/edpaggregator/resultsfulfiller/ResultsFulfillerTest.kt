@@ -3389,6 +3389,218 @@ class ResultsFulfillerTest {
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
   }
 
+  /** What a TrusTeeV2 fulfillment emitted, with the keys needed to read its payload. */
+  private data class TrusTeeV2Fulfillment(
+    val requests: List<FulfillRequisitionRequest>,
+    val kmsClient: FakeKmsClient,
+    val kekUri: String,
+  )
+
+  /**
+   * Runs a TrusTeeV2 requisition through the fulfiller over [vidCounts], which gives each VID the
+   * number of impressions it contributes. Defaults to 130 VIDs reached once each.
+   */
+  private suspend fun fulfillTrusTeeV2Requisition(
+    resultMinimumThresholds: ResultMinimumThresholds?,
+    vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
+  ): TrusTeeV2Fulfillment {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      vidCounts.flatMap { (vidValue, count) ->
+        List(count) {
+          LABELED_IMPRESSION.copy {
+            vid = vidValue
+            eventTime = TIME_RANGE.start.toProtoTime()
+          }
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(TRUSTEE_V2_REQUISITION),
+    )
+
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
+
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = ContinuousGaussianNoiseSelector(),
+        resultMinimumThresholds = resultMinimumThresholds,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms = emptySet(),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
+
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+    ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+      .fulfillRequisitions()
+
+    return TrusTeeV2Fulfillment(
+      requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests,
+      kmsClient,
+      kekUri,
+    )
+  }
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4475): Cover TrusTeeV2 in
+  //  `InProcessEdpAggregatorLifeOfAReportTest` once the Kingdom issues v2 requisitions and the
+  //  duchy accepts them. These cases construct the requisition, so capability negotiation, v2
+  //  issuance, fulfillment ingestion and result composition are untested together.
+  @Test
+  fun `runWork processes TrusTeeV2 requisitions successfully`() = runBlocking {
+    val fulfillment = fulfillTrusTeeV2Requisition(resultMinimumThresholds = null)
+
+    assertThat(fulfillment.requests).hasSize(2)
+    ProtoTruth.assertThat(fulfillment.requests[0])
+      .comparingExpectedFieldsOnly()
+      .isEqualTo(
+        fulfillRequisitionRequest {
+          header =
+            FulfillRequisitionRequestKt.header {
+              name = TRUSTEE_V2_REQUISITION.name
+              nonce = REQUISITION_SPEC.nonce
+            }
+        }
+      )
+    val header = fulfillment.requests[0].header
+    assertThat(header.hasTrusTeeV2()).isTrue()
+    assertThat(header.hasTrusTee()).isFalse()
+    assertThat(header.trusTeeV2.trusTee.dataFormat)
+      .isEqualTo(FulfillRequisitionRequest.Header.TrusTee.DataFormat.ENCRYPTED_FREQUENCY_VECTOR)
+    assertThat(header.trusTeeV2.trusTee.envelopeEncryption.hasEncryptedDek()).isTrue()
+    // Nothing computes an impression count until the EDPA populates FulfillmentDetails.
+    assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
+    assertThat(header.trusTeeV2.hasEncryptedFulfillmentDetails()).isFalse()
+    assertThat(fulfillment.requests[1].bodyChunk.data).isNotEmpty()
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+      startProcessingRequisitionMetadata(any())
+    }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+  }
+
+  /** Unwraps the DEK from the header and decrypts the frequency vector the fulfillment carried. */
+  private fun decryptFrequencies(fulfillment: TrusTeeV2Fulfillment): ByteArray {
+    val header = fulfillment.requests[0].header
+    val encryptedPayload =
+      fulfillment.requests
+        .filter { it.hasBodyChunk() }
+        .map { it.bodyChunk.data }
+        .reduce { a, b -> a.concat(b) }
+    val dekKeysetHandle =
+      KeysetHandle.read(
+        BinaryKeysetReader.withInputStream(
+          header.trusTeeV2.trusTee.envelopeEncryption.encryptedDek.data.newInput()
+        ),
+        fulfillment.kmsClient.getAead(fulfillment.kekUri),
+      )
+    return dekKeysetHandle
+      .getPrimitive(StreamingAead::class.java)
+      .newDecryptingStream(encryptedPayload.newInput(), byteArrayOf())
+      .use { it.readAllBytes() }
+  }
+
+  @Test
+  fun `runWork does not suppress a TrusTeeV2 vector below the minimum thresholds`() = runBlocking {
+    // Far above the 130 impressions in the fixture. The TEE applies the thresholds to the noised
+    // aggregate, so the EDPA must not zero its own contribution first.
+    val fulfillment =
+      fulfillTrusTeeV2Requisition(
+        ResultMinimumThresholds(minUsers = 100_000, minImpressions = 100_000)
+      )
+
+    assertThat(fulfillment.requests[0].header.hasTrusTeeV2()).isTrue()
+    val frequencies = decryptFrequencies(fulfillment)
+    assertThat(frequencies.count { it > 0 }).isEqualTo(130)
+  }
+
+  @Test
+  fun `runWork does not cap a TrusTeeV2 frequency vector`() =
+    runBlocking<Unit> {
+      // A MultiMeasurementSpec carries no frequency cap, so a count survives up to the largest
+      // signed byte. The v1 path clamps to the cap on the MeasurementSpec instead.
+      val vidCounts = buildMap {
+        put(1L, 5)
+        put(2L, 200)
+        for (vid in 3L..130L) {
+          put(vid, 1)
+        }
+      }
+
+      val fulfillment =
+        fulfillTrusTeeV2Requisition(resultMinimumThresholds = null, vidCounts = vidCounts)
+
+      val frequencies = decryptFrequencies(fulfillment)
+      assertThat(frequencies.count { it > 0 }).isEqualTo(130)
+      assertThat(frequencies.filter { it > 0 }.map { it.toInt() }.toSet())
+        .containsExactly(1, 5, Byte.MAX_VALUE.toInt())
+    }
+
   @Test
   fun `runWork fulfills TrusTee requisition with unencrypted empty frequency vector when no impression data sources available`() =
     runBlocking {
@@ -4594,6 +4806,41 @@ class ResultsFulfillerTest {
       dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
       dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
       duchies += TRUSTEE_DUCHY_ENTRY
+    }
+
+    private val MULTI_MEASUREMENT_SPEC = measurementSpec {
+      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
+      measurementPublicKey = MC_PUBLIC_KEY.pack()
+      multi = MeasurementSpecKt.multiMeasurementSpec {}
+      vidSamplingInterval = vidSamplingInterval {
+        start = 0.0f
+        width = 1.0f
+      }
+      nonceHashes += Hashing.hashSha256(REQUISITION_SPEC.nonce)
+      modelLine = "some-model-line"
+    }
+
+    val TRUSTEE_V2_DUCHY_ENTRY = duchyEntry {
+      key = DUCHY_ONE_NAME
+      value = value {
+        duchyCertificate = DUCHY_ONE_CERTIFICATE.name
+        trusTeeV2 = DuchyEntry.TrusTeeV2.getDefaultInstance()
+      }
+    }
+
+    private val TRUSTEE_V2_REQUISITION: Requisition = requisition {
+      name = REQUISITION_NAME
+      measurement = "$MEASUREMENT_CONSUMER_NAME/measurements/BBBBBBBBBHs"
+      state = Requisition.State.UNFULFILLED
+      measurementConsumerCertificate = "$MEASUREMENT_CONSUMER_NAME/certificates/AAAAAAAAAcg"
+      measurementSpec = signMeasurementSpec(MULTI_MEASUREMENT_SPEC, MC_SIGNING_KEY)
+      encryptedRequisitionSpec = ENCRYPTED_REQUISITION_SPEC
+      protocolConfig = protocolConfig {
+        protocols += ProtocolConfigKt.protocol { trusTeeV2 = ProtocolConfigKt.trusTeeV2 {} }
+      }
+      dataProviderCertificate = DATA_PROVIDER_CERTIFICATE_NAME
+      dataProviderPublicKey = DATA_PROVIDER_PUBLIC_KEY.pack()
+      duchies += TRUSTEE_V2_DUCHY_ENTRY
     }
 
     private val HMSS_NO_NOISE_REQUISITION: Requisition = requisition {

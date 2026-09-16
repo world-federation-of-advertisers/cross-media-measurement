@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "google/type/date.proto";
 import "wfa/measurement/internal/edpaggregator/encrypted_dek.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_failure_reason.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_recovery_action.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -78,4 +79,13 @@ message RawImpressionUploadModelLine {
   // Reason for the most recent transition to FAILED. Remains set until a later
   // failure replaces it.
   RawImpressionUploadModelLineFailureReason failure_reason = 14;
+
+  // Identifier shared by all model-line rows in one eviction operation.
+  string eviction_operation_id = 15;
+
+  // Action required to replace output invalidated by the eviction.
+  RawImpressionUploadModelLineRecoveryAction recovery_action = 16;
+
+  // Resource ID of the upload whose completed replacement is required.
+  string recovery_predecessor_raw_impression_upload_resource_id = 17;
 }
