@@ -46,8 +46,7 @@ service WorkItems {
   // Otherwise, the WorkItem is failed terminally.
   // (-- api-linter: core::0136::response-message-name=disabled
   //     aip.dev/not-precedent: This internal recovery RPC returns the affected
-  //     resource so the DLQ listener can distinguish retry from terminal
-  //     failure. --)
+  //     resource so the DLQ listener can verify the terminal transition. --)
   rpc ProcessWorkItemDeadLetter(ProcessWorkItemDeadLetterRequest)
       returns (WorkItem);
 
