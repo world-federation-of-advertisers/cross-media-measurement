@@ -120,9 +120,11 @@ class RequisitionFetcherConfigValidatorTest {
       val config =
         RequisitionFetcherConfig.newBuilder()
           .addConfigs(
-            validDataProviderConfig().toBuilder().setWorkItemDispatch(
-              validDataProviderConfig().workItemDispatch.toBuilder().setStoragePathPrefix(prefix)
-            )
+            validDataProviderConfig()
+              .toBuilder()
+              .setWorkItemDispatch(
+                validDataProviderConfig().workItemDispatch.toBuilder().setStoragePathPrefix(prefix)
+              )
           )
           .build()
 

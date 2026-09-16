@@ -97,8 +97,7 @@ object RequisitionFetcherConfigValidator {
       "Missing 'storage_path_prefix' for data provider: $dataProvider."
     }
     require(
-      dataProviderConfig.storagePathPrefix ==
-        dataProviderConfig.storagePathPrefix.trim('/')
+      dataProviderConfig.storagePathPrefix == dataProviderConfig.storagePathPrefix.trim('/')
     ) {
       "'storage_path_prefix' must not start or end with '/' for data provider: $dataProvider."
     }
