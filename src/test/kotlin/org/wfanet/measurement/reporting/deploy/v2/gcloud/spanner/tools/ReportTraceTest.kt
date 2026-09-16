@@ -3160,6 +3160,56 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `render does not promote application info written with error transport severity`() {
+    val context = reportTraceContext()
+    val message =
+      "INFO: event=reporting.metric.result_synchronized " +
+        "xmm.lifecycle.stage=metric_result_sync xmm.outcome=succeeded"
+    val effectiveSeverity = ReportTraceOutput.effectiveLogSeverity("ERROR", message)
+
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = emptyList(),
+        logEntries =
+          listOf(ReportTraceLogEntry("test", NOW, "reporting", effectiveSeverity, null, message)),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+      )
+
+    assertThat(effectiveSeverity).isEqualTo("INFO")
+    assertThat(output.substringAfter("## Errors").substringBefore("## Warnings")).contains("None.")
+    assertThat(output).contains("LOG INFO")
+  }
+
+  @Test
+  fun `lifecycle parsing prefers canonical fields before repeated JSON payload fields`() {
+    val context = reportTraceContext().copy(basicReportState = "SUCCEEDED")
+    val basicReportName = checkNotNull(context.basicReportName)
+    val message =
+      "xmm.basic_report.name=$basicReportName xmm.lifecycle.stage=noise_correction " +
+        "xmm.outcome=succeeded JsonPayload{string_value: " +
+        "\"xmm.lifecycle.stage=noise_correction xmm.outcome=succeeded\"}"
+    val logEntry = ReportTraceLogEntry("test", NOW, "post-processor", "INFO", null, message)
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution(
+          context,
+          ReportTraceMeasurementRouteKind.DIRECT,
+          "dataProviders/direct/requisitions/requisition-1",
+          ReportTraceRequisitionRouteKind.DIRECT_EDP,
+        ),
+        emptyList(),
+        listOf(logEntry),
+      )
+
+    assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("SUCCEEDED")
+  }
+
+  @Test
   fun `render canonicalizes duplicate WorkItem identifiers`() {
     val context = reportTraceContext()
     val workItemId = "results-fulfiller-group-1"

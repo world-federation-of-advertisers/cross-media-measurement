@@ -487,7 +487,7 @@ internal class GoogleCloudReportTraceLogReader(
       sourceProject = project,
       timestamp = instantTimestamp ?: Instant.EPOCH,
       service = service,
-      severity = severity.name,
+      severity = ReportTraceOutput.effectiveLogSeverity(severity.name, message),
       trace = trace?.takeIf(String::isNotEmpty),
       message = message,
     )
@@ -753,6 +753,20 @@ private fun JsonObject.optionalString(name: String): String? =
   get(name)?.takeUnless { it.isJsonNull }?.asString
 
 internal object ReportTraceOutput {
+  fun effectiveLogSeverity(reportedSeverity: String, message: String): String {
+    return when (APPLICATION_LOG_LEVEL_PATTERN.find(message)?.groupValues?.get(1)) {
+      "SEVERE" -> "ERROR"
+      "WARNING",
+      "WARN" -> "WARNING"
+      "INFO",
+      "CONFIG",
+      "FINE",
+      "FINER",
+      "FINEST" -> "INFO"
+      else -> reportedSeverity
+    }
+  }
+
   fun renderLogPayload(
     payload: Payload<*>?,
     includeGrpcPayloads: Boolean,
@@ -2552,6 +2566,8 @@ internal object ReportTraceOutput {
     )
   private val SAFE_TEXT_FIELD_PATTERN =
     Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
+  private val APPLICATION_LOG_LEVEL_PATTERN =
+    Regex("^\\s*(SEVERE|WARNING|WARN|INFO|CONFIG|FINE|FINER|FINEST):\\s")
   private val VERBOSE_GRPC_LOG_PATTERN =
     Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(?:headers|request|response|complete|error):?")
   private val VERBOSE_GRPC_CONTINUATION_PATTERN =
@@ -2566,8 +2582,10 @@ internal object ReportTraceOutput {
   }
 
   private fun safeTextFields(text: String): Map<String, String> {
-    return SAFE_TEXT_FIELD_PATTERN.findAll(text).associate { match ->
-      match.groupValues[1] to match.groupValues[2]
+    return buildMap {
+      for (match in SAFE_TEXT_FIELD_PATTERN.findAll(text)) {
+        putIfAbsent(match.groupValues[1], match.groupValues[2])
+      }
     }
   }
 }
