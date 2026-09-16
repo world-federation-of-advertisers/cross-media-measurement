@@ -122,6 +122,14 @@ object RequestIds {
   fun forEvictRawImpressionUploadModelLine(modelLineName: String, etag: String): String =
     fromKey("evictRawImpressionUploadModelLine:$modelLineName:$etag")
 
+  /** `request_id` for creating a durable upload-healing operation. */
+  fun forUploadHealingOperation(operationId: String): String =
+    fromKey("uploadHealingOperation:$operationId")
+
+  /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
+  fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
+    fromKey("uploadHealingStep:$stepName:$checkpoint:$evidence")
+
   /** `request_id` for retrying a specific model-line failure at Phase 0. */
   fun forHealingRetryPoolAssigning(modelLineName: String, failureAttemptId: String): String =
     fromKey("healingRetryPoolAssigning:$modelLineName:$failureAttemptId")

@@ -24,6 +24,7 @@ import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
@@ -31,14 +32,22 @@ import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByMarkRegistrationCompleteRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveRawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasIncompleteRawImpressionUploadRegistration
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasEvictionOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadRegistrationComplete
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.service.internal.EtagMismatchException
@@ -47,6 +56,8 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.edpaggregator.AcquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.internal.edpaggregator.AcquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken
@@ -57,6 +68,9 @@ import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadRegi
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.internal.edpaggregator.ReleaseRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsPageToken
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadsResponse
@@ -105,6 +119,14 @@ class SpannerRawImpressionUploadService(
       throw InvalidFieldValueException("request_id", e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.evictionOperationId.isNotEmpty()) {
+      try {
+        UUID.fromString(request.evictionOperationId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("eviction_operation_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createRawImpressionUpload"))
@@ -123,7 +145,8 @@ class SpannerRawImpressionUploadService(
                   request.rawImpressionUpload.hasDoneBlobCreateTime() ||
                 (existing.rawImpressionUpload.hasDoneBlobCreateTime() &&
                   existing.rawImpressionUpload.doneBlobCreateTime !=
-                    request.rawImpressionUpload.doneBlobCreateTime)
+                    request.rawImpressionUpload.doneBlobCreateTime) ||
+                existing.rawImpressionUpload.evictionOperationId != request.evictionOperationId
             ) {
               throw RawImpressionUploadAlreadyExistsException(
                   request.dataProviderResourceId,
@@ -177,6 +200,46 @@ class SpannerRawImpressionUploadService(
             )
           }
           val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
+          val activeEvictionOperationId =
+            txn.getVidLabelingEvictionOperationId(request.dataProviderResourceId)
+          val processingDeferred =
+            if (activeEvictionOperationId == null) {
+              if (request.evictionOperationId.isNotEmpty()) {
+                throw Status.FAILED_PRECONDITION.withDescription(
+                    "VID-labeling eviction ${request.evictionOperationId} is not active for " +
+                      "DataProvider ${request.dataProviderResourceId}"
+                  )
+                  .asRuntimeException()
+              }
+              false
+            } else if (request.evictionOperationId.isEmpty()) {
+              true
+            } else {
+              if (request.evictionOperationId != activeEvictionOperationId) {
+                throw Status.FAILED_PRECONDITION.withDescription(
+                    "VID-labeling eviction $activeEvictionOperationId owns the fence for " +
+                      "DataProvider ${request.dataProviderResourceId}"
+                  )
+                  .asRuntimeException()
+              }
+              if (
+                previous == null ||
+                  (previous.rawImpressionUpload.evictionOperationId !=
+                    request.evictionOperationId &&
+                    !txn.rawImpressionUploadHasEvictionOperation(
+                      request.dataProviderResourceId,
+                      previous.rawImpressionUploadId,
+                      request.evictionOperationId,
+                    ))
+              ) {
+                throw Status.FAILED_PRECONDITION.withDescription(
+                    "The preceding upload is not part of VID-labeling eviction " +
+                      request.evictionOperationId
+                  )
+                  .asRuntimeException()
+              }
+              false
+            }
 
           val rawImpressionUploadId: Long =
             idGenerator.generateNewId { id ->
@@ -197,6 +260,8 @@ class SpannerRawImpressionUploadService(
               request.rawImpressionUpload.hasDoneBlobCreateTime()
             },
             replacesResourceId,
+            request.evictionOperationId.takeIf { it.isNotEmpty() },
+            processingDeferred,
           )
 
           rawImpressionUpload {
@@ -212,6 +277,8 @@ class SpannerRawImpressionUploadService(
             }
             state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
             registrationComplete = false
+            evictionOperationId = request.evictionOperationId
+            this.processingDeferred = processingDeferred
           }
         }
       } catch (e: SpannerException) {
@@ -239,6 +306,94 @@ class SpannerRawImpressionUploadService(
       createTime = commitTimestamp
       updateTime = commitTimestamp
       etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
+  }
+
+  override suspend fun acquireRawImpressionUploadEvictionFence(
+    request: AcquireRawImpressionUploadEvictionFenceRequest
+  ): AcquireRawImpressionUploadEvictionFenceResponse {
+    validateEvictionFenceRequest(request.dataProviderResourceId, request.evictionOperationId)
+    val newlyAcquired =
+      databaseClient
+        .readWriteTransaction(Options.tag("action=acquireRawImpressionUploadEvictionFence"))
+        .run { txn ->
+          val currentOperationId =
+            txn.getVidLabelingEvictionOperationId(request.dataProviderResourceId)
+          if (currentOperationId == request.evictionOperationId) {
+            return@run false
+          }
+          if (currentOperationId != null) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "VID-labeling eviction $currentOperationId is already in progress for " +
+                  "DataProvider ${request.dataProviderResourceId}"
+              )
+              .asRuntimeException()
+          }
+          if (
+            txn.hasIncompleteRawImpressionUploadRegistration(request.dataProviderResourceId) ||
+              txn.hasActiveRawImpressionUploadModelLine(request.dataProviderResourceId)
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "The VID-labeling pipeline is not idle for DataProvider " +
+                  "${request.dataProviderResourceId}; wait for registration and processing to finish"
+              )
+              .asRuntimeException()
+          }
+          txn.insertVidLabelingEvictionFence(
+            request.dataProviderResourceId,
+            request.evictionOperationId,
+          )
+          true
+        }
+    return acquireRawImpressionUploadEvictionFenceResponse { this.newlyAcquired = newlyAcquired }
+  }
+
+  override suspend fun releaseRawImpressionUploadEvictionFence(
+    request: ReleaseRawImpressionUploadEvictionFenceRequest
+  ): ReleaseRawImpressionUploadEvictionFenceResponse {
+    validateEvictionFenceRequest(request.dataProviderResourceId, request.evictionOperationId)
+    databaseClient
+      .readWriteTransaction(Options.tag("action=releaseRawImpressionUploadEvictionFence"))
+      .run { txn ->
+        val currentOperationId =
+          txn.getVidLabelingEvictionOperationId(request.dataProviderResourceId) ?: return@run
+        if (currentOperationId != request.evictionOperationId) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "VID-labeling eviction $currentOperationId owns the fence for DataProvider " +
+                request.dataProviderResourceId
+            )
+            .asRuntimeException()
+        }
+        txn.readProcessingDeferredRawImpressionUploadIds(request.dataProviderResourceId).collect {
+          rawImpressionUploadId ->
+          txn.updateRawImpressionUploadProcessingDeferred(
+            request.dataProviderResourceId,
+            rawImpressionUploadId,
+            false,
+          )
+        }
+        txn.deleteVidLabelingEvictionFence(request.dataProviderResourceId)
+      }
+    return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+  }
+
+  private fun validateEvictionFenceRequest(
+    dataProviderResourceId: String,
+    evictionOperationId: String,
+  ) {
+    if (dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (evictionOperationId.isEmpty()) {
+      throw RequiredFieldNotSetException("eviction_operation_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(evictionOperationId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("eviction_operation_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
 
