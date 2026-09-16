@@ -96,6 +96,12 @@ object RequisitionFetcherConfigValidator {
     require(dataProviderConfig.storagePathPrefix.isNotBlank()) {
       "Missing 'storage_path_prefix' for data provider: $dataProvider."
     }
+    require(
+      dataProviderConfig.storagePathPrefix ==
+        dataProviderConfig.storagePathPrefix.trim('/')
+    ) {
+      "'storage_path_prefix' must not start or end with '/' for data provider: $dataProvider."
+    }
     require(dataProviderConfig.edpPrivateKeyPath.isNotBlank()) {
       "Missing 'edp_private_key_path' for data provider: $dataProvider."
     }
@@ -108,12 +114,25 @@ object RequisitionFetcherConfigValidator {
       dataProviderConfig.cmmsConnection.certCollectionFilePath,
       "cmms_connection for data provider: $dataProvider",
     )
+    require(dataProviderConfig.hasRequisitionMetadataStorageConnection()) {
+      "Missing 'requisition_metadata_storage_connection' for data provider: $dataProvider."
+    }
+    requireTls(
+      dataProviderConfig.requisitionMetadataStorageConnection.certFilePath,
+      dataProviderConfig.requisitionMetadataStorageConnection.privateKeyFilePath,
+      dataProviderConfig.requisitionMetadataStorageConnection.certCollectionFilePath,
+      "requisition_metadata_storage_connection for data provider: $dataProvider",
+    )
 
     require(!controlPlaneTarget.isNullOrBlank()) {
       "Missing Secure Computation control-plane target for direct dispatch."
     }
     require(dispatchConfig.storagePathPrefix.isNotBlank()) {
       "Missing 'storage_path_prefix' in direct-dispatch config for data provider: $dataProvider."
+    }
+    require(dispatchConfig.storagePathPrefix == dispatchConfig.storagePathPrefix.trim('/')) {
+      "Direct-dispatch 'storage_path_prefix' must not start or end with '/' for data provider: " +
+        dataProvider
     }
     require(
       !StoragePathPrefixes.overlap(

@@ -494,8 +494,9 @@ class RequisitionFetcher(
    * 4. On valid input, group the requisitions in memory, write the blob under the direct prefix,
    *    atomically register `QUEUED` metadata, and then ensure the WorkItem. The ordering makes
    *    every interruption recoverable by a later fetch: no WorkItem can run before its metadata
-   *    exists, and deterministic identifiers make ambiguous retries idempotent. The legacy prefix
-   *    is used only by step 2 to recover work created before cutover.
+   *    exists, and deterministic identifiers make ambiguous retries idempotent. Dispatch failures
+   *    are isolated to their group so later recovery and new groups continue. The legacy prefix is
+   *    used only by step 2 to recover work created before cutover.
    */
   private suspend fun processReportInner(
     unit: ReportWorkUnit,
@@ -536,7 +537,7 @@ class RequisitionFetcher(
       if (storageClient.getBlob(location.blobKey) != null) {
         if (location.ownership == DispatchOwnership.DIRECT) {
           metadataCache.remove(unit.reportId)
-          queueAndDispatchGroup(existingGroupId, metadataList, location.blobUri)
+          dispatchGroupOrLog(existingGroupId, metadataList, location.blobUri, unit.reportId)
         }
         continue
       }
@@ -573,7 +574,7 @@ class RequisitionFetcher(
           metrics.recoveryRebuilds.add(1, dataProviderAttrs)
           if (location.ownership == DispatchOwnership.DIRECT) {
             metadataCache.remove(unit.reportId)
-            queueAndDispatchGroup(existingGroupId, pending.metadata, location.blobUri)
+            dispatchGroupOrLog(existingGroupId, pending.metadata, location.blobUri, unit.reportId)
           }
         }
         pendingRecovery.remove(existingGroupId)
@@ -631,7 +632,7 @@ class RequisitionFetcher(
         writeBlob(grouped, newBlobKey)
         val createdMetadata =
           registerQueuedRequisitionMetadataForGroup(chunk, groupId, unit.reportId, newBlobUri)
-        queueAndDispatchGroup(groupId, createdMetadata, newBlobUri)
+        dispatchGroupOrLog(groupId, createdMetadata, newBlobUri, unit.reportId)
       }
     } finally {
       metadataCache.remove(unit.reportId)
@@ -910,6 +911,35 @@ class RequisitionFetcher(
         )
       }
     return response.requisitionMetadataList
+  }
+
+  private suspend fun dispatchGroupOrLog(
+    groupId: String,
+    metadata: List<RequisitionMetadata>,
+    blobUri: String,
+    reportId: String,
+  ): Boolean {
+    return try {
+      queueAndDispatchGroup(groupId, metadata, blobUri)
+      true
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      metrics.reportFailures.add(
+        1,
+        Attributes.builder()
+          .put(ATTR_DATA_PROVIDER_KEY, dataProviderName)
+          .put(ATTR_REPORT_ID_KEY, reportId)
+          .put(ATTR_ERROR_TYPE_KEY, errorTypeName(e))
+          .build(),
+      )
+      logger.log(
+        Level.SEVERE,
+        "Failed to dispatch requisition group $groupId for report $reportId and $dataProviderName",
+        e,
+      )
+      false
+    }
   }
 
   /**
