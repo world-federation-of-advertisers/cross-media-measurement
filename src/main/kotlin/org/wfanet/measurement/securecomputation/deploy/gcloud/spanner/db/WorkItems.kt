@@ -92,11 +92,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.retryWorkItem(
     set("PublicationScheduledGeneration").to(nextGeneration)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  scheduleWorkItemPublication(
-    workItemId,
-    isDeadLetter = false,
-    nextAttemptTime = nextAttemptTime,
-  )
+  scheduleWorkItemPublication(workItemId, isDeadLetter = false, nextAttemptTime = nextAttemptTime)
   return state
 }
 
@@ -112,11 +108,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemDeadLetterPub
     set("PublicationScheduledGeneration").to(nextGeneration)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
-  scheduleWorkItemPublication(
-    workItemId,
-    isDeadLetter = true,
-    nextAttemptTime = Instant.now(),
-  )
+  scheduleWorkItemPublication(workItemId, isDeadLetter = true, nextAttemptTime = Instant.now())
 }
 
 /**

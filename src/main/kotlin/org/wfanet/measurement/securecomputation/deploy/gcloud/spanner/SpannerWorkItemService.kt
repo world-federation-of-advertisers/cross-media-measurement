@@ -54,8 +54,8 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWork
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.resetWorkItemPublication
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.scheduleWorkItemPublicationIfNeeded
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
@@ -406,9 +406,7 @@ class SpannerWorkItemsService(
                 when (txn.resetWorkItemPublication(result.workItemId, Instant.now())) {
                   WorkItemPublicationResetResult.RESET -> Unit
                   WorkItemPublicationResetResult.LEASED ->
-                    throw WorkItemPublicationPendingException(
-                      result.workItem.workItemResourceId
-                    )
+                    throw WorkItemPublicationPendingException(result.workItem.workItemResourceId)
                   WorkItemPublicationResetResult.MISSING -> {
                     val scheduled =
                       txn.scheduleWorkItemPublicationIfNeeded(
@@ -583,8 +581,7 @@ class SpannerWorkItemsService(
           txn.getWorkItemByResourceId(queueMapping, request.workItem.workItemResourceId)
         }
       } catch (e: WorkItemNotFoundException) {
-        throw WorkItemAlreadyExistsException(e)
-          .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+        throw WorkItemAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
       } catch (e: QueueNotFoundForWorkItem) {
         throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
       }
@@ -592,8 +589,7 @@ class SpannerWorkItemsService(
       existing.workItem.queueResourceId != request.workItem.queueResourceId ||
         existing.workItem.workItemParams != request.workItem.workItemParams
     ) {
-      throw WorkItemAlreadyExistsException()
-        .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      throw WorkItemAlreadyExistsException().asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     }
     when (existing.workItem.state) {
       WorkItem.State.QUEUED,
