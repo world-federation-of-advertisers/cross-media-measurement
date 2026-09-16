@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
@@ -60,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineKt.phaseZeroDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
@@ -67,6 +69,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
@@ -676,10 +679,62 @@ class VidLabelingDispatchSequencerTest {
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
       assertThat(params.modelLine).isEqualTo(MODEL_LINE)
       assertThat(params.modelBlobPath).isEqualTo(MODEL_BLOB_PATH)
-      assertThat(params.poolAssignmentJob)
-        .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1/poolAssignmentJobs/job-0")
+      assertThat(params.poolAssignmentJob).isEmpty()
       assertThat(params.shardIndex).isEqualTo(0)
       assertThat(params.totalShards).isEqualTo(NUMBER_OF_SHARDS)
+    }
+
+  @Test
+  fun `dispatchNext publishes Phase 0 from the snapshot returned by a concurrent claim`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      val winningParams =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy {
+          rawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
+          modelLine = MODEL_LINE
+          modelBlobPath = "gs://models/winning-model.pb"
+          poolAssignmentJob =
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1/poolAssignmentJobs/job-0"
+          shardIndex = 0
+          totalShards = NUMBER_OF_SHARDS
+        }
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenReturn(
+          createdModelLine().copy {
+            state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+            phaseZeroDispatch = phaseZeroDispatch {
+              workItemQueue = "queues/winning-pool-assigner"
+              workItemParams =
+                WorkItemParams.newBuilder()
+                  .setAppParams(winningParams.pack())
+                  .build()
+                  .toByteString()
+            }
+          }
+        )
+
+      createSequencer().dispatchNext()
+
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        assertThat(request.workItem.queue).isEqualTo("queues/winning-pool-assigner")
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.modelBlobPath).isEqualTo("gs://models/winning-model.pb")
+      }
     }
 
   @Test
@@ -688,7 +743,6 @@ class VidLabelingDispatchSequencerTest {
     stubModelLines(createdModelLine())
     stubShardResolution(memoized = true)
     stubModelLine()
-    stubPoolAssignmentJobs()
     val events = mutableListOf<String>()
     whenever(
         rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
@@ -697,6 +751,20 @@ class VidLabelingDispatchSequencerTest {
         events += "claim"
         createdModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
       }
+    whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer { invocation
+      ->
+      events += "jobs"
+      val request = invocation.getArgument<BatchCreatePoolAssignmentJobsRequest>(0)
+      batchCreatePoolAssignmentJobsResponse {
+        for (createRequest in request.requestsList) {
+          val shardIndex = createRequest.poolAssignmentJob.shardIndex
+          poolAssignmentJobs +=
+            createRequest.poolAssignmentJob.copy {
+              name = "${request.parent}/poolAssignmentJobs/job-$shardIndex"
+            }
+        }
+      }
+    }
     whenever(workItemsService.createWorkItem(any())).thenAnswer {
       events += "publish"
       workItem {}
@@ -704,8 +772,46 @@ class VidLabelingDispatchSequencerTest {
 
     createSequencer().dispatchNext()
 
-    assertThat(events).containsExactly("claim", "publish", "publish").inOrder()
+    assertThat(events).containsExactly("claim", "jobs", "publish", "publish").inOrder()
   }
+
+  @Test
+  fun `resumeMemoizedDispatch recreates jobs after a crash immediately after the claim`() =
+    runBlocking<Unit> {
+      val uploadName = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
+      val persistedParams =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy {
+          rawImpressionUpload = uploadName
+          modelLine = MODEL_LINE
+          modelBlobPath = MODEL_BLOB_PATH
+          shardIndex = 0
+          totalShards = NUMBER_OF_SHARDS
+        }
+      val modelLine =
+        modelLine(uploadName, MODEL_LINE, RawImpressionUploadModelLine.State.POOL_ASSIGNING).copy {
+          etag = ETAG
+          phaseZeroDispatch = phaseZeroDispatch {
+            workItemQueue = POOL_ASSIGNER_QUEUE_NAME
+            workItemParams =
+              WorkItemParams.newBuilder()
+                .setAppParams(persistedParams.pack())
+                .build()
+                .toByteString()
+          }
+        }
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenReturn(modelLine)
+
+      val resumed = createSequencer().resumeMemoizedDispatch(uploadName, modelLine, emptyList())
+
+      assertThat(resumed).isTrue()
+      verifyBlocking(poolAssignmentJobService) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+    }
 
   @Test
   fun `dispatchNext tolerates an already-existing SubpoolAssigner WorkItem`() =
@@ -733,7 +839,7 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
-  fun `dispatchNext skips a memoized model line whose claim was lost with ABORTED`() =
+  fun `dispatchNext uses winning snapshot when memoized claim was lost with ABORTED`() =
     runBlocking<Unit> {
       stubUploads(
         created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
@@ -743,6 +849,16 @@ class VidLabelingDispatchSequencerTest {
       stubModelLine()
       stubPoolAssignmentJobs()
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      val winningParams =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy {
+          rawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
+          modelLine = MODEL_LINE
+          modelBlobPath = "gs://models/winning-model.pb"
+          poolAssignmentJob =
+            "$DATA_PROVIDER/rawImpressionUploads/upload-1/poolAssignmentJobs/job-0"
+          shardIndex = 0
+          totalShards = NUMBER_OF_SHARDS
+        }
       // Another concurrent dispatcher claimed the model line first: the etag CAS fails with
       // ABORTED.
       whenever(
@@ -752,16 +868,37 @@ class VidLabelingDispatchSequencerTest {
       whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
         .thenReturn(
           modelLine(
-            "$DATA_PROVIDER/rawImpressionUploads/upload-1",
-            MODEL_LINE,
-            RawImpressionUploadModelLine.State.POOL_ASSIGNING,
-          )
+              "$DATA_PROVIDER/rawImpressionUploads/upload-1",
+              MODEL_LINE,
+              RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+            )
+            .copy {
+              phaseZeroDispatch = phaseZeroDispatch {
+                workItemQueue = "queues/winning-pool-assigner"
+                workItemParams =
+                  WorkItemParams.newBuilder()
+                    .setAppParams(winningParams.pack())
+                    .build()
+                    .toByteString()
+              }
+            }
         )
 
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      val captor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
+      for (request in captor.allValues) {
+        assertThat(request.workItem.queue).isEqualTo("queues/winning-pool-assigner")
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<SubpoolAssignerParams>()
+        assertThat(params.modelBlobPath).isEqualTo("gs://models/winning-model.pb")
+      }
     }
 
   @Test
@@ -1051,6 +1188,66 @@ class VidLabelingDispatchSequencerTest {
       // Each bundled model line is transitioned to LABELING.
       verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
         markRawImpressionUploadModelLineLabeling(any())
+      }
+    }
+
+  @Test
+  fun `dispatchNext publishes non-memoized work from the persisted job snapshot`() =
+    runBlocking<Unit> {
+      val uploadName = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = false)
+      stubModelLine()
+      stubNonMemoizedFilesAndJobs()
+      val winningParams = vidLabelerParams {
+        rawImpressionUpload = uploadName
+        modelLines += MODEL_LINE
+        modelBlobPaths[MODEL_LINE] = "gs://models/winning-model.pb"
+      }
+      val winningDispatch = workItemDispatch {
+        workItemQueue = "queues/winning-vid-labeler"
+        workItemParams =
+          WorkItemParams.newBuilder().setAppParams(winningParams.pack()).build().toByteString()
+      }
+      whenever(vidLabelingJobService.batchCreateVidLabelingJobs(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<BatchCreateVidLabelingJobsRequest>(0)
+        batchCreateVidLabelingJobsResponse {
+          for ((index, createRequest) in request.requestsList.withIndex()) {
+            vidLabelingJobs +=
+              createRequest.vidLabelingJob.copy {
+                name = "${request.parent}/vidLabelingJobs/job-$index"
+                workItemDispatch = winningDispatch
+              }
+          }
+        }
+      }
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      stubMarkTransitions()
+
+      createSequencer().dispatchNext()
+
+      val jobRequests = argumentCaptor<BatchCreateVidLabelingJobsRequest>()
+      verifyBlocking(vidLabelingJobService) { batchCreateVidLabelingJobs(jobRequests.capture()) }
+      assertThat(
+          jobRequests.firstValue.requestsList.map { it.vidLabelingJob.hasWorkItemDispatch() }
+        )
+        .containsExactly(true, true)
+      val workItemRequests = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+        createWorkItem(workItemRequests.capture())
+      }
+      for (request in workItemRequests.allValues) {
+        assertThat(request.workItem.queue).isEqualTo("queues/winning-vid-labeler")
+        val params =
+          request.workItem.workItemParams
+            .unpack<WorkItemParams>()
+            .appParams
+            .unpack<VidLabelerParams>()
+        assertThat(params.modelBlobPathsMap)
+          .containsExactly(MODEL_LINE, "gs://models/winning-model.pb")
       }
     }
 

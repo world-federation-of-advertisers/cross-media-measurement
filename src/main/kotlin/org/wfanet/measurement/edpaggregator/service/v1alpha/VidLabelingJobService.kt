@@ -39,6 +39,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededR
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
@@ -93,6 +94,7 @@ class VidLabelingJobService(
       throw RequiredFieldNotSetException("vid_labeling_job.raw_impression_upload_files")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    validateWorkItemDispatch(request.vidLabelingJob, "vid_labeling_job")
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -113,6 +115,10 @@ class VidLabelingJobService(
             vidLabelingJob = internalVidLabelingJob {
               cmmsModelLines += request.vidLabelingJob.cmmsModelLinesList
               rawImpressionUploadFiles += request.vidLabelingJob.rawImpressionUploadFilesList
+              if (request.vidLabelingJob.hasWorkItemDispatch()) {
+                workItemQueue = request.vidLabelingJob.workItemDispatch.workItemQueue
+                workItemParams = request.vidLabelingJob.workItemDispatch.workItemParams
+              }
             }
             requestId = request.requestId
           }
@@ -164,6 +170,7 @@ class VidLabelingJobService(
           )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+      validateWorkItemDispatch(createRequest.vidLabelingJob, "requests.$index.vid_labeling_job")
       if (createRequest.requestId.isEmpty()) {
         throw RequiredFieldNotSetException("requests.$index.request_id")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -191,6 +198,10 @@ class VidLabelingJobService(
                     cmmsModelLines += createRequest.vidLabelingJob.cmmsModelLinesList
                     rawImpressionUploadFiles +=
                       createRequest.vidLabelingJob.rawImpressionUploadFilesList
+                    if (createRequest.vidLabelingJob.hasWorkItemDispatch()) {
+                      workItemQueue = createRequest.vidLabelingJob.workItemDispatch.workItemQueue
+                      workItemParams = createRequest.vidLabelingJob.workItemDispatch.workItemParams
+                    }
                   }
                   requestId = createRequest.requestId
                 }
@@ -482,6 +493,25 @@ internal fun InternalVidLabelingJob.toPublic(): VidLabelingJob {
     if (source.etag.isNotEmpty()) {
       etag = source.etag
     }
+    if (source.workItemQueue.isNotEmpty() || !source.workItemParams.isEmpty) {
+      workItemDispatch =
+        VidLabelingJobKt.workItemDispatch {
+          workItemQueue = source.workItemQueue
+          workItemParams = source.workItemParams
+        }
+    }
+  }
+}
+
+private fun validateWorkItemDispatch(job: VidLabelingJob, fieldPrefix: String) {
+  if (!job.hasWorkItemDispatch()) return
+  if (job.workItemDispatch.workItemQueue.isEmpty()) {
+    throw RequiredFieldNotSetException("$fieldPrefix.work_item_dispatch.work_item_queue")
+      .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+  }
+  if (job.workItemDispatch.workItemParams.isEmpty) {
+    throw RequiredFieldNotSetException("$fieldPrefix.work_item_dispatch.work_item_params")
+      .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
   }
 }
 

@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
@@ -405,6 +406,63 @@ class FailedDispatchRetrierTest {
     assertThat(reconstructedParams.modelBlobPathsMap)
       .containsExactly(MODEL_LINE, "gs://models/original-model")
     assertThat(reconstructedParams.hasMemoizedParams()).isFalse()
+    verifyBlocking(rankerJobService, never()) { listRankerJobs(any()) }
+  }
+
+  @Test
+  fun `retryFailed reconstructs non-memoized Phase 2 with no original WorkItems`() = runBlocking {
+    stubFailedModelLine()
+    val persistedParams = vidLabelerParams {
+      rawImpressionUpload = UPLOAD_NAME
+      modelLines += MODEL_LINE
+      modelBlobPaths[MODEL_LINE] = "gs://models/original-model"
+    }
+    val dispatch = workItemDispatch {
+      workItemQueue = "q"
+      workItemParams =
+        WorkItemParams.newBuilder().setAppParams(persistedParams.pack()).build().toByteString()
+    }
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob {
+            name = VID_JOB_NAME
+            state = VidLabelingJob.State.FAILED
+            workItemDispatch = dispatch
+          }
+          vidLabelingJobs += vidLabelingJob {
+            name = SECOND_VID_JOB_NAME
+            state = VidLabelingJob.State.CREATED
+            workItemDispatch = dispatch
+          }
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      throw Status.NOT_FOUND.asRuntimeException()
+    }
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+      .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+    val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    assertThat(result.workItemsRepublished).isEqualTo(2)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(createCaptor.capture()) }
+    val paramsByJob =
+      createCaptor.allValues.associate { request ->
+        val params =
+          request.workItem.workItemParams
+            .unpack(WorkItemParams::class.java)
+            .appParams
+            .unpack(VidLabelerParams::class.java)
+        params.vidLabelingJob to params
+      }
+    assertThat(paramsByJob.keys).containsExactly(VID_JOB_NAME, SECOND_VID_JOB_NAME)
+    assertThat(paramsByJob.values.map { it.modelBlobPathsMap }.toSet())
+      .containsExactly(mapOf(MODEL_LINE to "gs://models/original-model"))
+    assertThat(createCaptor.allValues.map { it.workItem.queue }.toSet()).containsExactly("q")
     verifyBlocking(rankerJobService, never()) { listRankerJobs(any()) }
   }
 

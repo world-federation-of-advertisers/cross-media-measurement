@@ -21,12 +21,15 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.single
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
@@ -306,6 +309,8 @@ fun AsyncDatabaseClient.TransactionContext.insertVidLabelingJob(
   dataProviderResourceId: String,
   cmmsModelLines: List<String>,
   rawImpressionUploadFiles: List<String>,
+  workItemQueue: String,
+  workItemParams: ByteString,
   createRequestId: String,
 ) {
   bufferInsertMutation("VidLabelingJob") {
@@ -315,6 +320,12 @@ fun AsyncDatabaseClient.TransactionContext.insertVidLabelingJob(
     set("VidLabelingJobResourceId").to(vidLabelingJobResourceId)
     set("CmmsModelLines").toStringArray(cmmsModelLines)
     set("RawImpressionUploadFiles").toStringArray(rawImpressionUploadFiles)
+    if (workItemQueue.isNotEmpty()) {
+      set("WorkItemQueue").to(workItemQueue)
+    }
+    if (!workItemParams.isEmpty) {
+      set("WorkItemParams").to(workItemParams.toGcloudByteArray())
+    }
     if (createRequestId.isNotEmpty()) {
       set("CreateRequestId").to(createRequestId)
     }
@@ -355,6 +366,8 @@ private object VidLabelingJobEntity {
       VidLabelingJob.VidLabelingJobResourceId,
       VidLabelingJob.CmmsModelLines,
       VidLabelingJob.RawImpressionUploadFiles,
+      VidLabelingJob.WorkItemQueue,
+      VidLabelingJob.WorkItemParams,
       VidLabelingJob.CreateRequestId,
       VidLabelingJob.MarkSucceededRequestId,
       VidLabelingJob.MarkFailedRequestId,
@@ -375,6 +388,12 @@ private object VidLabelingJobEntity {
         vidLabelingJobResourceId = struct.getString("VidLabelingJobResourceId")
         cmmsModelLines += struct.getStringList("CmmsModelLines")
         rawImpressionUploadFiles += struct.getStringList("RawImpressionUploadFiles")
+        if (!struct.isNull("WorkItemQueue")) {
+          workItemQueue = struct.getString("WorkItemQueue")
+        }
+        if (!struct.isNull("WorkItemParams")) {
+          workItemParams = struct.getBytes("WorkItemParams").toByteArray().toByteString()
+        }
         state = struct.getProtoEnum("State", State::forNumber)
         createTime = struct.getTimestamp("CreateTime").toProto()
         updateTime = struct.getTimestamp("UpdateTime").toProto()

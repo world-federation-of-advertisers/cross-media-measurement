@@ -18,6 +18,7 @@ import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -45,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.VidLabelingJobKey
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
@@ -113,11 +115,16 @@ class VidLabelingJobServiceTest {
     runBlocking<Unit> {
       createParentUpload(DATA_PROVIDER_ID, RAW_IMPRESSION_UPLOAD_ID)
       val startTime = Instant.now()
+      val dispatch = workItemDispatch {
+        workItemQueue = "queues/vid-labeler"
+        workItemParams = ByteString.copyFromUtf8("serialized-work-item-params")
+      }
       val request = createVidLabelingJobRequest {
         parent = UPLOAD_KEY.toName()
         vidLabelingJob = vidLabelingJob {
           cmmsModelLines += CMMS_MODEL_LINE
           rawImpressionUploadFiles += FILE_1
+          workItemDispatch = dispatch
         }
         requestId = REQUEST_ID
       }
@@ -130,6 +137,7 @@ class VidLabelingJobServiceTest {
       assertThat(job.state).isEqualTo(VidLabelingJob.State.CREATED)
       assertThat(job.cmmsModelLinesList).containsExactly(CMMS_MODEL_LINE)
       assertThat(job.rawImpressionUploadFilesList).containsExactly(FILE_1)
+      assertThat(job.workItemDispatch).isEqualTo(dispatch)
       assertThat(job.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(job.updateTime).isEqualTo(job.createTime)
       assertThat(job.etag).isNotEmpty()
@@ -267,6 +275,62 @@ class VidLabelingJobServiceTest {
     }
 
   @Test
+  fun `createVidLabelingJob rejects WorkItem dispatch without queue`() = runBlocking {
+    val request = createVidLabelingJobRequest {
+      requestId = UUID.randomUUID().toString()
+      parent = UPLOAD_KEY.toName()
+      vidLabelingJob = vidLabelingJob {
+        cmmsModelLines += CMMS_MODEL_LINE
+        rawImpressionUploadFiles += FILE_1
+        workItemDispatch = workItemDispatch {
+          workItemParams = ByteString.copyFromUtf8("serialized-work-item-params")
+        }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createVidLabelingJob(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "vid_labeling_job.work_item_dispatch.work_item_queue"
+        }
+      )
+  }
+
+  @Test
+  fun `createVidLabelingJob rejects WorkItem dispatch without params`() = runBlocking {
+    val request = createVidLabelingJobRequest {
+      requestId = UUID.randomUUID().toString()
+      parent = UPLOAD_KEY.toName()
+      vidLabelingJob = vidLabelingJob {
+        cmmsModelLines += CMMS_MODEL_LINE
+        rawImpressionUploadFiles += FILE_1
+        workItemDispatch = workItemDispatch { workItemQueue = "queues/vid-labeler" }
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { service.createVidLabelingJob(request) }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception.errorInfo)
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] =
+            "vid_labeling_job.work_item_dispatch.work_item_params"
+        }
+      )
+  }
+
+  @Test
   fun `createVidLabelingJob throws INVALID_ARGUMENT for malformed requestId`() =
     runBlocking<Unit> {
       val request = createVidLabelingJobRequest {
@@ -326,6 +390,10 @@ class VidLabelingJobServiceTest {
           vidLabelingJob = vidLabelingJob {
             cmmsModelLines += CMMS_MODEL_LINE
             rawImpressionUploadFiles += FILE_1
+            workItemDispatch = workItemDispatch {
+              workItemQueue = "queues/vid-labeler"
+              workItemParams = ByteString.copyFromUtf8("serialized-work-item-params")
+            }
           }
         }
         requests += createVidLabelingJobRequest {
@@ -342,6 +410,8 @@ class VidLabelingJobServiceTest {
       assertThat(response.vidLabelingJobsList).hasSize(2)
       assertThat(response.vidLabelingJobsList.flatMap { it.cmmsModelLinesList })
         .containsExactly(CMMS_MODEL_LINE, CMMS_MODEL_LINE_2)
+      assertThat(response.vidLabelingJobsList.first().workItemDispatch.workItemQueue)
+        .isEqualTo("queues/vid-labeler")
     }
 
   @Test

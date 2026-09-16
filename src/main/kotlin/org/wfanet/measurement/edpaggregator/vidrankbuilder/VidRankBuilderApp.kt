@@ -262,6 +262,7 @@ class VidRankBuilderApp(
       )
       // Shared payload at the top level (both Phase-2 paths); the memoized WorkItem covers exactly
       // one model line. `vid_labeling_job` is stamped per fan-out WorkItem by the ranker.
+      rawImpressionUpload = params.rawImpressionUpload
       modelLines += params.modelLine
       modelBlobPaths.put(params.modelLine, params.modelBlobPath)
       modelStorageParams =

@@ -125,6 +125,8 @@ class SpannerVidLabelingJobService(
             dataProviderResourceId = dataProviderResourceId,
             cmmsModelLines = job.cmmsModelLinesList,
             rawImpressionUploadFiles = job.rawImpressionUploadFilesList,
+            workItemQueue = job.workItemQueue,
+            workItemParams = job.workItemParams,
             createRequestId = request.requestId,
           )
 
@@ -205,6 +207,7 @@ class SpannerVidLabelingJobService(
           )
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+      validateWorkItemDispatch(subRequest.vidLabelingJob, "requests[$index].vid_labeling_job")
 
       val requestId = subRequest.requestId
       if (requestId.isEmpty()) {
@@ -259,6 +262,8 @@ class SpannerVidLabelingJobService(
                 dataProviderResourceId = dataProviderResourceId,
                 cmmsModelLines = subRequest.vidLabelingJob.cmmsModelLinesList,
                 rawImpressionUploadFiles = subRequest.vidLabelingJob.rawImpressionUploadFilesList,
+                workItemQueue = subRequest.vidLabelingJob.workItemQueue,
+                workItemParams = subRequest.vidLabelingJob.workItemParams,
                 createRequestId = subRequest.requestId,
               )
 
@@ -669,6 +674,7 @@ class SpannerVidLabelingJobService(
     if (request.vidLabelingJob.rawImpressionUploadFilesList.isEmpty()) {
       throw RequiredFieldNotSetException("vid_labeling_job.raw_impression_upload_files")
     }
+    validateWorkItemDispatch(request.vidLabelingJob, "vid_labeling_job")
     if (request.requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
     }
@@ -676,6 +682,16 @@ class SpannerVidLabelingJobService(
       UUID.fromString(request.requestId)
     } catch (e: IllegalArgumentException) {
       throw InvalidFieldValueException("request_id", e)
+    }
+  }
+
+  private fun validateWorkItemDispatch(job: VidLabelingJob, fieldPrefix: String) {
+    if (job.workItemQueue.isEmpty() && job.workItemParams.isEmpty) return
+    if (job.workItemQueue.isEmpty()) {
+      throw RequiredFieldNotSetException("$fieldPrefix.work_item_queue")
+    }
+    if (job.workItemParams.isEmpty) {
+      throw RequiredFieldNotSetException("$fieldPrefix.work_item_params")
     }
   }
 

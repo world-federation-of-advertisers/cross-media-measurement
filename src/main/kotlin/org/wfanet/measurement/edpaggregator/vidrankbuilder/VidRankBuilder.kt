@@ -38,6 +38,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -52,6 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
@@ -376,6 +378,12 @@ class VidRankBuilder(
                   vidLabelingJob = vidLabelingJob {
                     cmmsModelLines += modelLine
                     rawImpressionUploadFiles += batch
+                    workItemDispatch = workItemDispatch {
+                      workItemQueue = vidLabelerQueue
+                      workItemParams =
+                        workItemParams { appParams = vidLabelerParamsTemplate.pack() }
+                          .toByteString()
+                    }
                   }
                   requestId = labelingJobRequestId(batchIndex)
                 }
@@ -399,7 +407,28 @@ class VidRankBuilder(
    * redelivered last-job-out is a no-op.
    */
   private suspend fun publishVidLabelerWorkItem(job: VidLabelingJob) {
-    val params = vidLabelerParamsTemplate.copy { vidLabelingJob = job.name }
+    val dispatch =
+      if (job.hasWorkItemDispatch()) {
+        job.workItemDispatch
+      } else {
+        workItemDispatch {
+          workItemQueue = vidLabelerQueue
+          workItemParams =
+            workItemParams { appParams = vidLabelerParamsTemplate.pack() }.toByteString()
+        }
+      }
+    val persistedWorkItemParams = WorkItemParams.parseFrom(dispatch.workItemParams)
+    check(persistedWorkItemParams.appParams.`is`(VidLabelerParams::class.java)) {
+      "Persisted WorkItem parameters for ${job.name} are not VidLabelerParams"
+    }
+    val persistedParams = persistedWorkItemParams.appParams.unpack(VidLabelerParams::class.java)
+    check(
+      persistedParams.rawImpressionUpload == rawImpressionUpload &&
+        persistedParams.modelLinesList.toSet() == job.cmmsModelLinesList.toSet()
+    ) {
+      "Persisted WorkItem parameters do not belong to ${job.name}"
+    }
+    val params = persistedParams.copy { vidLabelingJob = job.name }
     val workItemId = WorkItemIds.forVidLabeler(job.name)
     try {
       rpcThrottlers.controlPlane.onReady {
@@ -407,8 +436,9 @@ class VidRankBuilder(
           createWorkItemRequest {
             this.workItemId = workItemId
             workItem = workItem {
-              queue = vidLabelerQueue
-              workItemParams = workItemParams { appParams = params.pack() }.pack()
+              queue = dispatch.workItemQueue
+              workItemParams =
+                persistedWorkItemParams.toBuilder().setAppParams(params.pack()).build().pack()
             }
           }
         )

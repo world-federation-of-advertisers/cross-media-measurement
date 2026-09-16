@@ -33,6 +33,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
@@ -45,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -72,6 +74,7 @@ private const val QUEUE = "queues/vid-labeler"
 
 private val VID_LABELER_TEMPLATE = vidLabelerParams {
   dataProvider = "dataProviders/dp"
+  rawImpressionUpload = UPLOAD
   modelLines += MODEL_LINE
   modelBlobPaths.put(MODEL_LINE, "model/blob")
   memoizedParams = VidLabelerParamsKt.memoizedParams {}
@@ -228,6 +231,7 @@ class VidRankBuilderTest {
     workItemsStub: WorkItemsCoroutineStub = mock(),
     maxFileBatchSizeBytes: Long = 1_000_000_000,
     vidLabelerQueue: String = QUEUE,
+    vidLabelerParamsTemplate: VidLabelerParams = VID_LABELER_TEMPLATE,
     subpoolMapBlobUris: Map<Long, String> = this.subpoolMapBlobUris,
     subpoolRankedSizes: Map<Long, Int> = this.subpoolRankedSizes,
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
@@ -244,7 +248,7 @@ class VidRankBuilderTest {
       rankerJob = RANKER_JOB,
       subpoolMapBlobUris = subpoolMapBlobUris,
       subpoolRankedSizes = subpoolRankedSizes,
-      vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
+      vidLabelerParamsTemplate = vidLabelerParamsTemplate,
       vidLabelerQueue = vidLabelerQueue,
       maxFileBatchSizeBytes = maxFileBatchSizeBytes,
       rpcThrottlers = rpcThrottlers,
@@ -307,6 +311,14 @@ class VidRankBuilderTest {
       assertThat(params.vidLabelingJob).isNotEmpty()
       assertThat(createdFileBatches(jobRequests).single())
         .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1", "$UPLOAD/files/2")
+      val dispatch = jobRequests.single().requestsList.single().vidLabelingJob.workItemDispatch
+      assertThat(dispatch.workItemQueue).isEqualTo(QUEUE)
+      val persistedParams =
+        WorkItemParams.parseFrom(dispatch.workItemParams)
+          .appParams
+          .unpack(VidLabelerParams::class.java)
+      assertThat(persistedParams.rawImpressionUpload).isEqualTo(UPLOAD)
+      assertThat(persistedParams.vidLabelingJob).isEmpty()
       // Template fields carry through.
       assertThat(params.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
@@ -314,6 +326,48 @@ class VidRankBuilderTest {
       assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
       assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
+    }
+
+  @Test
+  fun `last job out publishes from the persisted job snapshot`() =
+    runBlocking<Unit> {
+      val winningTemplate =
+        VID_LABELER_TEMPLATE.copy { modelBlobPaths[MODEL_LINE] = "models/winning-model" }
+      val winningDispatch = workItemDispatch {
+        workItemQueue = "queues/winning-vid-labeler"
+        workItemParams =
+          WorkItemParams.newBuilder().setAppParams(winningTemplate.pack()).build().toByteString()
+      }
+      val vidLabelingJobs =
+        mock<VidLabelingJobServiceCoroutineStub> {
+          onBlocking { batchCreateVidLabelingJobs(any(), any()) } doAnswer
+            { invocation ->
+              val request = invocation.getArgument<BatchCreateVidLabelingJobsRequest>(0)
+              batchCreateVidLabelingJobsResponse {
+                request.requestsList.forEachIndexed { index, createRequest ->
+                  vidLabelingJobs +=
+                    createRequest.vidLabelingJob.copy {
+                      name = "${request.parent}/vidLabelingJobs/job$index"
+                      workItemDispatch = winningDispatch
+                    }
+                }
+              }
+            }
+        }
+      val published = mutableListOf<CreateWorkItemRequest>()
+
+      builder(
+          rankerMock(),
+          rankerJobsMock(isLastJob = true),
+          vidLabelingJobsStub = vidLabelingJobs,
+          workItemsStub = recordingWorkItems(published),
+        )
+        .run()
+
+      assertThat(published).hasSize(1)
+      assertThat(published.single().workItem.queue).isEqualTo("queues/winning-vid-labeler")
+      assertThat(publishedParams(published.single()).modelBlobPathsMap)
+        .containsExactly(MODEL_LINE, "models/winning-model")
     }
 
   @Test

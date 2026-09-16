@@ -91,3 +91,6 @@ databaseChangeLog:
   - include:
       file: add-raw-upload-model-line-phase-zero-dispatch.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-vid-labeling-job-work-item-dispatch.sql
+      relativeToChangeLogFile: true

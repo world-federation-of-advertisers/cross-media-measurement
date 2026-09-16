@@ -53,6 +53,15 @@ message VidLabelingJob {
     FAILED = 3;
   }
 
+  // Immutable information needed to publish this job's WorkItem.
+  message WorkItemDispatch {
+    // Secure Computation queue for the WorkItem.
+    string work_item_queue = 1 [(google.api.field_behavior) = REQUIRED];
+
+    // Serialized WorkItem parameters without the server-assigned job name.
+    bytes work_item_params = 2 [(google.api.field_behavior) = REQUIRED];
+  }
+
   // Resource name.
   string name = 1 [(google.api.field_behavior) = IDENTIFIER];
 
@@ -90,4 +99,8 @@ message VidLabelingJob {
 
   // Entity tag for optimistic concurrency control.
   string etag = 8 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // WorkItem publication information captured when this job is created.
+  WorkItemDispatch work_item_dispatch = 9
+      [(google.api.field_behavior) = IMMUTABLE];
 }

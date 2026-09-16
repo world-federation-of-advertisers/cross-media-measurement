@@ -51,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
@@ -86,12 +87,13 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * different model lines proceed in parallel.
  *
  * Both paths are handled: a **memoized** model line dispatches Phase-0 (pre-creating a
- * `PoolAssignmentJob` per shard, publishing one SubpoolAssigner `WorkItem` per shard on the
- * [poolAssignerQueueName] queue, then transitioning to `POOL_ASSIGNING`); the **non-memoized**
- * model lines of an upload are **bundled together** and dispatched to Phase-2 directly — the
- * upload's `RawImpressionUploadFile`s are bin-packed by size into one `VidLabelingJob` per batch
- * (each job covering every bundled model line), one VidLabeler `WorkItem` is published per job on
- * [queueName], then each bundled model line transitions to `LABELING`.
+ * `POOL_ASSIGNING` claim with an immutable dispatch snapshot, creating one `PoolAssignmentJob` per
+ * shard, then publishing one SubpoolAssigner `WorkItem` per shard on the [poolAssignerQueueName]
+ * queue); the **non-memoized** model lines of an upload are **bundled together** and dispatched to
+ * Phase-2 directly — the upload's `RawImpressionUploadFile`s are bin-packed by size into one
+ * `VidLabelingJob` per batch (each job covering every bundled model line), one VidLabeler
+ * `WorkItem` is published per job on [queueName], then each bundled model line transitions to
+ * `LABELING`.
  *
  * Because the fast path and the monitor can run concurrently, two callers can momentarily both pick
  * the same model line. Each transition is therefore guarded by an etag compare-and-swap: the first
@@ -249,14 +251,17 @@ class VidLabelingDispatchSequencer(
     poolAssignmentJobs: List<PoolAssignmentJob>,
   ): Boolean {
     val persistedDispatch =
-      findPersistedPhaseZeroDispatch(uploadName, modelLine.cmmsModelLine, poolAssignmentJobs)
+      if (modelLine.hasPhaseZeroDispatch()) {
+        decodePhaseZeroDispatch(modelLine.phaseZeroDispatch)
+      } else {
+        findPersistedPhaseZeroDispatch(uploadName, modelLine.cmmsModelLine, poolAssignmentJobs)
+      }
     if (persistedDispatch != null) {
       return resumePersistedMemoizedDispatch(
         uploadName,
         modelLine,
         poolAssignmentJobs,
-        persistedDispatch.queue,
-        persistedDispatch.params,
+        persistedDispatch,
       )
     }
     val shardInfo = resolveShardInfo(modelLine.cmmsModelLine) ?: return false
@@ -266,9 +271,24 @@ class VidLabelingDispatchSequencer(
 
   /** The original queue and parameters copied from an already-published Phase-0 WorkItem. */
   private data class PersistedPhaseZeroDispatch(
-    val queue: String,
+    val proto: RawImpressionUploadModelLine.PhaseZeroDispatch,
     val params: SubpoolAssignerParams,
-  )
+  ) {
+    val queue: String
+      get() = proto.workItemQueue
+  }
+
+  private fun decodePhaseZeroDispatch(
+    dispatch: RawImpressionUploadModelLine.PhaseZeroDispatch
+  ): PersistedPhaseZeroDispatch {
+    check(dispatch.workItemQueue.isNotEmpty()) { "Persisted Phase-0 WorkItem queue is empty" }
+    check(!dispatch.workItemParams.isEmpty) { "Persisted Phase-0 WorkItem parameters are empty" }
+    val params =
+      WorkItemParams.parseFrom(dispatch.workItemParams)
+        .appParams
+        .unpack(SubpoolAssignerParams::class.java)
+    return PersistedPhaseZeroDispatch(dispatch, params)
+  }
 
   /**
    * Returns the first original Phase-0 publication for this dispatch. A partial publication has at
@@ -291,12 +311,13 @@ class VidLabelingDispatchSequencer(
           if (e.status.code == Status.Code.NOT_FOUND) continue
           throw e
         }
-      val params =
-        existing.workItemParams
-          .unpack(WorkItemParams::class.java)
-          .appParams
-          .unpack(SubpoolAssignerParams::class.java)
-      return PersistedPhaseZeroDispatch(existing.queue, params)
+      val outerParams = existing.workItemParams.unpack(WorkItemParams::class.java)
+      return decodePhaseZeroDispatch(
+        phaseZeroDispatch {
+          workItemQueue = existing.queue
+          workItemParams = outerParams.toByteString()
+        }
+      )
     }
     return null
   }
@@ -306,9 +327,9 @@ class VidLabelingDispatchSequencer(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     poolAssignmentJobs: List<PoolAssignmentJob>,
-    queue: String,
-    persistedParams: SubpoolAssignerParams,
+    persistedDispatch: PersistedPhaseZeroDispatch,
   ): Boolean {
+    val persistedParams = persistedDispatch.params
     check(persistedParams.rawImpressionUpload == uploadName) {
       "Persisted Phase-0 parameters belong to ${persistedParams.rawImpressionUpload}, not " +
         uploadName
@@ -317,34 +338,37 @@ class VidLabelingDispatchSequencer(
       "Persisted Phase-0 parameters belong to ${persistedParams.modelLine}, not " +
         modelLine.cmmsModelLine
     }
-    val jobsByShard = poolAssignmentJobs.associateBy { it.shardIndex }
+    val claimed =
+      markPoolAssigning(modelLine.name, modelLine.etag, persistedDispatch.proto) ?: return false
+    val authoritativeDispatch =
+      if (claimed.hasPhaseZeroDispatch()) {
+        decodePhaseZeroDispatch(claimed.phaseZeroDispatch)
+      } else {
+        persistedDispatch
+      }
+    val authoritativeParams = authoritativeDispatch.params
     check(
-      jobsByShard.size == persistedParams.totalShards &&
-        jobsByShard.keys == (0 until persistedParams.totalShards).toSet()
+      authoritativeParams.rawImpressionUpload == uploadName &&
+        authoritativeParams.modelLine == modelLine.cmmsModelLine &&
+        authoritativeParams.totalShards > 0
     ) {
-      "Expected ${persistedParams.totalShards} persisted PoolAssignmentJobs for " +
-        "${modelLine.cmmsModelLine}; found shards ${jobsByShard.keys.sorted()}"
+      "Persisted Phase-0 parameters do not match ${modelLine.name}"
     }
-    if (
-      !markPoolAssigning(
-        modelLine.name,
-        modelLine.etag,
-        phaseZeroDispatch {
-          workItemQueue = queue
-          this.workItemParams = workItemParams { appParams = persistedParams.pack() }.toByteString()
-        },
+    val jobsByShard =
+      ensurePoolAssignmentJobs(
+        uploadName,
+        modelLine.cmmsModelLine,
+        authoritativeParams.totalShards,
+        poolAssignmentJobs,
       )
-    ) {
-      return false
-    }
-    for (shardIndex in 0 until persistedParams.totalShards) {
+    for (shardIndex in 0 until authoritativeParams.totalShards) {
       val job = checkNotNull(jobsByShard[shardIndex])
       createSubpoolAssignerWorkItem(
-        persistedParams.copy {
-          poolAssignmentJob = job.name
+        authoritativeParams.copy {
+          poolAssignmentJob = job
           this.shardIndex = shardIndex
         },
-        queue,
+        authoritativeDispatch.queue,
       )
     }
     return true
@@ -417,11 +441,17 @@ class VidLabelingDispatchSequencer(
       return
     }
 
+    val dispatchParams =
+      buildVidLabelerParams(uploadName, modelLineNames, modelBlobPathByLine, resolvedModelLines)
+    val dispatch = workItemDispatch {
+      workItemQueue = queueName
+      workItemParams = workItemParams { appParams = dispatchParams.pack() }.toByteString()
+    }
     val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
     val labelingJobs: List<VidLabelingJob> =
-      createVidLabelingJobs(uploadName, modelLineNames, batches)
+      createVidLabelingJobs(uploadName, modelLineNames, batches, dispatch)
     for (job in labelingJobs) {
-      createWorkItem(uploadName, modelLineNames, modelBlobPathByLine, resolvedModelLines, job.name)
+      createWorkItem(uploadName, job, dispatch)
     }
     for (bundled in bundle) markLabeling(bundled.modelLine.name, bundled.modelLine.etag)
   }
@@ -459,6 +489,7 @@ class VidLabelingDispatchSequencer(
     uploadName: String,
     modelLineNames: List<String>,
     batches: List<List<String>>,
+    dispatch: VidLabelingJob.WorkItemDispatch,
   ): List<VidLabelingJob> {
     val created = mutableListOf<VidLabelingJob>()
     for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
@@ -473,6 +504,7 @@ class VidLabelingDispatchSequencer(
                   vidLabelingJob = vidLabelingJob {
                     cmmsModelLines += modelLineNames
                     rawImpressionUploadFiles += batch
+                    workItemDispatch = dispatch
                   }
                   requestId = RequestIds.forVidLabelingJob(uploadName, modelLineNames, batchIndex)
                 }
@@ -490,9 +522,9 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Memoized (Phase-0) dispatch: pre-create a `PoolAssignmentJob` per shard, transition the model
-   * line to `POOL_ASSIGNING`, then publish one SubpoolAssigner `WorkItem` per shard on
-   * [poolAssignerQueueName] (each carrying the resource name of its pre-created job).
+   * Memoized (Phase-0) dispatch: persist the `POOL_ASSIGNING` claim and dispatch snapshot, create a
+   * `PoolAssignmentJob` per shard, then publish one SubpoolAssigner `WorkItem` per shard on
+   * [poolAssignerQueueName].
    *
    * The state claim precedes WorkItem publication so a worker never observes a `CREATED` parent.
    * Every create is idempotent (deterministic `request_id` for the jobs, deterministic `workItemId`
@@ -533,20 +565,6 @@ class VidLabelingDispatchSequencer(
     // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
     val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
 
-    // Pre-create the shard rows first; the server assigns each a name we thread into its WorkItem.
-    val poolAssignmentJobsByShard: Map<Int, String> =
-      precreatedJobs?.associate { it.shardIndex to it.name }
-        ?: createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
-    val totalShards = precreatedJobs?.size ?: numberOfShards
-    check(
-      poolAssignmentJobsByShard.size == totalShards &&
-        poolAssignmentJobsByShard.keys == (0 until totalShards).toSet()
-    ) {
-      "Expected $totalShards PoolAssignmentJobs for ${modelLine.cmmsModelLine}; found shards " +
-        poolAssignmentJobsByShard.keys.sorted()
-    }
-
-    val firstPoolAssignmentJob = checkNotNull(poolAssignmentJobsByShard[0])
     val dispatchParams =
       buildSubpoolAssignerParams(
         uploadName,
@@ -554,25 +572,40 @@ class VidLabelingDispatchSequencer(
         shardInfo.modelBlobPath,
         resolvedModelLine,
         modelLineConfig,
-        firstPoolAssignmentJob,
+        poolAssignmentJob = "",
         shardIndex = 0,
-        totalShards = totalShards,
+        totalShards = numberOfShards,
       )
 
-    // Claim the parent and persist the immutable dispatch snapshot before workers can consume
-    // their messages. This makes recovery possible even if publication stops before shard 0.
-    if (
-      !markPoolAssigning(
-        modelLine.name,
-        modelLine.etag,
-        phaseZeroDispatch {
-          workItemQueue = poolAssignerQueueName
-          this.workItemParams = workItemParams { appParams = dispatchParams.pack() }.toByteString()
-        },
-      )
-    ) {
-      return false
+    // Claim the parent and persist the immutable dispatch snapshot before creating jobs or worker
+    // messages. Every concurrent dispatcher must use the snapshot returned by this transition.
+    val requestedDispatch = phaseZeroDispatch {
+      workItemQueue = poolAssignerQueueName
+      this.workItemParams = workItemParams { appParams = dispatchParams.pack() }.toByteString()
     }
+    val claimed =
+      markPoolAssigning(modelLine.name, modelLine.etag, requestedDispatch) ?: return false
+    val authoritativeDispatch =
+      if (claimed.hasPhaseZeroDispatch()) {
+        decodePhaseZeroDispatch(claimed.phaseZeroDispatch)
+      } else {
+        decodePhaseZeroDispatch(requestedDispatch)
+      }
+    check(
+      authoritativeDispatch.params.rawImpressionUpload == uploadName &&
+        authoritativeDispatch.params.modelLine == modelLine.cmmsModelLine &&
+        authoritativeDispatch.params.totalShards > 0
+    ) {
+      "Persisted Phase-0 parameters do not match ${modelLine.name}"
+    }
+    val totalShards = authoritativeDispatch.params.totalShards
+    val poolAssignmentJobsByShard =
+      ensurePoolAssignmentJobs(
+        uploadName,
+        modelLine.cmmsModelLine,
+        totalShards,
+        precreatedJobs.orEmpty(),
+      )
 
     for (shardIndex in 0 until totalShards) {
       val poolAssignmentJob: String =
@@ -581,11 +614,11 @@ class VidLabelingDispatchSequencer(
             modelLine.cmmsModelLine
         }
       createSubpoolAssignerWorkItem(
-        dispatchParams.copy {
+        authoritativeDispatch.params.copy {
           this.poolAssignmentJob = poolAssignmentJob
           this.shardIndex = shardIndex
         },
-        poolAssignerQueueName,
+        authoritativeDispatch.queue,
       )
     }
     return true
@@ -705,13 +738,12 @@ class VidLabelingDispatchSequencer(
    * name), not an AIP-155 `request_id` — `CreateWorkItemRequest` has no `request_id` field. A retry
    * therefore returns `ALREADY_EXISTS` (handled below) rather than the cached response.
    */
-  private suspend fun createWorkItem(
+  private fun buildVidLabelerParams(
     uploadName: String,
     modelLineNames: List<String>,
     modelBlobPathByLine: Map<String, String>,
     resolvedModelLines: Map<String, ModelLine>,
-    vidLabelingJobName: String,
-  ) {
+  ): VidLabelerParams {
     // Resolve per-line config OUTSIDE the proto builder: inside `vidLabelerParams { }` the receiver
     // shadows `modelLineConfigs` / `modelBlobPaths` with its own (empty) builder maps.
     val lineConfigs: Map<String, VidLabelerParams.ModelLineConfig> =
@@ -749,28 +781,48 @@ class VidLabelingDispatchSequencer(
     // Start from the shared template (data provider, storage params, vid-repo connection, and the
     // model-storage project) via `copy { }` so any field later added to the template automatically
     // flows onto non-memoized WorkItems too; only the per-WorkItem fields are set below.
-    val params =
-      vidLabelerParamsTemplate.copy {
-        modelLineConfigs.putAll(lineConfigs)
-        for (modelLineName in modelLineNames) {
-          modelBlobPaths[modelLineName] =
-            requireNotNull(modelBlobPathByLine[modelLineName]) {
-              "No model blob path for model line: $modelLineName"
-            }
-        }
-        // The bundled model lines this WorkItem labels. `override_model_lines` is reserved for the
-        // operator-header override and is left unset here.
-        modelLines += modelLineNames
-        rawImpressionUpload = uploadName
-        vidLabelingJob = vidLabelingJobName
+    return vidLabelerParamsTemplate.copy {
+      modelLineConfigs.putAll(lineConfigs)
+      for (modelLineName in modelLineNames) {
+        modelBlobPaths[modelLineName] =
+          requireNotNull(modelBlobPathByLine[modelLineName]) {
+            "No model blob path for model line: $modelLineName"
+          }
       }
+      // The bundled model lines this WorkItem labels. `override_model_lines` is reserved for the
+      // operator-header override and is left unset here.
+      modelLines += modelLineNames
+      rawImpressionUpload = uploadName
+    }
+  }
 
-    val workItemId = WorkItemIds.forVidLabeler(vidLabelingJobName)
+  /** Publishes [job] from its persisted dispatch snapshot. */
+  private suspend fun createWorkItem(
+    uploadName: String,
+    job: VidLabelingJob,
+    fallbackDispatch: VidLabelingJob.WorkItemDispatch,
+  ) {
+    val dispatch = if (job.hasWorkItemDispatch()) job.workItemDispatch else fallbackDispatch
+    val persistedWorkItemParams = WorkItemParams.parseFrom(dispatch.workItemParams)
+    check(persistedWorkItemParams.appParams.`is`(VidLabelerParams::class.java)) {
+      "Persisted WorkItem parameters for ${job.name} are not VidLabelerParams"
+    }
+    val persistedParams = persistedWorkItemParams.appParams.unpack(VidLabelerParams::class.java)
+    check(
+      persistedParams.rawImpressionUpload == uploadName &&
+        persistedParams.modelLinesList.toSet() == job.cmmsModelLinesList.toSet()
+    ) {
+      "Persisted WorkItem parameters do not belong to ${job.name}"
+    }
+    val params = persistedParams.copy { vidLabelingJob = job.name }
+
+    val workItemId = WorkItemIds.forVidLabeler(job.name)
     val request = createWorkItemRequest {
       this.workItemId = workItemId
       workItem = workItem {
-        queue = queueName
-        workItemParams = workItemParams { appParams = params.pack() }.pack()
+        queue = dispatch.workItemQueue
+        workItemParams =
+          persistedWorkItemParams.toBuilder().setAppParams(params.pack()).build().pack()
       }
     }
     try {
@@ -784,7 +836,7 @@ class VidLabelingDispatchSequencer(
       }
       throw e
     }
-    logger.info("Created WorkItem $workItemId for job $vidLabelingJobName")
+    logger.info("Created WorkItem $workItemId for job ${job.name}")
   }
 
   private suspend fun markLabeling(modelLineName: String, etag: String) {
@@ -814,7 +866,7 @@ class VidLabelingDispatchSequencer(
     modelLineName: String,
     etag: String,
     dispatch: RawImpressionUploadModelLine.PhaseZeroDispatch,
-  ): Boolean =
+  ): RawImpressionUploadModelLine? =
     transitionWithFreshEtag(
       modelLineName,
       etag,
@@ -846,13 +898,12 @@ class VidLabelingDispatchSequencer(
     sourceState: RawImpressionUploadModelLine.State,
     completedStates: Set<RawImpressionUploadModelLine.State>,
     targetState: String,
-    transition: suspend (etag: String) -> Unit,
-  ): Boolean {
+    transition: suspend (etag: String) -> RawImpressionUploadModelLine,
+  ): RawImpressionUploadModelLine? {
     var etag = initialEtag
     while (true) {
       try {
-        transition(etag)
-        return true
+        return transition(etag)
       } catch (e: StatusException) {
         if (!isConcurrentClaimLoss(e)) throw e
 
@@ -867,11 +918,11 @@ class VidLabelingDispatchSequencer(
             "Skipping $targetState for $modelLineName: a concurrent dispatch advanced it to " +
               current.state
           )
-          return true
+          return current
         }
         if (current.state == RawImpressionUploadModelLine.State.FAILED) {
           logger.info("Skipping $targetState for $modelLineName: the model line is FAILED")
-          return false
+          return null
         }
         if (current.state != sourceState) throw e
 
@@ -905,9 +956,10 @@ class VidLabelingDispatchSequencer(
   private suspend fun createPoolAssignmentJobs(
     uploadName: String,
     modelLineName: String,
+    totalShards: Int,
   ): Map<Int, String> {
     val jobsByShard = mutableMapOf<Int, String>()
-    for (shardChunk in (0 until numberOfShards).chunked(POOL_ASSIGNMENT_JOB_BATCH_SIZE)) {
+    for (shardChunk in (0 until totalShards).chunked(POOL_ASSIGNMENT_JOB_BATCH_SIZE)) {
       val request = batchCreatePoolAssignmentJobsRequest {
         parent = uploadName
         for (shardIndex in shardChunk) {
@@ -928,6 +980,29 @@ class VidLabelingDispatchSequencer(
       for (job in response.poolAssignmentJobsList) {
         jobsByShard[job.shardIndex] = job.name
       }
+    }
+    return jobsByShard
+  }
+
+  /** Returns the complete deterministic Phase-0 job set, creating any missing rows. */
+  private suspend fun ensurePoolAssignmentJobs(
+    uploadName: String,
+    modelLineName: String,
+    totalShards: Int,
+    existingJobs: List<PoolAssignmentJob>,
+  ): Map<Int, String> {
+    val existingByShard = existingJobs.associateBy { it.shardIndex }
+    val jobsByShard =
+      if (
+        existingByShard.size == totalShards && existingByShard.keys == (0 until totalShards).toSet()
+      ) {
+        existingByShard.mapValues { it.value.name }
+      } else {
+        createPoolAssignmentJobs(uploadName, modelLineName, totalShards)
+      }
+    check(jobsByShard.size == totalShards && jobsByShard.keys == (0 until totalShards).toSet()) {
+      "Expected $totalShards PoolAssignmentJobs for $modelLineName; found shards " +
+        jobsByShard.keys.sorted()
     }
     return jobsByShard
   }

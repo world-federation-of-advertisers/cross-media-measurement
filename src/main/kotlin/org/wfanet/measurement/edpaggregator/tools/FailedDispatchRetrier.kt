@@ -332,7 +332,7 @@ class FailedDispatchRetrier(
     }
   }
 
-  /** Rebuilds missing Phase-2 WorkItems from any sibling publication for the same fan-out. */
+  /** Rebuilds missing Phase-2 WorkItems from their job snapshot or a sibling publication. */
   private suspend fun reconstructPhaseTwoSources(
     uploadName: String,
     cmmsModelLine: String,
@@ -341,23 +341,12 @@ class FailedDispatchRetrier(
   ): RetrySources? {
     val jobs = listVidLabelingJobs(uploadName, cmmsModelLine)
     val jobsByWorkItemId = jobs.associateBy { WorkItemIds.forVidLabeler(it.name) }
-    var templateWorkItem = existingTargetWorkItems.values.firstOrNull()
-    if (templateWorkItem == null) {
+    var fallbackWorkItem = existingTargetWorkItems.values.firstOrNull()
+    if (fallbackWorkItem == null) {
       for (job in jobs) {
-        templateWorkItem = getWorkItemOrNull(WorkItemIds.forVidLabeler(job.name))
-        if (templateWorkItem != null) break
+        fallbackWorkItem = getWorkItemOrNull(WorkItemIds.forVidLabeler(job.name))
+        if (fallbackWorkItem != null) break
       }
-    }
-    val template = templateWorkItem ?: return null
-    if (!template.workItemParams.`is`(WorkItemParams::class.java)) return null
-    val workItemParams = template.workItemParams.unpack(WorkItemParams::class.java)
-    if (!workItemParams.appParams.`is`(VidLabelerParams::class.java)) return null
-    val templateParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
-    check(
-      templateParams.rawImpressionUpload == uploadName &&
-        cmmsModelLine in templateParams.modelLinesList
-    ) {
-      "Persisted Phase-2 parameters do not belong to $cmmsModelLine under $uploadName"
     }
 
     val reconstructed = linkedMapOf<String, WorkItem>()
@@ -368,14 +357,37 @@ class FailedDispatchRetrier(
         }
       reconstructed[workItemId] =
         existingTargetWorkItems[workItemId]
-          ?: workItem {
-            queue = template.queue
-            this.workItemParams =
-              workItemParams
-                .toBuilder()
-                .setAppParams(templateParams.toBuilder().setVidLabelingJob(job.name).build().pack())
-                .build()
-                .pack()
+          ?: run {
+            val queue: String
+            val workItemParams: WorkItemParams
+            if (job.hasWorkItemDispatch()) {
+              queue = job.workItemDispatch.workItemQueue
+              workItemParams = WorkItemParams.parseFrom(job.workItemDispatch.workItemParams)
+            } else {
+              val fallback = fallbackWorkItem ?: return null
+              if (!fallback.workItemParams.`is`(WorkItemParams::class.java)) return null
+              queue = fallback.queue
+              workItemParams = fallback.workItemParams.unpack(WorkItemParams::class.java)
+            }
+            if (!workItemParams.appParams.`is`(VidLabelerParams::class.java)) return null
+            val templateParams = workItemParams.appParams.unpack(VidLabelerParams::class.java)
+            check(
+              templateParams.rawImpressionUpload == uploadName &&
+                cmmsModelLine in templateParams.modelLinesList
+            ) {
+              "Persisted Phase-2 parameters do not belong to $cmmsModelLine under $uploadName"
+            }
+            workItem {
+              this.queue = queue
+              this.workItemParams =
+                workItemParams
+                  .toBuilder()
+                  .setAppParams(
+                    templateParams.toBuilder().setVidLabelingJob(job.name).build().pack()
+                  )
+                  .build()
+                  .pack()
+            }
           }
     }
     return RetrySources(RawImpressionUploadModelLine.State.LABELING, reconstructed)

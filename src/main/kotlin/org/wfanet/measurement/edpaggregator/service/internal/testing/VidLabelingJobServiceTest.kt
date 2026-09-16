@@ -16,6 +16,7 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
+import com.google.protobuf.ByteString
 import com.google.rpc.errorInfo
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
@@ -71,6 +72,8 @@ abstract class VidLabelingJobServiceTest {
   private suspend fun createJob(
     cmmsModelLines: List<String> = listOf(CMMS_MODEL_LINE),
     rawImpressionUploadFiles: List<String> = listOf(FILE_1),
+    workItemQueue: String = "",
+    workItemParams: ByteString = ByteString.EMPTY,
     requestId: String = UUID.randomUUID().toString(),
   ): VidLabelingJob {
     return service.createVidLabelingJob(
@@ -80,6 +83,8 @@ abstract class VidLabelingJobServiceTest {
         vidLabelingJob = vidLabelingJob {
           this.cmmsModelLines += cmmsModelLines
           this.rawImpressionUploadFiles += rawImpressionUploadFiles
+          this.workItemQueue = workItemQueue
+          this.workItemParams = workItemParams
         }
         this.requestId = requestId
       }
@@ -90,13 +95,17 @@ abstract class VidLabelingJobServiceTest {
   fun `createVidLabelingJob creates successfully`() =
     runBlocking<Unit> {
       val startTime: Instant = Instant.now()
+      val workItemParams = ByteString.copyFromUtf8("serialized-work-item-params")
 
-      val job: VidLabelingJob = createJob()
+      val job: VidLabelingJob =
+        createJob(workItemQueue = "queues/vid-labeler", workItemParams = workItemParams)
 
       assertThat(job.dataProviderResourceId).isEqualTo(DATA_PROVIDER_RESOURCE_ID)
       assertThat(job.rawImpressionUploadResourceId).isEqualTo(RAW_IMPRESSION_UPLOAD_RESOURCE_ID)
       assertThat(job.cmmsModelLinesList).containsExactly(CMMS_MODEL_LINE)
       assertThat(job.rawImpressionUploadFilesList).containsExactly(FILE_1)
+      assertThat(job.workItemQueue).isEqualTo("queues/vid-labeler")
+      assertThat(job.workItemParams).isEqualTo(workItemParams)
       assertThat(job.state).isEqualTo(VidLabelingState.VID_LABELING_STATE_CREATED)
       assertThat(job.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(job.updateTime).isEqualTo(job.createTime)
@@ -933,13 +942,15 @@ abstract class VidLabelingJobServiceTest {
     runBlocking<Unit> {
       val requestId1 = UUID.randomUUID().toString()
       val requestId2 = UUID.randomUUID().toString()
-      val request = batchCreateVidLabelingJobsRequest {
+      val firstRequest = batchCreateVidLabelingJobsRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
         requests += createVidLabelingJobRequest {
           vidLabelingJob = vidLabelingJob {
             cmmsModelLines += CMMS_MODEL_LINE
             rawImpressionUploadFiles += FILE_1
+            workItemQueue = "queues/original"
+            workItemParams = ByteString.copyFromUtf8("original-params-1")
           }
           requestId = requestId1
         }
@@ -947,15 +958,41 @@ abstract class VidLabelingJobServiceTest {
           vidLabelingJob = vidLabelingJob {
             cmmsModelLines += CMMS_MODEL_LINE_2
             rawImpressionUploadFiles += FILE_2
+            workItemQueue = "queues/original"
+            workItemParams = ByteString.copyFromUtf8("original-params-2")
+          }
+          requestId = requestId2
+        }
+      }
+      val replayRequest = batchCreateVidLabelingJobsRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        requests += createVidLabelingJobRequest {
+          vidLabelingJob = vidLabelingJob {
+            cmmsModelLines += CMMS_MODEL_LINE
+            rawImpressionUploadFiles += FILE_1
+            workItemQueue = "queues/new-rollout"
+            workItemParams = ByteString.copyFromUtf8("new-params-1")
+          }
+          requestId = requestId1
+        }
+        requests += createVidLabelingJobRequest {
+          vidLabelingJob = vidLabelingJob {
+            cmmsModelLines += CMMS_MODEL_LINE_2
+            rawImpressionUploadFiles += FILE_2
+            workItemQueue = "queues/new-rollout"
+            workItemParams = ByteString.copyFromUtf8("new-params-2")
           }
           requestId = requestId2
         }
       }
 
-      val first = service.batchCreateVidLabelingJobs(request)
-      val second = service.batchCreateVidLabelingJobs(request)
+      val first = service.batchCreateVidLabelingJobs(firstRequest)
+      val second = service.batchCreateVidLabelingJobs(replayRequest)
 
       assertThat(second).isEqualTo(first)
+      assertThat(second.vidLabelingJobsList.map { it.workItemQueue })
+        .containsExactly("queues/original", "queues/original")
     }
 
   @Test
