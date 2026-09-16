@@ -786,7 +786,7 @@ internal object ReportTraceOutput {
     }
     if (payload.type == Payload.Type.JSON) {
       val values = (payload as Payload.JsonPayload).dataAsMap
-      val message = values["message"]?.toString()
+      val message = (values["message"] ?: values["MESSAGE"])?.toString()
       if (!includeGrpcPayloads && message != null && isVerboseGrpcLog(message)) {
         return null
       }
@@ -824,6 +824,7 @@ internal object ReportTraceOutput {
       correlationValues.distinct().map { value ->
         val escaped = value.replace("\\", "\\\\").replace("\"", "\\\"")
         "(textPayload:\"$escaped\" OR jsonPayload.message:\"$escaped\" OR " +
+          "jsonPayload.MESSAGE:\"$escaped\" OR " +
           "jsonPayload.\"xmm.basic_report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.report.name\"=\"$escaped\" OR " +
           "jsonPayload.\"xmm.metric.name\"=\"$escaped\" OR " +
@@ -880,6 +881,7 @@ internal object ReportTraceOutput {
       } else {
         " AND NOT (textPayload =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
           "jsonPayload.message =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
+          "jsonPayload.MESSAGE =~ \"$VERBOSE_GRPC_LOG_QUERY_REGEX\" OR " +
           "(severity>=ERROR AND textPayload =~ \"$VERBOSE_GRPC_CONTINUATION_QUERY_REGEX\"))"
       }
     return "$timeFilter$payloadFilter AND (${identifierPredicates.joinToString(" OR ")})"

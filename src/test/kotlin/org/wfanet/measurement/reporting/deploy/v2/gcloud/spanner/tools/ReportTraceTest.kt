@@ -947,6 +947,7 @@ class ReportTraceTest {
 
     assertThat(filter).contains("NOT (textPayload =~")
     assertThat(filter).contains("jsonPayload.message =~")
+    assertThat(filter).contains("jsonPayload.MESSAGE =~")
     assertThat(filter).contains("gRPC([[:space:]]+client)?")
     assertThat(filter).contains("severity>=ERROR")
     assertThat(filter).contains("^[[:space:]]*([a-z][a-z0-9_.-]*[[:space:]]*(:|\\{)|[{}])")
@@ -965,6 +966,7 @@ class ReportTraceTest {
 
     assertThat(filter).doesNotContain("NOT (textPayload =~")
     assertThat(filter).doesNotContain("jsonPayload.message =~")
+    assertThat(filter).doesNotContain("jsonPayload.MESSAGE =~")
   }
 
   @Test
@@ -4669,6 +4671,35 @@ class ReportTraceTest {
 
     assertThat(rendered).contains(payload.toString())
     assertThat(rendered).contains("xmm.report.name=measurementConsumers/mc-1/reports/report-1")
+  }
+
+  @Test
+  fun `renderLogPayload keeps Confidential Space launcher message`() {
+    val message =
+      "INFO: event=duchy.mill.process_computation " +
+        "xmm.computation.name=computations/computation-1 " +
+        "xmm.lifecycle.stage=duchy_stage_attempt xmm.outcome=succeeded"
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf(
+          "MESSAGE" to message,
+          "_HOSTNAME" to "trustee-mill-instance",
+          "SYSLOG_IDENTIFIER" to "cs_container_launcher",
+        )
+      )
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+    assertThat(rendered).contains(message)
+  }
+
+  @Test
+  fun `buildLogFilters searches Confidential Space launcher messages`() {
+    val filter =
+      ReportTraceOutput.buildLogFilters(listOf("computations/computation-1"), NOW, NOW, false)
+        .single()
+
+    assertThat(filter).contains("jsonPayload.MESSAGE:\"computations/computation-1\"")
   }
 
   @Test
