@@ -70,14 +70,26 @@ object GenerateQa2026Specs {
   private const val VIDEO = "edpa_video_pub"
   private const val RETAIL = "edpa_retail_pub"
 
-  private val FLIGHT_SPRING = LocalDate.of(2026, 4, 1) to LocalDate.of(2026, 5, 15)
-  private val FLIGHT_SUMMER = LocalDate.of(2026, 5, 15) to LocalDate.of(2026, 7, 1)
-  private val FLIGHT_ALWAYS_ON = LocalDate.of(2026, 4, 1) to LocalDate.of(2026, 7, 1)
+  /** The date range over which a segment's impressions are spread. */
+  private data class Flight(val start: LocalDate, val endExclusive: LocalDate)
+
+  /** A frequency and its share of a tranche's VIDs. */
+  private data class FrequencyShare(val frequency: Int, val share: Double)
+
+  private val FLIGHT_SPRING = Flight(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 5, 15))
+  private val FLIGHT_SUMMER = Flight(LocalDate.of(2026, 5, 15), LocalDate.of(2026, 7, 1))
+  private val FLIGHT_ALWAYS_ON = Flight(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 7, 1))
 
   private const val TRANCHES = 6
 
-  /** Frequency and its share of a tranche's VIDs. Mean frequency 2.1, monotonic K+ curve. */
-  private val FREQUENCY_MIX = listOf(1 to 0.40, 2 to 0.30, 3 to 0.20, 5 to 0.10)
+  /** Mean frequency 2.1, monotonic K+ curve. */
+  private val FREQUENCY_MIX =
+    listOf(
+      FrequencyShare(frequency = 1, share = 0.40),
+      FrequencyShare(frequency = 2, share = 0.30),
+      FrequencyShare(frequency = 3, share = 0.20),
+      FrequencyShare(frequency = 5, share = 0.10),
+    )
 
   /** Engagement values cycled per block so threshold IQFs select real subsets. */
   private val COMPLETED_FRACTIONS = listOf(0.0f, 0.25f, 0.5f, 0.75f, 1.0f)
@@ -108,183 +120,178 @@ object GenerateQa2026Specs {
     val edps: List<String>,
     val entityType: String,
     val entityCount: Int,
-    val flight: Pair<LocalDate, LocalDate>,
+    val flight: Flight,
     val metadata: EntityMetadata,
   )
 
   private val SEGMENTS =
     listOf(
       Segment(
-        "e7only",
-        1,
-        2_000_000,
-        listOf(EDP7),
-        "campaign",
-        1,
-        FLIGHT_ALWAYS_ON,
-        EntityMetadata("brand-a", "always-on", "feed"),
+        name = "e7only",
+        vidStart = 1,
+        vidCount = 2_000_000,
+        edps = listOf(EDP7),
+        entityType = "campaign",
+        entityCount = 1,
+        flight = FLIGHT_ALWAYS_ON,
+        metadata = EntityMetadata("brand-a", "always-on", "feed"),
       ),
       Segment(
-        "metaonly",
-        2_000_001,
-        1_600_000,
-        listOf(META),
-        "ad_group",
-        3,
-        FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "instream"),
+        name = "metaonly",
+        vidStart = 2_000_001,
+        vidCount = 1_600_000,
+        edps = listOf(META),
+        entityType = "ad_group",
+        entityCount = 3,
+        flight = FLIGHT_SPRING,
+        metadata = EntityMetadata("brand-a", "spring-launch", "instream"),
       ),
       Segment(
-        "videoonly",
-        3_600_001,
-        1_200_000,
-        listOf(VIDEO),
-        "creative-id",
-        3,
-        FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "homepage"),
+        name = "videoonly",
+        vidStart = 3_600_001,
+        vidCount = 1_200_000,
+        edps = listOf(VIDEO),
+        entityType = "creative-id",
+        entityCount = 3,
+        flight = FLIGHT_SPRING,
+        metadata = EntityMetadata("brand-a", "spring-launch", "homepage"),
       ),
       Segment(
-        "retailonly",
-        4_800_001,
-        1_000_000,
-        listOf(RETAIL),
-        "campaign",
-        1,
-        FLIGHT_SUMMER,
-        EntityMetadata("brand-a", "summer-sale", "feed"),
+        name = "retailonly",
+        vidStart = 4_800_001,
+        vidCount = 1_000_000,
+        edps = listOf(RETAIL),
+        entityType = "campaign",
+        entityCount = 1,
+        flight = FLIGHT_SUMMER,
+        metadata = EntityMetadata("brand-a", "summer-sale", "feed"),
       ),
       Segment(
-        "e7-meta",
-        5_800_001,
-        800_000,
-        listOf(EDP7, META),
-        "ad_group",
-        1,
-        FLIGHT_SPRING,
-        EntityMetadata("brand-b", "spring-launch", "feed"),
+        name = "e7-meta",
+        vidStart = 5_800_001,
+        vidCount = 800_000,
+        edps = listOf(EDP7, META),
+        entityType = "ad_group",
+        entityCount = 1,
+        flight = FLIGHT_SPRING,
+        metadata = EntityMetadata("brand-b", "spring-launch", "feed"),
       ),
       Segment(
-        "e7-video",
-        6_600_001,
-        600_000,
-        listOf(EDP7, VIDEO),
-        "creative-id",
-        2,
-        FLIGHT_ALWAYS_ON,
-        EntityMetadata("brand-b", "always-on", "homepage"),
+        name = "e7-video",
+        vidStart = 6_600_001,
+        vidCount = 600_000,
+        edps = listOf(EDP7, VIDEO),
+        entityType = "creative-id",
+        entityCount = 2,
+        flight = FLIGHT_ALWAYS_ON,
+        metadata = EntityMetadata("brand-b", "always-on", "homepage"),
       ),
       Segment(
-        "e7-retail",
-        7_200_001,
-        400_000,
-        listOf(EDP7, RETAIL),
-        "campaign",
-        1,
-        FLIGHT_SUMMER,
-        EntityMetadata("brand-b", "summer-sale", "feed"),
+        name = "e7-retail",
+        vidStart = 7_200_001,
+        vidCount = 400_000,
+        edps = listOf(EDP7, RETAIL),
+        entityType = "campaign",
+        entityCount = 1,
+        flight = FLIGHT_SUMMER,
+        metadata = EntityMetadata("brand-b", "summer-sale", "feed"),
       ),
       Segment(
-        "meta-video",
-        7_600_001,
-        500_000,
-        listOf(META, VIDEO),
-        "ad_group",
-        3,
-        FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "instream"),
+        name = "meta-video",
+        vidStart = 7_600_001,
+        vidCount = 500_000,
+        edps = listOf(META, VIDEO),
+        entityType = "ad_group",
+        entityCount = 3,
+        flight = FLIGHT_SPRING,
+        metadata = EntityMetadata("brand-a", "spring-launch", "instream"),
       ),
       Segment(
-        "meta-retail",
-        8_100_001,
-        300_000,
-        listOf(META, RETAIL),
-        "campaign",
-        1,
-        FLIGHT_SUMMER,
-        EntityMetadata("brand-b", "summer-sale", "feed"),
+        name = "meta-retail",
+        vidStart = 8_100_001,
+        vidCount = 300_000,
+        edps = listOf(META, RETAIL),
+        entityType = "campaign",
+        entityCount = 1,
+        flight = FLIGHT_SUMMER,
+        metadata = EntityMetadata("brand-b", "summer-sale", "feed"),
       ),
       Segment(
-        "video-retail",
-        8_400_001,
-        400_000,
-        listOf(VIDEO, RETAIL),
-        "creative-id",
-        2,
-        FLIGHT_ALWAYS_ON,
-        EntityMetadata("brand-a", "always-on", "homepage"),
+        name = "video-retail",
+        vidStart = 8_400_001,
+        vidCount = 400_000,
+        edps = listOf(VIDEO, RETAIL),
+        entityType = "creative-id",
+        entityCount = 2,
+        flight = FLIGHT_ALWAYS_ON,
+        metadata = EntityMetadata("brand-a", "always-on", "homepage"),
       ),
       Segment(
-        "e7-meta-video",
-        8_800_001,
-        500_000,
-        listOf(EDP7, META, VIDEO),
-        "campaign",
-        1,
-        FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "feed"),
+        name = "e7-meta-video",
+        vidStart = 8_800_001,
+        vidCount = 500_000,
+        edps = listOf(EDP7, META, VIDEO),
+        entityType = "campaign",
+        entityCount = 1,
+        flight = FLIGHT_SPRING,
+        metadata = EntityMetadata("brand-a", "spring-launch", "feed"),
       ),
       Segment(
-        "e7-meta-retail",
-        9_300_001,
-        300_000,
-        listOf(EDP7, META, RETAIL),
-        "ad_group",
-        1,
-        FLIGHT_SUMMER,
-        EntityMetadata("brand-b", "summer-sale", "instream"),
+        name = "e7-meta-retail",
+        vidStart = 9_300_001,
+        vidCount = 300_000,
+        edps = listOf(EDP7, META, RETAIL),
+        entityType = "ad_group",
+        entityCount = 1,
+        flight = FLIGHT_SUMMER,
+        metadata = EntityMetadata("brand-b", "summer-sale", "instream"),
       ),
       Segment(
-        "e7-video-retail",
-        9_600_001,
-        300_000,
-        listOf(EDP7, VIDEO, RETAIL),
-        "creative-id",
-        1,
-        FLIGHT_ALWAYS_ON,
-        EntityMetadata("brand-b", "always-on", "homepage"),
+        name = "e7-video-retail",
+        vidStart = 9_600_001,
+        vidCount = 300_000,
+        edps = listOf(EDP7, VIDEO, RETAIL),
+        entityType = "creative-id",
+        entityCount = 1,
+        flight = FLIGHT_ALWAYS_ON,
+        metadata = EntityMetadata("brand-b", "always-on", "homepage"),
       ),
       Segment(
-        "meta-video-retail",
-        9_900_001,
-        400_000,
-        listOf(META, VIDEO, RETAIL),
-        "campaign",
-        1,
-        FLIGHT_SPRING,
-        EntityMetadata("brand-a", "spring-launch", "feed"),
+        name = "meta-video-retail",
+        vidStart = 9_900_001,
+        vidCount = 400_000,
+        edps = listOf(META, VIDEO, RETAIL),
+        entityType = "campaign",
+        entityCount = 1,
+        flight = FLIGHT_SPRING,
+        metadata = EntityMetadata("brand-a", "spring-launch", "feed"),
       ),
       Segment(
-        "all4",
-        10_300_001,
-        300_000,
-        listOf(EDP7, META, VIDEO, RETAIL),
-        "ad_group",
-        3,
-        FLIGHT_ALWAYS_ON,
-        EntityMetadata("brand-a", "always-on", "instream"),
+        name = "all4",
+        vidStart = 10_300_001,
+        vidCount = 300_000,
+        edps = listOf(EDP7, META, VIDEO, RETAIL),
+        entityType = "ad_group",
+        entityCount = 3,
+        flight = FLIGHT_ALWAYS_ON,
+        metadata = EntityMetadata("brand-a", "always-on", "instream"),
       ),
       // Sub-sigma noise probe. Sized well under sigma so noise-dominated reports get flagged.
       // At 10x epsilon sigma is ~18k, so 8k is ~0.4 sigma.
       Segment(
-        "noise",
-        10_600_001,
-        8_000,
-        listOf(EDP7),
-        "ad_group",
-        1,
-        FLIGHT_SUMMER,
-        EntityMetadata("brand-b", "summer-sale-promo", "feed"),
+        name = "noise",
+        vidStart = 10_600_001,
+        vidCount = 8_000,
+        edps = listOf(EDP7),
+        entityType = "ad_group",
+        entityCount = 1,
+        flight = FLIGHT_SUMMER,
+        metadata = EntityMetadata("brand-b", "summer-sale-promo", "feed"),
       ),
     )
 
   private const val POPULATION_SPEC_FILE = "qa2026_population_spec.textproto"
   private const val CONFIG_FILE = "qa2026_impression_test_data_config.textproto"
-
-  private fun segmentFileName(name: String) = "qa2026_seg_${name.replace('-', '_')}.textproto"
-
-  /** Formats [value] with thousands separators, for VID ranges in descriptions. */
-  private fun grouped(value: Long): String = String.format(Locale.ROOT, "%,d", value)
 
   private val TYPE_REGISTRY: TypeRegistry =
     TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
@@ -302,6 +309,11 @@ object GenerateQa2026Specs {
         }
       }
     }
+
+  private fun segmentFileName(name: String) = "qa2026_seg_${name.replace('-', '_')}.textproto"
+
+  /** Formats [value] with thousands separators, for VID ranges in descriptions. */
+  private fun grouped(value: Long): String = String.format(Locale.ROOT, "%,d", value)
 
   /** Builds the population: demographic tuples interleaved in stripes, plus an unreached filler. */
   private fun buildPopulationSpec(): PopulationSpec {
@@ -333,10 +345,16 @@ object GenerateQa2026Specs {
   }
 
   /** A single population stripe assigned to a (tranche, frequency, media) block. */
+  /** A half-open VID range. */
+  private data class VidRange(val start: Long, val endExclusive: Long)
+
+  /** Key grouping the blocks that share a tranche and a frequency. */
+  private data class TrancheFrequency(val tranche: Int, val frequency: Int)
+
   private data class Block(val start: Long, val endExclusive: Long, val video: Boolean)
 
   /**
-   * Builds one segment spec, returning it with the impression count it implies.
+   * Builds one segment spec.
    *
    * Every `vid_range_spec` is exactly one population stripe: `SyntheticDataGeneration` resolves a
    * range's demographics by finding the single subpopulation wholly containing it, so a range
@@ -348,11 +366,12 @@ object GenerateQa2026Specs {
    * non-flat monotonic K+ curve, and alternating media means every segment emits both VIDEO and
    * DISPLAY.
    */
-  private fun buildSegmentSpec(segment: Segment): Pair<SyntheticEventGroupSpec, Long> {
-    val (flightStart, flightEnd) = segment.flight
+  private fun buildSegmentSpec(segment: Segment): SyntheticEventGroupSpec {
+    val flightStart = segment.flight.start
+    val flightEnd = segment.flight.endExclusive
     val flightDays = ChronoUnit.DAYS.between(flightStart, flightEnd)
 
-    val stripes = mutableListOf<Pair<Long, Long>>()
+    val stripes = mutableListOf<VidRange>()
     var cursor = segment.vidStart
     val vidEnd = segment.vidStart + segment.vidCount
     while (cursor < vidEnd) {
@@ -360,31 +379,33 @@ object GenerateQa2026Specs {
       // Clamp to the enclosing stripe boundary so a range never straddles two.
       val boundary = ((cursor - 1) / STRIPE_SIZE + 1) * STRIPE_SIZE + 1
       val stripeEnd = minOf(end, boundary)
-      stripes.add(cursor to stripeEnd)
+      stripes.add(VidRange(cursor, stripeEnd))
       cursor = stripeEnd
     }
 
     val trancheCount = minOf(TRANCHES, stripes.size)
     // Expand the frequency mix into a repeating pattern of the right proportions.
     val pattern =
-      FREQUENCY_MIX.flatMap { (frequency, share) ->
-        List(maxOf(1, (share * 10).roundToInt())) { frequency }
+      FREQUENCY_MIX.flatMap { frequencyShare ->
+        List(maxOf(1, (frequencyShare.share * 10).roundToInt())) { frequencyShare.frequency }
       }
 
-    val blocks = linkedMapOf<Pair<Int, Int>, MutableList<Block>>()
-    stripes.forEachIndexed { i, (lo, hi) ->
+    val blocks = linkedMapOf<TrancheFrequency, MutableList<Block>>()
+    stripes.forEachIndexed { i, stripe ->
       val tranche = (i * trancheCount) / stripes.size
       val frequency = pattern[i % pattern.size]
-      blocks.getOrPut(tranche to frequency) { mutableListOf() }.add(Block(lo, hi, i % 2 == 0))
+      blocks
+        .getOrPut(TrancheFrequency(tranche, frequency)) { mutableListOf() }
+        .add(Block(stripe.start, stripe.endExclusive, i % 2 == 0))
     }
 
-    var impressions = 0L
-    val spec = syntheticEventGroupSpec {
+    return syntheticEventGroupSpec {
       description =
         "QA 2026 segment ${segment.name}: VIDs ${grouped(segment.vidStart)}-${grouped(vidEnd - 1)}" +
           " over $flightStart..$flightEnd"
       for (tranche in 0 until trancheCount) {
-        val frequencies = blocks.keys.filter { it.first == tranche }.map { it.second }.sorted()
+        val frequencies =
+          blocks.keys.filter { it.tranche == tranche }.map { it.frequency }.sorted()
         if (frequencies.isEmpty()) continue
         val startDate = flightStart.plusDays(flightDays * tranche / trancheCount)
         dateSpecs +=
@@ -398,7 +419,7 @@ object GenerateQa2026Specs {
               frequencySpecs +=
                 SyntheticEventGroupSpecKt.frequencySpec {
                   this.frequency = frequency.toLong()
-                  blocks.getValue(tranche to frequency).forEachIndexed { n, block ->
+                  blocks.getValue(TrancheFrequency(tranche, frequency)).forEachIndexed { n, block ->
                     vidRangeSpecs +=
                       SyntheticEventGroupSpecKt.FrequencySpecKt.vidRangeSpec {
                         vidRange = vidRange {
@@ -418,14 +439,12 @@ object GenerateQa2026Specs {
                           }
                         }
                       }
-                    impressions += (block.endExclusive - block.start) * frequency
                   }
                 }
             }
           }
       }
     }
-    return spec to impressions
   }
 
   /** Builds the config: one entry per (segment, EDP) pair. */
@@ -478,8 +497,7 @@ object GenerateQa2026Specs {
 
     write(outputDir, POPULATION_SPEC_FILE, buildPopulationSpec())
     for (segment in SEGMENTS) {
-      val (spec, _) = buildSegmentSpec(segment)
-      write(outputDir, segmentFileName(segment.name), spec)
+      write(outputDir, segmentFileName(segment.name), buildSegmentSpec(segment))
     }
     write(outputDir, CONFIG_FILE, buildConfig())
   }

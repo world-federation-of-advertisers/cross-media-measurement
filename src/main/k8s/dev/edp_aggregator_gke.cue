@@ -26,9 +26,7 @@ _systemApiAddressName:   "edp-aggregator-system"
 // storage.objectAdmin on the spot-data bucket).
 #SyncEventGroupActivitiesServiceAccount: "sync-event-group-activities"
 
-// Bumped from cpu 25m / memory 256Mi (heap default -Xmx64M): the system API server was
-// OOMKilled while serving the VID-labeling pipeline's concurrent calls (e.g.
-// ListRawImpressionUploadFiles), which stalled memoized pool assignment and hung the cloud test.
+// Sized for the concurrent calls the VID-labeling pipeline makes against the system API server.
 #SystemServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "100m"
@@ -39,12 +37,7 @@ _systemApiAddressName:   "edp-aggregator-system"
 	}
 }
 
-// Bumped from the 320Mi / -Xmx64M defaults for the same reason as the system API server
-// above: the internal API server was OOMKilled (exit 137) while the VID-labeling pipeline
-// was running, so the parent RawImpressionUploadModelLine never advanced out of CREATED
-// even though all of its PoolAssignmentJobs and RankerJobs had SUCCEEDED, and the cloud
-// test hung until its 1800s timeout. At 320Mi only 64M was heap, leaving no headroom for
-// concurrent calls.
+// Sized for the concurrent calls the VID-labeling pipeline makes against the internal API server.
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "100m"
