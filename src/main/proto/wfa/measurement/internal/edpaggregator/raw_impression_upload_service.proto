@@ -43,7 +43,34 @@ service RawImpressionUploadService {
   rpc MarkRawImpressionUploadRegistrationComplete(
       MarkRawImpressionUploadRegistrationCompleteRequest)
       returns (RawImpressionUpload);
+
+  // Acquires the data-provider-wide fence used while evicting VID-labeling
+  // output.
+  rpc AcquireRawImpressionUploadEvictionFence(
+      AcquireRawImpressionUploadEvictionFenceRequest)
+      returns (AcquireRawImpressionUploadEvictionFenceResponse);
+
+  // Releases the data-provider-wide VID-labeling eviction fence.
+  rpc ReleaseRawImpressionUploadEvictionFence(
+      ReleaseRawImpressionUploadEvictionFenceRequest)
+      returns (ReleaseRawImpressionUploadEvictionFenceResponse);
 }
+
+message AcquireRawImpressionUploadEvictionFenceRequest {
+  string data_provider_resource_id = 1;
+  string eviction_operation_id = 2;
+}
+
+message AcquireRawImpressionUploadEvictionFenceResponse {
+  bool newly_acquired = 1;
+}
+
+message ReleaseRawImpressionUploadEvictionFenceRequest {
+  string data_provider_resource_id = 1;
+  string eviction_operation_id = 2;
+}
+
+message ReleaseRawImpressionUploadEvictionFenceResponse {}
 
 message MarkRawImpressionUploadRegistrationCompleteRequest {
   string data_provider_resource_id = 1;
