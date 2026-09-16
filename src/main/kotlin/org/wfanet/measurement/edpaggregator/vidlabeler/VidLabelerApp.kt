@@ -25,7 +25,6 @@ import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import java.time.LocalDate
 import java.util.logging.Logger
-import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.toInstant
@@ -781,14 +780,13 @@ class VidLabelerApp(
     eventDate: LocalDate,
     dataProvider: String,
   ) {
-    val modelLineId =
-      requireNotNull(ModelLineKey.fromName(cmmsModelLine)) {
-          "completed model line is not a valid ModelLine resource name: $cmmsModelLine"
-        }
-        .modelLineId
     val storageConfig = getStorageConfig(outputStorageParams)
     val doneUri =
-      "${outputStorageParams.impressionsBlobPrefix}/model-line/$modelLineId/$eventDate/done"
+      LabeledImpressionsBlobKeys.forDoneUri(
+        outputStorageParams.impressionsBlobPrefix,
+        cmmsModelLine,
+        eventDate,
+      )
     val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
     SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
       .writeBlob(doneBlobUri.key, ByteString.EMPTY)

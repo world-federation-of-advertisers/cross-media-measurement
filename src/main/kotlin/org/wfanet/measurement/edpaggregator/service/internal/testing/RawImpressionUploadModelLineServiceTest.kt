@@ -35,6 +35,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason as FailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as RecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
@@ -71,6 +72,20 @@ abstract class RawImpressionUploadModelLineServiceTest {
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
   ): RawImpressionUploadState
+
+  /** Inserts an active data-provider-wide VID-labeling eviction fence. */
+  protected abstract suspend fun setEvictionFence(
+    dataProviderResourceId: String,
+    evictionOperationId: String,
+  )
+
+  /** Sets how the parent upload participates in an active eviction operation. */
+  protected abstract suspend fun setParentUploadEvictionDisposition(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    evictionOperationId: String?,
+    processingDeferred: Boolean,
+  )
 
   @Before
   fun initService() {
@@ -1017,6 +1032,9 @@ abstract class RawImpressionUploadModelLineServiceTest {
             errorMessage = "completed output contains invalid data"
             failureReason =
               FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+            evictionOperationId = EVICTION_OPERATION_ID
+            recoveryAction =
+              RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
           }
         )
 
@@ -1025,9 +1043,66 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(modelLine.errorMessage).isEqualTo("completed output contains invalid data")
       assertThat(modelLine.failureReason)
         .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT)
+      assertThat(modelLine.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
+      assertThat(modelLine.recoveryAction)
+        .isEqualTo(RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION)
       assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
         .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
     }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed records no-replacement eviction`() = runBlocking {
+    val completed = completeSoleModelLine()
+
+    val modelLine =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = completed.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(completed.rawImpressionUploadModelLineResourceId)
+          errorMessage = "upload must be removed"
+          failureReason =
+            FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+          evictionOperationId = EVICTION_OPERATION_ID
+          recoveryAction =
+            RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+        }
+      )
+
+    assertThat(modelLine.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED)
+    assertThat(modelLine.recoveryAction)
+      .isEqualTo(RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT)
+    assertThat(modelLine.recoveryPredecessorRawImpressionUploadResourceId).isEmpty()
+  }
+
+  @Test
+  fun `markRawImpressionUploadModelLineFailed records root operator recovery`() = runBlocking {
+    val completed = completeSoleModelLine()
+
+    val modelLine =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = completed.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(completed.rawImpressionUploadModelLineResourceId)
+          errorMessage = "first memoized upload was removed"
+          failureReason =
+            FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+          evictionOperationId = EVICTION_OPERATION_ID
+          recoveryAction =
+            RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+        }
+      )
+
+    assertThat(modelLine.recoveryAction)
+      .isEqualTo(RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY)
+    assertThat(modelLine.recoveryPredecessorRawImpressionUploadResourceId).isEmpty()
+  }
 
   @Test
   fun `markRawImpressionUploadModelLineFailed rejects processing failure from COMPLETED`() =
@@ -1084,6 +1159,10 @@ abstract class RawImpressionUploadModelLineServiceTest {
             errorMessage = "invalid output"
             failureReason =
               FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+            evictionOperationId = EVICTION_OPERATION_ID
+            recoveryAction =
+              RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+            recoveryPredecessorRawImpressionUploadResourceId = "predecessor-upload"
           }
         )
 
@@ -1093,6 +1172,13 @@ abstract class RawImpressionUploadModelLineServiceTest {
       assertThat(evicted.failureAttemptId).isEqualTo(evictionAttemptId)
       assertThat(evicted.failureReason)
         .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT)
+      assertThat(evicted.evictionOperationId).isEqualTo(EVICTION_OPERATION_ID)
+      assertThat(evicted.recoveryAction)
+        .isEqualTo(
+          RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+        )
+      assertThat(evicted.recoveryPredecessorRawImpressionUploadResourceId)
+        .isEqualTo("predecessor-upload")
 
       suspend fun assertRetryRejected(block: suspend () -> Unit) {
         val exception = assertFailsWith<StatusRuntimeException> { block() }
@@ -1149,6 +1235,9 @@ abstract class RawImpressionUploadModelLineServiceTest {
               etag = modelLine.etag
               failureReason =
                 FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+              evictionOperationId = EVICTION_OPERATION_ID
+              recoveryAction =
+                RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
             }
           )
         }
@@ -2431,9 +2520,162 @@ abstract class RawImpressionUploadModelLineServiceTest {
         .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE)
     }
 
+  @Test
+  fun `eviction fence blocks new model lines`(): Unit = runBlocking {
+    setEvictionFence(DATA_PROVIDER_RESOURCE_ID, UUID.randomUUID().toString())
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    assertThat(error.status.description).contains("eviction")
+  }
+
+  @Test
+  fun `eviction fence blocks batch model-line backfill`(): Unit = runBlocking {
+    setEvictionFence(DATA_PROVIDER_RESOURCE_ID, UUID.randomUUID().toString())
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateRawImpressionUploadModelLines(
+          batchCreateRawImpressionUploadModelLinesRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            requests += createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
+              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                cmmsModelLine = CMMS_MODEL_LINE
+              }
+            }
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `eviction fence blocks a processing start`(): Unit = runBlocking {
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+    setEvictionFence(DATA_PROVIDER_RESOURCE_ID, UUID.randomUUID().toString())
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `eviction fence allows registration but not processing for a deferred upload`(): Unit =
+    runBlocking {
+      setParentUploadEvictionDisposition(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        evictionOperationId = null,
+        processingDeferred = true,
+      )
+      setEvictionFence(DATA_PROVIDER_RESOURCE_ID, EVICTION_OPERATION_ID)
+
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.markRawImpressionUploadModelLineLabeling(
+            markRawImpressionUploadModelLineLabelingRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLineResourceId =
+                created.rawImpressionUploadModelLineResourceId
+              etag = created.etag
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(error.status.description).contains("waiting")
+    }
+
+  @Test
+  fun `eviction fence allows processing for its authorized replacement`(): Unit = runBlocking {
+    setParentUploadEvictionDisposition(
+      DATA_PROVIDER_RESOURCE_ID,
+      RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+      evictionOperationId = EVICTION_OPERATION_ID,
+      processingDeferred = false,
+    )
+    setEvictionFence(DATA_PROVIDER_RESOURCE_ID, EVICTION_OPERATION_ID)
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    assertThat(labeling.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING)
+  }
+
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "dataProviders/dp1"
     private const val RAW_IMPRESSION_UPLOAD_RESOURCE_ID = "uploads/upload1"
+    private const val EVICTION_OPERATION_ID = "123e4567-e89b-42d3-a456-426614174000"
     private const val CMMS_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val CMMS_MODEL_LINE_2 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
     private const val CMMS_MODEL_LINE_3 = "modelProviders/mp1/modelSuites/ms1/modelLines/ml3"

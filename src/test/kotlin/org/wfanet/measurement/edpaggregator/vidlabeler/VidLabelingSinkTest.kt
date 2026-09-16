@@ -95,6 +95,7 @@ class VidLabelingSinkTest {
     converter: ImpressionConverter = FakeImpressionConverter(),
     fileMetadata: RawImpressionFileMetadata =
       RawImpressionFileMetadata(eventDate = LocalDate.parse("2026-06-30")),
+    outputStorageParams: VidLabelerParams.StorageParams = this.outputStorageParams,
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(BaseVidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
@@ -260,6 +261,24 @@ class VidLabelingSinkTest {
       // Every population attribute is taken from the subpopulation, including ones an EDP might
       // not map at all.
       assertThat(event.person.socialGradeGroup).isEqualTo(Person.SocialGradeGroup.C2_D_E)
+    }
+
+  @Test
+  fun `commit normalizes trailing slash in output prefix`() =
+    runBlocking<Unit> {
+      tempFolder.root.resolve("labeled").mkdirs()
+      val sink =
+        sink(
+          listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
+          outputStorageParams =
+            outputStorageParams.toBuilder().setImpressionsBlobPrefix("file:///labeled/").build(),
+        )
+
+      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
+      sink.commit()
+      sink.close()
+
+      assertThat(readSoleBlobDetails().blobUri).startsWith("file:///labeled/model-line/")
     }
 
   @Test

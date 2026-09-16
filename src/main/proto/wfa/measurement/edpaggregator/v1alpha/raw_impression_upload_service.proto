@@ -45,7 +45,63 @@ service RawImpressionUploadService {
   rpc MarkRawImpressionUploadRegistrationComplete(
       MarkRawImpressionUploadRegistrationCompleteRequest)
       returns (RawImpressionUpload) {}
+
+  // Acquires a data-provider-wide fence before evicting VID-labeling output.
+  // The same operation ID may reacquire the fence to resume an interrupted
+  // eviction.
+  rpc AcquireRawImpressionUploadEvictionFence(
+      AcquireRawImpressionUploadEvictionFenceRequest)
+      returns (AcquireRawImpressionUploadEvictionFenceResponse) {}
+
+  // Releases the data-provider-wide fence after upload healing completes.
+  rpc ReleaseRawImpressionUploadEvictionFence(
+      ReleaseRawImpressionUploadEvictionFenceRequest)
+      returns (ReleaseRawImpressionUploadEvictionFenceResponse) {}
 }
+
+// Request message for `AcquireRawImpressionUploadEvictionFence`.
+message AcquireRawImpressionUploadEvictionFenceRequest {
+  // The data provider whose VID-labeling pipeline is being evicted.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // UUID4 identifying this resumable eviction operation.
+  string eviction_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Response from acquiring the VID-labeling eviction fence.
+message AcquireRawImpressionUploadEvictionFenceResponse {
+  // Whether this request created the fence instead of reacquiring it for the
+  // same eviction operation.
+  bool newly_acquired = 1;
+}
+
+// Request message for `ReleaseRawImpressionUploadEvictionFence`.
+message ReleaseRawImpressionUploadEvictionFenceRequest {
+  // The data provider whose VID-labeling eviction has completed.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // UUID4 identifying the operation that owns the fence.
+  string eviction_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Response from releasing the VID-labeling eviction fence.
+message ReleaseRawImpressionUploadEvictionFenceResponse {}
 
 // Request message for `MarkRawImpressionUploadRegistrationComplete`.
 message MarkRawImpressionUploadRegistrationCompleteRequest {
@@ -70,6 +126,9 @@ message MarkRawImpressionUploadRegistrationCompleteRequest {
 
 // Request message for the `CreateRawImpressionUpload` method.
 message CreateRawImpressionUploadRequest {
+  reserved 4;
+  reserved "eviction_operation_id";
+
   // The parent data provider resource name.
   // Format: `dataProviders/{data_provider}`
   string parent = 1 [

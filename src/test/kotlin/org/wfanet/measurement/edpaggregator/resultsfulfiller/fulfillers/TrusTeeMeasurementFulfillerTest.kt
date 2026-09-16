@@ -67,6 +67,7 @@ import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.testing.Requisitions.TRUSTEE_REQUISITION
+import org.wfanet.measurement.testing.Requisitions.TRUSTEE_V2_REQUISITION
 
 @RunWith(JUnit4::class)
 class TrusTeeMeasurementFulfillerTest {
@@ -164,6 +165,37 @@ class TrusTeeMeasurementFulfillerTest {
         }
       )
     assertThat(fulfilledRequisitions[0].header.hasTrusTee()).isTrue()
+    assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
+  }
+
+  @Test
+  fun `fulfillRequisition sends a TrusTeeV2 header for a TrusTeeV2 Requisition`() = runBlocking {
+    val requisitionNonce = Random.Default.nextLong()
+    val sampledFrequencyVector = frequencyVector { data += listOf(4, 5, 6) }
+    val requisition = TRUSTEE_V2_REQUISITION.copy { this.nonce = requisitionNonce }
+    val fulfiller =
+      TrusTeeMeasurementFulfiller(
+        requisition = requisition,
+        requisitionNonce = requisitionNonce,
+        sampledFrequencyVector = sampledFrequencyVector,
+        requisitionFulfillmentStubMap =
+          mapOf(
+            "duchies/worker1" to RequisitionFulfillmentCoroutineStub(grpcTestServerRule.channel)
+          ),
+        requisitionsStub = unfulfilledRequisitionsStub,
+        requisitionsThrottler = RecordingThrottler(),
+        encryptionParams = null,
+      )
+
+    fulfiller.fulfillRequisition()
+
+    val fulfilledRequisitions =
+      requisitionFulfillmentMock.fullfillRequisitionInvocations.single().requests
+    assertThat(fulfilledRequisitions).hasSize(2)
+    val header = fulfilledRequisitions[0].header
+    assertThat(header.hasTrusTeeV2()).isTrue()
+    assertThat(header.hasTrusTee()).isFalse()
+    assertThat(header.trusTeeV2.hasFulfillmentDetails()).isFalse()
     assertThat(fulfilledRequisitions[1].bodyChunk.data).isNotEmpty()
   }
 
