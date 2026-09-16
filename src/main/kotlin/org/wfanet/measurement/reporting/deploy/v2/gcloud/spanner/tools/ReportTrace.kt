@@ -1407,6 +1407,8 @@ internal object ReportTraceOutput {
           isFailureOutcome(latestOutcome) -> "FAILED"
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE && evidence.isNotEmpty() ->
             "UNEXPECTED"
+          requirement == ReportTraceStageRequirement.NOT_APPLICABLE &&
+            operation.stage in EDPA_REQUISITION_LIFECYCLE_STAGES -> "NOT_APPLICABLE"
           latestOutcome != null && latestOutcome in TERMINAL_SUCCESS_OUTCOMES -> "SUCCEEDED"
           requirement == ReportTraceStageRequirement.OPTIONAL -> "OPTIONAL"
           latestOutcome != null && latestOutcome in IN_PROGRESS_OUTCOMES -> "IN_PROGRESS"
@@ -2482,6 +2484,8 @@ internal object ReportTraceOutput {
       "kingdom_requisition_result_acceptance",
       "kingdom_requisition_refusal_acceptance",
     )
+  private val EDPA_REQUISITION_LIFECYCLE_STAGES =
+    setOf("requisition_dispatch", "work_item_processing", "results_fulfillment")
   private val SAFE_LOG_FIELDS =
     setOf(
       "event",
