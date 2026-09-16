@@ -83,10 +83,9 @@ internal suspend fun runInternalApiServerJobs(
  * 1. Server initialization reads configuration and sets up dependencies
  * 2. Main gRPC server starts in an async coroutine
  * 3. The WorkItem publication runner starts in its own async coroutine
- * 4. The WorkItem attempt lease reaper starts in its own async coroutine
- * 5. If configured, one DLQ listener per dead-letter subscription starts in its own async coroutine
- * 6. All components run until shutdown is requested
- * 7. Graceful shutdown ensures all components clean up properly
+ * 4. If configured, one DLQ listener per dead-letter subscription starts in its own async coroutine
+ * 5. All components run until shutdown is requested
+ * 6. Graceful shutdown ensures all components clean up properly
  */
 @CommandLine.Command(name = InternalApiServer.SERVER_NAME)
 class InternalApiServer : Runnable {
@@ -185,8 +184,10 @@ class InternalApiServer : Runnable {
           services.workItems as? SpannerWorkItemsService
             ?: throw RuntimeException("Failed to get work items service")
 
-        // A single in-process server + channel + WorkItems stub is shared by every DLQ listener:
-        // they all route to the same SpannerWorkItemsService, so one loopback server suffices, and
+        // A single in-process server + channel + WorkItems stub is shared by every DLQ
+        // listener:
+        // they all route to the same SpannerWorkItemsService, so one loopback server
+        // suffices, and
         // it is shut down below instead of leaking one server per subscription.
         val (inProcessServer, inProcessChannel) = createInProcessServer(spannerWorkItemsService)
         val workItemsStub = WorkItemsGrpcKt.WorkItemsCoroutineStub(inProcessChannel)
@@ -221,10 +222,8 @@ class InternalApiServer : Runnable {
             blockingServer = { server.start().blockUntilShutdown() },
             shutdownServer = { server.shutdown() },
             backgroundJobs =
-              listOf<suspend () -> Unit>(
-                { internalApiServices.workItemPublicationRunner.run() },
-                { internalApiServices.workItemAttemptLeaseReaper.run() },
-              ) + deadLetterListenerJobs,
+              listOf<suspend () -> Unit> { internalApiServices.workItemPublicationRunner.run() } +
+                deadLetterListenerJobs,
           )
         } finally {
           inProcessChannel.shutdown()

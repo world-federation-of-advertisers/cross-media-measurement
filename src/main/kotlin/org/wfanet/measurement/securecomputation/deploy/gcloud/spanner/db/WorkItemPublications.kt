@@ -52,6 +52,7 @@ sealed interface WorkItemPublicationClaimResult {
     enum class Reason {
       WORK_ITEM_STATE_MISMATCH,
       QUEUE_NOT_FOUND,
+      LEGACY_DEAD_LETTER_TERMINALIZED,
     }
   }
 }
@@ -66,22 +67,10 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
   workItemId: Long,
   nextAttemptTime: Instant,
 ) {
-  insertWorkItemPublication(workItemId, isDeadLetter = false, nextAttemptTime = nextAttemptTime)
-}
-
-/** Buffers an insert mutation for a pending dead-letter WorkItem publication. */
-fun AsyncDatabaseClient.TransactionContext.insertDeadLetterWorkItemPublication(workItemId: Long) {
-  insertWorkItemPublication(workItemId, isDeadLetter = true, nextAttemptTime = Instant.now())
-}
-
-private fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
-  workItemId: Long,
-  isDeadLetter: Boolean,
-  nextAttemptTime: Instant,
-) {
   bufferInsertMutation("WorkItemPublications") {
     set("WorkItemId").to(workItemId)
-    set("IsDeadLetter").to(isDeadLetter)
+    // Retained during the rollout so new binaries can read rows written by the prior version.
+    set("IsDeadLetter").to(false)
     set("LeaseOwner").to(null as String?)
     set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
     set("NextAttemptTime").to(nextAttemptTime.toGcloudTimestamp())
@@ -95,16 +84,15 @@ private fun AsyncDatabaseClient.TransactionContext.insertWorkItemPublication(
 /** Schedules a publication, replacing any stale publication for an older generation. */
 suspend fun AsyncDatabaseClient.TransactionContext.scheduleWorkItemPublication(
   workItemId: Long,
-  isDeadLetter: Boolean,
   nextAttemptTime: Instant,
 ) {
   if (!workItemPublicationExists(workItemId)) {
-    insertWorkItemPublication(workItemId, isDeadLetter, nextAttemptTime)
+    insertWorkItemPublication(workItemId, nextAttemptTime)
     return
   }
   bufferUpdateMutation("WorkItemPublications") {
     set("WorkItemId").to(workItemId)
-    set("IsDeadLetter").to(isDeadLetter)
+    set("IsDeadLetter").to(false)
     set("LeaseOwner").to(null as String?)
     set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
     set("NextAttemptTime").to(nextAttemptTime.toGcloudTimestamp())
@@ -190,8 +178,20 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
   val state = WorkItem.State.forNumber(row.getLong("State").toInt())
   val isDeadLetter = !row.isNull("IsDeadLetter") && row.getBoolean("IsDeadLetter")
 
-  val expectedState = if (isDeadLetter) WorkItem.State.RUNNING else WorkItem.State.QUEUED
-  if (state != expectedState) {
+  if (isDeadLetter) {
+    // Before Pub/Sub became the sole dead-letter mechanism, the application could leave a
+    // pending dead-letter publication in this outbox. Finish that already-decided terminal
+    // transition without publishing another message.
+    failActiveWorkItemAttempts(claimedWorkItemId)
+    failWorkItem(claimedWorkItemId)
+    return WorkItemPublicationClaimResult.Skipped(
+      workItemResourceId,
+      queueId,
+      WorkItemPublicationClaimResult.Skipped.Reason.LEGACY_DEAD_LETTER_TERMINALIZED,
+    )
+  }
+
+  if (state != WorkItem.State.QUEUED) {
     deleteWorkItemPublication(claimedWorkItemId)
     return WorkItemPublicationClaimResult.Skipped(
       workItemResourceId,
@@ -226,7 +226,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
     WorkItemPublicationResult(
       claimedWorkItemId,
       result.workItem,
-      if (isDeadLetter) queue.deadLetterQueueResourceId else queue.queueResourceId,
+      queue.queueResourceId,
       attemptCount,
       leaseToken,
     )

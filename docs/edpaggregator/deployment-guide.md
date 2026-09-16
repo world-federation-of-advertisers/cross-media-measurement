@@ -1178,7 +1178,8 @@ performs the required order:
    then verify that each has target size zero and no remaining instances.
 4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
    reconciliation, and dead-letter consumption enabled. The DLQ listener automatically retries
-   current-generation WorkItems that have an active legacy attempt without a lease.
+   only while a current-generation WorkItem still has a valid leased attempt; otherwise it
+   terminalizes the exhausted WorkItem.
 5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
 6. Apply Terraform again with RequisitionFetcher and WorkItem TEE consumers enabled. This recreates
    the TEE autoscalers, changes both process-level gates to enabled, and starts only the new worker
@@ -1207,17 +1208,17 @@ Compatibility and automatic recovery cover producer traffic during that interval
   generation. It uses `EnsureWorkItem`, validates an existing item when falling back to an older
   API, and returns transient dispatch failures to Eventarc so the same event is retried.
 * Dead-letter consumption is paused before old workers stop. After the zero-instance barrier, a
-  current-generation DLQ delivery with an active unleased attempt atomically fails that attempt,
-  advances the WorkItem generation, and creates its publication outbox row. A DLQ delivery for an
-  active leased attempt is deferred to the lease reaper. A `QUEUED` delivery that exhausted its
-  Pub/Sub delivery budget before any attempt was created is republished at the next generation;
-  only exhausted `RUNNING` work with no active attempt becomes terminal.
+  current-generation DLQ delivery with an active unleased or expired attempt atomically fails that
+  attempt and the WorkItem. A DLQ delivery for an active leased attempt is NACKed without mutation
+  so the live worker retains ownership. A `QUEUED` delivery that exhausted its Pub/Sub delivery
+  budget before any attempt was created is terminalized. Pub/Sub's delivery-attempt counter and
+  dead-letter policy are the sole automatic retry limit.
 * A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
   that legacy attempt and creates its new leased attempt at the same WorkItem generation. The MIG
   barrier makes this safe by proving that no old TEE instance remains before new workers start.
 * Existing generation-less WorkItems and queue messages are treated as generation 1. New clients
   always send the expected execution generation; an explicitly supplied value below 1 is invalid.
-  Generation checks make repeated or racing recovery idempotent and prevent stale ordinary and
+  Generation checks make repeated terminalization idempotent and prevent stale ordinary and
   dead-letter deliveries from changing replacement executions.
 
 No subscription drain, database snapshot, active-attempt query, or migration-time
@@ -1225,7 +1226,7 @@ No subscription drain, database snapshot, active-attempt query, or migration-tim
 `RetryWorkItem` maintain the publication-generation marker and outbox transactionally. Every retry
 must include the generation the operator inspected, so a delayed or replayed request cannot retry a
 later execution. The
-publisher still deletes the outbox row only after Pub/Sub acknowledges the message. This reuses the
+publisher deletes the outbox row only after Pub/Sub acknowledges the message. This reuses the
 existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Computation API remains
 workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
 Requisition Metadata or Impression Metadata APIs.
@@ -1249,31 +1250,27 @@ grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
 #### Recovering an abandoned running WorkItem
 
 Workers created after this rollout renew their active attempt lease. If a worker exits or can no
-longer reach the control plane, the lease expires after five minutes by default. The internal API
-then atomically fails that exact attempt. If the queue's durable execution-attempt limit has not
-been reached, it advances the WorkItem generation, returns the WorkItem to `QUEUED`, and creates a
-new outbox publication. At the limit, it instead creates an outbox publication for the existing
-dead-letter topic; the generic DLQ listener makes the WorkItem terminal. Workload-specific failure
-state remains the responsibility of the worker or its owning service. A late heartbeat or
-completion from the abandoned worker is rejected because its attempt is no longer active.
+longer reach the control plane, the lease expires after five minutes by default. Pub/Sub redelivers
+the same WorkItem generation, and `CreateWorkItemAttempt` atomically fails the expired attempt and
+creates its replacement. A late heartbeat or completion from the abandoned worker is rejected
+because its attempt is no longer authoritative.
 
-A lease-capable worker that catches a workload failure uses the same transaction before
-acknowledging its original delivery, instead of waiting for lease expiry. A successful failure RPC
-has already durably scheduled either the next execution or dead-letter delivery. If that RPC cannot
-be confirmed, the worker NACKs. A legacy unleased attempt still NACKs after failure because its
-recovery depends on Pub/Sub redelivery. This means a permanent workload error cannot receive an
-unbounded number of fresh Pub/Sub delivery budgets as WorkItem generations advance. The default
-limit is five execution attempts per WorkItem and is configured with `max_work_item_attempts` in
-`queues_config.textproto`; `dead_letter_queue_resource_id` identifies the existing DLQ topic.
+A lease-capable worker that catches a retryable workload failure marks its exact attempt `FAILED`
+and NACKs the original delivery. If the failure RPC cannot be confirmed, it still NACKs. The
+redelivery creates the next attempt at the same WorkItem generation. A non-retryable workload
+failure uses generation-fenced `FailWorkItem` and ACKs only after terminal failure is durable.
+Pub/Sub owns retry timing, approximate delivery-attempt counting, and dead-letter forwarding;
+attempt history is diagnostic and does not control retry policy. The deprecated
+`max_work_item_attempts` and `dead_letter_queue_resource_id` queue fields are ignored by the new
+retry path.
 
 An attempt created by an old worker has no lease. After the workflow's MIG quiescence barrier, the
 stopped worker's Pub/Sub delivery is either redelivered to a new lease-capable worker or is handled
 by the upgraded DLQ listener. Main-queue takeover fails the exact unleased attempt and creates the
 replacement leased attempt in one Spanner transaction without advancing the WorkItem generation.
-DLQ takeover advances the generation and creates a durable publication row. Both paths are
-automatic and generation-fenced. A leased active attempt is never replaced by a duplicate
-delivery; the duplicate is acknowledged and lease expiry remains the authoritative abandonment
-signal.
+DLQ handling atomically fails the unleased attempt and WorkItem. Both paths are automatic and
+generation-fenced. A leased active attempt is never replaced by a duplicate delivery; the
+duplicate is NACKed and lease expiry remains the authoritative abandonment signal.
 
 #### Monitoring active attempts
 
@@ -1299,9 +1296,11 @@ gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
 ```
 
 `WorkItemAttempt.State.ACTIVE` is stored as `1`. Workers retry transient lease, completion, and
-failure RPC errors with bounded backoff. The reaper resolves a current expired lease
-transactionally with a concurrent renewal or completion. Investigate an unleased attempt that does
-not receive a replacement delivery, or an expired current attempt that the reaper does not recover.
+failure RPC errors with bounded backoff. A redelivered message resolves an expired or legacy
+unleased attempt transactionally with a concurrent renewal or completion. Investigate an active
+attempt that does not receive a replacement delivery after lease expiry. Use generation-fenced
+`RetryWorkItem` only for explicit operator-authorized recovery after ordinary Pub/Sub delivery is
+no longer available.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

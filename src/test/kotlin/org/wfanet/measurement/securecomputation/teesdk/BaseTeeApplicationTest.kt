@@ -386,7 +386,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `acks redelivery when WorkItem has an active attempt`() = runBlocking {
+  fun `nacks redelivery when WorkItem has an active attempt`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     whenever(
@@ -418,14 +418,14 @@ class BaseTeeApplicationTest {
     )
     consumer.disposition.await()
 
-    assertThat(consumer.ackCount).isEqualTo(1)
-    assertThat(consumer.nackCount).isEqualTo(0)
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(1)
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
   }
 
   @Test
-  fun `acks active-attempt redelivery after completion RPC failure`() = runBlocking {
+  fun `nacks active-attempt redelivery after completion RPC failure`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -479,8 +479,8 @@ class BaseTeeApplicationTest {
 
     assertThat(firstDelivery.ackCount).isEqualTo(0)
     assertThat(firstDelivery.nackCount).isEqualTo(1)
-    assertThat(redelivery.ackCount).isEqualTo(1)
-    assertThat(redelivery.nackCount).isEqualTo(0)
+    assertThat(redelivery.ackCount).isEqualTo(0)
+    assertThat(redelivery.nackCount).isEqualTo(1)
     verifyBlocking(workItemAttemptsStub, times(3)) {
       completeWorkItemAttempt(any(), any<io.grpc.Metadata>())
     }
@@ -687,7 +687,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `acks active-attempt redelivery after failure RPC failure`() = runBlocking {
+  fun `nacks active-attempt redelivery after failure RPC failure`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -742,8 +742,8 @@ class BaseTeeApplicationTest {
 
     assertThat(firstDelivery.ackCount).isEqualTo(0)
     assertThat(firstDelivery.nackCount).isEqualTo(1)
-    assertThat(redelivery.ackCount).isEqualTo(1)
-    assertThat(redelivery.nackCount).isEqualTo(0)
+    assertThat(redelivery.ackCount).isEqualTo(0)
+    assertThat(redelivery.nackCount).isEqualTo(1)
     verifyBlocking(workItemAttemptsStub, times(3)) {
       failWorkItemAttempt(any(), any<io.grpc.Metadata>())
     }
@@ -855,7 +855,7 @@ class BaseTeeApplicationTest {
   }
 
   @Test
-  fun `acks leased worker failure when retry confirms attempt already failed`() = runBlocking {
+  fun `nacks leased worker failure when retry confirms attempt already failed`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -907,13 +907,13 @@ class BaseTeeApplicationTest {
     verifyBlocking(workItemAttemptsStub, times(2)) {
       failWorkItemAttempt(any(), any<io.grpc.Metadata>())
     }
-    assertThat(consumer.ackCount).isEqualTo(1)
-    assertThat(consumer.nackCount).isEqualTo(0)
+    assertThat(consumer.ackCount).isEqualTo(0)
+    assertThat(consumer.nackCount).isEqualTo(1)
     job.cancelAndJoin()
   }
 
   @Test
-  fun `leased worker failure is durably reported without stale nack`() = runBlocking {
+  fun `leased worker failure and concurrent delivery are both nacked`() = runBlocking {
     val workItemsStub = mock<WorkItemsCoroutineStub>()
     val workItemAttemptsStub = mock<WorkItemAttemptsCoroutineStub>()
     val workItemAttempt = workItemAttempt {
@@ -977,12 +977,12 @@ class BaseTeeApplicationTest {
     releaseWorker.complete(Unit)
     originalDelivery.disposition.await()
 
-    assertThat(broker.acknowledged).isTrue()
-    assertThat(duplicateDelivery.ackCount).isEqualTo(1)
-    assertThat(duplicateDelivery.nackCount).isEqualTo(0)
+    assertThat(broker.acknowledged).isFalse()
+    assertThat(duplicateDelivery.ackCount).isEqualTo(0)
+    assertThat(duplicateDelivery.nackCount).isEqualTo(1)
     assertThat(originalDelivery.ackCount).isEqualTo(0)
-    assertThat(originalDelivery.ackCallCount).isEqualTo(1)
-    assertThat(originalDelivery.nackCallCount).isEqualTo(0)
+    assertThat(originalDelivery.ackCallCount).isEqualTo(0)
+    assertThat(originalDelivery.nackCallCount).isEqualTo(1)
     assertThat(originalDelivery.nackCount).isEqualTo(0)
     verifyBlocking(workItemAttemptsStub, times(1)) {
       failWorkItemAttempt(any(), any<io.grpc.Metadata>())
