@@ -952,6 +952,35 @@ internal object ReportTraceOutput {
     appendLine()
     appendLine("Collection completeness: $artifactStatus")
     appendLine("Execution outcome: $executionOutcome")
+    if (artifactStatus == ReportTraceArtifactStatus.PARTIAL) {
+      val incompleteStages =
+        lifecycleCoverage.filter { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
+      val incompleteSources =
+        sourceStatuses.filter { it.status in INCOMPLETE_SOURCE_STATUSES }
+      appendLine()
+      appendLine("Incomplete lifecycle evidence:")
+      if (incompleteStages.isEmpty()) {
+        appendLine("- None identified")
+      } else {
+        for (stage in incompleteStages) {
+          appendLine(
+            "- `${sanitize(stage.name)}` — `${sanitize(stage.resource)}` " +
+              "(`${sanitize(stage.status)}`)"
+          )
+        }
+      }
+      if (incompleteSources.isNotEmpty()) {
+        appendLine()
+        appendLine("Incomplete telemetry sources:")
+        for (source in incompleteSources) {
+          val note = source.note.takeIf(String::isNotBlank)?.let { ": ${sanitize(it)}" }.orEmpty()
+          appendLine(
+            "- `${sanitize(source.project)}/${sanitize(source.source)}` — " +
+              "`${sanitize(source.status)}`$note"
+          )
+        }
+      }
+    }
     appendLine()
     appendLine("## Identity and collection window")
     appendLine()
@@ -1580,10 +1609,8 @@ internal object ReportTraceOutput {
       }
     }
     return if (
-      sourceStatuses.any { it.status in setOf("FAILED", "PARTIAL", "TRUNCATED") } ||
-        lifecycleCoverage.any {
-          it.status in setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN", "UNEXPECTED")
-        }
+      sourceStatuses.any { it.status in INCOMPLETE_SOURCE_STATUSES } ||
+        lifecycleCoverage.any { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
     ) {
       ReportTraceArtifactStatus.PARTIAL
     } else {
@@ -2033,9 +2060,10 @@ internal object ReportTraceOutput {
         "xmm.measurement.name",
         when {
           measurementReused -> ReportTraceStageRequirement.REUSED
-          measurement.state.uppercase() in TERMINAL_MEASUREMENT_STATES || measurementRefused ->
-            ReportTraceStageRequirement.REQUIRED
+          measurementRefused -> ReportTraceStageRequirement.REQUIRED
           executionRefused -> ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL
+          measurement.state.uppercase() in TERMINAL_MEASUREMENT_STATES ->
+            ReportTraceStageRequirement.REQUIRED
           reportFailed -> ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE
           else -> ReportTraceStageRequirement.REQUIRED
         },
@@ -2649,6 +2677,9 @@ internal object ReportTraceOutput {
       "processed_result_writeback",
       "basic_report_available",
     )
+  private val INCOMPLETE_SOURCE_STATUSES = setOf("FAILED", "PARTIAL", "TRUNCATED")
+  private val INCOMPLETE_LIFECYCLE_STATUSES =
+    setOf("MISSING", "IN_PROGRESS", "OBSERVED", "UNKNOWN", "UNEXPECTED")
   private val TERMINAL_METRIC_STATES = setOf("FAILED", "INVALID")
   private val TERMINAL_MEASUREMENT_STATES = setOf("FAILED", "CANCELLED")
   private val SAFE_TRACE_ATTRIBUTES =

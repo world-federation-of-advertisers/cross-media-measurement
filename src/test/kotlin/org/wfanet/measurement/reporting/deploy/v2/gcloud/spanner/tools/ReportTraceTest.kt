@@ -2545,7 +2545,7 @@ class ReportTraceTest {
             directMeasurementRoute(measurementNames[0], "FAILED", refusedRequisition, "REFUSED"),
             directMeasurementRoute(
               measurementNames[1],
-              "SUCCEEDED",
+              "FAILED",
               siblingRequisition,
               "FULFILLED",
             ),
@@ -3592,6 +3592,48 @@ class ReportTraceTest {
     assertThat(diagnostics).contains("Population field Common.gender not set")
     assertThat(diagnostics).contains(longDiagnosticTail)
     assertThat(diagnostics).doesNotContain("at example.Fulfiller.validate")
+  }
+
+  @Test
+  fun `render names incomplete lifecycle stages and telemetry sources near header`() {
+    val measurementName = "measurementConsumers/mc-1/measurements/measurement-1"
+    val output =
+      ReportTraceOutput.render(
+        context = reportTraceContext(),
+        spans = emptyList(),
+        logEntries = emptyList(),
+        sourceStatuses =
+          listOf(
+            ReportTraceSourceStatus(
+              project = "test-project",
+              source = "Cloud Logging",
+              status = "TRUNCATED",
+              fetched = 100,
+              retained = 50,
+              note = "Entry limit reached",
+            )
+          ),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+        lifecycleCoverage =
+          listOf(
+            ReportTraceLifecycleStage(
+              name = "kingdom_measurement_sync",
+              resource = measurementName,
+              status = "IN_PROGRESS",
+              evidence = "latest outcome was in_progress",
+            )
+          ),
+        artifactStatus = ReportTraceArtifactStatus.PARTIAL,
+      )
+
+    val summary = output.substringBefore("## Identity and collection window")
+    assertThat(summary).contains("Incomplete lifecycle evidence:")
+    assertThat(summary)
+      .contains("- `kingdom_measurement_sync` — `$measurementName` (`IN_PROGRESS`)")
+    assertThat(summary).contains("Incomplete telemetry sources:")
+    assertThat(summary)
+      .contains("- `test-project/Cloud Logging` — `TRUNCATED`: Entry limit reached")
   }
 
   @Test
