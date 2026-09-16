@@ -463,7 +463,8 @@ class ReportTraceTest {
         },
         spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
         resolverFactory = { _, _ -> error("Resolver factory should not be used") },
-        resolverOverride = BasicReportTraceResolver { throw IllegalStateException("database down") },
+        resolverOverride =
+          BasicReportTraceResolver { throw IllegalStateException("database down") },
         clock = Clock.fixed(NOW, ZoneOffset.UTC),
         output = PrintWriter(StringWriter()),
         error = PrintWriter(StringWriter()),
@@ -2663,12 +2664,7 @@ class ReportTraceTest {
         measurementRoutes =
           listOf(
             directMeasurementRoute(measurementNames[0], "FAILED", refusedRequisition, "REFUSED"),
-            directMeasurementRoute(
-              measurementNames[1],
-              "FAILED",
-              siblingRequisition,
-              "FULFILLED",
-            ),
+            directMeasurementRoute(measurementNames[1], "FAILED", siblingRequisition, "FULFILLED"),
           ),
         warnings = emptyList(),
       )
@@ -3020,10 +3016,7 @@ class ReportTraceTest {
 
     assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
     assertThat(output).contains("Collection completeness: PARTIAL")
-    assertThat(output)
-      .contains(
-        "- `noise_correction` — `${context.basicReportName}` (`MISSING`)"
-      )
+    assertThat(output).contains("- `noise_correction` — `${context.basicReportName}` (`MISSING`)")
   }
 
   @Test
@@ -4928,10 +4921,7 @@ class ReportTraceTest {
   fun `Confidential Space hostname identifies log service`() {
     val payload =
       Payload.JsonPayload.of(
-        mapOf(
-          "MESSAGE" to "INFO: processing computation-1",
-          "_HOSTNAME" to "trustee-mill-instance",
-        )
+        mapOf("MESSAGE" to "INFO: processing computation-1", "_HOSTNAME" to "trustee-mill-instance")
       )
 
     val service =

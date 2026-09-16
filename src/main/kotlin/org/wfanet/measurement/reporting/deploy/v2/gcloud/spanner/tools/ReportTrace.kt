@@ -485,8 +485,7 @@ internal class GoogleCloudReportTraceLogReader(
         logName.substringAfterLast('/'),
       )
     val message =
-      ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads, severity.name)
-        ?: return null
+      ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads, severity.name) ?: return null
     return ReportTraceLogEntry(
       sourceProject = project,
       timestamp = instantTimestamp ?: Instant.EPOCH,
@@ -960,10 +959,8 @@ internal object ReportTraceOutput {
     appendLine("Collection completeness: $artifactStatus")
     appendLine("Execution outcome: $executionOutcome")
     if (artifactStatus == ReportTraceArtifactStatus.PARTIAL) {
-      val incompleteStages =
-        lifecycleCoverage.filter { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
-      val incompleteSources =
-        sourceStatuses.filter { it.status in INCOMPLETE_SOURCE_STATUSES }
+      val incompleteStages = lifecycleCoverage.filter { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
+      val incompleteSources = sourceStatuses.filter { it.status in INCOMPLETE_SOURCE_STATUSES }
       appendLine()
       appendLine("Incomplete lifecycle evidence:")
       if (incompleteStages.isEmpty()) {
@@ -2429,8 +2426,7 @@ internal object ReportTraceOutput {
 
   private fun sanitizeTableCell(value: String): String = sanitize(value).replace("|", "\\|")
 
-  private fun sanitizeDiagnosticTableCell(value: String): String =
-    redact(value).replace("|", "\\|")
+  private fun sanitizeDiagnosticTableCell(value: String): String = redact(value).replace("|", "\\|")
 
   private fun StringBuilder.appendDiagnosticSections(
     logEntries: List<ReportTraceLogEntry>,
@@ -2495,9 +2491,7 @@ internal object ReportTraceOutput {
     val fields = safeTextFields(message)
     return DIAGNOSTIC_RESOURCE_ATTRIBUTES.firstNotNullOfOrNull(fields::get)
       ?: REQUISITION_NAME_IN_TEXT.find(message)?.value
-      ?: MILL_COMPUTATION_IN_TEXT.find(message)?.groupValues?.get(1)?.let {
-        "computations/$it"
-      }
+      ?: MILL_COMPUTATION_IN_TEXT.find(message)?.groupValues?.get(1)?.let { "computations/$it" }
       ?: "(unattributed)"
   }
 
