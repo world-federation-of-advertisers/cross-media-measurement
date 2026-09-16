@@ -16,17 +16,21 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.kotlin.unpack
 import io.grpc.Status
 import io.grpc.StatusException
 import java.util.logging.Logger
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
@@ -38,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -196,15 +201,22 @@ class FailedDispatchRetrier(
   )
 
   /**
-   * Loads every original WorkItem for [phaseWorkItems]. If a Phase-1 or Phase-2 fan-out was only
-   * partially published, replays one WorkItem from the preceding completed phase instead; that
-   * phase's idempotent last-out recreates all missing jobs and WorkItems from its persisted params.
+   * Loads every original WorkItem for [phaseWorkItems]. A partial Phase-0 publication is rebuilt
+   * from an existing sibling's immutable parameters. For a partial later-phase publication, this
+   * recursively replays every WorkItem from the nearest reconstructible preceding phase, whose
+   * idempotent last-out recreates the missing fan-out.
    */
   private suspend fun resolveRetrySources(
     uploadName: String,
     cmmsModelLine: String,
     phaseWorkItems: PhaseWorkItems,
   ): RetrySources {
+    if (phaseWorkItems.workItemIds.isEmpty()) {
+      throw IllegalStateException(
+        "No original ${phaseWorkItems.phase} WorkItem remains for $cmmsModelLine under " +
+          "$uploadName; the phase cannot be re-published."
+      )
+    }
     val sourceWorkItems = linkedMapOf<String, WorkItem>()
     var missingWorkItem = false
     for (workItemId in phaseWorkItems.workItemIds) {
@@ -217,32 +229,84 @@ class FailedDispatchRetrier(
     }
     if (!missingWorkItem) return RetrySources(phaseWorkItems.phase, sourceWorkItems)
 
+    if (phaseWorkItems.phase == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
+      return reconstructPhaseZeroSources(uploadName, cmmsModelLine, sourceWorkItems)
+    }
+
     val precedingPhase =
       when (phaseWorkItems.phase) {
         RawImpressionUploadModelLine.State.RANKING ->
           RawImpressionUploadModelLine.State.POOL_ASSIGNING
         RawImpressionUploadModelLine.State.LABELING -> RawImpressionUploadModelLine.State.RANKING
-        RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
-          throw IllegalStateException(
-            "A Phase-0 WorkItem for $cmmsModelLine under $uploadName was never published and " +
-              "there is no preceding phase to reconstruct it."
-          )
         else -> error("unreachable: ${phaseWorkItems.phase} is not a retry phase")
       }
-    val precedingIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, precedingPhase)
-    for (workItemId in precedingIds) {
-      val workItem = getWorkItemOrNull(workItemId) ?: continue
-      logger.info(
-        "Some ${phaseWorkItems.phase} WorkItems were never published; re-triggering " +
-          "$precedingPhase through $workItemId to reconstruct the fan-out."
+    val precedingSources =
+      resolveRetrySources(
+        uploadName,
+        cmmsModelLine,
+        PhaseWorkItems(
+          precedingPhase,
+          workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, precedingPhase),
+        ),
       )
-      return RetrySources(precedingPhase, mapOf(workItemId to workItem))
-    }
-    throw IllegalStateException(
-      "Some ${phaseWorkItems.phase} WorkItems for $cmmsModelLine under $uploadName were never " +
-        "published, and no $precedingPhase WorkItem remains to reconstruct them; the phase " +
-        "cannot be re-published."
+    logger.info(
+      "Some ${phaseWorkItems.phase} WorkItems were never published; re-triggering all " +
+        "${precedingSources.phase} WorkItems to reconstruct the fan-out."
     )
+    return precedingSources
+  }
+
+  /** Rebuilds missing Phase-0 WorkItems from one existing sibling's persisted parameters. */
+  private suspend fun reconstructPhaseZeroSources(
+    uploadName: String,
+    cmmsModelLine: String,
+    existingWorkItems: Map<String, WorkItem>,
+  ): RetrySources {
+    val templateWorkItem =
+      existingWorkItems.values.firstOrNull()
+        ?: throw IllegalStateException(
+          "No original Phase-0 WorkItem remains for $cmmsModelLine under $uploadName; the phase " +
+            "cannot be re-published."
+        )
+    val workItemParams = templateWorkItem.workItemParams.unpack(WorkItemParams::class.java)
+    val templateParams = workItemParams.appParams.unpack(SubpoolAssignerParams::class.java)
+    check(
+      templateParams.rawImpressionUpload == uploadName && templateParams.modelLine == cmmsModelLine
+    ) {
+      "Persisted Phase-0 parameters do not belong to $cmmsModelLine under $uploadName"
+    }
+
+    val jobs = listPoolAssignmentJobs(uploadName, cmmsModelLine)
+    check(
+      jobs.size == templateParams.totalShards &&
+        jobs.map { it.shardIndex }.toSet() == (0 until templateParams.totalShards).toSet()
+    ) {
+      "Expected ${templateParams.totalShards} PoolAssignmentJobs for $cmmsModelLine under " +
+        "$uploadName; found shards ${jobs.map { it.shardIndex }.sorted()}"
+    }
+    val reconstructed = linkedMapOf<String, WorkItem>()
+    for (job in jobs.sortedBy { it.shardIndex }) {
+      val workItemId = WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, job.shardIndex)
+      reconstructed[workItemId] =
+        existingWorkItems[workItemId]
+          ?: workItem {
+            queue = templateWorkItem.queue
+            this.workItemParams =
+              workItemParams
+                .toBuilder()
+                .setAppParams(
+                  templateParams
+                    .toBuilder()
+                    .setPoolAssignmentJob(job.name)
+                    .setShardIndex(job.shardIndex)
+                    .build()
+                    .pack()
+                )
+                .build()
+                .pack()
+          }
+    }
+    return RetrySources(RawImpressionUploadModelLine.State.POOL_ASSIGNING, reconstructed)
   }
 
   /** Returns the phase of an existing retry for [failureAttemptId], or `null` if none exists. */
@@ -353,13 +417,15 @@ class FailedDispatchRetrier(
         rankerJobNames.map { WorkItemIds.forVidRankBuilder(it) },
       )
     }
-    val poolAssignmentJobShards = listPoolAssignmentJobShards(uploadName, cmmsModelLine)
-    require(poolAssignmentJobShards.isNotEmpty()) {
+    val poolAssignmentJobs = listPoolAssignmentJobs(uploadName, cmmsModelLine)
+    require(poolAssignmentJobs.isNotEmpty()) {
       "No jobs found for $cmmsModelLine under $uploadName; nothing to retry"
     }
     return PhaseWorkItems(
       RawImpressionUploadModelLine.State.POOL_ASSIGNING,
-      poolAssignmentJobShards.map { WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it) },
+      poolAssignmentJobs.map {
+        WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it.shardIndex)
+      },
     )
   }
 
@@ -386,8 +452,8 @@ class FailedDispatchRetrier(
       RawImpressionUploadModelLine.State.RANKING ->
         listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
-        listPoolAssignmentJobShards(uploadName, cmmsModelLine).map {
-          WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it)
+        listPoolAssignmentJobs(uploadName, cmmsModelLine).map {
+          WorkItemIds.forSubpoolAssigner(uploadName, cmmsModelLine, it.shardIndex)
         }
       else -> error("unreachable: $phase is not a retry phase")
     }
@@ -449,11 +515,11 @@ class FailedDispatchRetrier(
     return names
   }
 
-  private suspend fun listPoolAssignmentJobShards(
+  private suspend fun listPoolAssignmentJobs(
     uploadName: String,
     cmmsModelLine: String,
-  ): List<Int> {
-    val shards = mutableListOf<Int>()
+  ): List<PoolAssignmentJob> {
+    val jobs = mutableListOf<PoolAssignmentJob>()
     var pageToken = ""
     do {
       val response =
@@ -466,10 +532,10 @@ class FailedDispatchRetrier(
             }
           )
         }
-      response.poolAssignmentJobsList.forEach { shards.add(it.shardIndex) }
+      jobs.addAll(response.poolAssignmentJobsList)
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
-    return shards
+    return jobs
   }
 
   private suspend fun getWorkItemOrNull(workItemId: String): WorkItem? {

@@ -209,6 +209,7 @@ class SubpoolAssignerApp(
             kekUri = getSubpoolMapKekUri(dataProvider),
             blobPrefix = params.subpoolMapStorageParams.blobPrefix,
             poolAssignmentJobsStub = poolAssignmentJobsStub,
+            rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
             rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
             rankerJobsStub = rankerJobsStub,
             rawImpressionUploadsStub = rawImpressionUploadsStub,

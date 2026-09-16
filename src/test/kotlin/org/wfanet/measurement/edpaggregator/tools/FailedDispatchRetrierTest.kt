@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusException
@@ -34,6 +35,7 @@ import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
@@ -42,6 +44,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.SubpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -52,12 +55,15 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
@@ -293,16 +299,25 @@ class FailedDispatchRetrierTest {
     whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
       .thenReturn(
         listPoolAssignmentJobsResponse {
-          poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
+          poolAssignmentJobs += poolAssignmentJob {
+            name = FIRST_POOL_JOB_NAME
+            shardIndex = 0
+          }
+          poolAssignmentJobs += poolAssignmentJob {
+            name = SECOND_POOL_JOB_NAME
+            shardIndex = 1
+          }
         }
       )
     val firstRankerWorkItem = WorkItemIds.forVidRankBuilder(RANKER_JOB_NAME)
     val missingRankerWorkItem = WorkItemIds.forVidRankBuilder(SECOND_RANKER_JOB_NAME)
-    val poolWorkItem = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 0)
+    val firstPoolWorkItem = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 0)
+    val secondPoolWorkItem = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 1)
     whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
       when (val name = invocation.getArgument<GetWorkItemRequest>(0).name) {
         "workItems/$firstRankerWorkItem",
-        "workItems/$poolWorkItem" -> workItem { queue = "q" }
+        "workItems/$firstPoolWorkItem",
+        "workItems/$secondPoolWorkItem" -> workItem { queue = "q" }
         "workItems/$missingRankerWorkItem" -> throw Status.NOT_FOUND.asRuntimeException()
         else -> error("Unexpected WorkItem lookup: $name")
       }
@@ -316,11 +331,131 @@ class FailedDispatchRetrierTest {
     val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
 
     assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
-    assertThat(result.workItemsRepublished).isEqualTo(1)
+    assertThat(result.workItemsRepublished).isEqualTo(2)
     val createCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
-    assertThat(createCaptor.firstValue.workItemId)
-      .isEqualTo(RequestIds.forRetriedWorkItem(poolWorkItem, FAILURE_ATTEMPT_ID))
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(createCaptor.capture()) }
+    assertThat(createCaptor.allValues.map { it.workItemId })
+      .containsExactly(
+        RequestIds.forRetriedWorkItem(firstPoolWorkItem, FAILURE_ATTEMPT_ID),
+        RequestIds.forRetriedWorkItem(secondPoolWorkItem, FAILURE_ATTEMPT_ID),
+      )
+      .inOrder()
+  }
+
+  @Test
+  fun `retryFailed recognizes a preceding-phase fallback after its response was lost`() =
+    runBlocking<Unit> {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+          }
+        )
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob {
+              name = FIRST_POOL_JOB_NAME
+              shardIndex = 0
+            }
+            poolAssignmentJobs += poolAssignmentJob {
+              name = SECOND_POOL_JOB_NAME
+              shardIndex = 1
+            }
+          }
+        )
+      val originalIds = (0..1).map { WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, it) }
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        val name = invocation.getArgument<GetWorkItemRequest>(0).name
+        if (
+          originalIds.any {
+            name == "workItems/${RequestIds.forRetriedWorkItem(it, FAILURE_ATTEMPT_ID)}"
+          }
+        ) {
+          workItem { state = WorkItem.State.QUEUED }
+        } else {
+          throw Status.NOT_FOUND.asRuntimeException()
+        }
+      }
+
+      val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+      assertThat(result.wasAlreadyStarted).isTrue()
+      assertThat(result.workItemsRepublished).isEqualTo(0)
+      verifyBlocking(modelLineService, never()) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    }
+
+  @Test
+  fun `retryFailed reconstructs a missing Phase 0 publication from its sibling`() = runBlocking {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(listVidLabelingJobsResponse {})
+    whenever(rankerJobService.listRankerJobs(any())).thenReturn(listRankerJobsResponse {})
+    whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+      .thenReturn(
+        listPoolAssignmentJobsResponse {
+          poolAssignmentJobs += poolAssignmentJob {
+            name = FIRST_POOL_JOB_NAME
+            shardIndex = 0
+          }
+          poolAssignmentJobs += poolAssignmentJob {
+            name = SECOND_POOL_JOB_NAME
+            shardIndex = 1
+          }
+        }
+      )
+    val firstWorkItemId = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 0)
+    val secondWorkItemId = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 1)
+    val firstParams = subpoolAssignerParams {
+      rawImpressionUpload = UPLOAD_NAME
+      modelLine = MODEL_LINE
+      modelBlobPath = "gs://models/original-model"
+      poolAssignmentJob = FIRST_POOL_JOB_NAME
+      shardIndex = 0
+      totalShards = 2
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+      when (val name = invocation.getArgument<GetWorkItemRequest>(0).name) {
+        "workItems/$firstWorkItemId" ->
+          workItem {
+            queue = "q"
+            workItemParams =
+              WorkItemParams.newBuilder().setAppParams(firstParams.pack()).build().pack()
+          }
+        "workItems/$secondWorkItemId" -> throw Status.NOT_FOUND.asRuntimeException()
+        else -> error("Unexpected WorkItem lookup: $name")
+      }
+    }
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
+      .thenReturn(
+        failedModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+      )
+
+    val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    assertThat(result.workItemsRepublished).isEqualTo(2)
+    val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(createCaptor.capture()) }
+    val reconstructed =
+      createCaptor.allValues.single {
+        it.workItemId == RequestIds.forRetriedWorkItem(secondWorkItemId, FAILURE_ATTEMPT_ID)
+      }
+    val reconstructedParams =
+      reconstructed.workItem.workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(SubpoolAssignerParams::class.java)
+    assertThat(reconstructed.workItem.queue).isEqualTo("q")
+    assertThat(reconstructedParams.modelBlobPath).isEqualTo("gs://models/original-model")
+    assertThat(reconstructedParams.poolAssignmentJob).isEqualTo(SECOND_POOL_JOB_NAME)
+    assertThat(reconstructedParams.shardIndex).isEqualTo(1)
+    assertThat(reconstructedParams.totalShards).isEqualTo(2)
   }
 
   @Test
@@ -849,6 +984,8 @@ class FailedDispatchRetrierTest {
     private const val SECOND_VID_JOB_NAME = "$UPLOAD_NAME/vidLabelingJobs/vlj2"
     private const val RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj1"
     private const val SECOND_RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj2"
+    private const val FIRST_POOL_JOB_NAME = "$UPLOAD_NAME/poolAssignmentJobs/paj1"
+    private const val SECOND_POOL_JOB_NAME = "$UPLOAD_NAME/poolAssignmentJobs/paj2"
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
   }

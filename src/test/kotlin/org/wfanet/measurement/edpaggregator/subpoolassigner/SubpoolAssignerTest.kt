@@ -51,20 +51,24 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsSt
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkPoolAssignmentJobSucceededResponseKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -165,6 +169,7 @@ class SubpoolAssignerTest {
     modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
     rankerStub: RankerJobServiceCoroutineStub = rankerStubMock(),
     workItemsStub: WorkItemsCoroutineStub = workItemsStubMock(),
+    rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub = mock(),
     source: RawImpressionSource<ParquetDigestedEvent> = mock(),
     accumulator: SubpoolFingerprintsAccumulator = SubpoolFingerprintsAccumulator(),
     totalShards: Int = 1,
@@ -179,6 +184,7 @@ class SubpoolAssignerTest {
       kekUri = "kek",
       blobPrefix = "maps",
       poolAssignmentJobsStub = poolAssignmentJobsStub,
+      rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       rawImpressionUploadModelLinesStub = modelLinesStub,
       rankerJobsStub = rankerStub,
       rawImpressionUploadsStub = mock<RawImpressionUploadServiceCoroutineStub>(),
@@ -346,58 +352,82 @@ class SubpoolAssignerTest {
   }
 
   @Test
-  fun `last shard with no timestamped impressions completes the model line`() = runBlocking {
-    val store = storeMock()
-    val ranker = rankerStubMock()
-    val workItems = workItemsStubMock()
-    val paj =
-      mock<PoolAssignmentJobServiceCoroutineStub> {
-        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
-          jobResponse(PoolAssignmentJob.State.CREATED)
-        onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
-          markPoolAssignmentJobSucceededResponse {
-            lastShardResult = MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {}
-          }
-        onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
-          listPoolAssignmentJobsResponse {
-            poolAssignmentJobs += poolAssignmentJob {
-              shardIndex = 0
-              encryptedDek = DEK_SHARD0
-            }
-          }
+  fun `last shard with no timestamped impressions continues using registered file date`() =
+    runBlocking<Unit> {
+      val store = storeMock()
+      val ranker = rankerStubMock()
+      val workItems = workItemsStubMock()
+      val registeredEventDate = date {
+        year = 2026
+        month = 6
+        day = 15
       }
-    val ruml =
-      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-              name = PARENT_NAME
-              cmmsModelLine = MODEL_LINE
-              state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+      val rawFiles =
+        mock<RawImpressionUploadFileServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadFiles(any(), any()) } doReturn
+            listRawImpressionUploadFilesResponse {
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                eventDate = date {
+                  year = 2026
+                  month = 6
+                  day = 14
+                }
+              }
+              rawImpressionUploadFiles += rawImpressionUploadFile {
+                eventDate = registeredEventDate
+              }
             }
-          }
-        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doReturn
-          rawImpressionUploadModelLine {
-            name = PARENT_NAME
-            cmmsModelLine = MODEL_LINE
-            state = RawImpressionUploadModelLine.State.LABELING
-          }
-        onBlocking { markRawImpressionUploadModelLineCompleted(any(), any()) } doReturn
-          rawImpressionUploadModelLine {
-            name = PARENT_NAME
-            cmmsModelLine = MODEL_LINE
-            state = RawImpressionUploadModelLine.State.COMPLETED
-          }
-      }
+        }
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.CREATED)
+          onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+            markPoolAssignmentJobSucceededResponse {
+              lastShardResult = MarkPoolAssignmentJobSucceededResponseKt.lastShardResult {}
+            }
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+            }
+          onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doReturn
+            parent(RawImpressionUploadModelLine.State.RANKING)
+        }
 
-    val result = assigner(store, paj, ruml, ranker, workItems).assign()
+      val result =
+        assigner(store, paj, ruml, ranker, workItems, rawImpressionUploadFilesStub = rawFiles)
+          .assign()
 
-    assertThat(result.lastShardOut).isTrue()
-    verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
-    verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
-    verifyBlocking(ruml) { markRawImpressionUploadModelLineLabeling(any(), any()) }
-    verifyBlocking(ruml) { markRawImpressionUploadModelLineCompleted(any(), any()) }
-  }
+      assertThat(result.lastShardOut).isTrue()
+      val rankerRequest = argumentCaptor<CreateRankerJobRequest>()
+      verifyBlocking(ranker) { createRankerJob(rankerRequest.capture(), any()) }
+      assertThat(rankerRequest.firstValue.rankerJob.poolOffsetsList).isEmpty()
+      val workItemRequest = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItems) { createWorkItem(workItemRequest.capture(), any()) }
+      val params =
+        workItemRequest.firstValue.workItem.workItemParams
+          .unpack(WorkItemParams::class.java)
+          .appParams
+          .unpack(VidRankBuilderParams::class.java)
+      assertThat(params.maxEventDate).isEqualTo(registeredEventDate)
+      val markRequest = argumentCaptor<MarkPoolAssignmentJobSucceededRequest>()
+      verifyBlocking(paj) { markPoolAssignmentJobSucceeded(markRequest.capture(), any()) }
+      assertThat(markRequest.firstValue.hasMaxEventDate()).isFalse()
+      verifyBlocking(ruml) { markRawImpressionUploadModelLineRanking(any(), any()) }
+      verifyBlocking(ruml, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+      verifyBlocking(ruml, never()) { markRawImpressionUploadModelLineCompleted(any(), any()) }
+    }
 
   @Test
   fun `early successful shard retries until the parent reaches POOL_ASSIGNING`() = runBlocking {

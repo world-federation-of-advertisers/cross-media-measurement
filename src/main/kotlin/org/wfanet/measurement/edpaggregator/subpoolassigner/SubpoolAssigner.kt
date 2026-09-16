@@ -26,6 +26,7 @@ import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -35,6 +36,7 @@ import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.LabelerInputMapper
 import org.wfanet.measurement.edpaggregator.rawimpressions.ParquetDigestedEvent
@@ -47,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
@@ -55,10 +58,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankerJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markPoolAssignmentJobSucceededRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineRankingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
@@ -100,6 +102,7 @@ class SubpoolAssigner(
   private val kekUri: String,
   private val blobPrefix: String,
   private val poolAssignmentJobsStub: PoolAssignmentJobServiceCoroutineStub,
+  private val rawImpressionUploadFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val rankerJobsStub: RankerJobServiceCoroutineStub,
   private val rawImpressionUploadsStub: RawImpressionUploadServiceCoroutineStub,
@@ -243,7 +246,7 @@ class SubpoolAssigner(
         if (markResponse.lastShardResult.hasMaxEventDate()) {
           markResponse.lastShardResult.maxEventDate
         } else {
-          null
+          latestRegisteredEventDate()
         },
         mergedDek = dek,
       )
@@ -281,14 +284,6 @@ class SubpoolAssigner(
       return Result(0, 0, 0, 0, lastShardOut = false)
     }
     if (
-      parent.poolOffsetsList.isEmpty() &&
-        !parent.hasMaxEventDate() &&
-        parent.state == RawImpressionUploadModelLine.State.LABELING
-    ) {
-      completeModelLineWithNoInWindowImpressions(parent)
-      return Result(0, 0, 0, 0, lastShardOut = true)
-    }
-    if (
       parent.state in COMPLETED_FANOUT_STATES ||
         parent.state == RawImpressionUploadModelLine.State.FAILED
     ) {
@@ -302,7 +297,7 @@ class SubpoolAssigner(
     runLastShardOut(
       parent,
       parent.poolOffsetsList,
-      if (parent.hasMaxEventDate()) parent.maxEventDate else null,
+      if (parent.hasMaxEventDate()) parent.maxEventDate else latestRegisteredEventDate(),
       mergedDek = parent.encryptedMergedDek,
     )
     return Result(0, 0, 0, 0, lastShardOut = true)
@@ -404,21 +399,16 @@ class SubpoolAssigner(
     maxEventDate: Date?,
     mergedDek: EncryptedDek,
   ) {
-    if (poolOffsets.isEmpty() && maxEventDate == null) {
-      completeModelLineWithNoInWindowImpressions(parent)
-      return
-    }
+    val resolvedMaxEventDate =
+      requireNotNull(maxEventDate) {
+        "No registered input event date exists for $modelLine under $rawImpressionUpload"
+      }
 
     val jobOffsets: List<List<Long>> =
       if (poolOffsets.isEmpty()) listOf(emptyList()) else poolOffsets.map(::listOf)
     for (offsets in jobOffsets) {
       val rankerJob = createRankerJob(offsets)
-      publishVidRankBuilderWorkItem(
-        rankerJob,
-        offsets,
-        requireNotNull(maxEventDate) { "max_event_date missing for Phase-1 work" },
-        mergedDek,
-      )
+      publishVidRankBuilderWorkItem(rankerJob, offsets, resolvedMaxEventDate, mergedDek)
     }
 
     markParentRanking(parent)
@@ -427,63 +417,39 @@ class SubpoolAssigner(
     )
   }
 
-  /** Completes a model line whose Phase 0 observed no in-window impressions. */
-  private suspend fun completeModelLineWithNoInWindowImpressions(
-    parent: RawImpressionUploadModelLine
-  ) {
-    var current = parent
-    if (current.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
-      current =
-        try {
-          rpcThrottlers.metadataWrite.onReady {
-            rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
-              markRawImpressionUploadModelLineLabelingRequest {
-                name = current.name
-                etag = current.etag
-                requestId = RequestIds.forMarkRawImpressionUploadModelLineLabeling(current.name)
+  /**
+   * Returns the latest date in this upload's immutable file snapshot. This is used only to carry a
+   * zero-result upload through Phase 1/2; it is not persisted as rank chronology.
+   */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun latestRegisteredEventDate(): Date? {
+    var latest: Date? = null
+    rawImpressionUploadFilesStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = rawImpressionUpload
+                this.pageToken = pageToken
               }
             )
           }
-        } catch (e: StatusException) {
+        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+      }
+      .collect { page ->
+        for (file in page) {
+          val currentLatest = latest
           if (
-            e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
+            file.hasEventDate() &&
+              (currentLatest == null ||
+                file.eventDate.toLocalDate().isAfter(currentLatest.toLocalDate()))
           ) {
-            throw e
+            latest = file.eventDate
           }
-          requireNotNull(getParent()) { "RawImpressionUploadModelLine ${parent.name} disappeared" }
         }
-    }
-    if (current.state == RawImpressionUploadModelLine.State.FAILED) return
-    if (current.state == RawImpressionUploadModelLine.State.COMPLETED) return
-    check(current.state == RawImpressionUploadModelLine.State.LABELING) {
-      "Parent ${current.name} has not reached LABELING for its empty completion"
-    }
-    try {
-      rpcThrottlers.metadataWrite.onReady {
-        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
-          markRawImpressionUploadModelLineCompletedRequest {
-            name = current.name
-            etag = current.etag
-            requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(current.name)
-          }
-        )
       }
-    } catch (e: StatusException) {
-      if (
-        e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
-      ) {
-        throw e
-      }
-      val latest =
-        requireNotNull(getParent()) { "RawImpressionUploadModelLine ${parent.name} disappeared" }
-      if (
-        latest.state != RawImpressionUploadModelLine.State.COMPLETED &&
-          latest.state != RawImpressionUploadModelLine.State.FAILED
-      ) {
-        throw e
-      }
-    }
-    logger.info("No in-window impressions for $modelLine; parent advanced to COMPLETED")
+    return latest
   }
 
   /**
