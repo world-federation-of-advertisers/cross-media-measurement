@@ -59,6 +59,7 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
@@ -172,9 +173,11 @@ class ResultsFulfiller(
     } catch (e: CancellationException) {
       throw e
     } catch (e: RequisitionProcessingException) {
+      logGroupFailure(e.failure)
       throw e.failure
     } catch (e: Exception) {
       recordSharedFailure(e)
+      logGroupFailure(e)
       throw e
     }
   }
@@ -189,6 +192,22 @@ class ResultsFulfiller(
         error = error,
       )
     }
+  }
+
+  private fun logGroupFailure(error: Exception) {
+    ReportTraceLogging.log(
+      logger,
+      Level.SEVERE,
+      error,
+      "edp_aggregator.results_fulfiller.group_failed",
+      ReportTraceAttributes.BASIC_REPORT_NAME_STRING to groupedRequisitions.basicReport,
+      ReportTraceAttributes.REPORT_NAME_STRING to groupedRequisitions.report,
+      ReportTraceAttributes.GROUP_ID_STRING to groupedRequisitions.groupId,
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "results_fulfillment",
+      ReportTraceAttributes.OUTCOME_STRING to "failed",
+      ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error),
+      ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(error),
+    )
   }
 
   private fun requisitionTraceAttributes(requisitionName: String): Attributes {

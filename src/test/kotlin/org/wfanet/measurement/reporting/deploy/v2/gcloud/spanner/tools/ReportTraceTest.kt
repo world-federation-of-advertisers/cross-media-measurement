@@ -5103,6 +5103,16 @@ class ReportTraceTest {
       )
 
     assertThat(output).contains("Execution outcome: FAILED")
+    assertThat(output)
+      .contains(
+        "## Final disposition\n\n" +
+          "Execution outcome: FAILED\n\n" +
+          "| Stage | Status | Evidence |\n" +
+          "| --- | --- | --- |\n" +
+          "| report_result_assembly | FAILED |"
+      )
+    assertThat(output.indexOf("## Final disposition"))
+      .isGreaterThan(output.indexOf(reportFailure.name))
   }
 
   @Test

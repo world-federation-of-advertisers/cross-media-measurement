@@ -1122,6 +1122,25 @@ internal object ReportTraceOutput {
       }
     }
     appendLine()
+    appendLine("## Final disposition")
+    appendLine()
+    appendLine("Execution outcome: $executionOutcome")
+    val finalDispositionStages =
+      lifecycleCoverage.filter { it.name in FINAL_DISPOSITION_LIFECYCLE_STAGES }
+    if (finalDispositionStages.isNotEmpty()) {
+      appendLine()
+      appendLine("| Stage | Status | Evidence |")
+      appendLine("| --- | --- | --- |")
+      for (stage in finalDispositionStages) {
+        appendLine("| ${stage.name} | ${stage.status} | ${sanitize(stage.evidence)} |")
+      }
+    }
+    appendLine()
+    appendLine(
+      "_This disposition is authoritative for the report. The last chronological event may " +
+        "belong to a child operation that finished concurrently after the report became terminal._"
+    )
+    appendLine()
     appendLine("## Collection metadata")
     appendLine()
     appendLine("- Tool: report-trace")
@@ -2576,6 +2595,13 @@ internal object ReportTraceOutput {
     setOf("started", "prepared", "in_progress", "pending", "retryable_failure", "stale_delivery")
   private val REPORT_TERMINAL_SUPERSEDED_SYNC_STAGES =
     setOf("metric_result_sync", "kingdom_measurement_sync")
+  private val FINAL_DISPOSITION_LIFECYCLE_STAGES =
+    setOf(
+      "report_result_assembly",
+      "noise_correction",
+      "processed_result_writeback",
+      "basic_report_available",
+    )
   private val TERMINAL_METRIC_STATES = setOf("FAILED", "INVALID")
   private val TERMINAL_MEASUREMENT_STATES = setOf("FAILED", "CANCELLED")
   private val SAFE_TRACE_ATTRIBUTES =
