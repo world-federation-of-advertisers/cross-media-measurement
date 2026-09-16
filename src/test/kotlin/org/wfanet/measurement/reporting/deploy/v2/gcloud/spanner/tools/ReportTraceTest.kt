@@ -44,6 +44,7 @@ import java.util.Date
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.runBlocking
@@ -993,7 +994,7 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `buildLogFilters retains gRPC preambles for contextual filtering`() {
+  fun `buildLogFilters does not broaden correlation queries to all gRPC logs`() {
     val filter =
       ReportTraceOutput.buildLogFilters(
           listOf("measurementConsumers/mc-1/basicReports/report-1"),
@@ -1004,6 +1005,7 @@ class ReportTraceTest {
 
     assertThat(filter).doesNotContain("NOT (textPayload =~")
     assertThat(filter).contains("jsonPayload.message:")
+    assertThat(filter).doesNotContain("textPayload:\"gRPC\"")
   }
 
   @Test
@@ -1298,6 +1300,7 @@ class ReportTraceTest {
         logging = logging,
         includeGrpcPayloads = false,
         requestThrottler = throttler,
+        maxGrpcContextEntries = 1000,
       )
 
     val failure =
@@ -1318,38 +1321,46 @@ class ReportTraceTest {
   @Test
   fun `Cloud Logging reader excludes split gRPC entries by logger context`() = runBlocking {
     val logging = mock<Logging>()
-    val page = mock<Page<LogEntry>>()
+    val correlatedPage = mock<Page<LogEntry>>()
+    val grpcContextPage = mock<Page<LogEntry>>()
+    val applicationContextPage = mock<Page<LogEntry>>()
     val logName = "projects/logging-project/logs/stdout"
     val grpcSource =
       SourceLocation.newBuilder().setFunction("wfa.measurement.Service.Create").build()
     val applicationSource =
       SourceLocation.newBuilder().setFunction("org.example.Worker.process").build()
     val grpcPreamble =
-      LogEntry.newBuilder(
-          Payload.StringPayload.of(
-            "[grpc-worker] gRPC trace-id request: " +
-              "measurementConsumers/mc-1/basicReports/report-1"
-          )
-        )
+      LogEntry.newBuilder(Payload.StringPayload.of("[grpc-worker] gRPC trace-id request:"))
         .setLogName(logName)
         .setSourceLocation(grpcSource)
         .setTimestamp(NOW.minusMillis(2))
         .build()
     val grpcContinuation =
-      LogEntry.newBuilder(Payload.StringPayload.of("status: FAILED"))
+      LogEntry.newBuilder(
+          Payload.StringPayload.of(
+            "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\""
+          )
+        )
         .setLogName(logName)
         .setSourceLocation(grpcSource)
         .setTimestamp(NOW.minusMillis(1))
         .build()
     val applicationError =
-      LogEntry.newBuilder(Payload.StringPayload.of("status: failed"))
+      LogEntry.newBuilder(
+          Payload.StringPayload.of("status: failed measurementConsumers/mc-1/basicReports/report-1")
+        )
         .setLogName(logName)
         .setSourceLocation(applicationSource)
         .setTimestamp(NOW)
         .build()
-    whenever(page.values).thenReturn(listOf(applicationError, grpcContinuation, grpcPreamble))
-    whenever(page.hasNextPage()).thenReturn(false)
-    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(page)
+    whenever(correlatedPage.values).thenReturn(listOf(applicationError, grpcContinuation))
+    whenever(correlatedPage.hasNextPage()).thenReturn(false)
+    whenever(grpcContextPage.values).thenReturn(listOf(grpcContinuation, grpcPreamble))
+    whenever(grpcContextPage.hasNextPage()).thenReturn(false)
+    whenever(applicationContextPage.values).thenReturn(listOf(applicationError))
+    whenever(applicationContextPage.hasNextPage()).thenReturn(false)
+    whenever(logging.listLogEntries(any(), any(), any()))
+      .thenReturn(correlatedPage, applicationContextPage, grpcContextPage)
     val reader =
       GoogleCloudReportTraceLogReader(
         project = "logging-project",
@@ -1365,9 +1376,104 @@ class ReportTraceTest {
         limit = 100,
       )
 
-    assertThat(entries.map { it.message }).containsExactly("status: failed")
+    assertThat(entries.map { it.message })
+      .containsExactly("status: failed measurementConsumers/mc-1/basicReports/report-1")
     Unit
   }
+
+  @Test
+  fun `Cloud Logging reader reports partial collection when gRPC context is bounded`() =
+    runBlocking {
+      val logging = mock<Logging>()
+      val correlatedPage = mock<Page<LogEntry>>()
+      val contextPage = mock<Page<LogEntry>>()
+      val nextContextPage = mock<Page<LogEntry>>()
+      val logName = "projects/logging-project/logs/stdout"
+      val grpcSource =
+        SourceLocation.newBuilder().setFunction("wfa.measurement.Service.Create").build()
+      val grpcContinuation =
+        LogEntry.newBuilder(
+            Payload.StringPayload.of(
+              "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\""
+            )
+          )
+          .setLogName(logName)
+          .setSourceLocation(grpcSource)
+          .setTimestamp(NOW)
+          .build()
+      val olderContinuation =
+        LogEntry.newBuilder(Payload.StringPayload.of("request_id: \"request-1\""))
+          .setLogName(logName)
+          .setSourceLocation(grpcSource)
+          .setTimestamp(NOW.minusMillis(1))
+          .build()
+      whenever(correlatedPage.values).thenReturn(listOf(grpcContinuation))
+      whenever(correlatedPage.hasNextPage()).thenReturn(false)
+      whenever(contextPage.values).thenReturn(listOf(grpcContinuation, olderContinuation))
+      whenever(contextPage.hasNextPage()).thenReturn(true)
+      whenever(contextPage.nextPage).thenReturn(nextContextPage)
+      whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage, contextPage)
+      val reader =
+        GoogleCloudReportTraceLogReader(
+          project = "logging-project",
+          logging = logging,
+          includeGrpcPayloads = false,
+          requestThrottler = RecordingThrottler(),
+          maxGrpcContextEntries = 1,
+        )
+
+      val exception =
+        assertFailsWith<ReportTraceLogContextTruncatedException> {
+          reader.read(
+            correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+            startTime = NOW.minusSeconds(1),
+            endTime = NOW.plusSeconds(1),
+            limit = 100,
+          )
+        }
+
+      assertThat(exception.partialEntries).isEmpty()
+      assertThat(exception.contextEntriesExamined).isEqualTo(1)
+      assertThat(exception.contextEntryLimit).isEqualTo(1)
+      Unit
+    }
+
+  @Test
+  fun `Cloud Logging reader preserves split gRPC payloads when explicitly included`() =
+    runBlocking {
+      val logging = mock<Logging>()
+      val page = mock<Page<LogEntry>>()
+      val grpcContinuation =
+        LogEntry.newBuilder(
+            Payload.StringPayload.of(
+              "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\""
+            )
+          )
+          .setLogName("projects/logging-project/logs/stdout")
+          .setTimestamp(NOW)
+          .build()
+      whenever(page.values).thenReturn(listOf(grpcContinuation))
+      whenever(page.hasNextPage()).thenReturn(false)
+      whenever(logging.listLogEntries(any(), any(), any())).thenReturn(page)
+      val reader =
+        GoogleCloudReportTraceLogReader(
+          project = "logging-project",
+          logging = logging,
+          includeGrpcPayloads = true,
+        )
+
+      val entries =
+        reader.read(
+          correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          startTime = NOW.minusSeconds(1),
+          endTime = NOW.plusSeconds(1),
+          limit = 100,
+        )
+
+      assertThat(entries.map { it.message })
+        .containsExactly("basic_report: \"measurementConsumers/mc-1/basicReports/report-1\"")
+      Unit
+    }
 
   @Test
   fun `render preserves span hierarchy and readable labels`() {
@@ -6600,6 +6706,59 @@ class ReportTraceTest {
     assertThat(output.toString()).contains("Cloud Logging query failed for project test")
     assertThat(output.toString()).contains("Collection completeness: PARTIAL")
     assertThat(output.toString()).contains("No matching trace spans or log entries")
+  }
+
+  @Test
+  fun `main reports incomplete gRPC payload classification as partial`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val partialEntry =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "reporting",
+        severity = "ERROR",
+        trace = null,
+        message = "status: failed xmm.report.name=$reportName",
+      )
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            throw ReportTraceLogContextTruncatedException(
+              partialEntries = listOf(partialEntry),
+              contextEntriesExamined = 10,
+              contextEntryLimit = 10,
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+    assertThat(output.toString())
+      .contains("Payload policy: APPLICATION-LOGS; GRPC-CONTEXT-INCOMPLETE")
+    assertThat(output.toString())
+      .contains("| test | gRPC payload classification | TRUNCATED | 10 | 0 |")
+    assertThat(output.toString()).contains(partialEntry.message)
   }
 
   private fun traceSpan(spanId: String, startTime: Instant): ReportTraceSpan {
