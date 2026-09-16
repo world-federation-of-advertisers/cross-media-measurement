@@ -658,7 +658,9 @@ internal class GoogleCloudReportTraceLogReader(
     val payload = getPayload<Payload<*>>()
     val loggerLabel =
       LOGGER_LABEL_KEYS.firstNotNullOfOrNull { key ->
-        labels[key]?.takeIf(String::isNotBlank)?.let { value -> key to value }
+        labels[key]?.takeIf(String::isNotBlank)?.let { value ->
+          LoggerIdentity(value, "labels.\"$key\"")
+        }
       }
     val sourceFunction = sourceLocation?.function?.takeIf(String::isNotBlank)
     val jsonSource =
@@ -668,19 +670,17 @@ internal class GoogleCloudReportTraceLogReader(
         ?.let { it as? Map<*, *> }
         ?.let { source -> (source["function"] ?: source["file"])?.toString() }
         ?.takeIf(String::isNotBlank)
-    val loggerIdentity = loggerLabel?.second ?: sourceFunction ?: jsonSource ?: return null
-    val loggerField =
-      when {
-        loggerLabel != null -> "labels.\"${loggerLabel.first}\""
-        sourceFunction != null -> "sourceLocation.function"
-        else -> null
-      }
+    val loggerIdentity =
+      loggerLabel
+        ?: sourceFunction?.let { LoggerIdentity(it, "sourceLocation.function") }
+        ?: jsonSource?.let { LoggerIdentity(it, null) }
+        ?: return null
     return LogOrigin(
       logName = logName.orEmpty(),
       resourceType = resource?.type,
       resourceLabels = resource?.labels.orEmpty().toMap(),
-      loggerIdentity = loggerIdentity,
-      loggerField = loggerField,
+      loggerIdentity = loggerIdentity.value,
+      loggerField = loggerIdentity.filterField,
     )
   }
 
@@ -712,6 +712,8 @@ internal class GoogleCloudReportTraceLogReader(
     val loggerIdentity: String,
     val loggerField: String?,
   )
+
+  private data class LoggerIdentity(val value: String, val filterField: String?)
 
   private data class GrpcFilterResult(
     val entries: List<LogEntry>,
