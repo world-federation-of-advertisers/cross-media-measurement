@@ -1163,8 +1163,10 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
 The repository's top-level **Update CMMS** workflow is the supported upgrade path. Do not invoke its
 child deployment workflows independently; doing so bypasses the worker-quiescence barrier.
 
-Configure the deployment, then run **Update CMMS** once. An environment-scoped concurrency lock
-prevents two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
+Configure the deployment, then run **Update CMMS** once. Before changing a deployment, the workflow
+validates the RequisitionFetcher and DataWatcher configuration, including direct/legacy namespace
+separation and required control-plane settings. An environment-scoped concurrency lock prevents
+two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
 performs the required order:
 
 1. Roll `secure-computation-internal-api-server` and
