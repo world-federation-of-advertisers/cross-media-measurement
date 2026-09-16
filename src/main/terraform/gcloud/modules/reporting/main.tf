@@ -145,6 +145,15 @@ resource "postgresql_grant" "report_trace_operator_tables" {
   privileges  = ["SELECT"]
 }
 
+resource "postgresql_default_privileges" "report_trace_operator_tables" {
+  database    = google_sql_database.db.name
+  owner       = google_sql_user.reporting_internal.name
+  role        = google_sql_user.report_trace_operator.name
+  schema      = "public"
+  object_type = "table"
+  privileges  = ["SELECT"]
+}
+
 resource "google_project_iam_member" "report_trace_operator_logging_viewer" {
   for_each = local.report_trace_observability_projects
   project  = each.value
@@ -163,13 +172,6 @@ resource "google_project_iam_member" "report_trace_operator_service_usage_consum
   for_each = local.report_trace_observability_projects
   project  = each.value
   role     = "roles/serviceusage.serviceUsageConsumer"
-  member   = google_service_account.report_trace_operator.member
-}
-
-resource "google_project_iam_member" "report_trace_operator_service_usage_viewer" {
-  for_each = local.report_trace_observability_projects
-  project  = each.value
-  role     = "roles/serviceusage.serviceUsageViewer"
   member   = google_service_account.report_trace_operator.member
 }
 
