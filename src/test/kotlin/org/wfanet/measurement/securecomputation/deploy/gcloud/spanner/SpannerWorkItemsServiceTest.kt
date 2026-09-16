@@ -332,7 +332,8 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
     }
 
     val results =
-      (1..8).map { async(Dispatchers.Default) { services.service.ensureWorkItem(request) } }
+      (1..8)
+        .map { async(Dispatchers.Default) { services.service.ensureWorkItem(request) } }
         .awaitAll()
 
     assertThat(results.map { it.workItemResourceId }.distinct())
