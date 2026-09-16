@@ -666,7 +666,7 @@ class BaseTeeApplicationTest {
     assertThat(app.messageProcessed.isCompleted).isFalse()
     job.cancelAndJoin()
     val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("in_progress")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("already_completed")
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
   }
 

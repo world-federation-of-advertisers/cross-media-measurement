@@ -481,13 +481,13 @@ internal class GoogleCloudReportTraceLogReader(
     if (includeGrpcPayloads) return entries
     val activeGrpcOrigins = mutableSetOf<LogOrigin>()
     val retainedEntries = mutableListOf<LogEntry>()
-    for (
-      entry in
-        entries.withIndex().sortedWith(
+    for (entry in
+      entries
+        .withIndex()
+        .sortedWith(
           compareBy<IndexedValue<LogEntry>> { it.value.instantTimestamp ?: Instant.EPOCH }
             .thenByDescending { it.index }
-        )
-    ) {
+        )) {
       val message = entry.value.rawMessage()
       val origin = entry.value.logOrigin()
       when (ReportTraceOutput.verboseGrpcLogKind(message)) {
@@ -580,12 +580,7 @@ internal class GoogleCloudReportTraceLogReader(
     private const val MAX_LOG_PAGE_SIZE = 1000
     private const val MAX_GRPC_CONTEXT_ENTRIES = 1000
     private val LOGGER_LABEL_KEYS =
-      listOf(
-        "logger",
-        "logger_name",
-        "loggerName",
-        "logging.googleapis.com/logger",
-      )
+      listOf("logger", "logger_name", "loggerName", "logging.googleapis.com/logger")
 
     private fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
 
@@ -982,10 +977,7 @@ internal object ReportTraceOutput {
       val candidate = buildLogFilter(timeFilter, chunk + predicate)
       if (candidate.length > MAX_LOG_FILTER_LENGTH && chunk.isNotEmpty()) {
         filters += buildLogFilter(timeFilter, chunk)
-        require(
-          buildLogFilter(timeFilter, listOf(predicate)).length <=
-            MAX_LOG_FILTER_LENGTH
-        ) {
+        require(buildLogFilter(timeFilter, listOf(predicate)).length <= MAX_LOG_FILTER_LENGTH) {
           "One correlation value exceeds the Cloud Logging filter-size limit"
         }
         chunk = mutableListOf(predicate)
@@ -1002,10 +994,7 @@ internal object ReportTraceOutput {
     return filters
   }
 
-  private fun buildLogFilter(
-    timeFilter: String,
-    identifierPredicates: List<String>,
-  ): String {
+  private fun buildLogFilter(timeFilter: String, identifierPredicates: List<String>): String {
     return "$timeFilter AND (${identifierPredicates.joinToString(" OR ")})"
   }
 
@@ -2022,9 +2011,7 @@ internal object ReportTraceOutput {
 
     val basicReportFailed = context.basicReportState?.uppercase() in setOf("FAILED", "INVALID")
     val failedBeforeReport = basicReportFailed && context.reportName == REPORT_NOT_CREATED
-    val reportFailed =
-      reportStates[context.reportName] == "FAILED" ||
-        hasFailedEvidence("report_result_assembly", "xmm.report.name", context.reportName)
+    val reportFailed = reportStates[context.reportName] == "FAILED"
     val executionRefused =
       routeResolution.measurementRoutes.any { measurement ->
         measurement.requisitions.any { it.state.uppercase() == "REFUSED" }
@@ -2037,8 +2024,18 @@ internal object ReportTraceOutput {
       context.basicReportName?.let { basicReportName ->
         hasFailedEvidence("processed_result_writeback", "xmm.basic_report.name", basicReportName)
       } == true
+    val failureWritebackAttempted =
+      context.basicReportName?.let { basicReportName ->
+        observed["basic_report_failure_writeback"].orEmpty().any {
+          it.attributes["xmm.basic_report.name"] == basicReportName
+        }
+      } == true
     val failureWritebackRequired =
-      basicReportFailed || reportFailed || noiseCorrectionFailed || processedResultWritebackFailed
+      basicReportFailed ||
+        reportFailed ||
+        noiseCorrectionFailed ||
+        processedResultWritebackFailed ||
+        failureWritebackAttempted
 
     context.basicReportName?.let { basicReportName ->
       add("basic_report_creation", basicReportName, "xmm.basic_report.name")
@@ -2802,14 +2799,12 @@ internal object ReportTraceOutput {
         "\\[[^]]*]|[A-Za-z0-9_.-]+\\s*=.*)\\s*$"
     )
 
-  private fun isVerboseGrpcLog(text: String): Boolean =
-    verboseGrpcLogKind(text) != null
+  private fun isVerboseGrpcLog(text: String): Boolean = verboseGrpcLogKind(text) != null
 
   internal fun verboseGrpcLogKind(text: String): String? =
     VERBOSE_GRPC_LOG_PATTERN.find(text)?.groupValues?.get(1)?.lowercase()
 
-  internal fun isGrpcContinuation(text: String): Boolean =
-    GRPC_CONTINUATION_PATTERN.matches(text)
+  internal fun isGrpcContinuation(text: String): Boolean = GRPC_CONTINUATION_PATTERN.matches(text)
 
   private fun safeTextFields(text: String): Map<String, String> {
     return buildMap {

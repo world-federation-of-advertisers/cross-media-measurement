@@ -1321,13 +1321,9 @@ class ReportTraceTest {
     val page = mock<Page<LogEntry>>()
     val logName = "projects/logging-project/logs/stdout"
     val grpcSource =
-      SourceLocation.newBuilder()
-        .setFunction("wfa.measurement.Service.Create")
-        .build()
+      SourceLocation.newBuilder().setFunction("wfa.measurement.Service.Create").build()
     val applicationSource =
-      SourceLocation.newBuilder()
-        .setFunction("org.example.Worker.process")
-        .build()
+      SourceLocation.newBuilder().setFunction("org.example.Worker.process").build()
     val grpcPreamble =
       LogEntry.newBuilder(
           Payload.StringPayload.of(
@@ -1351,8 +1347,7 @@ class ReportTraceTest {
         .setSourceLocation(applicationSource)
         .setTimestamp(NOW)
         .build()
-    whenever(page.values)
-      .thenReturn(listOf(applicationError, grpcContinuation, grpcPreamble))
+    whenever(page.values).thenReturn(listOf(applicationError, grpcContinuation, grpcPreamble))
     whenever(page.hasNextPage()).thenReturn(false)
     whenever(logging.listLogEntries(any(), any(), any())).thenReturn(page)
     val reader =
@@ -3057,6 +3052,35 @@ class ReportTraceTest {
       .isEqualTo("MISSING")
     assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
       .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `transient assembly failure does not require BasicReport failure writeback`() {
+    val context = reportTraceContext().copy(basicReportState = "REPORT_CREATED")
+    val assemblyFailure =
+      failedLifecycleSpan("report_result_assembly", mapOf("xmm.report.name" to context.reportName))
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "report_result_assembly",
+              "xmm.outcome" to "failed",
+              "xmm.report.name" to context.reportName,
+              "xmm.error.code" to "UNAVAILABLE",
+            )
+        )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        unresolvedRouteResolution(context),
+        listOf(assemblyFailure),
+        emptyList(),
+      )
+
+    assertThat(coverage.single { it.name == "report_result_assembly" }.status).isEqualTo("FAILED")
+    assertThat(coverage.single { it.name == "basic_report_failure_writeback" }.status)
+      .isEqualTo("NOT_APPLICABLE")
+    assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
   }
 
   @Test
@@ -5055,8 +5079,7 @@ class ReportTraceTest {
   @Test
   fun `buildLogFilters searches Confidential Space launcher messages`() {
     val filter =
-      ReportTraceOutput.buildLogFilters(listOf("computations/computation-1"), NOW, NOW)
-        .single()
+      ReportTraceOutput.buildLogFilters(listOf("computations/computation-1"), NOW, NOW).single()
 
     assertThat(filter).contains("jsonPayload.MESSAGE:\"computations/computation-1\"")
     assertThat(filter).contains("jsonPayload.MESSAGE:\"computation-1\"")
