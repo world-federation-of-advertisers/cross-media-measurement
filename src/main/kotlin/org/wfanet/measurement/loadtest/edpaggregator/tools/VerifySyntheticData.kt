@@ -22,6 +22,7 @@ import com.google.protobuf.Message
 import com.google.protobuf.util.JsonFormat
 import java.io.File
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
@@ -644,6 +645,8 @@ class VerifySyntheticData : Runnable {
             old + new
           }
           logger.info("  PASS: $metadataUri - ${records.size} impressions verified")
+        } catch (e: CancellationException) {
+          throw e
         } catch (e: Exception) {
           errors++
           logger.severe("  FAIL: $metadataUri - ${e.message}")

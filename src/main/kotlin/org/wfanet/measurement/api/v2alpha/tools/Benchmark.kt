@@ -730,7 +730,7 @@ class Benchmark(
     }
   }
 
-  fun generateBenchmarkReport() {
+  suspend fun generateBenchmarkReport(): Unit = coroutineScope {
     val measurementConsumerStub = MeasurementConsumersCoroutineStub(channel)
     val measurementStub = MeasurementsCoroutineStub(channel)
     val dataProviderStub = DataProvidersCoroutineStub(channel)
@@ -738,23 +738,21 @@ class Benchmark(
     val programStartTime = Instant.now(clock)
 
     var allRequestsSent = false
-    runBlocking {
-      launch {
-        if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
-          generatePopulationRequests(measurementConsumerStub, measurementStub, dataProviderStub)
-        } else {
-          generateEventRequests(measurementConsumerStub, measurementStub, dataProviderStub)
-        }
-        allRequestsSent = true
+    launch {
+      if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
+        generatePopulationRequests(measurementConsumerStub, measurementStub, dataProviderStub)
+      } else {
+        generateEventRequests(measurementConsumerStub, measurementStub, dataProviderStub)
       }
+      allRequestsSent = true
+    }
 
-      launch {
-        while (taskList.size > 0 || !allRequestsSent) {
-          collectCompletedTasks(measurementStub, programStartTime)
-          delay(1000L)
-        }
-        generateOutput(programStartTime)
+    launch {
+      while (taskList.size > 0 || !allRequestsSent) {
+        collectCompletedTasks(measurementStub, programStartTime)
+        delay(1000L)
       }
+      generateOutput(programStartTime)
     }
   }
 }
@@ -789,10 +787,9 @@ class BenchmarkReport private constructor(val clock: Clock = Clock.systemUTC()) 
       .withShutdownTimeout(JavaDuration.ofSeconds(1))
   }
 
-  override fun run() {
-    val benchmark =
-      Benchmark(baseFlags, createMeasurementFlags, channel, apiAuthenticationKey, clock)
-    benchmark.generateBenchmarkReport()
+  override fun run() = runBlocking {
+    Benchmark(baseFlags, createMeasurementFlags, channel, apiAuthenticationKey, clock)
+      .generateBenchmarkReport()
   }
 
   companion object {
