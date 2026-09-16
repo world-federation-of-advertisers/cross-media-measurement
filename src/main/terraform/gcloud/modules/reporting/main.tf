@@ -19,6 +19,10 @@ locals {
   #
   # See https://www.postgresql.org/docs/14/ddl-priv.html#PRIVILEGES-SUMMARY-TABLE
   all_db_privileges = ["CREATE", "TEMPORARY", "CONNECT"]
+  report_trace_observability_projects = setunion(
+    toset([data.google_project.project.project_id]),
+    toset(var.report_trace_observability_projects),
+  )
 }
 
 module "reporting_internal" {
@@ -80,6 +84,95 @@ resource "google_service_account_iam_member" "reporting_internal_operator_token_
   member             = each.value
 }
 
+# Dedicated least-privilege identity for the report-trace operator CLI. Unlike
+# reporting_internal, this identity cannot mutate Reporting storage.
+resource "google_service_account" "report_trace_operator" {
+  account_id   = "report-trace-operator"
+  display_name = "Report trace operator"
+  description  = "Read-only identity for the report-trace operator CLI."
+}
+
+resource "google_service_account_iam_member" "report_trace_operator_token_creator" {
+  for_each           = toset(var.report_trace_operators)
+  service_account_id = google_service_account.report_trace_operator.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}
+
+resource "google_sql_user" "report_trace_operator" {
+  instance = var.postgres_instance.name
+  name     = trimsuffix(google_service_account.report_trace_operator.email, ".gserviceaccount.com")
+  type     = "CLOUD_IAM_SERVICE_ACCOUNT"
+}
+
+resource "google_project_iam_member" "report_trace_operator_sql_user" {
+  project = data.google_project.project.id
+  role    = "roles/cloudsql.instanceUser"
+  member  = google_service_account.report_trace_operator.member
+}
+
+resource "google_project_iam_member" "report_trace_operator_sql_client" {
+  project = data.google_project.project.id
+  role    = "roles/cloudsql.client"
+  member  = google_service_account.report_trace_operator.member
+}
+
+resource "postgresql_grant" "report_trace_operator_db" {
+  role        = google_sql_user.report_trace_operator.name
+  database    = google_sql_database.db.name
+  object_type = "database"
+  privileges  = ["CONNECT"]
+
+  lifecycle {
+    replace_triggered_by = [google_sql_database.db.id]
+  }
+}
+
+resource "postgresql_grant" "report_trace_operator_schema" {
+  role        = google_sql_user.report_trace_operator.name
+  database    = google_sql_database.db.name
+  schema      = "public"
+  object_type = "schema"
+  privileges  = ["USAGE"]
+}
+
+resource "postgresql_grant" "report_trace_operator_tables" {
+  role        = google_sql_user.report_trace_operator.name
+  database    = google_sql_database.db.name
+  schema      = "public"
+  object_type = "table"
+  objects     = []
+  privileges  = ["SELECT"]
+}
+
+resource "google_project_iam_member" "report_trace_operator_logging_viewer" {
+  for_each = local.report_trace_observability_projects
+  project  = each.value
+  role     = "roles/logging.viewer"
+  member   = google_service_account.report_trace_operator.member
+}
+
+resource "google_project_iam_member" "report_trace_operator_trace_viewer" {
+  for_each = local.report_trace_observability_projects
+  project  = each.value
+  role     = "roles/cloudtrace.viewer"
+  member   = google_service_account.report_trace_operator.member
+}
+
+resource "google_project_iam_member" "report_trace_operator_service_usage_consumer" {
+  for_each = local.report_trace_observability_projects
+  project  = each.value
+  role     = "roles/serviceusage.serviceUsageConsumer"
+  member   = google_service_account.report_trace_operator.member
+}
+
+resource "google_project_iam_member" "report_trace_operator_service_usage_viewer" {
+  for_each = local.report_trace_observability_projects
+  project  = each.value
+  role     = "roles/serviceusage.serviceUsageViewer"
+  member   = google_service_account.report_trace_operator.member
+}
+
 resource "google_spanner_database" "reporting" {
   instance         = var.spanner_instance.name
   name             = var.reporting_spanner_database_name
@@ -91,6 +184,17 @@ resource "google_spanner_database_iam_member" "reporting_internal" {
   database = google_spanner_database.reporting.name
   role     = "roles/spanner.databaseUser"
   member   = module.reporting_internal.iam_service_account.member
+
+  lifecycle {
+    replace_triggered_by = [google_spanner_database.reporting.id]
+  }
+}
+
+resource "google_spanner_database_iam_member" "report_trace_operator" {
+  instance = google_spanner_database.reporting.instance
+  database = google_spanner_database.reporting.name
+  role     = "roles/spanner.databaseReader"
+  member   = google_service_account.report_trace_operator.member
 
   lifecycle {
     replace_triggered_by = [google_spanner_database.reporting.id]
@@ -109,4 +213,3 @@ resource "google_monitoring_dashboard" "dashboards" {
 
   dashboard_json = file("${path.module}/${each.value}")
 }
-

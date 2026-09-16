@@ -399,6 +399,20 @@ variable "reporting_operators" {
   description = "Users/groups granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
 }
 
+variable "report_trace_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups allowed to impersonate the read-only report-trace operator service account"
+}
+
+variable "report_trace_observability_projects" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Additional projects from which the report-trace operator may read logs and traces"
+}
+
 variable "dashboard_operators" {
   type        = list(string)
   nullable    = false
