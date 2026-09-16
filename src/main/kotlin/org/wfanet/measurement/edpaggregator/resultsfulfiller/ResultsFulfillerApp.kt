@@ -220,6 +220,17 @@ class ResultsFulfillerApp(
         }
         .toSet()
 
+    // Validated here so a bad combination fails at config load rather than when a requisition
+    // arrives.
+    val trusTeeV2ImpressionCountsParams: ResultsFulfillerParams.ImpressionCountsParams? =
+      if (fulfillerParams.trusTeeV2Config.hasImpressionCountsParams()) {
+        fulfillerParams.trusTeeV2Config.impressionCountsParams.also {
+          validateImpressionCountsParams(it)
+        }
+      } else {
+        null
+      }
+
     val fulfillerSelector =
       DefaultFulfillerSelector(
         requisitionsStub = requisitionsStub,
@@ -242,6 +253,7 @@ class ResultsFulfillerApp(
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
+        trusTeeV2ImpressionCountsParams = trusTeeV2ImpressionCountsParams,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {
