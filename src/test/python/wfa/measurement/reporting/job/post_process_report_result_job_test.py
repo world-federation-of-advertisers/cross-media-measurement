@@ -342,6 +342,35 @@ class PostProcessReportResultJobTest(unittest.TestCase):
             exc_info=True,
         )
 
+    @mock.patch.object(logging, "info", autospec=True)
+    def test_fail_basic_report_logs_started_and_succeeded(self, mock_info):
+        mock_report = BasicReport(
+            external_basic_report_id="basic_report_1",
+            cmms_measurement_consumer_id="mc_id_1",
+        )
+
+        result = self.job._fail_basic_report(mock_report)
+
+        self.assertTrue(result)
+        mock_info.assert_has_calls(
+            [
+                mock.call(
+                    "xmm.lifecycle.stage=basic_report_failure_writeback "
+                    "xmm.outcome=started Marking BasicReport %s for "
+                    "MeasurementConsumer %s as FAILED",
+                    "basic_report_1",
+                    "mc_id_1",
+                ),
+                mock.call(
+                    "xmm.lifecycle.stage=basic_report_failure_writeback "
+                    "xmm.outcome=succeeded Marked BasicReport %s for "
+                    "MeasurementConsumer %s as FAILED",
+                    "basic_report_1",
+                    "mc_id_1",
+                ),
+            ]
+        )
+
     @mock.patch.object(logging, "error", autospec=True)
     def test_fail_basic_report_failure_is_structured(self, mock_error):
         mock_report = BasicReport(

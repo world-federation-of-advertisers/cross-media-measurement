@@ -20,12 +20,7 @@ import com.google.common.hash.Hashing
 import org.wfanet.measurement.config.securecomputation.QueuesConfig
 
 class QueueMapping(config: QueuesConfig) {
-  data class Queue(
-    val queueId: Long,
-    val queueResourceId: String,
-    val deadLetterQueueResourceId: String,
-    val maxWorkItemAttempts: Int,
-  )
+  data class Queue(val queueId: Long, val queueResourceId: String)
 
   /** Queues sorted by resource ID. */
   val queues: List<Queue> =
@@ -34,18 +29,8 @@ class QueueMapping(config: QueuesConfig) {
           check(QUEUE_RESOURCE_ID_REGEX.matches(queue.queueResourceId)) {
             "Invalid queue resource ID ${queue.queueResourceId}"
           }
-          val deadLetterQueueResourceId =
-            queue.deadLetterQueueResourceId.ifEmpty { "${queue.queueResourceId}-dlq" }
-          check(QUEUE_RESOURCE_ID_REGEX.matches(deadLetterQueueResourceId)) {
-            "Invalid dead-letter queue resource ID $deadLetterQueueResourceId"
-          }
-          val maxWorkItemAttempts =
-            queue.maxWorkItemAttempts.takeUnless { it == 0 } ?: DEFAULT_MAX_WORK_ITEM_ATTEMPTS
-          check(maxWorkItemAttempts > 0) {
-            "max_work_item_attempts must be positive for ${queue.queueResourceId}"
-          }
           val queueId = fingerprint(queue.queueResourceId)
-          add(Queue(queueId, queue.queueResourceId, deadLetterQueueResourceId, maxWorkItemAttempts))
+          add(Queue(queueId, queue.queueResourceId))
         }
       }
       .sortedBy { it.queueResourceId }
@@ -76,6 +61,5 @@ class QueueMapping(config: QueuesConfig) {
 
     private val QUEUE_RESOURCE_ID_REGEX =
       Regex("^[a-zA-Z]([a-zA-Z0-9.-]{0,61}[a-zA-Z0-9])?(/[a-zA-Z0-9_-]+)*$")
-    private const val DEFAULT_MAX_WORK_ITEM_ATTEMPTS = 5
   }
 }
