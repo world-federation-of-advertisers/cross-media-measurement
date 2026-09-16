@@ -76,6 +76,11 @@ queued, and its initial publication cannot be stranded between the WorkItem comm
 and outbox commit. Use `RetryWorkItem` for explicit repair of a legacy queued
 WorkItem that has no outbox record.
 
+Keep the configured direct-dispatch prefix unchanged while any direct group remains
+`STORED`, `QUEUED`, or `PROCESSING`. Recovery compares each persisted `blob_uri`
+with a URI derived from the current prefix, so changing it earlier prevents the
+fetcher from recognizing and recovering those groups.
+
 A report whose requisitions all arrive in one window becomes a single blob; a
 report straddling K drain windows (or a byte-cap flush) is split across ~K blobs.
 Splits are counted in the `buffer_splits` metric.
