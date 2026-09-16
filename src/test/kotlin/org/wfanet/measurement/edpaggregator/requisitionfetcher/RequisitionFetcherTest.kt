@@ -1298,8 +1298,7 @@ class RequisitionFetcherTest {
     val dispatchedGroupIds = mutableListOf<String>()
     val dispatcher =
       object : RequisitionWorkItemDispatcher {
-        override fun workItemName(groupId: String): String =
-          "workItems/results-fulfiller-$groupId"
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
 
         override suspend fun dispatch(groupId: String, blobUri: String) {
           dispatchedGroupIds += groupId
