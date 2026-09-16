@@ -230,7 +230,7 @@ fun AsyncDatabaseClient.TransactionContext.failWorkItemAttempt(
 }
 
 /** Fails an attempt and creates a durable normal or dead-letter publication. */
-fun AsyncDatabaseClient.TransactionContext.failWorkItemAttemptAndScheduleRecovery(
+suspend fun AsyncDatabaseClient.TransactionContext.failWorkItemAttemptAndScheduleRecovery(
   result: WorkItemAttemptResult,
   queue: QueueMapping.Queue,
   errorMessage: String,

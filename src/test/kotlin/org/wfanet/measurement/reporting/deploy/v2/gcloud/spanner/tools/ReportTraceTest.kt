@@ -353,11 +353,218 @@ class ReportTraceTest {
         "measurementConsumers/mc-1/basicReports/report-b",
       )
     assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
-      .contains("Telemetry collection exceeded the per-report deadline")
+      .contains("Report collection exceeded the per-report deadline")
     assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
       .contains(
         "| basic_report_creation | measurementConsumers/mc-1/basicReports/report-a | SUCCEEDED |"
       )
+    assertThat(outputDirectory.resolve("mc-1__report-b.md").toFile().readText())
+      .contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `collection deadline bounds Reporting resolution and continues the batch`() {
+    val output = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("resolution-deadline-traces").toPath()
+    val resolvedBasicReports = mutableListOf<String>()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            resolvedBasicReports += key.toName()
+            if (key.basicReportId == "report-a") {
+              awaitCancellation()
+            }
+            ReportTraceContext(
+              basicReportName = key.toName(),
+              basicReportState = "RUNNING",
+              reportName =
+                "measurementConsumers/${key.cmmsMeasurementConsumerId}/reports/${key.basicReportId}",
+              metricNames = emptyList(),
+              metricStates = emptyMap(),
+              reusedMetricNames = emptySet(),
+              unresolvedMetricRequestIds = emptyList(),
+              measurementNames = emptyList(),
+              reusedMeasurementNames = emptySet(),
+              unresolvedMeasurementRequestIds = emptyList(),
+              reportResolvedByRequestId = false,
+              telemetryRecoveredMeasurementNames = emptyMap(),
+              createTime = NOW,
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-a",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-b",
+          "--output-dir=$outputDirectory",
+          "--collection-deadline=PT0.05S",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(resolvedBasicReports)
+      .containsExactly(
+        "measurementConsumers/mc-1/basicReports/report-a",
+        "measurementConsumers/mc-1/basicReports/report-b",
+      )
+      .inOrder()
+    val timedOutArtifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
+    assertThat(timedOutArtifact)
+      .contains(
+        "Reporting resource resolution failed: Reporting resource resolution exceeded the " +
+          "per-report deadline"
+      )
+    assertThat(timedOutArtifact).contains("Report collection exceeded the per-report deadline")
+    assertThat(outputDirectory.resolve("mc-1__report-b.md").toFile().readText())
+      .contains("Collection completeness: PARTIAL")
+  }
+
+  @Test
+  fun `Reporting resolution failure retains only requested BasicReport telemetry`() {
+    val outputDirectory = temporaryFolder.newFolder("failed-resolution-isolation").toPath()
+    val requested = "measurementConsumers/mc-1/basicReports/report-a"
+    val unrelated = "measurementConsumers/mc-1/basicReports/report-b"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { project, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            listOf(
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW.minusSeconds(2),
+                service = "reporting",
+                severity = "ERROR",
+                trace = null,
+                message = "xmm.basic_report.name=$requested requested failure",
+              ),
+              ReportTraceLogEntry(
+                sourceProject = project,
+                timestamp = NOW.minusSeconds(1),
+                service = "reporting",
+                severity = "ERROR",
+                trace = null,
+                message = "xmm.basic_report.name=$unrelated unrelated failure",
+              ),
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { throw IllegalStateException("database down") },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$requested",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    val artifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
+    assertThat(artifact).contains("requested failure")
+    assertThat(artifact).doesNotContain("unrelated failure")
+  }
+
+  @Test
+  fun `collection deadline bounds Kingdom resolution and continues the batch`() {
+    val output = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("kingdom-deadline-traces").toPath()
+    val routedMeasurements = mutableListOf<String>()
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            ReportTraceContext(
+              basicReportName = key.toName(),
+              basicReportState = "RUNNING",
+              reportName =
+                "measurementConsumers/${key.cmmsMeasurementConsumerId}/reports/${key.basicReportId}",
+              metricNames = emptyList(),
+              metricStates = emptyMap(),
+              reusedMetricNames = emptySet(),
+              unresolvedMetricRequestIds = emptyList(),
+              measurementNames =
+                listOf(
+                  "measurementConsumers/${key.cmmsMeasurementConsumerId}/measurements/" +
+                    key.basicReportId
+                ),
+              reusedMeasurementNames = emptySet(),
+              unresolvedMeasurementRequestIds = emptyList(),
+              reportResolvedByRequestId = false,
+              telemetryRecoveredMeasurementNames = emptyMap(),
+              createTime = NOW,
+            )
+          },
+        routeResolverOverride =
+          ReportTraceRouteResolver { measurementNames, topology ->
+            val measurementName = measurementNames.single()
+            routedMeasurements += measurementName
+            if (measurementName.endsWith("/report-a")) {
+              awaitCancellation()
+            }
+            ReportTraceRouteResolution.unresolved(
+              measurementNames,
+              topology,
+              status = "NO_MATCHES",
+              note = "No test routes",
+            )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-a",
+          "--basic-report=measurementConsumers/mc-1/basicReports/report-b",
+          "--output-dir=$outputDirectory",
+          "--collection-deadline=PT0.05S",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(routedMeasurements)
+      .containsExactly(
+        "measurementConsumers/mc-1/measurements/report-a",
+        "measurementConsumers/mc-1/measurements/report-b",
+      )
+      .inOrder()
+    val timedOutArtifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
+    assertThat(timedOutArtifact)
+      .contains("Kingdom route resolution exceeded the per-report deadline")
+    assertThat(timedOutArtifact).contains("Report collection exceeded the per-report deadline")
     assertThat(outputDirectory.resolve("mc-1__report-b.md").toFile().readText())
       .contains("Collection completeness: PARTIAL")
   }
@@ -796,6 +1003,7 @@ class ReportTraceTest {
 
     assertThat(filter).contains("NOT (textPayload =~")
     assertThat(filter).contains("jsonPayload.message =~")
+    assertThat(filter).contains("jsonPayload.MESSAGE =~")
     assertThat(filter).contains("gRPC([[:space:]]+client)?")
     assertThat(filter).contains("severity>=ERROR")
     assertThat(filter).contains("^[[:space:]]*([a-z][a-z0-9_.-]*[[:space:]]*(:|\\{)|[{}])")
@@ -814,6 +1022,7 @@ class ReportTraceTest {
 
     assertThat(filter).doesNotContain("NOT (textPayload =~")
     assertThat(filter).doesNotContain("jsonPayload.message =~")
+    assertThat(filter).doesNotContain("jsonPayload.MESSAGE =~")
   }
 
   @Test
@@ -863,6 +1072,71 @@ class ReportTraceTest {
     assertThat(spans).hasSize(1)
     assertThat(spans.single().name).isEqualTo("reporting.metrics.sync_results")
     assertThat(spans.single().attributes["xmm.lifecycle.stage"]).isEqualTo("metric_result_sync")
+  }
+
+  @Test
+  fun `Cloud Trace reader excludes spans outside requested time window`() = runBlocking {
+    val listResponse = mock<HttpResponse<String>>()
+    whenever(listResponse.statusCode()).thenReturn(200)
+    whenever(listResponse.body()).thenReturn("{\"traces\":[]}")
+    val traceResponse = mock<HttpResponse<String>>()
+    whenever(traceResponse.statusCode()).thenReturn(200)
+    whenever(traceResponse.body())
+      .thenReturn(
+        """
+        {
+          "projectId": "trace-project",
+          "traceId": "11111111111111111111111111111111",
+          "spans": [
+            {
+              "spanId": "1",
+              "name": "before",
+              "startTime": "2026-09-10T10:00:00Z",
+              "endTime": "2026-09-10T10:30:00Z"
+            },
+            {
+              "spanId": "2",
+              "name": "overlapping",
+              "startTime": "2026-09-10T10:59:59Z",
+              "endTime": "2026-09-10T11:00:01Z"
+            },
+            {
+              "spanId": "3",
+              "name": "inside",
+              "startTime": "2026-09-10T12:00:00Z",
+              "endTime": "2026-09-10T12:00:01Z"
+            },
+            {
+              "spanId": "4",
+              "name": "after",
+              "startTime": "2026-09-10T13:00:01Z",
+              "endTime": "2026-09-10T13:00:02Z"
+            }
+          ]
+        }
+        """
+          .trimIndent()
+      )
+    val httpClient = mock<HttpClient>()
+    whenever(httpClient.send(any<HttpRequest>(), any<HttpResponse.BodyHandler<String>>()))
+      .thenReturn(listResponse, traceResponse)
+    val reader =
+      GoogleCloudReportTraceSpanReader(
+        GoogleCredentials.create(AccessToken("token", Date(Long.MAX_VALUE))),
+        httpClient,
+      )
+
+    val spans =
+      reader.read(
+        project = "trace-project",
+        correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+        traceIds = listOf("11111111111111111111111111111111"),
+        startTime = Instant.parse("2026-09-10T11:00:00Z"),
+        endTime = Instant.parse("2026-09-10T13:00:00Z"),
+        limit = 100,
+      )
+
+    assertThat(spans.map { it.name }).containsExactly("overlapping", "inside").inOrder()
   }
 
   @Test
@@ -2353,6 +2627,281 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Requisition refusal skips unfinished sibling result synchronization`() {
+    val metricNames =
+      listOf(
+        "measurementConsumers/mc-1/metrics/metric-refused",
+        "measurementConsumers/mc-1/metrics/metric-sibling",
+      )
+    val measurementNames =
+      listOf(
+        "measurementConsumers/mc-1/measurements/measurement-refused",
+        "measurementConsumers/mc-1/measurements/measurement-sibling",
+      )
+    val refusedRequisition = "dataProviders/refused/requisitions/requisition-1"
+    val siblingRequisition = "dataProviders/sibling/requisitions/requisition-2"
+    val context =
+      reportTraceContext()
+        .copy(
+          basicReportState = "FAILED",
+          metricNames = metricNames,
+          metricStates = mapOf(metricNames[0] to "FAILED", metricNames[1] to "SUCCEEDED"),
+          measurementNames = measurementNames,
+        )
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topology =
+          ReportTraceTopology(
+            routes =
+              mapOf(
+                "dataProviders/refused" to ReportTraceRequisitionRouteKind.DIRECT_EDP,
+                "dataProviders/sibling" to ReportTraceRequisitionRouteKind.DIRECT_EDP,
+              ),
+            provenance = "test topology",
+          ),
+        measurementRoutes =
+          listOf(
+            directMeasurementRoute(measurementNames[0], "FAILED", refusedRequisition, "REFUSED"),
+            directMeasurementRoute(measurementNames[1], "FAILED", siblingRequisition, "FULFILLED"),
+          ),
+        warnings = emptyList(),
+      )
+    val spans =
+      listOf(
+        lifecycleSpan(
+          "basic_report_creation",
+          "xmm.basic_report.name",
+          checkNotNull(context.basicReportName),
+        ),
+        lifecycleSpan("report_creation", "xmm.report.name", context.reportName),
+      ) +
+        metricNames.map { lifecycleSpan("metric_creation", "xmm.metric.name", it) } +
+        measurementNames.flatMap {
+          listOf(
+            lifecycleSpan("measurement_creation", "xmm.measurement.name", it),
+            lifecycleSpan("measurement_linkage", "xmm.measurement.name", it),
+          )
+        } +
+        listOf(
+          lifecycleSpan("requisition_available", "xmm.requisition.name", refusedRequisition),
+          lifecycleSpan("requisition_available", "xmm.requisition.name", siblingRequisition),
+          refusalAcceptanceSpan(refusedRequisition, NOW.plusSeconds(1)),
+          failedLifecycleSpan("metric_result_sync", mapOf("xmm.metric.name" to metricNames[0])),
+          lifecycleSpan("kingdom_measurement_sync", "xmm.measurement.name", measurementNames[0])
+            .copy(
+              attributes =
+                mapOf(
+                  "xmm.lifecycle.stage" to "kingdom_measurement_sync",
+                  "xmm.outcome" to "refused",
+                  "xmm.measurement.name" to measurementNames[0],
+                )
+            ),
+          lifecycleSpan(
+            "kingdom_requisition_result_acceptance",
+            "xmm.requisition.name",
+            siblingRequisition,
+          ),
+          startedLifecycleSpan("metric_result_sync", "xmm.metric.name", metricNames[1]),
+          startedLifecycleSpan(
+            "kingdom_measurement_sync",
+            "xmm.measurement.name",
+            measurementNames[1],
+          ),
+        )
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(
+        coverage.filter { it.name == "metric_result_sync" }.associate { it.resource to it.status }
+      )
+      .containsExactly(metricNames[0], "FAILED", metricNames[1], "SKIPPED_AFTER_REFUSAL")
+    assertThat(
+        coverage
+          .filter { it.name == "kingdom_measurement_sync" }
+          .associate { it.resource to it.status }
+      )
+      .containsExactly(measurementNames[0], "REFUSED", measurementNames[1], "SKIPPED_AFTER_REFUSAL")
+    assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
+      .isEqualTo(ReportTraceArtifactStatus.COMPLETE)
+  }
+
+  @Test
+  fun `Report failure skips unfinished sibling result synchronization`() {
+    val metricNames =
+      listOf(
+        "measurementConsumers/mc-1/metrics/metric-1",
+        "measurementConsumers/mc-1/metrics/metric-2",
+      )
+    val measurementNames =
+      listOf(
+        "measurementConsumers/mc-1/measurements/measurement-1",
+        "measurementConsumers/mc-1/measurements/measurement-2",
+      )
+    val requisitionNames =
+      listOf(
+        "dataProviders/provider-1/requisitions/requisition-1",
+        "dataProviders/provider-2/requisitions/requisition-2",
+      )
+    val context =
+      reportTraceContext()
+        .copy(
+          basicReportState = "FAILED",
+          metricNames = metricNames,
+          metricStates = metricNames.associateWith { "RUNNING" },
+          measurementNames = measurementNames,
+        )
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topology =
+          ReportTraceTopology(
+            routes =
+              requisitionNames.associate {
+                it.substringBefore("/requisitions/") to ReportTraceRequisitionRouteKind.DIRECT_EDP
+              },
+            provenance = "test topology",
+          ),
+        measurementRoutes =
+          measurementNames.mapIndexed { index, measurementName ->
+            directMeasurementRoute(measurementName, "PENDING", requisitionNames[index], "FULFILLED")
+          },
+        warnings = emptyList(),
+      )
+    val spans =
+      listOf(
+        lifecycleSpan(
+          "basic_report_creation",
+          "xmm.basic_report.name",
+          checkNotNull(context.basicReportName),
+        ),
+        lifecycleSpan("report_creation", "xmm.report.name", context.reportName),
+        failedLifecycleSpan(
+          "report_result_assembly",
+          mapOf("xmm.report.name" to context.reportName, "xmm.report.state" to "FAILED"),
+        ),
+      ) +
+        metricNames.map { lifecycleSpan("metric_creation", "xmm.metric.name", it) } +
+        measurementNames.flatMap {
+          listOf(
+            lifecycleSpan("measurement_creation", "xmm.measurement.name", it),
+            lifecycleSpan("measurement_linkage", "xmm.measurement.name", it),
+          )
+        } +
+        requisitionNames.flatMap {
+          listOf(
+            lifecycleSpan("requisition_available", "xmm.requisition.name", it),
+            lifecycleSpan("kingdom_requisition_result_acceptance", "xmm.requisition.name", it),
+          )
+        } +
+        listOf(
+          startedLifecycleSpan("metric_result_sync", "xmm.metric.name", metricNames[1]),
+          startedLifecycleSpan(
+            "kingdom_measurement_sync",
+            "xmm.measurement.name",
+            measurementNames[1],
+          ),
+        )
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(coverage.filter { it.name == "metric_result_sync" }.map { it.status }.distinct())
+      .containsExactly("SKIPPED_AFTER_FAILURE")
+    assertThat(
+        coverage.filter { it.name == "kingdom_measurement_sync" }.map { it.status }.distinct()
+      )
+      .containsExactly("SKIPPED_AFTER_FAILURE")
+    assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
+      .isEqualTo(ReportTraceArtifactStatus.COMPLETE)
+  }
+
+  @Test
+  fun `Terminal sibling synchronization evidence is preserved after Report failure`() {
+    val metricName = "measurementConsumers/mc-1/metrics/metric-1"
+    val measurementName = "measurementConsumers/mc-1/measurements/measurement-1"
+    val requisitionName = "dataProviders/provider-1/requisitions/requisition-1"
+    val context =
+      reportTraceContext()
+        .copy(
+          basicReportState = "FAILED",
+          metricNames = listOf(metricName),
+          metricStates = mapOf(metricName to "RUNNING"),
+          measurementNames = listOf(measurementName),
+        )
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topology =
+          ReportTraceTopology(
+            routes =
+              mapOf("dataProviders/provider-1" to ReportTraceRequisitionRouteKind.DIRECT_EDP),
+            provenance = "test topology",
+          ),
+        measurementRoutes =
+          listOf(directMeasurementRoute(measurementName, "PENDING", requisitionName, "FULFILLED")),
+        warnings = emptyList(),
+      )
+    val spans =
+      listOf(
+        failedLifecycleSpan(
+          "report_result_assembly",
+          mapOf("xmm.report.name" to context.reportName, "xmm.report.state" to "FAILED"),
+        ),
+        lifecycleSpan("metric_result_sync", "xmm.metric.name", metricName),
+        failedLifecycleSpan(
+          "kingdom_measurement_sync",
+          mapOf("xmm.measurement.name" to measurementName),
+        ),
+      )
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(coverage.single { it.name == "metric_result_sync" }.status).isEqualTo("SUCCEEDED")
+    assertThat(coverage.single { it.name == "kingdom_measurement_sync" }.status).isEqualTo("FAILED")
+  }
+
+  @Test
+  fun `Nonterminal Report keeps started result synchronization in progress`() {
+    val metricName = "measurementConsumers/mc-1/metrics/metric-1"
+    val measurementName = "measurementConsumers/mc-1/measurements/measurement-1"
+    val requisitionName = "dataProviders/provider-1/requisitions/requisition-1"
+    val context =
+      reportTraceContext()
+        .copy(
+          basicReportState = "REPORT_CREATED",
+          metricNames = listOf(metricName),
+          metricStates = mapOf(metricName to "RUNNING"),
+          measurementNames = listOf(measurementName),
+        )
+    val routeResolution =
+      ReportTraceRouteResolution(
+        status = "SUCCESS",
+        note = "",
+        topology =
+          ReportTraceTopology(
+            routes =
+              mapOf("dataProviders/provider-1" to ReportTraceRequisitionRouteKind.DIRECT_EDP),
+            provenance = "test topology",
+          ),
+        measurementRoutes =
+          listOf(
+            directMeasurementRoute(measurementName, "PENDING", requisitionName, "UNFULFILLED")
+          ),
+        warnings = emptyList(),
+      )
+    val spans =
+      listOf(
+        startedLifecycleSpan("metric_result_sync", "xmm.metric.name", metricName),
+        startedLifecycleSpan("kingdom_measurement_sync", "xmm.measurement.name", measurementName),
+      )
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(coverage.single { it.name == "metric_result_sync" }.status).isEqualTo("IN_PROGRESS")
+    assertThat(coverage.single { it.name == "kingdom_measurement_sync" }.status)
+      .isEqualTo("IN_PROGRESS")
+  }
+
+  @Test
   fun `BasicReport failure before Report creation skips the unresolved downstream graph`() {
     val context =
       reportTraceContext()
@@ -2428,6 +2977,46 @@ class ReportTraceTest {
       .isEqualTo("SUCCEEDED")
     assertThat(ReportTraceOutput.artifactStatus(spans, emptyList(), emptyList(), coverage))
       .isEqualTo(ReportTraceArtifactStatus.PARTIAL)
+  }
+
+  @Test
+  fun `successful BasicReport without noise correction names missing stage and is partial`() {
+    val metricName = "measurementConsumers/mc-1/metrics/metric-1"
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val context =
+      reportTraceContext()
+        .copy(metricNames = listOf(metricName), metricStates = mapOf(metricName to "SUCCEEDED"))
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.DIRECT,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val spans =
+      successfulDirectUpstreamSpans(context, metricName, requisitionName) +
+        lifecycleSpan("report_result_assembly", "xmm.report.name", context.reportName) +
+        lifecycleSpan(
+          "processed_result_writeback",
+          "xmm.basic_report.name",
+          checkNotNull(context.basicReportName),
+        )
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        routeResolution = routeResolution,
+        spans = spans,
+        logEntries = emptyList(),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+        lifecycleCoverage = coverage,
+      )
+
+    assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
+    assertThat(output).contains("Collection completeness: PARTIAL")
+    assertThat(output).contains("- `noise_correction` — `${context.basicReportName}` (`MISSING`)")
   }
 
   @Test
@@ -3116,6 +3705,7 @@ class ReportTraceTest {
         "Caused by: org.wfanet.measurement.api.v2alpha.PopulationSpecValidationException: " +
         "Not all population fields are set\n" +
         "  Population field Common.gender not set in subpopulations[0]"
+    val longDiagnosticTail = "Population field Common.us_state not set in subpopulations[99]"
     val logEntries =
       listOf(
         ReportTraceLogEntry("test", NOW, "reporting", "ERROR", null, errorMessage),
@@ -3125,7 +3715,7 @@ class ReportTraceTest {
           "population-fulfiller",
           "WARNING",
           null,
-          warningMessage,
+          warningMessage + " detail".repeat(200) + " $longDiagnosticTail",
         ),
       )
 
@@ -3156,7 +3746,50 @@ class ReportTraceTest {
       .contains("org.wfanet.measurement.dataprovider.UnfulfillableRequisitionException")
     assertThat(diagnostics).contains("PopulationSpecValidationException")
     assertThat(diagnostics).contains("Population field Common.gender not set")
+    assertThat(diagnostics).contains(longDiagnosticTail)
     assertThat(diagnostics).doesNotContain("at example.Fulfiller.validate")
+  }
+
+  @Test
+  fun `render names incomplete lifecycle stages and telemetry sources near header`() {
+    val measurementName = "measurementConsumers/mc-1/measurements/measurement-1"
+    val output =
+      ReportTraceOutput.render(
+        context = reportTraceContext(),
+        spans = emptyList(),
+        logEntries = emptyList(),
+        sourceStatuses =
+          listOf(
+            ReportTraceSourceStatus(
+              project = "test-project",
+              source = "Cloud Logging",
+              status = "TRUNCATED",
+              fetched = 100,
+              retained = 50,
+              note = "Entry limit reached",
+            )
+          ),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+        lifecycleCoverage =
+          listOf(
+            ReportTraceLifecycleStage(
+              name = "kingdom_measurement_sync",
+              resource = measurementName,
+              status = "IN_PROGRESS",
+              evidence = "latest outcome was in_progress",
+            )
+          ),
+        artifactStatus = ReportTraceArtifactStatus.PARTIAL,
+      )
+
+    val summary = output.substringBefore("## Identity and collection window")
+    assertThat(summary).contains("Incomplete lifecycle evidence:")
+    assertThat(summary)
+      .contains("- `kingdom_measurement_sync` — `$measurementName` (`IN_PROGRESS`)")
+    assertThat(summary).contains("Incomplete telemetry sources:")
+    assertThat(summary)
+      .contains("- `test-project/Cloud Logging` — `TRUNCATED`: Entry limit reached")
   }
 
   @Test
@@ -4241,6 +4874,95 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `renderLogPayload keeps Confidential Space launcher message`() {
+    val message =
+      "INFO: event=duchy.mill.process_computation " +
+        "xmm.computation.name=computations/computation-1 " +
+        "xmm.lifecycle.stage=duchy_stage_attempt xmm.outcome=succeeded"
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf(
+          "MESSAGE" to message,
+          "_HOSTNAME" to "trustee-mill-instance",
+          "SYSLOG_IDENTIFIER" to "cs_container_launcher",
+        )
+      )
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+    assertThat(rendered).isEqualTo(message)
+    assertThat(ReportTraceOutput.effectiveLogSeverity("DEFAULT", rendered!!)).isEqualTo("INFO")
+  }
+
+  @Test
+  fun `buildLogFilters searches Confidential Space launcher messages`() {
+    val filter =
+      ReportTraceOutput.buildLogFilters(listOf("computations/computation-1"), NOW, NOW, false)
+        .single()
+
+    assertThat(filter).contains("jsonPayload.MESSAGE:\"computations/computation-1\"")
+    assertThat(filter).contains("jsonPayload.MESSAGE:\"computation-1\"")
+  }
+
+  @Test
+  fun `renderLogPayload promotes Confidential Space severe message to error`() {
+    val message =
+      "SEVERE: computation-1@trustee-mill: Failing Computation. " +
+        "Input vector size 342888 does not match expected size 999"
+    val payload = Payload.JsonPayload.of(mapOf("MESSAGE" to message, "PRIORITY" to "6"))
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+    assertThat(rendered).isEqualTo(message)
+    assertThat(ReportTraceOutput.effectiveLogSeverity("DEFAULT", rendered!!)).isEqualTo("ERROR")
+  }
+
+  @Test
+  fun `Confidential Space hostname identifies log service`() {
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf("MESSAGE" to "INFO: processing computation-1", "_HOSTNAME" to "trustee-mill-instance")
+      )
+
+    val service =
+      ReportTraceOutput.logServiceName(
+        resourceLabels = emptyMap(),
+        payload = payload,
+        resourceType = "gce_instance",
+        fallbackLogName = "confidential-space-launcher",
+      )
+
+    assertThat(service).isEqualTo("trustee-mill-instance")
+  }
+
+  @Test
+  fun `render attributes Trustee failure to computation`() {
+    val context = reportTraceContext()
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = emptyList(),
+        logEntries =
+          listOf(
+            ReportTraceLogEntry(
+              "test",
+              NOW,
+              "trustee-mill-instance",
+              "ERROR",
+              null,
+              "SEVERE: computation-1@trustee-mill-7b5q: Failing Computation. bad input",
+            )
+          ),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+      )
+
+    assertThat(output)
+      .contains("| $NOW | test/trustee-mill-instance | computations/computation-1 |")
+  }
+
+  @Test
   fun `renderLogPayload keeps non-gRPC string payload`() {
     val payload =
       Payload.StringPayload.of(
@@ -4672,6 +5394,16 @@ class ReportTraceTest {
       )
 
     assertThat(output).contains("Execution outcome: FAILED")
+    assertThat(output)
+      .contains(
+        "## Final disposition\n\n" +
+          "Execution outcome: FAILED\n\n" +
+          "| Stage | Status | Evidence |\n" +
+          "| --- | --- | --- |\n" +
+          "| report_result_assembly | FAILED |"
+      )
+    assertThat(output.indexOf("## Final disposition"))
+      .isGreaterThan(output.indexOf(reportFailure.name))
   }
 
   @Test
@@ -5729,6 +6461,22 @@ class ReportTraceTest {
       )
   }
 
+  private fun startedLifecycleSpan(
+    stage: String,
+    resourceAttribute: String,
+    resource: String,
+  ): ReportTraceSpan {
+    return lifecycleSpan(stage, resourceAttribute, resource)
+      .copy(
+        attributes =
+          mapOf(
+            "xmm.lifecycle.stage" to stage,
+            "xmm.outcome" to "started",
+            resourceAttribute to resource,
+          )
+      )
+  }
+
   private fun refusalOriginSpan(requisitionName: String, origin: String): ReportTraceSpan {
     return lifecycleSpan(
         "requisition_refusal",
@@ -5969,6 +6717,32 @@ class ReportTraceTest {
           )
         ),
       warnings = emptyList(),
+    )
+  }
+
+  private fun directMeasurementRoute(
+    measurementName: String,
+    measurementState: String,
+    requisitionName: String,
+    requisitionState: String,
+  ): ReportTraceMeasurementRoute {
+    return ReportTraceMeasurementRoute(
+      name = measurementName,
+      state = measurementState,
+      protocol = "DIRECT",
+      route = ReportTraceMeasurementRouteKind.DIRECT,
+      duchyIds = emptyList(),
+      duchyParticipantsResolved = true,
+      requisitions =
+        listOf(
+          ReportTraceRequisitionRoute(
+            name = requisitionName,
+            state = requisitionState,
+            dataProvider = requisitionName.substringBefore("/requisitions/"),
+            route = ReportTraceRequisitionRouteKind.DIRECT_EDP,
+          )
+        ),
+      requisitionsResolved = true,
     )
   }
 

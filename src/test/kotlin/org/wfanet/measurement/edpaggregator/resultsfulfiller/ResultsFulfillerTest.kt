@@ -49,6 +49,9 @@ import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Handler
+import java.util.logging.Level
+import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.math.ln
 import kotlin.math.sqrt
@@ -486,7 +489,35 @@ class ResultsFulfillerTest {
           metrics = metrics,
         )
 
-      assertFailsWith<Exception> { resultsFulfiller.fulfillRequisitions() }
+      val logRecords = mutableListOf<LogRecord>()
+      val logHandler =
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            logRecords += record
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val rootLogger = Logger.getLogger("")
+      rootLogger.addHandler(logHandler)
+      try {
+        assertFailsWith<Exception> { resultsFulfiller.fulfillRequisitions() }
+      } finally {
+        rootLogger.removeHandler(logHandler)
+      }
+      val failureLog =
+        logRecords.single {
+          it.message.startsWith("event=edp_aggregator.results_fulfiller.group_failed")
+        }
+      assertThat(failureLog.level).isEqualTo(Level.SEVERE)
+      assertThat(failureLog.thrown).isNotNull()
+      assertThat(failureLog.message).contains("xmm.report.name=report-name")
+      assertThat(failureLog.message).contains("xmm.edpa.group_id=preflight-group")
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=results_fulfillment")
+      assertThat(failureLog.message).contains("xmm.outcome=failed")
+      assertThat(failureLog.message).contains("xmm.error.code=grpc.UNAVAILABLE")
 
       val failedSpans =
         collectSpans().filter {

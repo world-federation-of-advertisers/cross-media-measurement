@@ -67,6 +67,71 @@ class ReportTraceLoggingTest {
     }
   }
 
+  @Test
+  fun `log rejects invalid event names`() {
+    val logger = Logger.getAnonymousLogger()
+
+    for (event in listOf("", "event with spaces", "event\nwith-newline")) {
+      assertFailsWith<IllegalArgumentException> { ReportTraceLogging.log(logger, event) }
+    }
+  }
+
+  @Test
+  fun `log omits null and blank field values`() {
+    val records = mutableListOf<LogRecord>()
+    val logger = Logger.getAnonymousLogger().apply { addHandler(recordingHandler(records)) }
+
+    ReportTraceLogging.log(
+      logger,
+      "reporting.metric.result_synchronized",
+      ReportTraceAttributes.METRIC_NAME_STRING to null,
+      ReportTraceAttributes.OUTCOME_STRING to "",
+      ReportTraceAttributes.ERROR_CODE_STRING to "   ",
+    )
+
+    assertThat(records.single().message).isEqualTo("event=reporting.metric.result_synchronized")
+  }
+
+  @Test
+  fun `log bounds field values to 1000 characters`() {
+    val records = mutableListOf<LogRecord>()
+    val logger = Logger.getAnonymousLogger().apply { addHandler(recordingHandler(records)) }
+
+    ReportTraceLogging.log(
+      logger,
+      "reporting.metric.result_synchronized",
+      ReportTraceAttributes.METRIC_NAME_STRING to "m".repeat(1001),
+    )
+
+    val metricName = records.single().message.substringAfter("xmm.metric.name=")
+    assertThat(metricName).hasLength(1000)
+  }
+
+  @Test
+  fun `log retains requested severity and throwable`() {
+    val records = mutableListOf<LogRecord>()
+    val logger = Logger.getAnonymousLogger().apply { addHandler(recordingHandler(records)) }
+    val error = IllegalStateException("required blob is missing")
+
+    ReportTraceLogging.log(
+      logger,
+      Level.SEVERE,
+      error,
+      "edp_aggregator.results_fulfiller.group_failed",
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "results_fulfillment",
+      ReportTraceAttributes.OUTCOME_STRING to "failed",
+    )
+
+    assertThat(records).hasSize(1)
+    assertThat(records.single().level).isEqualTo(Level.SEVERE)
+    assertThat(records.single().thrown).isSameInstanceAs(error)
+    assertThat(records.single().message)
+      .isEqualTo(
+        "event=edp_aggregator.results_fulfiller.group_failed " +
+          "xmm.lifecycle.stage=results_fulfillment xmm.outcome=failed"
+      )
+  }
+
   private fun recordingHandler(records: MutableList<LogRecord>): Handler =
     object : Handler() {
       override fun publish(record: LogRecord) {

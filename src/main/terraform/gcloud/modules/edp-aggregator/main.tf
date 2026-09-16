@@ -424,6 +424,12 @@ resource "google_pubsub_topic_iam_member" "publisher" {
   member = var.pubsub_iam_service_account_member
 }
 
+resource "google_pubsub_topic_iam_member" "result_fulfiller_dead_letter_publisher" {
+  topic  = module.result_fulfiller_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
 resource "google_pubsub_subscription_iam_member" "result_fulfiller_dead_letter_subscriber" {
   subscription = module.result_fulfiller_queue.dead_letter_subscription.name
   role         = "roles/pubsub.subscriber"
@@ -779,6 +785,14 @@ resource "google_pubsub_topic_iam_member" "vid_labeling_publisher" {
   for_each = var.vid_labeling_workers
 
   topic  = module.vid_labeling_queue[each.key].pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_topic_iam_member" "vid_labeling_dead_letter_publisher" {
+  for_each = var.vid_labeling_workers
+
+  topic  = module.vid_labeling_queue[each.key].dead_letter_topic.id
   role   = "roles/pubsub.publisher"
   member = var.pubsub_iam_service_account_member
 }

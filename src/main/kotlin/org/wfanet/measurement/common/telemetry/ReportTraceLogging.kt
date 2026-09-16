@@ -16,12 +16,24 @@
 
 package org.wfanet.measurement.common.telemetry
 
+import java.util.logging.Level
 import java.util.logging.Logger
 
 /** Writes payload-free lifecycle evidence that can be read when trace export is unavailable. */
 object ReportTraceLogging {
   /** Logs one lifecycle [event] with allowlisted [fields]. */
   fun log(logger: Logger, event: String, vararg fields: Pair<String, String?>) {
+    log(logger, Level.INFO, null, event, *fields)
+  }
+
+  /** Logs one lifecycle [event] and its [error] with allowlisted [fields]. */
+  fun log(
+    logger: Logger,
+    level: Level,
+    error: Throwable?,
+    event: String,
+    vararg fields: Pair<String, String?>,
+  ) {
     require(EVENT_PATTERN.matches(event)) { "Invalid report trace event name" }
 
     val message = buildString {
@@ -33,7 +45,7 @@ object ReportTraceLogging {
         }
       }
     }
-    logger.info(message)
+    logger.log(level, message, error)
   }
 
   private fun sanitizeToken(value: String): String =

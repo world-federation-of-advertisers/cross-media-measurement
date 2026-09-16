@@ -20,7 +20,10 @@ import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Any
 import com.google.protobuf.Message
+import java.time.Instant
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
@@ -35,12 +38,15 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemAttempt
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.createWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.ensureWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.failWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.getWorkItemAttemptRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.processWorkItemDeadLetterRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.retryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.workItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
@@ -201,6 +207,139 @@ class SpannerWorkItemsServiceTest : WorkItemsServiceTest() {
         }
       )
     assertThat(updatedAttempt.state).isEqualTo(WorkItemAttempt.State.FAILED)
+  }
+
+  @Test
+  fun `queued dead letter replaces existing publication`() = runBlocking {
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {}
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = "queued-dead-letter-work-item"
+            queueResourceId = "test-topid-id"
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val workItemId =
+      spannerDatabase.databaseClient.singleUse().use { transaction ->
+        transaction
+          .getWorkItemByResourceId(TestConfig.QUEUE_MAPPING, created.workItemResourceId)
+          .workItemId
+      }
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.insertWorkItemPublication(workItemId, Instant.now().plusSeconds(3600))
+    }
+
+    val retried =
+      services.service.processWorkItemDeadLetter(
+        processWorkItemDeadLetterRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    assertThat(retried.state).isEqualTo(WorkItem.State.QUEUED)
+    assertThat(retried.generation).isEqualTo(created.generation + 1L)
+    val publicationExists =
+      spannerDatabase.databaseClient.singleUse().use { transaction ->
+        transaction.workItemPublicationExists(workItemId)
+      }
+    assertThat(publicationExists).isFalse()
+  }
+
+  @Test
+  fun `retry queued WorkItem immediately publishes deferred row`() = runBlocking {
+    var publicationCount = 0
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {
+            publicationCount++
+          }
+        },
+      )
+    val created =
+      services.service.createWorkItem(
+        createWorkItemRequest {
+          workItem = workItem {
+            workItemResourceId = "deferred-work-item"
+            queueResourceId = "test-topid-id"
+            workItemParams = Any.pack(testWork { userName = "UserName" })
+          }
+        }
+      )
+    val workItemId =
+      spannerDatabase.databaseClient.singleUse().use { transaction ->
+        transaction
+          .getWorkItemByResourceId(TestConfig.QUEUE_MAPPING, created.workItemResourceId)
+          .workItemId
+      }
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.insertWorkItemPublication(workItemId, Instant.now().plusSeconds(3600))
+    }
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.bufferUpdateMutation("WorkItemPublications") {
+        set("WorkItemId").to(workItemId)
+        set("QueueResolutionFailed").to(true)
+        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+      }
+    }
+
+    val retried =
+      services.service.retryWorkItem(
+        retryWorkItemRequest {
+          workItemResourceId = created.workItemResourceId
+          expectedWorkItemGeneration = created.generation
+        }
+      )
+
+    assertThat(retried.generation).isEqualTo(created.generation)
+    assertThat(publicationCount).isEqualTo(2)
+    val publicationExists =
+      spannerDatabase.databaseClient.singleUse().use { transaction ->
+        transaction.workItemPublicationExists(workItemId)
+      }
+    assertThat(publicationExists).isFalse()
+  }
+
+  @Test
+  fun `concurrent EnsureWorkItem calls return the same WorkItem`() = runBlocking {
+    val services =
+      initServices(
+        TestConfig.QUEUE_MAPPING,
+        IdGenerator.Default,
+        object : WorkItemPublisher {
+          override suspend fun publishMessage(queueName: String, message: Message) {}
+        },
+      )
+    val request = ensureWorkItemRequest {
+      workItem = workItem {
+        workItemResourceId = "concurrent-ensure-work-item"
+        queueResourceId = "test-topid-id"
+        workItemParams = Any.pack(testWork { userName = "UserName" })
+      }
+    }
+
+    val results =
+      (1..8)
+        .map { async(Dispatchers.Default) { services.service.ensureWorkItem(request) } }
+        .awaitAll()
+
+    assertThat(results.map { it.workItemResourceId }.distinct())
+      .containsExactly(request.workItem.workItemResourceId)
+    assertThat(results.map { it.generation }.distinct()).containsExactly(1L)
+    Unit
   }
 
   companion object {

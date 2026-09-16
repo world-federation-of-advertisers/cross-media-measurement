@@ -447,45 +447,83 @@ class TrusTeeMillTest {
     whenever(mockProcessor.addFrequencyVector(any())).thenAnswer {}
     whenever(mockProcessor.computeResult()).thenReturn(MEASUREMENT_RESULT)
 
-    val mill = createMill()
-    val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
+    val spanExporter = InMemorySpanExporter.create()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    val openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+    try {
+      val mill = createMill()
+      val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
-    val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
+      val finalToken = fakeComputationDb[LOCAL_ID]!!
+      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(finalToken.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.SUCCEEDED)
 
-    val vectorCaptor = argumentCaptor<ByteArray>()
-    verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
-    verify(mockProcessor, times(1)).computeResult()
-    val capturedVectors = vectorCaptor.allValues
-    assertThat(capturedVectors).hasSize(3)
-    assertThat(capturedVectors[0]).isEqualTo(RAW_DATA_1)
-    assertThat(capturedVectors[1]).isEqualTo(RAW_DATA_2)
-    assertThat(capturedVectors[2]).isEqualTo(RAW_DATA_3)
+      val vectorCaptor = argumentCaptor<ByteArray>()
+      verify(mockProcessor, times(3)).addFrequencyVector(vectorCaptor.capture())
+      verify(mockProcessor, times(1)).computeResult()
+      val capturedVectors = vectorCaptor.allValues
+      assertThat(capturedVectors).hasSize(3)
+      assertThat(capturedVectors[0]).isEqualTo(RAW_DATA_1)
+      assertThat(capturedVectors[1]).isEqualTo(RAW_DATA_2)
+      assertThat(capturedVectors[2]).isEqualTo(RAW_DATA_3)
 
-    verifyProtoArgument(
-        mockSystemComputations,
-        SystemComputationsCoroutineImplBase::setComputationResult,
-      )
-      .comparingExpectedFieldsOnly()
-      .isEqualTo(
-        setComputationResultRequest {
-          name = "computations/${GLOBAL_ID}"
-          aggregatorCertificate = DUCHY_CERT_NAME
-          resultPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toByteString()
-        }
-      )
-    assertThat(lifecycleFields)
-      .containsExactly(
-        expectedReportTraceLifecycleFields(outcome = "started", errorType = null, errorCode = null),
-        expectedReportTraceLifecycleFields(
-          outcome = "succeeded",
-          errorType = null,
-          errorCode = null,
-        ),
-      )
-      .inOrder()
+      verifyProtoArgument(
+          mockSystemComputations,
+          SystemComputationsCoroutineImplBase::setComputationResult,
+        )
+        .comparingExpectedFieldsOnly()
+        .isEqualTo(
+          setComputationResultRequest {
+            name = "computations/${GLOBAL_ID}"
+            aggregatorCertificate = DUCHY_CERT_NAME
+            resultPublicKey = MEASUREMENT_ENCRYPTION_PUBLIC_KEY.toByteString()
+          }
+        )
+      assertThat(lifecycleFields)
+        .containsExactly(
+          expectedReportTraceLifecycleFields(
+            outcome = "started",
+            errorType = null,
+            errorCode = null,
+          ),
+          expectedReportTraceLifecycleFields(
+            outcome = "succeeded",
+            errorType = null,
+            errorCode = null,
+          ),
+        )
+        .inOrder()
+
+      val span =
+        spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+      val succeededLog =
+        lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "succeeded" }
+      assertThat(succeededLog[ReportTraceAttributes.BASIC_REPORT_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.REPORT_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.METRIC_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.METRIC_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.COMPUTATION_NAME_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      assertThat(succeededLog[ReportTraceAttributes.DUCHY_ID_STRING])
+        .isEqualTo(span.attributes.get(ReportTraceAttributes.DUCHY_ID))
+    } finally {
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+    }
   }
 
   @Test
@@ -754,34 +792,43 @@ class TrusTeeMillTest {
         )
       )
 
-    val mill = createMill()
-    val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
+    try {
+      val mill = createMill()
+      val lifecycleFields = captureReportTraceLifecycleFields { mill.claimAndProcessWork() }
 
-    val finalToken = fakeComputationDb[LOCAL_ID]!!
-    assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
-    assertThat(finalToken.computationDetails.endingState)
-      .isEqualTo(ComputationDetails.CompletedReason.FAILED)
+      val finalToken = fakeComputationDb[LOCAL_ID]!!
+      assertThat(finalToken.computationStage).isEqualTo(Stage.COMPLETE.toProtocolStage())
+      assertThat(finalToken.computationDetails.endingState)
+        .isEqualTo(ComputationDetails.CompletedReason.FAILED)
 
-    verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
-    verify(mockProcessor, times(1)).computeResult()
-    verify(mockSystemComputations, never()).setComputationResult(any())
-    val span = spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
-      .isEqualTo("IllegalArgumentException")
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
-    assertThat(lifecycleFields)
-      .containsExactly(
-        expectedReportTraceLifecycleFields(outcome = "started", errorType = null, errorCode = null),
-        expectedReportTraceLifecycleFields(
-          outcome = "failed",
-          errorType = "IllegalArgumentException",
-          errorCode = "grpc.UNAVAILABLE",
-        ),
-      )
-      .inOrder()
-    openTelemetry.close()
-    GlobalOpenTelemetry.resetForTest()
-    Instrumentation.resetForTest()
+      verify(mockProcessor, times(REQUISITIONS.size)).addFrequencyVector(any())
+      verify(mockProcessor, times(1)).computeResult()
+      verify(mockSystemComputations, never()).setComputationResult(any())
+      val span =
+        spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("IllegalArgumentException")
+      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+        .isEqualTo("grpc.UNAVAILABLE")
+      assertThat(lifecycleFields)
+        .containsExactly(
+          expectedReportTraceLifecycleFields(
+            outcome = "started",
+            errorType = null,
+            errorCode = null,
+          ),
+          expectedReportTraceLifecycleFields(
+            outcome = "failed",
+            errorType = "IllegalArgumentException",
+            errorCode = "grpc.UNAVAILABLE",
+          ),
+        )
+        .inOrder()
+    } finally {
+      openTelemetry.close()
+      GlobalOpenTelemetry.resetForTest()
+      Instrumentation.resetForTest()
+    }
   }
 
   @Test
@@ -810,7 +857,9 @@ class TrusTeeMillTest {
       try {
         val mill = createMill()
 
-        assertFailsWith<CancellationException> { mill.claimAndProcessWork() }
+        val lifecycleFields = captureReportTraceLifecycleFields {
+          assertFailsWith<CancellationException> { mill.claimAndProcessWork() }
+        }
 
         val finalToken = fakeComputationDb[LOCAL_ID]!!
         assertThat(finalToken.computationStage).isEqualTo(Stage.COMPUTING.toProtocolStage())
@@ -822,6 +871,14 @@ class TrusTeeMillTest {
         assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isNull()
         assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE)).isNull()
         assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isNull()
+        assertThat(lifecycleFields)
+          .containsExactly(
+            expectedReportTraceLifecycleFields(
+              outcome = "started",
+              errorType = null,
+              errorCode = null,
+            )
+          )
       } finally {
         openTelemetry.close()
         GlobalOpenTelemetry.resetForTest()
