@@ -268,7 +268,9 @@ BasicReport in the batch. The defaults shown above are also the CLI defaults.
 
 By default, the artifact contains complete application log payloads, including
 INFO messages, error messages, and stack traces. It omits entries produced by
-the generic verbose gRPC interceptor at query time because those can contain
+the generic verbose gRPC interceptor when the payload contains the interceptor's
+gRPC request/response preamble. It does not suppress an isolated application
+message merely because it resembles a protobuf field or brace. gRPC payloads can contain
 credentials and encrypted request data. Application logs must still follow the
 normal policy of not logging sensitive data.
 
@@ -356,6 +358,10 @@ make the artifact partial. A successful BasicReport's durable availability is
 required; an observed
 `basic_report_api_fetch` is shown as optional evidence because fetching the
 result is not part of producing it.
+When report assembly, noise correction, or processed-result writeback requires
+the BasicReport to be marked `FAILED`, `basic_report_failure_writeback` is a
+required final-disposition stage. A missing or failed writeback remains visible
+even if another durable resource has already reached a terminal state.
 
 Reporting can reuse a Metric, and its Measurements, from an older BasicReport.
 The resolver identifies this from the Metric's immutable originating
