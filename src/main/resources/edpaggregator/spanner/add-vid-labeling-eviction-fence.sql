@@ -15,8 +15,8 @@
 -- limitations under the License.
 
 -- Holds the durable, data-provider-wide fence for a resumable VID-labeling
--- eviction. A single row defers unrelated upload processing while allowing
--- uploads to be registered for later ordered dispatch.
+-- eviction. A single row prevents upload registration and processing restarts
+-- from racing the eviction.
 -- changeset marcopremier:add-vid-labeling-eviction-fence dbms:cloudspanner
 -- comment: Fence VID-labeling mutations while an upload eviction is in progress.
 CREATE TABLE VidLabelingEvictionFence (
@@ -27,6 +27,3 @@ CREATE TABLE VidLabelingEvictionFence (
 
 CREATE INDEX RawImpressionUploadByRegistrationComplete
   ON RawImpressionUpload(DataProviderResourceId, RegistrationComplete, State);
-
-ALTER TABLE RawImpressionUpload ADD COLUMN EvictionOperationId STRING(36);
-ALTER TABLE RawImpressionUpload ADD COLUMN ProcessingDeferred BOOL NOT NULL DEFAULT (FALSE);

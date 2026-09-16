@@ -80,6 +80,9 @@ databaseChangeLog:
       file: add-vid-labeling-eviction-fence.sql
       relativeToChangeLogFile: true
   - include:
+      file: add-raw-impression-upload-processing-deferral.sql
+      relativeToChangeLogFile: true
+  - include:
       file: add-raw-upload-model-line-recovery-dependency.sql
       relativeToChangeLogFile: true
   - include:
