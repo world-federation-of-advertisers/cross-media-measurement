@@ -34,7 +34,11 @@ import io.kubernetes.client.util.Namespaces
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.random.Random
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -63,10 +67,12 @@ import org.wfanet.measurement.duchy.mill.MillType
 import org.wfanet.measurement.duchy.mill.prioritizedStages
 import org.wfanet.measurement.duchy.toProtocolStage
 import org.wfanet.measurement.internal.duchy.ClaimWorkRequest
+import org.wfanet.measurement.internal.duchy.ComputationDetailsKt.kingdomComputationDetails
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationsGrpcKt
 import org.wfanet.measurement.internal.duchy.claimWorkRequest
 import org.wfanet.measurement.internal.duchy.claimWorkResponse
+import org.wfanet.measurement.internal.duchy.computationDetails
 import org.wfanet.measurement.internal.duchy.computationToken
 import org.wfanet.measurement.internal.duchy.protocol.LiquidLegionsSketchAggregationV2
 
@@ -111,7 +117,16 @@ class MillJobSchedulerTest {
           hasComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
         )
       )
-      .thenReturn(claimWorkResponse { token = computationToken { globalComputationId = "comp-1" } })
+      .thenReturn(
+        claimWorkResponse {
+          token = computationToken {
+            globalComputationId = "comp-1"
+            computationDetails = computationDetails {
+              kingdomComputation = kingdomComputationDetails { measurement = MEASUREMENT_NAME }
+            }
+          }
+        }
+      )
     val jobCreated = CompletableDeferred<V1Job>()
     whenever(k8sClientMock.createJob(any())).thenAnswer { invocation ->
       jobCreated.complete(invocation.arguments.first() as V1Job)
@@ -142,6 +157,77 @@ class MillJobSchedulerTest {
     assertThat(createJobRequest.metadata.ownerReferences).containsExactly(deploymentOwnerReference)
     assertThat(createJobRequest.spec.template.metadata.labels)
       .containsAtLeastEntriesIn(liquidLegionsV2PodTemplate.template.metadata.labels)
+  }
+
+  @Test
+  fun `run logs successful mill dispatch`() = runTest {
+    whenever(k8sClientMock.listJobs(any(), any())).thenReturn(V1JobList())
+    whenever(
+        computationsServiceMock.claimWork(
+          hasComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
+        )
+      )
+      .thenReturn(
+        claimWorkResponse {
+          token = computationToken {
+            globalComputationId = "comp-1"
+            computationDetails = computationDetails {
+              kingdomComputation = kingdomComputationDetails { measurement = MEASUREMENT_NAME }
+            }
+          }
+        }
+      )
+    whenever(k8sClientMock.createJob(any())).thenReturn(V1Job())
+    val succeeded = CompletableDeferred<String>()
+    val handler =
+      lifecycleHandler("xmm.outcome=succeeded xmm.measurement.name=$MEASUREMENT_NAME", succeeded)
+    val logger = Logger.getLogger(MillJobScheduler::class.java.name)
+    logger.addHandler(handler)
+    try {
+      backgroundScope.launch { createMillJobScheduler().run() }
+      val message = succeeded.await()
+
+      assertThat(message).contains("xmm.lifecycle.stage=duchy_mill_dispatch")
+      assertThat(message).contains("xmm.computation.name=computations/comp-1")
+      assertThat(message).contains("xmm.duchy.id=$DUCHY_ID")
+      assertThat(message).contains("xmm.measurement.name=$MEASUREMENT_NAME")
+    } finally {
+      logger.removeHandler(handler)
+    }
+  }
+
+  @Test
+  fun `run logs failed mill dispatch`() = runTest {
+    whenever(k8sClientMock.listJobs(any(), any())).thenReturn(V1JobList())
+    whenever(
+        computationsServiceMock.claimWork(
+          hasComputationType(ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2)
+        )
+      )
+      .thenReturn(
+        claimWorkResponse {
+          token = computationToken {
+            globalComputationId = "comp-1"
+            computationDetails = computationDetails {
+              kingdomComputation = kingdomComputationDetails { measurement = MEASUREMENT_NAME }
+            }
+          }
+        }
+      )
+    whenever(k8sClientMock.createJob(any())).thenThrow(IllegalStateException("Job rejected"))
+    val failed = CompletableDeferred<String>()
+    val handler = lifecycleHandler("xmm.outcome=failed", failed)
+    val logger = Logger.getLogger(MillJobScheduler::class.java.name)
+    logger.addHandler(handler)
+    try {
+      assertFailsWith<IllegalStateException> { createMillJobScheduler().run() }
+      val message = failed.await()
+
+      assertThat(message).contains("xmm.lifecycle.stage=duchy_mill_dispatch")
+      assertThat(message).contains("xmm.error.type=IllegalStateException")
+    } finally {
+      logger.removeHandler(handler)
+    }
   }
 
   @Test
@@ -269,6 +355,22 @@ class MillJobSchedulerTest {
     }
   }
 
+  private fun lifecycleHandler(
+    expectedField: String,
+    message: CompletableDeferred<String>,
+  ): Handler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        if (record.message.contains(expectedField)) {
+          message.complete(record.message)
+        }
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
+
   companion object {
     init {
       // Ensure JSON for Kubernetes API is initialized.
@@ -276,6 +378,7 @@ class MillJobSchedulerTest {
     }
 
     private const val DUCHY_ID = "worker1"
+    private const val MEASUREMENT_NAME = "measurementConsumers/mc-1/measurements/measurement-1"
     private const val DEPLOYMENT_NAME = "$DUCHY_ID-mill-job-scheduler-deployment"
     private const val LLV2_POD_TEMPLATE_NAME = "$DUCHY_ID-llv2-mill"
     private val LLV2_WORK_LOCK_DURATION = Duration.ofMinutes(10)
