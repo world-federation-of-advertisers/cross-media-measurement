@@ -2590,7 +2590,7 @@ class MetricsService(
           .toSet()
       val affectedInternalMetrics: List<InternalMetric> =
         if (affectedMeasurementIds.isEmpty()) {
-          emptyList()
+          internalMetrics
         } else {
           internalMetrics.filter { internalMetric ->
             internalMetric.weightedMeasurementsList.any {

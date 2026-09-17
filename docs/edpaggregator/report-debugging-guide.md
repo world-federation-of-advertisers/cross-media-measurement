@@ -258,9 +258,10 @@ or divide the available quota budget across them. A higher concurrency value
 does not bypass the rate limit; it only overlaps requests after permits become
 available.
 
-Cloud Trace HTTP 429 and Cloud Logging `RESOURCE_EXHAUSTED` responses are hard
-per-report failures, even with `--allow-partial`, because the resulting artifact
-cannot establish that collection was complete. Retry at a lower rate.
+Cloud Trace HTTP 429 and any `RESOURCE_EXHAUSTED` response from Cloud Logging,
+Reporting resolution, or Kingdom route resolution are hard per-report failures,
+even with `--allow-partial`, because the resulting artifact cannot establish
+that collection was complete. Retry at a lower rate.
 `--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
 a failed report exposes an unusually large number of descendants. Reaching any
 of these bounds writes a `PARTIAL` artifact and continues with the next
@@ -271,9 +272,10 @@ INFO messages, error messages, and stack traces. It omits entries produced by
 the generic verbose gRPC interceptor when the payload contains the interceptor's
 gRPC request/response preamble. When a logging backend ingests a multiline
 payload as separate entries, the tool suppresses continuations only while they
-share the same logger and log-stream context as that preamble. It does not
-suppress an isolated application message merely because it resembles a protobuf
-field or brace.
+share the same logger and log-stream context as that preamble. A continuation-shaped entry whose
+source or surrounding request context cannot be established safely is omitted and makes the
+artifact `PARTIAL`. Ordinary structured lifecycle logs and application messages with reliable
+non-gRPC context remain visible.
 gRPC payloads can contain
 credentials and encrypted request data. Application logs must still follow the
 normal policy of not logging sensitive data.
