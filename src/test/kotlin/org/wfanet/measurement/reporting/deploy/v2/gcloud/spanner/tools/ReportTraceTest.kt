@@ -2608,6 +2608,9 @@ class ReportTraceTest {
           severity = "INFO",
           message = "INFO: @Mill trustee-mill, target-computation/COMPUTING/memory: 1024",
         ),
+        targetError.copy(
+          message = "@Mill trustee-mill, Computation target-computation failed due to: bad input"
+        ),
       )
     val foreignError =
       targetError.copy(
@@ -2615,7 +2618,6 @@ class ReportTraceTest {
           "SEVERE: foreign-computation@trustee-mill: Failing Computation. " +
             "Input vector size 3 does not match expected size 4"
       )
-
     val scoped =
       ReportTraceOutput.scopeTelemetryToReport(
         spans = listOf(targetSpan),
@@ -2625,6 +2627,29 @@ class ReportTraceTest {
 
     assertThat(scoped.spans).containsExactly(targetSpan)
     assertThat(scoped.logEntries).containsExactlyElementsIn(targetLogs).inOrder()
+  }
+
+  @Test
+  fun `telemetry scope does not parse computation status word as an identifier`() {
+    val genericError =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "mill",
+        severity = "ERROR",
+        trace = null,
+        message = "Computation failed due to missing input",
+      )
+
+    val scoped =
+      ReportTraceOutput.scopeTelemetryToReport(
+        spans = emptyList(),
+        logEntries = listOf(genericError),
+        authoritativeReportResources =
+          setOf("measurementConsumers/mc-1/basicReports/report-1", "computations/failed"),
+      )
+
+    assertThat(scoped.logEntries).isEmpty()
   }
 
   @Test

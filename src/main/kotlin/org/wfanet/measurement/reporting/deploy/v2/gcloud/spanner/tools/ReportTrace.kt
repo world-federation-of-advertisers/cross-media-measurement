@@ -3290,9 +3290,10 @@ internal object ReportTraceOutput {
   private val UNSTRUCTURED_COMPUTATION_IDENTIFIER_PATTERNS =
     listOf(
       Regex("\\[id=([A-Za-z0-9_-]+)]"),
-      Regex("\\bComputation\\s+([A-Za-z0-9_-]+)\\b"),
+      Regex("\\bClaimed work item for Computation\\s+([A-Za-z0-9_-]+)\\s+at stage\\b"),
       Regex("\\b([A-Za-z0-9_-]+)@[A-Za-z0-9_.-]+:"),
       Regex("@Mill\\s+[^,]+,\\s+([A-Za-z0-9_-]+)/"),
+      Regex("@Mill\\s+[^,]+,\\s+Computation\\s+([A-Za-z0-9_-]+)\\s+failed due to:"),
     )
   private val REPORT_SCOPED_IDENTIFIER_ATTRIBUTES =
     setOf(
