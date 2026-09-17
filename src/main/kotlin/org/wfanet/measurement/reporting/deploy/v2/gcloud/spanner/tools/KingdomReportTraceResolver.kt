@@ -304,6 +304,7 @@ internal class KingdomReportTraceResolver(
               } catch (e: CancellationException) {
                 throw e
               } catch (e: Exception) {
+                if (e.isQuotaExhaustion()) throw e
                 MeasurementBatchResult(emptyList(), names, failureDescription(e))
               }
             }
@@ -359,6 +360,7 @@ internal class KingdomReportTraceResolver(
               } catch (e: CancellationException) {
                 throw e
               } catch (e: Exception) {
+                if (e.isQuotaExhaustion()) throw e
                 MeasurementRouteResult(
                   route =
                     ReportTraceMeasurementRoute(
