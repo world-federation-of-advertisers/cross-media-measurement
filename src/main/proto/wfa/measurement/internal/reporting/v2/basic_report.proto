@@ -68,6 +68,8 @@ message BasicReport {
     FAILED = 5;
     // Results have been invalidated. Terminal state.
     INVALID = 6;
+    // Withdrawn by the caller. Terminal state.
+    WITHDRAWN = 7;
   }
   // `BasicReport` state.
   State state = 9;

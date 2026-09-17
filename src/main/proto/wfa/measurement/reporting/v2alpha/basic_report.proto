@@ -140,6 +140,8 @@ message BasicReport {
     FAILED = 3;
     // Results have been invalidated. Terminal state.
     INVALID = 4;
+    // Withdrawn by the caller. Terminal state.
+    WITHDRAWN = 5;
   }
   // `BasicReport` state.
   State state = 10 [(google.api.field_behavior) = OUTPUT_ONLY];

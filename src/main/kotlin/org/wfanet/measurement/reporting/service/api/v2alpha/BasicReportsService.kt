@@ -85,6 +85,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.reportingSet as internalReportingSet
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.streamReportingSetsRequest
+import org.wfanet.measurement.internal.reporting.v2.withdrawBasicReportRequest as internalWithdrawBasicReportRequest
 import org.wfanet.measurement.reporting.service.api.ArgumentChangedInRequestForNextPageException
 import org.wfanet.measurement.reporting.service.api.BasicReportAlreadyExistsException
 import org.wfanet.measurement.reporting.service.api.BasicReportNotFoundException
@@ -115,6 +116,7 @@ import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineStub
+import org.wfanet.measurement.reporting.v2alpha.WithdrawBasicReportRequest
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportRequest
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -543,7 +545,7 @@ class BasicReportsService(
       }
 
     // A repeated request with the same request ID returns the existing BasicReport, which may have
-    // already been advanced or failed.
+    // already been advanced or entered a terminal state.
     @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enums cannot be null.
     when (createdInternalBasicReport.state) {
       InternalBasicReport.State.CREATED -> {}
@@ -554,6 +556,7 @@ class BasicReportsService(
           populateDeprecatedReportingUnitEventGroupSummaries = false
         )
       InternalBasicReport.State.FAILED,
+      InternalBasicReport.State.WITHDRAWN,
       InternalBasicReport.State.INVALID ->
         throw Status.ABORTED.withDescription(
             "BasicReport is in a terminal state and cannot be advanced"
@@ -719,6 +722,58 @@ class BasicReportsService(
       validModelLines.find { it.name == requestModelLine }
         ?: throw ModelLineNotActiveException(requestModelLine)
     }
+  }
+
+  override suspend fun withdrawBasicReport(request: WithdrawBasicReportRequest): BasicReport {
+    if (request.name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val (measurementConsumerKey, basicReportId) =
+      BasicReportKey.fromName(request.name)
+        ?: throw InvalidFieldValueException("name")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+
+    authorization.check(listOf(request.name, measurementConsumerKey.toName()), Permission.WITHDRAW)
+
+    val internalBasicReport =
+      try {
+        internalBasicReportsStub.withdrawBasicReport(
+          internalWithdrawBasicReportRequest {
+            cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+            externalBasicReportId = basicReportId
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.BASIC_REPORT_NOT_FOUND ->
+            BasicReportNotFoundException(request.name, e)
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+          InternalErrors.Reason.BASIC_REPORT_STATE_INVALID ->
+            Status.FAILED_PRECONDITION.withDescription(
+                "BasicReport is in a terminal state and cannot be withdrawn"
+              )
+              .withCause(e)
+              .asRuntimeException()
+          InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
+          InternalErrors.Reason.IMPRESSION_QUALIFICATION_FILTER_NOT_FOUND,
+          InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
+          InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
+          InternalErrors.Reason.INVALID_FIELD_VALUE,
+          InternalErrors.Reason.METRIC_NOT_FOUND,
+          InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION,
+          InternalErrors.Reason.REPORT_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_SET_RESULT_NOT_FOUND,
+          InternalErrors.Reason.REPORTING_WINDOW_RESULT_NOT_FOUND,
+          InternalErrors.Reason.INVALID_BASIC_REPORT,
+          null -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return internalBasicReport.toBasicReport(
+      populateDeprecatedReportingUnitEventGroupSummaries = false
+    )
   }
 
   override suspend fun getBasicReport(request: GetBasicReportRequest): BasicReport {
@@ -1447,6 +1502,7 @@ class BasicReportsService(
     const val CREATE_WITH_DEV_MODEL_LINE = "$TYPE.createWithDevModelLine"
     const val GET = "$TYPE.get"
     const val LIST = "$TYPE.list"
+    const val WITHDRAW = "$TYPE.withdraw"
   }
 
   companion object {

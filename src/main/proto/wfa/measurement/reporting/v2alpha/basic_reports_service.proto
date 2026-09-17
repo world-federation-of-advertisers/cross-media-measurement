@@ -60,6 +60,20 @@ service BasicReports {
     };
     option (google.api.method_signature) = "parent";
   }
+
+  // Transitions the `BasicReport` to the `WITHDRAWN` state.
+  //
+  // The `BasicReport` must not already be in a terminal state.
+  //
+  // This stops further `BasicReport` processing, but does not cancel the
+  // associated `Report` or `Measurement` resources.
+  rpc WithdrawBasicReport(WithdrawBasicReportRequest) returns (BasicReport) {
+    option (google.api.http) = {
+      post: "/v2alpha/{name=measurementConsumers/*/basicReports/*}:withdraw"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name";
+  }
 }
 
 // Request message for `GetBasicReport` method
@@ -159,6 +173,17 @@ message ListBasicReportsResponse {
   // See AIP-217.
   repeated string unreachable = 3
       [(google.api.field_behavior) = UNORDERED_LIST];
+}
+
+// Request message for `WithdrawBasicReport` method.
+message WithdrawBasicReportRequest {
+  // Resource name of the `BasicReport` to withdraw.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "reporting.halo-cmm.org/BasicReport"
+    }
+  ];
 }
 
 // Request message for `CreateBasicReport` method

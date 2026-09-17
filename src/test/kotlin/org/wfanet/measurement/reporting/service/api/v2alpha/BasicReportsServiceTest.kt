@@ -208,6 +208,7 @@ import org.wfanet.measurement.reporting.v2alpha.reportingUnit
 import org.wfanet.measurement.reporting.v2alpha.resultGroup
 import org.wfanet.measurement.reporting.v2alpha.resultGroupMetricSpec
 import org.wfanet.measurement.reporting.v2alpha.resultGroupSpec
+import org.wfanet.measurement.reporting.v2alpha.withdrawBasicReportRequest
 
 @RunWith(JUnit4::class)
 class BasicReportsServiceTest {
@@ -11056,6 +11057,111 @@ class BasicReportsServiceTest {
   }
 
   @Test
+  fun `withdrawBasicReport returns BasicReport with state WITHDRAWN`(): Unit = runBlocking {
+    val basicReport = createRunningBasicReport()
+
+    val response =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.withdrawBasicReport(withdrawBasicReportRequest { name = basicReport.name })
+      }
+
+    assertThat(response).isEqualTo(basicReport.copy { state = BasicReport.State.WITHDRAWN })
+  }
+
+  @Test
+  fun `withdrawBasicReport throws INVALID_ARGUMENT when name is missing`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.withdrawBasicReport(withdrawBasicReportRequest {})
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.REQUIRED_FIELD_NOT_SET.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `withdrawBasicReport throws INVALID_ARGUMENT when name is invalid`() = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.withdrawBasicReport(withdrawBasicReportRequest { name = "/basicReports/def" })
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.INVALID_ARGUMENT)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.INVALID_FIELD_VALUE.name
+          metadata[Errors.Metadata.FIELD_NAME.key] = "name"
+        }
+      )
+  }
+
+  @Test
+  fun `withdrawBasicReport throws NOT_FOUND when BasicReport is not found`() = runBlocking {
+    val request = withdrawBasicReportRequest { name = "measurementConsumers/abc/basicReports/def" }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.withdrawBasicReport(request) }
+      }
+
+    assertThat(exception).status().code().isEqualTo(Status.Code.NOT_FOUND)
+    assertThat(exception)
+      .errorInfo()
+      .isEqualTo(
+        errorInfo {
+          domain = Errors.DOMAIN
+          reason = Errors.Reason.BASIC_REPORT_NOT_FOUND.name
+          metadata[Errors.Metadata.BASIC_REPORT.key] = request.name
+        }
+      )
+  }
+
+  @Test
+  fun `withdrawBasicReport throws FAILED_PRECONDITION when BasicReport is terminal`(): Unit =
+    runBlocking {
+      val basicReport = createRunningBasicReport()
+      val request = withdrawBasicReportRequest { name = basicReport.name }
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.withdrawBasicReport(request) }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.withdrawBasicReport(request) }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
+      assertThat(exception).hasMessageThat().contains("terminal state")
+    }
+
+  @Test
+  fun `withdrawBasicReport throws PERMISSION_DENIED when caller does not have permission`() =
+    runBlocking {
+      val request = withdrawBasicReportRequest {
+        name = "measurementConsumers/abc/basicReports/def"
+      }
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          withPrincipalAndScopes(PRINCIPAL.copy { name = "principals/other-mc-user" }, SCOPES) {
+            service.withdrawBasicReport(request)
+          }
+        }
+
+      assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
+      assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.WITHDRAW)
+    }
+
+  @Test
   fun `getBasicReport throws INVALID_ARGUMENT when name is missing`() = runBlocking {
     val request = getBasicReportRequest {}
     val exception = assertFailsWith<StatusRuntimeException> { service.getBasicReport(request) }
@@ -12331,6 +12437,46 @@ class BasicReportsServiceTest {
       )
   }
 
+  private suspend fun createRunningBasicReport(): BasicReport {
+    val measurementConsumerKey = MeasurementConsumerKey(CMMS_MEASUREMENT_CONSUMER_ID)
+    val campaignGroupKey = ReportingSetKey(measurementConsumerKey, "withdraw-campaign")
+
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer {
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+      }
+    )
+    internalReportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = internalReportingSet {
+          cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId
+          externalCampaignGroupId = campaignGroupKey.reportingSetId
+          displayName = "Campaign"
+          primitive =
+            ReportingSetKt.primitive {
+              eventGroupKeys +=
+                ReportingSetKt.PrimitiveKt.eventGroupKey {
+                  cmmsDataProviderId = DATA_PROVIDER_KEY.dataProviderId
+                  cmmsEventGroupId = "event-group"
+                }
+            }
+        }
+        externalReportingSetId = campaignGroupKey.reportingSetId
+      }
+    )
+
+    return withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+      service.createBasicReport(
+        createBasicReportRequest {
+          parent = measurementConsumerKey.toName()
+          basicReport = BASIC_REPORT.copy { campaignGroup = campaignGroupKey.toName() }
+          basicReportId = "withdraw-report"
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    }
+  }
+
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
@@ -12377,6 +12523,7 @@ class BasicReportsServiceTest {
       setOf(
         BasicReportsService.Permission.GET,
         BasicReportsService.Permission.LIST,
+        BasicReportsService.Permission.WITHDRAW,
         BasicReportsService.Permission.CREATE,
         BasicReportsService.Permission.CREATE_WITH_DEV_MODEL_LINE,
       )

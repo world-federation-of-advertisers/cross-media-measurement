@@ -336,6 +336,7 @@ class ReportingUserSimulator(
       when (retrievedBasicReport.state) {
         BasicReport.State.SUCCEEDED,
         BasicReport.State.FAILED,
+        BasicReport.State.WITHDRAWN,
         BasicReport.State.INVALID -> return retrievedBasicReport
         BasicReport.State.RUNNING -> {
           val resultPollingDelay =
