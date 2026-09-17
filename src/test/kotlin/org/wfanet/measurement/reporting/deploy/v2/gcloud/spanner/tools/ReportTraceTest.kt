@@ -3802,8 +3802,16 @@ class ReportTraceTest {
 
     assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
     assertThat(output)
-      .contains("Collection completeness: PARTIAL — incomplete lifecycle: noise_correction")
-    assertThat(output).contains("- `noise_correction` — `${context.basicReportName}` (`MISSING`)")
+      .contains(
+        "Collection completeness: PARTIAL — " +
+          "missing evidence from: Report result post-processor"
+      )
+    assertThat(output)
+      .contains(
+        "- Report result post-processor — trace `noise_correction`; " +
+          "resource `${context.basicReportName}`; status `MISSING`"
+      )
+    assertThat(output).contains("| Report result post-processor | `noise_correction` |")
   }
 
   @Test
@@ -3842,11 +3850,13 @@ class ReportTraceTest {
     assertThat(output)
       .contains(
         "Collection completeness: PARTIAL — " +
-          "incomplete lifecycle: basic_report_failure_writeback; " +
+          "missing evidence from: Reporting result-assembly job; " +
           "incomplete telemetry: observability-project/gRPC payload classification"
       )
     assertThat(output).contains("Incomplete lifecycle evidence:")
     assertThat(output).contains("Incomplete telemetry sources:")
+    assertThat(output)
+      .contains("| Reporting result-assembly job | `basic_report_failure_writeback` |")
   }
 
   @Test
@@ -4614,12 +4624,22 @@ class ReportTraceTest {
       )
 
     val summary = output.substringBefore("## Identity and collection window")
+    assertThat(summary)
+      .contains(
+        "Collection completeness: PARTIAL — " +
+          "missing evidence from: Reporting Metrics service; " +
+          "incomplete telemetry: test-project/Cloud Logging"
+      )
     assertThat(summary).contains("Incomplete lifecycle evidence:")
     assertThat(summary)
-      .contains("- `kingdom_measurement_sync` — `$measurementName` (`IN_PROGRESS`)")
+      .contains(
+        "- Reporting Metrics service — trace `kingdom_measurement_sync`; " +
+          "resource `$measurementName`; status `IN_PROGRESS`"
+      )
     assertThat(summary).contains("Incomplete telemetry sources:")
     assertThat(summary)
       .contains("- `test-project/Cloud Logging` — `TRUNCATED`: Entry limit reached")
+    assertThat(summary).contains("| Reporting Metrics service | `kingdom_measurement_sync` |")
   }
 
   @Test
