@@ -2500,22 +2500,24 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `telemetry scope retains unlabeled lineage without retaining siblings`() {
+  fun `telemetry scope retains cross-project lineage and duplicate exports without siblings`() {
     val targetBasicReport = "measurementConsumers/mc-1/basicReports/report-1"
-    val root = traceSpan("root", NOW).copy(traceId = "shared-trace")
+    val root = traceSpan("root", NOW).copy(sourceProject = "reporting", traceId = "shared-trace")
     val target =
       traceSpan("target", NOW.plusSeconds(1))
         .copy(
+          sourceProject = "reporting",
           traceId = "shared-trace",
           parentSpanId = root.spanId,
           attributes = mapOf("xmm.basic_report.name" to targetBasicReport),
         )
     val targetChild =
       traceSpan("target-child", NOW.plusSeconds(2))
-        .copy(traceId = "shared-trace", parentSpanId = target.spanId)
+        .copy(sourceProject = "kingdom", traceId = "shared-trace", parentSpanId = target.spanId)
+    val duplicateTargetChild = targetChild.copy(sourceProject = "trace-archive")
     val unrelatedSibling =
       traceSpan("unrelated-sibling", NOW.plusSeconds(3))
-        .copy(traceId = "shared-trace", parentSpanId = root.spanId)
+        .copy(sourceProject = "kingdom", traceId = "shared-trace", parentSpanId = root.spanId)
     val foreignSibling =
       traceSpan("foreign-sibling", NOW.plusSeconds(4))
         .copy(
@@ -2527,12 +2529,15 @@ class ReportTraceTest {
 
     val scoped =
       ReportTraceOutput.scopeTelemetryToReport(
-        spans = listOf(root, target, targetChild, unrelatedSibling, foreignSibling),
+        spans =
+          listOf(root, target, targetChild, duplicateTargetChild, unrelatedSibling, foreignSibling),
         logEntries = emptyList(),
         authoritativeReportResources = setOf(targetBasicReport),
       )
 
-    assertThat(scoped.spans).containsExactly(root, target, targetChild).inOrder()
+    assertThat(scoped.spans)
+      .containsExactly(root, target, targetChild, duplicateTargetChild)
+      .inOrder()
   }
 
   @Test

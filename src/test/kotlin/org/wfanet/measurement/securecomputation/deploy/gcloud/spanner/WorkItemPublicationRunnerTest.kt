@@ -121,6 +121,58 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `publication runner logs missing queue as terminal failure`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1", queueId = Long.MAX_VALUE)
+    val runner = newRunner(RecordingPublisher(), MutableClock(Instant.now().plusSeconds(10)))
+    val records = mutableListOf<LogRecord>()
+    val handler = recordingHandler(records)
+    val logger = Logger.getLogger(WorkItemPublicationRunner::class.java.name)
+    logger.addHandler(handler)
+    try {
+      assertThat(runner.publishWorkItem(WORK_ITEM_ID)).isFalse()
+    } finally {
+      logger.removeHandler(handler)
+    }
+
+    assertThat(records.map(LogRecord::getMessage))
+      .contains(
+        "event=secure_computation.work_item.publication " +
+          "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.lifecycle.stage=work_item_publication xmm.outcome=failed " +
+          "xmm.error.type=QueueNotFound"
+      )
+  }
+
+  @Test
+  fun `publication runner logs legacy dead letter terminalization`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.bufferUpdateMutation("WorkItemPublications") {
+        set("WorkItemId").to(WORK_ITEM_ID)
+        set("IsDeadLetter").to(true)
+      }
+    }
+    val runner = newRunner(RecordingPublisher(), MutableClock(Instant.now().plusSeconds(10)))
+    val records = mutableListOf<LogRecord>()
+    val handler = recordingHandler(records)
+    val logger = Logger.getLogger(WorkItemPublicationRunner::class.java.name)
+    logger.addHandler(handler)
+    try {
+      assertThat(runner.publishWorkItem(WORK_ITEM_ID)).isFalse()
+    } finally {
+      logger.removeHandler(handler)
+    }
+
+    assertThat(records.map(LogRecord::getMessage))
+      .contains(
+        "event=secure_computation.work_item.publication " +
+          "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.lifecycle.stage=work_item_publication xmm.outcome=failed " +
+          "xmm.error.type=LegacyDeadLetterTerminalized"
+      )
+  }
+
+  @Test
   fun `disabled publication preserves outbox and does not reconcile legacy WorkItems`() =
     runBlocking {
       val publisher = RecordingPublisher()

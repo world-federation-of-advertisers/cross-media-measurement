@@ -2163,53 +2163,53 @@ internal object ReportTraceOutput {
   /** Retains unlabeled ancestors and descendants without admitting sibling branches. */
   private fun retainSpanLineage(spans: List<ReportTraceSpan>, retained: BooleanArray) {
     val directlyMatched = retained.copyOf()
-    val spanIndices =
-      spans.indices.associateBy { index ->
-        val span = spans[index]
-        Triple(span.sourceProject, span.traceId, span.spanId)
+    val spanIndices = mutableMapOf<Pair<String, String>, MutableList<Int>>()
+    val parentKeys = mutableMapOf<Pair<String, String>, MutableSet<Pair<String, String>>>()
+    val childKeys = mutableMapOf<Pair<String, String>, MutableSet<Pair<String, String>>>()
+    for ((index, span) in spans.withIndex()) {
+      val spanKey = span.traceId to span.spanId
+      spanIndices.getOrPut(spanKey, ::mutableListOf).add(index)
+      if (span.parentSpanId != null) {
+        val parentKey = span.traceId to span.parentSpanId
+        parentKeys.getOrPut(spanKey, ::mutableSetOf).add(parentKey)
+        childKeys.getOrPut(parentKey, ::mutableSetOf).add(spanKey)
       }
-    val childIndices =
+    }
+    val directlyMatchedKeys =
       spans.indices
-        .filter { spans[it].parentSpanId != null }
-        .groupBy { index ->
-          val span = spans[index]
-          Triple(span.sourceProject, span.traceId, checkNotNull(span.parentSpanId))
-        }
+        .filter { directlyMatched[it] }
+        .mapTo(mutableSetOf()) { index -> spans[index].let { it.traceId to it.spanId } }
 
-    for (seedIndex in spans.indices.filter { directlyMatched[it] }) {
-      var span = spans[seedIndex]
-      val visitedAncestors = mutableSetOf<Int>()
-      while (span.parentSpanId != null) {
-        val parentIndex =
-          spanIndices[Triple(span.sourceProject, span.traceId, span.parentSpanId)] ?: break
-        if (!visitedAncestors.add(parentIndex)) break
-        if (
-          !directlyMatched[parentIndex] &&
-            telemetryIdentifiers(spans[parentIndex].attributes, null).isNotEmpty()
-        ) {
-          break
+    fun canRetainByLineage(spanKey: Pair<String, String>): Boolean {
+      return spanKey in directlyMatchedKeys ||
+        spanIndices[spanKey].orEmpty().all { index ->
+          telemetryIdentifiers(spans[index].attributes, null).isEmpty()
         }
-        retained[parentIndex] = true
-        span = spans[parentIndex]
+    }
+
+    fun retain(spanKey: Pair<String, String>) {
+      for (index in spanIndices[spanKey].orEmpty()) {
+        retained[index] = true
+      }
+    }
+
+    for (seedKey in directlyMatchedKeys) {
+      val ancestorQueue = ArrayDeque(parentKeys[seedKey].orEmpty())
+      val visitedAncestors = mutableSetOf<Pair<String, String>>()
+      while (ancestorQueue.isNotEmpty()) {
+        val ancestorKey = ancestorQueue.removeFirst()
+        if (!visitedAncestors.add(ancestorKey) || !canRetainByLineage(ancestorKey)) continue
+        retain(ancestorKey)
+        ancestorQueue.addAll(parentKeys[ancestorKey].orEmpty())
       }
 
-      val descendantQueue = ArrayDeque<Int>()
-      descendantQueue.add(seedIndex)
+      val descendantQueue = ArrayDeque(childKeys[seedKey].orEmpty())
+      val visitedDescendants = mutableSetOf<Pair<String, String>>()
       while (descendantQueue.isNotEmpty()) {
-        val parentIndex = descendantQueue.removeFirst()
-        val parent = spans[parentIndex]
-        for (childIndex in
-          childIndices[Triple(parent.sourceProject, parent.traceId, parent.spanId)].orEmpty()) {
-          if (retained[childIndex]) continue
-          if (
-            !directlyMatched[childIndex] &&
-              telemetryIdentifiers(spans[childIndex].attributes, null).isNotEmpty()
-          ) {
-            continue
-          }
-          retained[childIndex] = true
-          descendantQueue.add(childIndex)
-        }
+        val descendantKey = descendantQueue.removeFirst()
+        if (!visitedDescendants.add(descendantKey) || !canRetainByLineage(descendantKey)) continue
+        retain(descendantKey)
+        descendantQueue.addAll(childKeys[descendantKey].orEmpty())
       }
     }
   }
