@@ -183,23 +183,42 @@ abstract class MillBase(
 
   /** Process a work item that has already been claimed. */
   suspend fun processClaimedWork(globalComputationId: String, version: Long) {
-    val token: ComputationToken = getLatestComputationToken(globalComputationId)
-    val now = clock.instant()
+    val initialAttributes = reportTraceAttributes(globalComputationId)
+    ReportTracing.traceSuspending("duchy.mill.process_computation", initialAttributes) {
+      val token: ComputationToken =
+        try {
+          getLatestComputationToken(globalComputationId)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          logReportTraceLifecycle(
+            initialAttributes,
+            outcome = "failed",
+            errorType = ReportTraceAttributes.errorType(e),
+            errorCode = ReportTraceAttributes.errorCode(e),
+          )
+          throw e
+        }
+      Span.current().setAllAttributes(token.reportTraceAttributes())
+      val now = clock.instant()
 
-    if (token.version != version) {
-      val message = "Computation version has changed since claimed"
-      logger.warning(message)
-      sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
-      return
-    }
-    if (!holdsLock(token, now)) {
-      val message = "Mill does not hold lock for Computation $globalComputationId"
-      logger.warning(message)
-      sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
-      return
-    }
+      if (token.version != version) {
+        val message = "Computation $globalComputationId version has changed since claimed"
+        logger.warning(message)
+        sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
+        recordStaleDelivery(token, "ComputationVersionChanged")
+        return@traceSuspending
+      }
+      if (!holdsLock(token, now)) {
+        val message = "Mill does not hold lock for Computation $globalComputationId"
+        logger.warning(message)
+        sendStatusUpdateToKingdom(globalComputationId, buildErrorLogEntry(token, message, now))
+        recordStaleDelivery(token, "WorkLockNotHeld")
+        return@traceSuspending
+      }
 
-    processComputation(token)
+      processComputationInTrace(token)
+    }
   }
 
   private var computationsServerReady = false
@@ -316,11 +335,7 @@ abstract class MillBase(
   }
 
   private fun ComputationToken.reportTraceAttributes(): Attributes {
-    val builder =
-      Attributes.builder()
-        .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(globalComputationId).toName())
-        .put(ReportTraceAttributes.DUCHY_ID, duchyId)
-        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_stage_attempt")
+    val builder = Attributes.builder().putAll(reportTraceAttributes(globalComputationId))
     if (computationDetails.kingdomComputation.measurement.isNotEmpty()) {
       builder.put(
         ReportTraceAttributes.MEASUREMENT_NAME,
@@ -339,8 +354,25 @@ abstract class MillBase(
     errorType: String?,
     errorCode: String?,
   ) {
+    logReportTraceLifecycle(reportTraceAttributes(), outcome, errorType, errorCode)
+  }
+
+  private fun reportTraceAttributes(globalComputationId: String): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(globalComputationId).toName())
+      .put(ReportTraceAttributes.DUCHY_ID, duchyId)
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "duchy_stage_attempt")
+      .build()
+  }
+
+  private fun logReportTraceLifecycle(
+    attributes: Attributes,
+    outcome: String,
+    errorType: String?,
+    errorCode: String?,
+  ) {
     val fields = buildList {
-      for ((key, value) in reportTraceAttributes().asMap()) {
+      for ((key, value) in attributes.asMap()) {
         add(key.key to value.toString())
       }
       add(ReportTraceAttributes.OUTCOME_STRING to outcome)
@@ -348,6 +380,17 @@ abstract class MillBase(
       add(ReportTraceAttributes.ERROR_CODE_STRING to errorCode)
     }
     ReportTraceLogging.log(logger, "duchy.mill.process_computation", *fields.toTypedArray())
+  }
+
+  private fun recordStaleDelivery(token: ComputationToken, errorType: String) {
+    Span.current()
+      .setAttribute(ReportTraceAttributes.OUTCOME, "stale_delivery")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, errorType)
+    token.logReportTraceLifecycle(
+      outcome = "stale_delivery",
+      errorType = errorType,
+      errorCode = null,
+    )
   }
 
   private suspend fun handleExceptions(token: ComputationToken, e: Exception) {
