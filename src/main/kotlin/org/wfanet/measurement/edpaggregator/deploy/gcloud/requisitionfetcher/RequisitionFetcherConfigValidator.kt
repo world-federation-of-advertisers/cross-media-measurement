@@ -33,8 +33,8 @@ object RequisitionFetcherConfigValidator {
    * Validates [config].
    *
    * Every configured DataProvider must have a complete direct-dispatch block, [controlPlaneTarget]
-   * must be set, and [dataWatcherConfig] must prove that the legacy route uses the same queue and
-   * that no legacy object-name filter matches a representative object in a direct namespace.
+   * must be set, and [dataWatcherConfig] must prove that no legacy object-name filter matches a
+   * representative object in a direct namespace.
    */
   fun validate(
     config: RequisitionFetcherConfig,
@@ -69,12 +69,6 @@ object RequisitionFetcherConfigValidator {
           )
         )
         if (dataWatcherConfig != null) {
-          requireQueueMatchesLegacyRoute(
-            root,
-            dataProviderConfig,
-            dispatchConfig,
-            dataWatcherConfig,
-          )
           requireDataWatcherExcludesDirectPath(root, dispatchConfig, dataWatcherConfig)
         }
       }
@@ -197,42 +191,13 @@ object RequisitionFetcherConfigValidator {
   ) {
     val directPrefix = "$storageUriPrefix/${dispatchConfig.storagePathPrefix.trim('/')}"
     val representativePaths =
-      listOf(directPrefix, "$directPrefix/", "$directPrefix/$REPRESENTATIVE_GROUP_ID")
+      listOf(directPrefix, "$directPrefix/", "$directPrefix/00000000-0000-0000-0000-000000000000")
     for (watchedPath in dataWatcherConfig.watchedPathsList) {
       val regex = watchedPath.sourcePathRegex.toRegex()
       require(representativePaths.none(regex::matches)) {
         "DataWatcher path '${watchedPath.identifier}' matches direct-dispatch prefix " +
           "'$directPrefix'."
       }
-    }
-  }
-
-  private fun requireQueueMatchesLegacyRoute(
-    storageUriPrefix: String,
-    dataProviderConfig: DataProviderRequisitionConfig,
-    dispatchConfig: RequisitionWorkItemDispatchConfig,
-    dataWatcherConfig: DataWatcherConfig,
-  ) {
-    val legacyPrefix = "$storageUriPrefix/${dataProviderConfig.storagePathPrefix.trim('/')}"
-    val representativePaths =
-      listOf(legacyPrefix, "$legacyPrefix/", "$legacyPrefix/$REPRESENTATIVE_GROUP_ID")
-    val deployedQueues =
-      dataWatcherConfig.watchedPathsList
-        .filter { watchedPath ->
-          watchedPath.hasControlPlaneQueueSink() &&
-            representativePaths.any(watchedPath.sourcePathRegex.toRegex()::matches)
-        }
-        .map { it.controlPlaneQueueSink.queue }
-        .distinct()
-    require(deployedQueues.size == 1) {
-      "Expected exactly one deployed ResultsFulfiller queue for legacy path '$legacyPrefix', " +
-        "found: ${deployedQueues.ifEmpty { listOf("none") }.joinToString()}."
-    }
-    val deployedQueue = deployedQueues.single()
-    require(dispatchConfig.queue == deployedQueue) {
-      "Direct-dispatch queue '${dispatchConfig.queue}' does not match deployed " +
-        "ResultsFulfiller queue '$deployedQueue' for data provider: " +
-        "${dataProviderConfig.dataProvider}."
     }
   }
 
@@ -244,6 +209,4 @@ object RequisitionFetcherConfigValidator {
         throw IllegalArgumentException("Requisition storage is not configured")
     }
   }
-
-  private const val REPRESENTATIVE_GROUP_ID = "00000000-0000-0000-0000-000000000000"
 }
