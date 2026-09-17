@@ -1131,8 +1131,8 @@ internal object ReportTraceOutput {
     }
     if (payload.type == Payload.Type.JSON) {
       val values = (payload as Payload.JsonPayload).dataAsMap
-      val structuredMessage = values["message"]?.toString()
-      val confidentialSpaceMessage = values["MESSAGE"]?.toString()
+      val structuredMessage = values["message"]?.let(::rawScalar)
+      val confidentialSpaceMessage = values["MESSAGE"]?.let(::rawScalar)
       val message = structuredMessage ?: confidentialSpaceMessage
       if (!includeGrpcPayloads && message != null && isVerboseGrpcLog(message)) {
         return null
@@ -2153,10 +2153,65 @@ internal object ReportTraceOutput {
         }
       }
     } while (changed)
+    retainSpanLineage(spanList, retainedSpans)
     return ScopedTelemetry(
       spans = spanList.filterIndexed { index, _ -> retainedSpans[index] },
       logEntries = logEntryList.filterIndexed { index, _ -> retainedLogEntries[index] },
     )
+  }
+
+  /** Retains unlabeled ancestors and descendants without admitting sibling branches. */
+  private fun retainSpanLineage(spans: List<ReportTraceSpan>, retained: BooleanArray) {
+    val directlyMatched = retained.copyOf()
+    val spanIndices =
+      spans.indices.associateBy { index ->
+        val span = spans[index]
+        Triple(span.sourceProject, span.traceId, span.spanId)
+      }
+    val childIndices =
+      spans.indices
+        .filter { spans[it].parentSpanId != null }
+        .groupBy { index ->
+          val span = spans[index]
+          Triple(span.sourceProject, span.traceId, checkNotNull(span.parentSpanId))
+        }
+
+    for (seedIndex in spans.indices.filter { directlyMatched[it] }) {
+      var span = spans[seedIndex]
+      val visitedAncestors = mutableSetOf<Int>()
+      while (span.parentSpanId != null) {
+        val parentIndex =
+          spanIndices[Triple(span.sourceProject, span.traceId, span.parentSpanId)] ?: break
+        if (!visitedAncestors.add(parentIndex)) break
+        if (
+          !directlyMatched[parentIndex] &&
+            telemetryIdentifiers(spans[parentIndex].attributes, null).isNotEmpty()
+        ) {
+          break
+        }
+        retained[parentIndex] = true
+        span = spans[parentIndex]
+      }
+
+      val descendantQueue = ArrayDeque<Int>()
+      descendantQueue.add(seedIndex)
+      while (descendantQueue.isNotEmpty()) {
+        val parentIndex = descendantQueue.removeFirst()
+        val parent = spans[parentIndex]
+        for (childIndex in
+          childIndices[Triple(parent.sourceProject, parent.traceId, parent.spanId)].orEmpty()) {
+          if (retained[childIndex]) continue
+          if (
+            !directlyMatched[childIndex] &&
+              telemetryIdentifiers(spans[childIndex].attributes, null).isNotEmpty()
+          ) {
+            continue
+          }
+          retained[childIndex] = true
+          descendantQueue.add(childIndex)
+        }
+      }
+    }
   }
 
   private fun telemetryMatchesReport(
@@ -2175,7 +2230,7 @@ internal object ReportTraceOutput {
       }
     }
     val telemetryIdentifiers = telemetryIdentifiers(attributes, rawMessage)
-    if (telemetryIdentifiers.isEmpty()) return true
+    if (telemetryIdentifiers.isEmpty()) return false
     return telemetryIdentifiers.any { identifier ->
       admittedIdentifiers.any { admitted -> identifiersMatch(identifier, admitted) }
     }
