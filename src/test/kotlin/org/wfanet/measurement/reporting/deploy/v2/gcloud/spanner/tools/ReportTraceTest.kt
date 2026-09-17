@@ -1626,6 +1626,43 @@ class ReportTraceTest {
     }
 
   @Test
+  fun `Cloud Logging reader retains prefixed Confidential Space lifecycle log without source identity`() =
+    runBlocking {
+      val logging = mock<Logging>()
+      val correlatedPage = mock<Page<LogEntry>>()
+      val lifecycleMessage =
+        "INFO: event=duchy.mill.process_computation " +
+          "xmm.lifecycle.stage=duchy_stage_attempt " +
+          "xmm.basic_report.name=measurementConsumers/mc-1/basicReports/report-1 " +
+          "xmm.outcome=succeeded"
+      val lifecycleLog =
+        LogEntry.newBuilder(Payload.JsonPayload.of(mapOf("MESSAGE" to lifecycleMessage)))
+          .setLogName("projects/logging-project/logs/confidential-space-launcher")
+          .setTimestamp(NOW)
+          .build()
+      whenever(correlatedPage.values).thenReturn(listOf(lifecycleLog))
+      whenever(correlatedPage.hasNextPage()).thenReturn(false)
+      whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage)
+      val reader =
+        GoogleCloudReportTraceLogReader(
+          project = "logging-project",
+          logging = logging,
+          includeGrpcPayloads = false,
+        )
+
+      val entries =
+        reader.read(
+          correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          startTime = NOW.minusSeconds(1),
+          endTime = NOW.plusSeconds(1),
+          limit = 100,
+        )
+
+      assertThat(entries.map { it.message }).containsExactly(lifecycleMessage)
+      Unit
+    }
+
+  @Test
   fun `Cloud Logging reader reports raw scan truncation after filtering gRPC entries`() =
     runBlocking {
       val logging = mock<Logging>()
