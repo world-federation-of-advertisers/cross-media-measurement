@@ -2111,14 +2111,6 @@ internal object ReportTraceOutput {
         }
       }
     }
-    if (
-      rawMessage != null &&
-        admittedIdentifiers.any { identifier ->
-          identifier.isNotBlank() && rawMessage.contains(identifier)
-        }
-    ) {
-      return true
-    }
     val telemetryIdentifiers = telemetryIdentifiers(attributes, rawMessage)
     if (telemetryIdentifiers.isEmpty()) return true
     return telemetryIdentifiers.any { identifier ->
