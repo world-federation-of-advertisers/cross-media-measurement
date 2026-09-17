@@ -3021,7 +3021,6 @@ internal object ReportTraceOutput {
       "(?s)^\\s*(?:[A-Za-z_][A-Za-z0-9_.-]*\\s*(?::.*|\\{)|[{}]|" +
         "\\[[^]]*]|[A-Za-z0-9_.-]+\\s*=.*)\\s*$"
     )
-  private val REPORT_TRACE_EVENT_PATTERN = Regex("^event=[a-zA-Z0-9._-]+(?:\\s|$)")
 
   private fun isVerboseGrpcLog(text: String): Boolean = verboseGrpcLogKind(text) != null
 
@@ -3039,8 +3038,8 @@ internal object ReportTraceOutput {
   internal fun isGrpcContinuation(text: String): Boolean = GRPC_CONTINUATION_PATTERN.matches(text)
 
   internal fun isReportTraceLifecycleLog(text: String): Boolean {
-    return REPORT_TRACE_EVENT_PATTERN.containsMatchIn(text) &&
-      safeTextFields(text).containsKey("xmm.lifecycle.stage")
+    val fields = safeTextFields(text)
+    return fields.containsKey("event") && fields.containsKey("xmm.lifecycle.stage")
   }
 
   internal data class VerboseGrpcLogMarker(
