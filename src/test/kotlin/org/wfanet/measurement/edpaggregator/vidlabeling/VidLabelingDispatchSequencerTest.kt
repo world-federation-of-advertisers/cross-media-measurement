@@ -710,11 +710,46 @@ class VidLabelingDispatchSequencerTest {
           rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
         )
         .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(
+          createdModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
 
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+    }
+
+  @Test
+  fun `dispatchNext retries a memoized claim when only the parent etag changed`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer { throw StatusException(Status.ABORTED.withDescription("etag mismatch")) }
+        .thenReturn(
+          createdModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
+      whenever(rawImpressionUploadModelLineService.getRawImpressionUploadModelLine(any()))
+        .thenReturn(createdModelLine().copy { etag = "fresh-etag" })
+
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      val requests = argumentCaptor<MarkRawImpressionUploadModelLinePoolAssigningRequest>()
+      verifyBlocking(rawImpressionUploadModelLineService, times(2)) {
+        markRawImpressionUploadModelLinePoolAssigning(requests.capture())
+      }
+      assertThat(requests.allValues.map { it.etag }).containsExactly(ETAG, "fresh-etag").inOrder()
     }
 
   @Test
