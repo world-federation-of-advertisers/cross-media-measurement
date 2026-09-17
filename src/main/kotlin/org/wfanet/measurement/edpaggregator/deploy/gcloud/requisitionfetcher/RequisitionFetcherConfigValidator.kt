@@ -189,6 +189,8 @@ object RequisitionFetcherConfigValidator {
     dispatchConfig: RequisitionWorkItemDispatchConfig,
     dataWatcherConfig: DataWatcherConfig,
   ) {
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4517): Replace sampled regex
+    // checks with an explicit watcher namespace contract.
     val directPrefix = "$storageUriPrefix/${dispatchConfig.storagePathPrefix.trim('/')}"
     val representativePaths =
       listOf(directPrefix, "$directPrefix/", "$directPrefix/00000000-0000-0000-0000-000000000000")
