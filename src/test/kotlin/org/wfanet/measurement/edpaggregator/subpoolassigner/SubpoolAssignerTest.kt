@@ -26,6 +26,8 @@ import com.google.protobuf.ByteString
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -284,6 +286,53 @@ class SubpoolAssignerTest {
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `early successful shard retries until the parent reaches POOL_ASSIGNING`() = runBlocking {
+    val store = storeMock()
+    val ranker = rankerStubMock()
+    val workItems = workItemsStubMock()
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.CREATED)
+    val paj =
+      mock<PoolAssignmentJobServiceCoroutineStub> {
+        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+          jobResponse(PoolAssignmentJob.State.SUCCEEDED)
+        onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob {
+              shardIndex = 0
+              encryptedDek = DEK_SHARD0
+            }
+          }
+      }
+    val ruml =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(parentState.get(), listOf(7L), withMergedDek = true)
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doReturn
+          parent(RawImpressionUploadModelLine.State.RANKING, listOf(7L), withMergedDek = true)
+      }
+    val subject = assigner(store, paj, ruml, ranker, workItems)
+
+    val exception = assertFailsWith<IllegalStateException> { subject.assign() }
+
+    assertThat(exception).hasMessageThat().contains("has not reached POOL_ASSIGNING")
+    verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
+    verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
+
+    parentState.set(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    val result = subject.assign()
+
+    assertThat(result.lastShardOut).isTrue()
+    verifyBlocking(store) { mergeSubpool(any(), any(), any(), any()) }
+    verifyBlocking(ranker) { createRankerJob(any(), any()) }
+    verifyBlocking(ruml) { markRawImpressionUploadModelLineRanking(any(), any()) }
   }
 
   @Test
