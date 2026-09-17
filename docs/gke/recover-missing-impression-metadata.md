@@ -53,13 +53,34 @@ Optional flags:
 - `--impression-metadata-api-cert-host`
 - `--throttler-minimum-interval` (default `1s`)
 - `--impression-metadata-batch-size` (default `1000`)
-- `--lookback-days` (default `90`; the oldest eligible date is 89 days before today)
 
-`--end-days-ago` is required and sets the newest eligible date relative to the current UTC date.
-It must be nonnegative and less than `--lookback-days`. For example,
-`--lookback-days=90 --end-days-ago=30` scans from 89 days ago through 30 days ago, inclusive.
-The weekly CronJob passes `--end-days-ago=0`, so it scans the most recent 90 dates including
-today.
+Choose exactly one date-selection mode:
+
+- Repeat `--data-date=YYYY-MM-DD` to reconcile exact UTC dates. This is the preferred mode for
+  monitor alerts and supports non-contiguous dates without scanning the folders between them.
+- Pass `--end-days-ago` with optional `--lookback-days` (default `90`) to reconcile a contiguous
+  window. `--end-days-ago` sets the newest eligible date and must be nonnegative and less than
+  `--lookback-days`. For example, `--lookback-days=90 --end-days-ago=30` scans from 89 days ago
+  through 30 days ago, inclusive. The weekly CronJob uses
+  `--lookback-days=90 --end-days-ago=0`, which includes today.
+
+For example, this ad-hoc CLI invocation reconciles two non-contiguous alert dates and no others:
+
+```shell
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:RecoverMissingImpressionMetadata \
+  -- \
+  --config-file=/absolute/path/to/data-availability-sync-config.textproto \
+  --kingdom-public-api-target=KINGDOM_HOST:8443 \
+  --impression-metadata-api-target=EDP_AGGREGATOR_HOST:8443 \
+  --data-date=2026-09-12 \
+  --data-date=2026-09-15
+```
+
+The alert policy must preserve or group by `edpa.data_availability_monitor.data_date`; otherwise,
+the counter remains useful for totals but does not identify the folder to recover. The date
+attribute is present on monitor-emitted issue statuses that identify date folders. It is omitted
+from healthy-date totals, legitimate-deletion counts, and points emitted by `DataAvailabilitySync`.
 
 The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails.
 A successfully repaired inconsistency does not cause a nonzero exit.
@@ -97,13 +118,41 @@ The pod needs:
 The Kubernetes job sets `OTEL_METRIC_EXPORT_INTERVAL=5000`, allowing short no-op runs to export
 their metrics before the process exits.
 
-To trigger the deployed CronJob immediately:
+### Run the healing tool ad hoc
+
+A suspended CronJob can still be used as the template for one-off recovery Jobs. To run the
+CronJob's configured 90-day range immediately:
 
 ```shell
 kubectl create job \
   --from=cronjob/recover-missing-impression-metadata-edp7-cronjob \
   recover-missing-impression-metadata-edp7-manual-$(date +%s)
 ```
+
+The command above copies the CronJob's configured 90-day range. To run only the dates
+identified by monitor alerts, list their `data_date` values in `ALERTED_DATES`. The command removes
+the default range arguments and appends one `--data-date` argument for each date:
+
+```shell
+ALERTED_DATES='["2026-09-12", "2026-09-15"]'
+JOB_NAME=recover-missing-impression-metadata-edp7-manual-$(date +%s)
+
+kubectl create job \
+  --from=cronjob/recover-missing-impression-metadata-edp7-cronjob \
+  "$JOB_NAME" \
+  --dry-run=client \
+  -o json |
+  jq \
+    --argjson dates "$ALERTED_DATES" \
+    '.spec.template.spec.containers[].args |=
+      (map(select(
+        (startswith("--lookback-days=") or startswith("--end-days-ago=")) | not
+      )) + ($dates | map("--data-date=" + .)))' |
+  kubectl create -f -
+```
+
+The selected dates run sequentially within one Job. Do not start multiple manual recovery Jobs
+concurrently.
 
 Then inspect its logs:
 
@@ -172,7 +221,10 @@ has an
 `edpa.data_availability_recovery.edp_impression_path` attribute. Successful counts are in the
 completion log; a separate recovered gauge would duplicate `missing_blobs - failed_blobs`.
 The data-availability monitor also emits
-`edpa.data_availability.date_count{date_status="unpublished_availability"}` for folders whose new
-sync-attempt ID does not match the Kingdom publication marker after the configured threshold.
+`edpa.data_availability.date_count` with
+`edpa.data_availability_monitor.data_date=YYYY-MM-DD` for issue statuses tied to a date folder.
+Preserve that attribute in alerts so an operator can run the targeted one-day Job above. The
+`unpublished_availability` status specifically identifies folders whose new sync-attempt ID does
+not match the Kingdom publication marker after the configured threshold.
 Legacy `synced-by` folders without a sync-attempt ID are migrated by recovery within its configured
 date range and do not create permanent monitor alerts outside that range.

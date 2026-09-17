@@ -264,6 +264,16 @@ data-availability health per model line. Per its config it flags:
 * **Spurious deletions** — `ImpressionMetadata` marked deleted while its blob still
   exists on the bucket (enabled when `spurious_deletion_lookback_days > 0`).
 
+For the `gap`, `zero_impression`, `without_done_blob`, `late_arriving`,
+`unprocessed_done`, `unpublished_availability`, and `spurious_deletion` statuses,
+`edpa.data_availability.date_count` includes
+`edpa.data_availability_monitor.data_date=YYYY-MM-DD`. Configure issue alerts to preserve or group
+by `data_date`, `model_line`, and `date_status`; aggregating away `data_date` preserves the total
+count but loses the date that an operator needs for targeted recovery. Healthy-date and
+legitimate-deletion count points omit `data_date` to avoid creating non-actionable per-date series.
+See [Recover missing ImpressionMetadata](../gke/recover-missing-impression-metadata.md) for the
+one-day manual Job procedure.
+
 Config: [`DataAvailabilityMonitorConfigs`](#dataavailabilitymonitor-config-dataavailabilitymonitorconfigs).
 
 ### ResultsFulfiller (TEE)
