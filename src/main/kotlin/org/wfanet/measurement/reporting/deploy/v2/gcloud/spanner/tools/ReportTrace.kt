@@ -701,6 +701,8 @@ internal class GoogleCloudReportTraceLogReader(
 
   private fun LogEntry.logOrigin(): LogOrigin? {
     val payload = getPayload<Payload<*>>()
+    val currentLogName = logName.orEmpty()
+    val resourceLabels = resource?.labels.orEmpty().toMap()
     val loggerLabel =
       LOGGER_LABEL_KEYS.firstNotNullOfOrNull { key ->
         labels[key]?.takeIf(String::isNotBlank)?.let { value ->
@@ -719,13 +721,17 @@ internal class GoogleCloudReportTraceLogReader(
       loggerLabel
         ?: sourceFunction?.let { LoggerIdentity(it, "sourceLocation.function") }
         ?: jsonSource?.let { LoggerIdentity(it, null) }
-        ?: return null
+    val hasLogStreamIdentity =
+      currentLogName.isNotEmpty() &&
+        resource?.type?.isNotEmpty() == true &&
+        resourceLabels.isNotEmpty()
+    if (loggerIdentity == null && !hasLogStreamIdentity) return null
     return LogOrigin(
-      logName = logName.orEmpty(),
+      logName = currentLogName,
       resourceType = resource?.type,
-      resourceLabels = resource?.labels.orEmpty().toMap(),
-      loggerIdentity = loggerIdentity.value,
-      loggerField = loggerIdentity.filterField,
+      resourceLabels = resourceLabels,
+      loggerIdentity = loggerIdentity?.value.orEmpty(),
+      loggerField = loggerIdentity?.filterField,
     )
   }
 
@@ -3131,7 +3137,10 @@ internal object ReportTraceOutput {
     )
   }
 
-  internal fun isGrpcContinuation(text: String): Boolean = GRPC_CONTINUATION_PATTERN.matches(text)
+  internal fun isGrpcContinuation(text: String): Boolean {
+    val message = APPLICATION_LOG_LEVEL_PATTERN.replaceFirst(text, "")
+    return GRPC_CONTINUATION_PATTERN.matches(message)
+  }
 
   internal fun isReportTraceLifecycleLog(text: String): Boolean {
     val fields = safeTextFields(text)
