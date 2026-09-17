@@ -297,6 +297,11 @@ class SubpoolAssigner(
     maxEventDate: Date,
     mergedDek: EncryptedDek,
   ) {
+    check(parent.state != RawImpressionUploadModelLine.State.CREATED) {
+      "Parent ${parent.name} has not reached POOL_ASSIGNING; retry this WorkItem after the " +
+        "dispatcher commits the phase transition"
+    }
+
     logger.info(
       "Shard $shardIndex is last-out for $modelLine; merging ${poolOffsets.size} subpools"
     )
