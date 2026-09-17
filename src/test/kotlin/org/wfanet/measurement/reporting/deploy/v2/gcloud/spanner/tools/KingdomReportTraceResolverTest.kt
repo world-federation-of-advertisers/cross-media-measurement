@@ -110,8 +110,14 @@ class KingdomReportTraceResolverTest {
       .inOrder()
     assertThat(result.requirementFor("duchy_computation"))
       .isEqualTo(ReportTraceStageRequirement.REQUIRED)
+    assertThat(result.requirementFor("duchy_mill_dispatch"))
+      .isEqualTo(ReportTraceStageRequirement.REQUIRED)
     assertThat(result.requirementFor("results_fulfillment"))
       .isEqualTo(ReportTraceStageRequirement.REQUIRED)
+    assertThat(result.requirementFor("work_item_publication"))
+      .isEqualTo(ReportTraceStageRequirement.REQUIRED)
+    assertThat(result.requirementFor("direct_edp_fulfillment"))
+      .isEqualTo(ReportTraceStageRequirement.EXTERNAL)
     assertThat(result.correlationValues).containsExactly(DIRECT_REQUISITION, EDPA_REQUISITION)
   }
 
@@ -138,8 +144,12 @@ class KingdomReportTraceResolverTest {
 
     assertThat(result.requirementFor("duchy_computation"))
       .isEqualTo(ReportTraceStageRequirement.NOT_APPLICABLE)
+    assertThat(result.requirementFor("duchy_mill_dispatch"))
+      .isEqualTo(ReportTraceStageRequirement.NOT_APPLICABLE)
     assertThat(result.requirementFor("results_fulfillment"))
       .isEqualTo(ReportTraceStageRequirement.NOT_APPLICABLE)
+    assertThat(result.requirementFor("direct_edp_fulfillment"))
+      .isEqualTo(ReportTraceStageRequirement.EXTERNAL)
   }
 
   @Test
