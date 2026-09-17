@@ -44,6 +44,9 @@ import java.util.Date
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.awaitCancellation
@@ -60,6 +63,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.throttler.Throttler
 
@@ -1338,6 +1342,10 @@ class ReportTraceTest {
         requests.map { request -> request.headers().firstValue("x-goog-user-project").orElse(null) }
       )
       .containsExactly("trace-project", "trace-project", "trace-project")
+    assertThat(
+        requests.map { request -> request.headers().firstValue("Authorization").orElse(null) }
+      )
+      .containsExactly("Bearer token", "Bearer token", "Bearer token")
     Unit
   }
 
@@ -1536,10 +1544,7 @@ class ReportTraceTest {
     val secondRequest = grpcEntry("[grpc-worker] gRPC request-b request:", 3)
     val firstComplete = grpcEntry("[grpc-worker] gRPC request-a complete", 2)
     val grpcContinuation =
-      grpcEntry(
-        "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\"",
-        1,
-      )
+      grpcEntry("basic_report: \"measurementConsumers/mc-1/basicReports/report-1\"", 1)
     whenever(correlatedPage.values).thenReturn(listOf(grpcContinuation))
     whenever(correlatedPage.hasNextPage()).thenReturn(false)
     whenever(contextPage.values)
@@ -1572,10 +1577,27 @@ class ReportTraceTest {
     runBlocking {
       val logging = mock<Logging>()
       val correlatedPage = mock<Page<LogEntry>>()
-      val lifecycleMessage =
-        "reporting.metric.result_sync_failed " +
-          "xmm.lifecycle.stage=metric_result_sync " +
-          "xmm.basic_report.name=measurementConsumers/mc-1/basicReports/report-1"
+      val records = mutableListOf<LogRecord>()
+      val logger = Logger.getAnonymousLogger()
+      logger.useParentHandlers = false
+      logger.addHandler(
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            records += record
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      )
+      ReportTraceLogging.log(
+        logger,
+        "reporting.metric.result_sync_failed",
+        "xmm.lifecycle.stage" to "metric_result_sync",
+        "xmm.basic_report.name" to "measurementConsumers/mc-1/basicReports/report-1",
+      )
+      val lifecycleMessage = records.single().message
       val lifecycleLog =
         LogEntry.newBuilder(Payload.StringPayload.of(lifecycleMessage))
           .setLogName("projects/logging-project/logs/stdout")
@@ -5497,7 +5519,7 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `renderLogPayload keeps non-gRPC JSON payload`() {
+  fun `renderLogPayload keeps safe non-gRPC JSON fields`() {
     val payload =
       Payload.JsonPayload.of(
         mapOf(
@@ -5515,8 +5537,24 @@ class ReportTraceTest {
 
     val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
 
-    assertThat(rendered).contains(payload.toString())
+    assertThat(rendered).contains("request failed with bearer secret-token")
     assertThat(rendered).contains("xmm.report.name=measurementConsumers/mc-1/reports/report-1")
+    assertThat(rendered).doesNotContain("secret-api-key")
+    assertThat(rendered).doesNotContain("secret-password")
+    assertThat(rendered).doesNotContain("secret-customer-data")
+    assertThat(rendered).doesNotContain("secret-authorization")
+  }
+
+  @Test
+  fun `renderLogPayload includes complete JSON only when gRPC payloads are requested`() {
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf("message" to "request failed", "request" to mapOf("password" to "secret-password"))
+      )
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = true)
+
+    assertThat(rendered).isEqualTo(payload.toString())
   }
 
   @Test
@@ -5621,7 +5659,7 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `renderLogPayload keeps non-gRPC fields without redaction`() {
+  fun `renderLogPayload keeps non-gRPC JSON message for final redaction`() {
     val payload =
       Payload.JsonPayload.of(
         mapOf(
@@ -5634,7 +5672,40 @@ class ReportTraceTest {
 
     val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
 
-    assertThat(rendered).contains(payload.toString())
+    assertThat(rendered)
+      .isEqualTo(
+        "event=requisition_failed status=failed password=hunter2 credential=session-secret " +
+          "jwt=aaa.bbb.ccc url=https://example.test/object?X-Goog-Signature=secret"
+      )
+  }
+
+  @Test
+  fun `render redacts secrets from chronological timeline`() {
+    val output =
+      ReportTraceOutput.render(
+        context = reportTraceContext(),
+        spans = emptyList(),
+        logEntries =
+          listOf(
+            ReportTraceLogEntry(
+              sourceProject = "test-project",
+              timestamp = NOW,
+              service = "reporting",
+              severity = "ERROR",
+              trace = null,
+              message = "status=failed authorization=secret-token password=hunter2",
+            )
+          ),
+        sourceStatuses = emptyList(),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+      )
+
+    assertThat(output).contains("status=failed")
+    assertThat(output).contains("authorization=[REDACTED]")
+    assertThat(output).contains("password=[REDACTED]")
+    assertThat(output).doesNotContain("secret-token")
+    assertThat(output).doesNotContain("hunter2")
   }
 
   @Test

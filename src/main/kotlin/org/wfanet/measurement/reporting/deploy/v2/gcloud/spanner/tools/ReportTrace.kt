@@ -531,6 +531,10 @@ internal class GoogleCloudReportTraceLogReader(
           continue
         }
       }
+      if (ReportTraceOutput.isReportTraceLifecycleLog(message)) {
+        retainedEntries += entry.value
+        continue
+      }
       if (ReportTraceOutput.isGrpcContinuation(message)) {
         if (origin == null) {
           classificationIncomplete = true
@@ -1111,6 +1115,7 @@ internal object ReportTraceOutput {
       if (!includeGrpcPayloads && message != null && isVerboseGrpcLog(message)) {
         return null
       }
+      if (includeGrpcPayloads) return payload.toString()
       val operationalFields = mutableMapOf<String, String>()
       for (key in SAFE_LOG_FIELDS) {
         values[key]?.let { value -> rawScalar(value)?.let { operationalFields[key] = it } }
@@ -1127,14 +1132,20 @@ internal object ReportTraceOutput {
           }
         }
       }
-      val prefix =
-        operationalFields.entries.sortedBy { it.key }.joinToString(" ") { "${it.key}=${it.value}" }
       if (confidentialSpaceMessage != null) {
         return confidentialSpaceMessage
       }
-      return if (prefix.isEmpty()) payload.toString() else "$prefix ${payload}"
+      val messageFields = message?.let(::safeTextFields).orEmpty()
+      val prefix =
+        operationalFields
+          .filterKeys { it !in messageFields }
+          .entries
+          .sortedBy { it.key }
+          .joinToString(" ") { "${it.key}=${it.value}" }
+      val rendered = listOf(prefix, message.orEmpty()).filter(String::isNotEmpty).joinToString(" ")
+      return rendered.takeIf(String::isNotEmpty)
     }
-    return payload.toString()
+    return if (includeGrpcPayloads) payload.toString() else null
   }
 
   fun buildLogFilters(
@@ -1446,7 +1457,7 @@ internal object ReportTraceOutput {
               timestamp = entry.timestamp,
               text =
                 "LOG ${entry.severity.padEnd(7)} [${entry.sourceProject}/${entry.service}] " +
-                  entry.message.replace('\n', ' ') +
+                  redact(entry.message) +
                   (entry.trace?.let { " trace=${it.substringAfterLast('/')}" } ?: ""),
             )
           )
@@ -3010,6 +3021,7 @@ internal object ReportTraceOutput {
       "(?s)^\\s*(?:[A-Za-z_][A-Za-z0-9_.-]*\\s*(?::.*|\\{)|[{}]|" +
         "\\[[^]]*]|[A-Za-z0-9_.-]+\\s*=.*)\\s*$"
     )
+  private val REPORT_TRACE_EVENT_PATTERN = Regex("^event=[a-zA-Z0-9._-]+(?:\\s|$)")
 
   private fun isVerboseGrpcLog(text: String): Boolean = verboseGrpcLogKind(text) != null
 
@@ -3025,6 +3037,11 @@ internal object ReportTraceOutput {
   }
 
   internal fun isGrpcContinuation(text: String): Boolean = GRPC_CONTINUATION_PATTERN.matches(text)
+
+  internal fun isReportTraceLifecycleLog(text: String): Boolean {
+    return REPORT_TRACE_EVENT_PATTERN.containsMatchIn(text) &&
+      safeTextFields(text).containsKey("xmm.lifecycle.stage")
+  }
 
   internal data class VerboseGrpcLogMarker(
     val requestId: String,
