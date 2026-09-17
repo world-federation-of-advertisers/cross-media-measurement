@@ -2015,56 +2015,149 @@ internal object ReportTraceOutput {
     logEntries: Collection<ReportTraceLogEntry>,
     authoritativeReportResources: Set<String> = emptySet(),
   ): Set<String> {
+    val scopedTelemetry = scopeTelemetryToReport(spans, logEntries, authoritativeReportResources)
     return buildSet {
-        for (span in spans) {
-          addDiscoveredIdentifiers(span.attributes, authoritativeReportResources)
+        for (span in scopedTelemetry.spans) {
+          addDiscoveredIdentifiers(span.attributes)
         }
-        for (entry in logEntries) {
+        for (entry in scopedTelemetry.logEntries) {
           val fields = safeTextFields(entry.message)
-          addDiscoveredIdentifiers(fields, authoritativeReportResources)
+          addDiscoveredIdentifiers(fields)
         }
       }
       .filter(String::isNotBlank)
       .toSet()
   }
 
-  fun telemetryBelongsToReport(
-    attributes: Map<String, String>,
+  internal data class ScopedTelemetry(
+    val spans: List<ReportTraceSpan>,
+    val logEntries: List<ReportTraceLogEntry>,
+  )
+
+  /**
+   * Retains telemetry connected to the authoritative report resource graph.
+   *
+   * Trace IDs are intentionally not sufficient evidence of ownership: independent WorkItems can
+   * share a trace when they are dispatched or processed by the same batch. Derived identifiers such
+   * as EDPA groups, WorkItems, attempts, and computations are admitted only through an entry that
+   * is already connected to the report, and the scan repeats to follow that identifier chain.
+   */
+  fun scopeTelemetryToReport(
+    spans: Collection<ReportTraceSpan>,
+    logEntries: Collection<ReportTraceLogEntry>,
     authoritativeReportResources: Set<String>,
-  ): Boolean {
-    if (authoritativeReportResources.isEmpty()) return true
-    val scopedResources =
-      REPORT_SCOPED_IDENTIFIER_ATTRIBUTES.mapNotNull(attributes::get).filter(String::isNotBlank)
-    return scopedResources.isEmpty() ||
-      scopedResources.any { resource ->
-        authoritativeReportResources.any { authoritative ->
-          resource == authoritative ||
-            authoritative.endsWith("/$resource") ||
-            resource.endsWith("/$authoritative")
+  ): ScopedTelemetry {
+    if (authoritativeReportResources.isEmpty()) {
+      return ScopedTelemetry(spans.toList(), logEntries.toList())
+    }
+    val spanList = spans.toList()
+    val logEntryList = logEntries.toList()
+    val retainedSpans = BooleanArray(spanList.size)
+    val retainedLogEntries = BooleanArray(logEntryList.size)
+    val admittedIdentifiers = authoritativeReportResources.toMutableSet()
+    var changed: Boolean
+    do {
+      changed = false
+      for ((index, span) in spanList.withIndex()) {
+        if (
+          !retainedSpans[index] &&
+            telemetryMatchesReport(
+              span.attributes,
+              null,
+              authoritativeReportResources,
+              admittedIdentifiers,
+            )
+        ) {
+          retainedSpans[index] = true
+          changed = true
+          admittedIdentifiers.addTelemetryIdentifiers(span.attributes, null)
         }
       }
+      for ((index, entry) in logEntryList.withIndex()) {
+        if (retainedLogEntries[index]) continue
+        val fields = safeTextFields(entry.message)
+        if (
+          telemetryMatchesReport(
+            fields,
+            entry.message,
+            authoritativeReportResources,
+            admittedIdentifiers,
+          )
+        ) {
+          retainedLogEntries[index] = true
+          changed = true
+          admittedIdentifiers.addTelemetryIdentifiers(fields, entry.message)
+        }
+      }
+    } while (changed)
+    return ScopedTelemetry(
+      spans = spanList.filterIndexed { index, _ -> retainedSpans[index] },
+      logEntries = logEntryList.filterIndexed { index, _ -> retainedLogEntries[index] },
+    )
   }
 
-  fun telemetryBelongsToReport(
-    span: ReportTraceSpan,
-    authoritativeReportResources: Set<String>,
-  ): Boolean = telemetryBelongsToReport(span.attributes, authoritativeReportResources)
-
-  fun telemetryBelongsToReport(
-    logEntry: ReportTraceLogEntry,
-    authoritativeReportResources: Set<String>,
-  ): Boolean =
-    telemetryBelongsToReport(safeTextFields(logEntry.message), authoritativeReportResources)
-
-  private fun MutableSet<String>.addDiscoveredIdentifiers(
+  private fun telemetryMatchesReport(
     attributes: Map<String, String>,
+    rawMessage: String?,
     authoritativeReportResources: Set<String>,
-  ) {
-    if (!telemetryBelongsToReport(attributes, authoritativeReportResources)) return
+    admittedIdentifiers: Set<String>,
+  ): Boolean {
+    val scopedResources =
+      REPORT_SCOPED_IDENTIFIER_ATTRIBUTES.mapNotNull(attributes::get).filter(String::isNotBlank)
+    if (scopedResources.isNotEmpty()) {
+      return scopedResources.any { resource ->
+        authoritativeReportResources.any { authoritative ->
+          identifiersMatch(resource, authoritative)
+        }
+      }
+    }
+    if (
+      rawMessage != null &&
+        admittedIdentifiers.any { identifier ->
+          identifier.isNotBlank() && rawMessage.contains(identifier)
+        }
+    ) {
+      return true
+    }
+    val telemetryIdentifiers = telemetryIdentifiers(attributes, rawMessage)
+    if (telemetryIdentifiers.isEmpty()) return true
+    return telemetryIdentifiers.any { identifier ->
+      admittedIdentifiers.any { admitted -> identifiersMatch(identifier, admitted) }
+    }
+  }
+
+  private fun identifiersMatch(first: String, second: String): Boolean {
+    return first == second || first.endsWith("/$second") || second.endsWith("/$first")
+  }
+
+  private fun MutableSet<String>.addDiscoveredIdentifiers(attributes: Map<String, String>) {
     for (attribute in DISCOVERABLE_IDENTIFIER_ATTRIBUTES) {
       val value = attributes[attribute] ?: continue
       add(value)
     }
+  }
+
+  private fun telemetryIdentifiers(
+    attributes: Map<String, String>,
+    rawMessage: String?,
+  ): Set<String> {
+    return buildSet {
+      for (attribute in CORRELATABLE_IDENTIFIER_ATTRIBUTES) {
+        val value = attributes[attribute] ?: continue
+        if (value.isNotBlank()) add(value)
+      }
+      if (rawMessage != null) {
+        RAW_CORRELATION_IDENTIFIER_PATTERN.findAll(rawMessage).mapTo(this) { it.value }
+        UUID_PATTERN.findAll(rawMessage).mapTo(this) { it.value }
+      }
+    }
+  }
+
+  private fun MutableSet<String>.addTelemetryIdentifiers(
+    attributes: Map<String, String>,
+    rawMessage: String?,
+  ) {
+    addAll(telemetryIdentifiers(attributes, rawMessage))
   }
 
   fun recoveredMeasurementNames(
@@ -2957,6 +3050,17 @@ internal object ReportTraceOutput {
       "xmm.work_item.name",
       "xmm.computation.name",
     )
+  private val CORRELATABLE_IDENTIFIER_ATTRIBUTES =
+    DISCOVERABLE_IDENTIFIER_ATTRIBUTES + "xmm.work_item_attempt.name"
+  private val RAW_CORRELATION_IDENTIFIER_PATTERN =
+    Regex(
+      "(?:measurementConsumers/[A-Za-z0-9_-]+/(?:basicReports|reports|metrics|measurements)/" +
+        "[A-Za-z0-9._-]+|dataProviders/[A-Za-z0-9_-]+/requisitions/[A-Za-z0-9._-]+|" +
+        "workItems/[A-Za-z0-9._-]+(?:/workItemAttempts/[A-Za-z0-9._-]+)?|" +
+        "computations/[A-Za-z0-9_-]+)"
+    )
+  private val UUID_PATTERN =
+    Regex("(?i)\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b")
   private val REPORT_SCOPED_IDENTIFIER_ATTRIBUTES =
     setOf(
       "xmm.basic_report.name",
@@ -3723,20 +3827,14 @@ internal class ReportTrace(
       }
       val authoritativeReportResources =
         authoritativeReportResources(context, routeResolution, resolutionFailure)
-      val retainedSpans =
-        retainReportTraceSpans(
-          spanEntries
-            .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
-            .distinct(),
-          entryLimit,
+      val scopedTelemetry =
+        ReportTraceOutput.scopeTelemetryToReport(
+          spanEntries,
+          logEntries,
+          authoritativeReportResources,
         )
-      val retainedLogEntries =
-        retainLogEntries(
-          logEntries
-            .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
-            .distinct(),
-          entryLimit,
-        )
+      val retainedSpans = retainReportTraceSpans(scopedTelemetry.spans.distinct(), entryLimit)
+      val retainedLogEntries = retainLogEntries(scopedTelemetry.logEntries.distinct(), entryLimit)
       val lifecycleCoverage =
         ReportTraceOutput.lifecycleCoverage(
           context,
@@ -3897,6 +3995,13 @@ internal class ReportTrace(
     val projects = observabilityProjects.distinct()
     val authoritativeReportResources =
       authoritativeReportResources(context, routeResolution, resolutionFailure)
+    fun scopedTelemetry(): ReportTraceOutput.ScopedTelemetry {
+      return ReportTraceOutput.scopeTelemetryToReport(
+        spanEntries,
+        logEntries,
+        authoritativeReportResources,
+      )
+    }
     val primaryCorrelationValues =
       listOfNotNull(
         context.basicReportName ?: context.reportName.takeUnless { it == REPORT_NOT_CREATED }
@@ -3939,10 +4044,7 @@ internal class ReportTrace(
     }
 
     val discoveredLogTraceIds =
-      logEntries
-        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
-        .mapNotNull { it.trace?.substringAfterLast('/') }
-        .distinct()
+      scopedTelemetry().logEntries.mapNotNull { it.trace?.substringAfterLast('/') }.distinct()
     val logTraceIds = discoveredLogTraceIds.take(maxTraceIds)
     var traceIdsTruncated = discoveredLogTraceIds.size > logTraceIds.size
     if (traceIdsTruncated) {
@@ -3981,11 +4083,7 @@ internal class ReportTrace(
 
     // A trace located by a searchable label in one project may have unlabelled remote spans in
     // another project. Fetch those complete traces by ID in every configured project.
-    val spanTraceIds =
-      spanEntries
-        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
-        .map { it.traceId }
-        .distinct()
+    val spanTraceIds = scopedTelemetry().spans.map { it.traceId }.distinct()
     val allNewlyDiscoveredTraceIds = spanTraceIds - logTraceIds.toSet()
     val newlyDiscoveredTraceIds =
       allNewlyDiscoveredTraceIds.take((maxTraceIds - queriedTraceIds.size).coerceAtLeast(0))
@@ -4031,12 +4129,13 @@ internal class ReportTrace(
     // Query only resources whose expected lifecycle remains incomplete after the BasicReport
     // lineage and trace-ID lookups. This preserves fallback discovery without querying every
     // descendant in a high-cardinality report.
+    val telemetryBeforeFallback = scopedTelemetry()
     val fallbackCorrelationValues =
       missingLifecycleCorrelationValues(
         context,
         routeResolution,
-        spanEntries,
-        logEntries,
+        telemetryBeforeFallback.spans,
+        telemetryBeforeFallback.logEntries,
         correlationValues,
       ) - primaryCorrelationValues.toSet()
     if (fallbackCorrelationValues.isNotEmpty()) {
@@ -4077,11 +4176,11 @@ internal class ReportTrace(
     var expansionRounds = 0
     var expansionTruncated = false
     while (true) {
+      val scopedTelemetry = scopedTelemetry()
       val discoveredCorrelationValues =
         ReportTraceOutput.discoveredCorrelationValues(
-          spanEntries,
-          logEntries,
-          authoritativeReportResources,
+          scopedTelemetry.spans,
+          scopedTelemetry.logEntries,
         )
       encounteredCorrelationValues += discoveredCorrelationValues
       val remainingCorrelationValueCapacity =
@@ -4103,8 +4202,8 @@ internal class ReportTrace(
         missingLifecycleCorrelationValues(
           context,
           routeResolution,
-          spanEntries,
-          logEntries,
+          scopedTelemetry.spans,
+          scopedTelemetry.logEntries,
           admittedCorrelationValues,
         )
       val allKnownCorrelationValues =
@@ -4117,14 +4216,8 @@ internal class ReportTrace(
       val pendingTraceCorrelationValues =
         knownCorrelationValues.toSet() - queriedTraceCorrelationValues
       val allPendingTraceIds =
-        (spanEntries
-            .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
-            .map { it.traceId } +
-            logEntries
-              .filter {
-                ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources)
-              }
-              .mapNotNull { it.trace?.substringAfterLast('/') })
+        (scopedTelemetry.spans.map { it.traceId } +
+            scopedTelemetry.logEntries.mapNotNull { it.trace?.substringAfterLast('/') })
           .toSet() - queriedTraceIds
       val remainingTraceIdCapacity = (maxTraceIds - queriedTraceIds.size).coerceAtLeast(0)
       val pendingTraceIds = allPendingTraceIds.take(remainingTraceIdCapacity).toSet()
@@ -4211,14 +4304,9 @@ internal class ReportTrace(
       }
     }
 
-    val distinctSpans =
-      spanEntries
-        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
-        .distinct()
-    val distinctLogEntries =
-      logEntries
-        .filter { ReportTraceOutput.telemetryBelongsToReport(it, authoritativeReportResources) }
-        .distinct()
+    val scopedTelemetry = scopedTelemetry()
+    val distinctSpans = scopedTelemetry.spans.distinct()
+    val distinctLogEntries = scopedTelemetry.logEntries.distinct()
     val mergedSpansTruncated = distinctSpans.size > entryLimit
     val mergedLogEntriesTruncated = distinctLogEntries.size > entryLimit
     if (mergedSpansTruncated) {

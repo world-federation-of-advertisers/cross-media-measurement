@@ -2342,6 +2342,76 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `telemetry scope rejects unrelated WorkItem on shared trace`() {
+    val targetBasicReport = "measurementConsumers/mc-1/basicReports/report-1"
+    val foreignBasicReport = "measurementConsumers/mc-1/basicReports/report-2"
+    val targetRequisition = "dataProviders/dp-1/requisitions/requisition-1"
+    val targetWorkItem = "workItems/results-fulfiller-target-group"
+    val targetAttempt = "$targetWorkItem/workItemAttempts/attempt-1"
+    val foreignWorkItem = "workItems/results-fulfiller-foreign-group"
+    val targetDispatch =
+      lifecycleSpan(
+        "requisition_dispatch",
+        mapOf(
+          "xmm.basic_report.name" to targetBasicReport,
+          "xmm.requisition.name" to targetRequisition,
+          "xmm.work_item.name" to targetWorkItem,
+        ),
+      )
+    val targetProcessing =
+      lifecycleSpan(
+        "work_item_processing",
+        mapOf("xmm.work_item.name" to targetWorkItem, "xmm.work_item_attempt.name" to targetAttempt),
+      )
+    val foreignProcessing =
+      lifecycleSpan("work_item_processing", mapOf("xmm.work_item.name" to foreignWorkItem))
+    val foreignScopedSpan =
+      lifecycleSpan(
+        "results_fulfillment",
+        mapOf(
+          "xmm.basic_report.name" to foreignBasicReport,
+          "xmm.work_item.name" to foreignWorkItem,
+        ),
+      )
+    val targetWarning =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "fulfiller",
+        severity = "WARNING",
+        trace = "trace-1",
+        message = "Refusing Requisition $targetRequisition: invalid population",
+      )
+    val foreignLog =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "worker",
+        severity = "INFO",
+        trace = "trace-1",
+        message = "Processing WorkItem: $foreignWorkItem",
+      )
+
+    val scoped =
+      ReportTraceOutput.scopeTelemetryToReport(
+        spans = listOf(foreignProcessing, targetProcessing, foreignScopedSpan, targetDispatch),
+        logEntries = listOf(foreignLog, targetWarning),
+        authoritativeReportResources = setOf(targetBasicReport, targetRequisition),
+      )
+
+    assertThat(scoped.spans).containsExactly(targetProcessing, targetDispatch)
+    assertThat(scoped.logEntries).containsExactly(targetWarning)
+    assertThat(
+        ReportTraceOutput.discoveredCorrelationValues(
+          scoped.spans,
+          scoped.logEntries,
+          setOf(targetBasicReport, targetRequisition),
+        )
+      )
+      .containsExactly(targetRequisition, targetWorkItem)
+  }
+
+  @Test
   fun `span retention preserves all recognized failure outcomes`() {
     val failureOutcomes =
       listOf("failed", "failed_validation", "report_failed", "failure", "error", "refused")
@@ -5970,7 +6040,8 @@ class ReportTraceTest {
                   service = "requisition-fetcher",
                   startTime = NOW,
                   endTime = NOW,
-                  attributes = mapOf("xmm.work_item.name" to workItemName),
+                  attributes =
+                    mapOf("xmm.report.name" to reportName, "xmm.work_item.name" to workItemName),
                 )
               )
             } else {
@@ -6024,7 +6095,7 @@ class ReportTraceTest {
                     service = "requisition-fetcher",
                     severity = "INFO",
                     trace = null,
-                    message = "xmm.work_item.name=$workItemName",
+                    message = "xmm.report.name=$reportName xmm.work_item.name=$workItemName",
                   )
                 )
               workItemName in correlationValues ->
@@ -6035,7 +6106,8 @@ class ReportTraceTest {
                     service = "results-fulfiller",
                     severity = "INFO",
                     trace = "projects/test/traces/trace-2",
-                    message = "xmm.computation.name=$computationName",
+                    message =
+                      "xmm.work_item.name=$workItemName xmm.computation.name=$computationName",
                   )
                 )
               computationName in correlationValues ->
@@ -6377,7 +6449,14 @@ class ReportTraceTest {
             "xmm.basic_report.name",
             checkNotNull(context.basicReportName),
           ),
-          traceSpan("discovery", NOW).copy(attributes = mapOf("xmm.work_item.name" to workItemName)),
+          traceSpan("discovery", NOW)
+            .copy(
+              attributes =
+                mapOf(
+                  "xmm.basic_report.name" to basicReportName,
+                  "xmm.work_item.name" to workItemName,
+                )
+            ),
         )
         .mapIndexed { index, span ->
           val startTime = NOW.plusSeconds(100L + index)
@@ -6964,7 +7043,10 @@ class ReportTraceTest {
             if (traceIds.isEmpty() && reportName in correlationValues) {
               listOf(
                 traceSpan("primary-span", NOW)
-                  .copy(attributes = mapOf("xmm.work_item.name" to workItemName))
+                  .copy(
+                    attributes =
+                      mapOf("xmm.report.name" to reportName, "xmm.work_item.name" to workItemName)
+                  )
               )
             } else {
               emptyList()
