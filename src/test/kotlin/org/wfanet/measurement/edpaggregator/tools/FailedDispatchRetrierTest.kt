@@ -37,6 +37,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLinePoolAssigningRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineRankingRequest
@@ -50,6 +51,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
@@ -581,6 +583,136 @@ class FailedDispatchRetrierTest {
     assertThat(reconstructedParams.shardIndex).isEqualTo(1)
     assertThat(reconstructedParams.totalShards).isEqualTo(2)
   }
+
+  @Test
+  fun `retryFailed creates Phase 0 jobs when the claim crashed before job creation`() =
+    runBlocking<Unit> {
+      val persistedParams = subpoolAssignerParams {
+        rawImpressionUpload = UPLOAD_NAME
+        modelLine = MODEL_LINE
+        modelBlobPath = "gs://models/original-model"
+        poolAssignmentJob = ""
+        shardIndex = 0
+        totalShards = 2
+      }
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy {
+                phaseZeroDispatch = phaseZeroDispatch {
+                  workItemQueue = "q"
+                  workItemParams =
+                    WorkItemParams.newBuilder()
+                      .setAppParams(persistedParams.pack())
+                      .build()
+                      .toByteString()
+                }
+              }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(listVidLabelingJobsResponse {})
+      whenever(rankerJobService.listRankerJobs(any())).thenReturn(listRankerJobsResponse {})
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(listPoolAssignmentJobsResponse {})
+      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer {
+        invocation ->
+        val request = invocation.getArgument<BatchCreatePoolAssignmentJobsRequest>(0)
+        batchCreatePoolAssignmentJobsResponse {
+          request.requestsList.forEachIndexed { index, createRequest ->
+            poolAssignmentJobs +=
+              createRequest.poolAssignmentJob.copy {
+                name = if (index == 0) FIRST_POOL_JOB_NAME else SECOND_POOL_JOB_NAME
+              }
+          }
+        }
+      }
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
+        .thenReturn(
+          failedModelLine().copy { state = RawImpressionUploadModelLine.State.POOL_ASSIGNING }
+        )
+
+      val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+      assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+      assertThat(result.workItemsRepublished).isEqualTo(2)
+      val jobRequestCaptor = argumentCaptor<BatchCreatePoolAssignmentJobsRequest>()
+      verifyBlocking(poolAssignmentJobService) {
+        batchCreatePoolAssignmentJobs(jobRequestCaptor.capture())
+      }
+      assertThat(jobRequestCaptor.firstValue.requestsList.map { it.poolAssignmentJob.shardIndex })
+        .containsExactly(0, 1)
+      val workItemCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(2)) { createWorkItem(workItemCaptor.capture()) }
+      assertThat(workItemCaptor.allValues.map { it.workItemId })
+        .containsExactly(
+          RequestIds.forRetriedWorkItem(
+            WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 0),
+            FAILURE_ATTEMPT_ID,
+          ),
+          RequestIds.forRetriedWorkItem(
+            WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 1),
+            FAILURE_ATTEMPT_ID,
+          ),
+        )
+    }
+
+  @Test
+  fun `retryFailed resumes an active Phase 0 retry with no jobs`() =
+    runBlocking<Unit> {
+      val persistedParams = subpoolAssignerParams {
+        rawImpressionUpload = UPLOAD_NAME
+        modelLine = MODEL_LINE
+        modelBlobPath = "gs://models/original-model"
+        poolAssignmentJob = ""
+        shardIndex = 0
+        totalShards = 2
+      }
+      val activeModelLine =
+        failedModelLine().copy {
+          state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+          phaseZeroDispatch = phaseZeroDispatch {
+            workItemQueue = "q"
+            workItemParams =
+              WorkItemParams.newBuilder()
+                .setAppParams(persistedParams.pack())
+                .build()
+                .toByteString()
+          }
+        }
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines += activeModelLine
+          }
+        )
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(listPoolAssignmentJobsResponse {})
+      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer {
+        invocation ->
+        val request = invocation.getArgument<BatchCreatePoolAssignmentJobsRequest>(0)
+        batchCreatePoolAssignmentJobsResponse {
+          request.requestsList.forEachIndexed { index, createRequest ->
+            poolAssignmentJobs +=
+              createRequest.poolAssignmentJob.copy {
+                name = if (index == 0) FIRST_POOL_JOB_NAME else SECOND_POOL_JOB_NAME
+              }
+          }
+        }
+      }
+      whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
+        .thenReturn(activeModelLine)
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+
+      val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+      assertThat(result.wasAlreadyStarted).isTrue()
+      assertThat(result.workItemsRepublished).isEqualTo(2)
+      verifyBlocking(poolAssignmentJobService) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(workItemsService, times(2)) { createWorkItem(any()) }
+    }
 
   @Test
   fun `retryFailed reconstructs Phase 0 when no original WorkItem was published`() =

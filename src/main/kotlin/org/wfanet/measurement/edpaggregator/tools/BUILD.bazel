@@ -96,6 +96,7 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:phase_zero_dispatch_reconciler",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",

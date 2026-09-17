@@ -78,7 +78,7 @@ import org.wfanet.measurement.storage.StorageClient
  *   duration-window alerting (no per-tick `SEVERE`, to avoid re-paging until manual recovery).
  *
  * The health pass recovers stalled phase transitions (`POOL_ASSIGNING → RANKING → LABELING →
- * COMPLETED`) by replaying one completed child WorkItem.
+ * COMPLETED`) by reconstructing missing Phase-0 children or replaying one completed child WorkItem.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
@@ -630,10 +630,10 @@ class VidLabelingMonitor(
     modelLine: RawImpressionUploadModelLine,
   ): RecoveryOutcome {
     val jobs = listPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
-    if (jobs.isEmpty() || jobs.any { it.state == PoolAssignmentJob.State.FAILED }) {
+    if (jobs.any { it.state == PoolAssignmentJob.State.FAILED }) {
       return RecoveryOutcome.NOOP
     }
-    if (jobs.any { it.state == PoolAssignmentJob.State.CREATED }) {
+    if (jobs.isEmpty() || jobs.any { it.state == PoolAssignmentJob.State.CREATED }) {
       return if (dispatchSequencer.resumeMemoizedDispatch(uploadName, modelLine, jobs)) {
         RecoveryOutcome.RECOVERED
       } else {

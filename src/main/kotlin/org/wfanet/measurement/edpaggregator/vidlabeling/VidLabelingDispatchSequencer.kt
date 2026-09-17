@@ -53,10 +53,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobKt.workItemDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
@@ -64,7 +62,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineLabelingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLinePoolAssigningRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -149,6 +146,9 @@ class VidLabelingDispatchSequencer(
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
 ) {
+
+  private val phaseZeroDispatchReconciler =
+    PhaseZeroDispatchReconciler(poolAssignmentJobStub, workItemsStub, rpcThrottlers)
 
   /** Outcome of one [dispatchNext] call. */
   data class DispatchResult(
@@ -354,23 +354,14 @@ class VidLabelingDispatchSequencer(
     ) {
       "Persisted Phase-0 parameters do not match ${modelLine.name}"
     }
-    val jobsByShard =
-      ensurePoolAssignmentJobs(
+    phaseZeroDispatchReconciler.publish(
+      phaseZeroDispatchReconciler.prepare(
         uploadName,
         modelLine.cmmsModelLine,
-        authoritativeParams.totalShards,
+        authoritativeDispatch.proto,
         poolAssignmentJobs,
       )
-    for (shardIndex in 0 until authoritativeParams.totalShards) {
-      val job = checkNotNull(jobsByShard[shardIndex])
-      createSubpoolAssignerWorkItem(
-        authoritativeParams.copy {
-          poolAssignmentJob = job
-          this.shardIndex = shardIndex
-        },
-        authoritativeDispatch.queue,
-      )
-    }
+    )
     return true
   }
 
@@ -598,29 +589,14 @@ class VidLabelingDispatchSequencer(
     ) {
       "Persisted Phase-0 parameters do not match ${modelLine.name}"
     }
-    val totalShards = authoritativeDispatch.params.totalShards
-    val poolAssignmentJobsByShard =
-      ensurePoolAssignmentJobs(
+    phaseZeroDispatchReconciler.publish(
+      phaseZeroDispatchReconciler.prepare(
         uploadName,
         modelLine.cmmsModelLine,
-        totalShards,
+        authoritativeDispatch.proto,
         precreatedJobs.orEmpty(),
       )
-
-    for (shardIndex in 0 until totalShards) {
-      val poolAssignmentJob: String =
-        requireNotNull(poolAssignmentJobsByShard[shardIndex]) {
-          "BatchCreatePoolAssignmentJobs returned no job for shard $shardIndex of " +
-            modelLine.cmmsModelLine
-        }
-      createSubpoolAssignerWorkItem(
-        authoritativeDispatch.params.copy {
-          this.poolAssignmentJob = poolAssignmentJob
-          this.shardIndex = shardIndex
-        },
-        authoritativeDispatch.queue,
-      )
-    }
+    )
     return true
   }
 
@@ -941,72 +917,6 @@ class VidLabelingDispatchSequencer(
       modelLinesStub.getModelLine(getModelLineRequest { name = modelLineName })
     }
 
-  /**
-   * Pre-creates one `PoolAssignmentJob` per shard for ([uploadName], [modelLineName]) via
-   * `BatchCreatePoolAssignmentJobs`, chunked to [POOL_ASSIGNMENT_JOB_BATCH_SIZE] (the server's
-   * batch limit).
-   *
-   * Idempotency is by AIP-155 `request_id` (deterministic per shard), so a redelivered batch
-   * returns the existing rows for shards already created and creates the rest — no `ALREADY_EXISTS`
-   * to ack.
-   *
-   * @return a map from shard index to the server-assigned `PoolAssignmentJob` resource name, used
-   *   to stamp `SubpoolAssignerParams.pool_assignment_job` on each shard's WorkItem.
-   */
-  private suspend fun createPoolAssignmentJobs(
-    uploadName: String,
-    modelLineName: String,
-    totalShards: Int,
-  ): Map<Int, String> {
-    val jobsByShard = mutableMapOf<Int, String>()
-    for (shardChunk in (0 until totalShards).chunked(POOL_ASSIGNMENT_JOB_BATCH_SIZE)) {
-      val request = batchCreatePoolAssignmentJobsRequest {
-        parent = uploadName
-        for (shardIndex in shardChunk) {
-          requests += createPoolAssignmentJobRequest {
-            parent = uploadName
-            poolAssignmentJob = poolAssignmentJob {
-              cmmsModelLine = modelLineName
-              this.shardIndex = shardIndex
-            }
-            requestId = RequestIds.forPoolAssignmentJob(uploadName, modelLineName, shardIndex)
-          }
-        }
-      }
-      val response =
-        rpcThrottlers.metadataWrite.onReady {
-          poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
-        }
-      for (job in response.poolAssignmentJobsList) {
-        jobsByShard[job.shardIndex] = job.name
-      }
-    }
-    return jobsByShard
-  }
-
-  /** Returns the complete deterministic Phase-0 job set, creating any missing rows. */
-  private suspend fun ensurePoolAssignmentJobs(
-    uploadName: String,
-    modelLineName: String,
-    totalShards: Int,
-    existingJobs: List<PoolAssignmentJob>,
-  ): Map<Int, String> {
-    val existingByShard = existingJobs.associateBy { it.shardIndex }
-    val jobsByShard =
-      if (
-        existingByShard.size == totalShards && existingByShard.keys == (0 until totalShards).toSet()
-      ) {
-        existingByShard.mapValues { it.value.name }
-      } else {
-        createPoolAssignmentJobs(uploadName, modelLineName, totalShards)
-      }
-    check(jobsByShard.size == totalShards && jobsByShard.keys == (0 until totalShards).toSet()) {
-      "Expected $totalShards PoolAssignmentJobs for $modelLineName; found shards " +
-        jobsByShard.keys.sorted()
-    }
-    return jobsByShard
-  }
-
   /** Builds the immutable Phase-0 parameters for one shard. */
   private fun buildSubpoolAssignerParams(
     uploadName: String,
@@ -1048,43 +958,8 @@ class VidLabelingDispatchSequencer(
     }
   }
 
-  /** Publishes one Phase-0 WorkItem with already-resolved immutable [params]. */
-  private suspend fun createSubpoolAssignerWorkItem(params: SubpoolAssignerParams, queue: String) {
-    val workItemId =
-      WorkItemIds.forSubpoolAssigner(
-        params.rawImpressionUpload,
-        params.modelLine,
-        params.shardIndex,
-      )
-    val request = createWorkItemRequest {
-      this.workItemId = workItemId
-      workItem = workItem {
-        this.queue = queue
-        workItemParams = workItemParams { appParams = params.pack() }.pack()
-      }
-    }
-    try {
-      rpcThrottlers.controlPlane.onReady { workItemsStub.createWorkItem(request) }
-    } catch (e: StatusException) {
-      if (e.status.code == Status.Code.ALREADY_EXISTS) {
-        // A concurrent dispatch already created this WorkItem; the deterministic ID makes this a
-        // no-op. Safe to ignore.
-        logger.info("WorkItem $workItemId already exists; skipping (concurrent dispatch)")
-        return
-      }
-      throw e
-    }
-    logger.info(
-      "Created SubpoolAssigner WorkItem $workItemId for model line ${params.modelLine} shard " +
-        params.shardIndex
-    )
-  }
-
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
-
-    /** Maximum `CreatePoolAssignmentJobRequest`s per `BatchCreatePoolAssignmentJobs` call. */
-    private const val POOL_ASSIGNMENT_JOB_BATCH_SIZE = 50
 
     /** Maximum `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call. */
     private const val DEFAULT_MAX_JOBS_PER_BATCH_CREATE = 50

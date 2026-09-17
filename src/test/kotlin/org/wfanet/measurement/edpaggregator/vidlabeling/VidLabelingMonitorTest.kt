@@ -63,6 +63,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
@@ -79,6 +80,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineKt.phaseZeroDispatch
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
@@ -88,6 +90,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreatePoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
@@ -886,6 +889,91 @@ class VidLabelingMonitorTest {
         .isEqualTo("$originalWorkItem-monitor-recovery-1")
       assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/pool-assigner")
       verifyBlocking(poolAssignmentJobService, times(2)) { listPoolAssignmentJobs(any()) }
+    }
+
+  @Test
+  fun `recovers Phase 0 when the claim committed before any job was created`() =
+    runBlocking<Unit> {
+      val uploadName = "$DATA_PROVIDER/rawImpressionUploads/active-1"
+      val persistedParams =
+        SUBPOOL_ASSIGNER_PARAMS_TEMPLATE.copy {
+          rawImpressionUpload = uploadName
+          modelLine = MODEL_LINE
+          modelBlobPath = "gs://models/original-model"
+          poolAssignmentJob = ""
+          shardIndex = 0
+          totalShards = NUMBER_OF_SHARDS
+        }
+      val persistedDispatch = phaseZeroDispatch {
+        workItemQueue = "queues/original-pool-assigner"
+        workItemParams =
+          WorkItemParams.newBuilder().setAppParams(persistedParams.pack()).build().toByteString()
+      }
+      stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+      stubModelLines(
+        rawImpressionUploadModelLine {
+          name = "$uploadName/modelLines/ml1"
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+          phaseZeroDispatch = persistedDispatch
+        }
+      )
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(listPoolAssignmentJobsResponse {})
+      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer {
+        invocation ->
+        val request = invocation.getArgument<BatchCreatePoolAssignmentJobsRequest>(0)
+        batchCreatePoolAssignmentJobsResponse {
+          request.requestsList.forEachIndexed { index, createRequest ->
+            poolAssignmentJobs +=
+              createRequest.poolAssignmentJob.copy {
+                name = "$uploadName/poolAssignmentJobs/pa$index"
+              }
+          }
+        }
+      }
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenReturn(
+          rawImpressionUploadModelLine {
+            name = "$uploadName/modelLines/ml1"
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+            phaseZeroDispatch = persistedDispatch
+          }
+        )
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      val jobRequestCaptor = argumentCaptor<BatchCreatePoolAssignmentJobsRequest>()
+      verifyBlocking(poolAssignmentJobService) {
+        batchCreatePoolAssignmentJobs(jobRequestCaptor.capture())
+      }
+      assertThat(jobRequestCaptor.firstValue.requestsList.map { it.poolAssignmentJob.shardIndex })
+        .containsExactly(0, 1)
+      val workItemCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) {
+        createWorkItem(workItemCaptor.capture())
+      }
+      val publishedParams =
+        workItemCaptor.allValues.associate { request ->
+          val params =
+            request.workItem.workItemParams
+              .unpack(WorkItemParams::class.java)
+              .appParams
+              .unpack(SubpoolAssignerParams::class.java)
+          params.shardIndex to params
+        }
+      assertThat(publishedParams.keys).containsExactly(0, 1)
+      assertThat(publishedParams.values.map { it.modelBlobPath }.toSet())
+        .containsExactly("gs://models/original-model")
+      assertThat(workItemCaptor.allValues.map { it.workItem.queue }.toSet())
+        .containsExactly("queues/original-pool-assigner")
     }
 
   @Test
