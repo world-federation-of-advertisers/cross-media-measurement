@@ -49,14 +49,19 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRankIndexBlobsReq
 import org.wfanet.measurement.edpaggregator.v1alpha.DeleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 private const val DP = "dataProviders/dp"
@@ -79,6 +84,7 @@ class SubpoolRankerTest {
   private lateinit var rankStore: RankIndexStore
   private lateinit var subpoolDek: EncryptedDek
   private lateinit var fake: FakeRankIndexBlobs
+  private val modelLineStates = mutableMapOf<String, RawImpressionUploadModelLine.State>()
 
   @Before
   fun setUp() {
@@ -99,6 +105,7 @@ class SubpoolRankerTest {
     rankStore = RankIndexStore(storageClient, kmsClient)
     subpoolDek = subpoolStore.generateDek(kekUri)
     fake = FakeRankIndexBlobs()
+    modelLineStates.clear()
   }
 
   private fun ranker(
@@ -113,6 +120,7 @@ class SubpoolRankerTest {
       subpoolFingerprintsStore = subpoolStore,
       rankIndexStore = rankStore,
       rankIndexBlobsStub = fake.stub,
+      rawImpressionUploadModelLinesStub = modelLinesStub(),
       retention = retention,
       dataProvider = DP,
       rawImpressionUpload = upload,
@@ -126,6 +134,19 @@ class SubpoolRankerTest {
       rpcThrottlers = rpcThrottlers,
       metrics = metrics,
     )
+  }
+
+  private fun modelLinesStub(): RawImpressionUploadModelLineServiceCoroutineStub = mock {
+    onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+      { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            cmmsModelLine = MODEL_LINE
+            state = modelLineStates[request.parent] ?: RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      }
   }
 
   /** Writes a Phase-0 merged blob for the subpool at [key] and returns it. */
@@ -328,6 +349,29 @@ class SubpoolRankerTest {
 
       // The allocator loaded the newer snapshot (99), not the older one (10).
       assertThat(readSnapshot().keys).containsExactly(99L to 0)
+    }
+
+  @Test
+  fun `ignores a newer snapshot owned by a failed model line`() =
+    runBlocking<Unit> {
+      val completedUpload = "dataProviders/dp/rawImpressionUploads/completed"
+      val failedUpload = "dataProviders/dp/rawImpressionUploads/failed"
+      seedPriorSnapshot(
+        listOf(Triple(10L to 0, 0, 90)),
+        uploadName = completedUpload,
+        createTimeSeconds = 1L,
+      )
+      seedPriorSnapshot(
+        listOf(Triple(99L to 0, 0, 90)),
+        uploadName = failedUpload,
+        createTimeSeconds = 5L,
+      )
+      modelLineStates[failedUpload] = RawImpressionUploadModelLine.State.FAILED
+      val key = writePhase0(emptyList())
+
+      ranker().rank(POOL, key, rankedSize = 100)
+
+      assertThat(readSnapshot().keys).containsExactly(10L to 0)
     }
 
   @Test
