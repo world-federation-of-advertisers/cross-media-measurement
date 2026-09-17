@@ -2571,6 +2571,88 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `telemetry scope retains unstructured logs for an admitted computation only`() {
+    val targetBasicReport = "measurementConsumers/mc-1/basicReports/report-1"
+    val targetComputation = "computations/target-computation"
+    val targetSpan =
+      lifecycleSpan(
+        "duchy_stage_attempt",
+        mapOf(
+          "xmm.basic_report.name" to targetBasicReport,
+          "xmm.computation.name" to targetComputation,
+        ),
+      )
+    val targetError =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "trustee-mill",
+        severity = "ERROR",
+        trace = null,
+        message =
+          "SEVERE: target-computation@trustee-mill: Failing Computation. " +
+            "Input vector size 2 does not match expected size 3",
+      )
+    val targetLogs =
+      listOf(
+        targetError,
+        targetError.copy(
+          severity = "INFO",
+          message = "[id=target-computation] Created Computation",
+        ),
+        targetError.copy(
+          severity = "INFO",
+          message = "INFO: Claimed work item for Computation target-computation at stage COMPUTING",
+        ),
+        targetError.copy(
+          severity = "INFO",
+          message = "INFO: @Mill trustee-mill, target-computation/COMPUTING/memory: 1024",
+        ),
+        targetError.copy(
+          message = "@Mill trustee-mill, Computation target-computation failed due to: bad input"
+        ),
+      )
+    val foreignError =
+      targetError.copy(
+        message =
+          "SEVERE: foreign-computation@trustee-mill: Failing Computation. " +
+            "Input vector size 3 does not match expected size 4"
+      )
+    val scoped =
+      ReportTraceOutput.scopeTelemetryToReport(
+        spans = listOf(targetSpan),
+        logEntries = targetLogs + foreignError,
+        authoritativeReportResources = setOf(targetBasicReport),
+      )
+
+    assertThat(scoped.spans).containsExactly(targetSpan)
+    assertThat(scoped.logEntries).containsExactlyElementsIn(targetLogs).inOrder()
+  }
+
+  @Test
+  fun `telemetry scope does not parse computation status word as an identifier`() {
+    val genericError =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "mill",
+        severity = "ERROR",
+        trace = null,
+        message = "Computation failed due to missing input",
+      )
+
+    val scoped =
+      ReportTraceOutput.scopeTelemetryToReport(
+        spans = emptyList(),
+        logEntries = listOf(genericError),
+        authoritativeReportResources =
+          setOf("measurementConsumers/mc-1/basicReports/report-1", "computations/failed"),
+      )
+
+    assertThat(scoped.logEntries).isEmpty()
+  }
+
+  @Test
   fun `span retention preserves all recognized failure outcomes`() {
     val failureOutcomes =
       listOf("failed", "failed_validation", "report_failed", "failure", "error", "refused")
@@ -2771,6 +2853,61 @@ class ReportTraceTest {
           .status
       )
       .isEqualTo("MISSING")
+  }
+
+  @Test
+  fun `early mill outcomes are attributed by scheduler computation identity`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val aggregatorComputation = "computations/aggregator-computation"
+    val workerComputation = "computations/worker-computation"
+    val aggregatorIdentity =
+      mapOf("xmm.computation.name" to aggregatorComputation, "xmm.duchy.id" to "aggregator")
+    val workerIdentity =
+      mapOf("xmm.computation.name" to workerComputation, "xmm.duchy.id" to "worker1")
+    val staleWorkerAttempt =
+      lifecycleSpan("duchy_stage_attempt", workerIdentity)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "duchy_stage_attempt",
+              "xmm.outcome" to "stale_delivery",
+            ) + workerIdentity
+        )
+    val spans =
+      listOf(
+        lifecycleSpan(
+          "duchy_mill_dispatch",
+          aggregatorIdentity + ("xmm.measurement.name" to measurementName),
+        ),
+        lifecycleSpan(
+          "duchy_mill_dispatch",
+          workerIdentity + ("xmm.measurement.name" to measurementName),
+        ),
+        failedLifecycleSpan("duchy_stage_attempt", aggregatorIdentity),
+        staleWorkerAttempt,
+      )
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    val aggregatorAttempt =
+      coverage.single {
+        it.name == "duchy_stage_attempt" && it.resource.endsWith("duchy aggregator")
+      }
+    assertThat(aggregatorAttempt.status).isEqualTo("FAILED")
+    assertThat(aggregatorAttempt.evidence).contains("Measurement correlated by computation")
+    val workerAttempt =
+      coverage.single { it.name == "duchy_stage_attempt" && it.resource.endsWith("duchy worker1") }
+    assertThat(workerAttempt.status).isEqualTo("IN_PROGRESS")
+    assertThat(workerAttempt.evidence).contains("Measurement correlated by computation")
   }
 
   @Test
