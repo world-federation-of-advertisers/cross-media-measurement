@@ -2856,6 +2856,61 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `early mill outcomes are attributed by scheduler computation identity`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val aggregatorComputation = "computations/aggregator-computation"
+    val workerComputation = "computations/worker-computation"
+    val aggregatorIdentity =
+      mapOf("xmm.computation.name" to aggregatorComputation, "xmm.duchy.id" to "aggregator")
+    val workerIdentity =
+      mapOf("xmm.computation.name" to workerComputation, "xmm.duchy.id" to "worker1")
+    val staleWorkerAttempt =
+      lifecycleSpan("duchy_stage_attempt", workerIdentity)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "duchy_stage_attempt",
+              "xmm.outcome" to "stale_delivery",
+            ) + workerIdentity
+        )
+    val spans =
+      listOf(
+        lifecycleSpan(
+          "duchy_mill_dispatch",
+          aggregatorIdentity + ("xmm.measurement.name" to measurementName),
+        ),
+        lifecycleSpan(
+          "duchy_mill_dispatch",
+          workerIdentity + ("xmm.measurement.name" to measurementName),
+        ),
+        failedLifecycleSpan("duchy_stage_attempt", aggregatorIdentity),
+        staleWorkerAttempt,
+      )
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    val aggregatorAttempt =
+      coverage.single {
+        it.name == "duchy_stage_attempt" && it.resource.endsWith("duchy aggregator")
+      }
+    assertThat(aggregatorAttempt.status).isEqualTo("FAILED")
+    assertThat(aggregatorAttempt.evidence).contains("Measurement correlated by computation")
+    val workerAttempt =
+      coverage.single { it.name == "duchy_stage_attempt" && it.resource.endsWith("duchy worker1") }
+    assertThat(workerAttempt.status).isEqualTo("IN_PROGRESS")
+    assertThat(workerAttempt.evidence).contains("Measurement correlated by computation")
+  }
+
+  @Test
   fun `TrusTEE uses a mill attempt without a mill job scheduler dispatch`() {
     val context = reportTraceContext()
     val requisitionName = "dataProviders/direct/requisitions/requisition-1"

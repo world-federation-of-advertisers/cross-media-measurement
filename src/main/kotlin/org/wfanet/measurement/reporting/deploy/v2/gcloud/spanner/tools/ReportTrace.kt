@@ -1678,7 +1678,7 @@ internal object ReportTraceOutput {
     observed: MutableMap<String, MutableList<LifecycleEvidence>>
   ) {
     val measurementsByComputation: Map<String, List<String>> =
-      listOf("duchy_computation", "duchy_stage_attempt")
+      listOf("duchy_computation", "duchy_mill_dispatch", "duchy_stage_attempt")
         .flatMap { stage -> observed[stage].orEmpty() }
         .mapNotNull { evidence ->
           val computationName: String =
@@ -1691,33 +1691,34 @@ internal object ReportTraceOutput {
           keySelector = { (computationName) -> computationName },
           valueTransform = { (_, measurementName) -> measurementName },
         )
-    val acceptanceEvidence: MutableList<LifecycleEvidence> =
-      observed["kingdom_computation_result_acceptance"] ?: return
-    observed["kingdom_computation_result_acceptance"] =
-      acceptanceEvidence
-        .map { evidence ->
-          if ("xmm.measurement.name" in evidence.attributes) {
-            evidence
-          } else {
-            val computationName: String? = evidence.attributes["xmm.computation.name"]
-            val measurementNames: List<String> =
-              if (computationName == null) {
-                emptyList()
-              } else {
-                measurementsByComputation[computationName].orEmpty().distinct()
-              }
-            if (measurementNames.size == 1) {
-              evidence.copy(
-                description = "${evidence.description} (Measurement correlated by computation)",
-                attributes =
-                  evidence.attributes + ("xmm.measurement.name" to measurementNames.single()),
-              )
-            } else {
+    for (stage in listOf("duchy_stage_attempt", "kingdom_computation_result_acceptance")) {
+      val stageEvidence: MutableList<LifecycleEvidence> = observed[stage] ?: continue
+      observed[stage] =
+        stageEvidence
+          .map { evidence ->
+            if ("xmm.measurement.name" in evidence.attributes) {
               evidence
+            } else {
+              val computationName: String? = evidence.attributes["xmm.computation.name"]
+              val measurementNames: List<String> =
+                if (computationName == null) {
+                  emptyList()
+                } else {
+                  measurementsByComputation[computationName].orEmpty().distinct()
+                }
+              if (measurementNames.size == 1) {
+                evidence.copy(
+                  description = "${evidence.description} (Measurement correlated by computation)",
+                  attributes =
+                    evidence.attributes + ("xmm.measurement.name" to measurementNames.single()),
+                )
+              } else {
+                evidence
+              }
             }
           }
-        }
-        .toMutableList()
+          .toMutableList()
+    }
   }
 
   private fun linkWorkItemEvidenceToRequisitions(
