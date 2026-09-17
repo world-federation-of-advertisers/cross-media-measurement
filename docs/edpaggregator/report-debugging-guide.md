@@ -350,12 +350,15 @@ participants. Its route table marks the Duchy path `NOT_APPLICABLE` for direct
 Measurements and requires separate Herald and mill evidence for every expected
 Measurement × Duchy participant on MPC Measurements. If Kingdom does not expose
 the participant set yet, that branch is `UNKNOWN` rather than inferred from an
-observed Duchy. The CLI marks RequisitionFetcher dispatch, WorkItem processing,
-and ResultsFulfiller stages required only for Requisitions whose topology route
-is `EDPA`; those stages are `NOT_APPLICABLE` for `DIRECT_EDP` Requisitions. The
-fetcher's dispatch evidence supplies the Requisition, EDPA group, and WorkItem
-link used to attribute a WorkItem-processing span back to each Requisition in
-its group.
+observed Duchy. The CLI marks RequisitionFetcher dispatch, WorkItem publication,
+WorkItem processing, and ResultsFulfiller stages required only for Requisitions
+whose topology route is `EDPA`; those stages are `NOT_APPLICABLE` for
+`DIRECT_EDP` Requisitions. The fetcher's dispatch evidence supplies the
+Requisition, EDPA group, and WorkItem link used to attribute publication and
+processing evidence back to each Requisition in its group. Direct-EDP execution
+is shown explicitly as `EXTERNAL_NOT_OBSERVED`: Kingdom or Duchy acceptance is
+still evaluated, but producer-side direct-EDP telemetry is outside the tool's
+observability perimeter.
 
 For every MPC Requisition, regardless of whether the DataProvider is direct or
 EDPA-managed, the artifact separately requires the Duchy's local acceptance and
@@ -432,12 +435,17 @@ BasicReport and Report names into each grouped-requisitions payload. In the
 direct-dispatch configuration, RequisitionFetcher emits one dispatch outcome
 span per Requisition with the group and deterministic WorkItem names, and
 persists W3C trace context in the WorkItem so the TEE processing span can
-continue the fetcher's trace across the durable queue boundary. Herald and all
-mills, including HMSS and TrusTEE, label their spans with the canonical
+continue the fetcher's trace across the durable queue boundary. The WorkItem
+publication runner records `xmm.lifecycle.stage=work_item_publication` when it
+publishes the durable outbox record to Pub/Sub. Herald and all mills, including
+LLv2, Reach-Only LLv2, HMSS, and TrusTEE, label their spans with the canonical
 Measurement name, computation name, and local Duchy ID. Herald uses
-`xmm.lifecycle.stage=duchy_computation` for durable computation status, while
-mills use `xmm.lifecycle.stage=duchy_stage_attempt` for an individual
-stage-processing attempt. The Duchy RequisitionFulfillment service records the
+`xmm.lifecycle.stage=duchy_computation` for durable computation status. The
+Kubernetes `MillJobScheduler` uses `xmm.lifecycle.stage=duchy_mill_dispatch`
+when launching LLv2, Reach-Only LLv2, or HMSS jobs; TrusTEE uses a persistent
+MIG worker and does not have this scheduling stage. Mills use
+`xmm.lifecycle.stage=duchy_stage_attempt` for an individual stage-processing
+attempt. The Duchy RequisitionFulfillment service records the
 public Requisition name and local Duchy ID separately for local acceptance and
 the subsequent Kingdom update. The post-processing/noise-correction job prefixes
 its logs while processing a BasicReport with `xmm.basic_report.name`,

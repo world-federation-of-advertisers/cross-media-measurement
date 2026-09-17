@@ -20,9 +20,11 @@ kt_jvm_library(
         ],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common:id_generator",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:dead_letter_queue_listener",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/publisher:google_work_item_publisher",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:services",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/service/internal:work_item_publisher",
         "//src/main/proto/wfa/measurement/internal/securecomputation/controlplane:work_item_attempts_service_kt_jvm_grpc_proto",

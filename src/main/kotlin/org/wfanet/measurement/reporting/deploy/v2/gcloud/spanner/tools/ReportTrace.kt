@@ -1737,33 +1737,34 @@ internal object ReportTraceOutput {
           keySelector = { (workItemName) -> workItemName },
           valueTransform = { (_, requisitionName) -> requisitionName },
         )
-    val workItemEvidence: MutableList<LifecycleEvidence> =
-      observed["work_item_processing"] ?: return
-    observed["work_item_processing"] =
-      workItemEvidence
-        .flatMap { evidence ->
-          if ("xmm.requisition.name" in evidence.attributes) {
-            listOf(evidence)
-          } else {
-            val workItemName: String? = evidence.attributes["xmm.work_item.name"]
-            val requisitions: List<String> =
-              if (workItemName == null) {
-                emptyList()
-              } else {
-                requisitionsByWorkItem[workItemCorrelationKey(workItemName)].orEmpty().distinct()
-              }
-            if (requisitions.isEmpty()) {
+    for (stage in listOf("work_item_publication", "work_item_processing")) {
+      val workItemEvidence: MutableList<LifecycleEvidence> = observed[stage] ?: continue
+      observed[stage] =
+        workItemEvidence
+          .flatMap { evidence ->
+            if ("xmm.requisition.name" in evidence.attributes) {
               listOf(evidence)
             } else {
-              requisitions.map { requisition ->
-                evidence.copy(
-                  attributes = evidence.attributes + ("xmm.requisition.name" to requisition)
-                )
+              val workItemName: String? = evidence.attributes["xmm.work_item.name"]
+              val requisitions: List<String> =
+                if (workItemName == null) {
+                  emptyList()
+                } else {
+                  requisitionsByWorkItem[workItemCorrelationKey(workItemName)].orEmpty().distinct()
+                }
+              if (requisitions.isEmpty()) {
+                listOf(evidence)
+              } else {
+                requisitions.map { requisition ->
+                  evidence.copy(
+                    attributes = evidence.attributes + ("xmm.requisition.name" to requisition)
+                  )
+                }
               }
             }
           }
-        }
-        .toMutableList()
+          .toMutableList()
+    }
   }
 
   private fun workItemCorrelationKey(name: String): String {
@@ -1864,6 +1865,8 @@ internal object ReportTraceOutput {
             requirement == ReportTraceStageRequirement.SKIPPED_AFTER_REFUSAL ->
             "SKIPPED_AFTER_REFUSAL"
           requirement == ReportTraceStageRequirement.OPTIONAL -> "OPTIONAL"
+          requirement == ReportTraceStageRequirement.EXTERNAL && evidence.isEmpty() ->
+            "EXTERNAL_NOT_OBSERVED"
           latestOutcome != null && latestOutcome in IN_PROGRESS_OUTCOMES -> "IN_PROGRESS"
           latestOutcome == "unknown" -> "UNKNOWN"
           evidence.isNotEmpty() -> "OBSERVED"
@@ -1905,6 +1908,8 @@ internal object ReportTraceOutput {
                 requirement == ReportTraceStageRequirement.UNKNOWN ->
                   "Route or resource applicability could not be resolved"
                 requirement == ReportTraceStageRequirement.OPTIONAL -> "Optional diagnostic stage"
+                requirement == ReportTraceStageRequirement.EXTERNAL ->
+                  "Producer-side direct EDP telemetry is outside this tool's observability perimeter"
                 requirement == ReportTraceStageRequirement.REUSED ->
                   "Historical operation belongs to the BasicReport that created this reused resource"
                 requirement == ReportTraceStageRequirement.SKIPPED_AFTER_FAILURE ->
@@ -2529,6 +2534,12 @@ internal object ReportTraceOutput {
             ReportTraceStageRequirement.NOT_APPLICABLE,
           )
           add(
+            "duchy_mill_dispatch",
+            measurement.name,
+            "xmm.measurement.name",
+            ReportTraceStageRequirement.NOT_APPLICABLE,
+          )
+          add(
             "duchy_stage_attempt",
             measurement.name,
             "xmm.measurement.name",
@@ -2548,6 +2559,17 @@ internal object ReportTraceOutput {
                   else -> ReportTraceStageRequirement.REQUIRED
                 }
               add("duchy_computation", resource, attributes, duchyRequirement)
+              addWithPresence(
+                "duchy_mill_dispatch",
+                resource,
+                attributes,
+                if (measurement.protocol in NON_SCHEDULED_MILL_PROTOCOLS) {
+                  ReportTraceStageRequirement.NOT_APPLICABLE
+                } else {
+                  duchyRequirement
+                },
+                requiredPresenceAttributes = setOf("xmm.computation.name"),
+              )
               add("duchy_stage_attempt", resource, attributes, duchyRequirement)
             }
           } else {
@@ -2566,6 +2588,17 @@ internal object ReportTraceOutput {
               requiredPresenceAttributes = setOf("xmm.duchy.id"),
             )
             addWithPresence(
+              "duchy_mill_dispatch",
+              resource,
+              mapOf("xmm.measurement.name" to measurement.name),
+              if (measurement.protocol in NON_SCHEDULED_MILL_PROTOCOLS) {
+                ReportTraceStageRequirement.NOT_APPLICABLE
+              } else {
+                duchyRequirement
+              },
+              requiredPresenceAttributes = setOf("xmm.computation.name", "xmm.duchy.id"),
+            )
+            addWithPresence(
               "duchy_stage_attempt",
               resource,
               mapOf("xmm.measurement.name" to measurement.name),
@@ -2577,6 +2610,12 @@ internal object ReportTraceOutput {
         ReportTraceMeasurementRouteKind.UNKNOWN -> {
           add(
             "duchy_computation",
+            measurement.name,
+            "xmm.measurement.name",
+            ReportTraceStageRequirement.UNKNOWN,
+          )
+          add(
+            "duchy_mill_dispatch",
             measurement.name,
             "xmm.measurement.name",
             ReportTraceStageRequirement.UNKNOWN,
@@ -2677,6 +2716,13 @@ internal object ReportTraceOutput {
             requiredPresenceAttributes = setOf("xmm.edpa.group_id", "xmm.work_item.name"),
           )
           addWithPresence(
+            "work_item_publication",
+            requisition.name,
+            "xmm.requisition.name",
+            edpaRequirement,
+            requiredPresenceAttributes = setOf("xmm.work_item.name"),
+          )
+          addWithPresence(
             "work_item_processing",
             requisition.name,
             "xmm.requisition.name",
@@ -2689,6 +2735,18 @@ internal object ReportTraceOutput {
             "xmm.requisition.name",
             edpaRequirement,
             requiredPresenceAttributes = setOf("xmm.edpa.group_id"),
+          )
+          add(
+            "direct_edp_fulfillment",
+            requisition.name,
+            "xmm.requisition.name",
+            when {
+              requisition.route == ReportTraceRequisitionRouteKind.DIRECT_EDP ->
+                ReportTraceStageRequirement.EXTERNAL
+              requisition.route == ReportTraceRequisitionRouteKind.EDPA ->
+                ReportTraceStageRequirement.NOT_APPLICABLE
+              else -> ReportTraceStageRequirement.UNKNOWN
+            },
           )
           val duchyIngressRequirement =
             when (measurement.route) {
@@ -3033,31 +3091,34 @@ internal object ReportTraceOutput {
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val LIFECYCLE_COMPONENT_BY_STAGE =
     mapOf(
-      "basic_report_creation" to "Reporting BasicReports service",
-      "basic_report_api_fetch" to "Reporting BasicReports service",
-      "report_creation" to "Reporting Reports service",
-      "metric_creation" to "Reporting Metrics service",
-      "metric_result_sync" to "Reporting services",
-      "measurement_creation" to "Reporting and Kingdom Measurements services",
-      "measurement_linkage" to "Reporting Metrics service",
-      "kingdom_measurement_sync" to "Reporting Metrics service",
-      "duchy_computation" to "Duchy Herald",
-      "duchy_stage_attempt" to "Duchy Mill (HMSS or TrusTEE)",
-      "kingdom_computation_result_acceptance" to "Kingdom Computations service",
-      "requisition_available" to "Kingdom Requisitions service",
-      "requisition_refusal" to "RequisitionFetcher or ResultsFulfiller",
+      "basic_report_creation" to "BasicReportsService / BasicReportsReportsJob",
+      "basic_report_api_fetch" to "BasicReportsService",
+      "report_creation" to "ReportsService",
+      "metric_creation" to "MetricsService",
+      "metric_result_sync" to "MetricsService",
+      "measurement_creation" to "MetricsService / MeasurementsService (Kingdom)",
+      "measurement_linkage" to "MetricsService",
+      "kingdom_measurement_sync" to "MetricsService",
+      "duchy_computation" to "Herald",
+      "duchy_mill_dispatch" to "MillJobScheduler (LLv2, Reach-Only LLv2, or HMSS)",
+      "duchy_stage_attempt" to "MillBase (LLv2, Reach-Only LLv2, HMSS, or TrusTEE)",
+      "kingdom_computation_result_acceptance" to "ComputationsService (Kingdom)",
+      "requisition_available" to "RequisitionsService (Kingdom)",
+      "requisition_refusal" to "RequisitionGrouper / ResultsFulfiller",
       "requisition_dispatch" to "RequisitionFetcher",
-      "work_item_processing" to "Secure Computation TEE worker",
-      "results_fulfillment" to "ResultsFulfiller TEE",
-      "duchy_requisition_acceptance" to "Duchy RequisitionFulfillment service",
-      "duchy_requisition_kingdom_fulfillment" to "Duchy RequisitionFulfillment service",
-      "kingdom_requisition_result_acceptance" to "Kingdom Requisitions service",
-      "kingdom_requisition_refusal_acceptance" to "Kingdom Requisitions service",
-      "report_result_assembly" to "Reporting result-assembly job",
-      "noise_correction" to "Report result post-processor",
-      "processed_result_writeback" to "Report result post-processor",
-      "basic_report_failure_writeback" to "Reporting result-assembly job",
-      "basic_report_available" to "Reporting persistence",
+      "work_item_publication" to "WorkItemPublicationRunner",
+      "work_item_processing" to "BaseTeeApplication",
+      "results_fulfillment" to "ResultsFulfiller",
+      "direct_edp_fulfillment" to "Direct EDP (external)",
+      "duchy_requisition_acceptance" to "RequisitionFulfillmentService (Duchy)",
+      "duchy_requisition_kingdom_fulfillment" to "RequisitionFulfillmentService (Duchy)",
+      "kingdom_requisition_result_acceptance" to "RequisitionsService (Kingdom)",
+      "kingdom_requisition_refusal_acceptance" to "RequisitionsService (Kingdom)",
+      "report_result_assembly" to "BasicReportsReportsJob / ReportsService",
+      "noise_correction" to "PostProcessReportResultJob",
+      "processed_result_writeback" to "PostProcessReportResultJob",
+      "basic_report_failure_writeback" to "BasicReportsReportsJob",
+      "basic_report_available" to "BasicReport state (Reporting database)",
     )
   private val ERROR_LOG_SEVERITIES = setOf("ERROR", "CRITICAL", "ALERT", "EMERGENCY")
   private val WARNING_LOG_SEVERITIES = setOf("WARNING", "WARN")
@@ -3084,6 +3145,7 @@ internal object ReportTraceOutput {
       "measurement_linkage",
       "kingdom_measurement_sync",
       "duchy_computation",
+      "duchy_mill_dispatch",
       "duchy_stage_attempt",
       "kingdom_computation_result_acceptance",
     )
@@ -3092,15 +3154,23 @@ internal object ReportTraceOutput {
       "requisition_available",
       "requisition_refusal",
       "requisition_dispatch",
+      "work_item_publication",
       "work_item_processing",
       "results_fulfillment",
+      "direct_edp_fulfillment",
       "duchy_requisition_acceptance",
       "duchy_requisition_kingdom_fulfillment",
       "kingdom_requisition_result_acceptance",
       "kingdom_requisition_refusal_acceptance",
     )
   private val EDPA_REQUISITION_LIFECYCLE_STAGES =
-    setOf("requisition_dispatch", "work_item_processing", "results_fulfillment")
+    setOf(
+      "requisition_dispatch",
+      "work_item_publication",
+      "work_item_processing",
+      "results_fulfillment",
+    )
+  private val NON_SCHEDULED_MILL_PROTOCOLS = setOf("TRUS_TEE", "TRUS_TEE_V2")
   private val SAFE_LOG_FIELDS =
     setOf(
       "event",
