@@ -46,6 +46,7 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsRequest
 internal enum class ReportTraceStageRequirement {
   REQUIRED,
   OPTIONAL,
+  EXTERNAL,
   NOT_APPLICABLE,
   UNKNOWN,
   REUSED,
@@ -118,7 +119,23 @@ internal data class ReportTraceRouteResolution(
             }
           }
         )
+      "duchy_mill_dispatch" ->
+        aggregateRequirements(
+          measurementRoutes.map { route ->
+            when {
+              route.route == ReportTraceMeasurementRouteKind.DIRECT ->
+                ReportTraceStageRequirement.NOT_APPLICABLE
+              route.route == ReportTraceMeasurementRouteKind.UNKNOWN ->
+                ReportTraceStageRequirement.UNKNOWN
+              route.protocol in NON_SCHEDULED_MILL_PROTOCOLS ->
+                ReportTraceStageRequirement.NOT_APPLICABLE
+              route.duchyParticipantsResolved -> ReportTraceStageRequirement.REQUIRED
+              else -> ReportTraceStageRequirement.UNKNOWN
+            }
+          }
+        )
       "requisition_dispatch",
+      "work_item_publication",
       "work_item_processing",
       "results_fulfillment" ->
         aggregateRequirements(
@@ -137,12 +154,29 @@ internal data class ReportTraceRouteResolution(
             }
           }
         )
+      "direct_edp_fulfillment" ->
+        aggregateRequirements(
+          measurementRoutes.flatMap { measurement ->
+            if (!measurement.requisitionsResolved) {
+              listOf(ReportTraceStageRequirement.UNKNOWN)
+            } else {
+              measurement.requisitions.map { requisition ->
+                when (requisition.route) {
+                  ReportTraceRequisitionRouteKind.EDPA -> ReportTraceStageRequirement.NOT_APPLICABLE
+                  ReportTraceRequisitionRouteKind.DIRECT_EDP -> ReportTraceStageRequirement.EXTERNAL
+                  ReportTraceRequisitionRouteKind.UNKNOWN -> ReportTraceStageRequirement.UNKNOWN
+                }
+              }
+            }
+          }
+        )
       else -> ReportTraceStageRequirement.REQUIRED
     }
   }
 
   companion object {
     private const val UNKNOWN_VALUE = "UNKNOWN"
+    private val NON_SCHEDULED_MILL_PROTOCOLS = setOf("TRUS_TEE", "TRUS_TEE_V2")
 
     fun unresolved(
       measurementNames: Collection<String>,
@@ -178,6 +212,7 @@ internal data class ReportTraceRouteResolution(
         ReportTraceStageRequirement.REQUIRED in requirements -> ReportTraceStageRequirement.REQUIRED
         ReportTraceStageRequirement.UNKNOWN in requirements || requirements.isEmpty() ->
           ReportTraceStageRequirement.UNKNOWN
+        ReportTraceStageRequirement.EXTERNAL in requirements -> ReportTraceStageRequirement.EXTERNAL
         else -> ReportTraceStageRequirement.NOT_APPLICABLE
       }
     }
