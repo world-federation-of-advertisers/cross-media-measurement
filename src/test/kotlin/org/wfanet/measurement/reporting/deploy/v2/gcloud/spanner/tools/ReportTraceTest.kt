@@ -2596,7 +2596,10 @@ class ReportTraceTest {
     val targetLogs =
       listOf(
         targetError,
-        targetError.copy(severity = "INFO", message = "[id=target-computation] Created Computation"),
+        targetError.copy(
+          severity = "INFO",
+          message = "[id=target-computation] Created Computation",
+        ),
         targetError.copy(
           severity = "INFO",
           message = "INFO: Claimed work item for Computation target-computation at stage COMPUTING",
@@ -2610,7 +2613,7 @@ class ReportTraceTest {
       targetError.copy(
         message =
           "SEVERE: foreign-computation@trustee-mill: Failing Computation. " +
-            "Input vector size 3 does not match expected size 4",
+            "Input vector size 3 does not match expected size 4"
       )
 
     val scoped =
