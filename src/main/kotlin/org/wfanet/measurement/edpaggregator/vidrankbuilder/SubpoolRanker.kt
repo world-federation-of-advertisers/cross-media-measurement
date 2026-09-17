@@ -39,12 +39,16 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.Bytes12IntMap
 
@@ -161,6 +165,7 @@ class SubpoolRanker(
   private val subpoolFingerprintsStore: SubpoolFingerprintsStore,
   private val rankIndexStore: RankIndexStore,
   private val rankIndexBlobsStub: RankIndexBlobServiceCoroutineStub,
+  private val rawImpressionUploadModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
   private val retention: SubpoolRetention,
   private val dataProvider: String,
   private val rawImpressionUpload: String,
@@ -177,6 +182,8 @@ class SubpoolRanker(
   private val maxInFlightRecords: Int = maxOf(2, ConcurrentRankAllocator.DEFAULT_STRIPES * 2),
   private val metrics: VidRankBuilderMetrics = VidRankBuilderMetrics(),
 ) {
+  private val completedModelLinesByUpload = mutableMapOf<String, Boolean>()
+
   init {
     require(stripes >= 1) { "stripes must be >= 1, got $stripes" }
     require(maxInFlightRecords >= 1) { "maxInFlightRecords must be >= 1, got $maxInFlightRecords" }
@@ -639,6 +646,7 @@ class SubpoolRanker(
       }
       .collect { page ->
         for (blob in page) {
+          if (!isOwnedByCompletedModelLine(blob)) continue
           val current = latest
           if (
             current == null || blob.createTime.toComparable() > current.createTime.toComparable()
@@ -721,6 +729,7 @@ class SubpoolRanker(
       }
       .collect { page ->
         for (blob in page) {
+          if (!isOwnedByCompletedModelLine(blob)) continue
           if (!blob.hasMaxEventDate()) continue
           val current = best
           if (current == null || blob.maxEventDate.epochDay() > current.maxEventDate.epochDay()) {
@@ -729,6 +738,43 @@ class SubpoolRanker(
         }
       }
     return best
+  }
+
+  private suspend fun isOwnedByCompletedModelLine(blob: RankIndexBlob): Boolean {
+    val uploadName =
+      blob.name.substringBeforeLast(RANK_INDEX_BLOB_COLLECTION, missingDelimiterValue = "")
+    check(uploadName.isNotEmpty()) { "Invalid RankIndexBlob name: ${blob.name}" }
+    completedModelLinesByUpload[uploadName]?.let {
+      return it
+    }
+
+    var modelLineRow: RawImpressionUploadModelLine? = null
+    rawImpressionUploadModelLinesStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLinesStub.listRawImpressionUploadModelLines(
+              listRawImpressionUploadModelLinesRequest {
+                parent = uploadName
+                filter =
+                  ListRawImpressionUploadModelLinesRequestKt.filter { cmmsModelLine = modelLine }
+                this.pageToken = pageToken
+              }
+            )
+          }
+        ResourceList(response.rawImpressionUploadModelLinesList, response.nextPageToken)
+      }
+      .collect { page ->
+        for (candidate in page) {
+          check(modelLineRow == null) {
+            "Multiple model-line rows for $modelLine under $uploadName"
+          }
+          modelLineRow = candidate
+        }
+      }
+    val completed = modelLineRow?.state == RawImpressionUploadModelLine.State.COMPLETED
+    completedModelLinesByUpload[uploadName] = completed
+    return completed
   }
 
   /**
@@ -869,6 +915,7 @@ class SubpoolRanker(
   }
 
   companion object {
+    private const val RANK_INDEX_BLOB_COLLECTION = "/rankIndexBlobs/"
     private val logger = Logger.getLogger(SubpoolRanker::class.java.name)
 
     /**

@@ -439,13 +439,16 @@ class RankIndexBlobService(
     private fun handleInternalError(e: StatusException): StatusRuntimeException {
       return when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.RANK_INDEX_BLOB_NOT_FOUND,
-        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND ->
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_NOT_FOUND,
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND ->
           Status.NOT_FOUND.withCause(e).asRuntimeException()
         InternalErrors.Reason.RANK_INDEX_BLOB_ALREADY_EXISTS ->
           Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
         InternalErrors.Reason.INVALID_FIELD_VALUE ->
           Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
+        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID ->
+          Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
         InternalErrors.Reason.DATA_PROVIDER_MISMATCH,
         InternalErrors.Reason.IMPRESSION_METADATA_NOT_FOUND,
         InternalErrors.Reason.IMPRESSION_METADATA_ALREADY_EXISTS,
@@ -465,8 +468,6 @@ class RankIndexBlobService(
         InternalErrors.Reason.RANKER_JOB_STATE_INVALID,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_NOT_FOUND,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_FILE_ALREADY_EXISTS,
-        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NOT_FOUND,
-        InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_INVALID,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_STATE_INVALID,
         InternalErrors.Reason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_CONCURRENT,
         InternalErrors.Reason.POOL_ASSIGNMENT_JOB_NOT_FOUND,
