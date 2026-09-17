@@ -2500,6 +2500,36 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `telemetry scope matches complete resource identifiers rather than prefixes`() {
+    val targetBasicReport = "measurementConsumers/mc-1/basicReports/report-1"
+    val foreignBasicReport = "measurementConsumers/mc-1/basicReports/report-10"
+    val foreignSpan =
+      lifecycleSpan("basic_report_creation", "xmm.basic_report.name", foreignBasicReport)
+    val foreignLog =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "reporting",
+        severity = "INFO",
+        trace = null,
+        message =
+          "event=reporting.basic_report.created " +
+            "xmm.lifecycle.stage=basic_report_creation " +
+            "xmm.basic_report.name=$foreignBasicReport xmm.outcome=succeeded",
+      )
+
+    val scoped =
+      ReportTraceOutput.scopeTelemetryToReport(
+        spans = listOf(foreignSpan),
+        logEntries = listOf(foreignLog),
+        authoritativeReportResources = setOf(targetBasicReport),
+      )
+
+    assertThat(scoped.spans).isEmpty()
+    assertThat(scoped.logEntries).isEmpty()
+  }
+
+  @Test
   fun `span retention preserves all recognized failure outcomes`() {
     val failureOutcomes =
       listOf("failed", "failed_validation", "report_failed", "failure", "error", "refused")
@@ -2548,6 +2578,7 @@ class ReportTraceTest {
             "xmm.edpa.group_id" to groupId,
             "xmm.work_item.name" to workItemName,
           ),
+        "work_item_publication" to mapOf("xmm.work_item.name" to workItemName),
         "work_item_processing" to mapOf("xmm.work_item.name" to workItemName),
         "results_fulfillment" to
           mapOf("xmm.requisition.name" to requisitionName, "xmm.edpa.group_id" to groupId),
@@ -2564,7 +2595,7 @@ class ReportTraceTest {
       )
     val duchyStageResources =
       listOf("aggregator", "worker1").flatMap { duchyId ->
-        listOf("duchy_computation", "duchy_stage_attempt").map { stage ->
+        listOf("duchy_computation", "duchy_mill_dispatch", "duchy_stage_attempt").map { stage ->
           stage to
             mapOf(
               "xmm.measurement.name" to measurementName,
@@ -2608,7 +2639,122 @@ class ReportTraceTest {
     assertThat(output).contains("Collection completeness: COMPLETE")
     assertThat(output)
       .contains("| duchy_computation | $measurementName @ duchy worker1 | SUCCEEDED |")
+    assertThat(output)
+      .contains("| duchy_mill_dispatch | $measurementName @ duchy worker1 | SUCCEEDED |")
+    assertThat(output).contains("| work_item_publication | $requisitionName | SUCCEEDED |")
     assertThat(output).contains("| results_fulfillment | $requisitionName | SUCCEEDED |")
+  }
+
+  @Test
+  fun `hosted dispatch retries use the latest successful evidence`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val workItemName = "workItems/results-fulfiller-group-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val dispatch =
+      lifecycleSpan(
+        "requisition_dispatch",
+        mapOf(
+          "xmm.requisition.name" to requisitionName,
+          "xmm.edpa.group_id" to "group-1",
+          "xmm.work_item.name" to workItemName,
+        ),
+      )
+    val workItemIdentity = mapOf("xmm.work_item.name" to workItemName)
+    val duchyIdentity =
+      mapOf(
+        "xmm.measurement.name" to measurementName,
+        "xmm.computation.name" to "computations/computation-1",
+        "xmm.duchy.id" to "worker1",
+      )
+    val spans =
+      listOf(
+        dispatch,
+        failedLifecycleSpan("work_item_publication", workItemIdentity),
+        lifecycleSpan("work_item_publication", workItemIdentity)
+          .copy(startTime = NOW.plusSeconds(2), endTime = NOW.plusSeconds(3)),
+        failedLifecycleSpan("duchy_mill_dispatch", duchyIdentity),
+        lifecycleSpan("duchy_mill_dispatch", duchyIdentity)
+          .copy(startTime = NOW.plusSeconds(2), endTime = NOW.plusSeconds(3)),
+      )
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(coverage.single { it.name == "work_item_publication" }.status).isEqualTo("SUCCEEDED")
+    assertThat(
+        coverage
+          .single { it.name == "duchy_mill_dispatch" && it.resource.endsWith("duchy worker1") }
+          .status
+      )
+      .isEqualTo("SUCCEEDED")
+  }
+
+  @Test
+  fun `hosted dispatch failure and missing scheduler evidence remain distinct`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/edpa/requisitions/requisition-1"
+    val workItemName = "workItems/results-fulfiller-group-1"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.EDPA,
+      )
+    val spans =
+      listOf(
+        lifecycleSpan(
+          "requisition_dispatch",
+          mapOf(
+            "xmm.requisition.name" to requisitionName,
+            "xmm.edpa.group_id" to "group-1",
+            "xmm.work_item.name" to workItemName,
+          ),
+        ),
+        failedLifecycleSpan("work_item_publication", mapOf("xmm.work_item.name" to workItemName)),
+      )
+
+    val coverage = ReportTraceOutput.lifecycleCoverage(context, routeResolution, spans, emptyList())
+
+    assertThat(coverage.single { it.name == "work_item_publication" }.status).isEqualTo("FAILED")
+    assertThat(
+        coverage
+          .single { it.name == "duchy_mill_dispatch" && it.resource.endsWith("duchy worker1") }
+          .status
+      )
+      .isEqualTo("MISSING")
+  }
+
+  @Test
+  fun `TrusTEE uses a mill attempt without a mill job scheduler dispatch`() {
+    val context = reportTraceContext()
+    val requisitionName = "dataProviders/direct/requisitions/requisition-1"
+    val baseRoute =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        requisitionName,
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val routeResolution =
+      baseRoute.copy(
+        measurementRoutes = listOf(baseRoute.measurementRoutes.single().copy(protocol = "TRUS_TEE"))
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), emptyList())
+
+    assertThat(coverage.filter { it.name == "duchy_mill_dispatch" }.map { it.status })
+      .containsExactly("NOT_APPLICABLE", "NOT_APPLICABLE")
+    assertThat(coverage.filter { it.name == "duchy_stage_attempt" }.map { it.status })
+      .containsExactly("MISSING", "MISSING")
   }
 
   @Test
@@ -3190,6 +3336,14 @@ class ReportTraceTest {
         listOf(
           lifecycleSpan(
             "duchy_computation",
+            mapOf(
+              "xmm.measurement.name" to measurementName,
+              "xmm.computation.name" to computationName,
+              "xmm.duchy.id" to duchyId,
+            ),
+          ),
+          lifecycleSpan(
+            "duchy_mill_dispatch",
             mapOf(
               "xmm.measurement.name" to measurementName,
               "xmm.computation.name" to computationName,
@@ -3803,15 +3957,14 @@ class ReportTraceTest {
     assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
     assertThat(output)
       .contains(
-        "Collection completeness: PARTIAL — " +
-          "missing evidence from: Report result post-processor"
+        "Collection completeness: PARTIAL — " + "missing evidence from: PostProcessReportResultJob"
       )
     assertThat(output)
       .contains(
-        "- Report result post-processor — trace `noise_correction`; " +
+        "- PostProcessReportResultJob — trace `noise_correction`; " +
           "resource `${context.basicReportName}`; status `MISSING`"
       )
-    assertThat(output).contains("| Report result post-processor | `noise_correction` |")
+    assertThat(output).contains("| PostProcessReportResultJob | `noise_correction` |")
   }
 
   @Test
@@ -3850,13 +4003,12 @@ class ReportTraceTest {
     assertThat(output)
       .contains(
         "Collection completeness: PARTIAL — " +
-          "missing evidence from: Reporting result-assembly job; " +
+          "missing evidence from: BasicReportsReportsJob; " +
           "incomplete telemetry: observability-project/gRPC payload classification"
       )
     assertThat(output).contains("Incomplete lifecycle evidence:")
     assertThat(output).contains("Incomplete telemetry sources:")
-    assertThat(output)
-      .contains("| Reporting result-assembly job | `basic_report_failure_writeback` |")
+    assertThat(output).contains("| BasicReportsReportsJob | `basic_report_failure_writeback` |")
   }
 
   @Test
@@ -4525,6 +4677,13 @@ class ReportTraceTest {
         "| results_fulfillment | dataProviders/direct/requisitions/requisition-1 | " +
           "NOT_APPLICABLE |"
       )
+    assertThat(output)
+      .contains(
+        "| direct_edp_fulfillment | dataProviders/direct/requisitions/requisition-1 | " +
+          "EXTERNAL_NOT_OBSERVED |"
+      )
+    assertThat(output)
+      .contains("Producer-side direct EDP telemetry is outside this tool's observability perimeter")
     assertThat(output).contains("| DIRECT | DIRECT |")
     assertThat(output).contains("| FULFILLED | dataProviders/direct | DIRECT_EDP |")
     assertThat(output).contains("- DataProvider: dataProviders/direct [DIRECT_EDP]")
@@ -4627,19 +4786,19 @@ class ReportTraceTest {
     assertThat(summary)
       .contains(
         "Collection completeness: PARTIAL — " +
-          "missing evidence from: Reporting Metrics service; " +
+          "missing evidence from: MetricsService; " +
           "incomplete telemetry: test-project/Cloud Logging"
       )
     assertThat(summary).contains("Incomplete lifecycle evidence:")
     assertThat(summary)
       .contains(
-        "- Reporting Metrics service — trace `kingdom_measurement_sync`; " +
+        "- MetricsService — trace `kingdom_measurement_sync`; " +
           "resource `$measurementName`; status `IN_PROGRESS`"
       )
     assertThat(summary).contains("Incomplete telemetry sources:")
     assertThat(summary)
       .contains("- `test-project/Cloud Logging` — `TRUNCATED`: Entry limit reached")
-    assertThat(summary).contains("| Reporting Metrics service | `kingdom_measurement_sync` |")
+    assertThat(summary).contains("| MetricsService | `kingdom_measurement_sync` |")
   }
 
   @Test
@@ -5039,6 +5198,7 @@ class ReportTraceTest {
             "xmm.edpa.group_id" to groupId,
             "xmm.work_item.name" to workItemName,
           ),
+        "work_item_publication" to mapOf("xmm.work_item.name" to workItemName),
         "work_item_processing" to
           mapOf("xmm.work_item.name" to workItemName.removePrefix("workItems/")),
         "results_fulfillment" to
@@ -5059,7 +5219,7 @@ class ReportTraceTest {
       )
     val duchyStages =
       duchyIds.flatMap { duchyId ->
-        listOf("duchy_computation", "duchy_stage_attempt").map { stage ->
+        listOf("duchy_computation", "duchy_mill_dispatch", "duchy_stage_attempt").map { stage ->
           stage to
             mapOf(
               "xmm.measurement.name" to mpcMeasurementName,
@@ -5152,6 +5312,8 @@ class ReportTraceTest {
       assertThat(artifact)
         .contains("| duchy_computation | $mpcMeasurementName @ duchy $duchyId | SUCCEEDED |")
       assertThat(artifact)
+        .contains("| duchy_mill_dispatch | $mpcMeasurementName @ duchy $duchyId | SUCCEEDED |")
+      assertThat(artifact)
         .contains("| duchy_stage_attempt | $mpcMeasurementName @ duchy $duchyId | SUCCEEDED |")
     }
     assertThat(artifact)
@@ -5172,12 +5334,27 @@ class ReportTraceTest {
         "| kingdom_requisition_result_acceptance | $mpcDirectRequisitionName | " +
           "NOT_APPLICABLE |"
       )
-    for (stage in listOf("requisition_dispatch", "work_item_processing", "results_fulfillment")) {
+    for (stage in
+      listOf(
+        "requisition_dispatch",
+        "work_item_publication",
+        "work_item_processing",
+        "results_fulfillment",
+      )) {
       assertThat(artifact).contains("| $stage | $edpaRequisitionName | SUCCEEDED |")
       assertThat(artifact)
         .contains("| $stage | $directMeasurementRequisitionName | NOT_APPLICABLE |")
       assertThat(artifact).contains("| $stage | $mpcDirectRequisitionName | NOT_APPLICABLE |")
     }
+    assertThat(artifact)
+      .contains(
+        "| direct_edp_fulfillment | $directMeasurementRequisitionName | " +
+          "EXTERNAL_NOT_OBSERVED |"
+      )
+    assertThat(artifact)
+      .contains("| direct_edp_fulfillment | $mpcDirectRequisitionName | EXTERNAL_NOT_OBSERVED |")
+    assertThat(artifact)
+      .contains("| direct_edp_fulfillment | $edpaRequisitionName | NOT_APPLICABLE |")
     for (stage in listOf("duchy_requisition_acceptance", "duchy_requisition_kingdom_fulfillment")) {
       assertThat(artifact).contains("| $stage | $edpaRequisitionName | SUCCEEDED |")
       assertThat(artifact).contains("| $stage | $mpcDirectRequisitionName | SUCCEEDED |")
