@@ -1275,8 +1275,8 @@ internal object ReportTraceOutput {
     val completenessDetails = buildList {
       if (incompleteStages.isNotEmpty()) {
         add(
-          "incomplete lifecycle: " +
-            summarizeCompletenessComponents(incompleteStages.map { it.name })
+          "missing evidence from: " +
+            summarizeCompletenessComponents(incompleteStages.map { lifecycleComponent(it.name) })
         )
       }
       if (incompleteSources.isNotEmpty()) {
@@ -1302,8 +1302,8 @@ internal object ReportTraceOutput {
       } else {
         for (stage in incompleteStages) {
           appendLine(
-            "- `${sanitize(stage.name)}` — `${sanitize(stage.resource)}` " +
-              "(`${sanitize(stage.status)}`)"
+            "- ${sanitize(lifecycleComponent(stage.name))} — trace `${sanitize(stage.name)}`; " +
+              "resource `${sanitize(stage.resource)}`; status `${sanitize(stage.status)}`"
           )
         }
       }
@@ -1318,6 +1318,14 @@ internal object ReportTraceOutput {
           )
         }
       }
+    }
+    appendLine()
+    appendLine("## Lifecycle component key")
+    appendLine()
+    appendLine("| Component or server | Lifecycle trace |")
+    appendLine("| --- | --- |")
+    for (stageName in lifecycleCoverage.map { it.name }.distinct()) {
+      appendLine("| ${sanitize(lifecycleComponent(stageName))} | `${sanitize(stageName)}` |")
     }
     appendLine()
     appendLine("## Identity and collection window")
@@ -2875,6 +2883,10 @@ internal object ReportTraceOutput {
     }
   }
 
+  private fun lifecycleComponent(stage: String): String {
+    return LIFECYCLE_COMPONENT_BY_STAGE[stage] ?: "Unmapped lifecycle component"
+  }
+
   private fun redact(value: String): String {
     var sanitized = value.replace('\n', ' ').replace('\r', ' ')
     for (pattern in SECRET_PATTERNS) {
@@ -3019,6 +3031,34 @@ internal object ReportTraceOutput {
   private const val MAX_COMPLETENESS_HEADLINE_COMPONENTS = 5
   private const val MAX_DIAGNOSTIC_LOG_ENTRIES = 50
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
+  private val LIFECYCLE_COMPONENT_BY_STAGE =
+    mapOf(
+      "basic_report_creation" to "Reporting BasicReports service",
+      "basic_report_api_fetch" to "Reporting BasicReports service",
+      "report_creation" to "Reporting Reports service",
+      "metric_creation" to "Reporting Metrics service",
+      "metric_result_sync" to "Reporting services",
+      "measurement_creation" to "Reporting and Kingdom Measurements services",
+      "measurement_linkage" to "Reporting Metrics service",
+      "kingdom_measurement_sync" to "Reporting Metrics service",
+      "duchy_computation" to "Duchy Herald",
+      "duchy_stage_attempt" to "Duchy Mill (HMSS or TrusTEE)",
+      "kingdom_computation_result_acceptance" to "Kingdom Computations service",
+      "requisition_available" to "Kingdom Requisitions service",
+      "requisition_refusal" to "RequisitionFetcher or ResultsFulfiller",
+      "requisition_dispatch" to "RequisitionFetcher",
+      "work_item_processing" to "Secure Computation TEE worker",
+      "results_fulfillment" to "ResultsFulfiller TEE",
+      "duchy_requisition_acceptance" to "Duchy RequisitionFulfillment service",
+      "duchy_requisition_kingdom_fulfillment" to "Duchy RequisitionFulfillment service",
+      "kingdom_requisition_result_acceptance" to "Kingdom Requisitions service",
+      "kingdom_requisition_refusal_acceptance" to "Kingdom Requisitions service",
+      "report_result_assembly" to "Reporting result-assembly job",
+      "noise_correction" to "Report result post-processor",
+      "processed_result_writeback" to "Report result post-processor",
+      "basic_report_failure_writeback" to "Reporting result-assembly job",
+      "basic_report_available" to "Reporting persistence",
+    )
   private val ERROR_LOG_SEVERITIES = setOf("ERROR", "CRITICAL", "ALERT", "EMERGENCY")
   private val WARNING_LOG_SEVERITIES = setOf("WARNING", "WARN")
   private val DIAGNOSTIC_RESOURCE_ATTRIBUTES =
