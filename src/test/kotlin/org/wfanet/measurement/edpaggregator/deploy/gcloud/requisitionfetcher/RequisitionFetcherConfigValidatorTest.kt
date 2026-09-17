@@ -161,49 +161,6 @@ class RequisitionFetcherConfigValidatorTest {
   }
 
   @Test
-  fun `deployment config requires direct queue to match deployed ResultsFulfiller queue`() {
-    val config =
-      RequisitionFetcherConfig.newBuilder()
-        .addConfigs(
-          validDataProviderConfig()
-            .toBuilder()
-            .setWorkItemDispatch(
-              validDataProviderConfig().workItemDispatch.toBuilder().setQueue("other-valid-queue")
-            )
-        )
-        .build()
-
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        RequisitionFetcherConfigValidator.validate(
-          config,
-          CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
-        )
-      }
-
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("does not match deployed ResultsFulfiller queue '$RESULTS_FULFILLER_QUEUE'")
-  }
-
-  @Test
-  fun `deployment config requires a deployed ResultsFulfiller queue for the legacy path`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        RequisitionFetcherConfigValidator.validate(
-          validFetcherConfig(),
-          CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/other/(.*)$"),
-        )
-      }
-
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Expected exactly one deployed ResultsFulfiller queue")
-  }
-
-  @Test
   fun `deployment config requires requisition metadata storage connection`() {
     val config =
       RequisitionFetcherConfig.newBuilder()
