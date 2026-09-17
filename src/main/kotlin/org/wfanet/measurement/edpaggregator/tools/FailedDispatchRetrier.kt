@@ -27,6 +27,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
@@ -219,6 +220,19 @@ class FailedDispatchRetrier(
     val candidatePhases =
       if (fromPhase == null) possiblePhases else possiblePhases.filter { it == fromPhase }
     for (phase in candidatePhases) {
+      if (phase == RawImpressionUploadModelLine.State.LABELING) {
+        val jobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+        val unfinishedIds =
+          jobs
+            .filter { it.state != VidLabelingJob.State.SUCCEEDED }
+            .map { WorkItemIds.forVidLabeler(it.name) }
+        if (unfinishedIds.isNotEmpty()) {
+          if (unfinishedIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }) {
+            return phase
+          }
+          continue
+        }
+      }
       val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
       if (
         originalWorkItemIds.isNotEmpty() &&
@@ -270,11 +284,11 @@ class FailedDispatchRetrier(
     uploadName: String,
     cmmsModelLine: String,
   ): PhaseWorkItems {
-    val vidLabelingJobNames = listVidLabelingJobNames(uploadName, cmmsModelLine)
-    if (vidLabelingJobNames.isNotEmpty()) {
+    val vidLabelingJobs = listVidLabelingJobs(uploadName, cmmsModelLine)
+    if (vidLabelingJobs.isNotEmpty()) {
       return PhaseWorkItems(
         RawImpressionUploadModelLine.State.LABELING,
-        vidLabelingJobNames.map { WorkItemIds.forVidLabeler(it) },
+        labelingPhaseWorkItemIds(vidLabelingJobs),
       )
     }
     val rankerJobNames = listRankerJobNames(uploadName, cmmsModelLine)
@@ -314,7 +328,7 @@ class FailedDispatchRetrier(
   ): List<String> =
     when (phase) {
       RawImpressionUploadModelLine.State.LABELING ->
-        listVidLabelingJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidLabeler(it) }
+        labelingPhaseWorkItemIds(uploadName, cmmsModelLine)
       RawImpressionUploadModelLine.State.RANKING ->
         listRankerJobNames(uploadName, cmmsModelLine).map { WorkItemIds.forVidRankBuilder(it) }
       RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
@@ -324,11 +338,23 @@ class FailedDispatchRetrier(
       else -> error("unreachable: $phase is not a retry phase")
     }
 
-  private suspend fun listVidLabelingJobNames(
+  private suspend fun labelingPhaseWorkItemIds(
     uploadName: String,
     cmmsModelLine: String,
-  ): List<String> {
-    val names = mutableListOf<String>()
+  ): List<String> = labelingPhaseWorkItemIds(listVidLabelingJobs(uploadName, cmmsModelLine))
+
+  private fun labelingPhaseWorkItemIds(jobs: List<VidLabelingJob>): List<String> {
+    val unfinished = jobs.filter { it.state != VidLabelingJob.State.SUCCEEDED }
+    return (if (unfinished.isEmpty()) jobs else unfinished).map {
+      WorkItemIds.forVidLabeler(it.name)
+    }
+  }
+
+  private suspend fun listVidLabelingJobs(
+    uploadName: String,
+    cmmsModelLine: String,
+  ): List<VidLabelingJob> {
+    val jobs = mutableListOf<VidLabelingJob>()
     var pageToken = ""
     do {
       val response =
@@ -341,10 +367,10 @@ class FailedDispatchRetrier(
             }
           )
         }
-      response.vidLabelingJobsList.forEach { names.add(it.name) }
+      jobs.addAll(response.vidLabelingJobsList)
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
-    return names
+    return jobs
   }
 
   private suspend fun listRankerJobNames(uploadName: String, cmmsModelLine: String): List<String> {
