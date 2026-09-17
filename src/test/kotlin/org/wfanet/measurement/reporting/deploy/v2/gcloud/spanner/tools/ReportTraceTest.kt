@@ -1532,7 +1532,7 @@ class ReportTraceTest {
     val logging = mock<Logging>()
     val correlatedPage = mock<Page<LogEntry>>()
     val contextPage = mock<Page<LogEntry>>()
-    val logName = "projects/logging-project/logs/stderr"
+    val logName = "stderr"
     val resource =
       MonitoredResource.newBuilder("k8s_container")
         .addLabel("project_id", "logging-project")
@@ -1545,14 +1545,23 @@ class ReportTraceTest {
         .setResource(resource)
         .setTimestamp(NOW.minusMillis(millisBeforeNow))
         .build()
-    val grpcPreamble = streamEntry("[grpc-worker] gRPC trace-id request:", 2)
+    val grpcPreamble =
+      streamEntry(
+        "INFO: [DefaultDispatcher-worker-2] gRPC 6 request: " +
+          "Metadata(grpc-accept-encoding=gzip) parent: \"measurementConsumers/mc-1\"",
+        2,
+      )
     val grpcContinuation =
       streamEntry("basic_report: \"measurementConsumers/mc-1/basicReports/report-1\"", 1)
     whenever(correlatedPage.values).thenReturn(listOf(grpcContinuation))
     whenever(correlatedPage.hasNextPage()).thenReturn(false)
     whenever(contextPage.values).thenReturn(listOf(grpcContinuation, grpcPreamble))
     whenever(contextPage.hasNextPage()).thenReturn(false)
-    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage, contextPage)
+    val filters = mutableListOf<String>()
+    whenever(logging.listLogEntries(any(), any(), any())).thenAnswer { invocation ->
+      filters += invocation.arguments[0].toString()
+      if (filters.size == 1) correlatedPage else contextPage
+    }
     val reader =
       GoogleCloudReportTraceLogReader(
         project = "logging-project",
@@ -1569,6 +1578,7 @@ class ReportTraceTest {
       )
 
     assertThat(entries).isEmpty()
+    assertThat(filters[1]).contains("projects/logging-project/logs/stderr")
   }
 
   @Test
@@ -3791,8 +3801,52 @@ class ReportTraceTest {
       )
 
     assertThat(coverage.single { it.name == "noise_correction" }.status).isEqualTo("MISSING")
-    assertThat(output).contains("Collection completeness: PARTIAL")
+    assertThat(output)
+      .contains("Collection completeness: PARTIAL — incomplete lifecycle: noise_correction")
     assertThat(output).contains("- `noise_correction` — `${context.basicReportName}` (`MISSING`)")
+  }
+
+  @Test
+  fun `partial collection headline names lifecycle and telemetry components`() {
+    val context = reportTraceContext()
+    val output =
+      ReportTraceOutput.render(
+        context = context,
+        spans = emptyList(),
+        logEntries = emptyList(),
+        sourceStatuses =
+          listOf(
+            ReportTraceSourceStatus(
+              project = "observability-project",
+              source = "gRPC payload classification",
+              status = "TRUNCATED",
+              fetched = 1,
+              retained = 0,
+              note = "Classification context was incomplete",
+            )
+          ),
+        warnings = emptyList(),
+        includeGrpcPayloads = false,
+        lifecycleCoverage =
+          listOf(
+            ReportTraceLifecycleStage(
+              name = "basic_report_failure_writeback",
+              resource = checkNotNull(context.basicReportName),
+              status = "MISSING",
+              evidence = "Failure writeback evidence is missing",
+            )
+          ),
+        artifactStatus = ReportTraceArtifactStatus.PARTIAL,
+      )
+
+    assertThat(output)
+      .contains(
+        "Collection completeness: PARTIAL — " +
+          "incomplete lifecycle: basic_report_failure_writeback; " +
+          "incomplete telemetry: observability-project/gRPC payload classification"
+      )
+    assertThat(output).contains("Incomplete lifecycle evidence:")
+    assertThat(output).contains("Incomplete telemetry sources:")
   }
 
   @Test
