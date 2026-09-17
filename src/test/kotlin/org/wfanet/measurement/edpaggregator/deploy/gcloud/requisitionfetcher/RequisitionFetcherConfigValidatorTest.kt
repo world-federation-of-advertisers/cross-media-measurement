@@ -45,6 +45,15 @@ class RequisitionFetcherConfigValidatorTest {
   }
 
   @Test
+  fun `deployment config without legacy DataWatcher route is valid`() {
+    RequisitionFetcherConfigValidator.validate(
+      validFetcherConfig(),
+      CONTROL_PLANE_TARGET,
+      DataWatcherConfig.getDefaultInstance(),
+    )
+  }
+
+  @Test
   fun `deployment config rejects DataWatcher matching direct namespace`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
@@ -89,52 +98,6 @@ class RequisitionFetcherConfigValidatorTest {
       }
 
     assertThat(exception).hasMessageThat().contains("control-plane target")
-  }
-
-  @Test
-  fun `deployment config requires direct queue to match deployed ResultsFulfiller queue`() {
-    val config =
-      RequisitionFetcherConfig.newBuilder()
-        .addConfigs(
-          validDataProviderConfig()
-            .toBuilder()
-            .setWorkItemDispatch(
-              validDataProviderConfig()
-                .workItemDispatch
-                .toBuilder()
-                .setQueue("other-valid-queue")
-            )
-        )
-        .build()
-
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        RequisitionFetcherConfigValidator.validate(
-          config,
-          CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
-        )
-      }
-
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("does not match deployed ResultsFulfiller queue '$RESULTS_FULFILLER_QUEUE'")
-  }
-
-  @Test
-  fun `deployment config requires a deployed ResultsFulfiller queue for the legacy path`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        RequisitionFetcherConfigValidator.validate(
-          validFetcherConfig(),
-          CONTROL_PLANE_TARGET,
-          dataWatcherConfig("^gs://bucket/other/(.*)$"),
-        )
-      }
-
-    assertThat(exception)
-      .hasMessageThat()
-      .contains("Expected exactly one deployed ResultsFulfiller queue")
   }
 
   @Test
@@ -225,7 +188,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionWorkItemDispatchConfig.newBuilder()
           .setStoragePathPrefix("direct")
           .setControlPlaneConnection(tlsParams())
-          .setQueue(RESULTS_FULFILLER_QUEUE)
+          .setQueue("results-fulfiller-queue")
           .setResultsFulfillerParams(resultsFulfillerParams())
       )
       .build()
@@ -269,7 +232,7 @@ class RequisitionFetcherConfigValidatorTest {
           .setIdentifier("legacy-requisitions")
           .setSourcePathRegex(regex)
           .setControlPlaneQueueSink(
-            WatchedPath.ControlPlaneQueueSink.newBuilder().setQueue(RESULTS_FULFILLER_QUEUE)
+            WatchedPath.ControlPlaneQueueSink.newBuilder().setQueue("results-fulfiller-queue")
           )
       )
       .build()
@@ -277,6 +240,5 @@ class RequisitionFetcherConfigValidatorTest {
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp"
     private const val CONTROL_PLANE_TARGET = "secure-computation.example:8443"
-    private const val RESULTS_FULFILLER_QUEUE = "results-fulfiller-queue"
   }
 }
