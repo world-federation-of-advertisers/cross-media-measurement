@@ -32,8 +32,11 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -44,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
@@ -73,12 +77,12 @@ import org.wfanet.measurement.storage.StorageClient
  *   uploads with a `FAILED` model line via [VidLabelingMonitorMetrics.failedUploadsGauge], for
  *   duration-window alerting (no per-tick `SEVERE`, to avoid re-paging until manual recovery).
  *
- * Phase-transition advancement (`POOL_ASSIGNING → RANKING → LABELING → COMPLETED`) and data-quality
- * checks are added in follow-up PRs (see #3958); the scan is structured so each is an additive
- * step.
+ * The health pass recovers stalled phase transitions (`POOL_ASSIGNING → RANKING → LABELING →
+ * COMPLETED`) by replaying one completed child WorkItem.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
+ * @param poolAssignmentJobStub stub for `PoolAssignmentJobService`.
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
@@ -98,6 +102,8 @@ class VidLabelingMonitor(
   private val rawImpressionUploadFileStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
   vidLabeledImpressionsStorageClientProvider: () -> StorageClient,
+  private val poolAssignmentJobStub:
+    PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
@@ -164,12 +170,6 @@ class VidLabelingMonitor(
           unrecoverableRecoveries > 0
   }
 
-  // TODO(world-federation-of-advertisers/cross-media-measurement#4044): stuck-POOL_ASSIGNING
-  //   phase-transition recovery is deferred until the PoolAssignmentJobService implementation
-  //   (#4044) is in this branch base. Both the O(1) "all PoolAssignmentJobs SUCCEEDED" detection
-  //   (ListPoolAssignmentJobs total_size with a state filter) and end-to-end recovery require
-  //   that service, which is not yet in ancestry. Stuck-RANKING/stuck-LABELING recovery and the
-  //   data-quality checks do not depend on it.
   /**
    * Runs the fast dispatch cadence: delegates to the shared sequencer to start the oldest queued
    * upload for this DataProvider. Does not run any health check.
@@ -565,8 +565,7 @@ class VidLabelingMonitor(
    * [MAX_RECOVERY_ATTEMPTS]. Past that the transition is left stuck, the recovery-exhausted gauge
    * is raised as the page signal, and a `SEVERE` line names the transition for the operator. Only a
    * model line stuck longer than [stalenessThreshold] is recovered, so a legitimately in-flight
-   * last-out is never raced. Stuck `POOL_ASSIGNING` recovery is deferred to #4044 (see the TODO
-   * above [runDispatch]); it needs `PoolAssignmentJobService`, which is not in this base.
+   * last-out is never raced.
    */
   private suspend fun recoverStuckPhases(snapshot: RunSnapshot): RecoverySummary {
     val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
@@ -581,11 +580,12 @@ class VidLabelingMonitor(
         }
         val outcome =
           when (modelLine.state) {
+            RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+              recoverIfAllPoolAssignmentJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.RANKING ->
               recoverIfAllRankerJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.LABELING ->
               recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
-            // POOL_ASSIGNING recovery deferred to #4044 (PoolAssignmentJobService not in base).
             else -> RecoveryOutcome.NOOP
           }
         when (outcome) {
@@ -621,6 +621,41 @@ class VidLabelingMonitor(
       unrecoverable = unrecoverable,
     )
   }
+
+  /** Re-publishes a successful Phase-0 shard when every shard job has succeeded. */
+  private suspend fun recoverIfAllPoolAssignmentJobsSucceeded(
+    uploadName: String,
+    modelLine: String,
+  ): RecoveryOutcome {
+    val jobs = listPoolAssignmentJobs(uploadName, modelLine)
+    if (jobs.isEmpty() || jobs.any { it.state != PoolAssignmentJob.State.SUCCEEDED }) {
+      return RecoveryOutcome.NOOP
+    }
+    val job = jobs.minBy { it.shardIndex }
+    return republishWorkItem(WorkItemIds.forSubpoolAssigner(uploadName, modelLine, job.shardIndex))
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun listPoolAssignmentJobs(
+    uploadName: String,
+    modelLine: String,
+  ): List<PoolAssignmentJob> =
+    poolAssignmentJobStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            poolAssignmentJobStub.listPoolAssignmentJobs(
+              listPoolAssignmentJobsRequest {
+                parent = uploadName
+                filter = ListPoolAssignmentJobsRequestKt.filter { cmmsModelLine = modelLine }
+                this.pageToken = pageToken
+              }
+            )
+          }
+        ResourceList(response.poolAssignmentJobsList, response.nextPageToken)
+      }
+      .flattenConcat()
+      .toList()
 
   /**
    * O(1) check (List `total_size`) that every `RankerJob` for `(uploadName, modelLine)` is
