@@ -523,6 +523,7 @@ fun InternalBasicReport.toBasicReport(
         InternalBasicReport.State.SUCCEEDED -> BasicReport.State.SUCCEEDED
         InternalBasicReport.State.FAILED -> BasicReport.State.FAILED
         InternalBasicReport.State.INVALID -> BasicReport.State.INVALID
+        InternalBasicReport.State.WITHDRAWN -> BasicReport.State.WITHDRAWN
         InternalBasicReport.State.STATE_UNSPECIFIED -> BasicReport.State.STATE_UNSPECIFIED
         InternalBasicReport.State.UNRECOGNIZED -> BasicReport.State.UNRECOGNIZED
       }

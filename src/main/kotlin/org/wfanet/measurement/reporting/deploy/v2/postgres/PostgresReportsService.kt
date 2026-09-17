@@ -32,11 +32,15 @@ import org.wfanet.measurement.internal.reporting.v2.GetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.Report
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequest
+import org.wfanet.measurement.internal.reporting.v2.WithdrawReportRequest
+import org.wfanet.measurement.internal.reporting.v2.WithdrawReportResponse
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.CreateReport
+import org.wfanet.measurement.reporting.deploy.v2.postgres.writers.WithdrawReport
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricCalculationSpecNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportAlreadyExistsException
+import org.wfanet.measurement.reporting.service.internal.ReportNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportScheduleNotFoundException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
@@ -103,6 +107,19 @@ class PostgresReportsService(
       } finally {
         readContext.close()
       }
+    }
+  }
+
+  override suspend fun withdrawReport(request: WithdrawReportRequest): WithdrawReportResponse {
+    grpcRequire(request.cmmsMeasurementConsumerId.isNotEmpty()) {
+      "cmms_measurement_consumer_id is not set"
+    }
+    grpcRequire(request.externalReportId.isNotEmpty()) { "external_report_id is not set" }
+
+    return try {
+      WithdrawReport(request).execute(client, idGenerator)
+    } catch (e: ReportNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
     }
   }
 }

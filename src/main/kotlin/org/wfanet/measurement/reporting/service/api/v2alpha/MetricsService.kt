@@ -115,6 +115,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -1402,13 +1403,15 @@ class MetricsService(
       throw when (InternalErrors.getReason(e)) {
         InternalErrors.Reason.METRIC_NOT_FOUND ->
           MetricNotFoundException(request.name, e).asStatusRuntimeException(Status.Code.NOT_FOUND)
-        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION ->
+        InternalErrors.Reason.INVALID_METRIC_STATE_TRANSITION -> {
+          val metadata = InternalErrors.parseMetadata(checkNotNull(e.errorInfo))
           InvalidMetricStateTransitionException(
               request.name,
-              Metric.State.FAILED,
-              Metric.State.INVALID,
+              Metric.State.valueOf(metadata.getValue(InternalErrors.Metadata.METRIC_STATE)),
+              Metric.State.valueOf(metadata.getValue(InternalErrors.Metadata.NEW_METRIC_STATE)),
             )
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
         InternalErrors.Reason.MEASUREMENT_CONSUMER_NOT_FOUND,
         InternalErrors.Reason.BASIC_REPORT_ALREADY_EXISTS,
         InternalErrors.Reason.REQUIRED_FIELD_NOT_SET,
@@ -1986,7 +1989,8 @@ class MetricsService(
         when (state) {
           InternalMetric.State.SUCCEEDED,
           InternalMetric.State.FAILED,
-          InternalMetric.State.INVALID ->
+          InternalMetric.State.INVALID,
+          InternalMetric.State.WITHDRAWN ->
             addAll(metricsByState.getValue(state).map { it.toMetric(variances) })
           InternalMetric.State.RUNNING -> {
             if (anyMeasurementUpdated) {
@@ -2108,6 +2112,16 @@ class MetricsService(
               source.weightedMeasurementsList.map {
                 MeasurementKey(source.cmmsMeasurementConsumerId, it.measurement.cmmsMeasurementId)
                   .toName()
+              }
+          }
+        }
+        Metric.State.WITHDRAWN -> {
+          result = metricResult {
+            cmmsMeasurements +=
+              source.weightedMeasurementsList.mapNotNull {
+                it.measurement.cmmsMeasurementId.takeIf(String::isNotEmpty)?.let { measurementId ->
+                  MeasurementKey(source.cmmsMeasurementConsumerId, measurementId).toName()
+                }
               }
           }
         }

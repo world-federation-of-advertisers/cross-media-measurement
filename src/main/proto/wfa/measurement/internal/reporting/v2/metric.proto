@@ -119,6 +119,8 @@ message Metric {
     SUCCEEDED = 2;
     FAILED = 3;
     INVALID = 4;
+    // Withdrawn because no active `Report` references it. Terminal state.
+    WITHDRAWN = 5;
   }
   State state = 9;
 }

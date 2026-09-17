@@ -55,11 +55,14 @@ class InvalidateMetric(private val request: InvalidateMetricRequest) : PostgresW
         )
       }
 
-    if (metricResult.metric.state == Metric.State.FAILED) {
+    if (
+      metricResult.metric.state == Metric.State.FAILED ||
+        metricResult.metric.state == Metric.State.WITHDRAWN
+    ) {
       throw InvalidMetricStateTransitionException(
         cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
         externalMetricId = request.externalMetricId,
-        metricState = Metric.State.FAILED,
+        metricState = metricResult.metric.state,
         newMetricState = Metric.State.INVALID,
       )
     }

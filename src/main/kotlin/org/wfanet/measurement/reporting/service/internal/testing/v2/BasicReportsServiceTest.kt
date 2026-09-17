@@ -100,6 +100,7 @@ import org.wfanet.measurement.internal.reporting.v2.resultGroup
 import org.wfanet.measurement.internal.reporting.v2.resultGroupMetricSpec
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
 import org.wfanet.measurement.internal.reporting.v2.setExternalReportIdRequest
+import org.wfanet.measurement.internal.reporting.v2.withdrawBasicReportRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 import org.wfanet.measurement.reporting.service.internal.ImpressionQualificationFilterMapping
 
@@ -3357,6 +3358,50 @@ abstract class BasicReportsServiceTest<T : BasicReportsCoroutineImplBase> {
           }
         )
     }
+
+  @Test
+  fun `withdrawBasicReport updates state to WITHDRAWN`(): Unit = runBlocking {
+    measurementConsumersService.createMeasurementConsumer(
+      measurementConsumer { cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID }
+    )
+
+    reportingSetsService.createReportingSet(
+      createReportingSetRequest {
+        reportingSet = REPORTING_SET
+        externalReportingSetId = REPORTING_SET.externalReportingSetId
+      }
+    )
+
+    val createdBasicReport =
+      service.createBasicReport(
+        createBasicReportRequest {
+          basicReport =
+            BASIC_REPORT.copy {
+              createReportRequestId = "1235"
+              clearResultDetails()
+            }
+        }
+      )
+
+    val updatedBasicReport =
+      service.withdrawBasicReport(
+        withdrawBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
+
+    val retrievedBasicReport =
+      service.getBasicReport(
+        getBasicReportRequest {
+          cmmsMeasurementConsumerId = createdBasicReport.cmmsMeasurementConsumerId
+          externalBasicReportId = createdBasicReport.externalBasicReportId
+        }
+      )
+
+    assertThat(updatedBasicReport.state).isEqualTo(BasicReport.State.WITHDRAWN)
+    assertThat(retrievedBasicReport).isEqualTo(updatedBasicReport)
+  }
 
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "1234"

@@ -1144,7 +1144,8 @@ abstract class InProcessEdpAggregatorLifeOfAReportTest(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA")
       when (retrievedReport.state) {
         Report.State.SUCCEEDED,
-        Report.State.FAILED -> return retrievedReport
+        Report.State.FAILED,
+        Report.State.WITHDRAWN -> return retrievedReport
         Report.State.RUNNING,
         Report.State.UNRECOGNIZED,
         Report.State.STATE_UNSPECIFIED -> delay(5000)

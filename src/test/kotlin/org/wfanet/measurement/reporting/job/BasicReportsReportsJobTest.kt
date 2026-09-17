@@ -98,6 +98,7 @@ import org.wfanet.measurement.internal.reporting.v2.reportingInterval
 import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.resultGroupSpec
+import org.wfanet.measurement.internal.reporting.v2.withdrawBasicReportRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
@@ -2463,6 +2464,23 @@ class BasicReportsReportsJobTest {
           }
         )
     }
+
+  @Test
+  fun `execute sets basic report to WITHDRAWN when report is WITHDRAWN`(): Unit = runBlocking {
+    whenever(reportsMock.getReport(any()))
+      .thenReturn(REPORT.copy { state = Report.State.WITHDRAWN })
+
+    job.execute()
+
+    assertReportCreatedPageRequested()
+    verifyProtoArgument(basicReportsMock, BasicReportsCoroutineImplBase::withdrawBasicReport)
+      .isEqualTo(
+        withdrawBasicReportRequest {
+          cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+          externalBasicReportId = INTERNAL_BASIC_REPORT.externalBasicReportId
+        }
+      )
+  }
 
   @Test
   fun `execute gets report for basic report when attempt fails for a previous basic report`():

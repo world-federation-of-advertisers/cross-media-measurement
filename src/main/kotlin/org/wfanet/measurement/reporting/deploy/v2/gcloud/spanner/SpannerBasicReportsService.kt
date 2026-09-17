@@ -50,6 +50,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportingSetResult
 import org.wfanet.measurement.internal.reporting.v2.ResultGroup
 import org.wfanet.measurement.internal.reporting.v2.SetExternalReportIdRequest
 import org.wfanet.measurement.internal.reporting.v2.StreamReportingSetsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.WithdrawBasicReportRequest
 import org.wfanet.measurement.internal.reporting.v2.basicReportResultDetails
 import org.wfanet.measurement.internal.reporting.v2.batchGetReportingSetsRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -69,7 +70,7 @@ import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasur
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.measurementConsumerExists
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readFullReportingSetResults
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportStateToFailed
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setBasicReportState
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.setExternalReportId
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetReader
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
@@ -464,12 +465,35 @@ class SpannerBasicReportsService(
   }
 
   override suspend fun failBasicReport(request: FailBasicReportRequest): BasicReport {
-    if (request.cmmsMeasurementConsumerId.isEmpty()) {
+    return transitionBasicReportToTerminalState(
+      request.cmmsMeasurementConsumerId,
+      request.externalBasicReportId,
+      BasicReport.State.FAILED,
+      idempotent = false,
+    )
+  }
+
+  override suspend fun withdrawBasicReport(request: WithdrawBasicReportRequest): BasicReport {
+    return transitionBasicReportToTerminalState(
+      request.cmmsMeasurementConsumerId,
+      request.externalBasicReportId,
+      BasicReport.State.WITHDRAWN,
+      idempotent = true,
+    )
+  }
+
+  private suspend fun transitionBasicReportToTerminalState(
+    cmmsMeasurementConsumerId: String,
+    externalBasicReportId: String,
+    terminalState: BasicReport.State,
+    idempotent: Boolean,
+  ): BasicReport {
+    if (cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
 
-    if (request.externalBasicReportId.isEmpty()) {
+    if (externalBasicReportId.isEmpty()) {
       throw RequiredFieldNotSetException("external_basic_report_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
@@ -481,18 +505,21 @@ class SpannerBasicReportsService(
         transactionRunner.run { txn ->
           txn
             .getBasicReportByExternalId(
-              cmmsMeasurementConsumerId = request.cmmsMeasurementConsumerId,
-              externalBasicReportId = request.externalBasicReportId,
+              cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+              externalBasicReportId = externalBasicReportId,
             )
             .also {
-              if (it.basicReport.state !in FAILABLE_STATES) {
+              if (it.basicReport.state == terminalState && idempotent) {
+                return@also
+              }
+              if (it.basicReport.state !in TERMINABLE_STATES) {
                 throw BasicReportStateInvalidException(
-                  request.cmmsMeasurementConsumerId,
-                  request.externalBasicReportId,
+                  cmmsMeasurementConsumerId,
+                  externalBasicReportId,
                   it.basicReport.state,
                 )
               }
-              txn.setBasicReportStateToFailed(it.measurementConsumerId, it.basicReportId)
+              txn.setBasicReportState(it.measurementConsumerId, it.basicReportId, terminalState)
             }
         }
       } catch (e: BasicReportNotFoundException) {
@@ -503,13 +530,13 @@ class SpannerBasicReportsService(
 
     val campaignGroup =
       getCampaignGroup(
-        request.cmmsMeasurementConsumerId,
+        cmmsMeasurementConsumerId,
         basicReportResult.basicReport.externalCampaignGroupId,
       )
 
     return basicReportResult.basicReport.copy {
       campaignGroupDisplayName = campaignGroup.displayName
-      state = BasicReport.State.FAILED
+      state = terminalState
     }
   }
 
@@ -901,8 +928,8 @@ class SpannerBasicReportsService(
     private const val DEFAULT_PAGE_SIZE = 10
     private const val MAX_PAGE_SIZE = 25
 
-    /** States from which a [BasicReport] can transition to [BasicReport.State.FAILED]. */
-    private val FAILABLE_STATES =
+    /** States from which a [BasicReport] can transition to a terminal state. */
+    private val TERMINABLE_STATES =
       setOf(
         BasicReport.State.CREATED,
         BasicReport.State.REPORT_CREATED,

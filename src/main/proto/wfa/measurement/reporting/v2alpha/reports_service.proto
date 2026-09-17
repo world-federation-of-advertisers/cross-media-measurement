@@ -53,6 +53,22 @@ service Reports {
     };
     option (google.api.method_signature) = "parent,report";
   }
+
+  // Withdraws a `Report`.
+  //
+  // This method is idempotent. If the `Report` is already `WITHDRAWN`, pending
+  // cancellation work is retried.
+  //
+  // Pending `Measurement`s used only by this `Report` are cancelled, which
+  // withdraws their pending `Requisition`s. Work shared with another active
+  // `Report` is not cancelled.
+  rpc WithdrawReport(WithdrawReportRequest) returns (Report) {
+    option (google.api.http) = {
+      post: "/v2alpha/{name=measurementConsumers/*/reports/*}:withdraw"
+      body: "*"
+    };
+    option (google.api.method_signature) = "name";
+  }
 }
 
 // Request message for `GetReport` method.
@@ -128,4 +144,13 @@ message CreateReportRequest {
   // A random UUID is recommended.
   // This request is only idempotent if a `request_id` is provided.
   string request_id = 4;
+}
+
+// Request message for `WithdrawReport` method.
+message WithdrawReportRequest {
+  // Resource name of the `Report` to withdraw.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "reporting.halo-cmm.org/Report" }
+  ];
 }

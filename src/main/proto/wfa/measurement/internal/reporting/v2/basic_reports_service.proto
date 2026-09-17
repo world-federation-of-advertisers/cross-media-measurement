@@ -75,6 +75,17 @@ service BasicReports {
   // * `BASIC_REPORT_NOT_FOUND`
   // * `BASIC_REPORT_STATE_INVALID`
   rpc FailBasicReport(FailBasicReportRequest) returns (BasicReport);
+
+  // Transitions the `BasicReport` to the `BasicReport.State.WITHDRAWN` state.
+  //
+  // If the `BasicReport` is already `WITHDRAWN`, it is returned unchanged. The
+  // `BasicReport` must not be in another terminal state.
+  //
+  // Error reasons:
+  // * `REQUIRED_FIELD_NOT_SET`
+  // * `BASIC_REPORT_NOT_FOUND`
+  // * `BASIC_REPORT_STATE_INVALID`
+  rpc WithdrawBasicReport(WithdrawBasicReportRequest) returns (BasicReport);
 }
 
 message InsertBasicReportRequest {
@@ -147,6 +158,11 @@ message ListBasicReportsResponse {
 }
 
 message FailBasicReportRequest {
+  string cmms_measurement_consumer_id = 1;
+  string external_basic_report_id = 2;
+}
+
+message WithdrawBasicReportRequest {
   string cmms_measurement_consumer_id = 1;
   string external_basic_report_id = 2;
 }

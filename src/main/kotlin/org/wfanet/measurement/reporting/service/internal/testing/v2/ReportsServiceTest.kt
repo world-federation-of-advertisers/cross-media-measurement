@@ -47,6 +47,7 @@ import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementConsumersGrpcKt.MeasurementConsumersCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MeasurementKt
 import org.wfanet.measurement.internal.reporting.v2.MeasurementsGrpcKt.MeasurementsCoroutineImplBase
+import org.wfanet.measurement.internal.reporting.v2.Metric
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpecsGrpcKt.MetricCalculationSpecsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.MetricKt
@@ -63,6 +64,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCorouti
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.TimeIntervals
 import org.wfanet.measurement.internal.reporting.v2.batchCreateMetricsRequest
+import org.wfanet.measurement.internal.reporting.v2.batchGetMetricsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetCmmsMeasurementIdsRequest
 import org.wfanet.measurement.internal.reporting.v2.batchSetMeasurementFailuresRequest
 import org.wfanet.measurement.internal.reporting.v2.copy
@@ -73,10 +75,13 @@ import org.wfanet.measurement.internal.reporting.v2.getReportScheduleRequest
 import org.wfanet.measurement.internal.reporting.v2.invalidateMetricRequest
 import org.wfanet.measurement.internal.reporting.v2.measurement
 import org.wfanet.measurement.internal.reporting.v2.metric
+import org.wfanet.measurement.internal.reporting.v2.metricCalculationSpec
 import org.wfanet.measurement.internal.reporting.v2.metricSpec
 import org.wfanet.measurement.internal.reporting.v2.report
+import org.wfanet.measurement.internal.reporting.v2.reportingSet
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals
+import org.wfanet.measurement.internal.reporting.v2.withdrawReportRequest
 import org.wfanet.measurement.reporting.service.internal.Errors
 
 private const val MAX_BATCH_SIZE = 1000
@@ -2306,6 +2311,229 @@ abstract class ReportsServiceTest<T : ReportsCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(exception.message).contains("cmms_measurement_consumer_id")
+  }
+
+  @Test
+  fun `withdrawReport withdraws Report and its unshared Metric`(): Unit = runBlocking {
+    val (createdReport, createdMetric) = createReportWithMetric()
+
+    val response =
+      service.withdrawReport(
+        withdrawReportRequest {
+          cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+          externalReportId = createdReport.externalReportId
+        }
+      )
+
+    assertThat(response.report).isEqualTo(createdReport.copy { withdrawn = true })
+    assertThat(response.cmmsMeasurementIdsList).containsExactly("cmms-measurement-id")
+
+    val retryResponse =
+      service.withdrawReport(
+        withdrawReportRequest {
+          cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    assertThat(retryResponse).isEqualTo(response)
+
+    val metric =
+      metricsService
+        .batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = createdMetric.cmmsMeasurementConsumerId
+            externalMetricIds += createdMetric.externalMetricId
+          }
+        )
+        .metricsList
+        .single()
+    assertThat(metric.state).isEqualTo(Metric.State.WITHDRAWN)
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        metricsService.invalidateMetric(
+          invalidateMetricRequest {
+            cmmsMeasurementConsumerId = createdMetric.cmmsMeasurementConsumerId
+            externalMetricId = createdMetric.externalMetricId
+          }
+        )
+      }
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `withdrawReport throws NOT_FOUND when Report does not exist`(): Unit = runBlocking {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.withdrawReport(
+          withdrawReportRequest {
+            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            externalReportId = "missing-report"
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
+  }
+
+  @Test
+  fun `withdrawReport preserves Metric referenced by active Report`(): Unit = runBlocking {
+    val (firstReport, createdMetric) = createReportWithMetric()
+    val externalReportingSetId = firstReport.reportingMetricEntriesMap.keys.single()
+    val externalMetricCalculationSpecId =
+      firstReport.reportingMetricEntriesMap
+        .getValue(externalReportingSetId)
+        .metricCalculationSpecReportingMetricsList
+        .single()
+        .externalMetricCalculationSpecId
+    val reportingSet = reportingSet { this.externalReportingSetId = externalReportingSetId }
+    val metricCalculationSpec = metricCalculationSpec {
+      this.externalMetricCalculationSpecId = externalMetricCalculationSpecId
+    }
+    val secondReport =
+      service.createReport(
+        createReportRequest {
+          report = createReportForRequest(reportingSet, metricCalculationSpec)
+          externalReportId = "second-report"
+        }
+      )
+    val secondReportMetricId =
+      secondReport.reportingMetricEntriesMap
+        .getValue(externalReportingSetId)
+        .metricCalculationSpecReportingMetricsList
+        .single()
+        .reportingMetricsList
+        .single()
+        .externalMetricId
+    assertThat(secondReportMetricId).isEqualTo(createdMetric.externalMetricId)
+
+    val firstResponse =
+      service.withdrawReport(
+        withdrawReportRequest {
+          cmmsMeasurementConsumerId = firstReport.cmmsMeasurementConsumerId
+          externalReportId = firstReport.externalReportId
+        }
+      )
+
+    assertThat(firstResponse.cmmsMeasurementIdsList).isEmpty()
+    val runningMetric =
+      metricsService
+        .batchGetMetrics(
+          batchGetMetricsRequest {
+            cmmsMeasurementConsumerId = createdMetric.cmmsMeasurementConsumerId
+            externalMetricIds += createdMetric.externalMetricId
+          }
+        )
+        .metricsList
+        .single()
+    assertThat(runningMetric.state).isEqualTo(Metric.State.RUNNING)
+
+    val secondResponse =
+      service.withdrawReport(
+        withdrawReportRequest {
+          cmmsMeasurementConsumerId = secondReport.cmmsMeasurementConsumerId
+          externalReportId = secondReport.externalReportId
+        }
+      )
+
+    assertThat(secondResponse.cmmsMeasurementIdsList).containsExactly("cmms-measurement-id")
+  }
+
+  @Test
+  fun `createMetric fails when its Report was withdrawn first`(): Unit = runBlocking {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet =
+      createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService, "reporting-set")
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val createdReport =
+      service.createReport(
+        createReportRequest {
+          report = createReportForRequest(reportingSet, metricCalculationSpec)
+          externalReportId = "report"
+        }
+      )
+    val reportingMetric =
+      createdReport.reportingMetricEntriesMap
+        .getValue(reportingSet.externalReportingSetId)
+        .metricCalculationSpecReportingMetricsList
+        .single()
+        .reportingMetricsList
+        .single()
+
+    service.withdrawReport(
+      withdrawReportRequest {
+        cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+        externalReportId = createdReport.externalReportId
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        metricsService.createMetric(
+          buildCreateMetricRequest(
+            CMMS_MEASUREMENT_CONSUMER_ID,
+            "metric",
+            reportingSet,
+            reportingMetric,
+            metricCalculationSpec.details.filter,
+          )
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  private suspend fun createReportWithMetric(): Pair<Report, Metric> {
+    createMeasurementConsumer(CMMS_MEASUREMENT_CONSUMER_ID, measurementConsumersService)
+    val reportingSet =
+      createReportingSet(CMMS_MEASUREMENT_CONSUMER_ID, reportingSetsService, "reporting-set")
+    val metricCalculationSpec =
+      createMetricCalculationSpec(CMMS_MEASUREMENT_CONSUMER_ID, metricCalculationSpecsService)
+    val report = createReportForRequest(reportingSet, metricCalculationSpec)
+    val createdReport =
+      service.createReport(
+        createReportRequest {
+          this.report = report
+          externalReportId = "report"
+        }
+      )
+    val reportingMetric =
+      createdReport.reportingMetricEntriesMap
+        .getValue(reportingSet.externalReportingSetId)
+        .metricCalculationSpecReportingMetricsList
+        .single()
+        .reportingMetricsList
+        .single()
+    val createdMetric =
+      metricsService.createMetric(
+        buildCreateMetricRequest(
+          CMMS_MEASUREMENT_CONSUMER_ID,
+          "metric",
+          reportingSet,
+          reportingMetric,
+          metricCalculationSpec.details.filter,
+        )
+      )
+    val internalMeasurement = createdMetric.weightedMeasurementsList.single().measurement
+    measurementsService.batchSetCmmsMeasurementIds(
+      batchSetCmmsMeasurementIdsRequest {
+        cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+        measurementIds +=
+          BatchSetCmmsMeasurementIdsRequestKt.measurementIds {
+            cmmsCreateMeasurementRequestId = internalMeasurement.cmmsCreateMeasurementRequestId
+            cmmsMeasurementId = "cmms-measurement-id"
+          }
+      }
+    )
+    val updatedReport =
+      service.getReport(
+        getReportRequest {
+          cmmsMeasurementConsumerId = createdReport.cmmsMeasurementConsumerId
+          externalReportId = createdReport.externalReportId
+        }
+      )
+    return updatedReport to createdMetric
   }
 
   companion object {

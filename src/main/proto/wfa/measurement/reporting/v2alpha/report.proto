@@ -144,6 +144,8 @@ message Report {
     SUCCEEDED = 2;
     // Completed with failure. Terminal state.
     FAILED = 3;
+    // Withdrawn by the caller. Terminal state.
+    WITHDRAWN = 4;
   }
 
   // Report state.

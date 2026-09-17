@@ -23,6 +23,7 @@ import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.valuesListBoundStatement
@@ -43,6 +44,7 @@ import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportingSetR
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportWithdrawnException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 
 /**
@@ -125,6 +127,12 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
         .readMetricsByRequestId(measurementConsumerId, createMetricRequestIds)
         .toList()
         .associateBy({ it.createMetricRequestId }, { it.metric })
+
+    lockReportsAndCheckNotWithdrawn(
+      measurementConsumerId,
+      cmmsMeasurementConsumerId,
+      createMetricRequestIds.filterNot(existingMetricsMap::containsKey),
+    )
 
     val externalIdsSet: Set<String> =
       requests
@@ -637,6 +645,58 @@ class CreateMetrics(private val requests: List<CreateMetricRequest>) :
     }
 
     return metrics
+  }
+
+  /** Prevents new Metric work from being attached after its owning Report is withdrawn. */
+  private suspend fun TransactionScope.lockReportsAndCheckNotWithdrawn(
+    measurementConsumerId: InternalId,
+    cmmsMeasurementConsumerId: String,
+    createMetricRequestIds: Collection<String>,
+  ) {
+    val requestIds =
+      createMetricRequestIds.mapNotNull { requestId ->
+        try {
+          UUID.fromString(requestId)
+        } catch (_: IllegalArgumentException) {
+          null
+        }
+      }
+    if (requestIds.isEmpty()) {
+      return
+    }
+
+    transactionContext
+      .executeQuery(
+        valuesListBoundStatement(
+          valuesStartIndex = 1,
+          paramCount = 1,
+          """
+          WITH CreateMetricRequestIds(CreateMetricRequestId) AS (
+            VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+          )
+          SELECT Reports.ExternalReportId, Reports.Withdrawn
+          FROM MetricCalculationSpecReportingMetrics AS ReportMetrics
+          JOIN Reports
+            ON Reports.MeasurementConsumerId = ReportMetrics.MeasurementConsumerId
+            AND Reports.ReportId = ReportMetrics.ReportId
+          JOIN CreateMetricRequestIds USING (CreateMetricRequestId)
+          WHERE Reports.MeasurementConsumerId = $1
+          ORDER BY Reports.ReportId
+          FOR UPDATE OF Reports
+          """
+            .trimIndent(),
+        ) {
+          bind("$1", measurementConsumerId)
+          requestIds.forEach { requestId -> addValuesBinding { bindValuesParam(0, requestId) } }
+        }
+      )
+      .consume { row: ResultRow ->
+        if (row["Withdrawn"]) {
+          val externalReportId: String = row["ExternalReportId"]
+          throw ReportWithdrawnException(cmmsMeasurementConsumerId, externalReportId)
+        }
+      }
+      .toList()
   }
 
   private fun TransactionScope.createWeightedMeasurementsInsertData(

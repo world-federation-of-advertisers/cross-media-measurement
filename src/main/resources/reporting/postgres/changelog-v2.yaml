@@ -70,3 +70,6 @@ databaseChangeLog:
 - include:
     file: add-campaign-group-id-to-metric-calculation-specs.sql
     relativeToChangeLogFile: true
+- include:
+    file: add-withdrawn-column-to-reports.sql
+    relativeToChangeLogFile: true

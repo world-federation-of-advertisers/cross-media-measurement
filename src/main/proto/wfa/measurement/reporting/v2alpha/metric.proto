@@ -429,6 +429,8 @@ message Metric {
     FAILED = 3;
     // Result invalidated after successful completion. Terminal state.
     INVALID = 4;
+    // Withdrawn because no active `Report` references it. Terminal state.
+    WITHDRAWN = 5;
   }
 
   // The Report that this Metric was first created for

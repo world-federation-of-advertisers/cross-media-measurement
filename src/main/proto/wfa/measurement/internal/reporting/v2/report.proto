@@ -94,4 +94,7 @@ message Report {
     }
   }
   Details details = 8;
+
+  // Whether the `Report` was withdrawn by the caller.
+  bool withdrawn = 9;
 }

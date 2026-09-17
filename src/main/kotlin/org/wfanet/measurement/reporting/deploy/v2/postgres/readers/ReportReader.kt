@@ -50,6 +50,7 @@ class ReportReader(private val readContext: ReadContext) {
     val reportId: InternalId,
     val externalReportId: String,
     val createTime: Timestamp,
+    val withdrawn: Boolean,
     /** Map of external reporting set ID to [ReportingMetricCalculationSpecInfo]. */
     val reportingSetReportingMetricCalculationSpecInfoMap:
       MutableMap<String, ReportingMetricCalculationSpecInfo>,
@@ -76,6 +77,7 @@ class ReportReader(private val readContext: ReadContext) {
       Reports.ExternalReportId,
       Reports.CreateReportRequestId,
       Reports.CreateTime,
+      Reports.Withdrawn,
       Reports.ReportDetails,
       MetricCalculationSpecs.ExternalMetricCalculationSpecId,
       ReportingSets.ExternalReportingSetId,
@@ -245,6 +247,7 @@ class ReportReader(private val readContext: ReadContext) {
       val reportId: InternalId = row["ReportId"]
       val externalReportId: String = row["ExternalReportId"]
       val createTime: Instant = row["CreateTime"]
+      val withdrawn: Boolean = row["Withdrawn"]
       val reportDetails: Report.Details =
         row.getProtoMessage("ReportDetails", Report.Details.parser())
       val externalReportScheduleId: String? = row["ExternalReportScheduleId"]
@@ -259,6 +262,7 @@ class ReportReader(private val readContext: ReadContext) {
             reportId = reportId,
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
+            withdrawn = withdrawn,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
             details = reportDetails,
             externalReportScheduleId = externalReportScheduleId,
@@ -276,6 +280,7 @@ class ReportReader(private val readContext: ReadContext) {
             reportId = reportId,
             externalReportId = externalReportId,
             createTime = createTime.toProtoTime(),
+            withdrawn = withdrawn,
             reportingSetReportingMetricCalculationSpecInfoMap = mutableMapOf(),
             details = reportDetails,
             externalReportScheduleId = externalReportScheduleId,
@@ -337,6 +342,7 @@ class ReportReader(private val readContext: ReadContext) {
       cmmsMeasurementConsumerId = source.cmmsMeasurementConsumerId
       externalReportId = source.externalReportId
       createTime = source.createTime
+      withdrawn = source.withdrawn
       if (source.details != Report.Details.getDefaultInstance()) {
         details = source.details
       }

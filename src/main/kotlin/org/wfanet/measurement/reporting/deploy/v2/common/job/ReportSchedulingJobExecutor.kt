@@ -167,9 +167,12 @@ private fun run(
         InternalReportsCoroutineStub(channel),
         InternalMetricCalculationSpecsCoroutineStub(channel),
         MetricsCoroutineStub(inProcessMetricsChannel),
+        KingdomMeasurementsCoroutineStub(kingdomChannel),
         metricSpecConfig,
+        measurementConsumerConfigs,
         authorization,
         SecureRandom().asKotlinRandom(),
+        reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
       )
       .withTrustedPrincipalAuthentication()
       .withReportScheduleInfoInterceptor()
