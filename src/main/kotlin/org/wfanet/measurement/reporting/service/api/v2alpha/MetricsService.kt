@@ -1968,10 +1968,12 @@ class MetricsService(
       runningInternalMetrics.flatMap { internalMetric ->
         val internalMeasurements: List<InternalMeasurement> =
           internalMetric.weightedMeasurementsList.map { it.measurement }
-        if (internalMetric.hasOnlyTerminalMeasurements()) {
-          internalMeasurements
-        } else {
+        // A running Metric whose Measurement states indicate a terminal state is synced again so
+        // that its state is updated.
+        if (internalMetric.calculateState() == InternalMetric.State.RUNNING) {
           internalMeasurements.filter { it.state == InternalMeasurement.State.PENDING }
+        } else {
+          internalMeasurements
         }
       }
 
@@ -3241,29 +3243,6 @@ private operator fun ProtoDuration.times(weight: Int): ProtoDuration {
 private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
 }
-
-/**
- * Returns whether every [InternalMeasurement] of this [InternalMetric] is in a terminal state.
- *
- * A running [InternalMetric] for which this is true was not updated when its [InternalMeasurement]s
- * were, so syncing those [InternalMeasurement]s again updates it.
- */
-private fun InternalMetric.hasOnlyTerminalMeasurements(): Boolean {
-  return weightedMeasurementsList.isNotEmpty() &&
-    weightedMeasurementsList.all { it.measurement.state.isTerminal }
-}
-
-private val InternalMeasurement.State.isTerminal: Boolean
-  get() {
-    @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf enum fields cannot be null.
-    return when (this) {
-      InternalMeasurement.State.SUCCEEDED,
-      InternalMeasurement.State.FAILED -> true
-      InternalMeasurement.State.PENDING,
-      InternalMeasurement.State.STATE_UNSPECIFIED,
-      InternalMeasurement.State.UNRECOGNIZED -> false
-    }
-  }
 
 private fun InternalMetric.calculateState(): InternalMetric.State {
   val measurementStates = weightedMeasurementsList.map { it.measurement.state }
