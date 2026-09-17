@@ -35,6 +35,9 @@ object Errors {
     WORK_ITEM_ATTEMPT_NOT_FOUND,
     WORK_ITEM_ALREADY_EXISTS,
     WORK_ITEM_ATTEMPT_ALREADY_EXISTS,
+    WORK_ITEM_GENERATION_MISMATCH,
+    WORK_ITEM_PUBLICATION_PENDING,
+    QUEUE_NOT_FOUND,
     INVALID_FIELD_VALUE,
   }
 
@@ -43,6 +46,9 @@ object Errors {
     WORK_ITEM_ATTEMPT("workItem"),
     WORK_ITEM_ATTEMPT_STATE("workItemAttemptState"),
     WORK_ITEM_STATE("workItemState"),
+    EXPECTED_WORK_ITEM_GENERATION("expectedWorkItemGeneration"),
+    ACTUAL_WORK_ITEM_GENERATION("actualWorkItemGeneration"),
+    QUEUE("queue"),
     FIELD_NAME("fieldName"),
   }
 }
@@ -89,7 +95,40 @@ class RequiredFieldNotSetException(fieldName: String, cause: Throwable? = null) 
     "Required field $fieldName not set",
     mapOf(Errors.Metadata.FIELD_NAME to fieldName),
     cause,
-  )
+  ) {
+  companion object : Factory<RequiredFieldNotSetException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.REQUIRED_FIELD_NOT_SET
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): RequiredFieldNotSetException {
+      return RequiredFieldNotSetException(
+        internalMetadata.getValue(InternalErrors.Metadata.FIELD_NAME),
+        cause,
+      )
+    }
+  }
+}
+
+class QueueNotFoundException(name: String, cause: Throwable? = null) :
+  ServiceException(reason, "Queue $name not found", mapOf(Errors.Metadata.QUEUE to name), cause) {
+  companion object : Factory<QueueNotFoundException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.QUEUE_NOT_FOUND
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): QueueNotFoundException {
+      return QueueNotFoundException(
+        internalMetadata.getValue(InternalErrors.Metadata.QUEUE_RESOURCE_ID),
+        cause,
+      )
+    }
+  }
+}
 
 class InvalidFieldValueException(
   fieldName: String,
@@ -157,6 +196,64 @@ class WorkItemInvalidStateException(name: String, workItemState: String, cause: 
         workItemKey.toName(),
         internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_STATE),
       )
+    }
+  }
+}
+
+class WorkItemGenerationMismatchException(
+  name: String,
+  expectedGeneration: String,
+  actualGeneration: String,
+  cause: Throwable? = null,
+) :
+  ServiceException(
+    reason,
+    "WorkItem $name has generation $actualGeneration, not $expectedGeneration",
+    mapOf(
+      Errors.Metadata.WORK_ITEM to name,
+      Errors.Metadata.EXPECTED_WORK_ITEM_GENERATION to expectedGeneration,
+      Errors.Metadata.ACTUAL_WORK_ITEM_GENERATION to actualGeneration,
+    ),
+    cause,
+  ) {
+  companion object : Factory<WorkItemGenerationMismatchException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.WORK_ITEM_GENERATION_MISMATCH
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): WorkItemGenerationMismatchException {
+      val workItemKey =
+        WorkItemKey(internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID))
+      return WorkItemGenerationMismatchException(
+        workItemKey.toName(),
+        internalMetadata.getValue(InternalErrors.Metadata.EXPECTED_WORK_ITEM_GENERATION),
+        internalMetadata.getValue(InternalErrors.Metadata.ACTUAL_WORK_ITEM_GENERATION),
+        cause,
+      )
+    }
+  }
+}
+
+class WorkItemPublicationPendingException(name: String, cause: Throwable? = null) :
+  ServiceException(
+    reason,
+    "WorkItem $name already has a pending publication",
+    mapOf(Errors.Metadata.WORK_ITEM to name),
+    cause,
+  ) {
+  companion object : Factory<WorkItemPublicationPendingException>() {
+    override val reason: Errors.Reason
+      get() = Errors.Reason.WORK_ITEM_PUBLICATION_PENDING
+
+    override fun fromInternal(
+      internalMetadata: Map<InternalErrors.Metadata, String>,
+      cause: Throwable,
+    ): WorkItemPublicationPendingException {
+      val workItemKey =
+        WorkItemKey(internalMetadata.getValue(InternalErrors.Metadata.WORK_ITEM_RESOURCE_ID))
+      return WorkItemPublicationPendingException(workItemKey.toName(), cause)
     }
   }
 }

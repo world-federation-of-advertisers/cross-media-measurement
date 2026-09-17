@@ -41,6 +41,10 @@ None of the names below are prescriptive — they are only examples.
 | `VID_MODELS_BUCKET` | (Optional) bucket holding compiled VID model blobs |
 | `KINGDOM_PUBLIC_API_TARGET` | Kingdom public API gRPC target, e.g. `v2alpha.kingdom.example.org:8443` |
 | `SECURE_COMPUTATION_API_TARGET` | Secure Computation API gRPC target |
+| `SECURE_COMPUTATION_CERT_HOST` | DNS name in the Secure Computation API server certificate |
+| `CLIENT_CERT_PEM` / `CLIENT_KEY_PEM` | Operator client certificate and private key authorized to call the Secure Computation API |
+| `TRUSTED_ROOTS_PEM` | Root certificates used to verify the Secure Computation API |
+| `SPANNER_INSTANCE` / `SECURE_COMPUTATION_DATABASE` | Spanner instance and database backing the Secure Computation API |
 | `EDPA_METADATA_API_TARGET` | EDP Aggregator (Metadata Storage) API gRPC target |
 | `dataProviders/DATA_PROVIDER_ID` | An EDP's `DataProvider` resource name in the Kingdom |
 | `<edp-id>` | The per-EDP storage prefix the operator assigns to a data provider |
@@ -1049,6 +1053,150 @@ already deployed (see [`docs/gke/kingdom-deployment.md`](../gke/kingdom-deployme
    kubectl get deployments
    kubectl get services
    ```
+
+#### Rolling out durable WorkItem publication
+
+The repository's top-level **Update CMMS** workflow is the supported upgrade path. Do not invoke its
+child deployment workflows independently; doing so bypasses the worker-quiescence barrier.
+
+Configure the deployment, then run **Update CMMS** once. An environment-scoped concurrency lock
+prevents two runs from interleaving the worker-quiescence and API-rollout phases. The workflow
+performs the required order:
+
+1. Roll `secure-computation-internal-api-server` and
+   `secure-computation-public-api-server` with WorkItem publication, legacy reconciliation, and
+   dead-letter consumption paused. The APIs remain available to producers and existing workers;
+   transactions continue creating durable outbox rows without publishing them.
+2. Apply Terraform with every WorkItem-consuming TEE managed instance group disabled. This removes
+   its autoscaler, sets its target size to zero, and writes a process-level consumption gate into
+   the replacement instance template so a surge instance cannot pull work while quiescing.
+3. Wait for ResultsFulfiller, SubpoolAssigner, VidRankBuilder, and VidLabeler MIGs to become stable,
+   then verify that each has target size zero and no remaining instances.
+4. Roll Kingdom, then roll the Secure Computation APIs again with WorkItem publication,
+   reconciliation, and dead-letter consumption enabled. The DLQ listener defers a delivery while a
+   current-generation WorkItem still has a valid leased attempt; otherwise it terminalizes the
+   exhausted WorkItem.
+5. Roll every EDP Aggregator/Requisition Metadata API deployment and wait for completion.
+6. Apply Terraform again with WorkItem TEE consumers enabled. This recreates their autoscalers,
+   changes the process-level gate to enabled, and starts only the new worker version.
+7. Continue the remaining deployment and tests normally.
+
+If the workflow fails after quiescing workers but before the final Terraform apply, leave the TEE
+consumers disabled and rerun the complete **Update CMMS** workflow. Do not enable a TEE MIG
+independently. Do not manually scale the API deployments to zero: their manifests do not
+explicitly restore replica counts, so manual scaling can leave them stopped.
+
+DataWatcher and Pub/Sub remain running during this process. RequisitionFetcher continues running
+until Terraform pauses its Cloud Scheduler job, and the workflow then waits for invocations that
+started before the pause to finish. Unclaimed messages remain queued and must not be drained. Old
+and new API replicas may overlap in the first Kubernetes rolling update while old TEE workers are
+still running. Publication and legacy reconciliation are disabled on every new internal API replica
+during that rollout, preventing a new replica from introducing duplicate legacy deliveries. After
+the first API rollout completes, the workflow stops every TEE consumer before enabling publication.
+Compatibility and automatic recovery cover producer traffic during that interval:
+
+* The publication runner continuously finds every `QUEUED` WorkItem whose generation has not been
+  scheduled, creates a missing outbox row, and records the scheduled generation in the same
+  transaction. Continuous reconciliation also repairs WorkItems committed by an old API replica
+  after a newer publication runner has started.
+* DataWatcher derives a stable WorkItem ID from the watched-path identifier, object URI, and GCS
+  generation. It uses `EnsureWorkItem`, validates an existing item when falling back to an older
+  API, and returns transient dispatch failures to Eventarc so the same event is retried.
+* Dead-letter consumption is paused before old workers stop. After the zero-instance barrier, a
+  current-generation DLQ delivery with an active unleased or expired attempt atomically fails that
+  attempt and the WorkItem. A DLQ delivery for an active leased attempt is NACKed without mutation
+  so the live worker retains ownership. A `QUEUED` delivery that exhausted its Pub/Sub delivery
+  budget before any attempt was created is terminalized. Pub/Sub's delivery-attempt counter and
+  dead-letter policy are the sole automatic retry limit.
+* A lease-capable worker that receives a redelivery for an unleased active attempt atomically fails
+  that legacy attempt and creates its new leased attempt at the same WorkItem generation. The MIG
+  barrier makes this safe by proving that no old TEE instance remains before new workers start.
+* Existing generation-less WorkItems and queue messages are treated as generation 1. New clients
+  always send the expected execution generation; an explicitly supplied value below 1 is invalid.
+  Generation checks make repeated terminalization idempotent and prevent stale ordinary and
+  dead-letter deliveries from changing replacement executions.
+
+No subscription drain, database snapshot, active-attempt query, or migration-time
+`FailWorkItemAttempt`/`RetryWorkItem` call is required. New WorkItem creation, `EnsureWorkItem`, and
+`RetryWorkItem` maintain the publication-generation marker and outbox transactionally. Every retry
+must include the generation the operator inspected, so a delayed or replayed request cannot retry a
+later execution. The
+publisher deletes the outbox row only after Pub/Sub acknowledges the message. This reuses the
+existing WorkItems RPCs, queues, topics, subscriptions, and DLQs. The Secure Computation API remains
+workload-agnostic: it stores and republishes opaque WorkItem parameters and does not call the
+Requisition Metadata or Impression Metadata APIs.
+
+#### Recovering after correcting a queue mapping
+
+When the publisher cannot resolve a WorkItem's queue, it deprioritizes that pending publication so
+it cannot block healthy work. After correcting the Secure Computation API queue mapping, wait for
+the publication deferral interval to expire (one minute by default). If an affected WorkItem does
+not resume automatically, call `RetryWorkItem` for that WorkItem. The targeted attempt bypasses
+priority order while still respecting an active publication lease:
+
+```bash
+grpcurl -cert CLIENT_CERT_PEM -key CLIENT_KEY_PEM -cacert TRUSTED_ROOTS_PEM \
+  -authority SECURE_COMPUTATION_CERT_HOST \
+  -d '{"name":"workItems/WORK_ITEM_ID","expectedWorkItemGeneration":"GENERATION"}' \
+  SECURE_COMPUTATION_API_TARGET \
+  wfa.measurement.securecomputation.controlplane.v1alpha.WorkItems/RetryWorkItem
+```
+
+#### Recovering an abandoned running WorkItem
+
+Workers created after this rollout renew their active attempt lease. If a worker exits or can no
+longer reach the control plane, the lease expires after five minutes by default. Pub/Sub redelivers
+the same WorkItem generation, and `CreateWorkItemAttempt` atomically fails the expired attempt and
+creates its replacement. A late heartbeat or completion from the abandoned worker is rejected
+because its attempt is no longer authoritative.
+
+A lease-capable worker that catches a retryable workload failure marks its exact attempt `FAILED`
+and NACKs the original delivery. If the failure RPC cannot be confirmed, it still NACKs. The
+redelivery creates the next attempt at the same WorkItem generation. A non-retryable workload
+failure uses generation-fenced `FailWorkItem` and ACKs only after terminal failure is durable.
+Pub/Sub owns retry timing, approximate delivery-attempt counting, and dead-letter forwarding;
+attempt history is diagnostic and does not control retry policy. The deprecated
+`max_work_item_attempts` and `dead_letter_queue_resource_id` queue fields are ignored by the new
+retry path.
+
+An attempt created by an old worker has no lease. After the workflow's MIG quiescence barrier, the
+stopped worker's Pub/Sub delivery is either redelivered to a new lease-capable worker or is handled
+by the upgraded DLQ listener. Main-queue takeover fails the exact unleased attempt and creates the
+replacement leased attempt in one Spanner transaction without advancing the WorkItem generation.
+DLQ handling atomically fails the unleased attempt and WorkItem. Both paths are automatic and
+generation-fenced. A leased active attempt is never replaced by a duplicate delivery; the worker
+retains that delivery, with its acknowledgment deadline extended, until the active attempt becomes
+terminal or its lease can be replaced.
+
+#### Monitoring active attempts
+
+Alert on expired leased attempts and on unleased `ACTIVE` attempts. A new worker normally replaces
+either kind of abandoned attempt when Pub/Sub redelivers the WorkItem after the automated
+quiescence step. Either result remaining for
+more than a short grace period needs investigation:
+
+```bash
+gcloud spanner databases execute-sql SECURE_COMPUTATION_DATABASE \
+  --instance=SPANNER_INSTANCE \
+  --project=PROJECT_ID \
+  --sql='SELECT W.WorkItemResourceId,
+      A.WorkItemAttemptResourceId,
+      A.LeaseExpirationTime,
+      A.CreateTime
+    FROM WorkItemAttempts AS A
+    JOIN WorkItems AS W USING (WorkItemId)
+    WHERE A.State = 1
+      AND (A.LeaseExpirationTime IS NULL
+        OR A.LeaseExpirationTime < CURRENT_TIMESTAMP())
+    ORDER BY A.LeaseExpirationTime, A.CreateTime'
+```
+
+`WorkItemAttempt.State.ACTIVE` is stored as `1`. Workers retry transient lease, completion, and
+failure RPC errors with bounded backoff. A redelivered message resolves an expired or legacy
+unleased attempt transactionally with a concurrent renewal or completion. Investigate an active
+attempt that does not receive a replacement delivery after lease expiry. Use generation-fenced
+`RetryWorkItem` only for explicit operator-authorized recovery after ordinary Pub/Sub delivery is
+no longer available.
 
 ### Step 4 — Deploy the EDP Aggregator (Metadata Storage) API on GKE
 

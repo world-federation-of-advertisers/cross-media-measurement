@@ -57,6 +57,11 @@ resource "google_pubsub_subscription" "dead_letter_subscription" {
   topic = google_pubsub_topic.dead_letter_topic.id
 
   ack_deadline_seconds = 30
+
+  retry_policy {
+    minimum_backoff = var.minimum_backoff
+    maximum_backoff = var.maximum_backoff
+  }
 }
 
 resource "google_pubsub_topic_iam_member" "dead_letter_reader" {

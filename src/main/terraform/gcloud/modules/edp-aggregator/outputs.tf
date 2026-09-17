@@ -1,4 +1,4 @@
-# Copyright 2025 The Cross-Media Measurement Authors
+# Copyright 2026 The Cross-Media Measurement Authors
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,10 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-output "mig_service_account" {
-  value = google_service_account.mig_service_account
-}
-
-output "managed_instance_group_name" {
-  value = google_compute_region_instance_group_manager.mig.name
+output "work_item_tee_mig_names" {
+  description = "Names of Managed Instance Groups that consume Secure Computation WorkItems."
+  value = concat(
+    [module.result_fulfiller_tee_app.managed_instance_group_name],
+    [for key in sort(keys(module.vid_labeling_tee_app)) :
+      module.vid_labeling_tee_app[key].managed_instance_group_name
+    ],
+  )
 }

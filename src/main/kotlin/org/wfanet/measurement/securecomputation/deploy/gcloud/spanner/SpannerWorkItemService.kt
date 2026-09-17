@@ -20,6 +20,7 @@ import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import io.grpc.Status
+import java.time.Clock
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
@@ -27,41 +28,56 @@ import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.securecomputation.controlplane.CreateWorkItemRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.EnsureWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.FailWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.GetWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsPageTokenKt
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.ListWorkItemsResponse
+import org.wfanet.measurement.internal.securecomputation.controlplane.ProcessWorkItemDeadLetterRequest
+import org.wfanet.measurement.internal.securecomputation.controlplane.RetryWorkItemRequest
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItem
 import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResetResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.activeWorkItemAttemptExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failActiveWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItemAttempt
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getActiveWorkItemAttempt
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
-import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItemAttempts
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.resetWorkItemPublication
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.scheduleWorkItemPublicationIfNeeded
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemIdExists
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.workItemPublicationExists
 import org.wfanet.measurement.securecomputation.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundException
 import org.wfanet.measurement.securecomputation.service.internal.QueueNotFoundForWorkItem
 import org.wfanet.measurement.securecomputation.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemAlreadyExistsException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemGenerationMismatchException
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemInvalidStateException
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemNotFoundException
-import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
+import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublicationPendingException
 
 class SpannerWorkItemsService(
   private val databaseClient: AsyncDatabaseClient,
   private val queueMapping: QueueMapping,
   private val idGenerator: IdGenerator,
-  private val workItemPublisher: WorkItemPublisher,
+  private val workItemPublicationRunner: WorkItemPublicationRunner,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val clock: Clock = Clock.systemUTC(),
 ) : WorkItemsCoroutineImplBase(coroutineContext) {
 
   override suspend fun createWorkItem(request: CreateWorkItemRequest): WorkItem {
@@ -90,7 +106,7 @@ class SpannerWorkItemsService(
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
 
-    val workItem =
+    val (workItemId, workItem) =
       try {
         transactionRunner.run { txn ->
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
@@ -102,8 +118,15 @@ class SpannerWorkItemsService(
               queue.queueId,
               request.workItem.workItemParams,
             )
+          txn.insertWorkItemPublication(workItemId)
 
-          request.workItem.copy { this.state = state }
+          Pair(
+            workItemId,
+            request.workItem.copy {
+              this.state = state
+              generation = INITIAL_GENERATION
+            },
+          )
         }
       } catch (e: SpannerException) {
         if (e.errorCode == ErrorCode.ALREADY_EXISTS) {
@@ -121,12 +144,100 @@ class SpannerWorkItemsService(
         updateTime = commitTimestamp
       }
 
-    try {
-      workItemPublisher.publishMessage(request.workItem.queueResourceId, request.workItem)
-    } catch (e: Exception) {
-      throw Status.INTERNAL.withCause(e).asRuntimeException()
-    }
+    workItemPublicationRunner.publishWorkItem(workItemId)
 
+    return result
+  }
+
+  override suspend fun ensureWorkItem(request: EnsureWorkItemRequest): WorkItem {
+    validateWorkItem(request.workItem)
+    val queue =
+      try {
+        getQueueByResourceId(request.workItem.queueResourceId)
+      } catch (e: QueueNotFoundException) {
+        throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+      }
+
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=ensureWorkItem"))
+    val ensured =
+      try {
+        transactionRunner.run { txn ->
+          try {
+            val existing =
+              txn.getWorkItemByResourceId(queueMapping, request.workItem.workItemResourceId)
+            if (
+              existing.workItem.queueResourceId != request.workItem.queueResourceId ||
+                existing.workItem.workItemParams != request.workItem.workItemParams
+            ) {
+              throw WorkItemAlreadyExistsException()
+            }
+            when (existing.workItem.state) {
+              WorkItem.State.QUEUED ->
+                txn.scheduleWorkItemPublicationIfNeeded(
+                  existing.workItemId,
+                  existing.workItem.generation,
+                  existing.publicationScheduledGeneration,
+                )
+              WorkItem.State.RUNNING -> Unit
+              WorkItem.State.FAILED,
+              WorkItem.State.SUCCEEDED,
+              WorkItem.State.STATE_UNSPECIFIED,
+              WorkItem.State.UNRECOGNIZED ->
+                throw WorkItemInvalidStateException(
+                  existing.workItem.workItemResourceId,
+                  existing.workItem.state,
+                )
+            }
+            EnsuredWorkItem(existing.workItemId, existing.workItem, created = false)
+          } catch (e: WorkItemNotFoundException) {
+            val workItemId = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
+            val state =
+              txn.insertWorkItem(
+                workItemId,
+                request.workItem.workItemResourceId,
+                queue.queueId,
+                request.workItem.workItemParams,
+              )
+            txn.insertWorkItemPublication(workItemId)
+            EnsuredWorkItem(
+              workItemId,
+              request.workItem.copy {
+                this.state = state
+                generation = INITIAL_GENERATION
+              },
+              created = true,
+            )
+          } catch (e: QueueNotFoundForWorkItem) {
+            throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+          } catch (e: WorkItemAlreadyExistsException) {
+            throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          } catch (e: WorkItemInvalidStateException) {
+            throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+          }
+        }
+      } catch (e: SpannerException) {
+        if (e.errorCode != ErrorCode.ALREADY_EXISTS) {
+          throw e
+        }
+        // Another idempotent producer may have committed the same deterministic resource
+        // ID.
+        readConcurrentEnsureWinner(request)
+      }
+
+    val result =
+      if (ensured.created) {
+        val commitTimestamp = transactionRunner.getCommitTimestamp().toProto()
+        ensured.workItem.copy {
+          createTime = commitTimestamp
+          updateTime = commitTimestamp
+        }
+      } else {
+        ensured.workItem
+      }
+    if (result.state == WorkItem.State.QUEUED) {
+      workItemPublicationRunner.publishWorkItem(ensured.workItemId)
+    }
     return result
   }
 
@@ -193,6 +304,18 @@ class SpannerWorkItemsService(
       throw RequiredFieldNotSetException("work_item_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be at least 1"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=failWorkItem"))
@@ -201,20 +324,220 @@ class SpannerWorkItemsService(
       transactionRunner.run { txn ->
         try {
           val workItemResult = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
-          val state = txn.failWorkItem(workItemResult.workItemId)
-          txn.readWorkItemAttempts(MAX_PAGE_SIZE, request.workItemResourceId).collect {
-            workItemAttempt ->
-            txn.failWorkItemAttempt(workItemResult.workItemId, workItemAttempt.workItemAttemptId)
+          if (workItemResult.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              workItemResult.workItem.workItemResourceId,
+              expectedGeneration,
+              workItemResult.workItem.generation,
+            )
           }
+          when (workItemResult.workItem.state) {
+            WorkItem.State.QUEUED,
+            WorkItem.State.RUNNING,
+            WorkItem.State.FAILED -> Unit
+            WorkItem.State.SUCCEEDED,
+            WorkItem.State.STATE_UNSPECIFIED,
+            WorkItem.State.UNRECOGNIZED ->
+              throw WorkItemInvalidStateException(
+                workItemResult.workItem.workItemResourceId,
+                workItemResult.workItem.state,
+              )
+          }
+          txn.failActiveWorkItemAttempts(workItemResult.workItemId)
+          val state = txn.failWorkItem(workItemResult.workItemId)
           workItemResult.workItem.copy { this.state = state }
         } catch (e: WorkItemNotFoundException) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
         } catch (e: QueueNotFoundForWorkItem) {
           throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: WorkItemGenerationMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
       }
     val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
     return result
+  }
+
+  override suspend fun retryWorkItem(request: RetryWorkItemRequest): WorkItem {
+    if (request.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be at least 1"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
+
+    val transactionRunner = databaseClient.readWriteTransaction(Options.tag("action=retryWorkItem"))
+    val (workItemId, workItem) =
+      transactionRunner.run { txn ->
+        try {
+          val result = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
+          if (result.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              result.workItem.workItemResourceId,
+              expectedGeneration,
+              result.workItem.generation,
+            )
+          }
+          var resultGeneration = result.workItem.generation
+          val state =
+            when (result.workItem.state) {
+              WorkItem.State.FAILED,
+              WorkItem.State.RUNNING -> {
+                if (txn.activeWorkItemAttemptExists(result.workItemId)) {
+                  throw WorkItemInvalidStateException(
+                    result.workItem.workItemResourceId,
+                    result.workItem.state,
+                  )
+                }
+                if (txn.workItemPublicationExists(result.workItemId)) {
+                  throw WorkItemPublicationPendingException(result.workItem.workItemResourceId)
+                }
+                resultGeneration++
+                txn.retryWorkItem(result.workItemId, result.workItem.generation)
+              }
+              WorkItem.State.QUEUED -> {
+                when (txn.resetWorkItemPublication(result.workItemId, clock.instant())) {
+                  WorkItemPublicationResetResult.RESET -> Unit
+                  WorkItemPublicationResetResult.LEASED ->
+                    throw WorkItemPublicationPendingException(result.workItem.workItemResourceId)
+                  WorkItemPublicationResetResult.MISSING -> {
+                    val scheduled =
+                      txn.scheduleWorkItemPublicationIfNeeded(
+                        result.workItemId,
+                        result.workItem.generation,
+                        result.publicationScheduledGeneration,
+                      )
+                    if (!scheduled) {
+                      resultGeneration++
+                      txn.retryWorkItem(result.workItemId, result.workItem.generation)
+                    }
+                  }
+                }
+                WorkItem.State.QUEUED
+              }
+              WorkItem.State.SUCCEEDED,
+              WorkItem.State.STATE_UNSPECIFIED,
+              WorkItem.State.UNRECOGNIZED ->
+                throw WorkItemInvalidStateException(
+                  result.workItem.workItemResourceId,
+                  result.workItem.state,
+                )
+            }
+          result.workItemId to
+            result.workItem.copy {
+              this.state = state
+              generation = resultGeneration
+            }
+        } catch (e: WorkItemNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: QueueNotFoundForWorkItem) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: WorkItemGenerationMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemPublicationPendingException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+      }
+    val result = workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
+    workItemPublicationRunner.publishWorkItem(workItemId)
+    return result
+  }
+
+  override suspend fun processWorkItemDeadLetter(
+    request: ProcessWorkItemDeadLetterRequest
+  ): WorkItem {
+    if (request.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.hasExpectedWorkItemGeneration() && request.expectedWorkItemGeneration < 1L) {
+      throw InvalidFieldValueException("expected_work_item_generation") { fieldName ->
+          "$fieldName must be at least 1"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val expectedGeneration =
+      if (request.hasExpectedWorkItemGeneration()) {
+        request.expectedWorkItemGeneration
+      } else {
+        INITIAL_GENERATION
+      }
+
+    val transactionRunner =
+      databaseClient.readWriteTransaction(Options.tag("action=processWorkItemDeadLetter"))
+    val workItem =
+      transactionRunner.run { txn ->
+        try {
+          val result = txn.getWorkItemByResourceId(queueMapping, request.workItemResourceId)
+          if (result.workItem.generation != expectedGeneration) {
+            throw WorkItemGenerationMismatchException(
+              result.workItem.workItemResourceId,
+              expectedGeneration,
+              result.workItem.generation,
+            )
+          }
+
+          val activeAttempt = txn.getActiveWorkItemAttempt(result.workItemId)
+          val state =
+            when (val currentState = result.workItem.state) {
+              WorkItem.State.QUEUED,
+              WorkItem.State.FAILED -> txn.failWorkItem(result.workItemId)
+              WorkItem.State.RUNNING -> {
+                if (
+                  activeAttempt?.workItemAttempt?.hasLeaseExpirationTime() == true &&
+                    activeAttempt.workItemAttempt.leaseExpirationTime
+                      .toInstant()
+                      .isAfter(clock.instant())
+                ) {
+                  throw WorkItemInvalidStateException(
+                    result.workItem.workItemResourceId,
+                    currentState,
+                  )
+                }
+                if (activeAttempt != null) {
+                  txn.failWorkItemAttempt(
+                    result.workItemId,
+                    activeAttempt.workItemAttemptId,
+                    "Pub/Sub delivery attempts exhausted",
+                  )
+                }
+                txn.failWorkItem(result.workItemId)
+              }
+              WorkItem.State.SUCCEEDED,
+              WorkItem.State.STATE_UNSPECIFIED,
+              WorkItem.State.UNRECOGNIZED ->
+                throw WorkItemInvalidStateException(
+                  result.workItem.workItemResourceId,
+                  currentState,
+                )
+            }
+          result.workItem.copy { this.state = state }
+        } catch (e: WorkItemNotFoundException) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: QueueNotFoundForWorkItem) {
+          throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+        } catch (e: WorkItemGenerationMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        } catch (e: WorkItemInvalidStateException) {
+          throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+      }
+
+    return workItem.copy { updateTime = transactionRunner.getCommitTimestamp().toProto() }
   }
 
   /**
@@ -227,8 +550,63 @@ class SpannerWorkItemsService(
       ?: throw QueueNotFoundException(queueResourceId)
   }
 
+  private fun validateWorkItem(workItem: WorkItem) {
+    if (workItem.queueResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("queue_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (workItem.workItemResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!workItem.hasWorkItemParams()) {
+      throw RequiredFieldNotSetException("work_item_params")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private suspend fun readConcurrentEnsureWinner(request: EnsureWorkItemRequest): EnsuredWorkItem {
+    val existing =
+      try {
+        databaseClient.singleUse().use { txn ->
+          txn.getWorkItemByResourceId(queueMapping, request.workItem.workItemResourceId)
+        }
+      } catch (e: WorkItemNotFoundException) {
+        throw WorkItemAlreadyExistsException(e).asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+      } catch (e: QueueNotFoundForWorkItem) {
+        throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+      }
+    if (
+      existing.workItem.queueResourceId != request.workItem.queueResourceId ||
+        existing.workItem.workItemParams != request.workItem.workItemParams
+    ) {
+      throw WorkItemAlreadyExistsException().asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+    }
+    when (existing.workItem.state) {
+      WorkItem.State.QUEUED,
+      WorkItem.State.RUNNING -> Unit
+      WorkItem.State.FAILED,
+      WorkItem.State.SUCCEEDED,
+      WorkItem.State.STATE_UNSPECIFIED,
+      WorkItem.State.UNRECOGNIZED ->
+        throw WorkItemInvalidStateException(
+            existing.workItem.workItemResourceId,
+            existing.workItem.state,
+          )
+          .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+    return EnsuredWorkItem(existing.workItemId, existing.workItem, created = false)
+  }
+
+  private data class EnsuredWorkItem(
+    val workItemId: Long,
+    val workItem: WorkItem,
+    val created: Boolean,
+  )
+
   companion object {
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
+    private const val INITIAL_GENERATION = 1L
   }
 }
