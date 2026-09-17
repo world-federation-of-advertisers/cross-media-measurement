@@ -17,6 +17,7 @@
 package org.wfanet.measurement.common.telemetry
 
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
 import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.context.Context
@@ -36,6 +37,12 @@ object ReportTracing {
         .setSpanKind(SpanKind.INTERNAL)
         .setAllAttributes(attributes)
         .startSpan()
+    recordFailure(span, error)
+    span.end()
+  }
+
+  /** Records the standard report-tracing failure attributes on an existing span. */
+  fun recordFailure(span: Span, error: Throwable) {
     span
       .setStatus(StatusCode.ERROR, error.message ?: "Unknown error")
       .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
@@ -45,7 +52,6 @@ object ReportTracing {
     if (errorCode != null) {
       span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
     }
-    span.end()
   }
 
   suspend fun <T> traceSuspending(
@@ -66,15 +72,7 @@ object ReportTracing {
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      span
-        .setStatus(StatusCode.ERROR, e.message ?: "Unknown error")
-        .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
-        .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(e))
-        .recordException(e)
-      val errorCode = ReportTraceAttributes.errorCode(e)
-      if (errorCode != null) {
-        span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
-      }
+      recordFailure(span, e)
       throw e
     } finally {
       span.end()

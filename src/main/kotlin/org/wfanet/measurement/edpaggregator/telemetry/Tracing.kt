@@ -19,7 +19,6 @@ import io.cloudevents.CloudEvent
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.SpanKind
-import io.opentelemetry.api.trace.StatusCode
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator
 import io.opentelemetry.context.Context
 import io.opentelemetry.context.propagation.TextMapGetter
@@ -29,7 +28,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 
 object Tracing {
   private val w3cPropagator: TextMapPropagator = W3CTraceContextPropagator.getInstance()
@@ -203,15 +202,7 @@ object Tracing {
 
   @PublishedApi
   internal fun recordFailure(span: Span, error: Throwable) {
-    span
-      .setStatus(StatusCode.ERROR, error.message ?: "Unknown error")
-      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
-      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
-      .recordException(error)
-    val errorCode = ReportTraceAttributes.errorCode(error)
-    if (errorCode != null) {
-      span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
-    }
+    ReportTracing.recordFailure(span, error)
   }
 
   private object CloudFunctionsHttpRequestGetter : TextMapGetter<HttpRequest> {
