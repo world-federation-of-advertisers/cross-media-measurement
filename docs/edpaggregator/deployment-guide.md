@@ -890,10 +890,12 @@ The workflow's environment-scoped concurrency lock prevents overlapping deployme
 interleaving rollout phases. Before its first Terraform apply, the workflow validates the exact
 RequisitionFetcher and DataWatcher textprotos from the selected GitHub environment. It requires a
 direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
-and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
-DataWatcher regex that matches a representative direct-path object. Validation failure therefore
-stops deployment before any worker is quiesced. The workflow first rolls both Secure Computation API
-deployments with WorkItem publication, legacy reconciliation, and dead-letter processing disabled.
+and valid ResultsFulfiller parameters. The queue must match the deployed ResultsFulfiller queue used
+by the provider's legacy DataWatcher route. Preflight also rejects overlapping storage prefixes or
+any deployed DataWatcher regex that matches a representative direct-path object. Validation failure
+therefore stops deployment before any worker is quiesced. The workflow first rolls both Secure
+Computation API deployments with WorkItem publication, legacy reconciliation, and dead-letter
+processing disabled.
 Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
 direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
 waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE
