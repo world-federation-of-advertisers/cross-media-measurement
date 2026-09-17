@@ -34,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRankInd
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRankIndexBlobByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRankIndexBlobsByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineStateByCmmsModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRankIndexBlob
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rankIndexBlobExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankIndexBlobs
@@ -41,6 +42,8 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.softDeleteR
 import org.wfanet.measurement.edpaggregator.service.internal.InvalidFieldValueException
 import org.wfanet.measurement.edpaggregator.service.internal.RankIndexBlobAlreadyExistsException
 import org.wfanet.measurement.edpaggregator.service.internal.RankIndexBlobNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineNotFoundException
+import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadModelLineStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -57,6 +60,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsResponse
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlob
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRankIndexBlobsResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteRankIndexBlobsResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -478,6 +482,32 @@ class SpannerRankIndexBlobService(
     requestId: String,
     rankIndexBlob: RankIndexBlob,
   ): RankIndexBlob {
+    val modelLineState =
+      txn.getRawImpressionUploadModelLineStateByCmmsModelLine(
+        dataProviderResourceId,
+        rawImpressionUploadId,
+        rankIndexBlob.cmmsModelLine,
+      )
+        ?: throw RawImpressionUploadModelLineNotFoundException(
+            dataProviderResourceId,
+            rawImpressionUploadResourceId,
+            rankIndexBlob.cmmsModelLine,
+          )
+          .asStatusRuntimeException(Status.Code.NOT_FOUND)
+    if (
+      modelLineState !=
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING
+    ) {
+      throw RawImpressionUploadModelLineStateInvalidException(
+          dataProviderResourceId,
+          rawImpressionUploadResourceId,
+          rankIndexBlob.cmmsModelLine,
+          modelLineState,
+          listOf(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING),
+        )
+        .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+    }
+
     val rankIndexBlobId =
       idGenerator.generateNewId { id ->
         txn.rankIndexBlobExists(dataProviderResourceId, rawImpressionUploadId, id)
