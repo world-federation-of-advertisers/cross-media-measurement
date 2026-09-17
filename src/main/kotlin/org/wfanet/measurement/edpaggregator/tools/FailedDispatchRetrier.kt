@@ -345,7 +345,7 @@ class FailedDispatchRetrier(
 
   private fun labelingPhaseWorkItemIds(jobs: List<VidLabelingJob>): List<String> {
     val unfinished = jobs.filter { it.state != VidLabelingJob.State.SUCCEEDED }
-    return (if (unfinished.isEmpty()) jobs else unfinished).map {
+    return (if (unfinished.isEmpty()) jobs.take(1) else unfinished).map {
       WorkItemIds.forVidLabeler(it.name)
     }
   }

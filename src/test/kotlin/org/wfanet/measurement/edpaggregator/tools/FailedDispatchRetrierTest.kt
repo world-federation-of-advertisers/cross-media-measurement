@@ -192,6 +192,35 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed replays one successful Phase 2 job when parent completion is missing`() =
+    runBlocking {
+      stubFailedModelLine()
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse {
+            vidLabelingJobs += vidLabelingJob {
+              name = VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+            vidLabelingJobs += vidLabelingJob {
+              name = SECOND_VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+      val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+      assertThat(result.workItemsRepublished).isEqualTo(1)
+      verifyBlocking(workItemsService) { getWorkItem(any()) }
+      verifyBlocking(workItemsService) { createWorkItem(any()) }
+    }
+
+  @Test
   fun `retryFailed throttles every model-line page`() {
     val result = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
