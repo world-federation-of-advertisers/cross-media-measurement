@@ -123,6 +123,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:authentication",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:principal_matcher",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:measurement_statistics",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:metric_statistics",
         "//src/main/kotlin/org/wfanet/measurement/measurementconsumer/stats:variances",
@@ -232,6 +233,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:permission_matcher",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:principal_matcher",
         "//src/main/kotlin/org/wfanet/measurement/access/client/v1alpha/testing:protected_resource_matcher",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/reporting/service/api/v2alpha:report_schedule_info_server_interceptor",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/common/truth/extensions/proto",
