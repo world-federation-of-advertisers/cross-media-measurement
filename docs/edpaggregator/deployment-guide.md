@@ -912,12 +912,10 @@ The workflow's environment-scoped concurrency lock prevents overlapping deployme
 interleaving rollout phases. Before its first Terraform apply, the workflow validates the exact
 RequisitionFetcher and DataWatcher textprotos from the selected GitHub environment. It requires a
 direct-dispatch block for every configured data provider, a control-plane target, queue, TLS paths,
-and valid ResultsFulfiller parameters. The queue must match the deployed ResultsFulfiller queue used
-by the provider's legacy DataWatcher route. Preflight also rejects overlapping storage prefixes or
-any deployed DataWatcher regex that matches a representative direct-path object. Validation failure
-therefore stops deployment before any worker is quiesced. The workflow first rolls both Secure
-Computation API deployments with WorkItem publication, legacy reconciliation, and dead-letter
-processing disabled.
+and valid ResultsFulfiller parameters; it also rejects overlapping storage prefixes or any deployed
+DataWatcher regex that matches a representative direct-path object. Validation failure therefore
+stops deployment before any worker is quiesced. The workflow first rolls both Secure Computation API
+deployments with WorkItem publication, legacy reconciliation, and dead-letter processing disabled.
 Its first Terraform apply then pauses the RequisitionFetcher Cloud Scheduler job, uploads the
 direct-only configuration and binary, and quiesces all WorkItem-consuming TEE MIGs. The workflow
 waits for the fetcher's 600-second maximum invocation duration and verifies that every affected TEE
@@ -931,6 +929,10 @@ Scheduler pausing is independent of the function revision, so an old fetcher can
 API and worker rollout and the new direct-only fetcher needs no legacy-mode process flag. The next
 invocation polls the same unfulfilled Kingdom requisitions. DataWatcher stays active and unclaimed
 Pub/Sub messages remain queued; they must not be drained.
+
+After all legacy groups have finished and no legacy blobs require recovery, remove the legacy
+ResultsFulfiller watched path from the DataWatcher configuration. Preflight accepts a DataWatcher
+configuration without that route; direct dispatch does not depend on the legacy queue mapping.
 
 Do not invoke child deployment workflows independently for this upgrade. No manual service
 scaling, subscription drain, WorkItem snapshot, active-attempt query, or migration-time

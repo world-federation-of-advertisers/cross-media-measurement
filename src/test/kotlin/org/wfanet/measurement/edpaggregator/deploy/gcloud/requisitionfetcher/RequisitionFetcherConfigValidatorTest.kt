@@ -46,6 +46,15 @@ class RequisitionFetcherConfigValidatorTest {
   }
 
   @Test
+  fun `deployment config without legacy DataWatcher route is valid`() {
+    RequisitionFetcherConfigValidator.validate(
+      validFetcherConfig(),
+      CONTROL_PLANE_TARGET,
+      DataWatcherConfig.getDefaultInstance(),
+    )
+  }
+
+  @Test
   fun `absent requisition refusal duration uses 48 hour default`() {
     assertThat(RequisitionFetcherConfigValidator.requisitionRefusalDuration(validFetcherConfig()))
       .isEqualTo(java.time.Duration.ofHours(48))
@@ -159,10 +168,7 @@ class RequisitionFetcherConfigValidatorTest {
           validDataProviderConfig()
             .toBuilder()
             .setWorkItemDispatch(
-              validDataProviderConfig()
-                .workItemDispatch
-                .toBuilder()
-                .setQueue("other-valid-queue")
+              validDataProviderConfig().workItemDispatch.toBuilder().setQueue("other-valid-queue")
             )
         )
         .build()
