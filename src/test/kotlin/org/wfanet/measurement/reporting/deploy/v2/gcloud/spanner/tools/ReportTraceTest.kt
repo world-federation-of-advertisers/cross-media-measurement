@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 import com.google.api.gax.paging.Page
 import com.google.auth.oauth2.AccessToken
 import com.google.auth.oauth2.GoogleCredentials
+import com.google.cloud.MonitoredResource
 import com.google.cloud.logging.LogEntry
 import com.google.cloud.logging.Logging
 import com.google.cloud.logging.Payload
@@ -1527,6 +1528,50 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Cloud Logging reader excludes split gRPC entries by log stream context`() = runBlocking {
+    val logging = mock<Logging>()
+    val correlatedPage = mock<Page<LogEntry>>()
+    val contextPage = mock<Page<LogEntry>>()
+    val logName = "projects/logging-project/logs/stderr"
+    val resource =
+      MonitoredResource.newBuilder("k8s_container")
+        .addLabel("project_id", "logging-project")
+        .addLabel("pod_name", "reporting-pod")
+        .addLabel("container_name", "reporting-container")
+        .build()
+    fun streamEntry(message: String, millisBeforeNow: Long): LogEntry =
+      LogEntry.newBuilder(Payload.StringPayload.of(message))
+        .setLogName(logName)
+        .setResource(resource)
+        .setTimestamp(NOW.minusMillis(millisBeforeNow))
+        .build()
+    val grpcPreamble = streamEntry("[grpc-worker] gRPC trace-id request:", 2)
+    val grpcContinuation =
+      streamEntry("basic_report: \"measurementConsumers/mc-1/basicReports/report-1\"", 1)
+    whenever(correlatedPage.values).thenReturn(listOf(grpcContinuation))
+    whenever(correlatedPage.hasNextPage()).thenReturn(false)
+    whenever(contextPage.values).thenReturn(listOf(grpcContinuation, grpcPreamble))
+    whenever(contextPage.hasNextPage()).thenReturn(false)
+    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage, contextPage)
+    val reader =
+      GoogleCloudReportTraceLogReader(
+        project = "logging-project",
+        logging = logging,
+        includeGrpcPayloads = false,
+      )
+
+    val entries =
+      reader.read(
+        correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+        startTime = NOW.minusSeconds(1),
+        endTime = NOW.plusSeconds(1),
+        limit = 100,
+      )
+
+    assertThat(entries).isEmpty()
+  }
+
+  @Test
   fun `Cloud Logging reader fails closed for overlapping gRPC requests`() = runBlocking {
     val logging = mock<Logging>()
     val correlatedPage = mock<Page<LogEntry>>()
@@ -1659,6 +1704,39 @@ class ReportTraceTest {
         )
 
       assertThat(entries.map { it.message }).containsExactly(lifecycleMessage)
+      Unit
+    }
+
+  @Test
+  fun `Cloud Logging reader retains prefixed application log without source identity`() =
+    runBlocking {
+      val logging = mock<Logging>()
+      val correlatedPage = mock<Page<LogEntry>>()
+      val message = "INFO: Finished processing measurementConsumers/mc-1/basicReports/report-1"
+      val applicationLog =
+        LogEntry.newBuilder(Payload.StringPayload.of(message))
+          .setLogName("projects/logging-project/logs/stderr")
+          .setTimestamp(NOW)
+          .build()
+      whenever(correlatedPage.values).thenReturn(listOf(applicationLog))
+      whenever(correlatedPage.hasNextPage()).thenReturn(false)
+      whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage)
+      val reader =
+        GoogleCloudReportTraceLogReader(
+          project = "logging-project",
+          logging = logging,
+          includeGrpcPayloads = false,
+        )
+
+      val entries =
+        reader.read(
+          correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          startTime = NOW.minusSeconds(1),
+          endTime = NOW.plusSeconds(1),
+          limit = 100,
+        )
+
+      assertThat(entries.map { it.message }).containsExactly(message)
       Unit
     }
 
