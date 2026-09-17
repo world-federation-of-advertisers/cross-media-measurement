@@ -226,6 +226,13 @@ class VidRankBuilder(
       requireNotNull(getParent()) {
         "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
       }
+    check(
+      parent.state != RawImpressionUploadModelLine.State.CREATED &&
+        parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING
+    ) {
+      "Parent ${parent.name} has not reached RANKING; retry this WorkItem after Phase 0 commits " +
+        "the transition"
+    }
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("RankerJob $rankerJob already SUCCEEDED; nothing to recover (parent advanced)")
       return Result(0, lastJobOut = false)
@@ -257,6 +264,13 @@ class VidRankBuilder(
    * post-`CREATED`, recovery would need a different strategy.
    */
   private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine) {
+    check(
+      parent.state != RawImpressionUploadModelLine.State.CREATED &&
+        parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING
+    ) {
+      "Parent ${parent.name} has not reached RANKING; retry this WorkItem after Phase 0 commits " +
+        "the transition"
+    }
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("Parent ${parent.name} already past RANKING; last-job-out already complete")
       return
