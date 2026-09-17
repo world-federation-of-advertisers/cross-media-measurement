@@ -24,15 +24,25 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanContext
+import io.opentelemetry.api.trace.TraceFlags
+import io.opentelemetry.api.trace.TraceState
+import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.LongPointData
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
@@ -59,10 +69,12 @@ import org.wfanet.measurement.api.v2alpha.listRequisitionsResponse
 import org.wfanet.measurement.api.v2alpha.requisition
 import org.wfanet.measurement.api.v2alpha.signedMessage
 import org.wfanet.measurement.api.v2alpha.unpack
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
@@ -238,13 +250,34 @@ class RequisitionFetcherTest {
   private lateinit var storageClient: FileSystemStorageClient
   private lateinit var metricReader: InMemoryMetricReader
   private lateinit var testMetrics: RequisitionFetcherMetrics
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun setUp() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     storageClient = FileSystemStorageClient(tempFolder.root)
     metricReader = InMemoryMetricReader.create()
     val meterProvider = SdkMeterProvider.builder().registerMetricReader(metricReader).build()
     testMetrics = RequisitionFetcherMetrics(meterProvider.get("test"))
+  }
+
+  @After
+  fun cleanUpTelemetry() {
+    openTelemetry.close()
+    spanExporter.reset()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
   }
 
   private fun createFetcher(
@@ -449,6 +482,18 @@ class RequisitionFetcherTest {
     assertThat(directBlobsDir().listFiles().orEmpty()).hasLength(1)
     assertThat(blobsDir().listFiles().orEmpty()).isEmpty()
     assertThat(allMetadataQueuedBeforeDispatch).isTrue()
+    val dispatchSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition"
+      }
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(TestRequisitionData.REQUISITION.name)
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.GROUP_ID)).isEqualTo(groupId)
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME))
+      .isEqualTo("workItems/results-fulfiller-$groupId")
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_dispatch")
+    assertThat(dispatchSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
   }
 
   @Test
@@ -469,6 +514,88 @@ class RequisitionFetcherTest {
     createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
 
     assertThat(dispatchCalled).isFalse()
+    val failureSpans =
+      spanExporter.finishedSpanItems.filter {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" &&
+          it.attributes.get(ReportTraceAttributes.GROUP_ID) != null
+      }
+    assertThat(failureSpans).hasSize(1)
+    val failureSpan = failureSpans.single()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(TestRequisitionData.REQUISITION.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusException")
+  }
+
+  @Test
+  fun `direct dispatch failure emits attributed Requisition failure`() = runBlocking {
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          error("dispatch failed")
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher).fetchAndStoreRequisitions()
+
+    val failureSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" &&
+          it.attributes.get(ReportTraceAttributes.GROUP_ID) != null
+      }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(TestRequisitionData.REQUISITION.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REPORT_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.WORK_ITEM_NAME)).isNotNull()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
+  }
+
+  @Test
+  fun `dispatch failure preserves outcomes and does not block later groups`() = runBlocking {
+    val requisitions =
+      (1..5).map { index ->
+        TestRequisitionData.REQUISITION.copy {
+          name = "${TestRequisitionData.EDP_NAME}/requisitions/foo$index"
+          updateTime = timestamp { seconds = 10 }
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { this.requisitions += requisitions })
+    var dispatchCount = 0
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          dispatchCount++
+          if (dispatchCount == 2) {
+            error("second dispatch failed")
+          }
+        }
+      }
+
+    createFetcher(workItemDispatcher = dispatcher, maxRequisitionsPerGroup = 2)
+      .fetchAndStoreRequisitions()
+
+    val outcomesByRequisition =
+      spanExporter.finishedSpanItems
+        .filter { it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" }
+        .associate {
+          checkNotNull(it.attributes.get(ReportTraceAttributes.REQUISITION_NAME)) to
+            checkNotNull(it.attributes.get(ReportTraceAttributes.OUTCOME))
+        }
+    assertThat(outcomesByRequisition[requisitions[0].name]).isEqualTo("succeeded")
+    assertThat(outcomesByRequisition[requisitions[1].name]).isEqualTo("succeeded")
+    assertThat(outcomesByRequisition[requisitions[2].name]).isEqualTo("failed")
+    assertThat(outcomesByRequisition[requisitions[3].name]).isEqualTo("failed")
+    assertThat(outcomesByRequisition[requisitions[4].name]).isEqualTo("succeeded")
   }
 
   @Test
@@ -896,7 +1023,16 @@ class RequisitionFetcherTest {
         controlPlaneThrottler = throttler,
       )
 
-    dispatcher.dispatch("group-id", "gs://bucket/requisitions-v2/group-id")
+    val spanContext =
+      SpanContext.create(
+        "0123456789abcdef0123456789abcdef",
+        "0123456789abcdef",
+        TraceFlags.getSampled(),
+        TraceState.getDefault(),
+      )
+    Span.wrap(spanContext).makeCurrent().use {
+      dispatcher.dispatch("group-id", "gs://bucket/requisitions-v2/group-id")
+    }
 
     val request = ensureWorkItemRequests.single()
     assertThat(request.workItemId).isEqualTo("results-fulfiller-group-id")
@@ -905,8 +1041,74 @@ class RequisitionFetcherTest {
     assertThat(params.appParams.unpack(ResultsFulfillerParams::class.java))
       .isEqualTo(expectedResultsFulfillerParams)
     assertThat(params.dataPathParams.dataPath).isEqualTo("gs://bucket/requisitions-v2/group-id")
+    assertThat(params.traceContextMap)
+      .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
     assertThat(dispatcher.workItemName("group-id"))
       .isEqualTo("workItems/results-fulfiller-group-id")
+  }
+
+  @Test
+  fun `secure computation dispatcher preserves trace context on idempotent retry`() = runBlocking {
+    val requests = mutableListOf<EnsureWorkItemRequest>()
+    val resultsFulfillerParams = resultsFulfillerParams {
+      dataProvider = TestRequisitionData.EDP_NAME
+    }
+    whenever(workItemsServiceMock.ensureWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<EnsureWorkItemRequest>(0)
+      requests += request
+      if (requests.size == 1) {
+        throw Status.ALREADY_EXISTS.asRuntimeException()
+      }
+      workItem {
+        name = "workItems/${request.workItemId}"
+        queue = request.workItem.queue
+        workItemParams = request.workItem.workItemParams
+        state = WorkItem.State.QUEUED
+      }
+    }
+    whenever(workItemsServiceMock.getWorkItem(any()))
+      .thenReturn(
+        workItem {
+          name = "workItems/results-fulfiller-group-id"
+          queue = "results-fulfiller-queue"
+          workItemParams =
+            workItemParams {
+                appParams = resultsFulfillerParams.pack()
+                dataPathParams = dataPathParams {
+                  dataPath = "gs://bucket/requisitions-v2/group-id"
+                }
+                traceContext["traceparent"] =
+                  "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+              }
+              .pack()
+        }
+      )
+    val dispatcher =
+      SecureComputationRequisitionWorkItemDispatcher(
+        workItemsStub = workItemsStub,
+        queue = "results-fulfiller-queue",
+        resultsFulfillerParams = resultsFulfillerParams,
+        controlPlaneThrottler = throttler,
+      )
+    val currentSpan =
+      Span.wrap(
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      )
+
+    currentSpan.makeCurrent().use {
+      dispatcher.dispatch("group-id", "gs://bucket/requisitions-v2/group-id")
+    }
+
+    assertThat(requests).hasSize(2)
+    val retriedParams =
+      requests.last().workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    assertThat(retriedParams.traceContextMap)
+      .containsEntry("traceparent", "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01")
   }
 
   @Test
@@ -1433,6 +1635,49 @@ class RequisitionFetcherTest {
     assertThat(createRequisitionMetadataRequests).isEmpty()
     // A requisition refused for a bad spec was still fetched from the Kingdom, so it is counted.
     assertThat(counterValue("edpa.requisition_fetcher.requisitions_fetched")).isEqualTo(1)
+    val refusalSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.refuse_requisition"
+      }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(bad.name)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_refusal")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+      .isEqualTo(ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
+  }
+
+  @Test
+  fun `refusal RPC failure is traced with Requisition identity`() = runBlocking {
+    val bad =
+      TestRequisitionData.REQUISITION.copy {
+        measurementSpec = signedMessage {
+          message = Any.pack(StringValue.newBuilder().setValue("x").build())
+        }
+      }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += bad })
+    whenever(requisitionsServiceMock.refuseRequisition(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+
+    createFetcher().fetchAndStoreRequisitions()
+
+    val refusalSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.refuse_requisition"
+      }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(bad.name)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_refusal")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+      .isEqualTo(ReportTraceAttributes.REQUISITION_FETCHER_REFUSAL_ORIGIN)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusException")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
   }
 
   @Test
@@ -2241,12 +2486,32 @@ class RequisitionFetcherTest {
       throw RuntimeException("simulated storage write failure")
     }
 
-    createFetcher(storageClient = mockStorageClient).fetchAndStoreRequisitions()
+    val dispatcher =
+      object : RequisitionWorkItemDispatcher {
+        override fun workItemName(groupId: String): String = "workItems/results-fulfiller-$groupId"
+
+        override suspend fun dispatch(groupId: String, blobUri: String) {
+          error("dispatch must not run after a blob failure")
+        }
+      }
+
+    createFetcher(storageClient = mockStorageClient, workItemDispatcher = dispatcher)
+      .fetchAndStoreRequisitions()
 
     assertThat(counterValue("edpa.requisition_fetcher.storage_fails")).isEqualTo(1)
     assertThat(counterValue("edpa.requisition_fetcher.report_failures")).isEqualTo(1)
     assertThat(counterValue("edpa.requisition_fetcher.storage_writes")).isEqualTo(0)
     assertThat(createRequisitionMetadataRequests).isEmpty()
+    val failureSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "edp_aggregator.requisition_fetcher.dispatch_requisition" &&
+          it.attributes.get(ReportTraceAttributes.GROUP_ID) != null
+      }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(r1.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("RuntimeException")
   }
 
   @Test
