@@ -26,6 +26,7 @@ import io.opentelemetry.api.trace.Span
 import io.opentelemetry.api.trace.StatusCode
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -258,9 +259,16 @@ class RequisitionFetcher(
           val pendingRecovery = mutableMapOf<String, PendingRecovery>()
           val metadataCache = mutableMapOf<String, List<RequisitionMetadata>>()
           val blockedRecoveryGroupIds = mutableSetOf<String>()
+          val terminalRequisitionNames = mutableSetOf<String>()
           try {
             for (unit in channel) {
-              processReport(unit, pendingRecovery, metadataCache, blockedRecoveryGroupIds)
+              processReport(
+                unit,
+                pendingRecovery,
+                metadataCache,
+                blockedRecoveryGroupIds,
+                terminalRequisitionNames,
+              )
             }
           } finally {
             finalizePendingRecovery(pendingRecovery)
@@ -496,6 +504,7 @@ class RequisitionFetcher(
     pendingRecovery: MutableMap<String, PendingRecovery>,
     metadataCache: MutableMap<String, List<RequisitionMetadata>>,
     blockedRecoveryGroupIds: MutableSet<String>,
+    terminalRequisitionNames: MutableSet<String>,
   ) {
     try {
       traceSuspending(
@@ -515,7 +524,13 @@ class RequisitionFetcher(
             }
             .build(),
       ) {
-        processReportInner(unit, pendingRecovery, metadataCache, blockedRecoveryGroupIds)
+        processReportInner(
+          unit,
+          pendingRecovery,
+          metadataCache,
+          blockedRecoveryGroupIds,
+          terminalRequisitionNames,
+        )
         Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       }
     } catch (e: CancellationException) {
@@ -585,6 +600,7 @@ class RequisitionFetcher(
     pendingRecovery: MutableMap<String, PendingRecovery>,
     metadataCache: MutableMap<String, List<RequisitionMetadata>>,
     blockedRecoveryGroupIds: MutableSet<String>,
+    terminalRequisitionNames: MutableSet<String>,
   ) {
     val cachedMetadata =
       metadataCache.getOrPut(unit.reportId) { listRequisitionMetadataByReportId(unit.reportId) }
@@ -592,7 +608,9 @@ class RequisitionFetcher(
     val eligibleRequisitions = mutableListOf<Requisition>()
     val terminalGroupIds = mutableSetOf<String>()
 
-    for (requisition in unit.requisitions) {
+    for (requisition in newestRequisitionSnapshots(unit.requisitions)) {
+      if (requisition.name in terminalRequisitionNames) continue
+
       if (!isPastRefusalDuration(requisition)) {
         eligibleRequisitions += requisition
         continue
@@ -613,21 +631,26 @@ class RequisitionFetcher(
         )
         continue
       }
+      terminalRequisitionNames += requisition.name
 
-      if (existing != null && existing.state.isRecoverable()) {
-        try {
-          metadataByRequisition[requisition.name] =
-            reconcileTerminalMetadata(existing, terminalState, refusal.message)
+      if (existing != null) {
+        if (existing.state.isRecoverable()) {
+          try {
+            metadataByRequisition[requisition.name] =
+              reconcileTerminalMetadata(existing, terminalState, refusal.message)
+            terminalGroupIds += existing.groupId
+          } catch (e: Exception) {
+            // TODO(world-federation-of-advertisers/cross-media-measurement#4515): Persist terminal
+            // reconciliation intent so a local metadata failure remains discoverable after the
+            // Requisition leaves Kingdom's UNFULFILLED stream.
+            // The Kingdom refusal is already terminal. Prevent this invocation from redispatching
+            // the group if local reconciliation fails; an existing ResultsFulfiller delivery also
+            // observes the Kingdom state and performs the same metadata reconciliation.
+            blockedRecoveryGroupIds += existing.groupId
+            throw e
+          }
+        } else if (existing.state.isTerminal()) {
           terminalGroupIds += existing.groupId
-        } catch (e: Exception) {
-          // TODO(world-federation-of-advertisers/cross-media-measurement#4515): Persist terminal
-          // reconciliation intent so a local metadata failure remains discoverable after the
-          // Requisition leaves Kingdom's UNFULFILLED stream.
-          // The Kingdom refusal is already terminal. Prevent this invocation from redispatching
-          // the group if local reconciliation fails; an existing ResultsFulfiller delivery also
-          // observes the Kingdom state and performs the same metadata reconciliation.
-          blockedRecoveryGroupIds += existing.groupId
-          throw e
         }
       }
     }
@@ -1266,6 +1289,32 @@ class RequisitionFetcher(
     return this == RequisitionMetadata.State.STORED ||
       this == RequisitionMetadata.State.QUEUED ||
       this == RequisitionMetadata.State.PROCESSING
+  }
+
+  /** Returns one snapshot per Requisition, preferring the newest valid Kingdom update time. */
+  private fun newestRequisitionSnapshots(requisitions: List<Requisition>): List<Requisition> {
+    val snapshotsByName = linkedMapOf<String, Requisition>()
+    for (candidate in requisitions) {
+      val current = snapshotsByName[candidate.name]
+      if (current == null || candidate.isNewerThan(current)) {
+        snapshotsByName[candidate.name] = candidate
+      }
+    }
+    return snapshotsByName.values.toList()
+  }
+
+  private fun Requisition.isNewerThan(other: Requisition): Boolean {
+    val candidateTime = validUpdateInstant()
+    val otherTime = other.validUpdateInstant()
+    return when {
+      candidateTime == null -> otherTime == null
+      otherTime == null -> true
+      else -> !candidateTime.isBefore(otherTime)
+    }
+  }
+
+  private fun Requisition.validUpdateInstant(): Instant? {
+    return if (hasUpdateTime() && Timestamps.isValid(updateTime)) updateTime.toInstant() else null
   }
 
   private fun RequisitionMetadata.State.isTerminal(): Boolean {

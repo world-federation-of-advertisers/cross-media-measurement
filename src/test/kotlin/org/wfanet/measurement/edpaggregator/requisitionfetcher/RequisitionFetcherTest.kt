@@ -487,6 +487,47 @@ class RequisitionFetcherTest {
   }
 
   @Test
+  fun `duplicate requisition snapshots use newest update time for refusal`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    val fresh = stale.copy { updateTime = now.minus(Duration.ofHours(1)).toProtoTime() }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(fresh, stale) })
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests).isEmpty()
+    assertThat(createRequisitionMetadataRequests.map { it.requisitionMetadata.cmmsRequisition })
+      .containsExactly(stale.name)
+    assertThat(ensureWorkItemRequests).hasSize(1)
+  }
+
+  @Test
+  fun `terminal duplicate in a later work unit is not dispatched`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    val laterSnapshot = stale.copy { updateTime = now.minus(Duration.ofHours(1)).toProtoTime() }
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += listOf(stale, laterSnapshot) })
+
+    createFetcher(
+        clock = Clock.fixed(now, ZoneOffset.UTC),
+        maxTotalBufferedBytes = stale.serializedSize.toLong(),
+      )
+      .fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests.map { it.name }).containsExactly(stale.name)
+    assertThat(createRequisitionMetadataRequests).isEmpty()
+    assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
   fun `requisition without update time is not refused automatically`() = runBlocking {
     whenever(requisitionsServiceMock.listRequisitions(any()))
       .thenReturn(listRequisitionsResponse { requisitions += TestRequisitionData.REQUISITION })
@@ -787,6 +828,47 @@ class RequisitionFetcherTest {
     assertThat(fulfillRequisitionMetadataRequests.map { it.name })
       .containsExactly("${TestRequisitionData.EDP_NAME}/requisitionMetadata/terminal-1")
     assertThat(failWorkItemRequests).hasSize(1)
+    assertThat(ensureWorkItemRequests).isEmpty()
+  }
+
+  @Test
+  fun `already terminal metadata fails completed group WorkItem`() = runBlocking {
+    val now = Instant.parse("2026-09-14T12:00:00Z")
+    val stale =
+      TestRequisitionData.REQUISITION.copy {
+        updateTime = now.minus(Duration.ofHours(49)).toProtoTime()
+      }
+    val groupId = "existing-group"
+    val workItemName = "workItems/results-fulfiller-$groupId"
+    whenever(requisitionsServiceMock.listRequisitions(any()))
+      .thenReturn(listRequisitionsResponse { requisitions += stale })
+    whenever(requisitionsServiceMock.refuseRequisition(any())).thenAnswer { invocation ->
+      refuseRequisitionRequests += invocation.getArgument<RefuseRequisitionRequest>(0)
+      throw Status.FAILED_PRECONDITION.asRuntimeException()
+    }
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(stale.copy { state = Requisition.State.FULFILLED })
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            name = "${TestRequisitionData.EDP_NAME}/requisitionMetadata/stale"
+            cmmsRequisition = stale.name
+            this.groupId = groupId
+            blobUri = "$BLOB_URI_PREFIX/$DIRECT_STORAGE_PATH_PREFIX/$groupId"
+            state = RequisitionMetadata.State.FULFILLED
+            workItem = workItemName
+            etag = "etag"
+          }
+        }
+      )
+
+    createFetcher(clock = Clock.fixed(now, ZoneOffset.UTC)).fetchAndStoreRequisitions()
+
+    assertThat(refuseRequisitionRequests.map { it.name }).containsExactly(stale.name)
+    assertThat(refuseRequisitionMetadataRequests).isEmpty()
+    assertThat(failWorkItemRequests).hasSize(1)
+    assertThat(failWorkItemRequests.single().name).isEqualTo(workItemName)
     assertThat(ensureWorkItemRequests).isEmpty()
   }
 
