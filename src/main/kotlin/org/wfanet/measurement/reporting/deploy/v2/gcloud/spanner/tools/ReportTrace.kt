@@ -460,7 +460,7 @@ internal class GoogleCloudReportTraceLogReader(
       rawEntriesExamined += result.entries.size
       if (result.truncated) rawQueriesTruncated++
     }
-    val filterResult = filterVerboseGrpcEntries(entries.distinct())
+    val filterResult = filterVerboseGrpcEntries(entries.distinct(), startTime, endTime)
     val renderedEntries =
       filterResult.entries
         .mapNotNull { it.toReportTraceLogEntry() }
@@ -505,7 +505,11 @@ internal class GoogleCloudReportTraceLogReader(
     }
   }
 
-  private suspend fun filterVerboseGrpcEntries(entries: List<LogEntry>): GrpcFilterResult {
+  private suspend fun filterVerboseGrpcEntries(
+    entries: List<LogEntry>,
+    startTime: Instant,
+    endTime: Instant,
+  ): GrpcFilterResult {
     if (includeGrpcPayloads) return GrpcFilterResult(entries, 0, false)
     val retainedEntries = mutableListOf<LogEntry>()
     val contextByOrigin = mutableMapOf<LogOrigin, GrpcOriginContext>()
@@ -545,7 +549,8 @@ internal class GoogleCloudReportTraceLogReader(
           originContext =
             readGrpcContext(
               origin,
-              entry.value.instantTimestamp,
+              startTime.minus(GRPC_CONTEXT_LOOKBACK),
+              endTime,
               maxGrpcContextEntries - contextEntriesExamined,
             )
           contextEntriesExamined += originContext.entriesExamined
@@ -567,13 +572,14 @@ internal class GoogleCloudReportTraceLogReader(
 
   private suspend fun readGrpcContext(
     origin: LogOrigin,
-    entryTime: Instant?,
+    startTime: Instant,
+    endTime: Instant,
     entryLimit: Int,
   ): GrpcOriginContext {
-    if (entryTime == null || entryLimit <= 0) {
+    if (entryLimit <= 0) {
       return GrpcOriginContext(emptyList(), 0, true)
     }
-    val filter = buildGrpcContextFilter(origin, entryTime)
+    val filter = buildGrpcContextFilter(origin, startTime, endTime)
     val entries = mutableListOf<LogEntry>()
     var entriesExamined = 0
     var page = listLogEntries(filter, entryLimit)
@@ -604,55 +610,53 @@ internal class GoogleCloudReportTraceLogReader(
     originContext: GrpcOriginContext,
   ): GrpcContinuationClassification {
     if (entryTime == null) return GrpcContinuationClassification.UNKNOWN
-    val activeCalls = mutableSetOf<GrpcCallKey>()
-    var contextIncomplete = false
-    var callsOverlapped = false
+    val completedCalls = mutableSetOf<GrpcCallKey>()
+    val pairedCalls = mutableSetOf<GrpcCallKey>()
     val contextEntries =
       originContext.entries
         .withIndex()
         .sortedWith(
-          compareBy<IndexedValue<LogEntry>> { it.value.instantTimestamp ?: Instant.MIN }
+          compareByDescending<IndexedValue<LogEntry>> { it.value.instantTimestamp ?: Instant.MIN }
             .thenBy { it.index }
         )
     for (entry in contextEntries) {
       val contextEntryTime = entry.value.instantTimestamp ?: continue
-      if (!contextEntryTime.isBefore(entryTime)) {
-        if (ReportTraceOutput.verboseGrpcLogMarker(entry.value.rawMessage()) != null) {
-          contextIncomplete = true
+      if (!contextEntryTime.isBefore(entryTime)) continue
+      val message = entry.value.rawMessage()
+      val marker = ReportTraceOutput.verboseGrpcLogMarker(message)
+      if (marker != null) {
+        val callKey = GrpcCallKey(marker.requestId, marker.isClient)
+        when (marker.kind) {
+          "complete" -> completedCalls += callKey
+          "response" -> {
+            if (callKey !in completedCalls && callKey !in pairedCalls) {
+              return if (completedCalls.isEmpty()) {
+                GrpcContinuationClassification.GRPC
+              } else {
+                GrpcContinuationClassification.UNKNOWN
+              }
+            }
+          }
+          "headers",
+          "request" -> {
+            if (completedCalls.remove(callKey)) {
+              pairedCalls += callKey
+            } else if (callKey !in pairedCalls) {
+              return if (completedCalls.isEmpty()) {
+                GrpcContinuationClassification.GRPC
+              } else {
+                GrpcContinuationClassification.UNKNOWN
+              }
+            }
+          }
+          "error" -> return GrpcContinuationClassification.GRPC
         }
-        continue
       }
-      val marker = ReportTraceOutput.verboseGrpcLogMarker(entry.value.rawMessage()) ?: continue
-      val callKey = GrpcCallKey(marker.requestId, marker.isClient)
-      when (marker.kind) {
-        "headers" -> {
-          if (!activeCalls.add(callKey)) contextIncomplete = true
-          if (activeCalls.size > 1) callsOverlapped = true
-        }
-        "request" -> {
-          if (!marker.isClient || callKey !in activeCalls) {
-            if (!activeCalls.add(callKey)) contextIncomplete = true
-            if (activeCalls.size > 1) callsOverlapped = true
-          }
-        }
-        "response" -> {
-          if (callKey !in activeCalls) {
-            activeCalls += callKey
-            contextIncomplete = true
-          }
-        }
-        "complete",
-        "error" -> {
-          if (!activeCalls.remove(callKey)) {
-            contextIncomplete = true
-          }
-          if (activeCalls.isEmpty()) callsOverlapped = false
-        }
+      if (ReportTraceOutput.isReportTraceLifecycleLog(message)) {
+        return GrpcContinuationClassification.APPLICATION
       }
     }
     return when {
-      contextIncomplete || callsOverlapped -> GrpcContinuationClassification.UNKNOWN
-      activeCalls.isNotEmpty() -> GrpcContinuationClassification.GRPC
       originContext.truncated -> GrpcContinuationClassification.UNKNOWN
       else -> GrpcContinuationClassification.APPLICATION
     }
@@ -670,10 +674,20 @@ internal class GoogleCloudReportTraceLogReader(
     }
   }
 
-  private fun buildGrpcContextFilter(origin: LogOrigin, endTime: Instant): String {
-    val predicates = mutableListOf("timestamp<=\"$endTime\"")
+  private fun buildGrpcContextFilter(
+    origin: LogOrigin,
+    startTime: Instant,
+    endTime: Instant,
+  ): String {
+    val predicates = mutableListOf("timestamp>=\"$startTime\"", "timestamp<=\"$endTime\"")
     if (origin.logName.isNotEmpty()) {
-      predicates += "logName=\"${escapeFilterString(origin.logName)}\""
+      val qualifiedLogName =
+        if (origin.logName.startsWith("projects/")) {
+          origin.logName
+        } else {
+          "projects/$project/logs/${origin.logName}"
+        }
+      predicates += "logName=\"${escapeFilterString(qualifiedLogName)}\""
     }
     if (origin.resourceType != null) {
       predicates += "resource.type=\"${escapeFilterString(origin.resourceType)}\""
@@ -684,6 +698,7 @@ internal class GoogleCloudReportTraceLogReader(
     if (origin.loggerField != null) {
       predicates += "${origin.loggerField}=\"${escapeFilterString(origin.loggerIdentity)}\""
     }
+    predicates += "\"gRPC\""
     return predicates.joinToString(" AND ")
   }
 
@@ -790,7 +805,8 @@ internal class GoogleCloudReportTraceLogReader(
 
   companion object {
     private const val MAX_LOG_PAGE_SIZE = 1000
-    private const val MAX_GRPC_CONTEXT_ENTRIES = 1000
+    private const val MAX_GRPC_CONTEXT_ENTRIES = 5000
+    private val GRPC_CONTEXT_LOOKBACK: Duration = Duration.ofSeconds(10)
     private val LOGGER_LABEL_KEYS =
       listOf("logger", "logger_name", "loggerName", "logging.googleapis.com/logger")
 
@@ -1244,13 +1260,41 @@ internal object ReportTraceOutput {
     executionOutcome: ReportTraceExecutionOutcome =
       executionOutcome(context, routeResolution, spans, logEntries),
   ): String = buildString {
+    val incompleteStages =
+      if (artifactStatus == ReportTraceArtifactStatus.PARTIAL) {
+        lifecycleCoverage.filter { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
+      } else {
+        emptyList()
+      }
+    val incompleteSources =
+      if (artifactStatus == ReportTraceArtifactStatus.PARTIAL) {
+        sourceStatuses.filter { it.status in INCOMPLETE_SOURCE_STATUSES }
+      } else {
+        emptyList()
+      }
+    val completenessDetails = buildList {
+      if (incompleteStages.isNotEmpty()) {
+        add(
+          "incomplete lifecycle: " +
+            summarizeCompletenessComponents(incompleteStages.map { it.name })
+        )
+      }
+      if (incompleteSources.isNotEmpty()) {
+        add(
+          "incomplete telemetry: " +
+            summarizeCompletenessComponents(incompleteSources.map { "${it.project}/${it.source}" })
+        )
+      }
+    }
     appendLine("# Report execution trace")
     appendLine()
-    appendLine("Collection completeness: $artifactStatus")
+    append("Collection completeness: ").append(artifactStatus)
+    if (completenessDetails.isNotEmpty()) {
+      append(" — ").append(completenessDetails.joinToString("; "))
+    }
+    appendLine()
     appendLine("Execution outcome: $executionOutcome")
     if (artifactStatus == ReportTraceArtifactStatus.PARTIAL) {
-      val incompleteStages = lifecycleCoverage.filter { it.status in INCOMPLETE_LIFECYCLE_STATUSES }
-      val incompleteSources = sourceStatuses.filter { it.status in INCOMPLETE_SOURCE_STATUSES }
       appendLine()
       appendLine("Incomplete lifecycle evidence:")
       if (incompleteStages.isEmpty()) {
@@ -2819,6 +2863,18 @@ internal object ReportTraceOutput {
     return redact(value).take(MAX_RENDERED_VALUE_LENGTH)
   }
 
+  private fun summarizeCompletenessComponents(values: List<String>): String {
+    val distinctValues = values.distinct()
+    val displayedValues = distinctValues.take(MAX_COMPLETENESS_HEADLINE_COMPONENTS)
+    val omittedCount = distinctValues.size - displayedValues.size
+    return buildString {
+      append(displayedValues.joinToString(", ") { sanitize(it) })
+      if (omittedCount > 0) {
+        append(" (+").append(omittedCount).append(" more)")
+      }
+    }
+  }
+
   private fun redact(value: String): String {
     var sanitized = value.replace('\n', ' ').replace('\r', ' ')
     for (pattern in SECRET_PATTERNS) {
@@ -2960,6 +3016,7 @@ internal object ReportTraceOutput {
   }
 
   private const val MAX_LOG_FILTER_LENGTH = 20_000
+  private const val MAX_COMPLETENESS_HEADLINE_COMPONENTS = 5
   private const val MAX_DIAGNOSTIC_LOG_ENTRIES = 50
   private const val MAX_RENDERED_VALUE_LENGTH = 1000
   private val ERROR_LOG_SEVERITIES = setOf("ERROR", "CRITICAL", "ALERT", "EMERGENCY")
