@@ -403,7 +403,7 @@ class ReportsService(
 
     grpcRequire(request.hasReport()) { "Report is not specified." }
     grpcRequire(request.reportId.matches(RESOURCE_ID_REGEX)) { "Report ID is invalid." }
-    if (request.report.basicReport.isNotBlank()) {
+    if (request.report.basicReport.isNotEmpty()) {
       val basicReportKey =
         grpcRequireNotNull(BasicReportKey.fromName(request.report.basicReport)) {
           "report.basic_report is invalid"

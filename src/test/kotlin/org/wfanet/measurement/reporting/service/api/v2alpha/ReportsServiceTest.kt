@@ -365,6 +365,26 @@ class ReportsServiceTest {
   }
 
   @Test
+  fun `createReport rejects whitespace BasicReport name`() {
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+          basicReport = " "
+        }
+      reportId = "report-id"
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> { runBlocking { service.createReport(request) } }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `createReport returns report when model line in metric calculation spec`() = runBlocking {
     val modelLineName = ModelLineKey("123", "124", "125").toName()
     whenever(internalMetricCalculationSpecsMock.batchGetMetricCalculationSpecs(any())).thenAnswer {

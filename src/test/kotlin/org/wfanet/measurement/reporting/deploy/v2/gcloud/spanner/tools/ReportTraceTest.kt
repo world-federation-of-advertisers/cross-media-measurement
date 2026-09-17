@@ -118,7 +118,7 @@ class ReportTraceTest {
                 service = "edpa-results-fulfiller",
                 severity = "INFO",
                 trace = "projects/test/traces/trace-2",
-                message = "requisition fulfilled",
+                message = "requisition fulfilled for measurementConsumers/mc-1/reports/report-1",
               )
             )
           }
@@ -604,7 +604,7 @@ class ReportTraceTest {
                 service = "test",
                 severity = "INFO",
                 trace = "projects/test/traces/$traceId",
-                message = "",
+                message = "trace discovered for ${context.basicReportName}",
               )
             }
           }
@@ -2497,6 +2497,42 @@ class ReportTraceTest {
         )
       )
       .containsExactly(targetRequisition, targetWorkItem)
+  }
+
+  @Test
+  fun `telemetry scope retains unlabeled lineage without retaining siblings`() {
+    val targetBasicReport = "measurementConsumers/mc-1/basicReports/report-1"
+    val root = traceSpan("root", NOW).copy(traceId = "shared-trace")
+    val target =
+      traceSpan("target", NOW.plusSeconds(1))
+        .copy(
+          traceId = "shared-trace",
+          parentSpanId = root.spanId,
+          attributes = mapOf("xmm.basic_report.name" to targetBasicReport),
+        )
+    val targetChild =
+      traceSpan("target-child", NOW.plusSeconds(2))
+        .copy(traceId = "shared-trace", parentSpanId = target.spanId)
+    val unrelatedSibling =
+      traceSpan("unrelated-sibling", NOW.plusSeconds(3))
+        .copy(traceId = "shared-trace", parentSpanId = root.spanId)
+    val foreignSibling =
+      traceSpan("foreign-sibling", NOW.plusSeconds(4))
+        .copy(
+          traceId = "shared-trace",
+          parentSpanId = root.spanId,
+          attributes =
+            mapOf("xmm.basic_report.name" to "measurementConsumers/mc-1/basicReports/report-2"),
+        )
+
+    val scoped =
+      ReportTraceOutput.scopeTelemetryToReport(
+        spans = listOf(root, target, targetChild, unrelatedSibling, foreignSibling),
+        logEntries = emptyList(),
+        authoritativeReportResources = setOf(targetBasicReport),
+      )
+
+    assertThat(scoped.spans).containsExactly(root, target, targetChild).inOrder()
   }
 
   @Test
@@ -6116,6 +6152,36 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `renderLogPayload omits nested JSON message fields by default`() {
+    for (messageField in listOf("message", "MESSAGE")) {
+      val payload =
+        Payload.JsonPayload.of(
+          mapOf(
+            messageField to mapOf("authorization" to "secret-token"),
+            "event" to "requisition_failed",
+          )
+        )
+
+      val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = false)
+
+      assertThat(rendered).isEqualTo("event=requisition_failed")
+      assertThat(rendered).doesNotContain("secret-token")
+    }
+  }
+
+  @Test
+  fun `renderLogPayload includes nested JSON message fields when requested`() {
+    val payload =
+      Payload.JsonPayload.of(
+        mapOf("message" to mapOf("authorization" to "secret-token"), "event" to "request")
+      )
+
+    val rendered = ReportTraceOutput.renderLogPayload(payload, includeGrpcPayloads = true)
+
+    assertThat(rendered).isEqualTo(payload.toString())
+  }
+
+  @Test
   fun `render redacts secrets from chronological timeline`() {
     val output =
       ReportTraceOutput.render(
@@ -6266,9 +6332,10 @@ class ReportTraceTest {
   }
 
   @Test
-  fun `main uses log trace IDs to discover unlabelled spans in another project`() {
+  fun `main uses log trace IDs to discover descendant spans in another project`() {
     val output = StringWriter()
     val traceIdsByProject = mutableMapOf<String, Collection<String>>()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
     val dependencies =
       ReportTraceDependencies(
         logReaderFactory = { project, _ ->
@@ -6281,7 +6348,7 @@ class ReportTraceTest {
                   service = "reporting",
                   severity = "INFO",
                   trace = "projects/reporting/traces/shared-trace",
-                  message = "report result stored",
+                  message = "report result stored for $reportName",
                 )
               )
             } else {
@@ -6294,8 +6361,20 @@ class ReportTraceTest {
             traceIdsByProject[project] = traceIds
             if (project == "kingdom" && "shared-trace" in traceIds) {
               listOf(
+                traceSpan("remote-root", NOW)
+                  .copy(
+                    sourceProject = project,
+                    traceId = "shared-trace",
+                    service = "kingdom",
+                    attributes = mapOf("xmm.report.name" to reportName),
+                  ),
                 traceSpan("remote-span", NOW)
-                  .copy(sourceProject = project, traceId = "shared-trace", service = "kingdom")
+                  .copy(
+                    sourceProject = project,
+                    traceId = "shared-trace",
+                    parentSpanId = "remote-root",
+                    service = "kingdom",
+                  ),
               )
             } else {
               emptyList()
@@ -6314,7 +6393,7 @@ class ReportTraceTest {
         arrayOf(
           "--observability-project=reporting",
           "--observability-project=kingdom",
-          "--report=measurementConsumers/mc-1/reports/report-1",
+          "--report=$reportName",
           "--start-time=2026-09-10T11:00:00Z",
           "--allow-partial",
           "--spanner-ready-timeout=PT10S",
@@ -6710,8 +6789,16 @@ class ReportTraceTest {
           ReportTraceSpanReader { project, correlationValues, _, _, _, _ ->
             if (project == "reporting" && reportName in correlationValues) {
               listOf(
-                traceSpan("span-1", NOW).copy(sourceProject = project),
-                traceSpan("span-2", NOW.plusSeconds(1)).copy(sourceProject = project),
+                traceSpan("span-1", NOW)
+                  .copy(
+                    sourceProject = project,
+                    attributes = mapOf("xmm.report.name" to reportName),
+                  ),
+                traceSpan("span-2", NOW.plusSeconds(1))
+                  .copy(
+                    sourceProject = project,
+                    attributes = mapOf("xmm.report.name" to reportName),
+                  ),
               )
             } else {
               emptyList()
@@ -6798,8 +6885,10 @@ class ReportTraceTest {
         }
     val expansionSpans =
       listOf(
-        traceSpan("expansion-1", NOW.minusSeconds(2)),
-        traceSpan("expansion-2", NOW.minusSeconds(1)),
+        traceSpan("expansion-1", NOW.minusSeconds(2))
+          .copy(attributes = mapOf("xmm.work_item.name" to workItemName)),
+        traceSpan("expansion-2", NOW.minusSeconds(1))
+          .copy(attributes = mapOf("xmm.work_item.name" to workItemName)),
       )
     val dependencies =
       ReportTraceDependencies(
@@ -6899,7 +6988,8 @@ class ReportTraceTest {
                 "reporting",
                 "INFO",
                 null,
-                "xmm.lifecycle.stage=report_creation",
+                "xmm.report.name=measurementConsumers/mc-1/reports/report-1 " +
+                  "xmm.lifecycle.stage=report_creation",
               ),
               ReportTraceLogEntry(
                 project,
@@ -6907,7 +6997,8 @@ class ReportTraceTest {
                 "reporting",
                 "ERROR",
                 null,
-                "xmm.lifecycle.stage=report_result_assembly xmm.outcome=failed",
+                "xmm.report.name=measurementConsumers/mc-1/reports/report-1 " +
+                  "xmm.lifecycle.stage=report_result_assembly xmm.outcome=failed",
               ),
             )
           }
@@ -7007,7 +7098,11 @@ class ReportTraceTest {
         spanReaderFactory = {
           ReportTraceSpanReader { _, correlationValues, traceIds, _, _, _ ->
             when {
-              reportName in correlationValues -> listOf(traceSpan("primary-span", NOW))
+              reportName in correlationValues ->
+                listOf(
+                  traceSpan("primary-span", NOW)
+                    .copy(attributes = mapOf("xmm.report.name" to reportName))
+                )
               "trace-1" in traceIds -> error("trace ID denied")
               else -> emptyList()
             }
@@ -7422,7 +7517,10 @@ class ReportTraceTest {
             if (project == "broken") {
               error("trace unavailable")
             }
-            listOf(traceSpan("healthy-span", NOW).copy(sourceProject = project))
+            listOf(
+              traceSpan("healthy-span", NOW)
+                .copy(sourceProject = project, attributes = mapOf("xmm.report.name" to reportName))
+            )
           }
         },
         resolverFactory = { _, _ -> error("Resolver should not be used") },
