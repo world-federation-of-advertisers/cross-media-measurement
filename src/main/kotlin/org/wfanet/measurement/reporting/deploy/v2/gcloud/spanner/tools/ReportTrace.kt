@@ -186,17 +186,17 @@ internal enum class ReportTraceArtifactStatus {
 internal class ReportTraceQuotaExhaustedException(message: String, cause: Throwable) :
   Exception(message, cause)
 
-internal class ReportTraceLogContextTruncatedException(
+internal class ReportTraceLogCollectionTruncatedException(
   val partialEntries: List<ReportTraceLogEntry>,
   val contextEntriesExamined: Int,
   val contextEntryLimit: Int,
-) :
-  Exception(
-    "gRPC payload context collection reached its $contextEntryLimit-entry limit after " +
-      "$contextEntriesExamined entries"
-  )
+  val grpcClassificationIncomplete: Boolean,
+  val rawEntriesExamined: Int,
+  val rawEntryLimit: Int,
+  val rawQueriesTruncated: Int,
+) : Exception("Cloud Logging collection was truncated before it could be classified completely")
 
-private fun Throwable.isQuotaExhaustion(): Boolean {
+internal fun Throwable.isQuotaExhaustion(): Boolean {
   var current: Throwable? = this
   while (current != null) {
     when (current) {
@@ -451,38 +451,52 @@ internal class GoogleCloudReportTraceLogReader(
   ): List<ReportTraceLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
     val entries = mutableListOf<LogEntry>()
+    var rawEntriesExamined = 0
+    var rawQueriesTruncated = 0
     val filters = ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime)
     for (filter in filters) {
-      entries += readFilter(filter, limit)
+      val result = readFilter(filter, limit)
+      entries += result.entries
+      rawEntriesExamined += result.entries.size
+      if (result.truncated) rawQueriesTruncated++
     }
-    val filterResult = filterVerboseGrpcEntries(entries.distinct(), startTime)
+    val filterResult = filterVerboseGrpcEntries(entries.distinct())
     val renderedEntries =
       filterResult.entries
         .mapNotNull { it.toReportTraceLogEntry() }
         .distinct()
         .sortedByDescending { it.timestamp }
         .take(readLimit(limit))
-    if (filterResult.contextTruncated) {
-      throw ReportTraceLogContextTruncatedException(
-        renderedEntries,
-        filterResult.contextEntriesExamined,
-        maxGrpcContextEntries,
+    if (filterResult.classificationIncomplete || rawQueriesTruncated > 0) {
+      throw ReportTraceLogCollectionTruncatedException(
+        partialEntries = renderedEntries,
+        contextEntriesExamined = filterResult.contextEntriesExamined,
+        contextEntryLimit = maxGrpcContextEntries,
+        grpcClassificationIncomplete = filterResult.classificationIncomplete,
+        rawEntriesExamined = rawEntriesExamined,
+        rawEntryLimit = rawReadLimit(readLimit(limit), maxGrpcContextEntries),
+        rawQueriesTruncated = rawQueriesTruncated,
       )
     }
     return renderedEntries
   }
 
-  private suspend fun readFilter(filter: String, limit: Int): List<LogEntry> {
+  private suspend fun readFilter(filter: String, limit: Int): RawLogReadResult {
     val entryLimit = readLimit(limit)
     val rawEntryLimit = rawReadLimit(entryLimit, maxGrpcContextEntries)
     val entries = mutableListOf<LogEntry>()
     var page = listLogEntries(filter, entryLimit)
     while (true) {
       for (entry in page.values) {
+        if (entries.size == rawEntryLimit) {
+          return RawLogReadResult(entries, truncated = true)
+        }
         entries += entry
-        if (entries.size == rawEntryLimit) return entries
       }
-      if (!page.hasNextPage()) return entries
+      if (!page.hasNextPage()) return RawLogReadResult(entries, truncated = false)
+      if (entries.size == rawEntryLimit) {
+        return RawLogReadResult(entries, truncated = true)
+      }
       val currentPage = page
       page =
         requestThrottler.onReady {
@@ -491,15 +505,12 @@ internal class GoogleCloudReportTraceLogReader(
     }
   }
 
-  private suspend fun filterVerboseGrpcEntries(
-    entries: List<LogEntry>,
-    startTime: Instant,
-  ): GrpcFilterResult {
+  private suspend fun filterVerboseGrpcEntries(entries: List<LogEntry>): GrpcFilterResult {
     if (includeGrpcPayloads) return GrpcFilterResult(entries, 0, false)
     val retainedEntries = mutableListOf<LogEntry>()
     val contextByOrigin = mutableMapOf<LogOrigin, GrpcOriginContext>()
     var contextEntriesExamined = 0
-    var contextTruncated = false
+    var classificationIncomplete = false
     for (entry in
       entries
         .withIndex()
@@ -520,14 +531,17 @@ internal class GoogleCloudReportTraceLogReader(
           continue
         }
       }
-      if (origin != null && ReportTraceOutput.isGrpcContinuation(message)) {
+      if (ReportTraceOutput.isGrpcContinuation(message)) {
+        if (origin == null) {
+          classificationIncomplete = true
+          continue
+        }
         var originContext = contextByOrigin[origin]
         if (originContext == null) {
           originContext =
             readGrpcContext(
               origin,
               entry.value.instantTimestamp,
-              startTime,
               maxGrpcContextEntries - contextEntriesExamined,
             )
           contextEntriesExamined += originContext.entriesExamined
@@ -537,26 +551,25 @@ internal class GoogleCloudReportTraceLogReader(
           GrpcContinuationClassification.GRPC -> continue
           GrpcContinuationClassification.APPLICATION -> Unit
           GrpcContinuationClassification.UNKNOWN -> {
-            contextTruncated = true
+            classificationIncomplete = true
             continue
           }
         }
       }
       retainedEntries += entry.value
     }
-    return GrpcFilterResult(retainedEntries, contextEntriesExamined, contextTruncated)
+    return GrpcFilterResult(retainedEntries, contextEntriesExamined, classificationIncomplete)
   }
 
   private suspend fun readGrpcContext(
     origin: LogOrigin,
     entryTime: Instant?,
-    startTime: Instant,
     entryLimit: Int,
   ): GrpcOriginContext {
     if (entryTime == null || entryLimit <= 0) {
       return GrpcOriginContext(emptyList(), 0, true)
     }
-    val filter = buildGrpcContextFilter(origin, startTime, entryTime)
+    val filter = buildGrpcContextFilter(origin, entryTime)
     val entries = mutableListOf<LogEntry>()
     var entriesExamined = 0
     var page = listLogEntries(filter, entryLimit)
@@ -587,25 +600,57 @@ internal class GoogleCloudReportTraceLogReader(
     originContext: GrpcOriginContext,
   ): GrpcContinuationClassification {
     if (entryTime == null) return GrpcContinuationClassification.UNKNOWN
-    for (entry in originContext.entries) {
-      val contextEntryTime = entry.instantTimestamp ?: continue
-      if (contextEntryTime > entryTime) continue
-      val message = entry.rawMessage()
-      when (ReportTraceOutput.verboseGrpcLogKind(message)) {
-        "headers",
-        "request",
-        "response" -> return GrpcContinuationClassification.GRPC
-        "complete",
-        "error" -> return GrpcContinuationClassification.APPLICATION
+    val activeCalls = mutableSetOf<GrpcCallKey>()
+    var contextIncomplete = false
+    var callsOverlapped = false
+    val contextEntries =
+      originContext.entries
+        .withIndex()
+        .sortedWith(
+          compareBy<IndexedValue<LogEntry>> { it.value.instantTimestamp ?: Instant.MIN }
+            .thenBy { it.index }
+        )
+    for (entry in contextEntries) {
+      val contextEntryTime = entry.value.instantTimestamp ?: continue
+      if (!contextEntryTime.isBefore(entryTime)) {
+        if (ReportTraceOutput.verboseGrpcLogMarker(entry.value.rawMessage()) != null) {
+          contextIncomplete = true
+        }
+        continue
       }
-      if (!ReportTraceOutput.isGrpcContinuation(message)) {
-        return GrpcContinuationClassification.APPLICATION
+      val marker = ReportTraceOutput.verboseGrpcLogMarker(entry.value.rawMessage()) ?: continue
+      val callKey = GrpcCallKey(marker.requestId, marker.isClient)
+      when (marker.kind) {
+        "headers" -> {
+          if (!activeCalls.add(callKey)) contextIncomplete = true
+          if (activeCalls.size > 1) callsOverlapped = true
+        }
+        "request" -> {
+          if (!marker.isClient || callKey !in activeCalls) {
+            if (!activeCalls.add(callKey)) contextIncomplete = true
+            if (activeCalls.size > 1) callsOverlapped = true
+          }
+        }
+        "response" -> {
+          if (callKey !in activeCalls) {
+            activeCalls += callKey
+            contextIncomplete = true
+          }
+        }
+        "complete",
+        "error" -> {
+          if (!activeCalls.remove(callKey)) {
+            contextIncomplete = true
+          }
+          if (activeCalls.isEmpty()) callsOverlapped = false
+        }
       }
     }
-    return if (originContext.truncated) {
-      GrpcContinuationClassification.UNKNOWN
-    } else {
-      GrpcContinuationClassification.APPLICATION
+    return when {
+      contextIncomplete || callsOverlapped -> GrpcContinuationClassification.UNKNOWN
+      activeCalls.isNotEmpty() -> GrpcContinuationClassification.GRPC
+      originContext.truncated -> GrpcContinuationClassification.UNKNOWN
+      else -> GrpcContinuationClassification.APPLICATION
     }
   }
 
@@ -621,12 +666,8 @@ internal class GoogleCloudReportTraceLogReader(
     }
   }
 
-  private fun buildGrpcContextFilter(
-    origin: LogOrigin,
-    startTime: Instant,
-    endTime: Instant,
-  ): String {
-    val predicates = mutableListOf("timestamp>=\"$startTime\"", "timestamp<=\"$endTime\"")
+  private fun buildGrpcContextFilter(origin: LogOrigin, endTime: Instant): String {
+    val predicates = mutableListOf("timestamp<=\"$endTime\"")
     if (origin.logName.isNotEmpty()) {
       predicates += "logName=\"${escapeFilterString(origin.logName)}\""
     }
@@ -718,14 +759,18 @@ internal class GoogleCloudReportTraceLogReader(
   private data class GrpcFilterResult(
     val entries: List<LogEntry>,
     val contextEntriesExamined: Int,
-    val contextTruncated: Boolean,
+    val classificationIncomplete: Boolean,
   )
+
+  private data class RawLogReadResult(val entries: List<LogEntry>, val truncated: Boolean)
 
   private data class GrpcOriginContext(
     val entries: List<LogEntry>,
     val entriesExamined: Int,
     val truncated: Boolean,
   )
+
+  private data class GrpcCallKey(val requestId: String, val isClient: Boolean)
 
   private enum class GrpcContinuationClassification {
     GRPC,
@@ -2959,7 +3004,7 @@ internal object ReportTraceOutput {
   private val APPLICATION_LOG_LEVEL_PATTERN =
     Regex("^\\s*(SEVERE|WARNING|WARN|INFO|CONFIG|FINE|FINER|FINEST):\\s")
   private val VERBOSE_GRPC_LOG_PATTERN =
-    Regex("(?i)\\bgRPC(?:\\s+client)?\\s+\\S+\\s+(headers|request|response|complete|error):?")
+    Regex("(?i)\\bgRPC(\\s+client)?\\s+(\\S+)\\s+(headers|request|response|complete|error):?")
   private val GRPC_CONTINUATION_PATTERN =
     Regex(
       "(?s)^\\s*(?:[A-Za-z_][A-Za-z0-9_.-]*\\s*(?::.*|\\{)|[{}]|" +
@@ -2968,10 +3013,24 @@ internal object ReportTraceOutput {
 
   private fun isVerboseGrpcLog(text: String): Boolean = verboseGrpcLogKind(text) != null
 
-  internal fun verboseGrpcLogKind(text: String): String? =
-    VERBOSE_GRPC_LOG_PATTERN.find(text)?.groupValues?.get(1)?.lowercase()
+  internal fun verboseGrpcLogKind(text: String): String? = verboseGrpcLogMarker(text)?.kind
+
+  internal fun verboseGrpcLogMarker(text: String): VerboseGrpcLogMarker? {
+    val match = VERBOSE_GRPC_LOG_PATTERN.find(text) ?: return null
+    return VerboseGrpcLogMarker(
+      requestId = match.groupValues[2],
+      kind = match.groupValues[3].lowercase(),
+      isClient = match.groupValues[1].isNotEmpty(),
+    )
+  }
 
   internal fun isGrpcContinuation(text: String): Boolean = GRPC_CONTINUATION_PATTERN.matches(text)
+
+  internal data class VerboseGrpcLogMarker(
+    val requestId: String,
+    val kind: String,
+    val isClient: Boolean,
+  )
 
   private fun safeTextFields(text: String): Map<String, String> {
     return buildMap {
@@ -3442,6 +3501,7 @@ internal class ReportTrace(
           } catch (e: CancellationException) {
             throw e
           } catch (e: Exception) {
+            failOnQuotaExhaustion(e)
             unresolvedContext(basicReportKey) to failureDescription(e)
           }
         var context = resolution.first
@@ -3462,6 +3522,7 @@ internal class ReportTrace(
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
+              failOnQuotaExhaustion(e)
               ReportTraceRouteResolution.unresolved(
                 measurementNames = context.measurementNames,
                 topology = topology,
@@ -3520,6 +3581,7 @@ internal class ReportTrace(
             } catch (e: CancellationException) {
               throw e
             } catch (e: Exception) {
+              failOnQuotaExhaustion(e)
               ReportTraceRouteResolution.unresolved(
                 measurementNames = context.measurementNames,
                 topology = topology,
@@ -3787,20 +3849,34 @@ internal class ReportTrace(
     val traceFetchedCounts = mutableMapOf<String, Int>()
     val logFetchedCounts = mutableMapOf<String, Int>()
     val grpcContextEntriesExamined = mutableMapOf<String, Int>()
-    fun recordGrpcContextTruncation(
+    fun recordLogCollectionTruncation(
       project: String,
       queryDescription: String,
-      exception: ReportTraceLogContextTruncatedException,
+      exception: ReportTraceLogCollectionTruncatedException,
     ) {
       logTruncatedProjects += project
       logFetchedCounts[project] =
-        logFetchedCounts.getOrDefault(project, 0) + exception.partialEntries.size
+        logFetchedCounts.getOrDefault(project, 0) +
+          if (exception.rawQueriesTruncated > 0) {
+            exception.rawEntriesExamined
+          } else {
+            exception.partialEntries.size
+          }
       logEntries += retainLogEntries(exception.partialEntries, entryLimit)
-      grpcContextEntriesExamined[project] =
-        grpcContextEntriesExamined.getOrDefault(project, 0) + exception.contextEntriesExamined
-      warnings +=
-        "$queryDescription gRPC payload context was truncated for project $project; " +
-          "ambiguous continuation entries were omitted"
+      if (exception.grpcClassificationIncomplete) {
+        grpcContextEntriesExamined[project] =
+          grpcContextEntriesExamined.getOrDefault(project, 0) + exception.contextEntriesExamined
+        warnings +=
+          "$queryDescription gRPC payload classification was incomplete for project $project; " +
+            "ambiguous continuation entries were omitted"
+      }
+      if (exception.rawQueriesTruncated > 0) {
+        val queryLabel = if (exception.rawQueriesTruncated == 1) "query" else "queries"
+        warnings +=
+          "$queryDescription raw scan reached its ${exception.rawEntryLimit}-entry limit for " +
+            "${exception.rawQueriesTruncated} $queryLabel in project $project; additional " +
+            "entries were not read"
+      }
     }
     val projects = observabilityProjects.distinct()
     val authoritativeReportResources =
@@ -3836,8 +3912,8 @@ internal class ReportTrace(
         logEntries += retainLogEntries(projectLogEntries, entryLimit)
       } catch (e: CancellationException) {
         throw e
-      } catch (e: ReportTraceLogContextTruncatedException) {
-        recordGrpcContextTruncation(project, "Cloud Logging query", e)
+      } catch (e: ReportTraceLogCollectionTruncatedException) {
+        recordLogCollectionTruncation(project, "Cloud Logging query", e)
       } catch (e: Exception) {
         failOnQuotaExhaustion(e)
         val failure = failureDescription(e)
@@ -4076,8 +4152,8 @@ internal class ReportTrace(
             logEntries += retainLogEntries(projectLogEntries, entryLimit)
           } catch (e: CancellationException) {
             throw e
-          } catch (e: ReportTraceLogContextTruncatedException) {
-            recordGrpcContextTruncation(project, "Cloud Logging correlation-expansion query", e)
+          } catch (e: ReportTraceLogCollectionTruncatedException) {
+            recordLogCollectionTruncation(project, "Cloud Logging correlation-expansion query", e)
           } catch (e: Exception) {
             failOnQuotaExhaustion(e)
             val failure = failureDescription(e)
@@ -4242,8 +4318,8 @@ internal class ReportTrace(
               fetched = grpcContextEntriesExamined.getValue(project),
               retained = 0,
               note =
-                "One or more bounded context queries reached their entry limit; ambiguous " +
-                  "continuation entries were omitted",
+                "One or more continuation entries could not be classified safely and were " +
+                  "omitted",
             )
           )
         }
@@ -4365,8 +4441,9 @@ internal class ReportTrace(
 
   private fun failOnQuotaExhaustion(exception: Exception) {
     if (exception.isQuotaExhaustion()) {
+      if (exception is ReportTraceQuotaExhaustedException) throw exception
       throw ReportTraceQuotaExhaustedException(
-        "Telemetry collection aborted because a read quota was exhausted: " +
+        "Report trace lookup aborted because a read quota was exhausted: " +
           "${failureDescription(exception)}; retry the report",
         exception,
       )

@@ -8116,7 +8116,7 @@ class MetricsServiceTest {
   }
 
   @Test
-  fun `listMetrics throws Exception when internal batchGetMetrics throws Exception`(): Unit =
+  fun `listMetrics attributes generic batchGetMetrics failure to every Metric`(): Unit =
     runBlocking {
       wheneverBlocking {
         permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
@@ -8149,8 +8149,17 @@ class MetricsServiceTest {
       assertThat(exception.status.code).isEqualTo(Status.Code.INTERNAL)
       val metricFailures =
         spanExporter.finishedSpanItems.filter { it.name == "reporting.metric.result_sync_failed" }
-      assertThat(metricFailures).hasSize(1)
-      assertThat(metricFailures.single().attributes.get(ReportTraceAttributes.METRIC_NAME)).isNull()
+      assertThat(metricFailures.map { it.attributes.get(ReportTraceAttributes.METRIC_NAME) })
+        .containsExactly(
+          PENDING_INCREMENTAL_REACH_METRIC.name,
+          PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name,
+        )
+      val metricFailureLogs = reportTraceLogMessages("reporting.metric.result_sync_failed")
+      assertThat(metricFailureLogs).hasSize(2)
+      assertThat(metricFailureLogs.joinToString("\n"))
+        .contains("xmm.metric.name=${PENDING_INCREMENTAL_REACH_METRIC.name}")
+      assertThat(metricFailureLogs.joinToString("\n"))
+        .contains("xmm.metric.name=${PENDING_SINGLE_PUBLISHER_IMPRESSION_METRIC.name}")
     }
 
   @Test

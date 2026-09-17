@@ -18,7 +18,9 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.time.Duration
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -246,6 +248,58 @@ class KingdomReportTraceResolverTest {
     assertThat(refusedRoute.refusalJustification).isEqualTo("SPEC_INVALID")
     assertThat(refusedRoute.refusalMessage)
       .isEqualTo("EventGroup is not supported by this simulator")
+  }
+
+  @Test
+  fun `resolve propagates BatchGetMeasurements quota exhaustion after retries`() = runTest {
+    var batchCalls = 0
+    val client =
+      FakeKingdomReportTraceClient(
+        batchGet = {
+          batchCalls++
+          throw Status.RESOURCE_EXHAUSTED.asRuntimeException()
+        },
+        list = { error("ListRequisitions should not be called") },
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        resolver(client)
+          .resolve(
+            listOf(MEASUREMENT_1),
+            topology(DIRECT_EDP to ReportTraceRequisitionRouteKind.DIRECT_EDP),
+          )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+    assertThat(batchCalls).isEqualTo(2)
+  }
+
+  @Test
+  fun `resolve propagates ListRequisitions quota exhaustion after retries`() = runTest {
+    var listCalls = 0
+    val client =
+      FakeKingdomReportTraceClient(
+        batchGet = {
+          batchGetMeasurementsResponse { measurements += directMeasurement(MEASUREMENT_1) }
+        },
+        list = {
+          listCalls++
+          throw Status.RESOURCE_EXHAUSTED.asRuntimeException()
+        },
+      )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        resolver(client)
+          .resolve(
+            listOf(MEASUREMENT_1),
+            topology(DIRECT_EDP to ReportTraceRequisitionRouteKind.DIRECT_EDP),
+          )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.RESOURCE_EXHAUSTED)
+    assertThat(listCalls).isEqualTo(2)
   }
 
   @Test

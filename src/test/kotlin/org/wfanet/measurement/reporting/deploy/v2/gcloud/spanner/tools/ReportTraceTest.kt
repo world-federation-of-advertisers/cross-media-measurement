@@ -867,6 +867,59 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main writes failed artifact and continues batch when Reporting quota is exhausted`() {
+    val output = StringWriter()
+    val outputDirectory = temporaryFolder.newFolder("reporting-quota-exhausted").toPath()
+    val firstBasicReport = "measurementConsumers/mc-1/basicReports/report-a"
+    val secondBasicReport = "measurementConsumers/mc-1/basicReports/report-b"
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            if (key.toName() == firstBasicReport) {
+              throw Status.RESOURCE_EXHAUSTED.asRuntimeException()
+            }
+            reportTraceContext()
+              .copy(
+                basicReportName = key.toName(),
+                metricNames = emptyList(),
+                metricStates = emptyMap(),
+                measurementNames = emptyList(),
+              )
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$firstBasicReport",
+          "--basic-report=$secondBasicReport",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(1)
+    assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
+      .contains("Collection completeness: FAILED")
+    assertThat(outputDirectory.resolve("mc-1__report-a.md").toFile().readText())
+      .contains("Report trace lookup aborted because a read quota was exhausted")
+    assertThat(outputDirectory.resolve("mc-1__report-b.md").toFile().readText())
+      .contains("Collection completeness: PARTIAL")
+    assertThat(output.toString()).contains("FAILED  $firstBasicReport")
+    assertThat(output.toString()).contains("PARTIAL  $secondBasicReport")
+  }
+
+  @Test
   fun `main collects telemetry when Kingdom route resolution fails`() {
     val output = StringWriter()
     val outputDirectory = temporaryFolder.newFolder("kingdom-resolver-failure").toPath()
@@ -1382,6 +1435,232 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `Cloud Logging reader omits ambiguous continuation without source identity`() = runBlocking {
+    val logging = mock<Logging>()
+    val correlatedPage = mock<Page<LogEntry>>()
+    val grpcContinuation =
+      LogEntry.newBuilder(
+          Payload.StringPayload.of(
+            "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\""
+          )
+        )
+        .setTimestamp(NOW)
+        .build()
+    whenever(correlatedPage.values).thenReturn(listOf(grpcContinuation))
+    whenever(correlatedPage.hasNextPage()).thenReturn(false)
+    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage)
+    val reader =
+      GoogleCloudReportTraceLogReader(
+        project = "logging-project",
+        logging = logging,
+        includeGrpcPayloads = false,
+      )
+
+    val exception =
+      assertFailsWith<ReportTraceLogCollectionTruncatedException> {
+        reader.read(
+          correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          startTime = NOW.minusSeconds(1),
+          endTime = NOW.plusSeconds(1),
+          limit = 100,
+        )
+      }
+
+    assertThat(exception.partialEntries).isEmpty()
+    assertThat(exception.grpcClassificationIncomplete).isTrue()
+  }
+
+  @Test
+  fun `Cloud Logging reader finds gRPC preamble before collection start`() = runBlocking {
+    val logging = mock<Logging>()
+    val correlatedPage = mock<Page<LogEntry>>()
+    val contextPage = mock<Page<LogEntry>>()
+    val logName = "projects/logging-project/logs/stdout"
+    val grpcSource =
+      SourceLocation.newBuilder().setFunction("wfa.measurement.Service.Create").build()
+    val startTime = NOW.minusSeconds(1)
+    val grpcPreamble =
+      LogEntry.newBuilder(Payload.StringPayload.of("[grpc-worker] gRPC trace-id request:"))
+        .setLogName(logName)
+        .setSourceLocation(grpcSource)
+        .setTimestamp(startTime.minusMillis(1))
+        .build()
+    val grpcContinuation =
+      LogEntry.newBuilder(
+          Payload.StringPayload.of(
+            "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\""
+          )
+        )
+        .setLogName(logName)
+        .setSourceLocation(grpcSource)
+        .setTimestamp(NOW)
+        .build()
+    whenever(correlatedPage.values).thenReturn(listOf(grpcContinuation))
+    whenever(correlatedPage.hasNextPage()).thenReturn(false)
+    whenever(contextPage.values).thenReturn(listOf(grpcContinuation, grpcPreamble))
+    whenever(contextPage.hasNextPage()).thenReturn(false)
+    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage, contextPage)
+    val reader =
+      GoogleCloudReportTraceLogReader(
+        project = "logging-project",
+        logging = logging,
+        includeGrpcPayloads = false,
+      )
+
+    val entries =
+      reader.read(
+        correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+        startTime = startTime,
+        endTime = NOW.plusSeconds(1),
+        limit = 100,
+      )
+
+    assertThat(entries).isEmpty()
+  }
+
+  @Test
+  fun `Cloud Logging reader fails closed for overlapping gRPC requests`() = runBlocking {
+    val logging = mock<Logging>()
+    val correlatedPage = mock<Page<LogEntry>>()
+    val contextPage = mock<Page<LogEntry>>()
+    val logName = "projects/logging-project/logs/stdout"
+    val grpcSource =
+      SourceLocation.newBuilder().setFunction("wfa.measurement.Service.Create").build()
+    fun grpcEntry(message: String, millisBeforeNow: Long): LogEntry =
+      LogEntry.newBuilder(Payload.StringPayload.of(message))
+        .setLogName(logName)
+        .setSourceLocation(grpcSource)
+        .setTimestamp(NOW.minusMillis(millisBeforeNow))
+        .build()
+    val firstRequest = grpcEntry("[grpc-worker] gRPC request-a request:", 4)
+    val secondRequest = grpcEntry("[grpc-worker] gRPC request-b request:", 3)
+    val firstComplete = grpcEntry("[grpc-worker] gRPC request-a complete", 2)
+    val grpcContinuation =
+      grpcEntry(
+        "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\"",
+        1,
+      )
+    whenever(correlatedPage.values).thenReturn(listOf(grpcContinuation))
+    whenever(correlatedPage.hasNextPage()).thenReturn(false)
+    whenever(contextPage.values)
+      .thenReturn(listOf(grpcContinuation, firstComplete, secondRequest, firstRequest))
+    whenever(contextPage.hasNextPage()).thenReturn(false)
+    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage, contextPage)
+    val reader =
+      GoogleCloudReportTraceLogReader(
+        project = "logging-project",
+        logging = logging,
+        includeGrpcPayloads = false,
+      )
+
+    val exception =
+      assertFailsWith<ReportTraceLogCollectionTruncatedException> {
+        reader.read(
+          correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          startTime = NOW.minusSeconds(1),
+          endTime = NOW.plusSeconds(1),
+          limit = 100,
+        )
+      }
+
+    assertThat(exception.partialEntries).isEmpty()
+    assertThat(exception.grpcClassificationIncomplete).isTrue()
+  }
+
+  @Test
+  fun `Cloud Logging reader retains structured lifecycle log without source identity`() =
+    runBlocking {
+      val logging = mock<Logging>()
+      val correlatedPage = mock<Page<LogEntry>>()
+      val lifecycleMessage =
+        "reporting.metric.result_sync_failed " +
+          "xmm.lifecycle.stage=metric_result_sync " +
+          "xmm.basic_report.name=measurementConsumers/mc-1/basicReports/report-1"
+      val lifecycleLog =
+        LogEntry.newBuilder(Payload.StringPayload.of(lifecycleMessage))
+          .setLogName("projects/logging-project/logs/stdout")
+          .setTimestamp(NOW)
+          .build()
+      whenever(correlatedPage.values).thenReturn(listOf(lifecycleLog))
+      whenever(correlatedPage.hasNextPage()).thenReturn(false)
+      whenever(logging.listLogEntries(any(), any(), any())).thenReturn(correlatedPage)
+      val reader =
+        GoogleCloudReportTraceLogReader(
+          project = "logging-project",
+          logging = logging,
+          includeGrpcPayloads = false,
+        )
+
+      val entries =
+        reader.read(
+          correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+          startTime = NOW.minusSeconds(1),
+          endTime = NOW.plusSeconds(1),
+          limit = 100,
+        )
+
+      assertThat(entries.map { it.message }).containsExactly(lifecycleMessage)
+      Unit
+    }
+
+  @Test
+  fun `Cloud Logging reader reports raw scan truncation after filtering gRPC entries`() =
+    runBlocking {
+      val logging = mock<Logging>()
+      val firstPage = mock<Page<LogEntry>>()
+      val secondPage = mock<Page<LogEntry>>()
+      fun grpcEntry(requestId: String, millisBeforeNow: Long): LogEntry =
+        LogEntry.newBuilder(
+            Payload.StringPayload.of(
+              "[grpc-worker] gRPC $requestId request: " +
+                "basic_report: \"measurementConsumers/mc-1/basicReports/report-1\""
+            )
+          )
+          .setTimestamp(NOW.minusMillis(millisBeforeNow))
+          .build()
+      val unreadApplicationEntry =
+        LogEntry.newBuilder(
+            Payload.StringPayload.of(
+              "reporting.failure " +
+                "xmm.basic_report.name=measurementConsumers/mc-1/basicReports/report-1"
+            )
+          )
+          .setLogName("projects/logging-project/logs/stdout")
+          .setTimestamp(NOW.minusMillis(4))
+          .build()
+      whenever(firstPage.values)
+        .thenReturn(listOf(grpcEntry("request-1", 1), grpcEntry("request-2", 2)))
+      whenever(firstPage.hasNextPage()).thenReturn(true)
+      whenever(firstPage.nextPage).thenReturn(secondPage)
+      whenever(secondPage.values)
+        .thenReturn(listOf(grpcEntry("request-3", 3), unreadApplicationEntry))
+      whenever(logging.listLogEntries(any(), any(), any())).thenReturn(firstPage)
+      val reader =
+        GoogleCloudReportTraceLogReader(
+          project = "logging-project",
+          logging = logging,
+          includeGrpcPayloads = false,
+          requestThrottler = RecordingThrottler(),
+          maxGrpcContextEntries = 1,
+        )
+
+      val exception =
+        assertFailsWith<ReportTraceLogCollectionTruncatedException> {
+          reader.read(
+            correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
+            startTime = NOW.minusSeconds(1),
+            endTime = NOW.plusSeconds(1),
+            limit = 1,
+          )
+        }
+
+      assertThat(exception.partialEntries).isEmpty()
+      assertThat(exception.rawEntriesExamined).isEqualTo(3)
+      assertThat(exception.rawEntryLimit).isEqualTo(3)
+      assertThat(exception.rawQueriesTruncated).isEqualTo(1)
+    }
+
+  @Test
   fun `Cloud Logging reader reports partial collection when gRPC context is bounded`() =
     runBlocking {
       val logging = mock<Logging>()
@@ -1423,7 +1702,7 @@ class ReportTraceTest {
         )
 
       val exception =
-        assertFailsWith<ReportTraceLogContextTruncatedException> {
+        assertFailsWith<ReportTraceLogCollectionTruncatedException> {
           reader.read(
             correlationValues = listOf("measurementConsumers/mc-1/basicReports/report-1"),
             startTime = NOW.minusSeconds(1),
@@ -1435,6 +1714,8 @@ class ReportTraceTest {
       assertThat(exception.partialEntries).isEmpty()
       assertThat(exception.contextEntriesExamined).isEqualTo(1)
       assertThat(exception.contextEntryLimit).isEqualTo(1)
+      assertThat(exception.grpcClassificationIncomplete).isTrue()
+      assertThat(exception.rawQueriesTruncated).isEqualTo(0)
       Unit
     }
 
@@ -4795,6 +5076,83 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `main fails report when recovered Measurement route lookup exhausts quota`() {
+    val requestId = "measurement-request-1"
+    val measurementName = "measurementConsumers/mc-1/measurements/measurement-2"
+    val basicReportName = "measurementConsumers/mc-1/basicReports/report-a"
+    val outputDirectory = temporaryFolder.newFolder("recovered-route-quota").toPath()
+    val creationSpan =
+      lifecycleSpan(
+          "measurement_creation",
+          mapOf(
+            "xmm.measurement.request_id" to requestId,
+            "xmm.measurement.name" to measurementName,
+          ),
+        )
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "measurement_creation",
+              "xmm.outcome" to "accepted",
+              "xmm.measurement.request_id" to requestId,
+              "xmm.measurement.name" to measurementName,
+            )
+        )
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ -> ReportTraceLogReader { _, _, _, _ -> emptyList() } },
+        spanReaderFactory = {
+          ReportTraceSpanReader { _, correlationValues, _, _, _, _ ->
+            if (requestId in correlationValues) listOf(creationSpan) else emptyList()
+          }
+        },
+        resolverFactory = { _, _ -> error("Resolver factory should not be used") },
+        resolverOverride =
+          BasicReportTraceResolver { key ->
+            reportTraceContext()
+              .copy(
+                basicReportName = key.toName(),
+                measurementNames = emptyList(),
+                unresolvedMeasurementRequestIds = listOf(requestId),
+              )
+          },
+        routeResolverOverride =
+          ReportTraceRouteResolver { measurementNames, topology ->
+            if (measurementNames.isEmpty()) {
+              ReportTraceRouteResolution.unresolved(
+                measurementNames = emptyList(),
+                topology = topology,
+                status = "PARTIAL",
+                note = "Measurement not linked yet",
+              )
+            } else {
+              throw Status.RESOURCE_EXHAUSTED.asRuntimeException()
+            }
+          },
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(StringWriter()),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--basic-report=$basicReportName",
+          "--output-dir=$outputDirectory",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(1)
+    val artifact = outputDirectory.resolve("mc-1__report-a.md").toFile().readText()
+    assertThat(artifact).contains("Collection completeness: FAILED")
+    assertThat(artifact).contains("Report trace lookup aborted because a read quota was exhausted")
+  }
+
+  @Test
   fun `lifecycleCoverage evaluates span emitted by ReportTracing`() {
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
@@ -6607,7 +6965,7 @@ class ReportTraceTest {
     assertThat(exitCode).isEqualTo(1)
     assertThat(output.toString()).isEmpty()
     assertThat(error.toString())
-      .contains("Telemetry collection aborted because a read quota was exhausted")
+      .contains("Report trace lookup aborted because a read quota was exhausted")
   }
 
   @Test
@@ -6725,10 +7083,14 @@ class ReportTraceTest {
       ReportTraceDependencies(
         logReaderFactory = { _, _ ->
           ReportTraceLogReader { _, _, _, _ ->
-            throw ReportTraceLogContextTruncatedException(
+            throw ReportTraceLogCollectionTruncatedException(
               partialEntries = listOf(partialEntry),
               contextEntriesExamined = 10,
               contextEntryLimit = 10,
+              grpcClassificationIncomplete = true,
+              rawEntriesExamined = 1,
+              rawEntryLimit = 1011,
+              rawQueriesTruncated = 0,
             )
           }
         },
@@ -6758,6 +7120,61 @@ class ReportTraceTest {
       .contains("Payload policy: APPLICATION-LOGS; GRPC-CONTEXT-INCOMPLETE")
     assertThat(output.toString())
       .contains("| test | gRPC payload classification | TRUNCATED | 10 | 0 |")
+    assertThat(output.toString()).contains(partialEntry.message)
+  }
+
+  @Test
+  fun `main reports truncated raw Cloud Logging scan as partial`() {
+    val output = StringWriter()
+    val reportName = "measurementConsumers/mc-1/reports/report-1"
+    val partialEntry =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "reporting",
+        severity = "ERROR",
+        trace = null,
+        message = "reporting.failure xmm.report.name=$reportName",
+      )
+    val dependencies =
+      ReportTraceDependencies(
+        logReaderFactory = { _, _ ->
+          ReportTraceLogReader { _, _, _, _ ->
+            throw ReportTraceLogCollectionTruncatedException(
+              partialEntries = listOf(partialEntry),
+              contextEntriesExamined = 0,
+              contextEntryLimit = 1000,
+              grpcClassificationIncomplete = false,
+              rawEntriesExamined = 1001,
+              rawEntryLimit = 1001,
+              rawQueriesTruncated = 1,
+            )
+          }
+        },
+        spanReaderFactory = { ReportTraceSpanReader { _, _, _, _, _, _ -> emptyList() } },
+        resolverFactory = { _, _ -> error("Resolver should not be used") },
+        resolverOverride = null,
+        clock = Clock.fixed(NOW, ZoneOffset.UTC),
+        output = PrintWriter(output),
+        error = PrintWriter(StringWriter()),
+      )
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--project=test",
+          "--report=$reportName",
+          "--start-time=2026-09-10T11:00:00Z",
+          "--allow-partial",
+          "--spanner-ready-timeout=PT10S",
+        ),
+        dependencies,
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString()).contains("Collection completeness: PARTIAL")
+    assertThat(output.toString()).contains("raw scan reached its 1001-entry limit")
+    assertThat(output.toString()).contains("| test | Cloud Logging | TRUNCATED | 1001 | 1 |")
     assertThat(output.toString()).contains(partialEntry.message)
   }
 
