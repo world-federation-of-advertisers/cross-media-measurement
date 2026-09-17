@@ -226,6 +226,11 @@ class BasicReportsReportsJobTest {
       .single { it.message.contains("xmm.lifecycle.stage=report_result_assembly") }
       .message
 
+  private fun failureWritebackLogs(): List<String> =
+    traceLogRecords
+      .filter { it.message.contains("xmm.lifecycle.stage=basic_report_failure_writeback") }
+      .map { it.message }
+
   /** Stubs `listBasicReports` to return [response] for the REPORT_CREATED filter. */
   private suspend fun stubListBasicReports(response: ListBasicReportsResponse) {
     whenever(basicReportsMock.listBasicReports(any())).thenAnswer(listBasicReportsAnswer(response))
@@ -2561,6 +2566,16 @@ class BasicReportsReportsJobTest {
       val traceLog = reportAssemblyLog()
       assertThat(traceLog).contains("xmm.report.state=FAILED")
       assertThat(traceLog).contains("xmm.outcome=report_failed")
+      val failureWritebackLogs = failureWritebackLogs()
+      assertThat(failureWritebackLogs).hasSize(2)
+      assertThat(failureWritebackLogs[0]).contains("xmm.outcome=started")
+      assertThat(failureWritebackLogs[1]).contains("xmm.outcome=succeeded")
+      val basicReportName =
+        BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
+          .toName()
+      for (log in failureWritebackLogs) {
+        assertThat(log).contains(basicReportName)
+      }
     }
 
   @Test
@@ -2708,6 +2723,11 @@ class BasicReportsReportsJobTest {
       expectedErrorType = "StatusException",
       expectedErrorCode = "grpc.FAILED_PRECONDITION",
     )
+    val failureWritebackLogs = failureWritebackLogs()
+    assertThat(failureWritebackLogs).hasSize(2)
+    assertThat(failureWritebackLogs[0]).contains("xmm.outcome=started")
+    assertThat(failureWritebackLogs[1]).contains("xmm.outcome=failed")
+    assertThat(failureWritebackLogs[1]).contains("xmm.error.code=grpc.FAILED_PRECONDITION")
   }
 
   @Test
