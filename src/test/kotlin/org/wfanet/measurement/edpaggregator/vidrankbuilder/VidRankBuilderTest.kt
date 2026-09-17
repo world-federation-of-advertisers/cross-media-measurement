@@ -309,10 +309,24 @@ class VidRankBuilderTest {
       assertThat(params.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
       assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
       assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
     }
+
+  @Test
+  fun `failed parent prevents rank mutation`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock()
+
+    val result =
+      builder(ranker, rankerJobs, modelLinesMock(RawImpressionUploadModelLine.State.FAILED)).run()
+
+    assertThat(result.subpoolsRanked).isEqualTo(0)
+    assertThat(result.lastJobOut).isFalse()
+    verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
+    verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
+  }
 
   @Test
   fun `last job out bin-packs files by size across multiple VidLabelingJobs`() =
