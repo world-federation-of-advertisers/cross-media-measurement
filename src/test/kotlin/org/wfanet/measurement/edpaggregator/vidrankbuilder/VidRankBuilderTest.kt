@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
+import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -476,6 +477,56 @@ class VidRankBuilderTest {
       builder(rankerMock(), rankerJobsMock(isLastJob = true), vidLabelerQueue = "").run()
     }
     Unit
+  }
+
+  @Test
+  fun `early successful ranker retries until the parent reaches RANKING`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = parentState.get()
+              }
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.LABELING
+          }
+      }
+    val jobs = mutableListOf<BatchCreateVidLabelingJobsRequest>()
+    val published = mutableListOf<CreateWorkItemRequest>()
+    val subject =
+      builder(
+        ranker,
+        rankerJobs,
+        modelLines,
+        recordingVidLabelingJobs(jobs),
+        workItemsStub = recordingWorkItems(published),
+      )
+
+    val exception = assertFailsWith<IllegalStateException> { subject.run() }
+
+    assertThat(exception).hasMessageThat().contains("has not reached RANKING")
+    assertThat(jobs).isEmpty()
+    assertThat(published).isEmpty()
+
+    parentState.set(RawImpressionUploadModelLine.State.RANKING)
+    val result = subject.run()
+
+    assertThat(result.lastJobOut).isTrue()
+    assertThat(jobs).hasSize(1)
+    assertThat(published).hasSize(1)
+    verifyBlocking(modelLines) { markRawImpressionUploadModelLineLabeling(any(), any()) }
   }
 
   @Test
