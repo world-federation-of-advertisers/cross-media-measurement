@@ -75,8 +75,9 @@ class DirectImpressionResultBuilder(
   private val releaseUncapped: Boolean =
     when (impressionCapMode) {
       ImpressionCapMode.UNCAPPED -> true
-      ImpressionCapMode.UNSPECIFIED,
-      ImpressionCapMode.UNRECOGNIZED -> impressionMaxFrequencyPerUser == UNCAPPED_SENTINEL
+      ImpressionCapMode.UNSPECIFIED -> impressionMaxFrequencyPerUser == UNCAPPED_SENTINEL
+      ImpressionCapMode.UNRECOGNIZED ->
+        throw IllegalArgumentException("Unrecognized impression_cap_mode")
       else -> false
     }
 

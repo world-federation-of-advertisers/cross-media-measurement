@@ -131,7 +131,8 @@ locals {
       "trusted_root_ca_collection",
       "requisition_fetcher_tls_pem",
       "requisition_fetcher_tls_key",
-      "metadata_storage_root_ca"
+      "metadata_storage_root_ca",
+      "secure_computation_root_ca",
     ],
     local.edp_tls_keys
   )
@@ -321,17 +322,20 @@ module "data_watcher_delete_cloud_function" {
 module "requisition_fetcher_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_requisition_fetcher_config,
+  ]
 
   http_cloud_function_service_account_name = var.requisition_fetcher_service_account_name
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
-  secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
-  uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
-  config_path                              = var.requisition_fetcher_config.local_path
+  extra_env_vars   = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  secret_mappings   = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path     = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
+  config_path       = var.requisition_fetcher_config.local_path
 
   # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
   # run longer than that for incremental draining to happen at all — the gen2 default of 60s would

@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.
 import com.google.common.truth.Truth.assertThat
 import kotlin.math.ln
 import kotlin.math.sqrt
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -28,10 +29,30 @@ import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig.NoiseMechanism
 import org.wfanet.measurement.api.v2alpha.ProtocolConfigKt.direct
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 
 @RunWith(JUnit4::class)
 class DirectImpressionResultBuilderTest {
+
+  @Test
+  fun `constructor rejects unrecognized impression cap mode`() {
+    assertFailsWith<IllegalArgumentException> {
+      DirectImpressionResultBuilder(
+        directProtocolConfig = DIRECT_PROTOCOL,
+        frequencyData = IntArray(1),
+        privacyParams = PRIVACY_PARAMS,
+        samplingRate = SAMPLING_RATE,
+        directNoiseMechanism = DirectNoiseMechanism.NONE,
+        maxPopulation = null,
+        maxFrequencyFromSpec = MAX_FREQUENCY,
+        resultMinimumThresholds = null,
+        impressionMaxFrequencyPerUser = null,
+        totalUncappedImpressions = 0L,
+        impressionCapMode = ImpressionCapMode.UNRECOGNIZED,
+      )
+    }
+  }
 
   @Test
   fun `buildMeasurementResult returns non-noisy impression result when noise mechanism is set to NONE`() =

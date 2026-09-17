@@ -383,6 +383,7 @@ variable "requisition_fetcher_scheduler_config" {
     scheduler_sa_display_name = string
     scheduler_sa_description  = string
     scheduler_job_description = string
+    paused                    = optional(bool, false)
   })
   nullable = false
 }

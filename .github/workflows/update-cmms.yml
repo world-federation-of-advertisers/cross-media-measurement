@@ -87,9 +87,58 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
+  validate-direct-dispatch-config:
+    name: Validate direct-dispatch configuration
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Set up Bazel
+      uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
+    - name: Write ~/.bazelrc
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        EOF
+
+    - name: Write validation inputs
+      env:
+        CONFIG_DIR: ${{ runner.temp }}/configs
+        DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
+        REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$CONFIG_DIR"
+        printf '%s' "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
+        printf '%s' "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
+
+    - name: Validate RequisitionFetcher and DataWatcher configuration
+      env:
+        CONFIG_DIR: ${{ runner.temp }}/configs
+        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:ValidateRequisitionFetcherConfig \
+          -- \
+          --requisition-fetcher-config="$CONFIG_DIR/requisition-fetcher-config.textproto" \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto" \
+          --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+
   update-secure-computation-dlq-paused:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [publish-images]
+    needs: [publish-images, validate-direct-dispatch-config]
     secrets: inherit
     permissions:
       contents: read
@@ -113,6 +162,7 @@ jobs:
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       tee-consumers-enabled: false
+      requisition-fetcher-enabled: false
 
   wait-for-tee-consumers-to-stop:
     runs-on: ubuntu-24.04
@@ -161,6 +211,10 @@ jobs:
             exit 1
           fi
         done
+
+    - name: Wait for in-flight RequisitionFetcher invocation to finish
+      if: ${{ inputs.apply }}
+      run: sleep 600
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
@@ -224,6 +278,7 @@ jobs:
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       tee-consumers-enabled: true
+      requisition-fetcher-enabled: true
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml

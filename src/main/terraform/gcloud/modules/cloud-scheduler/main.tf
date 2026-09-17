@@ -38,6 +38,7 @@ resource "google_cloud_scheduler_job" "scheduler_job" {
   schedule         = var.scheduler_config.schedule
   time_zone        = var.scheduler_config.time_zone
   attempt_deadline = var.scheduler_config.attempt_deadline
+  paused           = var.scheduler_config.paused
 
   http_target {
     http_method = "POST"
