@@ -3960,7 +3960,9 @@ internal class ReportTrace(
       queryDescription: String,
       exception: ReportTraceLogCollectionTruncatedException,
     ) {
-      logTruncatedProjects += project
+      if (exception.rawQueriesTruncated > 0) {
+        logTruncatedProjects += project
+      }
       logFetchedCounts[project] =
         logFetchedCounts.getOrDefault(project, 0) +
           if (exception.rawQueriesTruncated > 0) {

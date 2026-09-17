@@ -7310,6 +7310,8 @@ class ReportTraceTest {
       .contains("Payload policy: APPLICATION-LOGS; GRPC-CONTEXT-INCOMPLETE")
     assertThat(output.toString())
       .contains("| test | gRPC payload classification | TRUNCATED | 10 | 0 |")
+    assertThat(output.toString()).contains("| test | Cloud Logging | SUCCESS | 1 | 1 |")
+    assertThat(output.toString()).doesNotContain("| test | Cloud Logging | TRUNCATED |")
     assertThat(output.toString()).contains(partialEntry.message)
   }
 
