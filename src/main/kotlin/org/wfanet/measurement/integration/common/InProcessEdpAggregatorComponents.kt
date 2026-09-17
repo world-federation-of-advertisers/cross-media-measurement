@@ -339,6 +339,8 @@ class InProcessEdpAggregatorComponents(
               resultsFulfillerParams = resultsFulfillerParamsMap.getValue(edpAggregatorShortName),
               controlPlaneThrottler = FakeThrottler(),
             ),
+          requisitionRefusalDuration = RequisitionFetcher.DEFAULT_REQUISITION_REFUSAL_DURATION,
+          clock = Clock.systemUTC(),
           responsePageSize = 50,
         )
       backgroundScope.launch {
