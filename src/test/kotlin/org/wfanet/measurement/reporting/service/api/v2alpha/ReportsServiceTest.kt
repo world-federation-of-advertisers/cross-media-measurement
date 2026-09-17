@@ -67,7 +67,12 @@ import org.wfanet.measurement.access.v1alpha.checkPermissionsRequest
 import org.wfanet.measurement.access.v1alpha.checkPermissionsResponse
 import org.wfanet.measurement.access.v1alpha.copy
 import org.wfanet.measurement.access.v1alpha.principal
+import org.wfanet.measurement.api.v2alpha.CancelMeasurementRequest
+import org.wfanet.measurement.api.v2alpha.Measurement
+import org.wfanet.measurement.api.v2alpha.MeasurementConsumerCertificateKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineImplBase as KingdomMeasurementsCoroutineImplBase
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.getRuntimePath
@@ -78,6 +83,8 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfig
+import org.wfanet.measurement.config.reporting.measurementConsumerConfigs
 import org.wfanet.measurement.internal.reporting.v2.BatchGetMetricCalculationSpecsRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
 import org.wfanet.measurement.internal.reporting.v2.MetricCalculationSpec
@@ -92,6 +99,7 @@ import org.wfanet.measurement.internal.reporting.v2.ReportKt as InternalReportKt
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineImplBase
 import org.wfanet.measurement.internal.reporting.v2.ReportsGrpcKt.ReportsCoroutineStub as InternalReportsCoroutineStub
 import org.wfanet.measurement.internal.reporting.v2.StreamReportsRequestKt
+import org.wfanet.measurement.internal.reporting.v2.WithdrawReportRequest as InternalWithdrawReportRequest
 import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpecsResponse
 import org.wfanet.measurement.internal.reporting.v2.copy
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
@@ -101,6 +109,7 @@ import org.wfanet.measurement.internal.reporting.v2.metricSpec as internalMetric
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
 import org.wfanet.measurement.internal.reporting.v2.streamReportsRequest
 import org.wfanet.measurement.internal.reporting.v2.timeIntervals as internalTimeIntervals
+import org.wfanet.measurement.internal.reporting.v2.withdrawReportResponse
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.withReportScheduleInfo
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.BatchGetMetricsRequest
@@ -135,6 +144,7 @@ import org.wfanet.measurement.reporting.v2alpha.metricSpec
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.timeIntervals
+import org.wfanet.measurement.reporting.v2alpha.withdrawReportRequest
 
 private const val DEFAULT_PAGE_SIZE = 50
 private const val MAX_PAGE_SIZE = 1000
@@ -205,6 +215,25 @@ class ReportsServiceTest {
       .thenReturn(
         flowOf(INTERNAL_REACH_REPORTS.pendingReport, INTERNAL_WATCH_DURATION_REPORTS.pendingReport)
       )
+    onBlocking { withdrawReport(any()) }
+      .thenAnswer {
+        val request = it.arguments[0] as InternalWithdrawReportRequest
+        val report =
+          if (request.externalReportId == INTERNAL_REACH_REPORTS.pendingReport.externalReportId) {
+            INTERNAL_REACH_REPORTS.pendingReport
+          } else {
+            INTERNAL_WATCH_DURATION_REPORTS.pendingReport
+          }
+        withdrawReportResponse {
+          this.report = report.copy { withdrawn = true }
+          cmmsMeasurementIds +=
+            if (report == INTERNAL_REACH_REPORTS.pendingReport) {
+              "measurement-id"
+            } else {
+              "terminal-measurement-id"
+            }
+        }
+      }
   }
 
   private val metricsMock: MetricsCoroutineImplBase = mockService {
@@ -222,6 +251,17 @@ class ReportsServiceTest {
         batchGetMetricsResponse {
           metrics += request.namesList.map { metricName -> metricsMap.getValue(metricName) }
         }
+      }
+  }
+
+  private val kingdomMeasurementsMock: KingdomMeasurementsCoroutineImplBase = mockService {
+    onBlocking { cancelMeasurement(any()) }
+      .thenAnswer {
+        val request = it.arguments[0] as CancelMeasurementRequest
+        if (request.name.endsWith("/terminal-measurement-id")) {
+          throw Status.FAILED_PRECONDITION.asException()
+        }
+        Measurement.getDefaultInstance()
       }
   }
 
@@ -253,6 +293,7 @@ class ReportsServiceTest {
     addService(permissionsServiceMock)
     addService(internalReportsMock)
     addService(metricsMock)
+    addService(kingdomMeasurementsMock)
     addService(internalMetricCalculationSpecsMock)
   }
 
@@ -270,10 +311,79 @@ class ReportsServiceTest {
         InternalReportsCoroutineStub(grpcTestServerRule.channel),
         InternalMetricCalculationSpecsCoroutineStub(grpcTestServerRule.channel),
         MetricsCoroutineStub(grpcTestServerRule.channel),
+        KingdomMeasurementsCoroutineStub(grpcTestServerRule.channel),
         METRIC_SPEC_CONFIG,
+        MEASUREMENT_CONSUMER_CONFIGS,
         Authorization(PermissionsGrpcKt.PermissionsCoroutineStub(grpcTestServerRule.channel)),
         randomMock,
+        kingdomMeasurementBatchConcurrency = 3,
       )
+  }
+
+  @Test
+  fun `withdrawReport returns WITHDRAWN Report and cancels Measurements`(): Unit = runBlocking {
+    val cmmsMeasurementId = "measurement-id"
+
+    val response =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.withdrawReport(withdrawReportRequest { name = PENDING_REACH_REPORT.name })
+      }
+
+    assertThat(response).isEqualTo(PENDING_REACH_REPORT.copy { state = Report.State.WITHDRAWN })
+    verifyProtoArgument(
+        kingdomMeasurementsMock,
+        KingdomMeasurementsCoroutineImplBase::cancelMeasurement,
+      )
+      .isEqualTo(
+        CancelMeasurementRequest.newBuilder()
+          .setName("${MEASUREMENT_CONSUMER_KEYS.first().toName()}/measurements/$cmmsMeasurementId")
+          .build()
+      )
+  }
+
+  @Test
+  fun `withdrawReport succeeds when Measurement becomes terminal concurrently`(): Unit =
+    runBlocking {
+      val response =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          service.withdrawReport(
+            withdrawReportRequest { name = PENDING_WATCH_DURATION_REPORT.name }
+          )
+        }
+
+      assertThat(response)
+        .isEqualTo(PENDING_WATCH_DURATION_REPORT.copy { state = Report.State.WITHDRAWN })
+    }
+
+  @Test
+  fun `withdrawReport throws INVALID_ARGUMENT when name is invalid`() {
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking {
+            service.withdrawReport(withdrawReportRequest { name = "invalid-report-name" })
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `withdrawReport throws PERMISSION_DENIED when Report is not accessible`() {
+    val inaccessibleReportName =
+      ReportKey(MEASUREMENT_CONSUMER_KEYS.last().measurementConsumerId, "report-id").toName()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+          runBlocking {
+            service.withdrawReport(withdrawReportRequest { name = inaccessibleReportName })
+          }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.PERMISSION_DENIED)
   }
 
   @Test
@@ -316,6 +426,46 @@ class ReportsServiceTest {
       )
 
     assertThat(result).isEqualTo(PENDING_REACH_REPORT)
+  }
+
+  @Test
+  fun `createReport cancels Measurements when withdrawal races Metric creation`() = runBlocking {
+    whenever(
+        internalReportsMock.getReport(
+          eq(
+            internalGetReportRequest {
+              cmmsMeasurementConsumerId =
+                INTERNAL_REACH_REPORTS.initialReport.cmmsMeasurementConsumerId
+              externalReportId = INTERNAL_REACH_REPORTS.initialReport.externalReportId
+            }
+          )
+        )
+      )
+      .thenReturn(INTERNAL_REACH_REPORTS.pendingReport.copy { withdrawn = true })
+
+    val request = createReportRequest {
+      parent = MEASUREMENT_CONSUMER_KEYS.first().toName()
+      report =
+        PENDING_REACH_REPORT.copy {
+          clearName()
+          clearCreateTime()
+          clearState()
+        }
+      reportId = "report-id"
+    }
+
+    val result = withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.createReport(request) }
+
+    assertThat(result).isEqualTo(PENDING_REACH_REPORT.copy { state = Report.State.WITHDRAWN })
+    verifyProtoArgument(
+        kingdomMeasurementsMock,
+        KingdomMeasurementsCoroutineImplBase::cancelMeasurement,
+      )
+      .isEqualTo(
+        CancelMeasurementRequest.newBuilder()
+          .setName("${MEASUREMENT_CONSUMER_KEYS.first().toName()}/measurements/measurement-id")
+          .build()
+      )
   }
 
   @Test
@@ -4548,6 +4698,7 @@ class ReportsServiceTest {
         ReportsService.Permission.GET,
         ReportsService.Permission.LIST,
         ReportsService.Permission.CREATE,
+        ReportsService.Permission.WITHDRAW,
       )
     private val SCOPES = ALL_PERMISSIONS
 
@@ -4665,6 +4816,19 @@ class ReportsServiceTest {
     // Measurement consumers
     private val MEASUREMENT_CONSUMER_KEYS: List<MeasurementConsumerKey> =
       (1L..2L).map { MeasurementConsumerKey(ExternalId(it + 110L).apiId.value) }
+
+    private val MEASUREMENT_CONSUMER_CONFIGS = measurementConsumerConfigs {
+      configs[MEASUREMENT_CONSUMER_KEYS.first().toName()] = measurementConsumerConfig {
+        apiKey = API_AUTHENTICATION_KEY
+        signingCertificateName =
+          MeasurementConsumerCertificateKey(
+              MEASUREMENT_CONSUMER_KEYS.first().measurementConsumerId,
+              "certificate-id",
+            )
+            .toName()
+        signingPrivateKeyPath = "unused"
+      }
+    }
 
     // Reporting sets
     private val PRIMITIVE_REPORTING_SETS: List<ReportingSet> =

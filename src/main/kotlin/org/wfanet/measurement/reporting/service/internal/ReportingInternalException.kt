@@ -95,6 +95,10 @@ class ReportAlreadyExistsException(provideDescription: () -> String = { "Report 
     get() = emptyMap<String, String>()
 }
 
+/** The Report was withdrawn before its Metric work could be created. */
+class ReportWithdrawnException(cmmsMeasurementConsumerId: String, externalReportId: String) :
+  Exception("Report $cmmsMeasurementConsumerId/$externalReportId is withdrawn")
+
 class MeasurementAlreadyExistsException(
   provideDescription: () -> String = { "Measurement already exists" }
 ) : ReportingInternalException(ErrorCode.MEASUREMENT_ALREADY_EXISTS, provideDescription) {

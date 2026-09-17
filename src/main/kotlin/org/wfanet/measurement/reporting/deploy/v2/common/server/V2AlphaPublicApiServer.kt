@@ -293,9 +293,12 @@ private object V2AlphaPublicApiServer {
         InternalReportsCoroutineStub(channel),
         InternalMetricCalculationSpecsCoroutineStub(channel),
         MetricsCoroutineStub(inProcessMetricsChannel),
+        KingdomMeasurementsCoroutineStub(kingdomChannel),
         metricSpecConfig,
+        measurementConsumerConfigs,
         authorization,
         SecureRandom().asKotlinRandom(),
+        reportingApiServerFlags.kingdomMeasurementBatchConcurrency,
         reportingApiServerFlags.allowSamplingIntervalWrapping,
         serviceDispatcher,
       )

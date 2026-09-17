@@ -305,9 +305,12 @@ class InProcessReportingServer(
                 internalReportsClient,
                 internalMetricCalculationSpecsClient,
                 PublicMetricsCoroutineStub(this@GrpcTestServerRule.channel),
+                publicKingdomMeasurementsClient,
                 metricSpecConfig,
+                measurementConsumerConfigs,
                 authorization,
                 SecureRandom().asKotlinRandom(),
+                kingdomMeasurementBatchConcurrency = 3,
               )
               .withTrustedPrincipalAuthentication(),
             BasicReportsService(

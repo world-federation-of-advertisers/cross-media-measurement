@@ -553,6 +553,7 @@ fun InternalMetric.State.toPublic(): Metric.State {
     InternalMetric.State.SUCCEEDED -> Metric.State.SUCCEEDED
     InternalMetric.State.FAILED -> Metric.State.FAILED
     InternalMetric.State.INVALID -> Metric.State.INVALID
+    InternalMetric.State.WITHDRAWN -> Metric.State.WITHDRAWN
     InternalMetric.State.STATE_UNSPECIFIED -> Metric.State.STATE_UNSPECIFIED
     InternalMetric.State.UNRECOGNIZED ->
       // State is set by the system so if this is reached, something went wrong.

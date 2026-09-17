@@ -138,6 +138,14 @@ permissions {
     protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
   }
 }
+permissions {
+  key: "reporting.reports.withdraw"
+  value {
+    description: "Withdraw a Report resource"
+    protected_resource_types: "halo.wfanet.org/MeasurementConsumer"
+    protected_resource_types: "reporting.halo-cmm.org/Report"
+  }
+}
 
 # reportSchedules
 permissions {

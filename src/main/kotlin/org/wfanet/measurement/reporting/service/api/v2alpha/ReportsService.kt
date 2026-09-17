@@ -50,6 +50,9 @@ import org.wfanet.measurement.access.client.v1alpha.Authorization
 import org.wfanet.measurement.access.client.v1alpha.check
 import org.wfanet.measurement.access.client.v1alpha.withForwardedTrustedCredentials
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
+import org.wfanet.measurement.api.v2alpha.MeasurementsGrpcKt.MeasurementsCoroutineStub as KingdomMeasurementsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.cancelMeasurementRequest
 import org.wfanet.measurement.common.api.ResourceIds
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
@@ -58,6 +61,7 @@ import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.config.reporting.MeasurementConsumerConfigs
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequest as InternalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.CreateReportRequestKt
@@ -72,6 +76,7 @@ import org.wfanet.measurement.internal.reporting.v2.batchGetMetricCalculationSpe
 import org.wfanet.measurement.internal.reporting.v2.createReportRequest as internalCreateReportRequest
 import org.wfanet.measurement.internal.reporting.v2.getReportRequest as internalGetReportRequest
 import org.wfanet.measurement.internal.reporting.v2.report as internalReport
+import org.wfanet.measurement.internal.reporting.v2.withdrawReportRequest as internalWithdrawReportRequest
 import org.wfanet.measurement.reporting.service.api.submitBatchRequests
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportScheduleInfoServerInterceptor.Companion.reportScheduleInfoFromCurrentContext
 import org.wfanet.measurement.reporting.v2alpha.BatchCreateMetricsResponse
@@ -88,6 +93,7 @@ import org.wfanet.measurement.reporting.v2alpha.MetricsGrpcKt.MetricsCoroutineSt
 import org.wfanet.measurement.reporting.v2alpha.Report
 import org.wfanet.measurement.reporting.v2alpha.ReportKt
 import org.wfanet.measurement.reporting.v2alpha.ReportsGrpcKt.ReportsCoroutineImplBase
+import org.wfanet.measurement.reporting.v2alpha.WithdrawReportRequest
 import org.wfanet.measurement.reporting.v2alpha.batchCreateMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.batchGetMetricsRequest
 import org.wfanet.measurement.reporting.v2alpha.copy
@@ -109,9 +115,12 @@ class ReportsService(
   private val internalReportsStub: ReportsCoroutineStub,
   private val internalMetricCalculationSpecsStub: MetricCalculationSpecsCoroutineStub,
   private val metricsStub: MetricsCoroutineStub,
+  private val kingdomMeasurementsStub: KingdomMeasurementsCoroutineStub,
   private val metricSpecConfig: MetricSpecConfig,
+  private val measurementConsumerConfigs: MeasurementConsumerConfigs,
   private val authorization: Authorization,
   private val secureRandom: Random,
+  private val kingdomMeasurementBatchConcurrency: Int,
   private val allowSamplingIntervalWrapping: Boolean = false,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : ReportsCoroutineImplBase(coroutineContext) {
@@ -470,8 +479,114 @@ class ReportsService(
           .asRuntimeException()
       }
 
+    // A withdrawal can race the Metric-creation phase. Re-run the idempotent transition after
+    // CMMS Measurement IDs have been persisted so that newly created work is also cancelled.
+    val finalInternalReport =
+      if (updatedInternalReport.withdrawn) {
+        withdrawInternalReport(
+          ReportKey(
+            updatedInternalReport.cmmsMeasurementConsumerId,
+            updatedInternalReport.externalReportId,
+          )
+        )
+      } else {
+        updatedInternalReport
+      }
+
     // Convert the internal report to public and return.
-    return convertInternalReportToPublic(updatedInternalReport, externalIdToMetricMap)
+    return convertInternalReportToPublic(finalInternalReport, externalIdToMetricMap)
+  }
+
+  override suspend fun withdrawReport(request: WithdrawReportRequest): Report {
+    val reportKey =
+      grpcRequireNotNull(ReportKey.fromName(request.name)) {
+        "Report name is either unspecified or invalid."
+      }
+    authorization.check(listOf(request.name, reportKey.parentKey.toName()), Permission.WITHDRAW)
+
+    return convertInternalReportToPublic(withdrawInternalReport(reportKey), emptyMap())
+  }
+
+  private suspend fun withdrawInternalReport(reportKey: ReportKey): InternalReport {
+    val response =
+      try {
+        internalReportsStub.withdrawReport(
+          internalWithdrawReportRequest {
+            cmmsMeasurementConsumerId = reportKey.cmmsMeasurementConsumerId
+            externalReportId = reportKey.reportId
+          }
+        )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.NOT_FOUND -> Status.NOT_FOUND
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.CANCELLED -> Status.CANCELLED
+            else -> Status.INTERNAL
+          }
+          .withDescription("Unable to withdraw Report.")
+          .withCause(e)
+          .asRuntimeException()
+      }
+
+    if (response.cmmsMeasurementIdsCount > 0) {
+      val parent = reportKey.parentKey.toName()
+      val measurementConsumerConfig =
+        measurementConsumerConfigs.configsMap[parent]
+          ?: throw Status.INTERNAL.withDescription("Config not found for $parent")
+            .asRuntimeException()
+      val measurementConsumerCredentials =
+        MeasurementConsumerCredentials.fromConfig(reportKey.parentKey, measurementConsumerConfig)
+
+      cancelMeasurements(response.cmmsMeasurementIdsList, measurementConsumerCredentials)
+    }
+
+    return response.report
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun cancelMeasurements(
+    cmmsMeasurementIds: List<String>,
+    measurementConsumerCredentials: MeasurementConsumerCredentials,
+  ) {
+    cmmsMeasurementIds
+      .distinct()
+      .asFlow()
+      .flatMapMerge(concurrency = kingdomMeasurementBatchConcurrency) { cmmsMeasurementId ->
+        flow {
+          try {
+            kingdomMeasurementsStub
+              .withCallCredentials(measurementConsumerCredentials.callCredentials)
+              .cancelMeasurement(
+                cancelMeasurementRequest {
+                  name =
+                    MeasurementKey(
+                        measurementConsumerCredentials.resourceKey.measurementConsumerId,
+                        cmmsMeasurementId,
+                      )
+                      .toName()
+                }
+              )
+          } catch (e: StatusException) {
+            when (e.status.code) {
+              Status.Code.FAILED_PRECONDITION,
+              Status.Code.NOT_FOUND -> {}
+              Status.Code.CANCELLED,
+              Status.Code.DEADLINE_EXCEEDED,
+              Status.Code.UNAVAILABLE ->
+                throw e.status
+                  .withDescription("Unable to cancel Measurements for Report.")
+                  .withCause(e)
+                  .asRuntimeException()
+              else ->
+                throw Status.INTERNAL.withDescription("Unable to cancel Measurements for Report.")
+                  .withCause(e)
+                  .asRuntimeException()
+            }
+          }
+          emit(Unit)
+        }
+      }
+      .toList()
   }
 
   /** Returns a map of external IDs to [InternalMetricCalculationSpec]. */
@@ -531,18 +646,22 @@ class ReportsService(
         timeIntervals = internalReport.details.timeIntervals.toTimeIntervals()
       }
 
-      val metrics: List<Metric> = buildList {
-        for (externalMetricId in internalReport.externalMetricIds) {
-          if (externalIdToMetricMap.containsKey(externalMetricId)) {
-            add(externalIdToMetricMap.getValue(externalMetricId))
-          } else {
-            state = Report.State.FAILED
+      if (internalReport.withdrawn) {
+        state = Report.State.WITHDRAWN
+      } else {
+        val metrics: List<Metric> = buildList {
+          for (externalMetricId in internalReport.externalMetricIds) {
+            if (externalIdToMetricMap.containsKey(externalMetricId)) {
+              add(externalIdToMetricMap.getValue(externalMetricId))
+            } else {
+              state = Report.State.FAILED
+            }
           }
         }
-      }
 
-      if (state != Report.State.FAILED) {
-        state = inferReportState(metrics)
+        if (state != Report.State.FAILED) {
+          state = inferReportState(metrics)
+        }
       }
       createTime = internalReport.createTime
 
@@ -878,6 +997,7 @@ class ReportsService(
     const val GET = "reporting.reports.get"
     const val LIST = "reporting.reports.list"
     const val CREATE = "reporting.reports.create"
+    const val WITHDRAW = "reporting.reports.withdraw"
   }
 
   companion object {
@@ -895,6 +1015,8 @@ private fun inferReportState(metrics: Collection<Metric>): Report.State {
   val metricStates = metrics.map { it.state }
   return if (metricStates.all { it == Metric.State.SUCCEEDED }) {
     Report.State.SUCCEEDED
+  } else if (metricStates.any { it == Metric.State.WITHDRAWN }) {
+    Report.State.WITHDRAWN
   } else if (metricStates.any { it == Metric.State.FAILED || it == Metric.State.INVALID }) {
     Report.State.FAILED
   } else {

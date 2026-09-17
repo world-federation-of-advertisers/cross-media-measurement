@@ -78,7 +78,8 @@ service BasicReports {
 
   // Transitions the `BasicReport` to the `BasicReport.State.WITHDRAWN` state.
   //
-  // The `BasicReport` must not already be in a terminal state.
+  // If the `BasicReport` is already `WITHDRAWN`, it is returned unchanged. The
+  // `BasicReport` must not be in another terminal state.
   //
   // Error reasons:
   // * `REQUIRED_FIELD_NOT_SET`

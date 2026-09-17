@@ -23,6 +23,7 @@ import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
+import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresWriter
 import org.wfanet.measurement.common.db.r2dbc.postgres.ValuesListBoundStatement
@@ -155,11 +156,14 @@ class CreateReport(
     val reportingMetricMap:
       Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric> =
       if (!disableMetricsReuse) {
-        buildReusableMetricsMap(
-          report,
+        lockReusableMetrics(
           measurementConsumerId,
-          reportingSetIdsByExternalId,
-          metricCalculationSpecsByExternalId,
+          buildReusableMetricsMap(
+            report,
+            measurementConsumerId,
+            reportingSetIdsByExternalId,
+            metricCalculationSpecsByExternalId,
+          ),
         )
       } else {
         emptyMap()
@@ -326,12 +330,59 @@ class CreateReport(
           if (
             it.state != Metric.State.FAILED &&
               it.state != Metric.State.INVALID &&
+              it.state != Metric.State.WITHDRAWN &&
               (oldValue == null || it.createTime.isAfter(oldValue.createTime))
           ) {
             put(key, it)
           }
         }
     }
+  }
+
+  /** Locks reusable Metrics so withdrawal cannot race with adding a new Report reference. */
+  private suspend fun TransactionScope.lockReusableMetrics(
+    measurementConsumerId: InternalId,
+    reportingMetrics: Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric>,
+  ): Map<MetricCalculationSpecReportingMetricKey, MetricReader.ReportingMetric> {
+    val candidateMetricIds = reportingMetrics.values.map { it.metricId }.distinct()
+    if (candidateMetricIds.isEmpty()) {
+      return reportingMetrics
+    }
+
+    val lockedMetricIds: Set<InternalId> =
+      transactionContext
+        .executeQuery(
+          valuesListBoundStatement(
+            valuesStartIndex = 4,
+            paramCount = 1,
+            """
+            WITH CandidateMetricIds(MetricId) AS (
+              VALUES ${ValuesListBoundStatement.VALUES_LIST_PLACEHOLDER}
+            )
+            SELECT Metrics.MetricId
+            FROM Metrics
+            JOIN CandidateMetricIds USING (MetricId)
+            WHERE Metrics.MeasurementConsumerId = $1
+              AND Metrics.State NOT IN ($2, $3, $4)
+            ORDER BY Metrics.MetricId
+            FOR UPDATE OF Metrics
+            """
+              .trimIndent(),
+          ) {
+            bind("$1", measurementConsumerId)
+            bind("$2", Metric.State.FAILED)
+            bind("$3", Metric.State.INVALID)
+            bind("$4", Metric.State.WITHDRAWN)
+            candidateMetricIds.forEach { metricId ->
+              addValuesBinding { bindValuesParam(0, metricId) }
+            }
+          }
+        )
+        .consume { row: ResultRow -> row.get<InternalId>("MetricId") }
+        .toList()
+        .toSet()
+
+    return reportingMetrics.filterValues { it.metricId in lockedMetricIds }
   }
 
   private fun createMetricCalculationSpecStatement(

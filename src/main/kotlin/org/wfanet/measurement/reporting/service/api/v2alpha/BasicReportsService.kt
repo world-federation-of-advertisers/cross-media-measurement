@@ -123,6 +123,7 @@ import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.listBasicReportsResponse
 import org.wfanet.measurement.reporting.v2alpha.report
 import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
+import org.wfanet.measurement.reporting.v2alpha.withdrawReportRequest
 
 class BasicReportsService(
   private val internalBasicReportsStub: BasicReportsCoroutineStub,
@@ -770,6 +771,33 @@ class BasicReportsService(
           null -> Status.INTERNAL.withCause(e).asRuntimeException()
         }
       }
+
+    if (internalBasicReport.externalReportId.isNotEmpty()) {
+      try {
+        reportsStub
+          .withForwardedTrustedCredentials()
+          .withdrawReport(
+            withdrawReportRequest {
+              name =
+                ReportKey(
+                    measurementConsumerKey.measurementConsumerId,
+                    internalBasicReport.externalReportId,
+                  )
+                  .toName()
+            }
+          )
+      } catch (e: StatusException) {
+        throw when (e.status.code) {
+            Status.Code.CANCELLED -> Status.CANCELLED
+            Status.Code.DEADLINE_EXCEEDED -> Status.DEADLINE_EXCEEDED
+            Status.Code.UNAVAILABLE -> Status.UNAVAILABLE
+            else -> Status.INTERNAL
+          }
+          .withDescription("BasicReport was withdrawn, but its Report could not be withdrawn.")
+          .withCause(e)
+          .asRuntimeException()
+      }
+    }
 
     return internalBasicReport.toBasicReport(
       populateDeprecatedReportingUnitEventGroupSummaries = false

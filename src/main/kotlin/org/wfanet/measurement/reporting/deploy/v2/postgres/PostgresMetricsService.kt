@@ -49,6 +49,7 @@ import org.wfanet.measurement.reporting.service.internal.InvalidMetricStateTrans
 import org.wfanet.measurement.reporting.service.internal.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.reporting.service.internal.MetricAlreadyExistsException
 import org.wfanet.measurement.reporting.service.internal.MetricNotFoundException
+import org.wfanet.measurement.reporting.service.internal.ReportWithdrawnException
 import org.wfanet.measurement.reporting.service.internal.ReportingSetNotFoundException
 import org.wfanet.measurement.reporting.service.internal.RequiredFieldNotSetException
 
@@ -79,6 +80,8 @@ class PostgresMetricsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MetricAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")
+    } catch (e: ReportWithdrawnException) {
+      throw Status.FAILED_PRECONDITION.withDescription(e.message).withCause(e).asRuntimeException()
     }
   }
 
@@ -119,6 +122,8 @@ class PostgresMetricsService(
       throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
     } catch (e: MetricAlreadyExistsException) {
       throw e.asStatusRuntimeException(Status.Code.ALREADY_EXISTS, "Metric already exists")
+    } catch (e: ReportWithdrawnException) {
+      throw Status.FAILED_PRECONDITION.withDescription(e.message).withCause(e).asRuntimeException()
     }
   }
 

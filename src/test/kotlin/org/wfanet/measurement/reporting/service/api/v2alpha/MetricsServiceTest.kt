@@ -7812,6 +7812,29 @@ class MetricsServiceTest {
   }
 
   @Test
+  fun `getMetric returns the metric with WITHDRAWN when metric is withdrawn`() = runBlocking {
+    wheneverBlocking {
+      permissionsServiceMock.checkPermissions(hasPrincipal(PRINCIPAL.name))
+    } doReturn checkPermissionsResponse { permissions += PermissionName.GET }
+    whenever(internalMetricsMock.batchGetMetrics(any()))
+      .thenReturn(
+        internalBatchGetMetricsResponse {
+          metrics +=
+            INTERNAL_SUCCEEDED_INCREMENTAL_REACH_METRIC.copy {
+              state = InternalMetric.State.WITHDRAWN
+            }
+        }
+      )
+
+    val result =
+      withPrincipalAndScopes(PRINCIPAL, SCOPES) {
+        service.getMetric(getMetricRequest { name = SUCCEEDED_INCREMENTAL_REACH_METRIC.name })
+      }
+
+    assertThat(result.state).isEqualTo(Metric.State.WITHDRAWN)
+  }
+
+  @Test
   fun `getMetric returns SUCCEEDED metric when metric already succeeded and single params set`() =
     runBlocking {
       val internalMeasurement = internalMeasurement {

@@ -64,6 +64,7 @@ import org.wfanet.measurement.internal.reporting.v2.listMetricCalculationSpecsRe
 import org.wfanet.measurement.internal.reporting.v2.metricFrequencySpec
 import org.wfanet.measurement.internal.reporting.v2.reportResult
 import org.wfanet.measurement.internal.reporting.v2.reportingSetResult
+import org.wfanet.measurement.internal.reporting.v2.withdrawBasicReportRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.MetricCalculationSpecKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
@@ -203,6 +204,12 @@ class BasicReportsReportsJob(
               }
               Report.State.FAILED -> {
                 failBasicReport(
+                  cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
+                  externalBasicReportId = basicReport.externalBasicReportId,
+                )
+              }
+              Report.State.WITHDRAWN -> {
+                withdrawBasicReport(
                   cmmsMeasurementConsumerId = cmmsMeasurementConsumerId,
                   externalBasicReportId = basicReport.externalBasicReportId,
                 )
@@ -778,6 +785,18 @@ class BasicReportsReportsJob(
   ) {
     internalBasicReportsStub.failBasicReport(
       failBasicReportRequest {
+        this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
+        this.externalBasicReportId = externalBasicReportId
+      }
+    )
+  }
+
+  private suspend fun withdrawBasicReport(
+    cmmsMeasurementConsumerId: String,
+    externalBasicReportId: String,
+  ) {
+    internalBasicReportsStub.withdrawBasicReport(
+      withdrawBasicReportRequest {
         this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
         this.externalBasicReportId = externalBasicReportId
       }

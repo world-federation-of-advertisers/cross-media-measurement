@@ -53,6 +53,7 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.doAnswer
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.mockito.kotlin.wheneverBlocking
 import org.wfanet.measurement.access.client.v1alpha.Authorization
@@ -227,6 +228,10 @@ class BasicReportsServiceTest {
   private val reportsServiceMock: ReportsCoroutineImplBase = mockService {
     onBlocking { createReport(any()) }
       .thenReturn(report { name = ReportKey("a1234", "a1234").toName() })
+    onBlocking { withdrawReport(any()) }
+      .thenReturn(
+        report { state = org.wfanet.measurement.reporting.v2alpha.Report.State.WITHDRAWN }
+      )
   }
 
   private val modelLinesServiceMock: ModelLinesCoroutineImplBase = mockService {
@@ -11066,6 +11071,7 @@ class BasicReportsServiceTest {
       }
 
     assertThat(response).isEqualTo(basicReport.copy { state = BasicReport.State.WITHDRAWN })
+    verifyBlocking(reportsServiceMock) { withdrawReport(any()) }
   }
 
   @Test
@@ -11128,19 +11134,18 @@ class BasicReportsServiceTest {
   }
 
   @Test
-  fun `withdrawBasicReport throws FAILED_PRECONDITION when BasicReport is terminal`(): Unit =
+  fun `withdrawBasicReport is idempotent when BasicReport is already WITHDRAWN`(): Unit =
     runBlocking {
       val basicReport = createRunningBasicReport()
       val request = withdrawBasicReportRequest { name = basicReport.name }
-      withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.withdrawBasicReport(request) }
+      val firstResponse =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.withdrawBasicReport(request) }
 
-      val exception =
-        assertFailsWith<StatusRuntimeException> {
-          withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.withdrawBasicReport(request) }
-        }
+      val secondResponse =
+        withPrincipalAndScopes(PRINCIPAL, SCOPES) { service.withdrawBasicReport(request) }
 
-      assertThat(exception).status().code().isEqualTo(Status.Code.FAILED_PRECONDITION)
-      assertThat(exception).hasMessageThat().contains("terminal state")
+      assertThat(secondResponse).isEqualTo(firstResponse)
+      verifyBlocking(reportsServiceMock, times(2)) { withdrawReport(any()) }
     }
 
   @Test

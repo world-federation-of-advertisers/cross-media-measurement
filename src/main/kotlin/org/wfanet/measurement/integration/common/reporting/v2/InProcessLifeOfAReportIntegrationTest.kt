@@ -435,7 +435,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Proto enum fields are never null.
       when (retrievedReport.state) {
         Report.State.SUCCEEDED,
-        Report.State.FAILED -> return retrievedReport
+        Report.State.FAILED,
+        Report.State.WITHDRAWN -> return retrievedReport
         Report.State.RUNNING,
         Report.State.UNRECOGNIZED,
         Report.State.STATE_UNSPECIFIED -> delay(5000)
@@ -454,7 +455,8 @@ abstract class InProcessLifeOfAReportIntegrationTest(
       when (retrievedMetric.state) {
         Metric.State.SUCCEEDED,
         Metric.State.FAILED,
-        Metric.State.INVALID -> return retrievedMetric
+        Metric.State.INVALID,
+        Metric.State.WITHDRAWN -> return retrievedMetric
         Metric.State.RUNNING,
         Metric.State.UNRECOGNIZED,
         Metric.State.STATE_UNSPECIFIED -> delay(5000)

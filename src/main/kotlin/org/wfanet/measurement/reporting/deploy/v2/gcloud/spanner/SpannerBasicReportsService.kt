@@ -469,6 +469,7 @@ class SpannerBasicReportsService(
       request.cmmsMeasurementConsumerId,
       request.externalBasicReportId,
       BasicReport.State.FAILED,
+      idempotent = false,
     )
   }
 
@@ -477,6 +478,7 @@ class SpannerBasicReportsService(
       request.cmmsMeasurementConsumerId,
       request.externalBasicReportId,
       BasicReport.State.WITHDRAWN,
+      idempotent = true,
     )
   }
 
@@ -484,6 +486,7 @@ class SpannerBasicReportsService(
     cmmsMeasurementConsumerId: String,
     externalBasicReportId: String,
     terminalState: BasicReport.State,
+    idempotent: Boolean,
   ): BasicReport {
     if (cmmsMeasurementConsumerId.isEmpty()) {
       throw RequiredFieldNotSetException("cmms_measurement_consumer_id")
@@ -506,6 +509,9 @@ class SpannerBasicReportsService(
               externalBasicReportId = externalBasicReportId,
             )
             .also {
+              if (it.basicReport.state == terminalState && idempotent) {
+                return@also
+              }
               if (it.basicReport.state !in TERMINABLE_STATES) {
                 throw BasicReportStateInvalidException(
                   cmmsMeasurementConsumerId,

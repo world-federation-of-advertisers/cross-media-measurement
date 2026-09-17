@@ -63,10 +63,12 @@ service BasicReports {
 
   // Transitions the `BasicReport` to the `WITHDRAWN` state.
   //
-  // The `BasicReport` must not already be in a terminal state.
+  // If the `BasicReport` is already `WITHDRAWN`, it is returned unchanged. The
+  // `BasicReport` must not be in another terminal state.
   //
-  // This stops further `BasicReport` processing, but does not cancel the
-  // associated `Report` or `Measurement` resources.
+  // This also withdraws the associated `Report`, cancelling pending
+  // `Measurement`s and withdrawing their pending `Requisition`s. Work shared
+  // with another active `Report` is not cancelled.
   rpc WithdrawBasicReport(WithdrawBasicReportRequest) returns (BasicReport) {
     option (google.api.http) = {
       post: "/v2alpha/{name=measurementConsumers/*/basicReports/*}:withdraw"
