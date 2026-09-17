@@ -2259,6 +2259,11 @@ internal object ReportTraceOutput {
       if (rawMessage != null) {
         RAW_CORRELATION_IDENTIFIER_PATTERN.findAll(rawMessage).mapTo(this) { it.value }
         UUID_PATTERN.findAll(rawMessage).mapTo(this) { it.value }
+        for (pattern in UNSTRUCTURED_COMPUTATION_IDENTIFIER_PATTERNS) {
+          pattern.findAll(rawMessage).mapTo(this) { match ->
+            "computations/${match.groupValues[1]}"
+          }
+        }
       }
     }
   }
@@ -3281,6 +3286,14 @@ internal object ReportTraceOutput {
     )
   private val UUID_PATTERN =
     Regex("(?i)\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b")
+  /** Known pre-structured-logging formats which contain a bare Duchy computation ID. */
+  private val UNSTRUCTURED_COMPUTATION_IDENTIFIER_PATTERNS =
+    listOf(
+      Regex("\\[id=([A-Za-z0-9_-]+)]"),
+      Regex("\\bComputation\\s+([A-Za-z0-9_-]+)\\b"),
+      Regex("\\b([A-Za-z0-9_-]+)@[A-Za-z0-9_.-]+:"),
+      Regex("@Mill\\s+[^,]+,\\s+([A-Za-z0-9_-]+)/"),
+    )
   private val REPORT_SCOPED_IDENTIFIER_ATTRIBUTES =
     setOf(
       "xmm.basic_report.name",

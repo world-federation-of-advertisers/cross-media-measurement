@@ -2571,6 +2571,60 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `telemetry scope retains unstructured logs for an admitted computation only`() {
+    val targetBasicReport = "measurementConsumers/mc-1/basicReports/report-1"
+    val targetComputation = "computations/target-computation"
+    val targetSpan =
+      lifecycleSpan(
+        "duchy_stage_attempt",
+        mapOf(
+          "xmm.basic_report.name" to targetBasicReport,
+          "xmm.computation.name" to targetComputation,
+        ),
+      )
+    val targetError =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "trustee-mill",
+        severity = "ERROR",
+        trace = null,
+        message =
+          "SEVERE: target-computation@trustee-mill: Failing Computation. " +
+            "Input vector size 2 does not match expected size 3",
+      )
+    val targetLogs =
+      listOf(
+        targetError,
+        targetError.copy(severity = "INFO", message = "[id=target-computation] Created Computation"),
+        targetError.copy(
+          severity = "INFO",
+          message = "INFO: Claimed work item for Computation target-computation at stage COMPUTING",
+        ),
+        targetError.copy(
+          severity = "INFO",
+          message = "INFO: @Mill trustee-mill, target-computation/COMPUTING/memory: 1024",
+        ),
+      )
+    val foreignError =
+      targetError.copy(
+        message =
+          "SEVERE: foreign-computation@trustee-mill: Failing Computation. " +
+            "Input vector size 3 does not match expected size 4",
+      )
+
+    val scoped =
+      ReportTraceOutput.scopeTelemetryToReport(
+        spans = listOf(targetSpan),
+        logEntries = targetLogs + foreignError,
+        authoritativeReportResources = setOf(targetBasicReport),
+      )
+
+    assertThat(scoped.spans).containsExactly(targetSpan)
+    assertThat(scoped.logEntries).containsExactlyElementsIn(targetLogs).inOrder()
+  }
+
+  @Test
   fun `span retention preserves all recognized failure outcomes`() {
     val failureOutcomes =
       listOf("failed", "failed_validation", "report_failed", "failure", "error", "refused")
