@@ -1,24 +1,6 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
-    name = "ReportingSchemaTest",
-    srcs = ["ReportingSchemaTest.kt"],
-    # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
-    flaky = True,
-    tags = [
-        "cpu:2",
-        "no-remote-exec",
-    ],
-    test_class = "org.wfanet.measurement.reporting.deploy.v2.postgres.ReportingSchemaTest",
-    deps = [
-        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/postgres/testing",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/db/r2dbc/postgres/testing:database_provider",
-    ],
-)
-
-kt_jvm_test(
     name = "PostgresMeasurementConsumersServiceTest",
     srcs = ["PostgresMeasurementConsumersServiceTest.kt"],
     # TODO(world-federation-of-advertisers/cross-media-measurement#827): Remove when flakiness is resolved.
