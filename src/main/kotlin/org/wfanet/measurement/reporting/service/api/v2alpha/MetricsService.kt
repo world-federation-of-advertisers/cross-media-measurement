@@ -2471,11 +2471,12 @@ class MetricsService(
           runningInternalMetrics.flatMap { internalMetric ->
             val internalMeasurements: List<InternalMeasurement> =
               internalMetric.weightedMeasurementsList.map { it.measurement }
-            // A RUNNING Metric whose expected state is terminal is synced again so that its
-            // state is updated.
             if (internalMetric.expectedState == InternalMetric.State.RUNNING) {
               internalMeasurements.filter { it.state == InternalMeasurement.State.PENDING }
             } else {
+              // Work around an issue where the Metric's current state may not match its expected
+              // state by re-syncing all Measurements. See
+              // world-federation-of-advertisers/cross-media-measurement#4296.
               internalMeasurements
             }
           }
