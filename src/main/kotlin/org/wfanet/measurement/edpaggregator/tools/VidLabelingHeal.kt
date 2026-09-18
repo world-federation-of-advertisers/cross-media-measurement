@@ -174,7 +174,11 @@ class MarkFailedCommand : EdpaApiCommand() {
     val channel: ManagedChannel = buildEdpaChannel()
     try {
       runBlocking {
-        val failer = DispatchFailer(RawImpressionUploadModelLineServiceCoroutineStub(channel))
+        val failer =
+          DispatchFailer(
+            RawImpressionUploadServiceCoroutineStub(channel),
+            RawImpressionUploadModelLineServiceCoroutineStub(channel),
+          )
         val failed = failer.failUpload(rawImpressionUpload, reason)
         println("Marked ${failed.size} model line(s) FAILED under $rawImpressionUpload.")
       }
