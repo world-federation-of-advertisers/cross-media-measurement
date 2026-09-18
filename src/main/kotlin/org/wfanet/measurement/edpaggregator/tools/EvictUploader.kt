@@ -596,7 +596,12 @@ class EvictUploader(
     ) {
       return false
     }
-    if (uploadNameOf(row.name) to row.cmmsModelLine in activeSnapshotRows) return true
+    if (
+      row.state == RawImpressionUploadModelLine.State.COMPLETED &&
+        uploadNameOf(row.name) to row.cmmsModelLine in activeSnapshotRows
+    ) {
+      return true
+    }
     return row.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
       row.evictionOperationId.isNotEmpty() &&
       row.recoveryAction in
