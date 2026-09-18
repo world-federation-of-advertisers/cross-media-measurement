@@ -168,6 +168,7 @@ class VidRankBuilderApp(
         subpoolFingerprintsStore = subpoolFingerprintsStore,
         rankIndexStore = rankIndexStore,
         rankIndexBlobsStub = rankIndexBlobsStub,
+        rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
         retention = retention,
         dataProvider = dataProvider,
         rawImpressionUpload = params.rawImpressionUpload,

@@ -42,6 +42,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
@@ -159,6 +160,65 @@ class FailedDispatchRetrierTest {
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
   }
+
+  @Test
+  fun `retryFailed republishes only unfinished Phase 2 jobs`() = runBlocking {
+    stubFailedModelLine()
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob {
+            name = VID_JOB_NAME
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          vidLabelingJobs += vidLabelingJob {
+            name = SECOND_VID_JOB_NAME
+            state = VidLabelingJob.State.FAILED
+          }
+        }
+      )
+    whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+    whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+    whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+      .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+    val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+    assertThat(result.workItemsRepublished).isEqualTo(1)
+    val getCaptor = argumentCaptor<GetWorkItemRequest>()
+    verifyBlocking(workItemsService) { getWorkItem(getCaptor.capture()) }
+    assertThat(getCaptor.firstValue.name)
+      .isEqualTo("workItems/${WorkItemIds.forVidLabeler(SECOND_VID_JOB_NAME)}")
+  }
+
+  @Test
+  fun `retryFailed replays one successful Phase 2 job when parent completion is missing`() =
+    runBlocking {
+      stubFailedModelLine()
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse {
+            vidLabelingJobs += vidLabelingJob {
+              name = VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+            vidLabelingJobs += vidLabelingJob {
+              name = SECOND_VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(modelLineService.markRawImpressionUploadModelLineLabeling(any()))
+        .thenReturn(failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING })
+
+      val result = retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+
+      assertThat(result.workItemsRepublished).isEqualTo(1)
+      verifyBlocking(workItemsService) { getWorkItem(any()) }
+      verifyBlocking(workItemsService) { createWorkItem(any()) }
+    }
 
   @Test
   fun `retryFailed throttles every model-line page`() {
