@@ -488,6 +488,53 @@ class EvictUploaderTest {
     }
 
   @Test
+  fun `plan skips a processing-failed upload with an active snapshot as predecessor`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            for ((id, time) in listOf("up1" to T1, "up2" to T2, "up3" to T3)) {
+              rawImpressionUploads += rawImpressionUpload {
+                name = uploadName(id)
+                createTime = time.toProtoTime()
+                doneBlobUri = "gs://raw/$id/done"
+                doneBlobGeneration = 1L
+              }
+            }
+          }
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        val ids = listOf("up1", "up2", "up3")
+        val selected =
+          if (request.parent.endsWith("/rawImpressionUploads/-")) ids
+          else ids.filter { uploadName(it) == request.parent }
+        listRawImpressionUploadModelLinesResponse {
+          for (id in selected) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = modelLineName(id)
+              cmmsModelLine = MODEL_LINE
+              state =
+                if (id == "up2") {
+                  RawImpressionUploadModelLine.State.FAILED
+                } else {
+                  RawImpressionUploadModelLine.State.COMPLETED
+                }
+              if (id == "up2") {
+                failureReason = RawImpressionUploadModelLine.FailureReason.PROCESSING_FAILURE
+              }
+            }
+          }
+        }
+      }
+      stubSnapshotRows("up1", "up2", "up3")
+
+      val plan = evictUploader.plan(listOf(uploadName("up3")), cutoffTime = T0)
+
+      assertThat(plan.cascade.single().recoveryPredecessorUploadName).isEqualTo(uploadName("up1"))
+    }
+
+  @Test
   fun `plan rejects no-replacement upload outside bad uploads`() {
     val error =
       assertFailsWith<IllegalArgumentException> {
