@@ -88,6 +88,19 @@ class VidLabelingHealTest {
   }
 
   @Test
+  fun `dataProviderOf accepts multiple uploads under the same DataProvider`() {
+    val dataProvider =
+      EvictUploadsCommand.dataProviderOf(
+        listOf(
+          "$DATA_PROVIDER/rawImpressionUploads/upload-A",
+          "$DATA_PROVIDER/rawImpressionUploads/upload-B",
+        )
+      )
+
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
+  }
+
+  @Test
   fun `labeled impressions prefix is validated before eviction`() {
     val parsed =
       EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(

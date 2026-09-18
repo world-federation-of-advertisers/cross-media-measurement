@@ -810,18 +810,18 @@ class EvictUploadsCommand : EdpaApiCommand() {
       return blobUri
     }
 
-    private fun dataProviderOf(uploads: List<String>): String {
+    fun dataProviderOf(uploads: List<String>): String {
       val dataProviders =
-        uploads.map {
-          requireNotNull(RawImpressionUploadKey.fromName(it)) {
-              "Malformed RawImpressionUpload resource name: $it"
-            }
-            .parentKey
-            .toName()
-        }
-      require(dataProviders.distinct().size == 1) {
-        "all bad uploads must be under the same DataProvider"
-      }
+        uploads
+          .map {
+            requireNotNull(RawImpressionUploadKey.fromName(it)) {
+                "Malformed RawImpressionUpload resource name: $it"
+              }
+              .parentKey
+              .toName()
+          }
+          .distinct()
+      require(dataProviders.size == 1) { "all bad uploads must be under the same DataProvider" }
       return dataProviders.single()
     }
   }
