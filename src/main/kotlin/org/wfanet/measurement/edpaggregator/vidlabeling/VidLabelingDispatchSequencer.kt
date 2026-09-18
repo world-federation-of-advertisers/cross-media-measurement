@@ -671,7 +671,13 @@ class VidLabelingDispatchSequencer(
         }
         return
       } catch (e: StatusException) {
-        if (!isConcurrentClaimLoss(e)) throw e
+        if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+          logger.info(
+            "Skipping POOL_ASSIGNING for $modelLineName: another upload owns the model line"
+          )
+          return
+        }
+        if (e.status.code != Status.Code.ABORTED) throw e
 
         val current =
           rpcThrottlers.metadataRead.onReady {
