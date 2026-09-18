@@ -722,6 +722,37 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext does not retry a memoized claim rejected with FAILED_PRECONDITION`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(
+          rawImpressionUploadModelLineService.markRawImpressionUploadModelLinePoolAssigning(any())
+        )
+        .thenAnswer {
+          throw StatusException(
+            Status.FAILED_PRECONDITION.withDescription("another upload owns the model line")
+          )
+        }
+
+      val result = createSequencer().dispatchNext()
+
+      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
+        markRawImpressionUploadModelLinePoolAssigning(any())
+      }
+      verifyBlocking(rawImpressionUploadModelLineService, never()) {
+        getRawImpressionUploadModelLine(any())
+      }
+    }
+
+  @Test
   fun `dispatchNext retries a memoized claim when only the parent etag changed`() =
     runBlocking<Unit> {
       stubUploads(
