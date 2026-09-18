@@ -476,6 +476,54 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed returns success when a failed retry already advanced the model line`() {
+    val poolWorkItemId = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 0)
+    val poolRetryId = RequestIds.forRetriedWorkItem(poolWorkItemId, FAILURE_ATTEMPT_ID)
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(rankerJobService.listRankerJobs(any()))
+        .thenReturn(listRankerJobsResponse { rankerJobs += rankerJob { name = RANKER_JOB_NAME } })
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        when (invocation.getArgument<GetWorkItemRequest>(0).name) {
+          "workItems/$poolRetryId" ->
+            workItem {
+              state = WorkItem.State.FAILED
+              updateTime = timestamp {
+                seconds = 123
+                nanos = 456
+              }
+            }
+          else -> throw Status.NOT_FOUND.asRuntimeException()
+        }
+      }
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    assertThat(result.workItemsRepublished).isEqualTo(0)
+    assertThat(result.wasAlreadyStarted).isTrue()
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+  }
+
+  @Test
   fun `retryFailed creates successor while model line remains active after retry failure`() {
     val originalWorkItemId = WorkItemIds.forVidLabeler(VID_JOB_NAME)
     val firstRetryId = RequestIds.forRetriedWorkItem(originalWorkItemId, FAILURE_ATTEMPT_ID)
