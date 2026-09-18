@@ -437,6 +437,59 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed finds completed retry among successful Phase 2 jobs`() {
+    val firstRetryId =
+      RequestIds.forRetriedWorkItem(WorkItemIds.forVidLabeler(VID_JOB_NAME), FAILURE_ATTEMPT_ID)
+    val secondRetryId =
+      RequestIds.forRetriedWorkItem(
+        WorkItemIds.forVidLabeler(SECOND_VID_JOB_NAME),
+        FAILURE_ATTEMPT_ID,
+      )
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.COMPLETED }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse {
+            vidLabelingJobs += vidLabelingJob {
+              name = VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+            vidLabelingJobs += vidLabelingJob {
+              name = SECOND_VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        when (invocation.getArgument<GetWorkItemRequest>(0).name) {
+          "workItems/$firstRetryId" -> throw Status.NOT_FOUND.asRuntimeException()
+          "workItems/$secondRetryId" -> workItem { state = WorkItem.State.SUCCEEDED }
+          else -> error("unexpected WorkItem")
+        }
+      }
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+    assertThat(result.workItemsRepublished).isEqualTo(0)
+    assertThat(result.wasAlreadyStarted).isTrue()
+    val requestCaptor = argumentCaptor<GetWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { getWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues.map { it.name })
+      .containsExactly("workItems/$firstRetryId", "workItems/$secondRetryId")
+      .inOrder()
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+  }
+
+  @Test
   fun `retryFailed follows a failed retry WorkItem to its active successor`() {
     val result = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
