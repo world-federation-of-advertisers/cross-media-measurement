@@ -21,6 +21,7 @@ import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ManagedChannel
+import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
@@ -32,9 +33,13 @@ import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
+import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
+import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -617,6 +622,13 @@ class EvictUploadsCommand : EdpaApiCommand() {
   private lateinit var labeledImpressionsBlobPrefix: String
 
   @Option(
+    names = ["--vid-labeling-config-file"],
+    description = ["Path to the deployed VidLabelingConfigs textproto."],
+    required = true,
+  )
+  private lateinit var vidLabelingConfigFile: File
+
+  @Option(
     names = ["--bad-uploads"],
     description =
       [
@@ -673,7 +685,10 @@ class EvictUploadsCommand : EdpaApiCommand() {
       "--no-replacement-upload entries must be non-blank RawImpressionUpload resource names."
     }
     require(retentionDays > 0) { "--retention-days must be positive; got $retentionDays" }
-    val outputPrefixBlobUri = parseLabeledImpressionsBlobPrefix(labeledImpressionsBlobPrefix)
+    val dataProvider = dataProviderOf(badUploads)
+    val configs = parseTextProto(vidLabelingConfigFile, VidLabelingConfigs.getDefaultInstance())
+    val outputPrefixBlobUri =
+      parseLabeledImpressionsBlobPrefix(labeledImpressionsBlobPrefix, configs, dataProvider)
     val normalizedOutputPrefix = normalizedBlobPrefix(outputPrefixBlobUri)
     val channel: ManagedChannel = buildEdpaChannel()
     try {
@@ -752,7 +767,11 @@ class EvictUploadsCommand : EdpaApiCommand() {
 
   companion object {
     /** Parses and validates the configured VID-labeled output prefix before any mutation. */
-    fun parseLabeledImpressionsBlobPrefix(value: String): BlobUri {
+    fun parseLabeledImpressionsBlobPrefix(
+      value: String,
+      configs: VidLabelingConfigs,
+      dataProvider: String,
+    ): BlobUri {
       val normalized = value.trim().trimEnd('/')
       val blobUri =
         try {
@@ -766,7 +785,44 @@ class EvictUploadsCommand : EdpaApiCommand() {
       require(blobUri.scheme == "gs" && blobUri.bucket.isNotBlank()) {
         "--labeled-impressions-blob-prefix must be a valid gs:// URI"
       }
+      val config =
+        requireNotNull(configs.configsList.singleOrNull { it.dataProvider == dataProvider }) {
+          "No VidLabelingConfig found for $dataProvider"
+        }
+      require(config.vidLabeledImpressionsStorageParams.storageCase == StorageCase.GCS) {
+        "VidLabelingConfig for $dataProvider must use GCS for VID-labeled impressions"
+      }
+      val configuredBucket = config.vidLabeledImpressionsStorageParams.gcs.bucketName
+      val configuredPath = config.edpImpressionPath
+      require(configuredBucket.isNotEmpty() && configuredPath.isNotEmpty()) {
+        "VidLabelingConfig for $dataProvider must set the output bucket and edp_impression_path"
+      }
+      require(
+        configuredPath == configuredPath.trim('/') &&
+          configuredPath.split('/').none { it.isEmpty() || it == "." || it == ".." }
+      ) {
+        "VidLabelingConfig for $dataProvider has a non-canonical edp_impression_path"
+      }
+      require(blobUri.bucket == configuredBucket && blobUri.key == configuredPath) {
+        "--labeled-impressions-blob-prefix must exactly match the configured output root " +
+          "gs://$configuredBucket/$configuredPath for $dataProvider"
+      }
       return blobUri
+    }
+
+    private fun dataProviderOf(uploads: List<String>): String {
+      val dataProviders =
+        uploads.map {
+          requireNotNull(RawImpressionUploadKey.fromName(it)) {
+              "Malformed RawImpressionUpload resource name: $it"
+            }
+            .parentKey
+            .toName()
+        }
+      require(dataProviders.distinct().size == 1) {
+        "all bad uploads must be under the same DataProvider"
+      }
+      return dataProviders.single()
     }
   }
 }
@@ -788,6 +844,13 @@ class ResumeHealingCommand : EdpaApiCommand() {
   )
   private var gcsProject: String = ""
 
+  @Option(
+    names = ["--vid-labeling-config-file"],
+    description = ["Path to the deployed VidLabelingConfigs textproto."],
+    required = true,
+  )
+  private lateinit var vidLabelingConfigFile: File
+
   override fun run() {
     val channel = buildEdpaChannel()
     try {
@@ -797,9 +860,16 @@ class ResumeHealingCommand : EdpaApiCommand() {
           operationsStub.getUploadHealingOperation(
             getUploadHealingOperationRequest { name = operationName }
           )
+        val operationKey =
+          requireNotNull(UploadHealingOperationKey.fromName(operation.name)) {
+            "Malformed UploadHealingOperation resource name: ${operation.name}"
+          }
+        val configs = parseTextProto(vidLabelingConfigFile, VidLabelingConfigs.getDefaultInstance())
         val outputPrefixBlobUri =
           EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-            operation.labeledImpressionsBlobPrefix
+            operation.labeledImpressionsBlobPrefix,
+            configs,
+            operationKey.parentKey.toName(),
           )
         val evictUploader =
           newEvictUploader(
