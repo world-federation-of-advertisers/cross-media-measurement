@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.timestamp
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
@@ -415,6 +416,76 @@ class EvictUploaderTest {
     assertThat(entries.getValue(uploadName("up3")).recoveryPredecessorUploadName)
       .isEqualTo(uploadName("up2"))
   }
+
+  @Test
+  fun `plan skips a previously removed upload when selecting the first predecessor`(): Unit =
+    runBlocking {
+      whenever(uploadService.listRawImpressionUploads(any()))
+        .thenReturn(
+          listRawImpressionUploadsResponse {
+            for ((id, time) in listOf("up1" to T1, "up2" to T2, "up3" to T3)) {
+              rawImpressionUploads += rawImpressionUpload {
+                name = uploadName(id)
+                createTime = time.toProtoTime()
+                doneBlobUri = "gs://raw/$id/done"
+                doneBlobGeneration = 1L
+              }
+            }
+          }
+        )
+      whenever(modelLineService.listRawImpressionUploadModelLines(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListRawImpressionUploadModelLinesRequest>(0)
+        val ids = listOf("up1", "up2", "up3")
+        val selected =
+          if (request.parent.endsWith("/rawImpressionUploads/-")) ids
+          else ids.filter { uploadName(it) == request.parent }
+        listRawImpressionUploadModelLinesResponse {
+          for (id in selected) {
+            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+              name = modelLineName(id)
+              cmmsModelLine = MODEL_LINE
+              state =
+                if (id == "up2") {
+                  RawImpressionUploadModelLine.State.FAILED
+                } else {
+                  RawImpressionUploadModelLine.State.COMPLETED
+                }
+              if (id == "up2") {
+                failureReason = RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT
+                evictionOperationId = "00000000-0000-4000-8000-000000000001"
+                recoveryAction =
+                  RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+              }
+            }
+          }
+        }
+      }
+      whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+        .thenReturn(
+          listRankIndexBlobsResponse {
+            rankIndexBlobs += rankIndexBlob {
+              name = snapshotName("up1")
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              cmmsModelLine = MODEL_LINE
+            }
+            rankIndexBlobs += rankIndexBlob {
+              name = snapshotName("up2")
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              cmmsModelLine = MODEL_LINE
+              deleteTime = timestamp { seconds = 1 }
+            }
+            rankIndexBlobs += rankIndexBlob {
+              name = snapshotName("up3")
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              cmmsModelLine = MODEL_LINE
+            }
+          }
+        )
+
+      val plan = evictUploader.plan(listOf(uploadName("up3")), cutoffTime = T0)
+
+      assertThat(plan.cascade.single().recoveryPredecessorUploadName).isEqualTo(uploadName("up1"))
+    }
 
   @Test
   fun `plan rejects no-replacement upload outside bad uploads`() {
