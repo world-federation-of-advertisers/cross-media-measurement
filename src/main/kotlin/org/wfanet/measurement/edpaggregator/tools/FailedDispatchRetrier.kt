@@ -236,6 +236,12 @@ class FailedDispatchRetrier(
           }
           continue
         }
+        val completedLineages =
+          jobs
+            .map { WorkItemIds.forVidLabeler(it.name) }
+            .map { findRetryLineage(it, failureAttemptId) }
+        if (completedLineages.any { it != RetryLineage.MISSING }) return phase
+        continue
       }
       val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
       val lineages = originalWorkItemIds.map { findRetryLineage(it, failureAttemptId) }
