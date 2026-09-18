@@ -204,7 +204,7 @@ class EvictUploader(
         .map { it.cmmsModelLine }
         .toSet()
         .associateWith { listModelLines("$dataProvider/rawImpressionUploads/-", it, cutoffTime) }
-    val snapshotRows: Set<Pair<String, String>> = coroutineScope {
+    val snapshots: List<SnapshotRow> = coroutineScope {
       val semaphore = Semaphore(SNAPSHOT_LOOKUP_PARALLELISM)
       rowsByCmmsModelLine.keys
         .map { cmmsModelLine ->
@@ -212,8 +212,10 @@ class EvictUploader(
         }
         .awaitAll()
         .flatten()
-        .toSet()
     }
+    val snapshotRows = snapshots.mapTo(mutableSetOf()) { it.uploadName to it.cmmsModelLine }
+    val activeSnapshotRows =
+      snapshots.filter { !it.deleted }.mapTo(mutableSetOf()) { it.uploadName to it.cmmsModelLine }
     val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
     val nonMemoizedRequestedRows = requestedRows - memoizedRequestedRows.toSet()
     val requestedNames = badUploads.toSet()
@@ -323,7 +325,8 @@ class EvictUploader(
               .lastOrNull { row ->
                 val uploadName = uploadNameOf(row.name)
                 createTimeByUpload.getValue(uploadName) < firstActionTime &&
-                  uploadsByName.getValue(uploadName).doneBlobUri != firstActionDoneBlobUri
+                  uploadsByName.getValue(uploadName).doneBlobUri != firstActionDoneBlobUri &&
+                  isEligibleRecoveryPredecessor(row, activeSnapshotRows)
               }
               ?.let { uploadNameOf(it.name) }
               .orEmpty()
@@ -583,6 +586,26 @@ class EvictUploader(
     return uploadNameOf(row.name) to row.cmmsModelLine in snapshotRows
   }
 
+  private fun isEligibleRecoveryPredecessor(
+    row: RawImpressionUploadModelLine,
+    activeSnapshotRows: Set<Pair<String, String>>,
+  ): Boolean {
+    if (
+      row.recoveryAction ==
+        RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+    ) {
+      return false
+    }
+    if (uploadNameOf(row.name) to row.cmmsModelLine in activeSnapshotRows) return true
+    return row.failureReason == RawImpressionUploadModelLine.FailureReason.EVICTED_OUTPUT &&
+      row.evictionOperationId.isNotEmpty() &&
+      row.recoveryAction in
+        setOf(
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION,
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY,
+        )
+  }
+
   private data class OutputCleanupResult(val deletedMetadata: Int, val deletedBlobs: Int)
 
   private suspend fun cleanLabeledOutputs(
@@ -778,8 +801,8 @@ class EvictUploader(
   private suspend fun listSnapshotRows(
     dataProvider: String,
     cmmsModelLine: String,
-  ): List<Pair<String, String>> {
-    val rows = mutableListOf<Pair<String, String>>()
+  ): List<SnapshotRow> {
+    val rows = mutableListOf<SnapshotRow>()
     var pageToken = ""
     do {
       val response =
@@ -800,12 +823,18 @@ class EvictUploader(
           requireNotNull(RankIndexBlobKey.fromName(blob.name)) {
             "Malformed RankIndexBlob resource name: ${blob.name}"
           }
-        rows += key.parentKey.toName() to blob.cmmsModelLine
+        rows += SnapshotRow(key.parentKey.toName(), blob.cmmsModelLine, blob.hasDeleteTime())
       }
       pageToken = response.nextPageToken
     } while (pageToken.isNotEmpty())
     return rows
   }
+
+  private data class SnapshotRow(
+    val uploadName: String,
+    val cmmsModelLine: String,
+    val deleted: Boolean,
+  )
 
   companion object {
     private val logger: Logger = Logger.getLogger(EvictUploader::class.java.name)
