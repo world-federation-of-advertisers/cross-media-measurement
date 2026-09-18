@@ -447,10 +447,23 @@ class VidRankBuilder(
       ) {
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineLabeling(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
-      )
+      val current = getParent()
+      if (
+        current != null &&
+          current.state in
+            setOf(
+              RawImpressionUploadModelLine.State.FAILED,
+              RawImpressionUploadModelLine.State.LABELING,
+              RawImpressionUploadModelLine.State.COMPLETED,
+            )
+      ) {
+        logger.info(
+          "markRawImpressionUploadModelLineLabeling(${parent.name}) conflicted because the parent " +
+            "is now ${current.state}; treating as done"
+        )
+        return
+      }
+      throw e
     }
   }
 

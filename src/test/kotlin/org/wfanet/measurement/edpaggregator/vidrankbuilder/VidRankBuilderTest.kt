@@ -790,19 +790,75 @@ class VidRankBuilderTest {
   fun `last job out tolerates a benign race flipping the parent to LABELING`() = runBlocking {
     // Another runner (or the Monitor) already advanced the parent: the flip comes back ABORTED.
     // The last-job-out must treat it as done, not fail.
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.RANKING)
     val modelLines =
       mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-              name = PARENT_NAME
-              cmmsModelLine = MODEL_LINE
-              state = RawImpressionUploadModelLine.State.RANKING
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = parentState.get()
+              }
             }
           }
         onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doAnswer
           {
+            parentState.set(RawImpressionUploadModelLine.State.LABELING)
             throw StatusException(Status.ABORTED)
+          }
+      }
+
+    val result = builder(rankerMock(), rankerJobsMock(isLastJob = true), modelLines).run()
+
+    assertThat(result.lastJobOut).isTrue()
+  }
+
+  @Test
+  fun `last job out propagates a transition conflict while the parent remains RANKING`() =
+    runBlocking {
+      val modelLines =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = RawImpressionUploadModelLine.State.RANKING
+              }
+            }
+          onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doAnswer
+            {
+              throw StatusException(Status.ABORTED)
+            }
+        }
+
+      assertFailsWith<StatusException> {
+        builder(rankerMock(), rankerJobsMock(isLastJob = true), modelLines).run()
+      }
+      Unit
+    }
+
+  @Test
+  fun `last job out leaves a parent that became FAILED terminal`() = runBlocking {
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.RANKING)
+    val modelLines =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+                name = PARENT_NAME
+                cmmsModelLine = MODEL_LINE
+                state = parentState.get()
+              }
+            }
+          }
+        onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doAnswer
+          {
+            parentState.set(RawImpressionUploadModelLine.State.FAILED)
+            throw StatusException(Status.FAILED_PRECONDITION)
           }
       }
 

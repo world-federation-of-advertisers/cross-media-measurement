@@ -393,6 +393,39 @@ class SubpoolAssignerTest {
     }
 
   @Test
+  fun `late successful shard does not fan out after the parent was marked FAILED`() = runBlocking {
+    val store = storeMock()
+    val ranker = rankerStubMock()
+    val workItems = workItemsStubMock()
+    val paj =
+      mock<PoolAssignmentJobServiceCoroutineStub> {
+        onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+          jobResponse(PoolAssignmentJob.State.CREATED)
+        onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+          markPoolAssignmentJobSucceededResponse {
+            lastShardResult =
+              MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
+          }
+      }
+    val ruml =
+      mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              parent(RawImpressionUploadModelLine.State.FAILED, listOf(7L), withMergedDek = true)
+          }
+      }
+
+    val result = assigner(store, paj, ruml, ranker, workItems).assign()
+
+    assertThat(result.lastShardOut).isTrue()
+    verifyBlocking(store, never()) { mergeSubpool(any(), any(), any(), any()) }
+    verifyBlocking(ranker, never()) { createRankerJob(any(), any()) }
+    verifyBlocking(workItems, never()) { createWorkItem(any(), any()) }
+    verifyBlocking(ruml, never()) { markRawImpressionUploadModelLineRanking(any(), any()) }
+  }
+
+  @Test
   fun `recovery re-runs the last-shard-out reusing the persisted merged DEK`() = runBlocking {
     val store = storeMock()
     val ranker = rankerStubMock()
@@ -527,6 +560,7 @@ class SubpoolAssignerTest {
   @Test
   fun `already-advanced flip precondition is swallowed and cleanup still runs`() = runBlocking {
     val store = storeMock()
+    val parentState = AtomicReference(RawImpressionUploadModelLine.State.POOL_ASSIGNING)
     val paj =
       mock<PoolAssignmentJobServiceCoroutineStub> {
         onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
@@ -542,18 +576,17 @@ class SubpoolAssignerTest {
       }
     val ruml =
       mock<RawImpressionUploadModelLineServiceCoroutineStub> {
-        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
-          listRawImpressionUploadModelLinesResponse {
-            rawImpressionUploadModelLines +=
-              parent(
-                RawImpressionUploadModelLine.State.POOL_ASSIGNING,
-                listOf(7L),
-                withMergedDek = true,
-              )
-            nextPageToken = ""
+        onBlocking { listRawImpressionUploadModelLines(any(), any()) } doAnswer
+          {
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(parentState.get(), listOf(7L), withMergedDek = true)
+              nextPageToken = ""
+            }
           }
         onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doAnswer
           {
+            parentState.set(RawImpressionUploadModelLine.State.RANKING)
             throw StatusException(Status.FAILED_PRECONDITION)
           }
       }
@@ -563,6 +596,44 @@ class SubpoolAssignerTest {
     assertThat(result.lastShardOut).isTrue()
     verifyBlocking(store) { delete(any()) }
   }
+
+  @Test
+  fun `ranking transition conflict propagates while the parent remains POOL_ASSIGNING`() =
+    runBlocking {
+      val store = storeMock()
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.SUCCEEDED)
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(
+                  RawImpressionUploadModelLine.State.POOL_ASSIGNING,
+                  listOf(7L),
+                  withMergedDek = true,
+                )
+            }
+          onBlocking { markRawImpressionUploadModelLineRanking(any(), any()) } doAnswer
+            {
+              throw StatusException(Status.ABORTED)
+            }
+        }
+
+      assertFailsWith<StatusException> { assigner(store, paj, ruml).assign() }
+
+      verifyBlocking(store, never()) { delete(any()) }
+    }
 
   @Test
   fun `last shard out stamps each subpool's ranked size from the labeler`() =
