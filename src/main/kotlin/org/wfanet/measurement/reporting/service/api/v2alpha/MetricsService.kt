@@ -2463,18 +2463,22 @@ class MetricsService(
             )
         }
 
-        // Only syncs pending measurements which can only be in metrics that are still running.
+        // The only Measurements that could need syncing are associated with RUNNING Metrics.
+        val runningInternalMetrics: List<InternalMetric> =
+          metricsByState.getOrDefault(InternalMetric.State.RUNNING, emptyList())
+
         val toBeSyncedInternalMeasurements: List<InternalMeasurement> =
-          if (metricsByState.containsKey(InternalMetric.State.RUNNING)) {
-            metricsByState
-              .getValue(InternalMetric.State.RUNNING)
-              .flatMap { internalMetric -> internalMetric.weightedMeasurementsList }
-              .map { weightedMeasurement -> weightedMeasurement.measurement }
-              .filter { internalMeasurement ->
-                internalMeasurement.state == InternalMeasurement.State.PENDING
-              }
-          } else {
-            emptyList()
+          runningInternalMetrics.flatMap { internalMetric ->
+            val internalMeasurements: List<InternalMeasurement> =
+              internalMetric.weightedMeasurementsList.map { it.measurement }
+            if (internalMetric.expectedState == InternalMetric.State.RUNNING) {
+              internalMeasurements.filter { it.state == InternalMeasurement.State.PENDING }
+            } else {
+              // Work around an issue where the Metric's current state may not match its expected
+              // state by re-syncing all Measurements. See
+              // world-federation-of-advertisers/cross-media-measurement#4296.
+              internalMeasurements
+            }
           }
 
         val anyMeasurementUpdated: Boolean =
@@ -2516,7 +2520,7 @@ class MetricsService(
                 addAll(
                   metricsByState.getValue(state).map { internalMetric ->
                     internalMetric
-                      .copy { this.state = internalMetric.calculateState() }
+                      .copy { this.state = internalMetric.expectedState }
                       .toMetric(variances)
                   }
                 )
@@ -3917,13 +3921,15 @@ private operator fun ProtoDuration.plus(other: ProtoDuration): ProtoDuration {
   return Durations.add(this, other)
 }
 
-private fun InternalMetric.calculateState(): InternalMetric.State {
-  val measurementStates = weightedMeasurementsList.map { it.measurement.state }
-  return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
-    InternalMetric.State.SUCCEEDED
-  } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
-    InternalMetric.State.FAILED
-  } else {
-    InternalMetric.State.RUNNING
+/** The [InternalMetric.State] indicated by the states of this [InternalMetric]'s Measurements. */
+private val InternalMetric.expectedState: InternalMetric.State
+  get() {
+    val measurementStates = weightedMeasurementsList.map { it.measurement.state }
+    return if (measurementStates.all { it == InternalMeasurement.State.SUCCEEDED }) {
+      InternalMetric.State.SUCCEEDED
+    } else if (measurementStates.any { it == InternalMeasurement.State.FAILED }) {
+      InternalMetric.State.FAILED
+    } else {
+      InternalMetric.State.RUNNING
+    }
   }
-}
