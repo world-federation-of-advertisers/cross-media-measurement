@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
+import com.google.protobuf.StringValue
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusException
@@ -131,6 +133,7 @@ class FailedDispatchRetrierTest {
         events += "get-original"
         workItem {
           queue = "q"
+          workItemParams = WORK_ITEM_PARAMS
           state = WorkItem.State.QUEUED
         }
       }
@@ -159,6 +162,9 @@ class FailedDispatchRetrierTest {
       markRawImpressionUploadModelLineLabeling(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    val createRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createRequestCaptor.capture()) }
+    assertThat(createRequestCaptor.firstValue.workItem.workItemParams).isEqualTo(WORK_ITEM_PARAMS)
   }
 
   @Test
@@ -259,6 +265,7 @@ class FailedDispatchRetrierTest {
         .thenReturn(
           workItem {
             queue = "q"
+            workItemParams = WORK_ITEM_PARAMS
             state = WorkItem.State.QUEUED
           }
         )
@@ -276,6 +283,9 @@ class FailedDispatchRetrierTest {
       markRawImpressionUploadModelLineRanking(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    val createRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createRequestCaptor.capture()) }
+    assertThat(createRequestCaptor.firstValue.workItem.workItemParams).isEqualTo(WORK_ITEM_PARAMS)
   }
 
   @Test
@@ -291,7 +301,13 @@ class FailedDispatchRetrierTest {
             poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
           }
         )
-      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.getWorkItem(any()))
+        .thenReturn(
+          workItem {
+            queue = "q"
+            workItemParams = WORK_ITEM_PARAMS
+          }
+        )
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
         .thenReturn(
@@ -308,6 +324,9 @@ class FailedDispatchRetrierTest {
       markRawImpressionUploadModelLinePoolAssigning(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    val createRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createRequestCaptor.capture()) }
+    assertThat(createRequestCaptor.firstValue.workItem.workItemParams).isEqualTo(WORK_ITEM_PARAMS)
   }
 
   @Test
@@ -475,7 +494,11 @@ class FailedDispatchRetrierTest {
         )
       whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
         when (invocation.getArgument<GetWorkItemRequest>(0).name) {
-          "workItems/$originalWorkItemId" -> workItem { queue = "q" }
+          "workItems/$originalWorkItemId" ->
+            workItem {
+              queue = "q"
+              workItemParams = WORK_ITEM_PARAMS
+            }
           "workItems/$firstRetryId" ->
             workItem {
               queue = "q"
@@ -508,6 +531,9 @@ class FailedDispatchRetrierTest {
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
     assertThat(requestCaptor.allValues.map { it.workItemId })
       .containsExactly(firstRetryId, successorId)
+      .inOrder()
+    assertThat(requestCaptor.allValues.map { it.workItem.workItemParams })
+      .containsExactly(WORK_ITEM_PARAMS, WORK_ITEM_PARAMS)
       .inOrder()
   }
 
@@ -768,5 +794,6 @@ class FailedDispatchRetrierTest {
     private const val RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj1"
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
+    private val WORK_ITEM_PARAMS = Any.pack(StringValue.of("params"))
   }
 }
