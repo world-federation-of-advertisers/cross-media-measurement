@@ -116,12 +116,32 @@ its Measurement ID, the tool can promote the name from a successful
 The artifact labels these identifiers as request-ID- or telemetry-recovered so
 their provenance is explicit.
 
-Run it from an environment with Application Default Credentials for a
-least-privilege operator service account. The identity needs permission to read
-Cloud Trace and Cloud Logging, read the Reporting Spanner database, connect to
-the Reporting Cloud SQL instance, and select from the Reporting Postgres
-database. The command also uses the MeasurementConsumer's mTLS identity and API
-key to read its Measurements and Requisitions from the Kingdom public API.
+Run it with Application Default Credentials impersonating the dedicated
+read-only report-trace operator service account. Configure the deployment's
+`REPORT_TRACE_OPERATORS` variable with the IAM members allowed to impersonate
+that account. If telemetry is stored outside the CMMS project, also list those
+project IDs in `REPORT_TRACE_OBSERVABILITY_PROJECTS`. Terraform grants the
+service account read access to Reporting Spanner and Postgres, Cloud Logging,
+and Cloud Trace; it does not grant mutation access to Reporting storage.
+
+After applying Terraform, create impersonated Application Default Credentials
+and read the exact Cloud SQL IAM username from the outputs:
+
+```bash
+cd src/main/terraform/gcloud/cmms
+CMMS_PROJECT_ID="<CMMS_PROJECT_ID>"
+REPORT_TRACE_SERVICE_ACCOUNT="$(terraform output -raw report_trace_operator_service_account_email)"
+REPORT_TRACE_POSTGRES_USER="$(terraform output -raw report_trace_operator_postgres_user)"
+gcloud auth application-default login \
+  --impersonate-service-account="$REPORT_TRACE_SERVICE_ACCOUNT" \
+  --billing-project="$CMMS_PROJECT_ID"
+```
+
+Use `$REPORT_TRACE_POSTGRES_USER` for `--postgres-user` below. The token identity
+and Postgres IAM username must match; using the Reporting server's database
+username with an operator's token fails authentication. The command separately
+uses the MeasurementConsumer's mTLS identity and API key to read its
+Measurements and Requisitions from the Kingdom public API.
 
 `report-trace` is an operator CLI, not a continuously deployed service. Build
 and run it from a trusted administrative environment with network access to the
@@ -166,7 +186,7 @@ bazel run \
   --spanner-database=reporting \
   --postgres-cloud-sql-connection-name=<PROJECT_ID>:<REGION>:<CLOUD_SQL_INSTANCE> \
   --postgres-database=reporting-v2 \
-  --postgres-user=<DATABASE_USER> \
+  --postgres-user="$REPORT_TRACE_POSTGRES_USER" \
   --kingdom-public-api-target=<KINGDOM_PUBLIC_API_TARGET> \
   --kingdom-public-api-cert-host=<KINGDOM_PUBLIC_API_CERT_HOST> \
   --tls-cert-file=<MEASUREMENT_CONSUMER_TLS_CERT_FILE> \
@@ -225,16 +245,19 @@ request consumes 25 units and each GetTrace request consumes one unit;
 
 Before choosing those two rates, inspect the effective read quotas in **every**
 project supplied with `--observability-project`. The operator needs
-`serviceusage.quotas.get`; `roles/serviceusage.serviceUsageViewer` is a
-read-only predefined role containing that permission. The following commands
-show the effective quota metrics for one project:
+`serviceusage.quotas.get`; the already-required
+`roles/serviceusage.serviceUsageConsumer` role includes that permission. The
+following commands show the effective quota metrics for one project as the
+same service account used by the CLI:
 
 ```bash
 gcloud alpha services quota list \
+  --impersonate-service-account="$REPORT_TRACE_SERVICE_ACCOUNT" \
   --consumer=projects/<OBSERVABILITY_PROJECT_ID> \
   --service=cloudtrace.googleapis.com
 
 gcloud alpha services quota list \
+  --impersonate-service-account="$REPORT_TRACE_SERVICE_ACCOUNT" \
   --consumer=projects/<OBSERVABILITY_PROJECT_ID> \
   --service=logging.googleapis.com
 ```

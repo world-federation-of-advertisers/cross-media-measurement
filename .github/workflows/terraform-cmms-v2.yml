@@ -344,6 +344,8 @@ jobs:
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
         REPORTING_OPERATORS: ${{ vars.REPORTING_OPERATORS }}
+        REPORT_TRACE_OPERATORS: ${{ vars.REPORT_TRACE_OPERATORS }}
+        REPORT_TRACE_OBSERVABILITY_PROJECTS: ${{ vars.REPORT_TRACE_OBSERVABILITY_PROJECTS }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -410,6 +412,8 @@ jobs:
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
         -var="reporting_operators=${REPORTING_OPERATORS:-[]}"
+        -var="report_trace_operators=${REPORT_TRACE_OPERATORS:-[]}"
+        -var="report_trace_observability_projects=${REPORT_TRACE_OBSERVABILITY_PROJECTS:-[]}"
         -out=tfplan
 
     - name: terraform apply
