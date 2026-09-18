@@ -59,6 +59,8 @@ import org.wfanet.measurement.storage.StorageClient
  * @param sync Re-runs data availability sync for a completion blob and selected metadata keys, and
  *   returns the keys that sync processed.
  * @param metrics Records reconciliation results.
+ * @param selectedDataDates Exact date folders to reconcile. When empty, every date in the
+ *   configured range is reconciled.
  */
 class MissingImpressionMetadataRecovery(
   private val storageClient: StorageClient,
@@ -72,6 +74,7 @@ class MissingImpressionMetadataRecovery(
   private val latestDataDate: LocalDate,
   private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Set<String>,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
+  private val selectedDataDates: Set<LocalDate> = emptySet(),
 ) {
   init {
     require(edpImpressionPath.isNotEmpty()) { "edpImpressionPath must not be empty" }
@@ -81,6 +84,9 @@ class MissingImpressionMetadataRecovery(
       "impressionMetadataBatchSize must be greater than zero"
     }
     require(!latestDataDate.isBefore(earliestDataDate)) { "data date range must not be empty" }
+    require(selectedDataDates.all { it in earliestDataDate..latestDataDate }) {
+      "selectedDataDates must be within the data date range"
+    }
   }
 
   /**
@@ -466,7 +472,10 @@ class MissingImpressionMetadataRecovery(
         val date = runCatching { LocalDate.parse(folderName) }.getOrNull()
         if (date == null) {
           prefixesToVisit.addLast(keyOrPrefix)
-        } else if (date in earliestDataDate..latestDataDate) {
+        } else if (
+          date in earliestDataDate..latestDataDate &&
+            (selectedDataDates.isEmpty() || date in selectedDataDates)
+        ) {
           dateFolderPrefixes += keyOrPrefix
         }
       }

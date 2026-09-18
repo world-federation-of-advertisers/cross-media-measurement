@@ -145,9 +145,19 @@ class DataAvailabilityMonitorTest {
 
   private fun getDateStatusCount(metrics: List<MetricData>, status: String): Long? {
     val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return null
+    val points =
+      dateCountMetric.longSumData.points.filter {
+        it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status
+      }
+    return points.takeIf { it.isNotEmpty() }?.sumOf { it.value }
+  }
+
+  private fun getDataDates(metrics: List<MetricData>, status: String): Set<String> {
+    val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC } ?: return emptySet()
     return dateCountMetric.longSumData.points
-      .find { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
-      ?.value
+      .filter { it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) == status }
+      .mapNotNull { it.attributes.get(DataAvailabilityMonitorMetrics.DATA_DATE_ATTR) }
+      .toSet()
   }
 
   private fun createDoneBlob(
@@ -1083,15 +1093,18 @@ class DataAvailabilityMonitorTest {
     val metrics = collectMetrics()
     val dateCountMetric = metrics.find { it.name == DATE_COUNT_METRIC }
     assertThat(dateCountMetric).isNotNull()
-    val gapPoint =
-      dateCountMetric!!.longSumData.points.find {
+    val gapPoints =
+      dateCountMetric!!.longSumData.points.filter {
         it.attributes.get(DataAvailabilityMonitorMetrics.DATE_STATUS_ATTR) ==
           DataAvailabilityMonitorMetrics.STATUS_GAP
       }
-    assertThat(gapPoint).isNotNull()
-    assertThat(gapPoint!!.value).isEqualTo(2)
-    assertThat(gapPoint.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_A.toName())
-    assertThat(gapPoint.attributes.get(EDP_IMPRESSION_PATH_ATTR)).isEqualTo(EDP_IMPRESSION_PATH)
+    assertThat(gapPoints.map { it.value }).containsExactly(1L, 1L)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_GAP))
+      .containsExactly("2026-03-13", "2026-03-14")
+    gapPoints.forEach { gapPoint ->
+      assertThat(gapPoint.attributes.get(MODEL_LINE_ATTR)).isEqualTo(MODEL_LINE_A.toName())
+      assertThat(gapPoint.attributes.get(EDP_IMPRESSION_PATH_ATTR)).isEqualTo(EDP_IMPRESSION_PATH)
+    }
   }
 
   @Test
@@ -1131,6 +1144,7 @@ class DataAvailabilityMonitorTest {
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_HEALTHY))
       .isEqualTo(3)
 
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_HEALTHY)).isEmpty()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_GAP)).isNull()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_ZERO_IMPRESSION))
       .isNull()
@@ -1290,6 +1304,8 @@ class DataAvailabilityMonitorTest {
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
       .isEqualTo(1)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_LATE_ARRIVING))
+      .containsExactly("2026-03-15")
   }
 
   @Test
@@ -1504,6 +1520,8 @@ class DataAvailabilityMonitorTest {
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
       .isEqualTo(1)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_SPURIOUS_DELETION))
+      .containsExactly("2026-03-10")
   }
 
   @Test
@@ -1656,6 +1674,11 @@ class DataAvailabilityMonitorTest {
         getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPUBLISHED_AVAILABILITY)
       )
       .isEqualTo(1)
+    assertThat(
+        getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPUBLISHED_AVAILABILITY)
+      )
+      .containsExactly("2026-03-15")
+      .inOrder()
   }
 
   @Test
@@ -1791,5 +1814,7 @@ class DataAvailabilityMonitorTest {
     val metrics = collectMetrics()
     assertThat(getDateStatusCount(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE))
       .isEqualTo(1)
+    assertThat(getDataDates(metrics, DataAvailabilityMonitorMetrics.STATUS_UNPROCESSED_DONE))
+      .containsExactly("2026-03-15")
   }
 }

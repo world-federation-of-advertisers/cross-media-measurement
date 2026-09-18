@@ -353,6 +353,34 @@ class MissingImpressionMetadataRecoveryTest {
   }
 
   @Test
+  fun `recover lists blobs only from selected date folders`(): Unit = runBlocking {
+    val delegate = InMemoryStorageClient()
+    writeFinalizedMetadata(delegate, "2026-08-01", "metadata-first.json")
+    writeFinalizedMetadata(delegate, "2026-08-02", "metadata-unselected.json")
+    writeFinalizedMetadata(delegate, "2026-08-03", "metadata-third.json")
+    val storageClient = RecordingStorageClient(delegate)
+
+    val result =
+      buildRecovery(
+          storageClient,
+          impressionMetadataBatchSize = 100,
+          registerSyncedMetadata = true,
+          selectedDataDates = setOf(LocalDate.parse("2026-08-01"), LocalDate.parse("2026-08-03")),
+        ) { _, _ ->
+        }
+        .recover()
+
+    assertThat(result.finalizedMetadataBlobs).isEqualTo(2)
+    assertThat(storageClient.listedBlobPrefixes)
+      .containsExactly(
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-01/",
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-03/",
+      )
+    assertThat(storageClient.listedBlobPrefixes)
+      .doesNotContain("$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-02/")
+  }
+
+  @Test
   fun `recover lists active and deleted resources by date folder prefix`(): Unit = runBlocking {
     val storageClient = InMemoryStorageClient()
     val firstUri = metadataUri("2026-08-01", "metadata.json")
@@ -842,6 +870,7 @@ class MissingImpressionMetadataRecoveryTest {
     storageClient: BlobMetadataStorageClient,
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
+    selectedDataDates: Set<LocalDate> = emptySet(),
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     buildRecovery(
@@ -849,6 +878,7 @@ class MissingImpressionMetadataRecoveryTest {
       impressionMetadataBatchSize,
       registerSyncedMetadata,
       markSyncedBlobs = true,
+      selectedDataDates = selectedDataDates,
       sync,
     )
 
@@ -857,6 +887,7 @@ class MissingImpressionMetadataRecoveryTest {
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
     markSyncedBlobs: Boolean,
+    selectedDataDates: Set<LocalDate> = emptySet(),
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     MissingImpressionMetadataRecovery(
@@ -872,6 +903,7 @@ class MissingImpressionMetadataRecoveryTest {
       impressionMetadataBatchSize = impressionMetadataBatchSize,
       earliestDataDate = LocalDate.parse("2026-06-01"),
       latestDataDate = LocalDate.parse("2026-08-31"),
+      selectedDataDates = selectedDataDates,
       sync = { doneBlobUri, blobKeys ->
         val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
         storageClient.updateBlobMetadata(
