@@ -3,37 +3,35 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
-QA2026_SEGMENT_ENTITY_COUNTS = {
-    "all4": 3,
-    "e7_meta": 1,
-    "e7_meta_retail": 1,
-    "e7_meta_video": 1,
-    "e7_retail": 1,
-    "e7_video": 2,
-    "e7_video_retail": 1,
-    "e7only": 1,
-    "meta_retail": 1,
-    "meta_video": 3,
-    "meta_video_retail": 1,
-    "metaonly": 3,
-    "noise": 1,
-    "retailonly": 1,
-    "video_retail": 2,
-    "videoonly": 3,
-}
-
 QA2026_SPECS = [
-    "qa2026_population_spec.textproto",
     "qa2026_impression_test_data_config.textproto",
-] + [
-    "qa2026_seg_%s.textproto" % segment
-    for segment, entity_count in QA2026_SEGMENT_ENTITY_COUNTS.items()
-    if entity_count == 1
-] + [
-    "qa2026_seg_%s_%d.textproto" % (segment, index + 1)
-    for segment, entity_count in QA2026_SEGMENT_ENTITY_COUNTS.items()
-    if entity_count > 1
-    for index in range(entity_count)
+    "qa2026_population_spec.textproto",
+    "qa2026_seg_all4_1.textproto",
+    "qa2026_seg_all4_2.textproto",
+    "qa2026_seg_all4_3.textproto",
+    "qa2026_seg_e7_meta.textproto",
+    "qa2026_seg_e7_meta_retail.textproto",
+    "qa2026_seg_e7_meta_video.textproto",
+    "qa2026_seg_e7_retail.textproto",
+    "qa2026_seg_e7_video_1.textproto",
+    "qa2026_seg_e7_video_2.textproto",
+    "qa2026_seg_e7_video_retail.textproto",
+    "qa2026_seg_e7only.textproto",
+    "qa2026_seg_meta_retail.textproto",
+    "qa2026_seg_meta_video_1.textproto",
+    "qa2026_seg_meta_video_2.textproto",
+    "qa2026_seg_meta_video_3.textproto",
+    "qa2026_seg_meta_video_retail.textproto",
+    "qa2026_seg_metaonly_1.textproto",
+    "qa2026_seg_metaonly_2.textproto",
+    "qa2026_seg_metaonly_3.textproto",
+    "qa2026_seg_noise.textproto",
+    "qa2026_seg_retailonly.textproto",
+    "qa2026_seg_video_retail_1.textproto",
+    "qa2026_seg_video_retail_2.textproto",
+    "qa2026_seg_videoonly_1.textproto",
+    "qa2026_seg_videoonly_2.textproto",
+    "qa2026_seg_videoonly_3.textproto",
 ]
 
 genrule(
