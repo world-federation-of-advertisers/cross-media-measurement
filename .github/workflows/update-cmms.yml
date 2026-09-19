@@ -375,8 +375,11 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
+  # Runs after run-edpa-reporting-integration-test, which seeds EventGroups for the same EDPs;
+  # concurrent EventGroupSync runs for one EDP race. !cancelled() keeps this running when that
+  # job is skipped.
   run-edpa-cloud-test:
-    if: inputs.run-tests
+    if: ${{ inputs.run-tests && !cancelled() }}
     needs: [
       update-kingdom,
       update-population-fulfiller,
@@ -386,7 +389,8 @@ jobs:
       update-simulators,
       update-reporting-v2,
       update-secure-computation,
-      update-edp-aggregator-service
+      update-edp-aggregator-service,
+      run-edpa-reporting-integration-test
     ]
     uses: ./.github/workflows/edpa-cloud-test.yml
     secrets: inherit
