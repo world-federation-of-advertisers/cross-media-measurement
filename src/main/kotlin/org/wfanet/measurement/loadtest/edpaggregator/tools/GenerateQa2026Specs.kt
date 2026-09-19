@@ -310,7 +310,30 @@ object GenerateQa2026Specs {
       }
     }
 
-  private fun segmentFileName(name: String) = "qa2026_seg_${name.replace('-', '_')}.textproto"
+  /**
+   * Name of the spec file for one entity key of a segment.
+   *
+   * Segments with a single entity key are unsuffixed.
+   */
+  private fun segmentFileName(segment: Segment, entityIndex: Int): String {
+    val base = "qa2026_seg_${segment.name.replace('-', '_')}"
+    return if (segment.entityCount == 1) "$base.textproto"
+    else "${base}_${entityIndex + 1}.textproto"
+  }
+
+  /**
+   * The VID slice one entity key covers.
+   *
+   * A segment's entity keys partition its VIDs rather than each carrying the whole segment, so
+   * impressions and frequency are not multiplied by the entity count. Slices tile the segment
+   * exactly; a boundary falling mid-stripe is fine, since [buildSegmentSpec] clamps every
+   * `vid_range_spec` to its enclosing stripe.
+   */
+  private fun entityKeySlice(segment: Segment, entityIndex: Int): VidRange =
+    VidRange(
+      segment.vidStart + segment.vidCount * entityIndex / segment.entityCount,
+      segment.vidStart + segment.vidCount * (entityIndex + 1) / segment.entityCount,
+    )
 
   /** Formats [value] with thousands separators, for VID ranges in descriptions. */
   private fun grouped(value: Long): String = String.format(Locale.ROOT, "%,d", value)
@@ -344,7 +367,6 @@ object GenerateQa2026Specs {
     }
   }
 
-  /** A single population stripe assigned to a (tranche, frequency, media) block. */
   /** A half-open VID range. */
   private data class VidRange(val start: Long, val endExclusive: Long)
 
@@ -354,26 +376,27 @@ object GenerateQa2026Specs {
   private data class Block(val start: Long, val endExclusive: Long, val video: Boolean)
 
   /**
-   * Builds one segment spec.
+   * Builds the spec for one entity key of a segment, covering that key's VID slice.
    *
    * Every `vid_range_spec` is exactly one population stripe: `SyntheticDataGeneration` resolves a
    * range's demographics by finding the single subpopulation wholly containing it, so a range
-   * spanning two stripes fails. Segment boundaries are multiples of [STRIPE_SIZE], so stripes tile
-   * each segment exactly.
+   * spanning two stripes fails. Slice boundaries are multiples of [STRIPE_SIZE], so stripes tile
+   * each slice exactly.
    *
    * Stripes are assigned round-robin to (tranche, frequency, media): tranches stagger first
    * exposure across the flight so cumulative reach grows week over week, the frequency mix gives a
-   * non-flat monotonic K+ curve, and alternating media means every segment emits both VIDEO and
+   * non-flat monotonic K+ curve, and alternating media means every slice emits both VIDEO and
    * DISPLAY.
    */
-  private fun buildSegmentSpec(segment: Segment): SyntheticEventGroupSpec {
+  private fun buildSegmentSpec(segment: Segment, entityIndex: Int): SyntheticEventGroupSpec {
     val flightStart = segment.flight.start
     val flightEnd = segment.flight.endExclusive
     val flightDays = ChronoUnit.DAYS.between(flightStart, flightEnd)
 
+    val vidSlice = entityKeySlice(segment, entityIndex)
     val stripes = mutableListOf<VidRange>()
-    var cursor = segment.vidStart
-    val vidEnd = segment.vidStart + segment.vidCount
+    var cursor = vidSlice.start
+    val vidEnd = vidSlice.endExclusive
     while (cursor < vidEnd) {
       val end = minOf(cursor + STRIPE_SIZE, vidEnd)
       // Clamp to the enclosing stripe boundary so a range never straddles two.
@@ -401,7 +424,7 @@ object GenerateQa2026Specs {
 
     return syntheticEventGroupSpec {
       description =
-        "QA 2026 segment ${segment.name}: VIDs ${grouped(segment.vidStart)}-${grouped(vidEnd - 1)}" +
+        "QA 2026 segment ${segment.name}: VIDs ${grouped(vidSlice.start)}-${grouped(vidEnd - 1)}" +
           " over $flightStart..$flightEnd"
       for (tranche in 0 until trancheCount) {
         val frequencies = blocks.keys.filter { it.tranche == tranche }.map { it.frequency }.sorted()
@@ -461,7 +484,7 @@ object GenerateQa2026Specs {
             entityKeySpecs += entityKeySpec {
               entityType = segment.entityType
               entityId = "qa2026-${segment.name}-$edp$suffix"
-              dataSpecResourcePath = segmentFileName(segment.name)
+              dataSpecResourcePath = segmentFileName(segment, i)
             }
           }
           entityMetadata = struct {
@@ -496,7 +519,9 @@ object GenerateQa2026Specs {
 
     write(outputDir, POPULATION_SPEC_FILE, buildPopulationSpec())
     for (segment in SEGMENTS) {
-      write(outputDir, segmentFileName(segment.name), buildSegmentSpec(segment))
+      for (i in 0 until segment.entityCount) {
+        write(outputDir, segmentFileName(segment, i), buildSegmentSpec(segment, i))
+      }
     }
     write(outputDir, CONFIG_FILE, buildConfig())
   }

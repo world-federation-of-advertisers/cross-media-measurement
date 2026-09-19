@@ -19,7 +19,8 @@ bazel build //src/main/proto/wfa/measurement/loadtest/dataprovider:gen_qa2026_sp
 That writes, into the package's output directory:
 
 *   `qa2026_population_spec.textproto` — the `PopulationSpec`
-*   `qa2026_seg_<name>.textproto` — one `SyntheticEventGroupSpec` per segment
+*   `qa2026_seg_<name>.textproto`, or `qa2026_seg_<name>_<n>.textproto` for a
+    segment whose entity keys partition it — one `SyntheticEventGroupSpec` each
 *   `qa2026_impression_test_data_config.textproto` — the `ImpressionTestDataConfig`
 
 To change the data, edit the generator. Since runfiles paths are the same for
@@ -188,7 +189,9 @@ Each tranche is then split by frequency, giving a non-flat, monotonic K+ curve:
 | 3         | 20%   |
 | 5         | 10%   |
 
-Mean frequency is **2.1**, for **~36.8M impressions** total across the four EDPs.
+Mean frequency is **2.1**, for **~36.4M impressions** total across the four EDPs.
+A VID is counted once per EDP that reaches it, so the total is the sum over
+(segment × EDP) pairs rather than over segments.
 
 ## Media Types and Engagement
 
@@ -213,6 +216,22 @@ filters select real, distinct subsets:
 `qa2026_impression_test_data_config.textproto` declares one event group per
 **(segment, EDP)** pair — 33 in total — spread across `campaign`, `ad_group` and
 `creative-id` entity key types, including multi-entity groups.
+
+**A segment's entity keys partition its VIDs.** A group with three `ad_group`
+keys gets three spec files, each covering a disjoint third of the segment, and
+each key's `data_spec_resource_path` points at its own slice. Pointing every key
+at the whole segment would instead emit the same event stream once per key —
+identical VIDs at identical timestamps, since `SyntheticDataGeneration` derives
+the impression time from `hash(vid, day)` alone. Reach would be unaffected, being
+a set union, while impressions and frequency would silently multiply by the
+entity count.
+
+Slices are proportional and tile the segment exactly. They need not land on
+stripe boundaries: each `vid_range_spec` is clamped to its enclosing stripe, so a
+slice boundary falling mid-stripe still yields ranges that sit wholly within one
+subpopulation. Note a consequence — a single sliced event group carries a subset
+of the 30 demographic tuples, so the full-mix guarantee below holds per Venn
+region, not per event group.
 
 **Every event group must carry an entity key.** `EventGroupSync` filters its
 Kingdom listing by entity type when `entity_key_types` is configured, so an event
