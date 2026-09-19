@@ -60,4 +60,9 @@ message WorkItemAttempt {
       [(google.api.field_behavior) = OUTPUT_ONLY];
   google.protobuf.Timestamp update_time = 7
       [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time after which this attempt may be treated as abandoned unless its lease
+  // is renewed.
+  google.protobuf.Timestamp lease_expiration_time = 8
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }

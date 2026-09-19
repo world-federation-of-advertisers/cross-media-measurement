@@ -58,6 +58,7 @@ import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRe
 import org.wfanet.measurement.internal.edpaggregator.markWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.registerQueuedRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest
 
@@ -344,6 +345,70 @@ abstract class RequisitionMetadataServiceTest {
         }
       )
     assertThat(response.requisitionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `registerQueuedRequisitionMetadata atomically creates queued metadata`() = runBlocking {
+    val request1 = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA
+      requestId = UUID.randomUUID().toString()
+    }
+    val request2 = createRequisitionMetadataRequest {
+      requisitionMetadata = REQUISITION_METADATA_2
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val response =
+      service.registerQueuedRequisitionMetadata(
+        registerQueuedRequisitionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          requests += request1
+          requests += request2
+          workItem = WORK_ITEM
+        }
+      )
+
+    assertThat(response.requisitionMetadataList).hasSize(2)
+    assertThat(response.requisitionMetadataList.map { it.state }.toSet())
+      .containsExactly(State.REQUISITION_METADATA_STATE_QUEUED)
+    assertThat(response.requisitionMetadataList.map { it.workItem }.toSet())
+      .containsExactly(WORK_ITEM)
+    assertThat(response.requisitionMetadataList.all { it.hasCreateTime() }).isTrue()
+  }
+
+  @Test
+  fun `legacy and direct metadata registration have one winner`() = runBlocking {
+    service.registerQueuedRequisitionMetadata(
+      registerQueuedRequisitionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        requests += createRequisitionMetadataRequest {
+          requisitionMetadata = REQUISITION_METADATA
+          requestId = UUID.randomUUID().toString()
+        }
+        workItem = WORK_ITEM
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.batchCreateRequisitionMetadata(
+          batchCreateRequisitionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            requests += createRequisitionMetadataRequest {
+              requisitionMetadata =
+                REQUISITION_METADATA.copy {
+                  blobUri = "gs://bucket/requisitions/legacy-group"
+                  groupId = "legacy-group"
+                }
+              requestId = UUID.randomUUID().toString()
+            }
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+    assertThat(exception.errorInfo?.reason)
+      .isEqualTo(Errors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION.name)
   }
 
   @Test

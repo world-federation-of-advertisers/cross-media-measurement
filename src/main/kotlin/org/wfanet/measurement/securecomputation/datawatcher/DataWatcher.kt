@@ -19,6 +19,8 @@ package org.wfanet.measurement.securecomputation.datawatcher
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.auth.oauth2.IdToken
 import com.google.auth.oauth2.IdTokenProvider
+import com.google.protobuf.Any
+import io.grpc.Status
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.Meter
@@ -27,18 +29,23 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
-import java.util.UUID
+import java.security.MessageDigest
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
 import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /*
@@ -50,7 +57,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
-  private val workItemIdGenerator: () -> String = { "work-item-" + UUID.randomUUID().toString() },
+  private val workItemIdGenerator: (String) -> String = ::deterministicWorkItemId,
   private val idTokenProvider: IdTokenProvider =
     GoogleCredentials.getApplicationDefault() as? IdTokenProvider
       ?: throw IllegalArgumentException("Application Default Credentials do not provide ID token"),
@@ -91,7 +98,8 @@ class DataWatcher(
 
     try {
       when (config.sinkConfigCase) {
-        WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK -> sendToControlPlane(config, path)
+        WatchedPath.SinkConfigCase.CONTROL_PLANE_QUEUE_SINK ->
+          sendToControlPlane(config, path, objectMetadata)
         WatchedPath.SinkConfigCase.HTTP_ENDPOINT_SINK ->
           sendToHttpEndpoint(config, path, objectMetadata)
         WatchedPath.SinkConfigCase.SINKCONFIG_NOT_SET ->
@@ -102,30 +110,116 @@ class DataWatcher(
       onProcessingCompleted(config, path, processingDurationSeconds)
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
-      onProcessingFailed(config, path, elapsedSeconds, e)
+      val isRetryable = e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES
+      onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
+      val isRecoveryOperation =
+        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
+      if (isRetryable || isRecoveryOperation) {
+        // Recovery must be at-least-once: surfacing the failure keeps the Eventarc delivery
+        // unacknowledged so it is retried and, after exhaustion, retained in the configured DLQ.
+        throw e
+      }
     }
   }
 
-  private suspend fun sendToControlPlane(config: WatchedPath, path: String) {
-
+  private suspend fun sendToControlPlane(
+    config: WatchedPath,
+    path: String,
+    objectMetadata: Map<String, String>,
+  ) {
     val queueConfig = config.controlPlaneQueueSink
-    val workItemId = workItemIdGenerator()
+    val objectGeneration = objectMetadata[GENERATION_METADATA_KEY].orEmpty()
+    val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
+    val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
           this.dataPathParams = dataPathParams { this.dataPath = path }
+          traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
-    val request = createWorkItemRequest {
-      this.workItemId = workItemId
-      this.workItem = workItem {
-        queue = queueConfig.queue
-        this.workItemParams = workItemParams
+    val requestedWorkItem = workItem {
+      queue = queueConfig.queue
+      this.workItemParams = workItemParams
+    }
+    try {
+      ensureWorkItem(workItemId, requestedWorkItem)
+    } catch (e: Exception) {
+      when (e.grpcStatusCode()) {
+        Status.Code.UNIMPLEMENTED -> createWorkItemWithLegacyApi(workItemId, requestedWorkItem)
+        Status.Code.ALREADY_EXISTS ->
+          ensureWorkItemWithStoredTraceContext(workItemId, requestedWorkItem)
+        Status.Code.FAILED_PRECONDITION -> validateExistingWorkItem(workItemId, requestedWorkItem)
+        else -> throw e
       }
     }
-    workItemsStub.createWorkItem(request)
 
     onQueueWrite(config, path, queueConfig.queue, workItemId)
+  }
+
+  private suspend fun ensureWorkItem(workItemId: String, workItem: WorkItem) {
+    workItemsStub.ensureWorkItem(
+      ensureWorkItemRequest {
+        this.workItemId = workItemId
+        this.workItem = workItem
+      }
+    )
+  }
+
+  private suspend fun ensureWorkItemWithStoredTraceContext(
+    workItemId: String,
+    requestedWorkItem: WorkItem,
+  ) {
+    val existingWorkItemParams = validateExistingWorkItem(workItemId, requestedWorkItem)
+    try {
+      ensureWorkItem(
+        workItemId,
+        workItem {
+          queue = requestedWorkItem.queue
+          workItemParams = existingWorkItemParams
+        },
+      )
+    } catch (e: Exception) {
+      if (e.grpcStatusCode() != Status.Code.FAILED_PRECONDITION) {
+        throw e
+      }
+    }
+  }
+
+  private suspend fun createWorkItemWithLegacyApi(workItemId: String, requestedWorkItem: WorkItem) {
+    try {
+      workItemsStub.createWorkItem(
+        createWorkItemRequest {
+          this.workItemId = workItemId
+          workItem = requestedWorkItem
+        }
+      )
+    } catch (e: Exception) {
+      if (e.grpcStatusCode() != Status.Code.ALREADY_EXISTS) {
+        throw e
+      }
+      validateExistingWorkItem(workItemId, requestedWorkItem)
+    }
+  }
+
+  private suspend fun validateExistingWorkItem(
+    workItemId: String,
+    requestedWorkItem: WorkItem,
+  ): Any {
+    val existing = workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$workItemId" })
+    val existingParams = existing.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    val requestedParams =
+      requestedWorkItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    check(
+      existing.queue == requestedWorkItem.queue &&
+        existingParams.appParams == requestedParams.appParams &&
+        existingParams.dataPathParams == requestedParams.dataPathParams
+    ) {
+      "Existing WorkItem workItems/$workItemId does not match the watched-path dispatch"
+    }
+    return existing.workItemParams
   }
 
   private fun sendToHttpEndpoint(
@@ -159,6 +253,25 @@ class DataWatcher(
         DATA_WATCHER_GENERATION_HEADER,
         objectMetadata.getValue(GENERATION_METADATA_KEY),
       )
+    }
+
+    val overrideModelLines = objectMetadata[WatchedBlobs.OVERRIDE_MODEL_LINES_KEY]
+    val recoverySourceUpload = objectMetadata[WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY]
+    val evictionOperationId = objectMetadata[WatchedBlobs.EVICTION_OPERATION_ID_KEY]
+    require(
+      listOf(overrideModelLines, recoverySourceUpload, evictionOperationId).all { it == null } ||
+        listOf(overrideModelLines, recoverySourceUpload, evictionOperationId).all { it != null }
+    ) {
+      "Recovery metadata must include ${WatchedBlobs.OVERRIDE_MODEL_LINES_KEY}, " +
+        "${WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY}, and " +
+        WatchedBlobs.EVICTION_OPERATION_ID_KEY
+    }
+    if (overrideModelLines != null) {
+      checkNotNull(recoverySourceUpload)
+      checkNotNull(evictionOperationId)
+      requestBuilder.header(OVERRIDE_MODEL_LINES_HEADER, overrideModelLines)
+      requestBuilder.header(RECOVERY_SOURCE_UPLOAD_HEADER, recoverySourceUpload)
+      requestBuilder.header(EVICTION_OPERATION_ID_HEADER, evictionOperationId)
     }
 
     val request =
@@ -196,6 +309,7 @@ class DataWatcher(
     path: String,
     durationSeconds: Double,
     throwable: Throwable,
+    shouldLog: Boolean,
   ) {
     Span.current()
       .addEvent(
@@ -209,11 +323,13 @@ class DataWatcher(
           .put(ATTR_ERROR_MESSAGE_KEY, throwable.message ?: "")
           .build(),
       )
-    logger.log(
-      Level.SEVERE,
-      "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
-      throwable,
-    )
+    if (shouldLog) {
+      logger.log(
+        Level.SEVERE,
+        "Failed to process configuration: config=${config.identifier}, path=$path, durationSeconds=$durationSeconds, error=${throwable.message}",
+        throwable,
+      )
+    }
   }
 
   private fun onQueueWrite(
@@ -263,8 +379,21 @@ class DataWatcher(
 
   companion object {
     private val logger: Logger = Logger.getLogger(DataWatcher::class.java.name)
+    private val RETRYABLE_CONTROL_PLANE_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.CANCELLED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.INTERNAL,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNKNOWN,
+        Status.Code.UNAVAILABLE,
+      )
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
+    private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
+    private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
+    private const val EVICTION_OPERATION_ID_HEADER: String = "X-Eviction-Operation-Id"
 
     /**
      * Reserved objectMetadata key DataWatcherFunction uses to carry the GCS object generation. If
@@ -291,6 +420,16 @@ class DataWatcher(
 
     private const val STATUS_SUCCESS = "success"
     private const val STATUS_FAILURE = "failure"
+
+    private fun deterministicWorkItemId(idempotencyKey: String): String {
+      val digest =
+        MessageDigest.getInstance("SHA-256").digest(idempotencyKey.toByteArray(Charsets.UTF_8))
+      val hex =
+        digest.joinToString(separator = "") { byte ->
+          (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+        }
+      return "dw-${hex.take(60)}"
+    }
 
     private const val EVENT_PROCESSING_COMPLETED = "edpa.data_watcher.processing_completed"
     private const val EVENT_PROCESSING_FAILED = "edpa.data_watcher.processing_failed"

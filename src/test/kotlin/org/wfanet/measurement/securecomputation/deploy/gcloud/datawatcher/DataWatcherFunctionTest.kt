@@ -20,8 +20,11 @@ import com.google.common.truth.Truth.assertThat
 import io.cloudevents.CloudEvent
 import io.cloudevents.CloudEventData
 import io.cloudevents.SpecVersion
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.net.URI
 import java.time.OffsetDateTime
+import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -59,6 +62,30 @@ class DataWatcherFunctionTest {
     // Existing custom object metadata is preserved alongside the generation.
     assertThat(capturedMetadata.single())
       .containsEntry("impression-metadata-resource-id", "res-123")
+  }
+
+  @Test
+  fun `transient receiver failure reaches Eventarc`() {
+    val pathReceiver: suspend (String, Map<String, String>) -> Unit = { _, _ ->
+      throw Status.UNAVAILABLE.asRuntimeException()
+    }
+    val cloudEventData =
+      """
+      {
+        "bucket": "test-bucket",
+        "name": "path/to/blob",
+        "size": "1",
+        "generation": "42"
+      }
+      """
+        .trimIndent()
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        DataWatcherFunction(pathReceiver).accept(TestCloudEvent(cloudEventData.toByteArray()))
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
   }
 
   private class TestCloudEvent(private val dataBytes: ByteArray) : CloudEvent {

@@ -38,6 +38,11 @@ service RequisitionMetadataService {
   rpc BatchCreateRequisitionMetadata(BatchCreateRequisitionMetadataRequest)
       returns (BatchCreateRequisitionMetadataResponse);
 
+  // Atomically creates RequisitionMetadata in the QUEUED state.
+  rpc RegisterQueuedRequisitionMetadata(
+      RegisterQueuedRequisitionMetadataRequest)
+      returns (RegisterQueuedRequisitionMetadataResponse);
+
   // Retrieves a specific RequisitionMetadata entry by its resource ID.
   rpc GetRequisitionMetadata(GetRequisitionMetadataRequest)
       returns (RequisitionMetadata);
@@ -93,6 +98,16 @@ message BatchCreateRequisitionMetadataRequest {
 }
 
 message BatchCreateRequisitionMetadataResponse {
+  repeated RequisitionMetadata requisition_metadata = 1;
+}
+
+message RegisterQueuedRequisitionMetadataRequest {
+  string data_provider_resource_id = 1;
+  repeated CreateRequisitionMetadataRequest requests = 2;
+  string work_item = 3;
+}
+
+message RegisterQueuedRequisitionMetadataResponse {
   repeated RequisitionMetadata requisition_metadata = 1;
 }
 

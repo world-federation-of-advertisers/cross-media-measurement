@@ -363,7 +363,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private val storageClient = StorageOptions.getDefaultInstance().service
     private val bucket = TEST_CONFIG.storageBucket
-    private val edp_requisitions_prefix = "edp7/requisitions/"
+    private val directRequisitionStoragePrefix = "edp7/requisitions-v2/"
 
     private lateinit var _mcSimulator: MeasurementConsumerSimulator
 
@@ -391,16 +391,16 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
 
     private fun triggerRequisitionFetcher() {
 
-      // Delete existing requisitions from storage bucket
-      val blobs = storageClient.list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+      // Snapshot existing direct-dispatch blobs so the readiness check observes this test's group
+      // without deleting inputs that another WorkItem may still need.
+      val existingBlobNames =
+        storageClient
+          .list(bucket, Storage.BlobListOption.prefix(directRequisitionStoragePrefix))
+          .iterateAll()
+          .map { it.name }
+          .toSet()
 
-      blobs.iterateAll().forEach { blob ->
-        storageClient.delete(bucket, blob.name)
-        logger.info("Deleted: ${blob.name}")
-      }
-
-      // Wait until requisitions for EDP have status == UNFULFILLED before triggering
-      // `RequisitionFetcher`.
+      // Trigger RequisitionFetcher until it writes the direct-dispatch group for this test.
       runBlocking {
         withTimeoutOrNull(REQUISITIONS_SYNC_TIMEOUT) {
           var areRequisitionsReady: Boolean
@@ -420,13 +420,11 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
             val response = client.send(request, HttpResponse.BodyHandlers.ofString())
             check(response.statusCode() == 200)
 
-            val blobCount =
+            areRequisitionsReady =
               storageClient
-                .list(bucket, Storage.BlobListOption.prefix(edp_requisitions_prefix))
+                .list(bucket, Storage.BlobListOption.prefix(directRequisitionStoragePrefix))
                 .iterateAll()
-                .count()
-
-            areRequisitionsReady = blobCount > 0
+                .any { it.name !in existingBlobNames }
 
             if (!areRequisitionsReady) {
               logger.info("Waiting for requisitions to appear...")

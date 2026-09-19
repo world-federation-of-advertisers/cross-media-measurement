@@ -88,8 +88,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * keyed by a deterministic `request_id` and WorkItem creation by a deterministic `work_item_id`
  * (`ALREADY_EXISTS` tolerated); the parent flip is a no-op once advanced. On failure the exception
  * propagates so the framework nacks and Pub/Sub retries; this worker never marks the job `FAILED`
- * itself -- the dead-letter (DLQ) listener owns the terminal `FAILED` transition on retry
- * exhaustion.
+ * itself. The workload-agnostic DLQ listener fails only the WorkItem on retry exhaustion; the
+ * `RankerJob` remains available for explicit workload recovery.
  *
  * Concurrent-ranker protection: `MarkRankerJobSucceeded` carries the read `etag`; a stale write
  * (another VM won the race after Pub/Sub redelivery) surfaces as `ABORTED`/`FAILED_PRECONDITION`
@@ -145,8 +145,8 @@ class VidRankBuilder(
    * Runs the full Phase-1 work for one `RankerJob`.
    *
    * Any exception propagates so the framework nacks and Pub/Sub retries; this worker never marks
-   * the job `FAILED` itself -- the dead-letter (DLQ) listener owns the terminal `FAILED` transition
-   * on retry exhaustion.
+   * the job `FAILED` itself. The workload-agnostic DLQ listener fails only the WorkItem on retry
+   * exhaustion.
    */
   suspend fun run(): Result = runRankerJob()
 

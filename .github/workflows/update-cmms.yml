@@ -20,6 +20,10 @@ run-name: >-
   test=${{ inputs.run-tests }},
   image-tag=${{ inputs.existing-image-tag }}
 
+concurrency:
+  group: update-cmms-${{ inputs.environment }}
+  cancel-in-progress: false
+
 on:
   workflow_call:
     inputs:
@@ -91,9 +95,72 @@ jobs:
       image-repo-prefix: ${{ github.repository_owner }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
 
-  terraform:
+  validate-direct-dispatch-config:
+    name: Validate direct-dispatch configuration
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+    - name: Set up Bazel
+      uses: world-federation-of-advertisers/actions/setup-bazel@a9407321ceb8da9912face58a8139603678c869d # v2.5.0
+
+    - name: Write auth.bazelrc
+      env:
+        BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+      run: |
+        cat << EOF > auth.bazelrc
+        build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+        EOF
+
+    - name: Write ~/.bazelrc
+      run: |
+        cat << EOF > ~/.bazelrc
+        common --config=ci
+        EOF
+
+    - name: Write validation inputs
+      env:
+        CONFIG_DIR: ${{ runner.temp }}/configs
+        DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
+        REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
+      run: |
+        set -euo pipefail
+        mkdir -p "$CONFIG_DIR"
+        printf '%s' "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
+        printf '%s' "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
+
+    - name: Validate RequisitionFetcher and DataWatcher configuration
+      env:
+        CONFIG_DIR: ${{ runner.temp }}/configs
+        SECURE_COMPUTATION_PUBLIC_API_TARGET: ${{ vars.SECURE_COMPUTATION_PUBLIC_API_TARGET }}
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/requisitionfetcher:ValidateRequisitionFetcherConfig \
+          -- \
+          --requisition-fetcher-config="$CONFIG_DIR/requisition-fetcher-config.textproto" \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto" \
+          --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+
+  update-secure-computation-dlq-paused:
+    uses: ./.github/workflows/configure-secure-computation-control-plane.yml
+    needs: [publish-images, validate-direct-dispatch-config]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      dead-letter-processing-enabled: false
+      work-item-publication-enabled: false
+
+  terraform-quiesced:
     uses: ./.github/workflows/terraform-cmms-v2.yml
-    needs: [publish-images]
+    needs: [publish-images, update-secure-computation-dlq-paused]
     secrets: inherit
     permissions:
       contents: read
@@ -102,10 +169,64 @@ jobs:
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      tee-consumers-enabled: false
+      requisition-fetcher-enabled: false
+
+  wait-for-tee-consumers-to-stop:
+    runs-on: ubuntu-24.04
+    needs: [terraform-quiesced]
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    steps:
+    - name: Authenticate to Google Cloud
+      if: ${{ inputs.apply }}
+      uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+      with:
+        workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+    - name: Wait for WorkItem TEE consumers to stop
+      if: ${{ inputs.apply }}
+      env:
+        GCLOUD_REGION: ${{ vars.GCLOUD_REGION }}
+        MIG_NAMES_JSON: ${{ needs.terraform-quiesced.outputs.work_item_tee_mig_names }}
+      run: |
+        set -euo pipefail
+        if [[ -z "$MIG_NAMES_JSON" ]]; then
+          echo "::error::Terraform returned no WorkItem TEE MIG output"
+          exit 1
+        fi
+        mapfile -t mig_names < <(jq -r '.[]' <<< "$MIG_NAMES_JSON")
+        if (( ${#mig_names[@]} == 0 )); then
+          echo "::error::Terraform returned no WorkItem TEE MIG names"
+          exit 1
+        fi
+        for mig in "${mig_names[@]}"; do
+          gcloud compute instance-groups managed wait-until "$mig" \
+            --stable \
+            --region="$GCLOUD_REGION" \
+            --timeout=600
+          target_size=$(gcloud compute instance-groups managed describe "$mig" \
+            --region="$GCLOUD_REGION" \
+            --format='value(targetSize)')
+          instance_count=$(gcloud compute instance-groups managed list-instances "$mig" \
+            --region="$GCLOUD_REGION" \
+            --format=json | jq 'length')
+          if [[ "$target_size" != "0" || "$instance_count" != "0" ]]; then
+            echo "::error::MIG $mig is not empty: targetSize=$target_size instances=$instance_count"
+            exit 1
+          fi
+        done
+
+    - name: Wait for in-flight RequisitionFetcher invocation to finish
+      if: ${{ inputs.apply }}
+      run: sleep 600
 
   update-kingdom:
     uses: ./.github/workflows/configure-kingdom.yml
-    needs: [publish-images, terraform]
+    needs: [publish-images, wait-for-tee-consumers-to-stop]
     secrets: inherit
     permissions:
       contents: read
@@ -129,7 +250,7 @@ jobs:
 
   update-secure-computation:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
-    needs: [ publish-images, terraform, update-kingdom]
+    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom]
     secrets: inherit
     permissions:
       contents: read
@@ -138,6 +259,34 @@ jobs:
       image-tag: ${{ needs.publish-images.outputs.image-tag }}
       environment: ${{ inputs.environment }}
       apply: ${{ inputs.apply }}
+      dead-letter-processing-enabled: true
+      work-item-publication-enabled: true
+
+  update-edp-aggregator-service:
+    uses: ./.github/workflows/configure-edp-aggregator.yml
+    needs: [publish-images, wait-for-tee-consumers-to-stop, update-kingdom, update-secure-computation]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+
+  terraform:
+    uses: ./.github/workflows/terraform-cmms-v2.yml
+    needs: [publish-images, update-secure-computation, update-edp-aggregator-service]
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+      apply: ${{ inputs.apply }}
+      image-tag: ${{ needs.publish-images.outputs.image-tag }}
+      tee-consumers-enabled: true
+      requisition-fetcher-enabled: true
 
   update-aggregator-duchy:
     uses: ./.github/workflows/configure-duchy.yml
@@ -181,18 +330,6 @@ jobs:
   update-simulators:
     uses: ./.github/workflows/configure-simulators.yml
     needs: [publish-images, terraform]
-    secrets: inherit
-    permissions:
-      contents: read
-      id-token: write
-    with:
-      image-tag: ${{ needs.publish-images.outputs.image-tag }}
-      environment: ${{ inputs.environment }}
-      apply: ${{ inputs.apply }}
-
-  update-edp-aggregator-service:
-    uses: ./.github/workflows/configure-edp-aggregator.yml
-    needs: [publish-images, terraform, update-kingdom]
     secrets: inherit
     permissions:
       contents: read

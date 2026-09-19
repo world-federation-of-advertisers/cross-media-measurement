@@ -66,6 +66,16 @@ class DefaultFulfillerSelectorTest {
   }
 
   @Test
+  fun `UNRECOGNIZED is rejected`() {
+    assertFailsWith<IllegalArgumentException> {
+      requireCapMatchesMode(ImpressionCapMode.UNRECOGNIZED, 0)
+    }
+    assertFailsWith<IllegalArgumentException> {
+      frequencyVectorCap(ImpressionCapMode.UNRECOGNIZED, null)
+    }
+  }
+
+  @Test
   fun `UNSPECIFIED and CUSTOM_CAP keep the configured cap`() {
     for (mode in listOf(ImpressionCapMode.UNSPECIFIED, ImpressionCapMode.CUSTOM_CAP)) {
       for (configured in listOf(null, -1, 1, 5, 127)) {

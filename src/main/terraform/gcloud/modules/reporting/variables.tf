@@ -61,7 +61,7 @@ variable "dashboard_json_files" {
   description = "List of filenames of dashboard json or templates"
   type        = list(string)
   nullable    = true
-  default     = [
+  default = [
     "reporting_dashboard_1.json",
     "reporting_dashboard_2.json",
   ]
@@ -69,6 +69,20 @@ variable "dashboard_json_files" {
 
 variable "reporting_operators" {
   description = "IAM members permitted to impersonate the Reporting internal service account in order to run operational CLIs against the Reporting databases."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "report_trace_operators" {
+  description = "IAM members permitted to impersonate the read-only report-trace operator service account."
+  type        = list(string)
+  default     = []
+  nullable    = false
+}
+
+variable "report_trace_observability_projects" {
+  description = "Additional GCP project IDs from which the report-trace operator may read logs and traces. The deployment project is always included."
   type        = list(string)
   default     = []
   nullable    = false

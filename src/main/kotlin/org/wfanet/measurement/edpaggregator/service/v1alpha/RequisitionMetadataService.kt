@@ -50,11 +50,14 @@ import org.wfanet.measurement.edpaggregator.v1alpha.LookupRequisitionMetadataReq
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RefuseRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.StartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRequisitionMetadataResponse as InternalBatchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.CreateRequisitionMetadataRequest as InternalCreateRequisitionMetadataRequest
@@ -62,6 +65,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataPage
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequest.Filter as InternalListRequisitionMetadataFilter
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataRequestKt.filter as internalListRequisitionMetadataRequestFilter
 import org.wfanet.measurement.internal.edpaggregator.ListRequisitionMetadataResponse as InternalListRequisitionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.RegisterQueuedRequisitionMetadataResponse as InternalRegisterQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata as InternalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub as InternalRequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as InternalState
@@ -75,6 +79,7 @@ import org.wfanet.measurement.internal.edpaggregator.lookupRequisitionMetadataRe
 import org.wfanet.measurement.internal.edpaggregator.markWithdrawnRequisitionMetadataRequest as internalMarkWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.queueRequisitionMetadataRequest as internalQueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.refuseRequisitionMetadataRequest as internalRefuseRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.registerQueuedRequisitionMetadataRequest as internalRegisterQueuedRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.requisitionMetadata as internalRequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.startProcessingRequisitionMetadataRequest as internalStartProcessingRequisitionMetadataRequest
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportKey
@@ -292,6 +297,104 @@ class RequisitionMetadataService(
       }
 
     return batchCreateRequisitionMetadataResponse {
+      requisitionMetadata +=
+        internalResponse.requisitionMetadataList.map { it.toRequisitionMetadata() }
+    }
+  }
+
+  override suspend fun registerQueuedRequisitionMetadata(
+    request: RegisterQueuedRequisitionMetadataRequest
+  ): RegisterQueuedRequisitionMetadataResponse {
+    if (request.parent.isEmpty()) {
+      throw RequiredFieldNotSetException("parent")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val dataProviderKey =
+      DataProviderKey.fromName(request.parent)
+        ?: throw InvalidFieldValueException("parent")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (request.workItem.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (WorkItemKey.fromName(request.workItem) == null) {
+      throw InvalidFieldValueException("work_item")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val cmmsRequisitionSet = mutableSetOf<String>()
+    val requestIdSet = mutableSetOf<String>()
+    val internalRequests =
+      request.requestsList.mapIndexed { index, subRequest ->
+        if (subRequest.parent.isNotEmpty() && subRequest.parent != request.parent) {
+          throw DataProviderMismatchException(request.parent, subRequest.parent)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        if (subRequest.requisitionMetadata.refusalMessage.isNotEmpty()) {
+          throw InvalidFieldValueException("requests.$index.requisition_metadata.refusal_message") {
+              "refusal_message cannot be set when registering queued metadata"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        val cmmsRequisition = subRequest.requisitionMetadata.cmmsRequisition
+        if (!cmmsRequisitionSet.add(cmmsRequisition)) {
+          throw InvalidFieldValueException(
+              "requests.$index.requisition_metadata.cmms_requisition"
+            ) {
+              "cmms requisition $cmmsRequisition is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        val requestId = subRequest.requestId
+        if (requestId.isNotEmpty() && !requestIdSet.add(requestId)) {
+          throw InvalidFieldValueException("requests.$index.request_id") {
+              "request Id $requestId is duplicate in the batch of requests"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        try {
+          validateRequisitionMetadataRequest(subRequest, "requests.$index.")
+        } catch (e: RequiredFieldNotSetException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        } catch (e: InvalidFieldValueException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        } catch (e: DataProviderMismatchException) {
+          throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+        internalCreateRequisitionMetadataRequest {
+          this.requestId = requestId
+          requisitionMetadata = subRequest.requisitionMetadata.toInternal(dataProviderKey, null)
+        }
+      }
+
+    val internalResponse: InternalRegisterQueuedRequisitionMetadataResponse =
+      try {
+        internalClient.registerQueuedRequisitionMetadata(
+          internalRegisterQueuedRequisitionMetadataRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            requests += internalRequests
+            workItem = request.workItem
+          }
+        )
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.UNIMPLEMENTED) {
+          throw e
+        }
+        throw when (InternalErrors.getReason(e)) {
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS ->
+            RequisitionMetadataAlreadyExistsException(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_BLOB_URI ->
+            RequisitionMetadataAlreadyExistsByBlobUriException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          InternalErrors.Reason.REQUISITION_METADATA_ALREADY_EXISTS_BY_CMMS_REQUISITION ->
+            RequisitionMetadataAlreadyExistsByCmmsRequisitionException.fromInternal(e)
+              .asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
+          else -> Status.INTERNAL.withCause(e).asRuntimeException()
+        }
+      }
+
+    return registerQueuedRequisitionMetadataResponse {
       requisitionMetadata +=
         internalResponse.requisitionMetadataList.map { it.toRequisitionMetadata() }
     }
