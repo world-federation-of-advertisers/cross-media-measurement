@@ -105,10 +105,13 @@ class EdpAggregatorReportingIntegrationTest {
     private val storageClient = StorageOptions.getDefaultInstance().service
 
     /**
-     * Per-EDP blob for the QA 2026 EventGroups.
+     * Per-EDP blobs for the QA 2026 EventGroups.
      *
-     * A distinct object under the EDP's `event-groups/` prefix, which is what the DataWatcher
-     * matches on, so these are synced without touching the blob other tests write.
+     * [objectKey] is a distinct object under the EDP's `event-groups/` prefix, which is what the
+     * DataWatcher matches on; `EventGroupSync` reads whichever blob triggered it. [objectMapKey] is
+     * not derived from it: the sync always writes its output to the `event_group_map_blob_uri`
+     * fixed per EDP in `EventGroupSyncConfig`, so it is shared with every other test seeding this
+     * EDP.
      */
     private data class EdpStorage(
       val objectMapKey: String,
@@ -120,7 +123,7 @@ class EdpAggregatorReportingIntegrationTest {
     private val edpStorageList: List<EdpStorage> =
       qa2026EventGroupRefIdsByEdp.map { (edpName, referenceIds) ->
         EdpStorage(
-          objectMapKey = "$edpName/event-groups-map/$edpName-qa2026-event-group.binpb",
+          objectMapKey = "$edpName/event-groups-map/$edpName-event-group.binpb",
           objectKey = "$edpName/event-groups/$edpName-qa2026-event-group.binpb",
           blobUri = "gs://$bucket/$edpName/event-groups/$edpName-qa2026-event-group.binpb",
           eventGroupReferenceIds = referenceIds,
