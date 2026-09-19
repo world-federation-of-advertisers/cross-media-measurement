@@ -183,11 +183,6 @@ class WriteQa2026ImpressionsRule(
         schema = GCS_SCHEME,
         outputKey = eventGroup.outputKey,
       )
-    logger.info(
-      "Writing QA 2026 event group '${eventGroup.eventGroupReferenceId}' " +
-        "(${eventGroup.entityKeySpecsCount} entity key(s)); ${heapUsage()}"
-    )
-    val startMillis = System.currentTimeMillis()
     impressionWriter.writeLabeledImpressionData(
       generateShards(eventGroup),
       modelLine,
@@ -195,15 +190,8 @@ class WriteQa2026ImpressionsRule(
     )
     logger.info(
       "Wrote QA 2026 impressions for event group '${eventGroup.eventGroupReferenceId}' under " +
-        "${eventGroup.outputBasePath}/model-line/<id>/<date>/ in " +
-        "${(System.currentTimeMillis() - startMillis) / 1000}s; ${heapUsage()}"
+        "${eventGroup.outputBasePath}/model-line/<id>/<date>/."
     )
-  }
-
-  private fun heapUsage(): String {
-    val runtime = Runtime.getRuntime()
-    val usedMib = (runtime.totalMemory() - runtime.freeMemory()) / 1024 / 1024
-    return "heap ${usedMib}MiB used of ${runtime.maxMemory() / 1024 / 1024}MiB max"
   }
 
   /**
@@ -234,10 +222,6 @@ class WriteQa2026ImpressionsRule(
           .getOrPut(shard.localDate) { mutableListOf() }
           .add(EntityKeysWithLabeledEvents(listOf(entityKey), shard.labeledEvents))
       }
-      logger.info(
-        "Generated '${entityKeySpec.entityId}' from ${entityKeySpec.dataSpecResourcePath} " +
-          "over ${shardsByDate.size} date(s); ${heapUsage()}"
-      )
     }
     return shardsByDate.entries
       .asSequence()

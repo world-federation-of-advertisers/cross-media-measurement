@@ -632,11 +632,13 @@ class ReportingUserSimulator(
     /** Label for the custom video filter, which has no resource name of its own. */
     const val CUSTOM_VIDEO_FILTER_LABEL = "custom-video"
 
+    /** Highest frequency the media type and IQF report requests K+ reach for. */
+    const val K_PLUS_REACH = 5
+
     private const val CAMPAIGN_GROUP_DISPLAY_NAME = "Media type and IQF campaign group"
     private const val REPORT_TIME_ZONE = "UTC"
-    private const val K_PLUS_REACH = 5
 
-    // Maximum page size, to minimize requests against the Kingdom's rate limit.
-    private const val EVENT_GROUP_PAGE_SIZE = 500
+    /** Page size for ListEventGroups requests. */
+    private const val EVENT_GROUP_PAGE_SIZE = 500 // Use max page size to minimize the RPC count.
   }
 }

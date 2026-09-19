@@ -37,8 +37,17 @@ import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
  */
 object Qa2026ExpectedReach {
 
+  /** Acceptable range for every metric the report requests for one line item. */
+  data class ExpectedMetrics(
+    val reach: ClosedFloatingPointRange<Double>,
+    val impressions: ClosedFloatingPointRange<Double>,
+    val averageFrequency: ClosedFloatingPointRange<Double>,
+    /** Indexed by frequency - 1, so element `i` is the reach at frequency `i + 1` or more. */
+    val kPlusReach: List<ClosedFloatingPointRange<Double>>,
+  )
+
   /**
-   * Returns the acceptable reach range per impression qualification filter label for each of the
+   * Returns the acceptable metric ranges per impression qualification filter label for each of the
    * two result groups.
    *
    * @param config QA 2026 config restricted to the provisioned EDPs
@@ -47,6 +56,7 @@ object Qa2026ExpectedReach {
    * @param reportStart first event date, inclusive
    * @param reportEnd end of the reporting interval, exclusive
    * @param metricSpecConfig the deployed metric spec config, for the noise parameters
+   * @param maxFrequency highest frequency the report requests K+ reach for
    */
   fun computeRangesByGroupAndFilter(
     config: ImpressionTestDataConfig,
@@ -56,59 +66,127 @@ object Qa2026ExpectedReach {
     reportStart: LocalDate,
     reportEnd: LocalDate,
     metricSpecConfig: MetricSpecConfig,
-  ): Map<String, Map<String, ClosedFloatingPointRange<Double>>> {
-    val vidsByEdpAndFilter: Map<String, Map<String, Set<Long>>> =
-      vidsByEdpAndFilter(config, eventGroupReferenceIds, populationSpec, reportStart, reportEnd)
+    maxFrequency: Int,
+  ): Map<String, Map<String, ExpectedMetrics>> {
+    val frequenciesByEdpAndFilter: Map<String, Map<String, Map<Long, Int>>> =
+      frequenciesByEdpAndFilter(
+        config,
+        eventGroupReferenceIds,
+        populationSpec,
+        reportStart,
+        reportEnd,
+      )
 
-    val singleEdpVids: Map<String, Set<Long>> =
-      vidsByEdpAndFilter[singleEdpName]
+    val singleEdpFrequencies: Map<String, Map<Long, Int>> =
+      frequenciesByEdpAndFilter[singleEdpName]
         ?: error("No EventGroups for $singleEdpName among $eventGroupReferenceIds")
-    val allEdpVids: Map<String, Set<Long>> =
+    // A VID reached through more than one EDP is one person with the impressions of both.
+    val allEdpFrequencies: Map<String, Map<Long, Int>> =
       FILTER_PREDICATES.keys.associateWith { label ->
-        vidsByEdpAndFilter.values.flatMapTo(mutableSetOf()) { it.getValue(label) }
+        val merged = mutableMapOf<Long, Int>()
+        for (byFilter in frequenciesByEdpAndFilter.values) {
+          for ((vid, frequency) in byFilter.getValue(label)) {
+            merged[vid] = (merged[vid] ?: 0) + frequency
+          }
+        }
+        merged
       }
 
-    val singleTolerance = reachTolerance(metricSpecConfig.reachParams.singleDataProviderParams)
-    val multipleTolerance = reachTolerance(metricSpecConfig.reachParams.multipleDataProviderParams)
+    val reachAndFrequencyParams = metricSpecConfig.reachAndFrequencyParams
+    val impressionParams = metricSpecConfig.impressionCountParams.params
 
     return mapOf(
       ReportingUserSimulator.SINGLE_EDP_GROUP_TITLE to
-        singleEdpVids.mapValues { (_, vids) -> rangeAround(vids.size, singleTolerance) },
+        singleEdpFrequencies.mapValues { (_, frequencies) ->
+          expectedMetrics(
+            frequencies,
+            reachAndFrequencyParams.singleDataProviderParams,
+            impressionParams,
+            maxFrequency,
+          )
+        },
       ReportingUserSimulator.CROSS_PUB_GROUP_TITLE to
-        allEdpVids.mapValues { (_, vids) -> rangeAround(vids.size, multipleTolerance) },
+        allEdpFrequencies.mapValues { (_, frequencies) ->
+          expectedMetrics(
+            frequencies,
+            reachAndFrequencyParams.multipleDataProviderParams,
+            impressionParams,
+            maxFrequency,
+          )
+        },
     )
   }
 
-  private fun rangeAround(expected: Int, tolerance: Double): ClosedFloatingPointRange<Double> =
+  private fun expectedMetrics(
+    frequencies: Map<Long, Int>,
+    reachAndFrequencyParams: MetricSpecConfig.ReachAndFrequencySamplingAndPrivacyParams,
+    impressionParams: MetricSpecConfig.SamplingAndPrivacyParams,
+    maxFrequency: Int,
+  ): ExpectedMetrics {
+    val reachTolerance =
+      tolerance(
+        reachAndFrequencyParams.reachPrivacyParams,
+        reachAndFrequencyParams.vidSamplingInterval,
+      )
+    val impressionTolerance =
+      tolerance(impressionParams.privacyParams, impressionParams.vidSamplingInterval)
+
+    val reach = frequencies.size
+    val impressions = frequencies.values.sumOf { it.toLong() }
+    val reachRange = rangeAround(reach.toDouble(), reachTolerance)
+    val impressionRange = rangeAround(impressions.toDouble(), impressionTolerance)
+
+    return ExpectedMetrics(
+      reach = reachRange,
+      impressions = impressionRange,
+      // Ratio of two independently noised values, so the bound is the widest the ranges allow.
+      averageFrequency =
+        (impressionRange.start / reachRange.endInclusive)..(impressionRange.endInclusive /
+            maxOf(reachRange.start, 1.0)),
+      kPlusReach =
+        (1..maxFrequency).map { k ->
+          rangeAround(frequencies.values.count { it >= k }.toDouble(), reachTolerance)
+        },
+    )
+  }
+
+  /** Number of VIDs the population spec declares, which the report returns unnoised. */
+  fun populationSize(populationSpec: PopulationSpec): Long =
+    populationSpec.subpopulationsList.sumOf { subpopulation ->
+      subpopulation.vidRangesList.sumOf { it.endVidInclusive - it.startVid + 1 }
+    }
+
+  private fun rangeAround(expected: Double, tolerance: Double): ClosedFloatingPointRange<Double> =
     (expected - tolerance)..(expected + tolerance)
 
   /**
-   * Returns the distinct VIDs matching each impression qualification filter, by EDP.
+   * Returns the impression count per VID matching each impression qualification filter, by EDP.
    *
    * Generation is bounded to the reporting interval, since a segment's flight can run far wider
-   * than the interval reported on. Each EDP is generated once; the cross-publisher expectation is
-   * the union, which deduplicates the VIDs a segment reaches through more than one EDP.
+   * than the interval reported on. Each EDP is generated once; the cross-publisher expectation
+   * merges these, deduplicating the VIDs a segment reaches through more than one EDP while summing
+   * their impressions.
    */
-  private fun vidsByEdpAndFilter(
+  private fun frequenciesByEdpAndFilter(
     config: ImpressionTestDataConfig,
     eventGroupReferenceIds: Set<String>,
     populationSpec: PopulationSpec,
     reportStart: LocalDate,
     reportEnd: LocalDate,
-  ): Map<String, Map<String, Set<Long>>> {
+  ): Map<String, Map<String, Map<Long, Int>>> {
     val start = reportStart.atStartOfDay().toInstant(ZoneOffset.UTC)
     val endExclusive = reportEnd.atStartOfDay().toInstant(ZoneOffset.UTC)
     val timeRange: OpenEndRange<Instant> = start..<endExclusive
 
-    val byEdp = mutableMapOf<String, Map<String, MutableSet<Long>>>()
+    val byEdp = mutableMapOf<String, Map<String, MutableMap<Long, Int>>>()
     for (eventGroup in config.eventGroupsList) {
       for (entityKeySpec in eventGroup.entityKeySpecsList) {
         val referenceId = "${entityKeySpec.entityType}-${entityKeySpec.entityId}"
         if (referenceId !in eventGroupReferenceIds) continue
 
-        val vidsByFilter =
+        val frequenciesByFilter =
           byEdp.getOrPut(eventGroup.edpName) {
-            FILTER_PREDICATES.keys.associateWith { mutableSetOf() }
+            FILTER_PREDICATES.keys.associateWith { mutableMapOf() }
           }
         val spec =
           ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
@@ -124,7 +202,8 @@ object Qa2026ExpectedReach {
           for (event in shard.labeledEvents) {
             for ((label, predicate) in FILTER_PREDICATES) {
               if (predicate(event.message)) {
-                vidsByFilter.getValue(label).add(event.vid)
+                val frequencies = frequenciesByFilter.getValue(label)
+                frequencies[event.vid] = (frequencies[event.vid] ?: 0) + 1
               }
             }
           }
@@ -135,19 +214,22 @@ object Qa2026ExpectedReach {
   }
 
   /**
-   * Margin of error for a reach metric with the given params.
+   * Margin of error for a metric noised with the given params.
    *
    * The BasicReport exposes neither the protocol nor the noise mechanism of the Measurements behind
    * a line item, so the variance cannot be computed the way the Measurement tests do. This assumes
    * continuous Gaussian noise, which is what the EDP Aggregator applies, and uses the closed form:
    * `sigma = sqrt(2 * ln(1.25 / delta)) / (epsilon * sampling_width)`.
    */
-  private fun reachTolerance(params: MetricSpecConfig.SamplingAndPrivacyParams): Double {
-    val epsilon = params.privacyParams.epsilon
-    val delta = params.privacyParams.delta
-    val width = params.vidSamplingInterval.fixedStart.width
+  private fun tolerance(
+    privacyParams: MetricSpecConfig.DifferentialPrivacyParams,
+    samplingInterval: MetricSpecConfig.VidSamplingInterval,
+  ): Double {
+    val epsilon = privacyParams.epsilon
+    val delta = privacyParams.delta
+    val width = samplingInterval.fixedStart.width
     require(epsilon > 0 && delta > 0 && width > 0) {
-      "Invalid reach params: epsilon=$epsilon delta=$delta width=$width"
+      "Invalid noise params: epsilon=$epsilon delta=$delta width=$width"
     }
     val sigma = sqrt(2.0 * ln(1.25 / delta)) / (epsilon * width)
     return CONFIDENCE_INTERVAL_MULTIPLIER * sigma

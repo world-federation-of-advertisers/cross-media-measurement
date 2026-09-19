@@ -77,6 +77,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
+import org.wfanet.measurement.integration.k8s.Qa2026ExpectedReach.ExpectedMetrics
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -419,7 +420,7 @@ class EdpAggregatorReportingIntegrationTest {
 
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
     assertReportGroups(report)
-    assertReachMatchesSpecs(report)
+    assertMetricsMatchSpecs(report)
   }
 
   /**
@@ -459,20 +460,59 @@ class EdpAggregatorReportingIntegrationTest {
       .isAtLeast(amiReachOf(report, ReportingUserSimulator.SINGLE_EDP_GROUP_TITLE))
   }
 
-  /** Checks each line item's reach against the value the synthetic specs imply. */
-  private fun assertReachMatchesSpecs(report: BasicReport) {
+  /** Checks every metric the report requests against the values the synthetic specs imply. */
+  private fun assertMetricsMatchSpecs(report: BasicReport) {
     for (resultGroup in report.resultGroupsList) {
-      val expectedByFilter = expectedReach.getValue(resultGroup.title)
+      val expectedByFilter = expectedMetrics.getValue(resultGroup.title)
       for (result in resultGroup.resultsList) {
         val label = filterLabel(result)
-        val range = expectedByFilter.getValue(label)
-        val reach = reachOf(result.metricSet, resultGroup.title).toDouble()
-        assertWithMessage("${resultGroup.title}: $label reach").that(reach).isAtLeast(range.start)
-        assertWithMessage("${resultGroup.title}: $label reach")
-          .that(reach)
-          .isAtMost(range.endInclusive)
+        val expected = expectedByFilter.getValue(label)
+        val basicMetricSet = basicMetricSetOf(result.metricSet, resultGroup.title)
+        val prefix = "${resultGroup.title}: $label"
+
+        assertWithinRange("$prefix reach", basicMetricSet.reach.toDouble(), expected.reach)
+        assertWithinRange(
+          "$prefix impressions",
+          basicMetricSet.impressions.toDouble(),
+          expected.impressions,
+        )
+        assertWithinRange(
+          "$prefix average frequency",
+          basicMetricSet.averageFrequency.toDouble(),
+          expected.averageFrequency,
+        )
+
+        assertWithMessage("$prefix k+ reach size")
+          .that(basicMetricSet.kPlusReachList)
+          .hasSize(expected.kPlusReach.size)
+        basicMetricSet.kPlusReachList.forEachIndexed { index, kPlusReach ->
+          assertWithinRange(
+            "$prefix ${index + 1}+ reach",
+            kPlusReach.toDouble(),
+            expected.kPlusReach[index],
+          )
+          if (index > 0) {
+            // K+ reach is the count of VIDs at frequency >= k, so it cannot grow with k.
+            assertWithMessage("$prefix ${index + 1}+ reach vs ${index}+")
+              .that(kPlusReach)
+              .isAtMost(basicMetricSet.kPlusReachList[index - 1])
+          }
+        }
+
+        assertWithMessage("$prefix population size")
+          .that(result.metricSet.populationSize)
+          .isEqualTo(expectedPopulationSize)
       }
     }
+  }
+
+  private fun assertWithinRange(
+    label: String,
+    actual: Double,
+    range: ClosedFloatingPointRange<Double>,
+  ) {
+    assertWithMessage(label).that(actual).isAtLeast(range.start)
+    assertWithMessage(label).that(actual).isAtMost(range.endInclusive)
   }
 
   private fun amiReachOf(report: BasicReport, groupTitle: String): Long {
@@ -486,12 +526,22 @@ class EdpAggregatorReportingIntegrationTest {
    * The single-EDP group requests component metrics and the cross-publisher group requests
    * reporting-unit metrics, so the reach lives in a different field for each.
    */
-  private fun reachOf(metricSet: ResultGroup.MetricSet, groupTitle: String): Long =
+  /**
+   * The cumulative metrics for a result, taken from the reporting unit for the cross-publisher
+   * group and from the single component otherwise.
+   */
+  private fun basicMetricSetOf(
+    metricSet: ResultGroup.MetricSet,
+    groupTitle: String,
+  ): ResultGroup.MetricSet.BasicMetricSet =
     if (groupTitle == ReportingUserSimulator.CROSS_PUB_GROUP_TITLE) {
-      metricSet.reportingUnit.cumulative.reach
+      metricSet.reportingUnit.cumulative
     } else {
-      metricSet.componentsList.single().value.cumulative.reach
+      metricSet.componentsList.single().value.cumulative
     }
+
+  private fun reachOf(metricSet: ResultGroup.MetricSet, groupTitle: String): Long =
+    basicMetricSetOf(metricSet, groupTitle).reach
 
   private fun filterLabel(result: ResultGroup.Result): String {
     val filter = result.metadata.filter
@@ -709,7 +759,7 @@ class EdpAggregatorReportingIntegrationTest {
       parseTextProto(configFile, MetricSpecConfig.getDefaultInstance())
     }
 
-    private val expectedReach: Map<String, Map<String, ClosedFloatingPointRange<Double>>> by lazy {
+    private val expectedMetrics: Map<String, Map<String, ExpectedMetrics>> by lazy {
       Qa2026ExpectedReach.computeRangesByGroupAndFilter(
         PROVISIONED_CONFIG,
         REPORT_EVENT_GROUP_REF_IDS,
@@ -718,7 +768,12 @@ class EdpAggregatorReportingIntegrationTest {
         REPORT_START,
         REPORT_END,
         BASIC_REPORT_METRIC_SPEC_CONFIG,
+        ReportingUserSimulator.K_PLUS_REACH,
       )
+    }
+
+    private val expectedPopulationSize: Long by lazy {
+      Qa2026ExpectedReach.populationSize(POPULATION_SPEC)
     }
 
     private val provisionModelResources =
