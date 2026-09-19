@@ -3,7 +3,45 @@ package(
     default_visibility = ["//visibility:public"],
 )
 
+QA2026_SPECS = [
+    "qa2026_impression_test_data_config.textproto",
+    "qa2026_population_spec.textproto",
+    "qa2026_seg_all4_1.textproto",
+    "qa2026_seg_all4_2.textproto",
+    "qa2026_seg_all4_3.textproto",
+    "qa2026_seg_e7_meta.textproto",
+    "qa2026_seg_e7_meta_retail.textproto",
+    "qa2026_seg_e7_meta_video.textproto",
+    "qa2026_seg_e7_retail.textproto",
+    "qa2026_seg_e7_video_1.textproto",
+    "qa2026_seg_e7_video_2.textproto",
+    "qa2026_seg_e7_video_retail.textproto",
+    "qa2026_seg_e7only.textproto",
+    "qa2026_seg_meta_retail.textproto",
+    "qa2026_seg_meta_video_1.textproto",
+    "qa2026_seg_meta_video_2.textproto",
+    "qa2026_seg_meta_video_3.textproto",
+    "qa2026_seg_meta_video_retail.textproto",
+    "qa2026_seg_metaonly_1.textproto",
+    "qa2026_seg_metaonly_2.textproto",
+    "qa2026_seg_metaonly_3.textproto",
+    "qa2026_seg_noise.textproto",
+    "qa2026_seg_retailonly.textproto",
+    "qa2026_seg_video_retail_1.textproto",
+    "qa2026_seg_video_retail_2.textproto",
+    "qa2026_seg_videoonly_1.textproto",
+    "qa2026_seg_videoonly_2.textproto",
+    "qa2026_seg_videoonly_3.textproto",
+]
+
+genrule(
+    name = "gen_qa2026_specs",
+    outs = QA2026_SPECS,
+    cmd = "$(execpath //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateQa2026Specs) $(RULEDIR)",
+    tools = ["//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateQa2026Specs"],
+)
+
 filegroup(
     name = "specs",
-    srcs = glob(["*.textproto"]),
+    srcs = glob(["*.textproto"]) + [":gen_qa2026_specs"],
 )

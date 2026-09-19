@@ -34,6 +34,10 @@ on:
         description: "Run tests"
         type: boolean
         default: true
+      run-edpa-reporting-integration-test:
+        description: "Run the EDPA reporting integration test (always runs for qa and head)"
+        type: boolean
+        default: false
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -52,6 +56,10 @@ on:
         description: "Run tests"
         type: boolean
         default: true
+      run-edpa-reporting-integration-test:
+        description: "Run the EDPA reporting integration test (always runs for qa and head)"
+        type: boolean
+        default: false
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -367,8 +375,44 @@ jobs:
     with:
       environment: ${{ inputs.environment }}
 
+  # Runs after run-edpa-reporting-integration-test, which seeds EventGroups for the same EDPs;
+  # concurrent EventGroupSync runs for one EDP race. That job is skipped unless requested and may
+  # fail independently, so each deployment job is required explicitly instead.
   run-edpa-cloud-test:
-    if: inputs.run-tests
+    if: >-
+      ${{ inputs.run-tests && !cancelled()
+      && needs.update-kingdom.result == 'success'
+      && needs.update-population-fulfiller.result == 'success'
+      && needs.update-aggregator-duchy.result == 'success'
+      && needs.update-worker1-duchy.result == 'success'
+      && needs.update-worker2-duchy.result == 'success'
+      && needs.update-simulators.result == 'success'
+      && needs.update-reporting-v2.result == 'success'
+      && needs.update-secure-computation.result == 'success'
+      && needs.update-edp-aggregator-service.result == 'success' }}
+    needs: [
+      update-kingdom,
+      update-population-fulfiller,
+      update-aggregator-duchy,
+      update-worker1-duchy,
+      update-worker2-duchy,
+      update-simulators,
+      update-reporting-v2,
+      update-secure-computation,
+      update-edp-aggregator-service,
+      run-edpa-reporting-integration-test
+    ]
+    uses: ./.github/workflows/edpa-cloud-test.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: ${{ inputs.environment }}
+  # Provisions the QA 2026 dataset and reports over it. Runs for qa and head; for dev only when
+  # explicitly requested, since dev is the fast-iteration environment.
+  run-edpa-reporting-integration-test:
+    if: inputs.run-tests && (inputs.environment != 'dev' || inputs.run-edpa-reporting-integration-test)
     needs: [
       update-kingdom,
       update-population-fulfiller,
@@ -380,13 +424,14 @@ jobs:
       update-secure-computation,
       update-edp-aggregator-service
     ]
-    uses: ./.github/workflows/edpa-cloud-test.yml
+    uses: ./.github/workflows/edpa-reporting-integration-test.yml
     secrets: inherit
     permissions:
       contents: read
       id-token: write
     with:
       environment: ${{ inputs.environment }}
+
 
   run-dashboard-isolation-test:
     if: inputs.run-tests

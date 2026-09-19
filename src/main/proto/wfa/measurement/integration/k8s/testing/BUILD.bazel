@@ -37,6 +37,20 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "edpa_reporting_integration_test_config_proto",
+    srcs = ["edpa_reporting_integration_test_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "edpa_reporting_integration_test_config_kt_jvm_proto",
+    deps = [":edpa_reporting_integration_test_config_proto"],
+)
+
+proto_library(
     name = "impression_test_data_config_proto",
     srcs = ["impression_test_data_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
