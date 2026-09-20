@@ -336,7 +336,7 @@ class ReportingUserSimulator(
                   reach = true
                   impressions = true
                   averageFrequency = true
-                  kPlusReach = kPlusReach
+                  this.kPlusReach = kPlusReach
                 }
             }
         }
@@ -356,7 +356,7 @@ class ReportingUserSimulator(
                   reach = true
                   impressions = true
                   averageFrequency = true
-                  kPlusReach = kPlusReach
+                  this.kPlusReach = kPlusReach
                 }
             }
           component =
