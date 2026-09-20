@@ -258,6 +258,7 @@ class ReportingUserSimulator(
     eventGroupEntityTypes: Set<String>,
     reportStart: LocalDate,
     reportEnd: LocalDate,
+    kPlusReach: Int,
   ): BasicReport {
     require(singleEdpEventGroupReferenceIds.isNotEmpty()) { "No single-EDP EventGroups" }
     require(eventGroupReferenceIds.containsAll(singleEdpEventGroupReferenceIds)) {
@@ -335,7 +336,7 @@ class ReportingUserSimulator(
                   reach = true
                   impressions = true
                   averageFrequency = true
-                  kPlusReach = K_PLUS_REACH
+                  kPlusReach = kPlusReach
                 }
             }
         }
@@ -355,7 +356,7 @@ class ReportingUserSimulator(
                   reach = true
                   impressions = true
                   averageFrequency = true
-                  kPlusReach = K_PLUS_REACH
+                  kPlusReach = kPlusReach
                 }
             }
           component =
@@ -631,9 +632,6 @@ class ReportingUserSimulator(
 
     /** Label for the custom video filter, which has no resource name of its own. */
     const val CUSTOM_VIDEO_FILTER_LABEL = "custom-video"
-
-    /** Highest frequency the media type and IQF report requests K+ reach for. */
-    const val K_PLUS_REACH = 5
 
     private const val CAMPAIGN_GROUP_DISPLAY_NAME = "Media type and IQF campaign group"
     private const val REPORT_TIME_ZONE = "UTC"

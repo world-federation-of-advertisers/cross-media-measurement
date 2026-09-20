@@ -416,6 +416,7 @@ class EdpAggregatorReportingIntegrationTest {
         reportEventGroupEntityTypes,
         REPORT_START,
         REPORT_END,
+        K_PLUS_REACH,
       )
 
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
@@ -694,9 +695,25 @@ class EdpAggregatorReportingIntegrationTest {
 
     private val SINGLE_EDP_EVENT_GROUP_REF_IDS = setOf("ad_group-qa2026-e7-meta-edp7")
 
-    /** Reporting interval, within the flight of every EventGroup above. */
+    /**
+     * Highest frequency to request K+ reach for.
+     *
+     * Each K+ reach carries the same fixed noise as reach itself, so a frequency deep enough to
+     * reach only a handful of people measures noise rather than signal. That does not stay
+     * contained: the report post-processor bounds impressions below by the frequency-weighted sum
+     * of these, so an inflated tail drags impressions up with it.
+     */
+    private const val K_PLUS_REACH = 2
+
+    /**
+     * Reporting interval, within the date range of every EventGroup above.
+     *
+     * A VID's impressions are spread across that whole range, so a short interval samples only a
+     * fraction of each VID's frequency and leaves the K+ reach metrics under their noise floor.
+     * Thirty days puts 2+ reach at roughly 11x sigma.
+     */
     private val REPORT_START: LocalDate = LocalDate.of(2026, 4, 1)
-    private val REPORT_END: LocalDate = LocalDate.of(2026, 4, 15)
+    private val REPORT_END: LocalDate = LocalDate.of(2026, 5, 1)
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
       TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
@@ -810,7 +827,7 @@ class EdpAggregatorReportingIntegrationTest {
         REPORT_START,
         REPORT_END,
         BASIC_REPORT_METRIC_SPEC_CONFIG,
-        ReportingUserSimulator.K_PLUS_REACH,
+        K_PLUS_REACH,
       )
     }
 
