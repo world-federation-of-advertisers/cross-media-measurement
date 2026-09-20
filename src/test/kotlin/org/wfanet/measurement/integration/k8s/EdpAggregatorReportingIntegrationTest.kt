@@ -460,8 +460,15 @@ class EdpAggregatorReportingIntegrationTest {
       .isAtLeast(amiReachOf(report, ReportingUserSimulator.SINGLE_EDP_GROUP_TITLE))
   }
 
-  /** Checks every metric the report requests against the values the synthetic specs imply. */
+  /**
+   * Checks every metric the report requests against the values the synthetic specs imply.
+   *
+   * Every metric is compared before anything fails, and the message reports each one with the ratio
+   * of measured to expected. A single out-of-range value says little on its own; whether the others
+   * are off by the same ratio distinguishes a systematic scaling error from one bad metric.
+   */
   private fun assertMetricsMatchSpecs(report: BasicReport) {
+    val comparisons = mutableListOf<MetricComparison>()
     for (resultGroup in report.resultGroupsList) {
       val expectedByFilter = expectedMetrics.getValue(resultGroup.title)
       for (result in resultGroup.resultsList) {
@@ -470,27 +477,31 @@ class EdpAggregatorReportingIntegrationTest {
         val basicMetricSet = basicMetricSetOf(result.metricSet, resultGroup.title)
         val prefix = "${resultGroup.title}: $label"
 
-        assertWithinRange("$prefix reach", basicMetricSet.reach.toDouble(), expected.reach)
-        assertWithinRange(
-          "$prefix impressions",
-          basicMetricSet.impressions.toDouble(),
-          expected.impressions,
-        )
-        assertWithinRange(
-          "$prefix average frequency",
-          basicMetricSet.averageFrequency.toDouble(),
-          expected.averageFrequency,
-        )
+        comparisons +=
+          MetricComparison("$prefix reach", basicMetricSet.reach.toDouble(), expected.reach)
+        comparisons +=
+          MetricComparison(
+            "$prefix impressions",
+            basicMetricSet.impressions.toDouble(),
+            expected.impressions,
+          )
+        comparisons +=
+          MetricComparison(
+            "$prefix average frequency",
+            basicMetricSet.averageFrequency.toDouble(),
+            expected.averageFrequency,
+          )
 
         assertWithMessage("$prefix k+ reach size")
           .that(basicMetricSet.kPlusReachList)
           .hasSize(expected.kPlusReach.size)
         basicMetricSet.kPlusReachList.forEachIndexed { index, kPlusReach ->
-          assertWithinRange(
-            "$prefix ${index + 1}+ reach",
-            kPlusReach.toDouble(),
-            expected.kPlusReach[index],
-          )
+          comparisons +=
+            MetricComparison(
+              "$prefix ${index + 1}+ reach",
+              kPlusReach.toDouble(),
+              expected.kPlusReach[index],
+            )
           if (index > 0) {
             // K+ reach is the count of VIDs at frequency >= k, so it cannot grow with k.
             assertWithMessage("$prefix ${index + 1}+ reach vs ${index}+")
@@ -504,15 +515,46 @@ class EdpAggregatorReportingIntegrationTest {
           .isEqualTo(expectedPopulationSize)
       }
     }
+
+    logger.info(comparisons.joinToString("\n", prefix = "Metrics measured against specs:\n"))
+    val outOfRange = comparisons.filterNot { it.inRange }
+    assertWithMessage(
+        outOfRange.size.toString() +
+          " of " +
+          comparisons.size +
+          " metrics outside the expected range:\n" +
+          comparisons.joinToString("\n")
+      )
+      .that(outOfRange)
+      .isEmpty()
   }
 
-  private fun assertWithinRange(
-    label: String,
-    actual: Double,
-    range: ClosedFloatingPointRange<Double>,
+  /** One measured metric alongside the range the synthetic specs imply for it. */
+  private data class MetricComparison(
+    val label: String,
+    val actual: Double,
+    val expected: ClosedFloatingPointRange<Double>,
   ) {
-    assertWithMessage(label).that(actual).isAtLeast(range.start)
-    assertWithMessage(label).that(actual).isAtMost(range.endInclusive)
+    val inRange: Boolean
+      get() = actual >= expected.start && actual <= expected.endInclusive
+
+    /** Midpoint of the expected range, which is the noiseless value the specs imply. */
+    private val expectedValue: Double
+      get() = (expected.start + expected.endInclusive) / 2
+
+    override fun toString(): String {
+      val ratio = if (expectedValue != 0.0) actual / expectedValue else Double.NaN
+      return "%s %s: measured %.1f, expected %.1f (%.1f..%.1f), ratio %.4f"
+        .format(
+          if (inRange) "  ok" else "FAIL",
+          label,
+          actual,
+          expectedValue,
+          expected.start,
+          expected.endInclusive,
+          ratio,
+        )
+    }
   }
 
   private fun amiReachOf(report: BasicReport, groupTitle: String): Long {
