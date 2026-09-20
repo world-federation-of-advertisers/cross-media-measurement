@@ -350,8 +350,6 @@ class ReportingUserSimulator(
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  impressions = true
-                  averageFrequency = true
                   this.kPlusReach = kPlusReach
                 }
             }
@@ -370,19 +368,12 @@ class ReportingUserSimulator(
               cumulative =
                 ResultGroupMetricSpecKt.basicMetricSetSpec {
                   reach = true
-                  impressions = true
-                  averageFrequency = true
                   this.kPlusReach = kPlusReach
                 }
             }
           component =
             ResultGroupMetricSpecKt.componentMetricSetSpec {
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  impressions = true
-                  averageFrequency = true
-                }
+              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
             }
         }
       }

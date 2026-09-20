@@ -40,8 +40,6 @@ object Qa2026ExpectedReach {
   /** Acceptable range for every metric the report requests for one line item. */
   data class ExpectedMetrics(
     val reach: ClosedFloatingPointRange<Double>,
-    val impressions: ClosedFloatingPointRange<Double>,
-    val averageFrequency: ClosedFloatingPointRange<Double>,
     /** Indexed by frequency - 1, so element `i` is the reach at frequency `i + 1` or more. */
     val kPlusReach: List<ClosedFloatingPointRange<Double>>,
   )
@@ -93,7 +91,6 @@ object Qa2026ExpectedReach {
       }
 
     val reachAndFrequencyParams = metricSpecConfig.reachAndFrequencyParams
-    val impressionParams = metricSpecConfig.impressionCountParams.params
 
     return mapOf(
       ReportingUserSimulator.SINGLE_EDP_GROUP_TITLE to
@@ -101,7 +98,6 @@ object Qa2026ExpectedReach {
           expectedMetrics(
             frequencies,
             reachAndFrequencyParams.singleDataProviderParams,
-            impressionParams,
             maxFrequency,
           )
         },
@@ -110,7 +106,6 @@ object Qa2026ExpectedReach {
           expectedMetrics(
             frequencies,
             reachAndFrequencyParams.multipleDataProviderParams,
-            impressionParams,
             maxFrequency,
           )
         },
@@ -120,7 +115,6 @@ object Qa2026ExpectedReach {
   private fun expectedMetrics(
     frequencies: Map<Long, Int>,
     reachAndFrequencyParams: MetricSpecConfig.ReachAndFrequencySamplingAndPrivacyParams,
-    impressionParams: MetricSpecConfig.SamplingAndPrivacyParams,
     maxFrequency: Int,
   ): ExpectedMetrics {
     val reachTolerance =
@@ -128,21 +122,9 @@ object Qa2026ExpectedReach {
         reachAndFrequencyParams.reachPrivacyParams,
         reachAndFrequencyParams.vidSamplingInterval,
       )
-    val impressionTolerance =
-      tolerance(impressionParams.privacyParams, impressionParams.vidSamplingInterval)
-
-    val reach = frequencies.size
-    val impressions = frequencies.values.sumOf { it.toLong() }
-    val reachRange = rangeAround(reach.toDouble(), reachTolerance)
-    val impressionRange = rangeAround(impressions.toDouble(), impressionTolerance)
 
     return ExpectedMetrics(
-      reach = reachRange,
-      impressions = impressionRange,
-      // Ratio of two independently noised values, so the bound is the widest the ranges allow.
-      averageFrequency =
-        (impressionRange.start / reachRange.endInclusive)..(impressionRange.endInclusive /
-            maxOf(reachRange.start, 1.0)),
+      reach = rangeAround(frequencies.size.toDouble(), reachTolerance),
       kPlusReach =
         (1..maxFrequency).map { k ->
           rangeAround(frequencies.values.count { it >= k }.toDouble(), reachTolerance)

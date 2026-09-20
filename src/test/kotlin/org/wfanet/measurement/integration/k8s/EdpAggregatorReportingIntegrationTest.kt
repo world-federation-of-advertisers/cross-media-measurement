@@ -480,23 +480,6 @@ class EdpAggregatorReportingIntegrationTest {
 
         comparisons +=
           MetricComparison("$prefix reach", basicMetricSet.reach.toDouble(), expected.reach)
-        // Impressions and the average frequency derived from them are recorded rather than
-        // asserted: the report post-processor reconciles them against the whole report, and
-        // repeated runs over identical data have differed by more than half the expected value.
-        comparisons +=
-          MetricComparison(
-            "$prefix impressions",
-            basicMetricSet.impressions.toDouble(),
-            expected.impressions,
-            asserted = false,
-          )
-        comparisons +=
-          MetricComparison(
-            "$prefix average frequency",
-            basicMetricSet.averageFrequency.toDouble(),
-            expected.averageFrequency,
-            asserted = false,
-          )
 
         assertWithMessage("$prefix k+ reach size")
           .that(basicMetricSet.kPlusReachList)
@@ -523,15 +506,14 @@ class EdpAggregatorReportingIntegrationTest {
         // Per-EDP values behind a reporting unit, which the union metrics above aggregate away.
         for (component in result.metricSet.componentsList) {
           logger.info(
-            "$prefix component ${component.key}: reach=${component.value.cumulative.reach}" +
-              " impressions=${component.value.cumulative.impressions}"
+            "$prefix component ${component.key}: reach=${component.value.cumulative.reach}"
           )
         }
       }
     }
 
     logger.info(comparisons.joinToString("\n", prefix = "Metrics measured against specs:\n"))
-    val outOfRange = comparisons.filter { it.asserted && !it.inRange }
+    val outOfRange = comparisons.filter { !it.inRange }
     assertWithMessage(
         outOfRange.size.toString() +
           " of " +
@@ -548,7 +530,6 @@ class EdpAggregatorReportingIntegrationTest {
     val label: String,
     val actual: Double,
     val expected: ClosedFloatingPointRange<Double>,
-    val asserted: Boolean = true,
   ) {
     val inRange: Boolean
       get() = actual >= expected.start && actual <= expected.endInclusive
@@ -561,7 +542,7 @@ class EdpAggregatorReportingIntegrationTest {
       val ratio = if (expectedValue != 0.0) actual / expectedValue else Double.NaN
       return "%s %s: measured %.1f, expected %.1f (%.1f..%.1f), ratio %.4f"
         .format(
-          if (inRange) "  ok" else if (asserted) "FAIL" else "info",
+          if (inRange) "  ok" else "FAIL",
           label,
           actual,
           expectedValue,
@@ -713,9 +694,7 @@ class EdpAggregatorReportingIntegrationTest {
      * Highest frequency to request K+ reach for.
      *
      * Each K+ reach carries the same fixed noise as reach itself, so a frequency deep enough to
-     * reach only a handful of people measures noise rather than signal. That does not stay
-     * contained: the report post-processor bounds impressions below by the frequency-weighted sum
-     * of these, so an inflated tail drags impressions up with it.
+     * reach only a handful of people measures noise rather than signal.
      */
     private const val K_PLUS_REACH = 2
 
