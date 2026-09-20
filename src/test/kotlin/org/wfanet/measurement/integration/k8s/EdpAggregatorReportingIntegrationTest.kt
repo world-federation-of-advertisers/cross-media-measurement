@@ -514,6 +514,14 @@ class EdpAggregatorReportingIntegrationTest {
         assertWithMessage("$prefix population size")
           .that(result.metricSet.populationSize)
           .isEqualTo(expectedPopulationSize)
+
+        // Per-EDP values behind a reporting unit, which the union metrics above aggregate away.
+        for (component in result.metricSet.componentsList) {
+          logger.info(
+            "$prefix component ${component.key}: reach=${component.value.cumulative.reach}" +
+              " impressions=${component.value.cumulative.impressions}"
+          )
+        }
       }
     }
 
@@ -710,10 +718,10 @@ class EdpAggregatorReportingIntegrationTest {
      *
      * A VID's impressions are spread across that whole range, so a short interval samples only a
      * fraction of each VID's frequency and leaves the K+ reach metrics under their noise floor.
-     * Thirty days puts 2+ reach at roughly 11x sigma.
+     * Thirty-six days puts 2+ reach at roughly 18x sigma.
      */
     private val REPORT_START: LocalDate = LocalDate.of(2026, 4, 1)
-    private val REPORT_END: LocalDate = LocalDate.of(2026, 5, 1)
+    private val REPORT_END: LocalDate = LocalDate.of(2026, 5, 7)
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
       TypeRegistry.newBuilder().add(Common.getDescriptor()).build()

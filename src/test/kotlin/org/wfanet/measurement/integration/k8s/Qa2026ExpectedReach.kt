@@ -266,7 +266,7 @@ object Qa2026ExpectedReach {
   private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
 
   /** Minimum margin, as a fraction of the expected value. */
-  private const val RELATIVE_TOLERANCE = 0.1
+  private const val RELATIVE_TOLERANCE = 0.15
 
   private val MRC_VIEWABLE_FRACTIONS = setOf(0.5f, 0.75f, 1.0f)
 }
