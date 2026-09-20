@@ -53,6 +53,7 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
@@ -65,6 +66,8 @@ import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
+import org.wfanet.measurement.reporting.v2alpha.eventFilter
+import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
 import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
@@ -318,7 +321,20 @@ class ReportingUserSimulator(
       impressionQualificationFilters += reportingImpressionQualificationFilter {
         custom =
           ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-            filterSpec += impressionQualificationFilterSpec { mediaType = MediaType.VIDEO }
+            // The media type alone does not select: it compiles to `video != null`, which every
+            // event satisfies because an unset message field reads back as its default instance.
+            // The terms are what restrict this to video.
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.VIDEO
+              filters += eventFilter {
+                for (value in CUSTOM_VIDEO_VIEWABLE_FRACTIONS) {
+                  terms += eventTemplateField {
+                    path = CUSTOM_VIDEO_FILTER_PATH
+                    this.value = EventTemplateFieldKt.fieldValue { floatValue = value }
+                  }
+                }
+              }
+            }
           }
       }
 
@@ -632,6 +648,12 @@ class ReportingUserSimulator(
 
     /** Label for the custom video filter, which has no resource name of its own. */
     const val CUSTOM_VIDEO_FILTER_LABEL = "custom-video"
+
+    /** Event template field the custom video filter restricts on. */
+    const val CUSTOM_VIDEO_FILTER_PATH = "video.viewable_fraction"
+
+    /** Values of [CUSTOM_VIDEO_FILTER_PATH] the custom video filter admits. */
+    val CUSTOM_VIDEO_VIEWABLE_FRACTIONS = listOf(0.5f, 1.0f)
 
     private const val CAMPAIGN_GROUP_DISPLAY_NAME = "Media type and IQF campaign group"
     private const val REPORT_TIME_ZONE = "UTC"

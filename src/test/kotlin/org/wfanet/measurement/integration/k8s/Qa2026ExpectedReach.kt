@@ -251,7 +251,11 @@ object Qa2026ExpectedReach {
         { event: TestEvent ->
           event.hasDisplay() && event.display.viewableFraction in MRC_VIEWABLE_FRACTIONS
         },
-      ReportingUserSimulator.CUSTOM_VIDEO_FILTER_LABEL to { event: TestEvent -> event.hasVideo() },
+      ReportingUserSimulator.CUSTOM_VIDEO_FILTER_LABEL to
+        { event: TestEvent ->
+          event.hasVideo() &&
+            event.video.viewableFraction in ReportingUserSimulator.CUSTOM_VIDEO_VIEWABLE_FRACTIONS
+        },
     )
 
   // For a 99.9999% confidence interval, matching MeasurementConsumerSimulator.
