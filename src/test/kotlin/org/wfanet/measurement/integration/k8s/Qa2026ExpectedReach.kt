@@ -156,8 +156,12 @@ object Qa2026ExpectedReach {
       subpopulation.vidRangesList.sumOf { it.endVidInclusive - it.startVid + 1 }
     }
 
-  private fun rangeAround(expected: Double, tolerance: Double): ClosedFloatingPointRange<Double> =
-    (expected - tolerance)..(expected + tolerance)
+  private fun rangeAround(expected: Double, tolerance: Double): ClosedFloatingPointRange<Double> {
+    // The post-processor shifts values by an amount that scales with the report's magnitudes, which
+    // the additive measurement noise does not cover.
+    val margin = maxOf(tolerance, RELATIVE_TOLERANCE * expected)
+    return (expected - margin)..(expected + margin)
+  }
 
   /**
    * Returns the impression count per VID matching each impression qualification filter, by EDP.
@@ -260,6 +264,9 @@ object Qa2026ExpectedReach {
 
   // For a 99.9999% confidence interval, matching MeasurementConsumerSimulator.
   private const val CONFIDENCE_INTERVAL_MULTIPLIER = 5.0
+
+  /** Minimum margin, as a fraction of the expected value. */
+  private const val RELATIVE_TOLERANCE = 0.1
 
   private val MRC_VIEWABLE_FRACTIONS = setOf(0.5f, 0.75f, 1.0f)
 }
