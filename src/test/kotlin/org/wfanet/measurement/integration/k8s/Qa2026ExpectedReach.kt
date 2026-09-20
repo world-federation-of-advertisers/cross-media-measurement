@@ -258,7 +258,7 @@ object Qa2026ExpectedReach {
       ReportingUserSimulator.CUSTOM_VIDEO_FILTER_LABEL to
         { event: TestEvent ->
           event.hasVideo() &&
-            event.video.viewableFraction in ReportingUserSimulator.CUSTOM_VIDEO_VIEWABLE_FRACTIONS
+            event.video.completedFraction in ReportingUserSimulator.CUSTOM_VIDEO_COMPLETED_FRACTIONS
         },
     )
 

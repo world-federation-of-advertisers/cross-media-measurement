@@ -327,7 +327,7 @@ class ReportingUserSimulator(
             filterSpec += impressionQualificationFilterSpec {
               mediaType = MediaType.VIDEO
               filters += eventFilter {
-                for (value in CUSTOM_VIDEO_VIEWABLE_FRACTIONS) {
+                for (value in CUSTOM_VIDEO_COMPLETED_FRACTIONS) {
                   terms += eventTemplateField {
                     path = CUSTOM_VIDEO_FILTER_PATH
                     this.value = EventTemplateFieldKt.fieldValue { floatValue = value }
@@ -650,10 +650,15 @@ class ReportingUserSimulator(
     const val CUSTOM_VIDEO_FILTER_LABEL = "custom-video"
 
     /** Event template field the custom video filter restricts on. */
-    const val CUSTOM_VIDEO_FILTER_PATH = "video.viewable_fraction"
+    const val CUSTOM_VIDEO_FILTER_PATH = "video.completed_fraction"
 
-    /** Values of [CUSTOM_VIDEO_FILTER_PATH] the custom video filter admits. */
-    val CUSTOM_VIDEO_VIEWABLE_FRACTIONS = listOf(0.5f, 1.0f)
+    /**
+     * Values of [CUSTOM_VIDEO_FILTER_PATH] the custom video filter admits.
+     *
+     * Zero is excluded so the filter also excludes display events, whose unset video field reads
+     * back as zero.
+     */
+    val CUSTOM_VIDEO_COMPLETED_FRACTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f)
 
     private const val CAMPAIGN_GROUP_DISPLAY_NAME = "Media type and IQF campaign group"
     private const val REPORT_TIME_ZONE = "UTC"
