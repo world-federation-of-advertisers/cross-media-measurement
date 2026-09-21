@@ -334,15 +334,22 @@ The split exists because the two datasets have no reason to share a test run:
 line, not its VID-labeling configuration, and not its config file. It carries its
 own `edpa_reporting_integration_test_config.textproto`.
 
-It runs from `.github/workflows/edpa-reporting-integration-test.yml`, dispatched as a parallel
-job in `update-cmms`. The job is gated so it always runs for `qa` and `head`, and
-for `dev` only when explicitly requested via the `run-edpa-reporting-integration-test` input.
+It runs from `.github/workflows/edpa-reporting-integration-test.yml` as a job in
+`update-cmms`. `run-edpa-cloud-test` lists it in `needs`, so the two run serially:
+both seed EventGroups for the same EDPs, and concurrent `EventGroupSync` runs for
+one EDP race. The job is gated so it always runs for `qa` and `head`, and for
+`dev` only when explicitly requested via the `run-edpa-reporting-integration-test`
+input.
 
 Opting an environment in is a second, independent switch: the `QA2026_MODEL_LINE`
-variable. Every setup rule no-ops while it is unset, so an environment is
-unaffected until its ModelLine has been provisioned. The test method itself does
-not no-op — it fails fast if the variable is missing, so a misconfigured
-environment reports an error rather than a silent pass.
+GitHub variable, which the workflow passes as the `qa2026_model_line` Bazel Make
+var. That lands in the generated `edpa_reporting_integration_test_config.textproto`
+as `model_line`, so Bazel sees it as a build input and a changed ModelLine
+re-runs the test rather than reusing a cached result. Every setup rule no-ops
+while it is empty, so an environment is unaffected until its ModelLine has been
+provisioned. The test method itself does not no-op — it fails fast if the field
+is empty, so a misconfigured environment reports an error rather than a silent
+pass.
 
 ## Model Line
 

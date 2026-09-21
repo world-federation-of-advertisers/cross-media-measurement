@@ -789,6 +789,11 @@ class EdpAggregatorReportingIntegrationTest {
       datesByPath
     }
 
+    /** First date the dataset has events for. Empty unless the dataset is configured. */
+    private val qa2026EarliestEventDate: LocalDate by lazy {
+      qa2026DatesByImpressionPath.values.flatten().min()
+    }
+
     /** Entity types of the reported EventGroups; CMMS defaults `entity_type_in` to `campaign`. */
     private val reportEventGroupEntityTypes: Set<String> by lazy {
       PROVISIONED_CONFIG.eventGroupsList
@@ -830,6 +835,7 @@ class EdpAggregatorReportingIntegrationTest {
         populationSpecProvider = { POPULATION_SPEC },
         populationDataProvider = TEST_CONFIG.populationDataProvider,
         modelLineName = MODEL_LINE,
+        earliestEventDateProvider = { qa2026EarliestEventDate },
         kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
         kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
       )

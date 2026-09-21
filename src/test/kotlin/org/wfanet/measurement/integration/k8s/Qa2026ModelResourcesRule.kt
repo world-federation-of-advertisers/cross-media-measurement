@@ -19,6 +19,7 @@ import io.grpc.ManagedChannel
 import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
 import org.jetbrains.annotations.Blocking
@@ -74,6 +75,8 @@ import org.wfanet.measurement.common.toProtoDate
  * @property populationSpecProvider yields the QA 2026 synthetic population spec
  * @property populationDataProvider resource name of the PDP that owns the Population
  * @property modelLineName resource name of the QA 2026 ModelLine, or empty to disable
+ * @property earliestEventDateProvider yields the first date the dataset has events for, which the
+ *   ModelLine must already be active on
  * @property kingdomPublicApiTarget Kingdom public API target
  * @property kingdomPublicApiCertHost expected DNS-ID in the Kingdom's TLS certificate
  */
@@ -81,6 +84,7 @@ class Qa2026ModelResourcesRule(
   private val populationSpecProvider: () -> PopulationSpec,
   private val populationDataProvider: String,
   private val modelLineName: String,
+  private val earliestEventDateProvider: () -> LocalDate,
   private val kingdomPublicApiTarget: String,
   private val kingdomPublicApiCertHost: String?,
 ) : TestRule {
@@ -121,6 +125,17 @@ class Qa2026ModelResourcesRule(
             e,
           )
         }
+      // A line active after the first event date silently drops the events before it, so fail
+      // rather than report on a subset.
+      val earliestEventDate = earliestEventDateProvider()
+      check(
+        modelLine.activeStartTime.toInstant() <=
+          earliestEventDate.atStartOfDay(ZoneOffset.UTC).toInstant()
+      ) {
+        "ModelLine $modelLineName is active from ${modelLine.activeStartTime.toInstant()}, after " +
+          "the earliest QA 2026 event date $earliestEventDate"
+      }
+
       ensureModelRelease(mpChannel, qa2026Population, modelLine)
     } finally {
       pdpChannel.shutdown()
