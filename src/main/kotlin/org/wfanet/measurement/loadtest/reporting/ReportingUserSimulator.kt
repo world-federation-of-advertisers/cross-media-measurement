@@ -147,64 +147,11 @@ class ReportingUserSimulator(
       }
     }
 
-    val createBasicReportUrl =
-      HttpUrl.Builder()
-        .scheme(reportingGatewayScheme)
-        .host(reportingGatewayHost)
-        .port(reportingGatewayPort)
-        .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
-        .addQueryParameter("basic_report_id", basicReportKey.basicReportId)
-        .build()
-
-    val accessToken = getReportingAccessToken()
-
-    val createBasicReportRequest =
-      Request.Builder()
-        .url(createBasicReportUrl)
-        .post(JsonFormat.printer().print(basicReport).toRequestBody())
-        .header("Content-Type", "application/json; charset=utf-8")
-        .header("Authorization", "Bearer $accessToken")
-        .build()
-
-    val createdBasicReportJson: String =
-      try {
-        val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
-
-        val responseBody = response.body!!.string()
-        if (!response.isSuccessful) {
-          throw Exception(
-            "Error creating Basic Report: ${response.code} ${response.message} $responseBody"
-          )
-        }
-
-        responseBody
-      } catch (e: StatusException) {
-        throw Exception("Error creating Basic Report", e)
-      }
-
+    val createdBasicReport = createBasicReport(basicReportKey, basicReport)
     logger.info("Basic Report created")
 
-    val createdBasicReport =
-      BasicReport.newBuilder()
-        .also { JsonFormat.parser().ignoringUnknownFields().merge(createdBasicReportJson, it) }
-        .build()
-
-    val getBasicReportUrl =
-      HttpUrl.Builder()
-        .scheme("https")
-        .host(reportingGatewayHost)
-        .port(reportingGatewayPort)
-        .addPathSegments("v2alpha/${basicReportKey.toName()}")
-        .build()
-
-    val getBasicReportRequest =
-      Request.Builder()
-        .url(getBasicReportUrl)
-        .get()
-        .header("Authorization", "Bearer $accessToken")
-        .build()
-
-    val retrievedCompletedBasicReport = pollForCompletedBasicReport(getBasicReportRequest)
+    val retrievedCompletedBasicReport =
+      pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
 
     assertThat(retrievedCompletedBasicReport)
       .ignoringFields(
@@ -378,28 +325,17 @@ class ReportingUserSimulator(
       }
     }
 
-    postBasicReport(basicReportKey, basicReport)
+    createBasicReport(basicReportKey, basicReport)
     logger.info { "Created BasicReport ${basicReportKey.toName()}. Polling for completion." }
 
-    val getBasicReportRequest =
-      Request.Builder()
-        .url(
-          HttpUrl.Builder()
-            .scheme(reportingGatewayScheme)
-            .host(reportingGatewayHost)
-            .port(reportingGatewayPort)
-            .addPathSegments("v2alpha/${basicReportKey.toName()}")
-            .build()
-        )
-        .get()
-        .header("Authorization", "Bearer ${getReportingAccessToken()}")
-        .build()
-
-    return pollForCompletedBasicReport(getBasicReportRequest)
+    return pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
   }
 
-  /** POSTs [basicReport] to the reporting gateway. */
-  private fun postBasicReport(basicReportKey: BasicReportKey, basicReport: BasicReport) {
+  /** Creates a [BasicReport] resource via the HTTP gateway. */
+  private fun createBasicReport(
+    basicReportKey: BasicReportKey,
+    requestMessage: BasicReport,
+  ): BasicReport {
     val url =
       HttpUrl.Builder()
         .scheme(reportingGatewayScheme)
@@ -411,7 +347,7 @@ class ReportingUserSimulator(
     val request =
       Request.Builder()
         .url(url)
-        .post(JsonFormat.printer().print(basicReport).toRequestBody())
+        .post(JsonFormat.printer().print(requestMessage).toRequestBody())
         .header("Content-Type", "application/json; charset=utf-8")
         .header("Authorization", "Bearer ${getReportingAccessToken()}")
         .build()
@@ -423,7 +359,25 @@ class ReportingUserSimulator(
         "Error creating Basic Report: ${response.code} ${response.message} $responseBody"
       )
     }
+    return BasicReport.newBuilder()
+      .also { JsonFormat.parser().ignoringUnknownFields().merge(responseBody, it) }
+      .build()
   }
+
+  /** Builds a request reading the [BasicReport] named by [basicReportKey]. */
+  private fun buildGetBasicReportRequest(basicReportKey: BasicReportKey): Request =
+    Request.Builder()
+      .url(
+        HttpUrl.Builder()
+          .scheme(reportingGatewayScheme)
+          .host(reportingGatewayHost)
+          .port(reportingGatewayPort)
+          .addPathSegments("v2alpha/${basicReportKey.toName()}")
+          .build()
+      )
+      .get()
+      .header("Authorization", "Bearer ${getReportingAccessToken()}")
+      .build()
 
   /**
    * Returns the EventGroups for [eventGroupReferenceIds], sorted by resource name.
