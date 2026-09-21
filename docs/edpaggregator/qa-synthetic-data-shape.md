@@ -337,9 +337,9 @@ own `edpa_reporting_integration_test_config.textproto`.
 It runs from `.github/workflows/edpa-reporting-integration-test.yml` as a job in
 `update-cmms`. `run-edpa-cloud-test` lists it in `needs`, so the two run serially:
 both seed EventGroups for the same EDPs, and concurrent `EventGroupSync` runs for
-one EDP race. The job is gated so it always runs for `qa` and `head`, and for
-`dev` only when explicitly requested via the `run-edpa-reporting-integration-test`
-input.
+one EDP race. The job is gated on `run-tests`, like every other test in
+`update-cmms`. To update an environment without running it, dispatch `update-cmms`
+with `run-tests: false` and then launch whichever test workflow you want directly.
 
 Opting an environment in is a second, independent switch: the `QA2026_MODEL_LINE`
 GitHub variable, which the workflow passes as the `qa2026_model_line` Bazel Make

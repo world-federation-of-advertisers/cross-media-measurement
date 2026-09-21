@@ -34,10 +34,6 @@ on:
         description: "Run tests"
         type: boolean
         default: true
-      run-edpa-reporting-integration-test:
-        description: "Run the EDPA reporting integration test (always runs for qa and head)"
-        type: boolean
-        default: false
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -56,10 +52,6 @@ on:
         description: "Run tests"
         type: boolean
         default: true
-      run-edpa-reporting-integration-test:
-        description: "Run the EDPA reporting integration test (always runs for qa and head)"
-        type: boolean
-        default: false
       apply:
         description: "Apply the new configuration"
         type: boolean
@@ -409,10 +401,9 @@ jobs:
       id-token: write
     with:
       environment: ${{ inputs.environment }}
-  # Provisions the QA 2026 dataset and reports over it. Runs for qa and head; for dev only when
-  # explicitly requested, since dev is the fast-iteration environment.
+  # Provisions the QA 2026 dataset and reports over it.
   run-edpa-reporting-integration-test:
-    if: inputs.run-tests && (inputs.environment != 'dev' || inputs.run-edpa-reporting-integration-test)
+    if: inputs.run-tests
     needs: [
       update-kingdom,
       update-population-fulfiller,
