@@ -20,6 +20,8 @@ import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
 import "wfa/measurement/system/v1alpha/differential_privacy.proto";
+import "wfa/measurement/system/v1alpha/population_spec.proto";
+import "wfa/measurement/system/v1alpha/query.proto";
 import "wfa/measurement/system/v1alpha/requisition.proto";
 
 option java_package = "org.wfanet.measurement.system.v1alpha";
@@ -207,6 +209,10 @@ message Computation {
       ResultMinimumThresholds result_minimum_thresholds = 2;
     }
 
+    // Configuration for the TrusTEE multimeasurement protocol. The attested
+    // image fixes the noise mechanism and the result minimum thresholds.
+    message TrusTeeV2 {}
+
     // Configuration for the specific protocol. Required.
     oneof protocol {
       // Liquid Legions v2 config.
@@ -228,6 +234,11 @@ message Computation {
       //
       // Set for both REACH_AND_FREQUENCY and REACH.
       TrusTee trus_tee = 4;
+
+      // TrusTEE multimeasurement config.
+      //
+      // Set when `measurement_spec` carries a `MultiMeasurementSpec`.
+      TrusTeeV2 trus_tee_v2 = 5;
     }
   }
   // MPC protocol configuration that need to be known by Duchies.
@@ -242,4 +253,21 @@ message Computation {
     (google.api.resource_reference).type = "halo.wfanet.org/Measurement",
     (google.api.field_behavior) = OUTPUT_ONLY
   ];
+
+  // What a TrusTEE v2 Duchy computes.
+  message Multimeasurement {
+    // What the Duchy evaluates over the base vectors, yielding one result
+    // per query per grouping combination. Forwarded by the Kingdom as the
+    // `Measurement` carried it.
+    repeated Query queries = 1;
+
+    // Resolved by the Kingdom from the `Measurement`'s model line.
+    // [VidFilter.attributes][] and [Query.grouping_paths][] resolve against
+    // it.
+    PopulationSpec population_spec = 2;
+  }
+  // What a TrusTEE v2 Duchy computes. Set if and only if `measurement_spec`
+  // carries a `MultiMeasurementSpec`.
+  Multimeasurement multimeasurement = 13
+      [(google.api.field_behavior) = IMMUTABLE];
 }

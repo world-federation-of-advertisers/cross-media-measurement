@@ -1,0 +1,114 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.system.v1alpha;
+
+option java_package = "org.wfanet.measurement.system.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "QueryProto";
+
+// The System API copy of [wfa.measurement.api.v2alpha.EventTemplateField][].
+message EventTemplateField {
+  // Field path with respect to the local market Event message, with `.` as the
+  // traversal operator, e.g. "person.age_group".
+  string path = 1;
+
+  // Value of an event template field.
+  message FieldValue {
+    // Value type selector.
+    oneof selector {
+      // Value as a string.
+      string string_value = 1;
+      // Value as the symbol of an enum value, e.g. "VIDEO" rather than "1".
+      string enum_value = 2;
+      // Value as a Boolean.
+      bool bool_value = 3;
+      // Value as a float.
+      float float_value = 4;
+    }
+  }
+  // Value of the field.
+  FieldValue value = 2;
+}
+
+// The System API copy of [wfa.measurement.api.v2alpha.VectorSet][].
+message VectorSet {
+  // Values of [Requisition.vector_index][], distinct. Assigned by the Kingdom.
+  repeated int32 base_vectors = 1;
+}
+
+// The System API copy of [wfa.measurement.api.v2alpha.VidFilter][].
+message VidFilter {
+  // A Venn region, as who reached the VID and who did not.
+  message ReachClause {
+    // The VID's count is greater than zero in each of these sets.
+    repeated VectorSet reached_sets = 1;
+    // The VID's count is zero in this set.
+    VectorSet unreached_set = 2;
+  }
+  // A VID passes when it satisfies any clause.
+  repeated ReachClause reach_clauses = 1;
+
+  // The VID falls in a subpopulation matching every entry, keyed by
+  // [EventTemplateField.path][]. Each path names a population attribute
+  // field, one whose [EventFieldDescriptor.population_attribute][] is
+  // true.
+  map<string, EventTemplateField.FieldValue> attributes = 2;
+}
+
+// The System API copy of [wfa.measurement.api.v2alpha.MetricSpec][].
+message MetricSpec {
+  // A metric over the selected VIDs and their counts in [Query.summands][].
+  enum Metric {
+    // Default value. Never set intentionally.
+    METRIC_UNSPECIFIED = 0;
+    // Number of selected VIDs with a non-zero count.
+    REACH = 1;
+    // Histogram of the counts of the selected VIDs, folded at
+    // [maximum_frequency][].
+    FREQUENCY = 2;
+    // Sum of the counts of the selected VIDs.
+    IMPRESSIONS = 3;
+  }
+  // The metric.
+  Metric metric = 1;
+
+  // Counts above this fold into the top bin. Set for
+  // [FREQUENCY][Metric.FREQUENCY].
+  int32 maximum_frequency = 2;
+}
+
+// The System API copy of [wfa.measurement.api.v2alpha.Query][], forwarded by
+// the Kingdom as the `Measurement` carried it.
+message Query {
+  // Identifier echoed on every result of this query.
+  string id = 1;
+
+  // FROM. Whose counts to add for a VID that passes [vid_filter][].
+  VectorSet summands = 2;
+
+  // WHERE. Covers the whole population when unset.
+  VidFilter vid_filter = 3;
+
+  // GROUP BY. One result per combination of the values these fields take
+  // across [PopulationSpec.subpopulations][], resolved per VID from the
+  // subpopulation it falls in. Each entry is an [EventTemplateField.path][]
+  // naming a population attribute field.
+  repeated string grouping_paths = 4;
+
+  // SELECT.
+  repeated MetricSpec metrics = 5;
+}

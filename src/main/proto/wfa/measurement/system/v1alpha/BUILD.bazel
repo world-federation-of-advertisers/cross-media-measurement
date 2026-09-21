@@ -10,12 +10,39 @@ IMPORT_PREFIX = "/src/main/proto"
 # Resources and shared message types.
 
 proto_library(
+    name = "query_proto",
+    srcs = ["query.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "query_kt_jvm_proto",
+    visibility = ["//visibility:public"],
+    deps = [":query_proto"],
+)
+
+proto_library(
+    name = "population_spec_proto",
+    srcs = ["population_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@com_google_protobuf//:any_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "population_spec_kt_jvm_proto",
+    visibility = ["//visibility:public"],
+    deps = [":population_spec_proto"],
+)
+
+proto_library(
     name = "computation_proto",
     srcs = ["computation.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":computation_participant_proto",
         ":differential_privacy_proto",
+        ":population_spec_proto",
+        ":query_proto",
         ":requisition_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:resource_proto",

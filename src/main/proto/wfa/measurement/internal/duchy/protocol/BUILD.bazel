@@ -184,6 +184,22 @@ proto_library(
     ],
 )
 
+proto_library(
+    name = "trus_tee_v2_proto",
+    srcs = ["trus_tee_v2.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "//src/main/proto/wfa/measurement/internal/duchy:population_spec_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy:query_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "trus_tee_v2_kt_jvm_proto",
+    deps = [":trus_tee_v2_proto"],
+)
+
 kt_jvm_proto_library(
     name = "trus_tee_kt_jvm_proto",
     deps = [":trus_tee_proto"],
