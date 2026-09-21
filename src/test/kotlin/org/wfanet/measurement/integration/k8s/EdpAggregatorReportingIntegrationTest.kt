@@ -199,10 +199,7 @@ class EdpAggregatorReportingIntegrationTest {
                   .toInstant()
               // Both bounds are exclusive: the date spec's and the interval's.
               val endTime =
-                dateRanges
-                  .maxOf { it.endExclusive.toLocalDate() }
-                  .atStartOfDay(ZONE_ID)
-                  .toInstant()
+                dateRanges.maxOf { it.endExclusive.toLocalDate() }.atStartOfDay(ZONE_ID).toInstant()
               eventGroup {
                 eventGroupReferenceId =
                   "${entityKeySpec.entityKey.entityType}-${entityKeySpec.entityKey.entityId}"
