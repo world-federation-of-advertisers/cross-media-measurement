@@ -88,12 +88,14 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 
 /**
- * Provisions the QA 2026 synthetic dataset against a deployed environment and reports over it.
+ * Tests media type and impression qualification filter reporting over the EDP Aggregator, against a
+ * deployed environment.
  *
- * The dataset is pre-labeled and carries its own Population, ModelLine and EventGroups, so none of
- * the VID labeling pipeline or 2021 fixture that `EdpAggregatorCorrectnessTest` sets up is needed
- * here. Every rule is a no-op unless `QA2026_MODEL_LINE` is set, so an environment opts in only
- * once its ModelLine has been provisioned.
+ * The rules below provision the QA 2026 synthetic dataset the report is computed over. It is
+ * pre-labeled and carries its own Population, ModelLine and EventGroups, so none of the VID
+ * labeling pipeline or 2021 fixture that `EdpAggregatorCorrectnessTest` sets up is needed here.
+ * Every rule is a no-op unless `QA2026_MODEL_LINE` is set, so an environment opts in only once its
+ * ModelLine has been provisioned.
  */
 class EdpAggregatorReportingIntegrationTest {
 
@@ -195,12 +197,11 @@ class EdpAggregatorReportingIntegrationTest {
                   .minOf { LocalDate.of(it.start.year, it.start.month, it.start.day) }
                   .atStartOfDay(ZONE_ID)
                   .toInstant()
+              // Both bounds are exclusive: the date spec's and the interval's.
               val endTime =
                 dateRanges
                   .maxOf { it.endExclusive.toLocalDate() }
-                  .minusDays(1)
-                  .atTime(23, 59, 59)
-                  .atZone(ZONE_ID)
+                  .atStartOfDay(ZONE_ID)
                   .toInstant()
               eventGroup {
                 eventGroupReferenceId =

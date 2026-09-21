@@ -249,8 +249,7 @@ class ReportingUserSimulator(
    * neither groupable nor filterable, and at most one custom filter is permitted per report, so
    * this is the only split available.
    *
-   * The caller asserts on the returned report; the expected values depend on the synthetic specs
-   * behind [eventGroupReferenceIds], which this class has no knowledge of.
+   * This method does not perform test assertions.
    *
    * @param eventGroupReferenceIds EventGroups to report on, spanning at least two DataProviders
    */
@@ -427,7 +426,10 @@ class ReportingUserSimulator(
   }
 
   /**
-   * Returns the EventGroups for [eventGroupReferenceIds].
+   * Returns the EventGroups for [eventGroupReferenceIds], sorted by resource name.
+   *
+   * The order is what the CampaignGroup records its EventGroups in, so it is kept stable across
+   * runs.
    *
    * @throws IllegalStateException if any reference ID has no EventGroup
    */

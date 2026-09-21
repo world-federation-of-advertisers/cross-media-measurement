@@ -215,7 +215,6 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
           LocalDate.of(dateRange.start.year, dateRange.start.month, dateRange.start.day)
             .atStartOfDay(ZONE_ID)
             .toInstant()
-        // Last instant of the inclusive end date.
         val endTime =
           dateRange.endExclusive
             .toLocalDate()

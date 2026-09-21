@@ -16,12 +16,12 @@ package org.wfanet.measurement.integration.k8s
 
 import com.google.common.hash.Hashing
 import io.grpc.ManagedChannel
-import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.time.ZoneOffset
 import java.util.logging.Logger
-import kotlinx.coroutines.runBlocking
+import org.jetbrains.annotations.Blocking
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -29,13 +29,13 @@ import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
-import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpc
 import org.wfanet.measurement.api.v2alpha.ModelRelease
-import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpcKt.ModelReleasesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelReleasesGrpc
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpc
 import org.wfanet.measurement.api.v2alpha.Population
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
-import org.wfanet.measurement.api.v2alpha.PopulationsGrpcKt.PopulationsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.PopulationsGrpc
 import org.wfanet.measurement.api.v2alpha.createModelReleaseRequest
 import org.wfanet.measurement.api.v2alpha.createModelRolloutRequest
 import org.wfanet.measurement.api.v2alpha.createPopulationRequest
@@ -93,14 +93,15 @@ class Qa2026ModelResourcesRule(
         } else if (populationDataProvider.isEmpty()) {
           logger.warning("PDP_NAME unresolved; skipping QA 2026 model resources.")
         } else {
-          runBlocking { provision() }
+          provision()
         }
         base.evaluate()
       }
     }
   }
 
-  private suspend fun provision() {
+  @Blocking
+  private fun provision() {
     val pdpChannel: ManagedChannel = buildChannel(PDP_CERT_FILE, PDP_KEY_FILE)
     val mpChannel: ManagedChannel = buildChannel(MP_CERT_FILE, MP_KEY_FILE)
     try {
@@ -109,9 +110,9 @@ class Qa2026ModelResourcesRule(
 
       val modelLine =
         try {
-          ModelLinesCoroutineStub(mpChannel)
+          ModelLinesGrpc.newBlockingStub(mpChannel)
             .getModelLine(getModelLineRequest { name = modelLineName })
-        } catch (e: StatusException) {
+        } catch (e: StatusRuntimeException) {
           throw Exception(
             "QA2026_MODEL_LINE '$modelLineName' not found. Provision it with the ModelRepository " +
               "tool before enabling the QA 2026 dataset in this environment.",
@@ -133,12 +134,13 @@ class Qa2026ModelResourcesRule(
    * builds, which is sufficient here: a spurious duplicate is harmless, since the newest rollout
    * wins regardless.
    */
-  private suspend fun ensurePopulation(pdpChannel: ManagedChannel): Population {
+  @Blocking
+  private fun ensurePopulation(pdpChannel: ManagedChannel): Population {
     val spec = populationSpecProvider()
     @OptIn(ExperimentalStdlibApi::class) // For `HexFormat`.
     val requestId =
       Hashing.murmur3_128().hashBytes(spec.toByteArray()).asBytes().toHexString(HexFormat.Default)
-    return PopulationsCoroutineStub(pdpChannel)
+    return PopulationsGrpc.newBlockingStub(pdpChannel)
       .createPopulation(
         createPopulationRequest {
           parent = populationDataProvider
@@ -158,7 +160,8 @@ class Qa2026ModelResourcesRule(
    * line's active start date, so the PDP breaks the tie on create time and this rollout supersedes
    * the line's bootstrap.
    */
-  private suspend fun ensureModelRelease(
+  @Blocking
+  private fun ensureModelRelease(
     mpChannel: ManagedChannel,
     population: Population,
     modelLine: ModelLine,
@@ -166,7 +169,7 @@ class Qa2026ModelResourcesRule(
     val modelSuiteKey = checkNotNull(ModelLineKey.fromName(modelLine.name)).parentKey
     val modelSuiteName = modelSuiteKey.toName()
     val modelProviderName = "modelProviders/${modelSuiteKey.modelProviderId}"
-    val modelReleasesStub = ModelReleasesCoroutineStub(mpChannel)
+    val modelReleasesStub = ModelReleasesGrpc.newBlockingStub(mpChannel)
 
     val existing: List<ModelRelease> =
       modelReleasesStub
@@ -182,7 +185,7 @@ class Qa2026ModelResourcesRule(
       // silently leave the line resolving to whatever Population it was bootstrapped against.
       val release = existing.first()
       val rollouts =
-        ModelRolloutsCoroutineStub(mpChannel)
+        ModelRolloutsGrpc.newBlockingStub(mpChannel)
           .listModelRollouts(
             listModelRolloutsRequest {
               parent = modelLine.name
@@ -216,12 +219,13 @@ class Qa2026ModelResourcesRule(
    * Rollouts on a line therefore share a date, and the PDP breaks the tie on create time — so the
    * most recently created rollout is the live one.
    */
-  private suspend fun createRollout(
+  @Blocking
+  private fun createRollout(
     mpChannel: ManagedChannel,
     modelLine: ModelLine,
     modelReleaseName: String,
   ) {
-    ModelRolloutsCoroutineStub(mpChannel)
+    ModelRolloutsGrpc.newBlockingStub(mpChannel)
       .createModelRollout(
         createModelRolloutRequest {
           parent = modelLine.name
