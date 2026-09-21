@@ -593,6 +593,11 @@ class EdpAggregatorReportingIntegrationTest {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val ZONE_ID = ZoneId.of("UTC")
 
+    // Declared before TEST_CONFIG: reading it resolves a runtime path, so these must already be
+    // initialized by the time any eager property forces it.
+    private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
+    private val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
+
     private val CONFIG_PATH: Path =
       Paths.get("src", "test", "kotlin", "org", "wfanet", "measurement", "integration", "k8s")
     private const val TEST_CONFIG_NAME = "edpa_reporting_integration_test_config.textproto"
@@ -604,9 +609,6 @@ class EdpAggregatorReportingIntegrationTest {
 
     /** Resource name of the QA 2026 ModelLine, or empty where the dataset is not provisioned. */
     val MODEL_LINE: String = TEST_CONFIG.modelLine
-
-    private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
-    private val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
 
     /** Resolves a workspace-relative path in the test's runfiles. */
     private fun runtimePath(workspaceRelativePath: Path): Path =
