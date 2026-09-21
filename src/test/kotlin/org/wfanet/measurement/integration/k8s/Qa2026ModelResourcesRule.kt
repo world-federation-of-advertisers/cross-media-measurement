@@ -125,15 +125,22 @@ class Qa2026ModelResourcesRule(
             e,
           )
         }
+      val activeStart = modelLine.activeStartTime.toInstant()
+
       // A line active after the first event date silently drops the events before it, so fail
       // rather than report on a subset.
       val earliestEventDate = earliestEventDateProvider()
-      check(
-        modelLine.activeStartTime.toInstant() <=
-          earliestEventDate.atStartOfDay(ZoneOffset.UTC).toInstant()
-      ) {
-        "ModelLine $modelLineName is active from ${modelLine.activeStartTime.toInstant()}, after " +
-          "the earliest QA 2026 event date $earliestEventDate"
+      check(activeStart <= earliestEventDate.atStartOfDay(ZoneOffset.UTC).toInstant()) {
+        "ModelLine $modelLineName is active from $activeStart, after the earliest QA 2026 event " +
+          "date $earliestEventDate"
+      }
+
+      // The VID labeling dispatcher selects lines purely by active window, so one reaching back to
+      // the 2021 fixture would also be dispatched for its upload and never finish.
+      val minActiveStart = FIXTURE_2021_LAST_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC)
+      check(activeStart >= minActiveStart.toInstant()) {
+        "ModelLine $modelLineName is active from $activeStart, which overlaps the 2021 fixture " +
+          "ending $FIXTURE_2021_LAST_DATE. It must start at or after $minActiveStart."
       }
 
       ensureModelRelease(mpChannel, qa2026Population, modelLine)
@@ -285,5 +292,8 @@ class Qa2026ModelResourcesRule(
     private const val MP_KEY_FILE = "mp1_tls.key"
 
     private const val POPULATION_DESCRIPTION = "QA 2026 synthetic population"
+
+    /** Last date of the 2021 fixture, which the QA 2026 line must stay clear of. */
+    private val FIXTURE_2021_LAST_DATE: LocalDate = LocalDate.of(2021, 3, 21)
   }
 }
