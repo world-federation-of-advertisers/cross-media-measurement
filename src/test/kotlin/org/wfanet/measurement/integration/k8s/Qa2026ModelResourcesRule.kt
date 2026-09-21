@@ -91,7 +91,9 @@ class Qa2026ModelResourcesRule(
         if (modelLineName.isEmpty()) {
           logger.info("No QA 2026 model line configured; skipping QA 2026 model resources.")
         } else if (populationDataProvider.isEmpty()) {
-          logger.warning("PDP_NAME unresolved; skipping QA 2026 model resources.")
+          logger.warning(
+            "No population_data_provider configured; skipping QA 2026 model resources."
+          )
         } else {
           provision()
         }

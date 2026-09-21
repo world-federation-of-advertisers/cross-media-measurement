@@ -67,4 +67,34 @@ message EdpaReportingIntegrationTestConfig {
   //
   // If not specified, standard TLS DNS-ID derivation will be used.
   string access_public_api_cert_host = 11;
+
+  // ModelLine the QA 2026 dataset is generated against.
+  //
+  // Empty where the environment has no QA 2026 ModelLine, which disables all
+  // QA 2026 seeding and makes the test a no-op.
+  string model_line = 12
+      [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
+
+  // Comma-separated names of the EDPs this environment has provisioned.
+  //
+  // Empty defaults to the EDPs every environment has.
+  string edp_names = 13;
+
+  // DataProvider that owns the QA 2026 Population.
+  string population_data_provider = 14
+      [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+  // Google Cloud KMS KEK URI for edp7 impressions.
+  //
+  // Empty falls back to the KEK for the project the test runs in.
+  string edp7_kek_uri = 15;
+
+  // AWS KMS KEK URI for edpa_meta impressions.
+  string edpa_meta_kek_uri = 16;
+
+  // AWS role the edpa_meta KMS client assumes via web-identity federation.
+  string edpa_meta_aws_role_arn = 17;
+
+  // AWS region of the edpa_meta KMS key.
+  string edpa_meta_aws_region = 18;
 }

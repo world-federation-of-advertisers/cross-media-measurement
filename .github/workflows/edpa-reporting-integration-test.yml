@@ -74,6 +74,13 @@ jobs:
           REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
           REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
           ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+          QA2026_MODEL_LINE: ${{ vars.QA2026_MODEL_LINE }}
+          QA2026_EDPS: ${{ vars.QA2026_EDPS }}
+          PDP_NAME: ${{ vars.PDP_NAME }}
+          EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
+          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
+          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
+          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
           cat << EOF > ~/.bazelrc
           common --config=ci
@@ -85,6 +92,13 @@ jobs:
           build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
           build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
           build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
+          build --define qa2026_model_line=$QA2026_MODEL_LINE
+          build --define qa2026_edps=$QA2026_EDPS
+          build --define pdp_name=$PDP_NAME
+          build --define edp7_kek_uri=$EDP7_KEK_URI
+          build --define edpa_meta_kek_uri=$EDPA_META_KEK_URI
+          build --define edpa_meta_aws_role_arn=$EDPA_META_AWS_ROLE_ARN
+          build --define edpa_meta_aws_region=$EDPA_META_AWS_REGION
           test --test_output=streamed
           test --test_timeout=5400
           EOF
@@ -121,23 +135,10 @@ jobs:
 
       - name: Run tests
         id: run-tests
-        env:
-          QA2026_MODEL_LINE: ${{ vars.QA2026_MODEL_LINE }}
-          QA2026_EDPS: ${{ vars.QA2026_EDPS }}
-          PDP_NAME: ${{ vars.PDP_NAME }}
-          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
-          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
-          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
           bazel test \
           --test_env=GOOGLE_APPLICATION_CREDENTIALS \
           --test_env=GOOGLE_CLOUD_PROJECT \
-          --test_env=QA2026_MODEL_LINE \
-          --test_env=QA2026_EDPS \
-          --test_env=PDP_NAME \
-          --test_env=EDPA_META_KEK_URI \
-          --test_env=EDPA_META_AWS_ROLE_ARN \
-          --test_env=EDPA_META_AWS_REGION \
           --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
           //src/test/kotlin/org/wfanet/measurement/integration/k8s:EdpAggregatorReportingIntegrationTest
 

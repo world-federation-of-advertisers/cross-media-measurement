@@ -58,21 +58,34 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * markers [CreateDoneBlobs] drops beside labeled impressions drive `DataAvailabilitySync`.
  *
  * The rule is a **no-op** unless a 2026 model line is configured, so dev and head runs are
- * unaffected until their `QA2026_MODEL_LINE` is set. Each EDP's write additionally no-ops when its
- * KMS settings are unresolved, mirroring [WriteReusedLabeledImpressionsRule].
+ * unaffected until their `model_line` is set. Each EDP's write additionally no-ops when its KMS
+ * settings are unresolved, mirroring [WriteReusedLabeledImpressionsRule].
  *
  * @property configProvider yields the QA 2026 [ImpressionTestDataConfig]
  * @property populationSpecProvider yields the QA 2026 synthetic population
  * @property bucket impressions bucket
  * @property modelLineProvider yields the 2026 model line resource name to stamp; null or empty
  *   disables the rule
+ * @param edp7KekUri Google Cloud KMS KEK URI for edp7; empty falls back to the KEK for the project
+ *   the test runs in
+ * @property edpaMetaKekUri AWS KMS KEK URI for edpa_meta
+ * @property edpaMetaAwsRoleArn AWS role assumed via web-identity federation
+ * @property edpaMetaAwsRegion AWS region of the edpa_meta KMS key
  */
 class WriteQa2026ImpressionsRule(
   private val configProvider: () -> ImpressionTestDataConfig,
   private val populationSpecProvider: () -> PopulationSpec,
   private val bucket: String,
   private val modelLineProvider: () -> String?,
+  edp7KekUri: String,
+  private val edpaMetaKekUri: String,
+  private val edpaMetaAwsRoleArn: String,
+  private val edpaMetaAwsRegion: String,
 ) : TestRule {
+
+  /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK, by KEK URI. */
+  private val gcpKmsKekUriByEdp: Map<String, String> =
+    mapOf(EDP7_NAME to edp7KekUri.ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() })
 
   // Resolved only once the rule actually runs, so environments without a QA 2026 model line never
   // parse the 2026 specs and a malformed one cannot break the 2021 fixture's run.
@@ -104,11 +117,11 @@ class WriteQa2026ImpressionsRule(
     val unhandled =
       config.eventGroupsList
         .map { it.edpName }
-        .filterNot { it in GCP_KMS_KEK_URI_BY_EDP || it in AWS_KMS_EDPS }
+        .filterNot { it in gcpKmsKekUriByEdp || it in AWS_KMS_EDPS }
         .toSortedSet()
     check(unhandled.isEmpty()) {
-      "No KMS configuration for QA 2026 EDP(s) $unhandled. Add them to GCP_KMS_KEK_URI_BY_EDP or " +
-        "AWS_KMS_EDPS, or drop them from the QA2026_EDPS env var."
+      "No KMS configuration for QA 2026 EDP(s) $unhandled. Add them to gcpKmsKekUriByEdp or " +
+        "AWS_KMS_EDPS, or drop them from the config's edp_names."
     }
 
     writeGcpKmsEdps(modelLine)
@@ -119,7 +132,7 @@ class WriteQa2026ImpressionsRule(
   private suspend fun writeGcpKmsEdps(modelLine: String) {
     val kmsClient: KmsClient by lazy { GcpKmsClient().withDefaultCredentials() }
     for (eventGroup in config.eventGroupsList) {
-      val kekUri = GCP_KMS_KEK_URI_BY_EDP[eventGroup.edpName] ?: continue
+      val kekUri = gcpKmsKekUriByEdp[eventGroup.edpName] ?: continue
       if (kekUri.isEmpty()) {
         logger.warning(
           "${eventGroup.edpName} storage KEK URI unresolved; skipping its QA 2026 write."
@@ -137,9 +150,9 @@ class WriteQa2026ImpressionsRule(
       return
     }
     if (
-      EDPA_META_KEK_URI.isEmpty() ||
-        EDPA_META_AWS_ROLE_ARN.isEmpty() ||
-        EDPA_META_AWS_REGION.isEmpty() ||
+      edpaMetaKekUri.isEmpty() ||
+        edpaMetaAwsRoleArn.isEmpty() ||
+        edpaMetaAwsRegion.isEmpty() ||
         EDPA_META_AWS_WEB_IDENTITY_TOKEN_FILE.isEmpty()
     ) {
       logger.warning("edpa_meta AWS KMS settings unresolved; skipping its QA 2026 write.")
@@ -149,14 +162,14 @@ class WriteQa2026ImpressionsRule(
       AwsKmsClientFactory()
         .getKmsClient(
           AwsWebIdentityCredentials(
-            roleArn = EDPA_META_AWS_ROLE_ARN,
+            roleArn = edpaMetaAwsRoleArn,
             webIdentityTokenFilePath = EDPA_META_AWS_WEB_IDENTITY_TOKEN_FILE,
             roleSessionName = AWS_ROLE_SESSION_NAME,
-            region = EDPA_META_AWS_REGION,
+            region = edpaMetaAwsRegion,
           )
         )
     for (eventGroup in eventGroups) {
-      writeEventGroup(eventGroup, modelLine, kmsClient, EDPA_META_KEK_URI)
+      writeEventGroup(eventGroup, modelLine, kmsClient, edpaMetaKekUri)
     }
   }
 
@@ -244,24 +257,10 @@ class WriteQa2026ImpressionsRule(
 
     private val PROJECT_ID: String = env("GOOGLE_CLOUD_PROJECT")
 
-    /**
-     * Resource name of the QA 2026 [org.wfanet.measurement.api.v2alpha.ModelLine], or empty when
-     * this environment has not been provisioned with one. Empty disables all QA 2026 seeding.
-     */
-    val MODEL_LINE: String = env("QA2026_MODEL_LINE")
-
-    /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK, by KEK URI. */
-    private val GCP_KMS_KEK_URI_BY_EDP: Map<String, String> =
-      mapOf(
-        EDP7_NAME to env("EDP7_KEK_URI").ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() }
-      )
-
     /** EDPs whose impressions are encrypted with an AWS KMS KEK. */
     private val AWS_KMS_EDPS: Set<String> = setOf(EDPA_META_NAME)
 
-    private val EDPA_META_KEK_URI: String = env("EDPA_META_KEK_URI")
-    private val EDPA_META_AWS_ROLE_ARN: String = env("EDPA_META_AWS_ROLE_ARN")
-    private val EDPA_META_AWS_REGION: String = env("EDPA_META_AWS_REGION")
+    // Minted per run by the workflow's OIDC auth step, so it cannot be a build-time Make var.
     private val EDPA_META_AWS_WEB_IDENTITY_TOKEN_FILE: String = env("AWS_WEB_IDENTITY_TOKEN_FILE")
   }
 }

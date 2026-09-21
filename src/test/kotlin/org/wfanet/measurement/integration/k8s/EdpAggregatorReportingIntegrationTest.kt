@@ -606,7 +606,7 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     /** Resource name of the QA 2026 ModelLine, or empty where the dataset is not provisioned. */
-    val MODEL_LINE: String = WriteQa2026ImpressionsRule.MODEL_LINE
+    val MODEL_LINE: String = TEST_CONFIG.modelLine
 
     private val WORKSPACE_PATH: Path = Paths.get("wfa_measurement_system")
     private val SECRET_FILES_PATH: Path = Paths.get("src", "main", "k8s", "testing", "secretfiles")
@@ -729,10 +729,9 @@ class EdpAggregatorReportingIntegrationTest {
       )
     }
 
-    /** EDPs this environment has provisioned, from the `QA2026_EDPS` env var. */
+    /** EDPs this environment has provisioned. */
     private val EDP_NAMES: Set<String> =
-      System.getenv("QA2026_EDPS")
-        .orEmpty()
+      TEST_CONFIG.edpNames
         .split(",")
         .map { it.trim() }
         .filter { it.isNotEmpty() }
@@ -832,7 +831,7 @@ class EdpAggregatorReportingIntegrationTest {
     private val provisionModelResources =
       Qa2026ModelResourcesRule(
         populationSpecProvider = { POPULATION_SPEC },
-        populationDataProvider = System.getenv("PDP_NAME").orEmpty(),
+        populationDataProvider = TEST_CONFIG.populationDataProvider,
         modelLineName = MODEL_LINE,
         kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
         kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
@@ -844,6 +843,10 @@ class EdpAggregatorReportingIntegrationTest {
         populationSpecProvider = { POPULATION_SPEC },
         bucket = TEST_CONFIG.storageBucket,
         modelLineProvider = { MODEL_LINE.ifEmpty { null } },
+        edp7KekUri = TEST_CONFIG.edp7KekUri,
+        edpaMetaKekUri = TEST_CONFIG.edpaMetaKekUri,
+        edpaMetaAwsRoleArn = TEST_CONFIG.edpaMetaAwsRoleArn,
+        edpaMetaAwsRegion = TEST_CONFIG.edpaMetaAwsRegion,
       )
     private val createDoneBlobs = CreateDoneBlobs()
     private val reportingSystem = ReportingSystem()
