@@ -154,6 +154,8 @@ class VidLabelingMonitor(
     val zeroImpressionDates: Long,
     /** Registered raw impression files whose blob is absent from storage (data loss). */
     val missingRawFiles: Long,
+    /** Whether the non-blocking data-quality crawl failed and its counts are unavailable. */
+    val dataQualityCheckFailed: Boolean,
     /** Stuck phase transitions the Monitor re-triggered this run. */
     val recoveredTransitions: Int,
     /** Stuck transitions whose bounded recovery is exhausted (the Monitor has given up; page). */
@@ -173,6 +175,7 @@ class VidLabelingMonitor(
           missingDoneBlobs > 0 ||
           zeroImpressionDates > 0 ||
           missingRawFiles > 0 ||
+          dataQualityCheckFailed ||
           recoveryExhausted > 0 ||
           unrecoverableRecoveries > 0
   }
@@ -234,7 +237,12 @@ class VidLabelingMonitor(
       attributes = monitorAttributes("monitor_health"),
     ) {
       runHealthInternal().also { result ->
-        val outcome = if (result.recoveredTransitions > 0) "recovered" else "succeeded"
+        val outcome =
+          when {
+            result.dataQualityCheckFailed -> "failed"
+            result.recoveredTransitions > 0 -> "recovered"
+            else -> "succeeded"
+          }
         Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome)
       }
     }
@@ -252,6 +260,7 @@ class VidLabelingMonitor(
       missingDoneBlobs = dataQuality.missingDoneBlobs,
       zeroImpressionDates = dataQuality.zeroImpressionDates,
       missingRawFiles = dataQuality.missingRawFiles,
+      dataQualityCheckFailed = dataQuality.checkFailed,
       recoveredTransitions = recovery.recovered,
       recoveryExhausted = recovery.exhausted,
       unrecoverableRecoveries = recovery.unrecoverable,
@@ -417,6 +426,7 @@ class VidLabelingMonitor(
     val missingDoneBlobs: Long,
     val zeroImpressionDates: Long,
     val missingRawFiles: Long,
+    val checkFailed: Boolean,
   )
 
   /** Raw-impression storage-crawl signals (a subset of [DataQualityResult]). */
@@ -452,6 +462,7 @@ class VidLabelingMonitor(
         missingDoneBlobs = storage.missingDoneBlobs,
         zeroImpressionDates = storage.zeroImpressionDates,
         missingRawFiles = storage.missingRawFiles,
+        checkFailed = false,
       )
     } catch (e: CancellationException) {
       throw e
@@ -465,7 +476,17 @@ class VidLabelingMonitor(
         "Data-quality checks failed for $dataProviderName; gauges may be stale (non-blocking)",
         e,
       )
-      DataQualityResult(0L, 0L, 0L, 0L, 0L)
+      VidLabelingTraceLogging.log(
+        logger,
+        Level.SEVERE,
+        "edpa.vid_labeling.monitor.data_quality_failed",
+        VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+        XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "monitor_health",
+        XmmTraceAttributes.OUTCOME_STRING to "failed",
+        XmmTraceAttributes.ERROR_TYPE_STRING to XmmTraceAttributes.errorType(e),
+        XmmTraceAttributes.ERROR_CODE_STRING to XmmTraceAttributes.errorCode(e),
+      )
+      DataQualityResult(0L, 0L, 0L, 0L, 0L, checkFailed = true)
     }
   }
 
@@ -894,6 +915,7 @@ class VidLabelingMonitor(
           VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
           XmmTraceAttributes.WORK_ITEM_NAME_STRING to "workItems/$workItemId",
           VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME_STRING to "workItems/$recoveryId",
+          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "monitor_recovery",
           XmmTraceAttributes.OUTCOME_STRING to "recovered",
         )
         return RecoveryOutcome.RECOVERED

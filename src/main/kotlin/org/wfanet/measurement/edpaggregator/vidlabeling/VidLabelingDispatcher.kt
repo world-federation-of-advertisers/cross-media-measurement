@@ -145,6 +145,13 @@ class VidLabelingDispatcher(
   private val metrics: VidLabelingDispatcherMetrics = VidLabelingDispatcherMetrics(),
 ) {
 
+  enum class UploadOutcome(val telemetryValue: String) {
+    SUCCEEDED("succeeded"),
+    NO_WORK("no_work"),
+    STALE("stale"),
+    SUPERSEDED("superseded"),
+  }
+
   private data class RawBlobVersion(
     val blob: StorageClient.Blob,
     val blobUri: String,
@@ -170,8 +177,24 @@ class VidLabelingDispatcher(
    * @throws IllegalArgumentException if [doneBlobPath] uses an unsupported URI scheme or
    *   [doneBlobGeneration] is null.
    */
-  suspend fun upload(doneBlobPath: String, doneBlobGeneration: Long) {
+  suspend fun upload(doneBlobPath: String, doneBlobGeneration: Long): UploadOutcome {
     val startTime: TimeSource.Monotonic.ValueTimeMark = TimeSource.Monotonic.markNow()
+    val doneBlobPathHash = VidLabelingTraceLogging.sha256(doneBlobPath)
+    var registeredUploadName: String? = null
+
+    fun complete(
+      outcome: UploadOutcome,
+      uploadName: String? = registeredUploadName,
+    ): UploadOutcome {
+      recordUploadLifecycle(
+        uploadName,
+        doneBlobGeneration,
+        doneBlobPathHash,
+        outcome.telemetryValue,
+      )
+      recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+      return outcome
+    }
 
     try {
       require((recoverySourceUpload == null) == (recoveryOperationId == null)) {
@@ -185,8 +208,7 @@ class VidLabelingDispatcher(
       val doneBlobMetadata = readBlobMetadata(doneBlobUri.key)
       if (doneBlobMetadata.generation != doneBlobGeneration) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.STALE)
       }
 
       if (
@@ -200,8 +222,7 @@ class VidLabelingDispatcher(
           )
       ) {
         logger.info("Ignoring stale recovery generation $doneBlobGeneration for $doneBlobPath")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.STALE)
       }
 
       val blobs: List<StorageClient.Blob> =
@@ -209,14 +230,12 @@ class VidLabelingDispatcher(
 
       if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.STALE)
       }
 
       if (blobs.isEmpty()) {
         logger.info("No raw impression files found in $folderPrefix")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.NO_WORK)
       }
 
       val revisions = listUploadsByDoneBlob(doneBlobPath)
@@ -231,8 +250,7 @@ class VidLabelingDispatcher(
           ) >= 0
       ) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.SUPERSEDED)
       }
       val exactRevision = revisions.firstOrNull { it.doneBlobGeneration == doneBlobGeneration }
       if (
@@ -241,9 +259,7 @@ class VidLabelingDispatcher(
           isRegistrationComplete(exactRevision)
       ) {
         logger.info("RawImpressionUpload ${exactRevision.name} is already registered")
-        recordUploadLifecycle(exactRevision.name, doneBlobGeneration, "already_registered")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.NO_WORK, exactRevision.name)
       }
       val previousRevision =
         if (exactRevision != null && exactRevision.replacesRawImpressionUpload.isNotEmpty()) {
@@ -284,11 +300,7 @@ class VidLabelingDispatcher(
           (registrationBaseline == null || isRegistrationComplete(registrationBaseline))
       ) {
         logger.info("No new raw impression object versions found in $folderPrefix")
-        if (registrationBaseline != null) {
-          recordUploadLifecycle(registrationBaseline.name, doneBlobGeneration, "no_work")
-        }
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.NO_WORK, registrationBaseline?.name)
       }
 
       // A newer done object can be written while this invocation is listing and diffing the
@@ -296,8 +308,7 @@ class VidLabelingDispatcher(
       // distinct generations transactionally, closing the race between this check and create.
       if (!isCurrentDoneBlobGeneration(doneBlobUri, doneBlobGeneration)) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.STALE)
       }
 
       val rawImpressionUpload =
@@ -309,9 +320,9 @@ class VidLabelingDispatcher(
         )
       if (rawImpressionUpload == null) {
         logger.info("Ignoring stale done-object generation $doneBlobGeneration for $doneBlobPath")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.SUPERSEDED)
       }
+      registeredUploadName = rawImpressionUpload.name
       Span.current()
         .setAttribute(
           VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME,
@@ -337,17 +348,14 @@ class VidLabelingDispatcher(
         logger.info(
           "Ignoring superseded done-object generation $doneBlobGeneration for $doneBlobPath"
         )
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.SUPERSEDED)
       }
       val refreshedCurrent =
         refreshedRevisions.firstOrNull { it.doneBlobGeneration == doneBlobGeneration }
           ?: rawImpressionUpload
       if (refreshedCurrent.registrationComplete) {
         logger.info("RawImpressionUpload ${refreshedCurrent.name} is already registered")
-        recordUploadLifecycle(refreshedCurrent.name, doneBlobGeneration, "already_registered")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.NO_WORK, refreshedCurrent.name)
       }
       val refreshedPrevious =
         refreshedCurrent.replacesRawImpressionUpload
@@ -364,9 +372,7 @@ class VidLabelingDispatcher(
       if (blobsToRegister.isEmpty() && !hasRegisteredFiles(refreshedCurrent.name)) {
         markRegistrationComplete(rawImpressionUpload)
         logger.info("No new raw impression object versions found in $folderPrefix")
-        recordUploadLifecycle(rawImpressionUpload.name, doneBlobGeneration, "no_work")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.NO_WORK)
       }
 
       metrics.filesProcessedCounter.add(
@@ -382,9 +388,7 @@ class VidLabelingDispatcher(
       if (resolvedModelLineNames.isEmpty()) {
         markRegistrationComplete(rawImpressionUpload)
         logger.info("No active model lines resolved for $modelSuiteName")
-        recordUploadLifecycle(rawImpressionUpload.name, doneBlobGeneration, "no_work")
-        recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
-        return
+        return complete(UploadOutcome.NO_WORK)
       }
 
       createRawImpressionUploadModelLines(rawImpressionUpload.name, resolvedModelLineNames)
@@ -394,12 +398,20 @@ class VidLabelingDispatcher(
         "Registered upload ${rawImpressionUpload.name} with ${blobsToRegister.size} files and " +
           "${resolvedModelLineNames.size} model lines"
       )
-      recordUploadLifecycle(rawImpressionUpload.name, doneBlobGeneration, "succeeded")
-
       dispatchFastPath(rawImpressionUpload.name)
 
-      recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
+      return complete(UploadOutcome.SUCCEEDED)
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
+      recordUploadLifecycle(
+        registeredUploadName,
+        doneBlobGeneration,
+        doneBlobPathHash,
+        "failed",
+        Level.WARNING,
+        e,
+      )
       recordUploadDuration(startTime, UPLOAD_STATUS_FAILED)
       throw e
     }
@@ -437,17 +449,32 @@ class VidLabelingDispatcher(
     }
   }
 
-  private fun recordUploadLifecycle(uploadName: String, doneBlobGeneration: Long, outcome: String) {
+  private fun recordUploadLifecycle(
+    uploadName: String?,
+    doneBlobGeneration: Long,
+    doneBlobPathHash: String,
+    outcome: String,
+    level: Level = Level.INFO,
+    error: Throwable? = null,
+  ) {
+    uploadName?.let {
+      Span.current().setAttribute(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, it)
+    }
     Span.current()
-      .setAttribute(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, uploadName)
+      .setAttribute(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, doneBlobPathHash)
       .setAttribute(XmmTraceAttributes.OUTCOME, outcome)
     VidLabelingTraceLogging.log(
       logger,
+      level,
       "edpa.vid_labeling.upload_registered",
       VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
       VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to uploadName,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to doneBlobPathHash,
       VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to doneBlobGeneration.toString(),
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "upload_registration",
       XmmTraceAttributes.OUTCOME_STRING to outcome,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
     )
   }
 

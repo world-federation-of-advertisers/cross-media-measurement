@@ -29,6 +29,12 @@ import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 @RunWith(JUnit4::class)
 class VidLabelingTraceLoggingTest {
   @Test
+  fun `sha256 returns a stable one-way identifier`() {
+    assertThat(VidLabelingTraceLogging.sha256("gs://bucket/path/done"))
+      .isEqualTo("87d8490f17edd49fce27593d73573197633cf69b51d8bfa4ae35fec95acc1c94")
+  }
+
+  @Test
   fun `log writes allowlisted VID lifecycle fields`() {
     val records = mutableListOf<LogRecord>()
     val logger = Logger.getAnonymousLogger().apply { addHandler(recordingHandler(records)) }
