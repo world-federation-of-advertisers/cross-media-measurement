@@ -22,9 +22,16 @@ import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -44,9 +51,12 @@ import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreatePoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
@@ -88,6 +98,30 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 @RunWith(JUnit4::class)
 class VidLabelingDispatchSequencerTest {
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
+
+  @Before
+  fun initTelemetry() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+  }
 
   private val rawImpressionUploadService:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase =
@@ -161,6 +195,7 @@ class VidLabelingDispatchSequencerTest {
     numberOfShards: Int = NUMBER_OF_SHARDS,
     subpoolAssignerParamsTemplate: SubpoolAssignerParams = SUBPOOL_ASSIGNER_PARAMS_TEMPLATE,
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    traceContextProvider: () -> Map<String, String> = { emptyMap() },
   ): VidLabelingDispatchSequencer =
     VidLabelingDispatchSequencer(
       rawImpressionUploadStub = rawImpressionUploadStub,
@@ -181,6 +216,7 @@ class VidLabelingDispatchSequencerTest {
       vidLabelingJobStub = vidLabelingJobStub,
       maxFileBatchSizeBytes = MAX_FILE_BATCH_SIZE_BYTES,
       rpcThrottlers = rpcThrottlers,
+      traceContextProvider = traceContextProvider,
     )
 
   /**
@@ -564,6 +600,39 @@ class VidLabelingDispatchSequencerTest {
       assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
       assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
+      val dispatchSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.dispatch" }
+      assertThat(dispatchSpan.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE))
+        .isEqualTo("phase0")
+      assertThat(dispatchSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+      assertThat(dispatchSpan.events.map { it.name })
+        .containsAtLeast(
+          "edpa.vid_labeling.dispatch.job",
+          "edpa.vid_labeling.dispatch.work_item",
+          "edpa.vid_labeling.dispatch.transition",
+        )
+      val jobEvents = dispatchSpan.events.filter { it.name == "edpa.vid_labeling.dispatch.job" }
+      assertThat(
+          jobEvents.mapNotNull {
+            it.attributes.get(VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME)
+          }
+        )
+        .hasSize(NUMBER_OF_SHARDS)
+      assertThat(jobEvents.map { it.attributes.get(XmmTraceAttributes.OUTCOME) }.toSet())
+        .containsExactly("created")
+      val workItemEvents =
+        dispatchSpan.events.filter { it.name == "edpa.vid_labeling.dispatch.work_item" }
+      assertThat(workItemEvents.mapNotNull { it.attributes.get(XmmTraceAttributes.WORK_ITEM_NAME) })
+        .hasSize(NUMBER_OF_SHARDS)
+      val transition =
+        dispatchSpan.events.single { it.name == "edpa.vid_labeling.dispatch.transition" }
+      assertThat(
+          transition.attributes.get(
+            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME
+          )
+        )
+        .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/ml1")
+      assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("pool_assigning")
     }
 
   @Test
@@ -575,7 +644,7 @@ class VidLabelingDispatchSequencerTest {
       stubModelLines(createdModelLine())
       stubMemoizedDispatch()
 
-      createSequencer().dispatchNext()
+      createSequencer(traceContextProvider = { TRACE_CONTEXT }).dispatchNext()
 
       val captor = argumentCaptor<CreateWorkItemRequest>()
       verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(captor.capture()) }
@@ -584,11 +653,9 @@ class VidLabelingDispatchSequencerTest {
       val paramsByShard: Map<Int, SubpoolAssignerParams> =
         captor.allValues.associate { request ->
           assertThat(request.workItem.queue).isEqualTo(POOL_ASSIGNER_QUEUE_NAME)
-          val params =
-            request.workItem.workItemParams
-              .unpack<WorkItemParams>()
-              .appParams
-              .unpack<SubpoolAssignerParams>()
+          val workItemParams = request.workItem.workItemParams.unpack<WorkItemParams>()
+          assertThat(workItemParams.traceContextMap).containsExactlyEntriesIn(TRACE_CONTEXT)
+          val params = workItemParams.appParams.unpack<SubpoolAssignerParams>()
           params.shardIndex to params
         }
       assertThat(paramsByShard.keys).containsExactly(0, 1)
@@ -684,7 +751,7 @@ class VidLabelingDispatchSequencerTest {
       }
       stubMarkPoolAssigning()
 
-      val result = createSequencer().dispatchNext()
+      val result = createSequencer(traceContextProvider = { TRACE_CONTEXT }).dispatchNext()
 
       // Idempotent: the upload is still dispatched and the transition still happens.
       assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
@@ -966,7 +1033,7 @@ class VidLabelingDispatchSequencerTest {
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       stubMarkTransitions()
 
-      val result = createSequencer().dispatchNext()
+      val result = createSequencer(traceContextProvider = { TRACE_CONTEXT }).dispatchNext()
 
       assertThat(result.dispatchedUpload)
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old")
@@ -989,6 +1056,19 @@ class VidLabelingDispatchSequencerTest {
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old")
       assertThat(vidLabelerParams.vidLabelingJob)
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-old/vidLabelingJobs/job-0")
+      assertThat(captor.firstValue.workItem.workItemParams.unpack<WorkItemParams>().traceContextMap)
+        .containsExactlyEntriesIn(TRACE_CONTEXT)
+      val dispatchSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.dispatch" }
+      assertThat(dispatchSpan.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE))
+        .isEqualTo("phase2")
+      val phase2Jobs = dispatchSpan.events.filter { it.name == "edpa.vid_labeling.dispatch.job" }
+      assertThat(
+          phase2Jobs.mapNotNull {
+            it.attributes.get(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME)
+          }
+        )
+        .isNotEmpty()
     }
 
   @Test
@@ -1260,6 +1340,8 @@ class VidLabelingDispatchSequencerTest {
     private const val EVENT_TEMPLATE_TYPE =
       "wfa.measurement.api.v2alpha.event_templates.testing.TestEvent"
     private const val POPULATION_SPEC_BLOB_URI = "gs://configs/population-spec.textproto"
+    private val TRACE_CONTEXT =
+      mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
     private val ACTIVE_START_TIME: Timestamp = Timestamps.fromSeconds(1_600_000_000L)
