@@ -27,13 +27,19 @@ import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -50,13 +56,16 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.tink.testing.FakeKmsClient
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
@@ -149,6 +158,8 @@ class VidLabelerAppTest {
   private lateinit var vidRankMapStorageClient: InMemoryStorageClient
   private lateinit var rankStore: RankIndexStore
   private lateinit var encryptedDek: EncryptedDek
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   private val mockQueueSubscriber: QueueSubscriber = mock()
   private val mockParquetStorageClient: ParquetStorageClient = mock()
@@ -156,6 +167,17 @@ class VidLabelerAppTest {
 
   @Before
   fun setUp() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     AeadConfig.register()
     kmsClient =
       FakeKmsClient().apply {
@@ -167,6 +189,13 @@ class VidLabelerAppTest {
     vidRankMapStorageClient = InMemoryStorageClient()
     rankStore = RankIndexStore(vidRankMapStorageClient, kmsClient)
     encryptedDek = rankStore.generateDek(kekUri)
+  }
+
+  @After
+  fun tearDown() {
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
   }
 
   /** Seeds one SNAPSHOT RankIndexBlob and stubs the service to return its row. */
@@ -344,6 +373,14 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService, never()) {
       markRawImpressionUploadModelLineCompleted(any())
     }
+    val span = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
+    assertThat(span.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE)).isEqualTo("phase2")
+    assertThat(span.attributes.get(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME))
+      .isEqualTo(VID_LABELING_JOB)
+    assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+    val jobEvent = span.events.single { it.name == "edpa.vid_labeling.label.job_succeeded" }
+    assertThat(jobEvent.attributes.get(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME))
+      .isEqualTo(VID_LABELING_JOB)
   }
 
   @Test
@@ -472,6 +509,36 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService) {
       markRawImpressionUploadModelLineCompleted(any())
     }
+    val span = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
+    assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("recovered")
+    val transition = span.events.single { it.name == "edpa.vid_labeling.label.parent_transition" }
+    assertThat(transition.attributes.get(VidLabelingTraceAttributes.MODEL_LINE_NAME))
+      .isEqualTo(MODEL_LINE)
+    assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("completed")
+  }
+
+  @Test
+  fun `runWork reports already completed when replay has no finalization`() = runBlocking {
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.SUCCEEDED
+          etag = "etag-1"
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+        }
+    }
+
+    createApp().runWork(buildMessage(memoizedParams()))
+
+    val span = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
+    assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("already_completed")
   }
 
   @Test
