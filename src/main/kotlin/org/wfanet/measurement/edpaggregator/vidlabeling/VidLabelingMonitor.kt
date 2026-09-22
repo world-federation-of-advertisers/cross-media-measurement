@@ -20,18 +20,25 @@ import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.telemetry.XmmTracing
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
@@ -174,10 +181,26 @@ class VidLabelingMonitor(
    * Runs the fast dispatch cadence: delegates to the shared sequencer to start the oldest queued
    * upload for this DataProvider. Does not run any health check.
    */
-  suspend fun runDispatch(): DispatchOnlyResult {
+  suspend fun runDispatch(): DispatchOnlyResult =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.monitor.dispatch",
+      attributes = monitorAttributes("monitor_dispatch"),
+    ) {
+      runDispatchInternal().also { result ->
+        Span.current()
+          .setAttribute(
+            XmmTraceAttributes.OUTCOME,
+            if (result.dispatchError) "failed" else "succeeded",
+          )
+      }
+    }
+
+  private suspend fun runDispatchInternal(): DispatchOnlyResult {
     val dispatch: VidLabelingDispatchSequencer.DispatchResult =
       try {
         dispatchSequencer.dispatchNext()
+      } catch (e: CancellationException) {
+        throw e
       } catch (e: Exception) {
         // The sequencer wraps RPC failures (list calls, model-repo unavailable, non-ALREADY_EXISTS
         // creates) as plain exceptions. Surface them as a metric so operators can tell "dispatch
@@ -205,7 +228,18 @@ class VidLabelingMonitor(
    * data-quality checks over a single snapshot of this DataProvider's uploads and model lines. Does
    * not dispatch.
    */
-  suspend fun runHealth(): HealthResult {
+  suspend fun runHealth(): HealthResult =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.monitor.health",
+      attributes = monitorAttributes("monitor_health"),
+    ) {
+      runHealthInternal().also { result ->
+        val outcome = if (result.recoveredTransitions > 0) "recovered" else "succeeded"
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome)
+      }
+    }
+
+  private suspend fun runHealthInternal(): HealthResult {
     val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
     val recovery = recoverStuckPhases(snapshot)
@@ -419,6 +453,8 @@ class VidLabelingMonitor(
         zeroImpressionDates = storage.zeroImpressionDates,
         missingRawFiles = storage.missingRawFiles,
       )
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       // Non-blocking: a bad crawl never fails the monitor run. The per-signal gauges above now hold
       // stale values from a previous run, so raise dataQualityCheckFailed=1 (an alertable signal)
@@ -774,7 +810,23 @@ class VidLabelingMonitor(
    * never be cloned and a human must intervene; [RecoveryOutcome.NOOP] when the original fetch or a
    * create fails with a transient error (retried next tick — the attempt is not burned).
    */
-  private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome {
+  private suspend fun republishWorkItem(workItemId: String): RecoveryOutcome =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.monitor.recover",
+      attributes =
+        monitorAttributes("monitor_recovery")
+          .toBuilder()
+          .put(XmmTraceAttributes.WORK_ITEM_NAME, "workItems/$workItemId")
+          .build(),
+    ) {
+      republishWorkItemInternal(workItemId).also { outcome ->
+        if (outcome != RecoveryOutcome.NOOP) {
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
+        }
+      }
+    }
+
+  private suspend fun republishWorkItemInternal(workItemId: String): RecoveryOutcome {
     val existing =
       try {
         rpcThrottlers.controlPlane.onReady {
@@ -785,36 +837,69 @@ class VidLabelingMonitor(
           // The original WorkItem is gone (e.g. retention-deleted); cloning it is impossible and
           // retrying never succeeds, so escalate instead of counting a transient failure.
           logger.warning("Cannot recover: WorkItem $workItemId is gone (NOT_FOUND)")
+          XmmTracing.recordFailure(Span.current(), e)
           return RecoveryOutcome.UNRECOVERABLE
         }
         logger.warning("Cannot recover: WorkItem $workItemId unavailable (${e.status.code})")
+        XmmTracing.recordFailure(Span.current(), e)
         metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("get_original"))
         return RecoveryOutcome.NOOP
       }
     for (attempt in 1..MAX_RECOVERY_ATTEMPTS) {
       val recoveryId = "$workItemId-monitor-recovery-$attempt"
       try {
-        rpcThrottlers.controlPlane.onReady {
-          workItemsStub.createWorkItem(
-            createWorkItemRequest {
-              this.workItemId = recoveryId
-              workItem = workItem {
-                queue = existing.queue
-                workItemParams = existing.workItemParams
-              }
-            }
+        Span.current()
+          .setAttribute(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME, "workItems/$recoveryId")
+        Span.current()
+          .addEvent(
+            "edpa.vid_labeling.monitor.recovery_attempt",
+            Attributes.builder()
+              .put(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME, "workItems/$recoveryId")
+              .put(XmmTraceAttributes.OUTCOME, "attempted")
+              .build(),
           )
-        }
+        val published =
+          try {
+            rpcThrottlers.controlPlane.onReady {
+              workItemsStub.createWorkItem(
+                createWorkItemRequest {
+                  this.workItemId = recoveryId
+                  workItem = workItem {
+                    queue = existing.queue
+                    workItemParams = existing.workItemParams
+                  }
+                }
+              )
+            }
+            true
+          } catch (e: StatusException) {
+            if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+            Span.current()
+              .addEvent(
+                "edpa.vid_labeling.monitor.recovery_attempt",
+                Attributes.builder()
+                  .put(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME, "workItems/$recoveryId")
+                  .put(XmmTraceAttributes.OUTCOME, "already_exists")
+                  .build(),
+              )
+            false
+          }
+        if (!published) continue
         logger.info(
           "Recovered a stuck transition by re-publishing WorkItem $workItemId (attempt $attempt)"
         )
+        VidLabelingTraceLogging.log(
+          logger,
+          "edpa.vid_labeling.monitor_recovered",
+          VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+          XmmTraceAttributes.WORK_ITEM_NAME_STRING to "workItems/$workItemId",
+          VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME_STRING to "workItems/$recoveryId",
+          XmmTraceAttributes.OUTCOME_STRING to "recovered",
+        )
         return RecoveryOutcome.RECOVERED
       } catch (e: StatusException) {
-        if (e.status.code == Status.Code.ALREADY_EXISTS) {
-          // This attempt was already published on a prior tick; try the next suffix.
-          continue
-        }
         logger.warning("Recovery publish failed for $recoveryId (${e.status.code})")
+        XmmTracing.recordFailure(Span.current(), e)
         metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("publish"))
         return RecoveryOutcome.NOOP
       }
@@ -832,6 +917,13 @@ class VidLabelingMonitor(
       VidLabelingMonitorMetrics.RECOVERY_STEP_ATTR,
       step,
     )
+
+  private fun monitorAttributes(lifecycleStage: String): Attributes =
+    Attributes.builder()
+      .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProviderName)
+      .put(XmmTraceAttributes.LIFECYCLE_STAGE, lifecycleStage)
+      .put(XmmTraceAttributes.OUTCOME, "started")
+      .build()
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
