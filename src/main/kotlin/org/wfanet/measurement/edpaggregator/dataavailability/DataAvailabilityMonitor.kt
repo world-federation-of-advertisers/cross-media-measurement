@@ -426,6 +426,7 @@ class DataAvailabilityMonitor(
     val modelLineName = modelLineKey.toName()
 
     var spuriousCount = 0
+    var noncanonicalSpuriousCount = 0
     var legitimateCount = 0
     val spuriousCountsByDate = mutableMapOf<LocalDate, Int>()
 
@@ -460,8 +461,19 @@ class DataAvailabilityMonitor(
       val blob = storageClient.getBlob(blobKey)
       blob?.let {
         spuriousCount++
-        extractDataDate(blobKey, prefix)?.let { date ->
-          spuriousCountsByDate.merge(date, 1, Int::plus)
+        val dataDate = extractCanonicalDataDate(blobKey, prefix)
+        if (dataDate == null) {
+          noncanonicalSpuriousCount++
+          if (noncanonicalSpuriousCount <= 10) {
+            logger.log(
+              Level.WARNING,
+              "Cannot determine the data date for spurious deletion ${entry.name}: blob URI " +
+                "${entry.blobUri} does not use the expected prefix and YYYY-MM-DD folder " +
+                "structure $prefix{date}/",
+            )
+          }
+        } else {
+          spuriousCountsByDate.merge(dataDate, 1, Int::plus)
         }
         if (spuriousCount <= 10) {
           logger.log(
@@ -476,13 +488,15 @@ class DataAvailabilityMonitor(
     logger.log(
       Level.INFO,
       "Model line $modelLineName spurious deletion check: " +
-        "spurious=$spuriousCount, legitimate=$legitimateCount",
+        "spurious=$spuriousCount, noncanonical=$noncanonicalSpuriousCount, " +
+        "legitimate=$legitimateCount",
     )
     if (spuriousCount > 0) {
       logger.log(
         Level.SEVERE,
         "ALERT: Model line $modelLineName has $spuriousCount spuriously deleted entries " +
-          "(deleted in metadata store but blob still exists on bucket)",
+          "(deleted in metadata store but blob still exists on bucket); " +
+          "$noncanonicalSpuriousCount have no canonical data date",
       )
     }
 
@@ -576,7 +590,7 @@ class DataAvailabilityMonitor(
   private fun isUnsynced(blob: StorageClient.Blob): Boolean =
     DataAvailabilityBlobs.isMetadataBlob(blob) && !DataAvailabilityBlobs.isSynced(blob)
 
-  private fun extractDataDate(blobKey: String, modelLinePrefix: String): LocalDate? {
+  private fun extractCanonicalDataDate(blobKey: String, modelLinePrefix: String): LocalDate? {
     if (!blobKey.startsWith(modelLinePrefix)) {
       return null
     }
