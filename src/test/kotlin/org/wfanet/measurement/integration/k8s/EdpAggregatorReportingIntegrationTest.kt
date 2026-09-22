@@ -37,6 +37,8 @@ import java.time.LocalDate
 import java.time.ZoneId
 import java.util.UUID
 import java.util.logging.Logger
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.emptyFlow
@@ -230,8 +232,10 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     companion object {
-      private const val EVENT_GROUP_SYNC_TIMEOUT = 300_000L
-      private const val EVENT_GROUP_SYNC_POLLING_INTERVAL = 5000L
+      // Inferred as kotlin.time.Duration, which withTimeout and delay take; the java.time.Duration
+      // this file imports for the HTTP client is a different type.
+      private val EVENT_GROUP_SYNC_TIMEOUT = 5.minutes
+      private val EVENT_GROUP_SYNC_POLLING_INTERVAL = 5.seconds
     }
   }
 
@@ -558,10 +562,6 @@ class EdpAggregatorReportingIntegrationTest {
     return reachOf(result.metricSet, groupTitle)
   }
 
-  /**
-   * The single-EDP group requests component metrics and the cross-publisher group requests
-   * reporting-unit metrics, so the reach lives in a different field for each.
-   */
   /**
    * The cumulative metrics for a result, taken from the reporting unit for the cross-publisher
    * group and from the single component otherwise.
