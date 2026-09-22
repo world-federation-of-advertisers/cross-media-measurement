@@ -46,6 +46,7 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -53,6 +54,7 @@ import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.StorageClient
+import picocli.CommandLine.ArgGroup
 import picocli.CommandLine.Command
 import picocli.CommandLine.Option
 
@@ -91,6 +93,36 @@ private class FilteringBlobMetadataStorageClient(
   mixinStandardHelpOptions = true,
 )
 class RecoverMissingImpressionMetadata : Runnable {
+  private class DateRange {
+    @set:Option(
+      names = ["--lookback-days"],
+      description = ["Lookback horizon in days, including today"],
+      defaultValue = "90",
+    )
+    var lookbackDays: Int by Delegates.notNull()
+
+    @set:Option(
+      names = ["--end-days-ago"],
+      description = ["Days before today for the newest date folder to reconcile"],
+      required = true,
+    )
+    var endDaysAgo: Int by Delegates.notNull()
+  }
+
+  private class DateSelection {
+    @Option(
+      names = ["--data-date"],
+      description = ["Exact UTC data date to reconcile (YYYY-MM-DD); may be repeated"],
+      required = true,
+    )
+    var dataDates: List<LocalDate> = emptyList()
+
+    @ArgGroup(exclusive = false, multiplicity = "1") var dateRange: DateRange? = null
+  }
+
+  @ArgGroup(exclusive = true, multiplicity = "1", heading = "Date selection:%n")
+  private lateinit var dateSelection: DateSelection
+
   @Option(
     names = ["--config-file"],
     description = ["Path to a DataAvailabilitySyncConfig textproto"],
@@ -145,20 +177,6 @@ class RecoverMissingImpressionMetadata : Runnable {
   )
   private var impressionMetadataBatchSize: Int by Delegates.notNull()
 
-  @set:Option(
-    names = ["--lookback-days"],
-    description = ["Lookback horizon in days, including today"],
-    defaultValue = "90",
-  )
-  private var lookbackDays: Int by Delegates.notNull()
-
-  @set:Option(
-    names = ["--end-days-ago"],
-    description = ["Days before today for the newest date folder to reconcile"],
-    required = true,
-  )
-  private var endDaysAgo: Int by Delegates.notNull()
-
   override fun run() {
     val config = parseTextProto(configFile, DataAvailabilitySyncConfig.getDefaultInstance())
     require(config.dataAvailabilityStorage.storageCase == StorageCase.GCS) {
@@ -169,9 +187,26 @@ class RecoverMissingImpressionMetadata : Runnable {
 
     val storageConfig = config.dataAvailabilityStorage.gcs
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
-    require(lookbackDays > 0) { "lookback-days must be greater than zero" }
-    require(endDaysAgo >= 0) { "end-days-ago must not be negative" }
-    require(endDaysAgo < lookbackDays) { "end-days-ago must be less than lookback-days" }
+    val today = LocalDate.now(ZoneOffset.UTC)
+    val selectedDataDates = dateSelection.dataDates.toSet()
+    val recoveryDateSelection =
+      if (selectedDataDates.isNotEmpty()) {
+        require(selectedDataDates.none { it.isAfter(today) }) {
+          "data-date must not be after the current UTC date"
+        }
+        DataDateSelection.SelectedDates(selectedDataDates)
+      } else {
+        val dateRange = checkNotNull(dateSelection.dateRange)
+        require(dateRange.lookbackDays > 0) { "lookback-days must be greater than zero" }
+        require(dateRange.endDaysAgo >= 0) { "end-days-ago must not be negative" }
+        require(dateRange.endDaysAgo < dateRange.lookbackDays) {
+          "end-days-ago must be less than lookback-days"
+        }
+        DataDateSelection.Range(
+          earliestDate = today.minusDays((dateRange.lookbackDays - 1).toLong()),
+          latestDate = today.minusDays(dateRange.endDaysAgo.toLong()),
+        )
+      }
     val storageApiEndpoint = storageApiEndpoint
     val storageClient =
       GcsStorageClient(
@@ -210,8 +245,6 @@ class RecoverMissingImpressionMetadata : Runnable {
         )
       )
     val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-    val today = LocalDate.now(ZoneOffset.UTC)
-    val latestDataDate = today.minusDays(endDaysAgo.toLong())
     val recovery =
       MissingImpressionMetadataRecovery(
         storageClient = storageClient,
@@ -221,8 +254,7 @@ class RecoverMissingImpressionMetadata : Runnable {
         dataProviderName = config.dataProvider,
         throttler = throttler,
         impressionMetadataBatchSize = impressionMetadataBatchSize,
-        earliestDataDate = today.minusDays((lookbackDays - 1).toLong()),
-        latestDataDate = latestDataDate,
+        dateSelection = recoveryDateSelection,
         sync = { doneBlobUri, metadataBlobKeys ->
           val filteringStorageClient =
             FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
