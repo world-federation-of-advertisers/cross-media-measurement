@@ -359,6 +359,7 @@ class SpannerEventGroupsService(
     val useDataProviderIndex =
       request.filter.externalDataProviderId != 0L &&
         request.orderBy.field == StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED &&
+        hasCompatibleDataProviderIndexFilters(request.filter) &&
         (afterDataProviderId == 0L || afterDataProviderId == request.filter.externalDataProviderId)
 
     return flow {
@@ -394,4 +395,18 @@ class SpannerEventGroupsService(
         request.filter.eventGroupKeyAfter.externalDataProviderId
       else -> 0L
     }
+
+  private fun hasCompatibleDataProviderIndexFilters(
+    filter: StreamEventGroupsRequest.Filter
+  ): Boolean =
+    filter.externalMeasurementConsumerId == 0L &&
+      filter.externalMeasurementConsumerIdInList.isEmpty() &&
+      filter.externalDataProviderIdInList.isEmpty() &&
+      filter.mediaTypesIntersectList.isEmpty() &&
+      !filter.hasDataAvailabilityStartTimeOnOrAfter() &&
+      !filter.hasDataAvailabilityEndTimeOnOrBefore() &&
+      !filter.hasDataAvailabilityStartTimeOnOrBefore() &&
+      !filter.hasDataAvailabilityEndTimeOnOrAfter() &&
+      filter.metadataSearchQuery.isEmpty() &&
+      !filter.hasActivityContains()
 }
