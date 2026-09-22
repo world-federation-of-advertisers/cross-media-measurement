@@ -34,22 +34,8 @@ object ReportTraceLogging {
     event: String,
     vararg fields: Pair<String, String?>,
   ) {
-    require(EVENT_PATTERN.matches(event)) { "Invalid report trace event name" }
-
-    val message = buildString {
-      append("event=").append(event)
-      for ((name, value) in fields) {
-        require(name in SAFE_FIELD_NAMES) { "Unsupported report trace log field: $name" }
-        if (!value.isNullOrBlank()) {
-          append(' ').append(name).append('=').append(sanitizeToken(value))
-        }
-      }
-    }
-    logger.log(level, message, error)
+    XmmTraceLogging.log(logger, level, error, event, SAFE_FIELD_NAMES, *fields)
   }
-
-  private fun sanitizeToken(value: String): String =
-    value.replace(WHITESPACE_PATTERN, "_").take(MAX_VALUE_LENGTH)
 
   private val SAFE_FIELD_NAMES =
     setOf(
@@ -62,21 +48,12 @@ object ReportTraceLogging {
       ReportTraceAttributes.REQUISITION_NAME_STRING,
       ReportTraceAttributes.GROUP_ID_STRING,
       ReportTraceAttributes.COMPUTATION_NAME_STRING,
-      ReportTraceAttributes.WORK_ITEM_NAME_STRING,
-      ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME_STRING,
       ReportTraceAttributes.DUCHY_ID_STRING,
       ReportTraceAttributes.BASIC_REPORT_STATE_STRING,
       ReportTraceAttributes.REPORT_STATE_STRING,
       ReportTraceAttributes.METRIC_STATE_STRING,
       ReportTraceAttributes.MEASUREMENT_STATE_STRING,
       ReportTraceAttributes.REQUISITION_STATE_STRING,
-      ReportTraceAttributes.LIFECYCLE_STAGE_STRING,
-      ReportTraceAttributes.OUTCOME_STRING,
-      ReportTraceAttributes.ERROR_TYPE_STRING,
-      ReportTraceAttributes.ERROR_CODE_STRING,
       ReportTraceAttributes.REFUSAL_ORIGIN_STRING,
-    )
-  private val EVENT_PATTERN = Regex("[a-zA-Z0-9._-]+")
-  private val WHITESPACE_PATTERN = Regex("\\s+")
-  private const val MAX_VALUE_LENGTH = 1000
+    ) + XmmTraceLogging.COMMON_SAFE_FIELD_NAMES
 }

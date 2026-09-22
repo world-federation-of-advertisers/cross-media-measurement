@@ -16,6 +16,35 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "XmmTraceAttributesTest",
+    srcs = ["XmmTraceAttributesTest.kt"],
+    test_class = "org.wfanet.measurement.common.telemetry.XmmTraceAttributesTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
+    name = "XmmTracingTest",
+    srcs = ["XmmTracingTest.kt"],
+    test_class = "org.wfanet.measurement.common.telemetry.XmmTracingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/api",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk",
+        "@wfa_common_jvm//imports/java/io/opentelemetry/sdk/testing",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_test(
     name = "ReportTraceLoggingTest",
     srcs = ["ReportTraceLoggingTest.kt"],
     test_class = "org.wfanet.measurement.common.telemetry.ReportTraceLoggingTest",
@@ -32,7 +61,7 @@ kt_jvm_test(
     srcs = ["W3CTraceContextTest.kt"],
     test_class = "org.wfanet.measurement.common.telemetry.W3CTraceContextTest",
     deps = [
-        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/io/opentelemetry/api",
         "@wfa_common_jvm//imports/java/io/opentelemetry/context",

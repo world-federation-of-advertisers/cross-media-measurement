@@ -26,13 +26,18 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.Instrumentation
 
-/** Creates report-correlated spans in services outside the EDPA-specific telemetry package. */
-object ReportTracing {
+/** Creates spans for correlated XMM workflows. */
+object XmmTracing {
   /** Records a failed operation that cannot be represented by wrapping one suspending block. */
-  fun recordFailure(spanName: String, attributes: Attributes, error: Throwable) {
+  fun recordFailure(
+    spanName: String,
+    attributes: Attributes,
+    error: Throwable,
+    instrumentationScope: String = DEFAULT_INSTRUMENTATION_SCOPE,
+  ) {
     val span =
       Instrumentation.openTelemetry
-        .getTracer(INSTRUMENTATION_SCOPE)
+        .getTracer(instrumentationScope)
         .spanBuilder(spanName)
         .setSpanKind(SpanKind.INTERNAL)
         .setAllAttributes(attributes)
@@ -41,13 +46,12 @@ object ReportTracing {
     span.end()
   }
 
-  /** Records the standard report-tracing failure attributes on an existing span. */
+  /** Records the standard XMM failure attributes on an existing span. */
   fun recordFailure(span: Span, error: Throwable) {
     span
-      .setStatus(StatusCode.ERROR, error.message ?: "Unknown error")
+      .setStatus(StatusCode.ERROR)
       .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
       .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(error))
-      .recordException(error)
     val errorCode = XmmTraceAttributes.errorCode(error)
     if (errorCode != null) {
       span.setAttribute(XmmTraceAttributes.ERROR_CODE, errorCode)
@@ -57,11 +61,12 @@ object ReportTracing {
   suspend fun <T> traceSuspending(
     spanName: String,
     attributes: Attributes = Attributes.empty(),
+    instrumentationScope: String = DEFAULT_INSTRUMENTATION_SCOPE,
     block: suspend () -> T,
   ): T {
     val span =
       Instrumentation.openTelemetry
-        .getTracer(INSTRUMENTATION_SCOPE)
+        .getTracer(instrumentationScope)
         .spanBuilder(spanName)
         .setSpanKind(SpanKind.INTERNAL)
         .setAllAttributes(attributes)
@@ -79,5 +84,5 @@ object ReportTracing {
     }
   }
 
-  private const val INSTRUMENTATION_SCOPE = "xmm-report-tracing"
+  private const val DEFAULT_INSTRUMENTATION_SCOPE = "xmm-tracing"
 }
