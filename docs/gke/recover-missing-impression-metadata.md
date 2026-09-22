@@ -80,10 +80,14 @@ bazel run \
   --data-date=2026-09-15
 ```
 
-The alert policy must preserve or group by `edpa.data_availability_monitor.data_date`; otherwise,
-the counter remains useful for totals but does not identify the folder to recover. The date
-attribute is present on monitor-emitted issue statuses that identify date folders. It is omitted
-from healthy-date totals, legitimate-deletion counts, and points emitted by `DataAvailabilitySync`.
+The Cloud Monitoring alert policy must filter on
+`edpa_data_availability_monitor_source=monitor` and preserve or group by
+`edpa_data_availability_monitor_data_date`, `edpa_data_availability_monitor_model_line`, and
+`edpa_data_availability_monitor_date_status`. These are the exported forms of the corresponding
+dotted OpenTelemetry attribute names. Otherwise, the counter remains useful for totals but does
+not identify the folder to recover. The date attribute is present on monitor-emitted issue
+statuses that identify date folders. It is omitted from healthy-date totals,
+legitimate-deletion counts, and points emitted by `DataAvailabilitySync`.
 
 The command exits nonzero when any folder scan, resynchronization, verification, or undelete fails.
 A successfully repaired inconsistency does not cause a nonzero exit.
@@ -132,9 +136,10 @@ kubectl create job \
   recover-missing-impression-metadata-edp7-manual-$(date +%s)
 ```
 
-The command above copies the CronJob's configured 90-day range. To run only the dates
-identified by monitor alerts, list their `data_date` values in `ALERTED_DATES`. The command removes
-the default range arguments and appends one `--data-date` argument for each date:
+The command above copies the CronJob's configured 90-day range. To run only the dates identified
+by monitor alerts, list their `edpa_data_availability_monitor_data_date` values in `ALERTED_DATES`.
+The command removes the default range arguments and appends one `--data-date` argument for each
+date:
 
 ```shell
 ALERTED_DATES='["2026-09-12", "2026-09-15"]'
@@ -225,10 +230,10 @@ has an
 completion log; a separate recovered gauge would duplicate `missing_blobs - failed_blobs`.
 The data-availability monitor also emits
 `edpa.data_availability.date_count` with
-`edpa.data_availability_monitor.data_date=YYYY-MM-DD` for issue statuses tied to a date folder.
-Preserve that attribute in alerts so an operator can run the targeted one-day Job above. The
-`unpublished_availability` status specifically identifies folders whose new sync-attempt ID does
-not match the Kingdom publication marker after the configured threshold.
+`edpa_data_availability_monitor_data_date=YYYY-MM-DD` in Cloud Monitoring for issue statuses tied
+to a date folder. Preserve that label in alerts so an operator can run the targeted one-day Job
+above. The `unpublished_availability` status specifically identifies folders whose new
+sync-attempt ID does not match the Kingdom publication marker after the configured threshold.
 `edpa.data_availability.noncanonical_spurious_deletion_count` identifies spurious deletions that
 cannot be mapped to a canonical date folder. When it is nonzero, inspect the monitor's warning logs
 for the resource names and blob URIs; those entries cannot be selected with `--data-date`.
