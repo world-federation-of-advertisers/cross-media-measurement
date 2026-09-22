@@ -229,5 +229,8 @@ The data-availability monitor also emits
 Preserve that attribute in alerts so an operator can run the targeted one-day Job above. The
 `unpublished_availability` status specifically identifies folders whose new sync-attempt ID does
 not match the Kingdom publication marker after the configured threshold.
+`edpa.data_availability.noncanonical_spurious_deletion_count` identifies spurious deletions that
+cannot be mapped to a canonical date folder. When it is nonzero, inspect the monitor's warning logs
+for the resource names and blob URIs; those entries cannot be selected with `--data-date`.
 Legacy `synced-by` folders without a sync-attempt ID are migrated by recovery within its configured
 date range and do not create permanent monitor alerts outside that range.

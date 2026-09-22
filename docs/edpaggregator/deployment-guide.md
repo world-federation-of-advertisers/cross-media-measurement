@@ -273,6 +273,10 @@ and `date_status`; `DataAvailabilitySync` emits the same metric without `data_da
 away `data_date` preserves the total count but loses the date that an operator needs for targeted
 recovery. Healthy-date and legitimate-deletion count points omit `data_date` to avoid creating
 non-actionable per-date series.
+Alert when `edpa.data_availability.noncanonical_spurious_deletion_count` is greater than zero. This
+gauge counts spurious deletions whose blob URI does not contain the expected model-line prefix and
+`YYYY-MM-DD` folder, so the monitor cannot attach `data_date`; inspect the warning logs for the
+resource names and blob URIs before attempting manual recovery.
 See [Recover missing ImpressionMetadata](../gke/recover-missing-impression-metadata.md) for the
 one-day manual Job procedure.
 

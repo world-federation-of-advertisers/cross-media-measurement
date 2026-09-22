@@ -62,6 +62,23 @@ object DataAvailabilityMonitorMetrics {
         .setUnit("{date}")
         .build()
 
+  /**
+   * Number of spurious deletions whose blob URI has no canonical data-date folder.
+   *
+   * Keyed by `edpa.data_availability_monitor.model_line`,
+   * `edpa.data_availability_monitor.edp_impression_path`, and [SOURCE_ATTR]. A nonzero value means
+   * the monitor could not attach [DATA_DATE_ATTR] to those spurious-deletion points; inspect the
+   * warning logs for their resource names and blob URIs.
+   */
+  val noncanonicalSpuriousDeletionCountGauge: LongGauge
+    get() =
+      Instrumentation.meter
+        .gaugeBuilder("edpa.data_availability.noncanonical_spurious_deletion_count")
+        .setDescription("Number of spurious deletions without a canonical data date")
+        .setUnit("{resource}")
+        .ofLongs()
+        .build()
+
   val MODEL_LINE_ATTR: AttributeKey<String> =
     AttributeKey.stringKey("edpa.data_availability_monitor.model_line")
   val EDP_IMPRESSION_PATH_ATTR: AttributeKey<String> =
