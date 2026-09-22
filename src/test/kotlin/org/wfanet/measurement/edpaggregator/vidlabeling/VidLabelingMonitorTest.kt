@@ -37,6 +37,9 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -208,6 +211,18 @@ class VidLabelingMonitorTest {
   private lateinit var metricExporter: InMemoryMetricExporter
   private lateinit var metricReader: MetricReader
   private lateinit var spanExporter: InMemorySpanExporter
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initTelemetry() {
@@ -225,10 +240,13 @@ class VidLabelingMonitorTest {
             .build()
         )
         .buildAndRegisterGlobal()
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
   }
 
   @After
   fun cleanupTelemetry() {
+    rootLogger.removeHandler(logHandler)
     if (this::openTelemetry.isInitialized) {
       openTelemetry.close()
     }
@@ -733,8 +751,9 @@ class VidLabelingMonitorTest {
     stubModelLines()
     stubFiles()
 
-    createMonitor().runHealth()
+    val result = createMonitor().runHealth()
 
+    assertThat(result.dataQualityCheckFailed).isFalse()
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
       .isEqualTo(0)
   }
@@ -748,10 +767,23 @@ class VidLabelingMonitorTest {
         .thenThrow(StatusRuntimeException(Status.INTERNAL))
 
       // Non-blocking: the health run completes despite the crawl failure.
-      createMonitor().runHealth()
+      val result = createMonitor().runHealth()
 
+      assertThat(result.dataQualityCheckFailed).isTrue()
+      assertThat(result.hasIssues).isTrue()
       assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
         .isEqualTo(1)
+      val healthSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.monitor.health" }
+      assertThat(healthSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("failed")
+      val failureLog =
+        logRecords.single {
+          it.message.contains("event=edpa.vid_labeling.monitor.data_quality_failed ")
+        }
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=monitor_health")
+      assertThat(failureLog.message).contains("xmm.outcome=failed")
+      assertThat(failureLog.message).contains("xmm.error.type=")
+      assertThat(failureLog.message).contains("xmm.error.code=grpc.INTERNAL")
     }
 
   @Test
