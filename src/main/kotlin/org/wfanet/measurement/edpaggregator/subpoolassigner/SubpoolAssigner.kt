@@ -28,7 +28,9 @@ import java.security.MessageDigest
 import java.time.Instant
 import java.time.ZoneOffset
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -175,6 +177,7 @@ class SubpoolAssigner(
           VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
           VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
           VidLabelingTraceAttributes.PIPELINE_PHASE_STRING to "phase0",
+          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "pool_assignment",
           XmmTraceAttributes.OUTCOME_STRING to result.outcome,
         )
       }
@@ -230,12 +233,26 @@ class SubpoolAssigner(
         .map { subpoolId ->
           async {
             uploadSemaphore.withPermit {
-              store.writeBlob(
-                shardSubpoolKey(shardIndex, subpoolId),
-                dek,
-                subpoolId,
-                accumulator.streamChunks(subpoolId),
-              )
+              try {
+                store.writeBlob(
+                  shardSubpoolKey(shardIndex, subpoolId),
+                  dek,
+                  subpoolId,
+                  accumulator.streamChunks(subpoolId),
+                )
+              } catch (e: CancellationException) {
+                throw e
+              } catch (e: Exception) {
+                logPoolUnit(
+                  Level.WARNING,
+                  "edpa.vid_labeling.pool_assignment.shard_output_failed",
+                  "pool_assignment_output",
+                  "failed",
+                  subpoolId,
+                  e,
+                )
+                throw e
+              }
               Span.current()
                 .addEvent(
                   "edpa.vid_labeling.pool_assignment.shard_output",
@@ -245,6 +262,13 @@ class SubpoolAssigner(
                     .put(XmmTraceAttributes.OUTCOME, "written")
                     .build(),
                 )
+              logPoolUnit(
+                Level.INFO,
+                "edpa.vid_labeling.pool_assignment.shard_output",
+                "pool_assignment_output",
+                "written",
+                subpoolId,
+              )
               accumulator.remove(subpoolId)
             }
           }
@@ -398,19 +422,39 @@ class SubpoolAssigner(
       poolOffsets
         .map { poolOffset ->
           async {
-            val inputs =
-              (0 until totalShards).map { shard ->
-                SubpoolFingerprintsStore.SubpoolBlob(
-                  shardSubpoolKey(shard, poolOffset),
-                  requireNotNull(shardDeks[shard]) { "Missing DEK for shard $shard; cannot merge" },
-                )
-              }
+            var failureShard = shardIndex
             // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool
             //   writes unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery
             //   path re-runs the merge idempotently by re-writing the merged blob, which a
             //   write-if-absent precondition would break, so the merge is deliberately left
             //   unconditional.
-            store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
+            try {
+              val inputs =
+                (0 until totalShards).map { shard ->
+                  failureShard = shard
+                  SubpoolFingerprintsStore.SubpoolBlob(
+                    shardSubpoolKey(shard, poolOffset),
+                    requireNotNull(shardDeks[shard]) {
+                      "Missing DEK for shard $shard; cannot merge"
+                    },
+                  )
+                }
+              failureShard = shardIndex
+              store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
+            } catch (e: CancellationException) {
+              throw e
+            } catch (e: Exception) {
+              logPoolUnit(
+                Level.WARNING,
+                "edpa.vid_labeling.pool_assignment.merge_failed",
+                "pool_assignment_merge",
+                "failed",
+                poolOffset,
+                e,
+                failureShard,
+              )
+              throw e
+            }
             Span.current()
               .addEvent(
                 "edpa.vid_labeling.pool_assignment.merged_subpool",
@@ -419,6 +463,13 @@ class SubpoolAssigner(
                   .put(XmmTraceAttributes.OUTCOME, "written")
                   .build(),
               )
+            logPoolUnit(
+              Level.INFO,
+              "edpa.vid_labeling.pool_assignment.merged_subpool",
+              "pool_assignment_merge",
+              "written",
+              poolOffset,
+            )
           }
         }
         .awaitAll()
@@ -471,6 +522,17 @@ class SubpoolAssigner(
             .put(XmmTraceAttributes.OUTCOME, "resolved")
             .build(),
         )
+      VidLabelingTraceLogging.log(
+        logger,
+        "edpa.vid_labeling.pool_assignment.ranker_job",
+        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+        VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
+        VidLabelingTraceAttributes.RANKER_JOB_NAME_STRING to rankerJob.name,
+        VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset.toString(),
+        XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "pool_assignment_finalize",
+        XmmTraceAttributes.OUTCOME_STRING to "resolved",
+      )
       publishVidRankBuilderWorkItem(rankerJob, offsets, maxEventDate, mergedDek)
     }
 
@@ -483,6 +545,16 @@ class SubpoolAssigner(
           .put(XmmTraceAttributes.OUTCOME, if (transitioned) "ranking" else "already_completed")
           .build(),
       )
+    VidLabelingTraceLogging.log(
+      logger,
+      "edpa.vid_labeling.pool_assignment.parent_transition",
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "pool_assignment_finalize",
+      XmmTraceAttributes.OUTCOME_STRING to if (transitioned) "ranking" else "already_completed",
+    )
     logger.info(
       if (transitioned) {
         "Fanned out ${poolOffsets.size} RankerJob(s) for $modelLine; parent advanced to RANKING"
@@ -570,6 +642,17 @@ class SubpoolAssigner(
           .put(XmmTraceAttributes.OUTCOME, outcome)
           .build(),
       )
+    VidLabelingTraceLogging.log(
+      logger,
+      "edpa.vid_labeling.pool_assignment.work_item",
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
+      VidLabelingTraceAttributes.RANKER_JOB_NAME_STRING to rankerJob.name,
+      XmmTraceAttributes.WORK_ITEM_NAME_STRING to "workItems/$workItemId",
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "pool_assignment_finalize",
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+    )
   }
 
   /** Flips the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`. */
@@ -726,6 +809,31 @@ class SubpoolAssigner(
       modelLine,
       poolOffset,
     )
+
+  private fun logPoolUnit(
+    level: Level,
+    event: String,
+    lifecycleStage: String,
+    outcome: String,
+    poolOffset: Long,
+    error: Throwable? = null,
+    failureShard: Int = shardIndex,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      level,
+      event,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
+      VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset.toString(),
+      VidLabelingTraceAttributes.SHARD_INDEX_STRING to failureShard.toString(),
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to lifecycleStage,
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
+    )
+  }
 
   companion object {
     private val SUBPOOL_COUNT = AttributeKey.longKey("xmm.edpa.pool_assignment.subpool_count")

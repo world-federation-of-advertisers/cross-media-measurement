@@ -34,6 +34,9 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.toList
@@ -111,6 +114,18 @@ private val TEMPLATE: VidRankBuilderParams = vidRankBuilderParams {
 class SubpoolAssignerTest {
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
+  private val logRecords = mutableListOf<LogRecord>()
+  private val traceLogger = Logger.getLogger(SubpoolAssigner::class.java.name)
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initTelemetry() {
@@ -125,10 +140,13 @@ class SubpoolAssignerTest {
             .build()
         )
         .buildAndRegisterGlobal()
+    logRecords.clear()
+    traceLogger.addHandler(logHandler)
   }
 
   @After
   fun cleanupTelemetry() {
+    traceLogger.removeHandler(logHandler)
     openTelemetry.close()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
@@ -330,6 +348,49 @@ class SubpoolAssignerTest {
   }
 
   @Test
+  fun `missing shard DEK records merge failure identity`() =
+    runBlocking<Unit> {
+      val store = storeMock()
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.CREATED)
+          onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+            markPoolAssignmentJobSucceededResponse {
+              lastShardResult =
+                MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
+            }
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L))
+            }
+        }
+
+      assertFailsWith<IllegalArgumentException> {
+        assigner(store, paj, ruml, accumulator = accumulatorWith(7L), totalShards = 2).assign()
+      }
+
+      val failureLog = logRecords.single { it.message.contains("pool_assignment.merge_failed") }
+      assertThat(failureLog.message).contains("xmm.edpa.pool_offset=7")
+      assertThat(failureLog.message).contains("xmm.edpa.shard_index=1")
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=pool_assignment_merge")
+      assertThat(failureLog.message).contains("xmm.outcome=failed")
+      assertThat(failureLog.message).contains("xmm.error.type=IllegalArgumentException")
+      assertThat(failureLog.message).doesNotContain("xmm.error.code=")
+    }
+
+  @Test
   fun `early successful shard retries until the parent reaches POOL_ASSIGNING`() = runBlocking {
     val store = storeMock()
     val ranker = rankerStubMock()
@@ -446,6 +507,12 @@ class SubpoolAssignerTest {
       assertThat(outputs).isNotEmpty()
       assertThat(outputs.map { it.attributes.get(XmmTraceAttributes.OUTCOME) }.toSet())
         .containsExactly("written")
+      val failureLog =
+        logRecords.single { it.message.contains("pool_assignment.shard_output_failed") }
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=pool_assignment_output")
+      assertThat(failureLog.message).contains("xmm.edpa.pool_offset=")
+      assertThat(failureLog.message).contains("xmm.edpa.shard_index=0")
+      assertThat(failureLog.message).contains("xmm.error.type=IllegalStateException")
     }
 
   @Test
@@ -841,6 +908,22 @@ class SubpoolAssignerTest {
         .hasSize(2)
       assertThat(workItemEvents.map { it.attributes.get(XmmTraceAttributes.OUTCOME) }.toSet())
         .containsExactly("created")
+      assertThat(logRecords.map { it.message })
+        .containsAtLeastElementsIn(
+          listOf(
+            "event=edpa.vid_labeling.pool_assignment_completed " +
+              "xmm.edpa.raw_impression_upload.name=$UPLOAD " +
+              "xmm.model_line.name=$MODEL_LINE " +
+              "xmm.edpa.pool_assignment_job.name=$POOL_ASSIGNMENT_JOB " +
+              "xmm.edpa.pipeline.phase=phase0 " +
+              "xmm.lifecycle.stage=pool_assignment xmm.outcome=succeeded"
+          )
+        )
+      assertThat(logRecords.any { it.message.contains("pool_assignment.merged_subpool") }).isTrue()
+      assertThat(logRecords.any { it.message.contains("pool_assignment.ranker_job") }).isTrue()
+      assertThat(logRecords.any { it.message.contains("pool_assignment.work_item") }).isTrue()
+      assertThat(logRecords.any { it.message.contains("pool_assignment.parent_transition") })
+        .isTrue()
       val mergedEvents =
         finalizeSpan.events.filter { it.name == "edpa.vid_labeling.pool_assignment.merged_subpool" }
       assertThat(
