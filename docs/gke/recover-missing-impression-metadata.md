@@ -56,8 +56,11 @@ Optional flags:
 
 Choose exactly one date-selection mode:
 
-- Repeat `--data-date=YYYY-MM-DD` to reconcile exact UTC dates. This is the preferred mode for
+- Repeat `--data-date=YYYY-MM-DD` for `late_arriving`, `unprocessed_done`,
+  `unpublished_availability`, and `spurious_deletion` recovery. This is the preferred mode for
   monitor alerts and supports non-contiguous dates without scanning the folders between them.
+  `gap`, `zero_impression`, and `without_done_blob` require correcting or completing the source
+  upload; selecting those dates before correcting the upload produces a successful no-op.
 - Pass `--end-days-ago` with optional `--lookback-days` (default `90`) to reconcile a contiguous
   window. `--end-days-ago` sets the newest eligible date and must be nonnegative and less than
   `--lookback-days`. For example, `--lookback-days=90 --end-days-ago=30` scans from 89 days ago
