@@ -117,9 +117,8 @@ message SetComputationResultRequest {
   //
   // Set instead of `encrypted_result` for a multimeasurement, whose aggregator
   // produces one `Result` per query per grouping combination. Each is stored
-  // as its own result of the `Measurement`, and the cell it belongs to is
-  // named by `Result.query_id` and `Result.attributes` inside the signed
-  // message.
+  // as its own result of the `Measurement`, and names the cell it belongs to
+  // through `Result.query_key` inside the signed message.
   repeated bytes encrypted_results = 6;
 
   // Version of the public API for serialized message definitions.
