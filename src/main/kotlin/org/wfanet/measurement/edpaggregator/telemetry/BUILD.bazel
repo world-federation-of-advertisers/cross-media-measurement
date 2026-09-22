@@ -29,13 +29,17 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "tracing",
-    srcs = ["Tracing.kt"],
+    srcs = [
+        "Tracing.kt",
+        "VidLabelingTraceAttributes.kt",
+        "VidLabelingTraceLogging.kt",
+    ],
     deps = [
         ":edpa_telemetry",
         "//imports/java/io/opentelemetry/api",
         "//imports/java/io/opentelemetry/api:context",
         "//imports/java/io/opentelemetry/extension:kotlin",
-        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
@@ -49,6 +53,8 @@ kt_jvm_library(
     srcs = [
         "EdpaTelemetry.kt",
         "Tracing.kt",
+        "VidLabelingTraceAttributes.kt",
+        "VidLabelingTraceLogging.kt",
     ],
     visibility = ["//visibility:public"],
     deps = [
@@ -65,7 +71,7 @@ kt_jvm_library(
         "//imports/java/io/opentelemetry/sdk:sdk_autoconfigure",
         "//imports/java/io/opentelemetry/sdk:sdk_logs",
         "//imports/java/io/opentelemetry/sdk:sdk_metrics",
-        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",

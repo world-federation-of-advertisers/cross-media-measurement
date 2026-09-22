@@ -12,7 +12,7 @@ kt_jvm_library(
     srcs = ["BaseTeeApplication.kt"],
     deps = [
         ":errors",
-        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",
         "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_kt_jvm_proto",
