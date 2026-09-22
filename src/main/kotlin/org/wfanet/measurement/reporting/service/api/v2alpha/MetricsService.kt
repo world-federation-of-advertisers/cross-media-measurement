@@ -117,6 +117,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.grpc.errorInfo
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -243,6 +244,11 @@ private const val BATCH_GET_REPORTING_SETS_LIMIT = 1000
 private const val BATCH_SET_CMMS_MEASUREMENT_IDS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_RESULTS_LIMIT = 1000
 private const val BATCH_SET_MEASUREMENT_FAILURES_LIMIT = 1000
+private const val CMMS_ERROR_DOMAIN = "halo.wfanet.org"
+private const val CMMS_FIELD_NAME_KEY = "fieldName"
+private const val REQUIRED_FIELD_NOT_SET_REASON = "REQUIRED_FIELD_NOT_SET"
+private val CMMS_BATCH_MODEL_LINE_FIELD =
+  Regex("""requests\[(\d+)]\.measurement\.measurement_spec\.model_line""")
 
 private class MeasurementSyncException(val measurementNames: Set<String>, cause: Throwable) :
   RuntimeException(cause)
@@ -319,6 +325,7 @@ class MetricsService(
     data class RunningMetric(
       val internalMetric: InternalMetric,
       val effectiveModelLineName: String,
+      val requestMetricFieldPath: String,
     ) {
       init {
         require(internalMetric.state == InternalMetric.State.RUNNING)
@@ -328,6 +335,11 @@ class MetricsService(
     private data class ResourceNameApiAuthenticationKey(
       val name: String,
       val apiAuthenticationKey: String,
+    )
+
+    private data class PendingCmmsMeasurement(
+      val request: CreateMeasurementRequest,
+      val requestMetricFieldPath: String,
     )
 
     private val certificateCache: LoadingCache<ResourceNameApiAuthenticationKey, Certificate> =
@@ -410,31 +422,36 @@ class MetricsService(
             measurementCreationTraceAttributes(internalMeasurement, runningMetric)
         }
 
-      val cmmsCreateMeasurementRequests: Flow<CreateMeasurementRequest> = flow {
+      val pendingCmmsMeasurements: Flow<PendingCmmsMeasurement> = flow {
         for ((internalMeasurement, runningMetric) in pendingMeasurements) {
           emit(
-            ReportTracing.traceSuspending(
-              spanName = "reporting.measurement.prepare",
-              attributes = measurementCreationTraceAttributes(internalMeasurement, runningMetric),
-            ) {
-              buildCreateMeasurementRequest(
-                  internalMeasurement,
-                  runningMetric,
-                  internalPrimitiveReportingSetMap,
-                  preparation.measurementConsumer,
-                  measurementConsumerCreds,
-                  preparation.dataProviderInfoMap,
-                  preparation.measurementConsumerSigningKey,
-                )
-                .also { Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared") }
-            }
+            PendingCmmsMeasurement(
+              request =
+                ReportTracing.traceSuspending(
+                  spanName = "reporting.measurement.prepare",
+                  attributes =
+                    measurementCreationTraceAttributes(internalMeasurement, runningMetric),
+                ) {
+                  buildCreateMeasurementRequest(
+                      internalMeasurement,
+                      runningMetric,
+                      internalPrimitiveReportingSetMap,
+                      preparation.measurementConsumer,
+                      measurementConsumerCreds,
+                      preparation.dataProviderInfoMap,
+                      preparation.measurementConsumerSigningKey,
+                    )
+                    .also { Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared") }
+                },
+              requestMetricFieldPath = runningMetric.requestMetricFieldPath,
+            )
           )
         }
       }
 
       // Create CMMS measurements.
       val callBatchCreateMeasurementsRpc:
-        suspend (List<CreateMeasurementRequest>) -> BatchCreateMeasurementsResponse =
+        suspend (List<PendingCmmsMeasurement>) -> BatchCreateMeasurementsResponse =
         { items ->
           try {
             val response = batchCreateCmmsMeasurements(measurementConsumerCreds, items)
@@ -446,7 +463,7 @@ class MetricsService(
                   if (measurement.measurementReferenceId.isEmpty() && index < items.size) {
                     measurement
                       .toBuilder()
-                      .setMeasurementReferenceId(items[index].requestId)
+                      .setMeasurementReferenceId(items[index].request.requestId)
                       .build()
                   } else {
                     measurement
@@ -460,7 +477,7 @@ class MetricsService(
             for (item in items) {
               ReportTracing.recordFailure(
                 spanName = "reporting.measurement.creation_failed",
-                attributes = checkNotNull(traceAttributesByRequestId[item.requestId]),
+                attributes = checkNotNull(traceAttributesByRequestId[item.request.requestId]),
                 error = e,
               )
             }
@@ -471,7 +488,7 @@ class MetricsService(
       @OptIn(ExperimentalCoroutinesApi::class)
       val cmmsMeasurements: Flow<Measurement> =
         submitBatchRequests(
-            cmmsCreateMeasurementRequests,
+            pendingCmmsMeasurements,
             BATCH_KINGDOM_MEASUREMENTS_LIMIT,
             callBatchCreateMeasurementsRpc,
             concurrency = kingdomMeasurementBatchConcurrency,
@@ -616,7 +633,7 @@ class MetricsService(
     /** Batch create CMMS measurements. */
     private suspend fun batchCreateCmmsMeasurements(
       measurementConsumerCreds: MeasurementConsumerCredentials,
-      createMeasurementRequests: List<CreateMeasurementRequest>,
+      pendingCmmsMeasurements: List<PendingCmmsMeasurement>,
     ): BatchCreateMeasurementsResponse {
       try {
         return measurementsStub
@@ -624,13 +641,14 @@ class MetricsService(
           .batchCreateMeasurements(
             batchCreateMeasurementsRequest {
               parent = measurementConsumerCreds.resourceKey.toName()
-              requests += createMeasurementRequests
+              requests += pendingCmmsMeasurements.map { it.request }
             }
           )
       } catch (e: StatusException) {
+        if (e.status.code == Status.Code.INVALID_ARGUMENT) {
+          throw translateInvalidArgument(e, pendingCmmsMeasurements)
+        }
         throw when (e.status.code) {
-            Status.Code.INVALID_ARGUMENT ->
-              Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
             Status.Code.PERMISSION_DENIED ->
               Status.PERMISSION_DENIED.withDescription(
                 "Cannot create CMMS Measurements for another MeasurementConsumer."
@@ -646,6 +664,34 @@ class MetricsService(
           .withCause(e)
           .asRuntimeException()
       }
+    }
+
+    private fun translateInvalidArgument(
+      exception: StatusException,
+      pendingCmmsMeasurements: List<PendingCmmsMeasurement>,
+    ): StatusRuntimeException {
+      val errorInfo = exception.errorInfo
+      if (
+        errorInfo?.domain == CMMS_ERROR_DOMAIN && errorInfo.reason == REQUIRED_FIELD_NOT_SET_REASON
+      ) {
+        val cmmsFieldName = errorInfo.metadataMap[CMMS_FIELD_NAME_KEY]
+        val requestIndex =
+          cmmsFieldName
+            ?.let { CMMS_BATCH_MODEL_LINE_FIELD.matchEntire(it) }
+            ?.groupValues
+            ?.get(1)
+            ?.toIntOrNull()
+        val requestMetricFieldPath =
+          requestIndex?.let { pendingCmmsMeasurements.getOrNull(it) }?.requestMetricFieldPath
+        if (requestMetricFieldPath != null) {
+          return RequiredFieldNotSetException("$requestMetricFieldPath.model_line", exception)
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
+      }
+
+      return Status.INVALID_ARGUMENT.withDescription("Required field unspecified or invalid.")
+        .withCause(exception)
+        .asRuntimeException()
     }
 
     /** Builds a CMMS [CreateMeasurementRequest]. */
@@ -1761,7 +1807,11 @@ class MetricsService(
     if (result.internalMetric.state == InternalMetric.State.RUNNING) {
       measurementSupplier.createCmmsMeasurements(
         listOf(
-          MeasurementSupplier.RunningMetric(result.internalMetric, result.effectiveModelLineName)
+          MeasurementSupplier.RunningMetric(
+            result.internalMetric,
+            result.effectiveModelLineName,
+            requestMetricFieldPath = "metric",
+          )
         ),
         result.internalPrimitiveReportingSetMap,
         result.measurementConsumerCredentials,
@@ -2143,12 +2193,19 @@ class MetricsService(
     }
 
     val internalRunningMetrics: List<MeasurementSupplier.RunningMetric> =
-      internalMetrics
-        .zip(effectiveModelLineNames)
-        .filter { (internalMetric, _) -> internalMetric.state == InternalMetric.State.RUNNING }
-        .map { (internalMetric, effectiveModelLineName) ->
-          MeasurementSupplier.RunningMetric(internalMetric, effectiveModelLineName)
+      internalMetrics.zip(effectiveModelLineNames).mapIndexedNotNull {
+        index,
+        (internalMetric, effectiveModelLineName) ->
+        if (internalMetric.state == InternalMetric.State.RUNNING) {
+          MeasurementSupplier.RunningMetric(
+            internalMetric,
+            effectiveModelLineName,
+            requestMetricFieldPath = "requests[$index].metric",
+          )
+        } else {
+          null
         }
+      }
     return CreatedMetrics(
       internalMetrics,
       internalRunningMetrics,
