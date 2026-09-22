@@ -33,6 +33,8 @@ object VidLabelingTraceAttributes {
   const val RECOVERY_WORK_ITEM_NAME_STRING = "xmm.edpa.recovery_work_item.name"
   const val PIPELINE_PHASE_STRING = "xmm.edpa.pipeline.phase"
   const val GCS_OBJECT_GENERATION_STRING = "xmm.gcs.object.generation"
+  const val POOL_OFFSET_STRING = "xmm.edpa.pool_offset"
+  const val SHARD_INDEX_STRING = "xmm.edpa.shard_index"
 
   val DATA_PROVIDER_NAME: AttributeKey<String> = AttributeKey.stringKey(DATA_PROVIDER_NAME_STRING)
   val MODEL_LINE_NAME: AttributeKey<String> = AttributeKey.stringKey(MODEL_LINE_NAME_STRING)
@@ -53,6 +55,8 @@ object VidLabelingTraceAttributes {
     AttributeKey.stringKey(RECOVERY_WORK_ITEM_NAME_STRING)
   val PIPELINE_PHASE: AttributeKey<String> = AttributeKey.stringKey(PIPELINE_PHASE_STRING)
   val GCS_OBJECT_GENERATION: AttributeKey<Long> = AttributeKey.longKey(GCS_OBJECT_GENERATION_STRING)
+  val POOL_OFFSET: AttributeKey<Long> = AttributeKey.longKey(POOL_OFFSET_STRING)
+  val SHARD_INDEX: AttributeKey<Long> = AttributeKey.longKey(SHARD_INDEX_STRING)
 
   val SAFE_LOG_FIELD_NAMES: Set<String> =
     setOf(
@@ -68,5 +72,7 @@ object VidLabelingTraceAttributes {
       RECOVERY_WORK_ITEM_NAME_STRING,
       PIPELINE_PHASE_STRING,
       GCS_OBJECT_GENERATION_STRING,
+      POOL_OFFSET_STRING,
+      SHARD_INDEX_STRING,
     )
 }
