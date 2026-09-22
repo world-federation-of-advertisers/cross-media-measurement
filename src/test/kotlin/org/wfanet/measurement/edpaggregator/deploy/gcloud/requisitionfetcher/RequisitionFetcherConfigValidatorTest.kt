@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.TextFormat
+import com.google.protobuf.duration
 import kotlin.test.assertFailsWith
 import org.junit.Rule
 import org.junit.Test
@@ -51,6 +52,65 @@ class RequisitionFetcherConfigValidatorTest {
       CONTROL_PLANE_TARGET,
       DataWatcherConfig.getDefaultInstance(),
     )
+  }
+
+  @Test
+  fun `absent requisition refusal duration uses 48 hour default`() {
+    assertThat(RequisitionFetcherConfigValidator.requisitionRefusalDuration(validFetcherConfig()))
+      .isEqualTo(java.time.Duration.ofHours(48))
+  }
+
+  @Test
+  fun `configured requisition refusal duration is returned`() {
+    val config =
+      validFetcherConfig()
+        .toBuilder()
+        .setRequisitionRefusalDuration(duration { seconds = 6 * 60 * 60 })
+        .build()
+
+    assertThat(RequisitionFetcherConfigValidator.requisitionRefusalDuration(config))
+      .isEqualTo(java.time.Duration.ofHours(6))
+  }
+
+  @Test
+  fun `deployment config rejects non-positive requisition refusal duration`() {
+    val config = validFetcherConfig().toBuilder().setRequisitionRefusalDuration(duration {}).build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        RequisitionFetcherConfigValidator.validate(
+          config,
+          CONTROL_PLANE_TARGET,
+          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must be positive")
+  }
+
+  @Test
+  fun `deployment config rejects invalid requisition refusal duration`() {
+    val config =
+      validFetcherConfig()
+        .toBuilder()
+        .setRequisitionRefusalDuration(
+          duration {
+            seconds = 1
+            nanos = 1_000_000_000
+          }
+        )
+        .build()
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        RequisitionFetcherConfigValidator.validate(
+          config,
+          CONTROL_PLANE_TARGET,
+          dataWatcherConfig("^gs://bucket/legacy/(.*)$"),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("Invalid 'requisition_refusal_duration'")
   }
 
   @Test
@@ -188,7 +248,7 @@ class RequisitionFetcherConfigValidatorTest {
         RequisitionWorkItemDispatchConfig.newBuilder()
           .setStoragePathPrefix("direct")
           .setControlPlaneConnection(tlsParams())
-          .setQueue("results-fulfiller-queue")
+          .setQueue(RESULTS_FULFILLER_QUEUE)
           .setResultsFulfillerParams(resultsFulfillerParams())
       )
       .build()
@@ -232,7 +292,7 @@ class RequisitionFetcherConfigValidatorTest {
           .setIdentifier("legacy-requisitions")
           .setSourcePathRegex(regex)
           .setControlPlaneQueueSink(
-            WatchedPath.ControlPlaneQueueSink.newBuilder().setQueue("results-fulfiller-queue")
+            WatchedPath.ControlPlaneQueueSink.newBuilder().setQueue(RESULTS_FULFILLER_QUEUE)
           )
       )
       .build()
@@ -240,5 +300,6 @@ class RequisitionFetcherConfigValidatorTest {
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp"
     private const val CONTROL_PLANE_TARGET = "secure-computation.example:8443"
+    private const val RESULTS_FULFILLER_QUEUE = "results-fulfiller-queue"
   }
 }

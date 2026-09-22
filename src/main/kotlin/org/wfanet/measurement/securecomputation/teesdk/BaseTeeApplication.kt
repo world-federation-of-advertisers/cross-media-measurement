@@ -21,6 +21,8 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Parser
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
@@ -35,6 +37,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -48,6 +53,11 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkIte
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.renewWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
+
+private fun canonicalWorkItemName(name: String): String {
+  if (name.isEmpty()) return name
+  return WorkItemKey.fromName(name)?.toName() ?: WorkItemKey(name).toName()
+}
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -123,51 +133,101 @@ abstract class BaseTeeApplication(
    * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
+    val body = queueMessage.body
+    val workItemName = canonicalWorkItemName(body.name)
+    val traceContext =
+      if (body.workItemParams.`is`(WorkItem.WorkItemParams::class.java)) {
+        runCatching {
+            body.workItemParams.unpack(WorkItem.WorkItemParams::class.java).traceContextMap
+          }
+          .getOrDefault(emptyMap())
+      } else {
+        emptyMap()
+      }
+    W3CTraceContext.withExtractedContext(traceContext) {
+      ReportTracing.traceSuspending(
+        spanName = "secure_computation.work_item.process",
+        attributes =
+          io.opentelemetry.api.common.Attributes.builder()
+            .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "work_item_processing")
+            .put(ReportTraceAttributes.OUTCOME, "started")
+            .build(),
+      ) {
+        processMessageInContext(queueMessage, workItemName)
+      }
+    }
+  }
+
+  private suspend fun processMessageInContext(
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
+    workItemName: String,
+  ) {
     logger.info("Starting to process message with ackId: ${queueMessage.ackId}")
     val body: WorkItem = queueMessage.body
 
     if (body.name.isEmpty()) {
-      logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed. Nacking message.")
+      val error = IllegalArgumentException("WorkItem name is empty")
+      recordCurrentSpanError(error)
+      logger.log(Level.SEVERE, error) { "Cannot proceed. Nacking message." }
       queueMessage.nack()
       return
     }
     logger.info("Processing WorkItem: ${body.name}")
-    val workItemName = WorkItemKey(body.name).toName()
     val workItemAttempt =
       awaitWorkItemAttempt(
         queueMessage,
         workItemName,
         body.generation.takeUnless { it == 0L } ?: 1L,
       ) ?: return
+    Span.current().setAttribute(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttempt.name)
 
     try {
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
       runWorkWithLeaseRenewal(workItemAttempt, queueMessage.body.workItemParams)
       logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
-      try {
-        completeWorkItemAttempt(workItemAttempt)
-      } catch (e: ControlPlaneApiException) {
-        val cause = e.cause
+      val completionError =
+        try {
+          completeWorkItemAttempt(workItemAttempt)
+          null
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Throwable) {
+          e
+        }
+      if (completionError != null) {
+        val statusException =
+          when (completionError) {
+            is StatusException -> completionError
+            is ControlPlaneApiException -> completionError.cause as? StatusException
+            else -> null
+          }
         if (
-          cause is StatusException &&
-            cause.status.code == Status.Code.FAILED_PRECONDITION &&
-            cause.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
-            cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
+          statusException?.status?.code == Status.Code.FAILED_PRECONDITION &&
+            statusException.errorInfo?.reason ==
+              Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
+            statusException.errorInfo
+              ?.metadataMap
+              ?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
               WorkItemAttempt.State.SUCCEEDED.name
         ) {
           logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
+          Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
           queueMessage.ack()
-        } else {
-          logger.log(Level.SEVERE, e) {
-            "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
-          }
-          queueMessage.nack()
+          return
         }
+        recordCurrentSpanError(completionError)
+        logger.log(Level.SEVERE, completionError) {
+          "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
+        }
+        queueMessage.nack()
         return
       }
       logger.info("Successfully completed processing. Acking message ${queueMessage.ackId}")
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
+      recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
       try {
         failWorkItem(workItemName, body.generation.takeUnless { it == 0L } ?: 1L)
@@ -176,6 +236,13 @@ abstract class BaseTeeApplication(
       } catch (error: CancellationException) {
         throw error
       } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item.failure_writeback",
+          lifecycleStage = "work_item_failure_writeback",
+          workItemName = workItemName,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
+        )
         logger.log(Level.SEVERE, error) {
           "Failed to report work item failure. Nacking message ${queueMessage.ackId}"
         }
@@ -184,19 +251,58 @@ abstract class BaseTeeApplication(
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
+      recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
       try {
         failWorkItemAttempt(workItemAttempt, e)
         logger.info("WorkItemAttempt failure reported. Nacking message ${queueMessage.ackId}")
       } catch (error: CancellationException) {
         throw error
-      } catch (error: Exception) {
+      } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item_attempt.failure_writeback",
+          lifecycleStage = "work_item_attempt_failure_writeback",
+          workItemName = workItemName,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
+        )
         logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
       }
       queueMessage.nack()
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }
+  }
+
+  private fun recordFailureWriteback(
+    spanName: String,
+    lifecycleStage: String,
+    workItemName: String,
+    workItemAttemptName: String,
+    error: Throwable,
+  ) {
+    ReportTracing.recordFailure(
+      spanName,
+      io.opentelemetry.api.common.Attributes.builder()
+        .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+        .put(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttemptName)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, lifecycleStage)
+        .build(),
+      error,
+    )
+  }
+
+  private fun recordCurrentSpanError(error: Throwable) {
+    Span.current()
+      .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .also { span ->
+        ReportTraceAttributes.errorCode(error)?.let {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, it)
+        }
+      }
+      .recordException(error)
   }
 
   private suspend fun createWorkItemAttempt(
@@ -243,6 +349,7 @@ abstract class BaseTeeApplication(
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
               workItemState == WorkItem.State.RUNNING.name
           ) {
+            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
             logger.info(
               "WorkItem $workItemName already has an active attempt; retaining delivery while " +
                 "waiting for ownership"
@@ -258,6 +365,13 @@ abstract class BaseTeeApplication(
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
               reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
           ) {
+            when {
+              workItemState == WorkItem.State.SUCCEEDED.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "already_completed")
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "stale_delivery")
+              else -> recordCurrentSpanError(e)
+            }
             logger.log(Level.WARNING, e) {
               "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
             }
@@ -265,6 +379,7 @@ abstract class BaseTeeApplication(
             return null
           }
         }
+        recordCurrentSpanError(e)
         logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
         queueMessage.nack()
         return null

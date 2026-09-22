@@ -54,14 +54,26 @@ changes *how* you use every tool below:
     `ExternalRequisitionId`s.
   - EDPA: the requisition resource name (`CmmsRequisition`) and its `GroupId`.
   - Reporting: the report / metric name and the `CmmsMeasurementId` link.
-- **Prefer traces for the results-fulfiller.** The results-fulfiller is almost
-  entirely instrumented with OpenTelemetry **span events**, not log lines (see
-  [Telemetry](#telemetry-metrics-and-traces-check-before-grepping-logs)). Its span
-  events carry `edpa.results_fulfiller.cmms_requisition`, `.group_id`,
-  `.report_id`, `.model_line`, `.error_type`, and `.status` as attributes — so in
-  Cloud Trace you can filter to exactly your requisition's fulfillment span among
-  thousands and read the failure reason directly. At high volume this is the most
-  reliable way to isolate one requisition.
+- **Use trace labels and structured logs together.** The Cloud Trace v1 read API
+  returns spans and their searchable labels, but not OpenTelemetry span events or
+  status. ResultsFulfiller therefore puts durable correlation and final outcome
+  fields such as `xmm.requisition.name`, `xmm.edpa.group_id`,
+  `xmm.lifecycle.stage`, and `xmm.outcome` on the span itself. Structured logs
+  provide the detailed chronological evidence. A missing span is not proof that a
+  stage did not run because export and sampling still apply.
+- **Creation failures use the earliest stable identity.** Before a Metric or
+  Measurement resource exists, Reporting and Kingdom emit
+  `xmm.metric.request_id` or `xmm.measurement.request_id`; `report-trace` resolves
+  those request IDs from the Reporting database and uses them to attribute the
+  failed child. BasicReport creation becomes correlatable once both a valid
+  parent and non-empty BasicReport ID are present. Failures before that boundary
+  cannot be found from a BasicReport name alone.
+- **Failure labels are intentionally safe and compact.** Producer spans and
+  structured post-processing logs retain `xmm.outcome=failed` and a bounded
+  `xmm.error.type`. gRPC failures also retain a stable `xmm.error.code` such
+  as `grpc.PERMISSION_DENIED`, including when the gRPC exception is wrapped.
+  Exception messages and stack traces remain in the source system rather than
+  the portable artifact.
 - **Logs still matter, but isolation is component-dependent — and harder.** Don't
   skip them (an exception stack trace is often only in the logs), but know what is
   greppable where:
@@ -78,12 +90,386 @@ changes *how* you use every tool below:
     WorkItem name / processing time from the trace (or its `GroupId`/blob path from
     Spanner), then narrow the log query to that WorkItem name or to a tight
     **time window** around when it was processed, and match on the error signature.
-    Treat log-only isolation as best-effort corroboration; the trace is the
-    dependable index.
+    Treat either source alone as incomplete evidence; use resource IDs to join
+    trace labels, logs, and persisted state.
 
 The stage-by-stage playbook below gives idle-friendly example queries (a bare
 `ORDER BY CreateTime DESC` to eyeball a fresh run); in production, always add the
 `WHERE <your-id>` filter and lean on the identifiers and traces above.
+
+## Print a report timeline with `report-trace`
+
+The `ReportTrace` operator CLI resolves a BasicReport to its generated Report,
+metrics, and Kingdom measurements. It searches Cloud Trace and Cloud Logging
+using that resource chain, then performs bounded correlation-expansion rounds
+with Requisition, EDPA group, WorkItem, and Duchy computation identifiers found
+in spans or structured logs. It writes matching spans and log entries in
+timestamp order, which is usually the fastest first step before using the
+stage-specific queries below.
+
+If the BasicReport-to-Report linkage write did not complete, the tool uses the
+BasicReport's stable Report creation request ID to recover the Report from
+Reporting storage. If Kingdom created a Measurement but Reporting did not save
+its Measurement ID, the tool can promote the name from a successful
+`measurement_creation` event carrying the same
+`xmm.measurement.request_id`, then resolve that Measurement's Kingdom route.
+The artifact labels these identifiers as request-ID- or telemetry-recovered so
+their provenance is explicit.
+
+Run it with Application Default Credentials impersonating the dedicated
+read-only report-trace operator service account. Configure the deployment's
+`REPORT_TRACE_OPERATORS` variable with the IAM members allowed to impersonate
+that account. If telemetry is stored outside the CMMS project, also list those
+project IDs in `REPORT_TRACE_OBSERVABILITY_PROJECTS`. Terraform grants the
+service account read access to Reporting Spanner and Postgres, Cloud Logging,
+and Cloud Trace; it does not grant mutation access to Reporting storage.
+
+After applying Terraform, create impersonated Application Default Credentials
+and read the exact Cloud SQL IAM username from the outputs:
+
+```bash
+cd src/main/terraform/gcloud/cmms
+CMMS_PROJECT_ID="<CMMS_PROJECT_ID>"
+REPORT_TRACE_SERVICE_ACCOUNT="$(terraform output -raw report_trace_operator_service_account_email)"
+REPORT_TRACE_POSTGRES_USER="$(terraform output -raw report_trace_operator_postgres_user)"
+gcloud auth application-default login \
+  --impersonate-service-account="$REPORT_TRACE_SERVICE_ACCOUNT" \
+  --billing-project="$CMMS_PROJECT_ID"
+```
+
+Use `$REPORT_TRACE_POSTGRES_USER` for `--postgres-user` below. The token identity
+and Postgres IAM username must match; using the Reporting server's database
+username with an operator's token fails authentication. The command separately
+uses the MeasurementConsumer's mTLS identity and API key to read its
+Measurements and Requisitions from the Kingdom public API.
+
+`report-trace` is an operator CLI, not a continuously deployed service. Build
+and run it from a trusted administrative environment with network access to the
+Reporting databases and Kingdom public API. Keep the MeasurementConsumer key,
+certificate, and API key outside the source checkout, and write artifacts to an
+operator-controlled directory.
+
+First create a complete topology config for the deployment. Every DataProvider
+that can appear on a traced Requisition must have an explicit route:
+
+```textproto
+data_provider_routes {
+  data_provider: "dataProviders/<DIRECT_EDP_DATA_PROVIDER_ID>"
+  route: DIRECT_EDP
+}
+data_provider_routes {
+  data_provider: "dataProviders/<EDPA_DATA_PROVIDER_ID>"
+  route: EDPA
+}
+```
+
+`EDPA` means the direct RequisitionFetcher-to-Secure-Computation WorkItem path.
+There is intentionally no `LEGACY` route. The tool does not support the legacy
+DataWatcher dispatch path, and an operator must not classify a legacy EDPA as
+`EDPA`: doing so would make the tool look for direct-dispatch stages that the
+deployment cannot emit.
+
+```bash
+SPANNER_DISABLE_BUILTIN_METRICS=true \
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
+  -- \
+  --observability-project=<REPORTING_PROJECT_ID> \
+  --observability-project=<KINGDOM_PROJECT_ID> \
+  --observability-project=<EDPA_PROJECT_ID> \
+  --observability-project=<DUCHY_PROJECT_ID> \
+  --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID_1> \
+  --basic-report=measurementConsumers/<MC_ID>/basicReports/<BASIC_REPORT_ID_2> \
+  --output-dir=/tmp/report-traces \
+  --spanner-project=<PROJECT_ID> \
+  --spanner-instance=<SPANNER_INSTANCE> \
+  --spanner-database=reporting \
+  --postgres-cloud-sql-connection-name=<PROJECT_ID>:<REGION>:<CLOUD_SQL_INSTANCE> \
+  --postgres-database=reporting-v2 \
+  --postgres-user="$REPORT_TRACE_POSTGRES_USER" \
+  --kingdom-public-api-target=<KINGDOM_PUBLIC_API_TARGET> \
+  --kingdom-public-api-cert-host=<KINGDOM_PUBLIC_API_CERT_HOST> \
+  --tls-cert-file=<MEASUREMENT_CONSUMER_TLS_CERT_FILE> \
+  --tls-key-file=<MEASUREMENT_CONSUMER_TLS_KEY_FILE> \
+  --cert-collection-file=<KINGDOM_ROOT_CERT_COLLECTION_FILE> \
+  --kingdom-api-key=<MEASUREMENT_CONSUMER_API_KEY> \
+  --topology-config-file=<REPORT_TRACE_TOPOLOGY_TEXTPROTO> \
+  --collection-deadline=PT6M \
+  --trace-max-concurrency=8 \
+  --trace-quota-units-per-second=4.0 \
+  --logging-requests-per-second=0.5 \
+  --max-correlation-values=500 \
+  --max-trace-ids=500
+```
+
+The tool does not need to export Spanner client metrics. Disabling them keeps
+the operator identity read-only and avoids irrelevant metric-export warnings.
+
+Repeat `--basic-report` to collect a batch. `--output-dir` is required for a
+batch and produces one path-safe Markdown file per distinct BasicReport. It can
+also be used with one BasicReport. Without `--output-dir`, a single BasicReport
+is written to standard output. The default end time is the current time. Repeat
+`--observability-project` for every project that receives telemetry from a
+component in the path. The legacy `--project` spelling remains an alias for a
+single centrally routed observability project; it is not the Spanner project.
+`--topology-config-file` is required in BasicReport mode and supplies a
+`ReportTraceTopologyConfig` textproto. This topology is operator-supplied
+because the Kingdom knows the DataProvider and selected protocol, but not the
+implementation behind that DataProvider. `ROUTE_UNSPECIFIED`, invalid
+DataProvider resource names, and duplicate DataProvider entries are invalid and
+cause the command to fail before collection.
+
+The config is expected to describe the complete deployment topology. If an
+otherwise valid config omits a DataProvider encountered on a Kingdom
+Requisition, collection continues: the affected route and lifecycle operations
+are `UNKNOWN`, the artifact is `PARTIAL`, and the warning names the missing
+DataProvider. The command exits nonzero unless `--allow-partial` is supplied.
+This preserves the telemetry artifact without incorrectly treating an unlisted
+provider as a direct EDP. Kingdom lookup is bounded by
+`--kingdom-resolution-timeout`, `--kingdom-max-concurrency`, and
+`--kingdom-max-attempts`; a partial or failed lookup does not prevent telemetry
+collection.
+
+The resolved-route section lists only DataProviders referenced by the resolved
+Requisitions for that report. The topology file remains exhaustive even though
+unrelated configured DataProviders are not repeated in each artifact.
+
+Report collection is also bounded independently for each requested report.
+`--collection-deadline` is the total budget for Reporting resource resolution,
+Kingdom route resolution, and telemetry collection, while
+`--trace-max-concurrency` bounds simultaneous Cloud Trace HTTP requests, and all
+Cloud Trace request types share one quota limiter per project. Each ListTraces
+request consumes 25 units and each GetTrace request consumes one unit;
+`--trace-quota-units-per-second` controls their combined rate.
+`--logging-requests-per-second` independently limits Cloud Logging queries.
+
+Before choosing those two rates, inspect the effective read quotas in **every**
+project supplied with `--observability-project`. The operator needs
+`serviceusage.quotas.get`; the already-required
+`roles/serviceusage.serviceUsageConsumer` role includes that permission. The
+following commands show the effective quota metrics for one project as the
+same service account used by the CLI:
+
+```bash
+gcloud alpha services quota list \
+  --impersonate-service-account="$REPORT_TRACE_SERVICE_ACCOUNT" \
+  --consumer=projects/<OBSERVABILITY_PROJECT_ID> \
+  --service=cloudtrace.googleapis.com
+
+gcloud alpha services quota list \
+  --impersonate-service-account="$REPORT_TRACE_SERVICE_ACCOUNT" \
+  --consumer=projects/<OBSERVABILITY_PROJECT_ID> \
+  --service=logging.googleapis.com
+```
+
+The CLI charges Cloud Logging reads to each corresponding observability
+project instead of the credential's default consumer project. Its execution
+identity therefore also needs `serviceusage.services.use` on every
+observability project.
+
+Set `--trace-quota-units-per-second` below the smallest applicable Cloud Trace
+read limit divided by 60, with headroom for other readers. Set
+`--logging-requests-per-second` below both the smallest project read limit and
+the per-user read limit, divided by 60. The defaults reserve headroom for a
+Cloud Trace limit of 300 units per minute and a Cloud Logging limit of 60 read
+requests per minute, but those are not universal deployment values. Repeat the
+quota check whenever the project list or execution identity changes.
+
+Readers within one CLI invocation share their per-project limiters. Separate
+CLI processes do not coordinate with one another, so avoid parallel invocations
+or divide the available quota budget across them. A higher concurrency value
+does not bypass the rate limit; it only overlaps requests after permits become
+available.
+
+Cloud Trace HTTP 429 and any `RESOURCE_EXHAUSTED` response from Cloud Logging,
+Reporting resolution, or Kingdom route resolution are hard per-report failures,
+even with `--allow-partial`, because the resulting artifact cannot establish
+that collection was complete. Retry at a lower rate.
+`--max-correlation-values` and `--max-trace-ids` cap graph expansion even when
+a failed report exposes an unusually large number of descendants. Reaching any
+of these bounds writes a `PARTIAL` artifact and continues with the next
+BasicReport in the batch. The defaults shown above are also the CLI defaults.
+
+By default, the artifact contains complete application log payloads, including
+INFO messages, error messages, and stack traces. It omits entries produced by
+the generic verbose gRPC interceptor when the payload contains the interceptor's
+gRPC request/response preamble. When a logging backend ingests a multiline
+payload as separate entries, the tool suppresses continuations only while they
+share the same logger and log-stream context as that preamble. A continuation-shaped entry whose
+source or surrounding request context cannot be established safely is omitted and makes the
+artifact `PARTIAL`. Ordinary structured lifecycle logs and application messages with reliable
+non-gRPC context remain visible.
+gRPC payloads can contain
+credentials and encrypted request data. Application logs must still follow the
+normal policy of not logging sensitive data.
+
+Use `--include-grpc-payloads` only for a locally controlled investigation. The
+resulting artifact is marked `ALL-LOG-PAYLOADS; SENSITIVE` and can contain API
+keys, credentials, and complete request or response messages. Review it before
+sharing.
+
+Do not infer an application failure from the displayed Cloud Logging severity
+alone. GKE assigns `ERROR` to container stderr, and Java's verbose gRPC logger
+can write ordinary `INFO` request and response dumps there. These entries are
+excluded unless `--include-grpc-payloads` is set. Use correlated `xmm.outcome`
+or gRPC status evidence when classifying an application failure.
+
+The artifact reports collection completeness (`COMPLETE`, `PARTIAL`, or
+`FAILED`) separately from the report's execution outcome (`SUCCEEDED`, `FAILED`,
+`REFUSED`, `IN_PROGRESS`, or `UNKNOWN`). Zero telemetry, missing stages, and a
+stage with only a `started` outcome are never reported as complete. Source
+failures and truncation also make collection partial or failed.
+`--allow-partial` changes only the process exit code for `PARTIAL`; it does not
+change the completeness written into the artifact and never masks `FAILED`.
+`--limit` controls the maximum retained spans and log entries. Each concrete
+Cloud Logging query reads only its newest bounded window; error and terminal
+evidence are prioritized within that window, but an older error outside it may
+be omitted. Truncated output is always marked partial. Set `--limit=0` to collect
+all matching entries.
+
+Application errors and warnings are summarized near the top of the artifact,
+with stack frames collapsed for readability. The complete messages and stack
+traces remain in the chronological timeline. This makes refusal causes and
+other actionable failures visible without treating generic gRPC payload
+fragments written to stderr as application errors.
+
+`COMPLETE` describes the evidence collection, not whether the report succeeded.
+For a terminal failure or refusal, the artifact marks downstream operations that
+could not run as `SKIPPED_AFTER_FAILURE` or `SKIPPED_AFTER_REFUSAL`. A fully
+observed unsuccessful execution can therefore be `COMPLETE` with an execution
+outcome of `FAILED` or `REFUSED`; genuinely missing evidence still makes it
+`PARTIAL`. A refused Requisition skips the EDPA dispatch and processing stages
+only when `requisition_refusal` telemetry identifies RequisitionFetcher as the
+origin. A ResultsFulfiller-origin refusal still requires dispatch, WorkItem, and
+fulfiller evidence. If the refusal origin cannot be established, those stages
+remain `UNKNOWN`.
+
+The CLI uses the Kingdom as the authoritative source for every resolved
+Measurement's state, selected protocol, Requisitions, and expected Duchy
+participants. Its route table marks the Duchy path `NOT_APPLICABLE` for direct
+Measurements and requires separate Herald and mill evidence for every expected
+Measurement × Duchy participant on MPC Measurements. If Kingdom does not expose
+the participant set yet, that branch is `UNKNOWN` rather than inferred from an
+observed Duchy. The CLI marks RequisitionFetcher dispatch, WorkItem publication,
+WorkItem processing, and ResultsFulfiller stages required only for Requisitions
+whose topology route is `EDPA`; those stages are `NOT_APPLICABLE` for
+`DIRECT_EDP` Requisitions. The fetcher's dispatch evidence supplies the
+Requisition, EDPA group, and WorkItem link used to attribute publication and
+processing evidence back to each Requisition in its group. Direct-EDP execution
+is shown explicitly as `EXTERNAL_NOT_OBSERVED`: Kingdom or Duchy acceptance is
+still evaluated, but producer-side direct-EDP telemetry is outside the tool's
+observability perimeter.
+
+For every MPC Requisition, regardless of whether the DataProvider is direct or
+EDPA-managed, the artifact separately requires the Duchy's local acceptance and
+persistence stage (`duchy_requisition_acceptance`) and its subsequent Kingdom
+fulfillment update (`duchy_requisition_kingdom_fulfillment`). Both stages carry
+the canonical public Requisition name and the accepting Duchy ID. This
+distinguishes a missing upload, a Duchy rejection or storage failure, and a
+failure forwarding the accepted fulfillment to the Kingdom. These stages are
+`NOT_APPLICABLE` for direct Measurements.
+
+Lifecycle coverage is evaluated for each expected Metric, Measurement,
+Requisition, and applicable Duchy participant. Direct result acceptance is
+required per Requisition at the Kingdom Requisitions API. MPC result acceptance
+is instead required once per Measurement/computation at the Kingdom system API.
+For a refused Requisition, the separate
+`kingdom_requisition_refusal_acceptance` stage records whether the Kingdom
+accepted or rejected that refusal; direct result acceptance is then
+`SKIPPED_AFTER_REFUSAL`. A durable terminal Kingdom state resolves retry order
+only when matching accepted telemetry was collected: a later rejected duplicate
+does not override an earlier accepted operation, while durable state by itself
+does not manufacture missing evidence.
+Evidence for one child does not satisfy another child. If observed telemetry for
+an operation does not identify the child resource, that child operation is
+`UNKNOWN`. Metric request IDs that do not resolve to Metrics and Measurement
+request IDs that do not yet have Kingdom Measurement IDs are emitted as
+individual unresolved children. Failed or partial Reporting and Kingdom lookups,
+and missing topology entries, leave only the affected branches `UNKNOWN` and
+make the artifact partial. A successful BasicReport's durable availability is
+required; an observed
+`basic_report_api_fetch` is shown as optional evidence because fetching the
+result is not part of producing it.
+When report assembly, noise correction, or processed-result writeback requires
+the BasicReport to be marked `FAILED`, `basic_report_failure_writeback` is a
+required final-disposition stage. A missing or failed writeback remains visible
+even if another durable resource has already reached a terminal state.
+
+Reporting can reuse a Metric, and its Measurements, from an older BasicReport.
+The resolver identifies this from the Metric's immutable originating
+`basic_report` (or its legacy `containing_report`). Historical creation and
+execution stages are shown as `REUSED`, rather than `MISSING` outside the new
+BasicReport's collection window. The new Report's Metric result synchronization,
+result assembly, post-processing, writeback, and durable BasicReport availability
+remain required.
+
+If durable resource resolution fails after the CLI validates the BasicReport
+name, the CLI records the Reporting resolver as a failed source and still
+queries Trace and Logging using the requested BasicReport name. Any recovered
+evidence is written to a `PARTIAL` artifact instead of being discarded.
+
+If the BasicReport database is unavailable but the generated Report name is
+known, the break-glass direct mode needs only observability permissions:
+
+```bash
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:ReportTrace \
+  -- \
+  --observability-project=<PROJECT_ID> \
+  --report=measurementConsumers/<MC_ID>/reports/<REPORT_ID> \
+  --start-time=<RFC3339_START_TIME>
+```
+
+Direct `--report` mode cannot reconstruct the authoritative Metric,
+Measurement, Requisition, protocol, or Duchy graph. It is intended only for
+discovery during a Reporting database outage and normally produces a `PARTIAL`
+artifact. Use `--basic-report` for completeness evaluation.
+
+The stable correlation key is the full `BasicReport` resource name in
+`xmm.basic_report.name`. Reporting copies it through the generated `Report` and
+`Metric` into `MeasurementSpec.ReportingMetadata.basic_report`. Kingdom stores
+that signed spec unchanged and includes it in the requisitions and system
+computation it creates. The Kingdom system `Computation` also carries the
+canonical Measurement resource name into each Duchy. EDPA writes the
+BasicReport and Report names into each grouped-requisitions payload. In the
+direct-dispatch configuration, RequisitionFetcher emits one dispatch outcome
+span per Requisition with the group and deterministic WorkItem names, and
+persists W3C trace context in the WorkItem so the TEE processing span can
+continue the fetcher's trace across the durable queue boundary. The WorkItem
+publication runner records `xmm.lifecycle.stage=work_item_publication` when it
+publishes the durable outbox record to Pub/Sub. Herald and all mills, including
+LLv2, Reach-Only LLv2, HMSS, and TrusTEE, label their spans with the canonical
+Measurement name, computation name, and local Duchy ID. Herald uses
+`xmm.lifecycle.stage=duchy_computation` for durable computation status. The
+Kubernetes `MillJobScheduler` uses `xmm.lifecycle.stage=duchy_mill_dispatch`
+when launching LLv2, Reach-Only LLv2, or HMSS jobs; TrusTEE uses a persistent
+MIG worker and does not have this scheduling stage. Mills use
+`xmm.lifecycle.stage=duchy_stage_attempt` for an individual stage-processing
+attempt. The Duchy RequisitionFulfillment service records the
+public Requisition name and local Duchy ID separately for local acceptance and
+the subsequent Kingdom update. The post-processing/noise-correction job prefixes
+its logs while processing a BasicReport with `xmm.basic_report.name`,
+`xmm.report.name`, lifecycle stage, and outcome.
+
+EDPA route tracing requires the direct RequisitionFetcher dispatcher described
+in the deployment guide. The legacy DataWatcher dispatch route is not supported
+by `report-trace`.
+
+The CLI searches Cloud Trace and Cloud Logging using the resolved BasicReport,
+Report, Metric, and Measurement identifiers, plus unresolved Metric and
+Measurement creation request IDs. It then performs up to four
+correlation-expansion rounds: allowlisted Report, Metric, Measurement,
+Requisition, group, WorkItem, and computation identifiers found in either spans
+or structured logs are queried in both systems, and newly found trace IDs are
+fetched from every configured observability project. Cycles are de-duplicated.
+Reaching the round limit marks the artifact partial. If one API or project is
+unavailable, the artifact records the missing coverage and the command fails
+unless `--allow-partial` was explicitly specified.
+
+No trace can prove an operation that crashed before its telemetry was exported,
+or correlate a failure that occurred before any BasicReport or creation-request
+identity existed. Missing evidence is therefore reported as `UNKNOWN` or
+`MISSING`, not as proof that the operation never ran.
 
 ## Lifecycle overview
 
@@ -304,13 +690,18 @@ measurement; its metrics are a good first check for "is the whole pipeline
 healthy right now, independent of my report?". Reporting emits
 `reporting.unreachable_basic_reports` for BasicReports it cannot advance.
 
-Traces (when exported) let you follow a single request across services — e.g. a
-fulfillment span from the results-fulfiller through its Kingdom/Duchy RPCs —
-without correlating timestamps across log streams by hand. The results-fulfiller
-records per-requisition span events (e.g. a `requisition_processing_failed` event
-on failure) carrying attributes like the fulfiller type, model line, and group/
-report IDs — that is where the *breakdown* of a failure lives; the metrics only
-tell you success-vs-failure counts.
+Traces (when exported) let you follow synchronous calls without correlating
+timestamps across log streams by hand. The RequisitionFetcher-to-TEE WorkItem
+boundary in direct-dispatch deployments carries W3C trace context explicitly.
+Other durable boundaries may begin a new trace, so `xmm.basic_report.name` is
+the cross-trace join key. The results-fulfiller puts the BasicReport, Report,
+requisition, group, lifecycle
+stage, and final outcome on span labels that the Cloud Trace v1 read API exposes.
+More detailed events remain visible only in telemetry backends that retain the
+full OpenTelemetry span model, so the CLI also collects structured logs. The
+Herald and mill spans carry the BasicReport, Report, Metric, and computation
+names. Metrics only show aggregate success-versus-failure counts; use spans and
+logs for a specific report.
 
 ## The playbook
 
@@ -661,12 +1052,16 @@ Trace:
    event; read its logs above for
    the error. (The delete path has its own `data-watcher-delete-dlq-sub`.)
 
-4. **results-fulfiller** (GCE MIG). This component is trace-first: most
-   per-requisition detail is in Cloud Trace span events, not logs (see
+4. **results-fulfiller** (GCE MIG). Use trace labels together with logs (see
    [Debugging in production](#debugging-in-production-many-requisitions-in-flight)).
-   To isolate your requisition at volume, filter Cloud Trace by the
-   `edpa.results_fulfiller.cmms_requisition` (or `.group_id` / `.report_id`)
-   attribute and read its span's `.status` / `.error_type` directly.
+   To isolate your requisition at volume, filter Cloud Trace by
+   `xmm.requisition.name` (or `xmm.edpa.group_id` / `xmm.report.name`). Use the
+   `xmm.outcome` label for the handled outcome. Cloud Trace v1 does not return
+   OpenTelemetry event payloads or span status through its read API.
+   Worker redeliveries are not automatically failures: `in_progress` means the
+   same WorkItem generation already has an active attempt, `already_completed`
+   means it already succeeded, and `stale_delivery` means a newer generation
+   superseded the queue message.
 
    The logs are sparser. A broad severity/stack-trace scan still surfaces the
    exception (the content is in `textPayload`):
@@ -1017,9 +1412,9 @@ it belongs to a requisition created **after** your change — check the requisit
 `GroupId` / `CmmsRequisition` to current work rather than assuming the newest error
 reflects the current config. Conversely, when a failure mode points at
 configuration (model line, KMS type, EDPs config, RequisitionFetcher WorkItem
-dispatch config, or legacy data-watcher config), suspect a
-recent config change as the root cause and compare against the last-known-good
-value rather than inventing a new one.
+dispatch config, or a legacy data-watcher config), suspect a recent config change
+as the root cause and compare against the last-known-good value rather than
+inventing a new one.
 
 ## Anti-patterns
 

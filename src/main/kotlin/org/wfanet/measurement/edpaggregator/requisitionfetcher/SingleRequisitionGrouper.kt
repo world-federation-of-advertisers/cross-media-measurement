@@ -103,6 +103,8 @@ class SingleRequisitionGrouper(
       }
     return groupedRequisitions {
       modelLine = measurementSpec.modelLine
+      report = measurementSpec.reportingMetadata.report
+      basicReport = measurementSpec.reportingMetadata.basicReport
       requisitions +=
         GroupedRequisitionsKt.requisitionEntry { this.requisition = Any.pack(requisition) }
       eventGroupMap +=

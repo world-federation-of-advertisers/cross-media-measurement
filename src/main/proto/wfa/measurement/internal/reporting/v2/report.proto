@@ -92,6 +92,9 @@ message Report {
       TimeIntervals time_intervals = 2;
       ReportingInterval reporting_interval = 3;
     }
+
+    // Resource name of the BasicReport that originated this Report, if any.
+    string basic_report = 4;
   }
   Details details = 8;
 }

@@ -16,11 +16,14 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher
 
+import com.google.protobuf.util.Durations
+import java.time.Duration
 import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
 
@@ -40,6 +43,7 @@ object RequisitionFetcherConfigValidator {
     storageUriPrefix: (DataProviderRequisitionConfig) -> String = ::storageUriPrefix,
   ) {
     require(config.configsCount > 0) { "RequisitionFetcher config has no data providers." }
+    requisitionRefusalDuration(config)
     val namespaces = buildList {
       for (dataProviderConfig in config.configsList) {
         val dispatchConfig =
@@ -70,6 +74,20 @@ object RequisitionFetcherConfigValidator {
       }
     }
     StoragePathPrefixes.requireDisjoint(namespaces)
+  }
+
+  /** Returns the configured stale-Requisition refusal duration, or the 48-hour default. */
+  fun requisitionRefusalDuration(config: RequisitionFetcherConfig): Duration {
+    if (!config.hasRequisitionRefusalDuration()) {
+      return RequisitionFetcher.DEFAULT_REQUISITION_REFUSAL_DURATION
+    }
+    val configured = config.requisitionRefusalDuration
+    require(Durations.isValid(configured)) { "Invalid 'requisition_refusal_duration'." }
+    val duration = Duration.ofSeconds(configured.seconds, configured.nanos.toLong())
+    require(!duration.isZero && !duration.isNegative) {
+      "'requisition_refusal_duration' must be positive."
+    }
+    return duration
   }
 
   private fun validateDataProvider(

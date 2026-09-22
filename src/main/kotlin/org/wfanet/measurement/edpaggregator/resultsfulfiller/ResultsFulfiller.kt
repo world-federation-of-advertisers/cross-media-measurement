@@ -37,7 +37,6 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.flatMapMerge
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
@@ -59,6 +58,8 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.crypto.PrivateKeyHandle
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.consent.client.dataprovider.decryptRequisitionSpec
@@ -147,8 +148,86 @@ class ResultsFulfiller(
    * @throws IllegalArgumentException If a requisition specifies an unsupported protocol.
    * @throws Exception If decryption or RPC fulfillment fails.
    */
-  @OptIn(ExperimentalCoroutinesApi::class)
   suspend fun fulfillRequisitions(parallelism: Int = DEFAULT_FULFILLMENT_PARALLELISM) {
+    try {
+      Tracing.traceSuspending(
+        spanName = SPAN_PROCESS_GROUP,
+        attributes =
+          Attributes.builder()
+            .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+            .also { builder ->
+              if (groupedRequisitions.report.isNotEmpty()) {
+                builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+              }
+              if (groupedRequisitions.basicReport.isNotEmpty()) {
+                builder.put(
+                  ReportTraceAttributes.BASIC_REPORT_NAME,
+                  groupedRequisitions.basicReport,
+                )
+              }
+            }
+            .build(),
+      ) {
+        fulfillRequisitionsInternal(parallelism)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: RequisitionProcessingException) {
+      logGroupFailure(e.failure)
+      throw e.failure
+    } catch (e: Exception) {
+      recordSharedFailure(e)
+      logGroupFailure(e)
+      throw e
+    }
+  }
+
+  private fun recordSharedFailure(error: Exception) {
+    for (entry in groupedRequisitions.requisitionsList) {
+      val requisition =
+        runCatching { entry.requisition.unpack(Requisition::class.java) }.getOrNull() ?: continue
+      Tracing.recordFailure(
+        spanName = "edp_aggregator.results_fulfiller.shared_failure",
+        attributes = requisitionTraceAttributes(requisition.name),
+        error = error,
+      )
+    }
+  }
+
+  private fun logGroupFailure(error: Exception) {
+    ReportTraceLogging.log(
+      logger,
+      Level.SEVERE,
+      error,
+      "edp_aggregator.results_fulfiller.group_failed",
+      ReportTraceAttributes.BASIC_REPORT_NAME_STRING to groupedRequisitions.basicReport,
+      ReportTraceAttributes.REPORT_NAME_STRING to groupedRequisitions.report,
+      ReportTraceAttributes.GROUP_ID_STRING to groupedRequisitions.groupId,
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "results_fulfillment",
+      ReportTraceAttributes.OUTCOME_STRING to "failed",
+      ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error),
+      ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(error),
+    )
+  }
+
+  private fun requisitionTraceAttributes(requisitionName: String): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+      .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .also { builder ->
+        if (groupedRequisitions.report.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+        }
+        if (groupedRequisitions.basicReport.isNotEmpty()) {
+          builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
+        }
+      }
+      .build()
+  }
+
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private suspend fun fulfillRequisitionsInternal(parallelism: Int) {
     val reportProcessingTimer = TimeSource.Monotonic.markNow()
     val requisitions =
       groupedRequisitions.requisitionsList.mapIndexed { index, entry ->
@@ -208,15 +287,38 @@ class ResultsFulfiller(
       requisitionsMetadata.associateBy { it.cmmsRequisition }
 
     val filteredRequisitions =
-      requisitions.filter { it.shouldBeProcessed(requisitionMetadataByName) }
+      requisitions.filter { requisition ->
+        try {
+          Tracing.traceSuspending(
+            spanName = "edp_aggregator.results_fulfiller.preflight_requisition",
+            attributes =
+              requisitionTraceAttributes(requisition.name)
+                .toBuilder()
+                .put(ReportTraceAttributes.OUTCOME, "started")
+                .build(),
+          ) {
+            val shouldBeProcessed = requisition.shouldBeProcessed(requisitionMetadataByName)
+            if (shouldBeProcessed) {
+              Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "prepared")
+            }
+            shouldBeProcessed
+          }
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          throw RequisitionProcessingException(e)
+        }
+      }
     if (filteredRequisitions.isEmpty()) {
       return
     }
 
-    val reportId: String =
+    val metadataReportId: String =
       requireNotNull(requisitionsMetadata.first().report) {
         "Report ID is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
       }
+    val reportId = groupedRequisitions.report.ifBlank { metadataReportId }
+    val basicReportName = groupedRequisitions.basicReport
     val earliestCreateTime: Instant =
       requireNotNull(requisitionsMetadata.mapNotNull { it.createTime?.toInstant() }.minOrNull()) {
         "Create time is missing from requisition metadata for group id: ${groupedRequisitions.groupId}"
@@ -244,7 +346,20 @@ class ResultsFulfiller(
     // Get the KEK URI from BlobDetails.encryptedDek for TrusTee protocol encryption
     val kekUri = eventSource.getKekUri()
 
-    Tracing.traceSuspending(spanName = SPAN_REPORT_FULFILLMENT, attributes = Attributes.empty()) {
+    Tracing.traceSuspending(
+      spanName = SPAN_REPORT_FULFILLMENT,
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, reportId)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+          .also { builder ->
+            if (basicReportName.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            }
+          }
+          .build(),
+    ) {
       val span = Span.current()
       val frequencyVectorMap =
         metrics.frequencyVectorDuration.measureSuspending {
@@ -268,32 +383,83 @@ class ResultsFulfiller(
           .build(),
       )
 
-      filteredRequisitions
-        .asFlow()
-        .map { req: Requisition -> req to frequencyVectorMap.getValue(req.name) }
-        .flatMapMerge(concurrency = parallelism) { (req, frequencyVector) ->
-          flow {
-            fulfillSingleRequisition(
-              requisition = req,
-              frequencyVector = frequencyVector,
-              populationSpec = populationSpec,
-              requisitionsMetadata = requisitionMetadataByName,
-              kekUri = kekUri,
-            )
-            emit(Unit)
+      val outcomes =
+        filteredRequisitions
+          .asFlow()
+          .flatMapMerge(concurrency = parallelism) { req: Requisition ->
+            flow {
+              val outcome =
+                try {
+                  Tracing.traceSuspending(
+                    spanName = SPAN_REQUISITION_PROCESSING,
+                    attributes =
+                      Attributes.builder()
+                        .put(ReportTraceAttributes.REQUISITION_NAME, req.name)
+                        .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+                        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+                        .put(ReportTraceAttributes.OUTCOME, "started")
+                        .also { builder ->
+                          if (reportId.isNotEmpty()) {
+                            builder.put(ReportTraceAttributes.REPORT_NAME, reportId)
+                          }
+                          if (basicReportName.isNotEmpty()) {
+                            builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+                          }
+                        }
+                        .build(),
+                  ) {
+                    val outcome =
+                      fulfillSingleRequisition(
+                        requisition = req,
+                        frequencyVector = frequencyVectorMap.getValue(req.name),
+                        populationSpec = populationSpec,
+                        requisitionsMetadata = requisitionMetadataByName,
+                        kekUri = kekUri,
+                      )
+                    val span = Span.current()
+                    span.setAttribute(
+                      ReportTraceAttributes.OUTCOME,
+                      if (outcome) "succeeded" else "refused",
+                    )
+                    if (!outcome) {
+                      span.setAttribute(
+                        ReportTraceAttributes.REFUSAL_ORIGIN,
+                        ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+                      )
+                    }
+                    outcome
+                  }
+                } catch (e: CancellationException) {
+                  throw e
+                } catch (e: Exception) {
+                  // The per-Requisition span already contains the complete failure evidence. Mark
+                  // the exception so the group wrapper does not incorrectly fan this failure out
+                  // to sibling Requisitions as though shared preparation had failed.
+                  throw RequisitionProcessingException(e)
+                }
+              emit(outcome)
+            }
           }
-        }
-        .collect()
+          .toList()
 
-      recordReportCompletion(
-        span = span,
-        requisitionCount = filteredRequisitions.size,
-        modelLine = modelLine,
-        processingTimer = reportProcessingTimer,
-        earliestCreateTime = earliestCreateTime,
-        groupId = groupedRequisitions.groupId,
-        reportId = reportId,
-      )
+      if (outcomes.all { it }) {
+        recordReportCompletion(
+          span = span,
+          requisitionCount = filteredRequisitions.size,
+          modelLine = modelLine,
+          processingTimer = reportProcessingTimer,
+          earliestCreateTime = earliestCreateTime,
+          groupId = groupedRequisitions.groupId,
+          reportId = reportId,
+        )
+      } else {
+        span
+          .setStatus(
+            io.opentelemetry.api.trace.StatusCode.ERROR,
+            "One or more requisitions refused",
+          )
+          .setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      }
     }
   }
 
@@ -311,6 +477,7 @@ class ResultsFulfiller(
         if (metadata.state !== RequisitionMetadata.State.FULFILLED) {
           signalRequisitionFulfilled(metadata)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       Requisition.State.UNFULFILLED -> {
@@ -320,6 +487,7 @@ class ResultsFulfiller(
         if (metadata.state !== RequisitionMetadata.State.WITHDRAWN) {
           signalRequisitionWithdrawn(metadata)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       Requisition.State.REFUSED -> {
@@ -327,6 +495,7 @@ class ResultsFulfiller(
           val refusalMessage = "Requisition in invalid cmms state: ${requisition.state}"
           signalRequisitionRefused(metadata, refusalMessage)
         }
+        recordTerminalRequisition(metadata.cmmsRequisition, requisition.state, "already_completed")
         false
       }
       else -> {
@@ -335,6 +504,17 @@ class ResultsFulfiller(
         )
       }
     }
+  }
+
+  private suspend fun recordTerminalRequisition(
+    requisitionName: String,
+    requisitionState: Requisition.State,
+    outcome: String,
+  ) {
+    Span.current()
+      .setAttribute(ReportTraceAttributes.REQUISITION_NAME, requisitionName)
+      .setAttribute(ReportTraceAttributes.REQUISITION_STATE, requisitionState.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
   }
 
   /**
@@ -351,7 +531,7 @@ class ResultsFulfiller(
     populationSpec: PopulationSpec,
     requisitionsMetadata: Map<String, RequisitionMetadata>,
     kekUri: String?,
-  ) {
+  ): Boolean {
 
     val requisitionProcessingTimer = TimeSource.Monotonic.markNow()
     // Update the Requisition status on the ImpressionMetadataStorage
@@ -378,9 +558,21 @@ class ResultsFulfiller(
         "Report ID is missing from requisition metadata: ${requisitionMetadata.name}"
       }
 
-    Tracing.traceSuspending(
+    return Tracing.traceSuspending(
       spanName = SPAN_REQUISITION_FULFILLMENT,
-      attributes = Attributes.empty(),
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REPORT_NAME, reportId)
+          .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+          .also { builder ->
+            val basicReportName = measurementSpec.reportingMetadata.basicReport
+            if (basicReportName.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, basicReportName)
+            }
+          }
+          .build(),
     ) {
       val span = Span.current()
       var processingMetadata: RequisitionMetadata? = null
@@ -445,22 +637,32 @@ class ResultsFulfiller(
           requisitionProcessingTimer = requisitionProcessingTimer,
           requisitionMetadata = requisitionMetadata,
         )
+        true
       } catch (e: RequisitionRefusalException) {
         recordRequisitionFailure(
           span = span,
           throwable = e,
           requisitionMetadata = requisitionMetadata,
           requisitionName = requisition.name,
+          outcome = "refused",
         )
+        logger.log(Level.WARNING, e) {
+          "Refused requisition ${requisition.name} for report=$reportId " +
+            "groupId=${groupedRequisitions.groupId}"
+        }
         val metadataForRefusal = processingMetadata ?: requisitionMetadata
         signalRequisitionRefused(metadataForRefusal, e.message ?: "Requisition refused")
         refuseRequisitionInCmms(requisition, e)
+        false
+      } catch (e: CancellationException) {
+        throw e
       } catch (t: Throwable) {
         recordRequisitionFailure(
           span = span,
           throwable = t,
           requisitionMetadata = requisitionMetadata,
           requisitionName = requisition.name,
+          outcome = "failed",
         )
         throw t
       }
@@ -567,27 +769,67 @@ class ResultsFulfiller(
     requisition: Requisition,
     e: RequisitionRefusalException,
   ) {
-    try {
-      kingdomThrottler.onReady {
-        requisitionsStub.refuseRequisition(
-          refuseRequisitionRequest {
-            name = requisition.name
-            refusal =
-              RequisitionKt.refusal {
-                justification = e.justification
-                message = e.message ?: "Requisition refused"
-              }
+    Tracing.traceSuspending(
+      spanName = "edp_aggregator.results_fulfiller.refuse_requisition",
+      attributes =
+        Attributes.builder()
+          .put(ReportTraceAttributes.REQUISITION_NAME, requisition.name)
+          .put(ReportTraceAttributes.GROUP_ID, groupedRequisitions.groupId)
+          .put(ReportTraceAttributes.LIFECYCLE_STAGE, "requisition_refusal")
+          .put(
+            ReportTraceAttributes.REFUSAL_ORIGIN,
+            ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+          )
+          .put(ReportTraceAttributes.OUTCOME, "started")
+          .also { builder ->
+            if (groupedRequisitions.report.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.REPORT_NAME, groupedRequisitions.report)
+            }
+            if (groupedRequisitions.basicReport.isNotEmpty()) {
+              builder.put(ReportTraceAttributes.BASIC_REPORT_NAME, groupedRequisitions.basicReport)
+            }
           }
+          .build(),
+    ) {
+      val span = Span.current()
+      try {
+        kingdomThrottler.onReady {
+          requisitionsStub.refuseRequisition(
+            refuseRequisitionRequest {
+              name = requisition.name
+              refusal =
+                RequisitionKt.refusal {
+                  justification = e.justification
+                  message = e.message ?: "Requisition refused"
+                }
+            }
+          )
+        }
+        span.setAttribute(ReportTraceAttributes.OUTCOME, "refused")
+      } catch (cancellation: CancellationException) {
+        throw cancellation
+      } catch (refusalError: Exception) {
+        span
+          .setStatus(
+            io.opentelemetry.api.trace.StatusCode.ERROR,
+            refusalError.message ?: refusalError::class.java.name,
+          )
+          .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+          .setAttribute(
+            ReportTraceAttributes.ERROR_TYPE,
+            ReportTraceAttributes.errorType(refusalError),
+          )
+          .recordException(refusalError)
+        val errorCode = ReportTraceAttributes.errorCode(refusalError)
+        if (errorCode != null) {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+        }
+        logger.log(
+          Level.SEVERE,
+          "Failed to refuse requisition ${requisition.name} in CMMS",
+          refusalError,
         )
       }
-    } catch (cancellation: CancellationException) {
-      throw cancellation
-    } catch (refusalError: Exception) {
-      logger.log(
-        Level.SEVERE,
-        "Failed to refuse requisition ${requisition.name} in CMMS",
-        refusalError,
-      )
     }
   }
 
@@ -609,6 +851,9 @@ class ResultsFulfiller(
     groupId: String,
     reportId: String,
   ) {
+    span
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     span.addEvent(
       EVENT_REQUISITIONS_FULFILLMENT_FINISHED,
       Attributes.builder()
@@ -643,6 +888,7 @@ class ResultsFulfiller(
     requisitionProcessingTimer: TimeSource.Monotonic.ValueTimeMark,
     requisitionMetadata: RequisitionMetadata,
   ) {
+    span.setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
     val requisitionProcessingDurationSeconds =
       requisitionProcessingTimer.elapsedNow().inWholeNanoseconds / NANOS_TO_SECONDS
     metrics.requisitionProcessingDuration.record(requisitionProcessingDurationSeconds)
@@ -668,7 +914,25 @@ class ResultsFulfiller(
     throwable: Throwable,
     requisitionMetadata: RequisitionMetadata?,
     requisitionName: String,
+    outcome: String,
   ) {
+    span
+      .setStatus(io.opentelemetry.api.trace.StatusCode.ERROR, "Requisition processing failed")
+      .setAttribute(ReportTraceAttributes.LIFECYCLE_STAGE, "results_fulfillment")
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(throwable))
+      .also {
+        if (outcome == "refused") {
+          it.setAttribute(
+            ReportTraceAttributes.REFUSAL_ORIGIN,
+            ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN,
+          )
+        }
+      }
+    val errorCode = ReportTraceAttributes.errorCode(throwable)
+    if (errorCode != null) {
+      span.setAttribute(ReportTraceAttributes.ERROR_CODE, errorCode)
+    }
     span.addEvent(
       EVENT_REQUISITION_PROCESSING_FAILED,
       Attributes.builder()
@@ -694,8 +958,12 @@ class ResultsFulfiller(
     metrics.requisitionsProcessed.add(1, ResultsFulfillerMetrics.statusFailure)
   }
 
+  private class RequisitionProcessingException(val failure: Exception) :
+    Exception(failure.message, failure)
+
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+    private const val SPAN_REQUISITION_PROCESSING = "requisition_processing"
 
     /**
      * Default maximum total attempts (first attempt + retries) per ListRequisitionMetadata page.
@@ -747,6 +1015,7 @@ class ResultsFulfiller(
     /** Mask for converting signed byte to unsigned int. */
     private const val BYTE_TO_UNSIGNED_MASK = 0xFF
 
+    private const val SPAN_PROCESS_GROUP = "results_fulfiller.process_group"
     private const val SPAN_REPORT_FULFILLMENT = "report_fulfillment"
     private const val SPAN_REQUISITION_FULFILLMENT = "requisition_fulfillment"
 

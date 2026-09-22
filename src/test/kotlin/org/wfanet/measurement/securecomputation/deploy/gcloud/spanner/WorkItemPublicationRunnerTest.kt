@@ -25,6 +25,9 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.single
@@ -82,6 +85,91 @@ class WorkItemPublicationRunnerTest {
     assertThat((publisher.messages.single() as WorkItem).workItemResourceId)
       .isEqualTo("work-item-1")
     assertThat(publicationCount()).isEqualTo(0L)
+  }
+
+  @Test
+  fun `publication runner logs retryable failure and later success`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
+    val publisher = RecordingPublisher(fail = true)
+    val clock = MutableClock(Instant.now().plusSeconds(10))
+    val runner = newRunner(publisher, clock)
+    val records = mutableListOf<LogRecord>()
+    val handler = recordingHandler(records)
+    val logger = Logger.getLogger(WorkItemPublicationRunner::class.java.name)
+    logger.addHandler(handler)
+    try {
+      assertThat(runner.publishWorkItem(WORK_ITEM_ID)).isFalse()
+      publisher.fail = false
+      clock.advance(Duration.ofSeconds(2))
+      assertThat(runner.publishPendingWorkItems()).isEqualTo(1)
+    } finally {
+      logger.removeHandler(handler)
+    }
+
+    val lifecycleMessages = records.map(LogRecord::getMessage).filter { it.startsWith("event=") }
+    assertThat(lifecycleMessages)
+      .containsAtLeast(
+        "event=secure_computation.work_item.publication " +
+          "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.lifecycle.stage=work_item_publication xmm.outcome=retryable_failure " +
+          "xmm.error.type=IllegalStateException",
+        "event=secure_computation.work_item.publication " +
+          "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.lifecycle.stage=work_item_publication xmm.outcome=succeeded",
+      )
+    Unit
+  }
+
+  @Test
+  fun `publication runner logs missing queue as terminal failure`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1", queueId = Long.MAX_VALUE)
+    val runner = newRunner(RecordingPublisher(), MutableClock(Instant.now().plusSeconds(10)))
+    val records = mutableListOf<LogRecord>()
+    val handler = recordingHandler(records)
+    val logger = Logger.getLogger(WorkItemPublicationRunner::class.java.name)
+    logger.addHandler(handler)
+    try {
+      assertThat(runner.publishWorkItem(WORK_ITEM_ID)).isFalse()
+    } finally {
+      logger.removeHandler(handler)
+    }
+
+    assertThat(records.map(LogRecord::getMessage))
+      .contains(
+        "event=secure_computation.work_item.publication " +
+          "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.lifecycle.stage=work_item_publication xmm.outcome=failed " +
+          "xmm.error.type=QueueNotFound"
+      )
+  }
+
+  @Test
+  fun `publication runner logs legacy dead letter terminalization`() = runBlocking {
+    insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.bufferUpdateMutation("WorkItemPublications") {
+        set("WorkItemId").to(WORK_ITEM_ID)
+        set("IsDeadLetter").to(true)
+      }
+    }
+    val runner = newRunner(RecordingPublisher(), MutableClock(Instant.now().plusSeconds(10)))
+    val records = mutableListOf<LogRecord>()
+    val handler = recordingHandler(records)
+    val logger = Logger.getLogger(WorkItemPublicationRunner::class.java.name)
+    logger.addHandler(handler)
+    try {
+      assertThat(runner.publishWorkItem(WORK_ITEM_ID)).isFalse()
+    } finally {
+      logger.removeHandler(handler)
+    }
+
+    assertThat(records.map(LogRecord::getMessage))
+      .contains(
+        "event=secure_computation.work_item.publication " +
+          "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.lifecycle.stage=work_item_publication xmm.outcome=failed " +
+          "xmm.error.type=LegacyDeadLetterTerminalized"
+      )
   }
 
   @Test
@@ -455,6 +543,17 @@ class WorkItemPublicationRunnerTest {
       workItemParams = Any.pack(testWork { userName = "UserName" })
     }
   }
+
+  private fun recordingHandler(records: MutableList<LogRecord>): Handler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        records += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   private class RecordingPublisher(var fail: Boolean = false) : WorkItemPublisher {
     var callCount = 0
