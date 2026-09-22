@@ -16,6 +16,7 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries
 
 import com.google.cloud.Timestamp
 import com.google.cloud.spanner.Statement
+import org.wfanet.measurement.common.identity.InternalId
 import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.spanner.appendClause
@@ -32,34 +33,50 @@ class StreamEventGroups(
   private val orderBy: StreamEventGroupsRequest.OrderBy,
   limit: Int = 0,
   view: EventGroup.View,
+  private val internalDataProviderId: InternalId?,
 ) : SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
-    EventGroupReader(view).fillStatementBuilder {
-      appendWhereClause(requestFilter)
-      val sortOrder = if (orderBy.descending) "DESC" else "ASC"
-      @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf accessors cannot return null.
-      when (orderBy.field) {
-        StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED ->
-          appendClause("ORDER BY ExternalDataProviderId ASC, ExternalEventGroupId ASC")
-        StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME -> {
-          appendClause(
-            "ORDER BY DataAvailabilityStartTime $sortOrder, ExternalDataProviderId ASC, ExternalEventGroupId ASC"
-          )
+    (if (internalDataProviderId == null) {
+        EventGroupReader(view)
+      } else {
+        EventGroupReader.usingExternalIdIndex(view)
+      })
+      .fillStatementBuilder {
+        appendWhereClause(requestFilter)
+        val sortOrder = if (orderBy.descending) "DESC" else "ASC"
+        @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf accessors cannot return null.
+        when (orderBy.field) {
+          StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED -> {
+            if (internalDataProviderId == null) {
+              appendClause("ORDER BY ExternalDataProviderId ASC, ExternalEventGroupId ASC")
+            } else {
+              appendClause("ORDER BY ExternalEventGroupId ASC")
+            }
+          }
+          StreamEventGroupsRequest.OrderBy.Field.DATA_AVAILABILITY_START_TIME -> {
+            appendClause(
+              "ORDER BY DataAvailabilityStartTime $sortOrder, ExternalDataProviderId ASC, ExternalEventGroupId ASC"
+            )
+          }
+          StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")
         }
-        StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")
+        if (limit > 0) {
+          appendClause("LIMIT @$LIMIT")
+          bind(LIMIT to limit.toLong())
+        }
       }
-      if (limit > 0) {
-        appendClause("LIMIT @$LIMIT")
-        bind(LIMIT to limit.toLong())
-      }
-    }
 
   private fun Statement.Builder.appendWhereClause(filter: StreamEventGroupsRequest.Filter) {
     bind(TIMESTAMP_MAX).to(Timestamp.MAX_VALUE)
     val conjuncts = buildList {
       if (filter.externalDataProviderId != 0L) {
-        add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
-        bind(EXTERNAL_DATA_PROVIDER_ID).to(filter.externalDataProviderId)
+        if (internalDataProviderId == null) {
+          add("ExternalDataProviderId = @$EXTERNAL_DATA_PROVIDER_ID")
+          bind(EXTERNAL_DATA_PROVIDER_ID).to(filter.externalDataProviderId)
+        } else {
+          add("EventGroups.DataProviderId = @$DATA_PROVIDER_ID")
+          bind(DATA_PROVIDER_ID to internalDataProviderId)
+        }
       }
       if (filter.externalMeasurementConsumerId != 0L) {
         add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
@@ -127,16 +144,20 @@ class StreamEventGroups(
         val afterEventGroupKey: EventGroupKey =
           if (filter.hasAfter()) filter.after.eventGroupKey else filter.eventGroupKeyAfter
         val tieBreaker =
-          """
-          (
-            ExternalDataProviderId > @${After.EXTERNAL_DATA_PROVIDER_ID}
-            OR (
-              ExternalDataProviderId = @${After.EXTERNAL_DATA_PROVIDER_ID}
-              AND ExternalEventGroupId > @${After.EXTERNAL_EVENT_GROUP_ID}
+          if (internalDataProviderId == null) {
+            """
+            (
+              ExternalDataProviderId > @${After.EXTERNAL_DATA_PROVIDER_ID}
+              OR (
+                ExternalDataProviderId = @${After.EXTERNAL_DATA_PROVIDER_ID}
+                AND ExternalEventGroupId > @${After.EXTERNAL_EVENT_GROUP_ID}
+              )
             )
-          )
-          """
-            .trimIndent()
+            """
+              .trimIndent()
+          } else {
+            "ExternalEventGroupId > @${After.EXTERNAL_EVENT_GROUP_ID}"
+          }
 
         @Suppress("WHEN_ENUM_CAN_BE_NULL_IN_JAVA") // Protobuf accessors cannot return null.
         when (orderBy.field) {
@@ -163,7 +184,9 @@ class StreamEventGroups(
           StreamEventGroupsRequest.OrderBy.Field.UNRECOGNIZED -> error("Unrecognized field")
         }
 
-        bind(After.EXTERNAL_DATA_PROVIDER_ID).to(afterEventGroupKey.externalDataProviderId)
+        if (internalDataProviderId == null) {
+          bind(After.EXTERNAL_DATA_PROVIDER_ID).to(afterEventGroupKey.externalDataProviderId)
+        }
         bind(After.EXTERNAL_EVENT_GROUP_ID).to(afterEventGroupKey.externalEventGroupId)
       }
 
@@ -210,6 +233,7 @@ class StreamEventGroups(
 
   companion object {
     const val LIMIT = "limit"
+    const val DATA_PROVIDER_ID = "dataProviderId"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
     const val EXTERNAL_MEASUREMENT_CONSUMER_IDS = "externalMeasurementConsumerIds"
