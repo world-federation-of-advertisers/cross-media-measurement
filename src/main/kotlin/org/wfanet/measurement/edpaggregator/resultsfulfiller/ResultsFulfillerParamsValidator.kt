@@ -124,8 +124,8 @@ object ResultsFulfillerParamsValidator {
       }
     }
 
-    if (params.trusTeeV2Config.hasImpressionCountsParams()) {
-      validateImpressionCountsParams(params.trusTeeV2Config.impressionCountsParams)
+    if (params.trusTeeV2Config.includeImpressionCount) {
+      requireTrusTeeV2CapModeSupported(params.impressionCapMode)
     }
   }
 

@@ -38,7 +38,6 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMe
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.FrequencyVectorBuilder
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.trustee.FulfillRequisitionRequestBuilder as TrusteeFulfillRequisitionRequestBuilder
@@ -165,9 +164,10 @@ internal fun frequencyVectorCap(
  *   validation is performed. TrusTeeV2 is not covered: its `ProtocolConfig` carries no mechanism,
  *   because the noise is fixed in the attested image.
  * @param trusTeeConfig configuration for TrusTee protocol; null disables TrusTee
- * @param trusTeeV2ImpressionCountsParams how a TrusTeeV2 fulfillment builds the impression count it
- *   carries alongside the frequency vector; null sends no count, leaving the TEE to derive one from
- *   the vector
+ * @param includeTrusTeeV2ImpressionCount whether a TrusTeeV2 fulfillment carries an impression
+ *   count alongside the frequency vector, clipped per [impressionCapMode] and
+ *   [overrideImpressionMaxFrequencyPerUser]; false sends no count, leaving the TEE to derive one
+ *   from the vector
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -184,7 +184,7 @@ class DefaultFulfillerSelector(
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
-  private val trusTeeV2ImpressionCountsParams: ResultsFulfillerParams.ImpressionCountsParams? = null,
+  private val includeTrusTeeV2ImpressionCount: Boolean = false,
 ) : FulfillerSelector {
 
   init {
@@ -261,8 +261,14 @@ class DefaultFulfillerSelector(
         requisitionsStub,
         requisitionsThrottler,
         buildTrusTeeEncryptionParams(kekUri, frequencyVector),
-        trusTeeV2ImpressionCountsParams?.let {
-          buildTrusTeeV2FulfillmentDetails(it, frequencyVector)
+        if (includeTrusTeeV2ImpressionCount) {
+          buildTrusTeeV2FulfillmentDetails(
+            impressionCapMode,
+            overrideImpressionMaxFrequencyPerUser ?: 0,
+            frequencyVector,
+          )
+        } else {
+          null
         },
       )
     } else if (requisition.protocolConfig.protocolsList.any { it.hasTrusTee() }) {

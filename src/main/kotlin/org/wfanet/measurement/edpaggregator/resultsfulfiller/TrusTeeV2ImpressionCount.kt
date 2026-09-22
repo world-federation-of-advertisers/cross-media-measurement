@@ -23,58 +23,57 @@ import org.wfanet.measurement.api.v2alpha.MeasurementKt.ResultKt.impression
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
 import org.wfanet.measurement.api.v2alpha.customDirectMethodology
 import org.wfanet.measurement.api.v2alpha.deterministicCount
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
-import org.wfanet.measurement.computation.NoNoise
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.computeDirectDynamicallyClippedImpressions
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
-/** The cap a frequency vector cell can represent, since a cell is one signed byte. */
-private const val MAX_REPRESENTABLE_CAP = 127
+/** One released quantity draws from the seed, as on the Direct path. */
+private const val CONTRIBUTION_COUNT = 1
 
 /**
  * Builds the impression count a `TrusTeeV2` fulfillment carries alongside its frequency vector.
  *
  * The count covers the whole population rather than the sampling interval the vector covers, so it
- * carries no sampling error. [ImpressionCapMode.UNCAPPED] reports the true uncapped total, which
- * [StripedByteFrequencyVector] accumulates as it ingests, before a cell saturates at 127. The other
- * two modes sum the saturated cells, so a VID seen more than 127 times counts as 127.
- * `DirectImpressionResultBuilder` splits an uncapped total from a capped sum the same way.
+ * carries no sampling error. [capMode] and [configuredCap] are the same fields the Direct path
+ * clips with.
  *
- * Who noises the count follows `noise_params.noise_type`:
- * * NONE leaves the value unnoised and reports the clip, so the TEE noises it once per released
- *   figure using that clip as the sensitivity bound.
- * * DETERMINISTIC_TRUNCATED_LAPLACE noises here and reports the variance, so the TEE adds nothing.
+ * The cap mode decides who noises the count, because only one mechanism is available to each:
+ * * [ImpressionCapMode.UNCAPPED] has no per-user bound to calibrate a sampler to, so the count goes
+ *   out unnoised and the TEE noises the figure it composes from these counts. It reports the true
+ *   uncapped total, which [StripedByteFrequencyVector] accumulates before a cell saturates at 127.
+ * * [ImpressionCapMode.CUSTOM_CAP] and [ImpressionCapMode.DYNAMIC] noise here with deterministic
+ *   truncated Laplace, whose parameters are compiled into the attested image. Continuous Gaussian
+ *   needs privacy params from the `MeasurementSpec`, and a `MultiMeasurementSpec` carries none.
  *
- * @throws IllegalArgumentException if [params] is a combination [validateImpressionCountsParams]
- *   rejects
+ * @throws IllegalArgumentException if [capMode] is one [requireTrusTeeV2CapModeSupported] rejects
  */
 fun buildTrusTeeV2FulfillmentDetails(
-  params: ResultsFulfillerParams.ImpressionCountsParams,
+  capMode: ImpressionCapMode,
+  configuredCap: Int,
   frequencyVector: StripedByteFrequencyVector,
 ): FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails {
-  validateImpressionCountsParams(params)
+  requireTrusTeeV2CapModeSupported(capMode)
 
   return FulfillRequisitionRequestKt.HeaderKt.TrusTeeV2Kt.fulfillmentDetails {
     impression =
-      when (params.capMode) {
+      when (capMode) {
         ImpressionCapMode.UNCAPPED ->
           impression {
             value = frequencyVector.getTotalUncappedImpressions()
             noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
-            // No per-user bound accompanies an uncapped count, so the TEE has no sensitivity to
-            // noise it with. Only NONE reaches here.
+            // No per-user bound accompanies an uncapped count, so no clip is reported with it.
             deterministicCount = deterministicCount {}
           }
         ImpressionCapMode.CUSTOM_CAP -> {
-          val cap = params.maxFrequencyPerUser
+          val frequencyData: IntArray = readFrequencyData(frequencyVector)
           val histogram: LongArray =
             HistogramComputations.buildHistogram(
-              frequencyVector = readFrequencyData(frequencyVector),
-              maxFrequency = cap,
+              frequencyVector = frequencyData,
+              maxFrequency = configuredCap,
             )
           impression {
             value =
@@ -82,13 +81,19 @@ fun buildTrusTeeV2FulfillmentDetails(
                 rawHistogram = histogram,
                 // The count spans the whole population, so nothing scales it.
                 vidSamplingIntervalWidth = 1.0,
-                // The TEE noises the figure it composes, using the reported clip as the bound.
-                noiser = NoNoise,
+                noiser =
+                  DeterministicTruncatedLaplaceResultNoiser(
+                    combinedFrequencyVector = frequencyData,
+                    contributionCount = CONTRIBUTION_COUNT,
+                    maxFrequencyPerUser = configuredCap,
+                  ),
                 // The TEE thresholds the aggregate it composes from these counts.
                 resultMinimumThresholds = null,
               )
-            noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
-            deterministicCount = deterministicCount { customMaximumFrequencyPerUser = cap }
+            noiseMechanism = ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+            deterministicCount = deterministicCount {
+              customMaximumFrequencyPerUser = configuredCap
+            }
           }
         }
         ImpressionCapMode.DYNAMIC -> {
@@ -106,67 +111,42 @@ fun buildTrusTeeV2FulfillmentDetails(
           impression {
             value = clipped.value
             noiseMechanism = ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
+            // The clip came from the data, so the variance travels instead of the clip.
             customDirectMethodology = customDirectMethodology {
               variance = CustomDirectMethodologyKt.variance { scalar = clipped.variance }
             }
           }
         }
-        else -> error("Unreachable: ${params.capMode} is rejected at config load")
+        else -> error("Unreachable: $capMode is rejected at config load")
       }
   }
 }
 
 /**
- * Checks that [params] is a combination the `TrusTeeV2` path can fulfill.
+ * Checks that [capMode] is one a `TrusTeeV2` impression count can be built under.
  *
- * Called at config load so a provider learns of a bad combination before a requisition arrives, and
- * again where the count is built.
+ * Called at config load so a provider learns of an unusable mode before a requisition arrives, and
+ * again where the count is built. The cap value itself is checked by `requireCapMatchesMode`, which
+ * the Direct path shares.
  *
  * @throws IllegalArgumentException with what to set instead
  */
-fun validateImpressionCountsParams(params: ResultsFulfillerParams.ImpressionCountsParams) {
-  require(params.hasNoiseParams()) {
-    "noise_params is required for a TrusTeeV2 impression count. Set noise_type NONE under " +
-      "UNCAPPED or CUSTOM_CAP, and DETERMINISTIC_TRUNCATED_LAPLACE under DYNAMIC."
-  }
-  val noiseType = params.noiseParams.noiseType
-  when (params.capMode) {
+fun requireTrusTeeV2CapModeSupported(capMode: ImpressionCapMode) {
+  when (capMode) {
     ImpressionCapMode.UNCAPPED,
-    ImpressionCapMode.CUSTOM_CAP ->
-      require(noiseType == ResultsFulfillerParams.NoiseParams.NoiseType.NONE) {
-        "${params.capMode} requires noise_type NONE, got $noiseType. The TEE noises the count it " +
-          "composes, using the reported clip as the sensitivity bound."
-      }
-    ImpressionCapMode.DYNAMIC ->
-      require(
-        noiseType == ResultsFulfillerParams.NoiseParams.NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE
-      ) {
-        "DYNAMIC requires noise_type DETERMINISTIC_TRUNCATED_LAPLACE, got $noiseType. Choosing " +
-          "the clip reads the frequency distribution, so the choice itself has to be noised."
-      }
+    ImpressionCapMode.CUSTOM_CAP,
+    ImpressionCapMode.DYNAMIC -> {}
     ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP ->
       throw IllegalArgumentException(
-        "USE_MEASUREMENT_SPEC_CAP has nothing to read: a MultiMeasurementSpec carries no cap. " +
-          "Set CUSTOM_CAP, UNCAPPED or DYNAMIC."
+        "USE_MEASUREMENT_SPEC_CAP has nothing to read for a TrusTeeV2 impression count: a " +
+          "MultiMeasurementSpec carries no cap. Set CUSTOM_CAP, UNCAPPED or DYNAMIC."
       )
     ImpressionCapMode.UNSPECIFIED,
     ImpressionCapMode.UNRECOGNIZED ->
       throw IllegalArgumentException(
-        "cap_mode must be set explicitly for a TrusTeeV2 impression count. Set CUSTOM_CAP, " +
-          "UNCAPPED or DYNAMIC."
+        "impression_cap_mode must be set explicitly to send a TrusTeeV2 impression count. Set " +
+          "CUSTOM_CAP, UNCAPPED or DYNAMIC."
       )
-  }
-  if (params.capMode == ImpressionCapMode.CUSTOM_CAP) {
-    require(params.maxFrequencyPerUser in 1..MAX_REPRESENTABLE_CAP) {
-      "max_frequency_per_user must be in 1..$MAX_REPRESENTABLE_CAP under CUSTOM_CAP, got " +
-        "${params.maxFrequencyPerUser}. A frequency vector cell saturates at the largest signed " +
-        "byte."
-    }
-  } else {
-    require(params.maxFrequencyPerUser == 0) {
-      "max_frequency_per_user is read only under CUSTOM_CAP, got ${params.maxFrequencyPerUser} " +
-        "under ${params.capMode}."
-    }
   }
 }
 

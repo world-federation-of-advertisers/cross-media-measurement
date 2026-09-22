@@ -22,29 +22,43 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 
 @RunWith(JUnit4::class)
 class TrusTeeV2ImpressionCountTest {
 
   @Test
-  fun `custom cap sums the clipped population and reports the clip`() {
+  fun `a custom cap clips the population, noises the count and reports the clip`() {
     val details =
-      buildTrusTeeV2FulfillmentDetails(params(ImpressionCapMode.CUSTOM_CAP, cap = 3), VECTOR)
+      buildTrusTeeV2FulfillmentDetails(ImpressionCapMode.CUSTOM_CAP, configuredCap = 3, VECTOR)
 
-    // 3 + 1 + 3 + 3, clipping the VIDs reached 5 and 200 times.
-    assertThat(details.impression.value).isEqualTo(10L)
-    assertThat(details.impression.noiseMechanism).isEqualTo(ProtocolConfig.NoiseMechanism.NONE)
+    assertThat(details.impression.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    // The clip is the sensitivity the TEE needs to reason about the value it was given.
     assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(3)
     assertThat(details.impression.hasCustomDirectMethodology()).isFalse()
+    // The draw is seeded from the vector, so the same population repeats the same count.
+    assertThat(
+        buildTrusTeeV2FulfillmentDetails(ImpressionCapMode.CUSTOM_CAP, configuredCap = 3, VECTOR)
+      )
+      .isEqualTo(details)
+  }
+
+  @Test
+  fun `a wider cap counts more impressions`() {
+    val narrow =
+      buildTrusTeeV2FulfillmentDetails(ImpressionCapMode.CUSTOM_CAP, configuredCap = 1, VECTOR)
+    val wide =
+      buildTrusTeeV2FulfillmentDetails(ImpressionCapMode.CUSTOM_CAP, configuredCap = 100, VECTOR)
+
+    // Clipped sums of 4 and 113 before noise, so the gap survives any single draw.
+    assertThat(wide.impression.value).isGreaterThan(narrow.impression.value)
   }
 
   @Test
   fun `uncapped reports every impression and no clip`() {
-    val details = buildTrusTeeV2FulfillmentDetails(params(ImpressionCapMode.UNCAPPED), VECTOR)
+    val details =
+      buildTrusTeeV2FulfillmentDetails(ImpressionCapMode.UNCAPPED, configuredCap = 0, VECTOR)
 
     // Every impression, including the ones past the cell's own ceiling of 127.
     assertThat(details.impression.value).isEqualTo(213L)
@@ -55,50 +69,25 @@ class TrusTeeV2ImpressionCountTest {
 
   @Test
   fun `dynamic clipping reports a variance and repeats itself`() {
-    val params =
-      params(ImpressionCapMode.DYNAMIC, noiseType = NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE)
-
-    val details = buildTrusTeeV2FulfillmentDetails(params, VECTOR)
+    val details =
+      buildTrusTeeV2FulfillmentDetails(ImpressionCapMode.DYNAMIC, configuredCap = 0, VECTOR)
 
     assertThat(details.impression.noiseMechanism)
       .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    // The clip came from the data, so the variance travels instead of the clip.
     assertThat(details.impression.customDirectMethodology.variance.scalar).isGreaterThan(0.0)
     assertThat(details.impression.hasDeterministicCount()).isFalse()
-    // The draw is seeded from the vector, so the same population repeats the same count.
-    assertThat(buildTrusTeeV2FulfillmentDetails(params, VECTOR)).isEqualTo(details)
-  }
-
-  @Test
-  fun `a capped count refuses to be noised by this EDP`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        validateImpressionCountsParams(
-          params(
-            ImpressionCapMode.CUSTOM_CAP,
-            cap = 3,
-            noiseType = NoiseType.DETERMINISTIC_TRUNCATED_LAPLACE,
-          )
-        )
-      }
-
-    assertThat(exception).hasMessageThat().contains("requires noise_type NONE")
-  }
-
-  @Test
-  fun `dynamic clipping refuses to go unnoised`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        validateImpressionCountsParams(params(ImpressionCapMode.DYNAMIC))
-      }
-
-    assertThat(exception).hasMessageThat().contains("DYNAMIC requires noise_type")
+    assertThat(
+        buildTrusTeeV2FulfillmentDetails(ImpressionCapMode.DYNAMIC, configuredCap = 0, VECTOR)
+      )
+      .isEqualTo(details)
   }
 
   @Test
   fun `the MeasurementSpec cap has nothing to read`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        validateImpressionCountsParams(params(ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP))
+        requireTrusTeeV2CapModeSupported(ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP)
       }
 
     assertThat(exception).hasMessageThat().contains("MultiMeasurementSpec carries no cap")
@@ -108,42 +97,10 @@ class TrusTeeV2ImpressionCountTest {
   fun `a cap mode is required`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        validateImpressionCountsParams(params(ImpressionCapMode.UNSPECIFIED))
+        requireTrusTeeV2CapModeSupported(ImpressionCapMode.UNSPECIFIED)
       }
 
-    assertThat(exception).hasMessageThat().contains("cap_mode must be set explicitly")
-  }
-
-  @Test
-  fun `noise params must be set rather than left to the proto default`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        validateImpressionCountsParams(
-          ResultsFulfillerParamsKt.impressionCountsParams { capMode = ImpressionCapMode.UNCAPPED }
-        )
-      }
-
-    assertThat(exception).hasMessageThat().contains("noise_params is required")
-  }
-
-  @Test
-  fun `a cap beyond what a cell holds is refused`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        validateImpressionCountsParams(params(ImpressionCapMode.CUSTOM_CAP, cap = 128))
-      }
-
-    assertThat(exception).hasMessageThat().contains("must be in 1..127")
-  }
-
-  @Test
-  fun `a cap outside CUSTOM_CAP is refused`() {
-    val exception =
-      assertFailsWith<IllegalArgumentException> {
-        validateImpressionCountsParams(params(ImpressionCapMode.UNCAPPED, cap = 3))
-      }
-
-    assertThat(exception).hasMessageThat().contains("read only under CUSTOM_CAP")
+    assertThat(exception).hasMessageThat().contains("must be set explicitly")
   }
 
   companion object {
@@ -154,17 +111,6 @@ class TrusTeeV2ImpressionCountTest {
         increment(1)
         repeat(200) { increment(2) }
         repeat(7) { increment(3) }
-      }
-
-    private fun params(
-      capMode: ImpressionCapMode,
-      cap: Int = 0,
-      noiseType: NoiseType = NoiseType.NONE,
-    ): ResultsFulfillerParams.ImpressionCountsParams =
-      ResultsFulfillerParamsKt.impressionCountsParams {
-        this.capMode = capMode
-        maxFrequencyPerUser = cap
-        noiseParams = ResultsFulfillerParamsKt.noiseParams { this.noiseType = noiseType }
       }
   }
 }

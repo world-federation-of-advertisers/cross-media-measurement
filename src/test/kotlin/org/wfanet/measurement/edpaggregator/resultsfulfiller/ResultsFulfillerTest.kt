@@ -179,9 +179,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataReques
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
-import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
@@ -3405,7 +3403,8 @@ class ResultsFulfillerTest {
   private suspend fun fulfillTrusTeeV2Requisition(
     resultMinimumThresholds: ResultMinimumThresholds?,
     vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
-    trusTeeV2ImpressionCountsParams: ResultsFulfillerParams.ImpressionCountsParams? = null,
+    trusTeeV2CapMode: ImpressionCapMode? = null,
+    trusTeeV2Cap: Int? = null,
   ): TrusTeeV2Fulfillment {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -3473,7 +3472,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = resultMinimumThresholds,
-        overrideImpressionMaxFrequencyPerUser = null,
+        overrideImpressionMaxFrequencyPerUser = trusTeeV2Cap,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
@@ -3483,7 +3482,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
-        trusTeeV2ImpressionCountsParams = trusTeeV2ImpressionCountsParams,
+        impressionCapMode = trusTeeV2CapMode ?: ImpressionCapMode.UNSPECIFIED,
+        includeTrusTeeV2ImpressionCount = trusTeeV2CapMode != null,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3602,26 +3602,13 @@ class ResultsFulfillerTest {
     }
   }
 
-  private fun impressionCountsParams(
-    capMode: ImpressionCapMode,
-    cap: Int = 0,
-  ): ResultsFulfillerParams.ImpressionCountsParams =
-    ResultsFulfillerParamsKt.impressionCountsParams {
-      this.capMode = capMode
-      maxFrequencyPerUser = cap
-      noiseParams =
-        ResultsFulfillerParamsKt.noiseParams {
-          noiseType = ResultsFulfillerParams.NoiseParams.NoiseType.NONE
-        }
-    }
-
   @Test
   fun `runWork sends an uncapped TrusTeeV2 impression count`() = runBlocking {
     val fulfillment =
       fulfillTrusTeeV2Requisition(
         resultMinimumThresholds = null,
         vidCounts = skewedVidCounts,
-        trusTeeV2ImpressionCountsParams = impressionCountsParams(ImpressionCapMode.UNCAPPED),
+        trusTeeV2CapMode = ImpressionCapMode.UNCAPPED,
       )
 
     val details = decryptFulfillmentDetails(fulfillment)
@@ -3637,13 +3624,14 @@ class ResultsFulfillerTest {
       fulfillTrusTeeV2Requisition(
         resultMinimumThresholds = null,
         vidCounts = skewedVidCounts,
-        trusTeeV2ImpressionCountsParams =
-          impressionCountsParams(ImpressionCapMode.CUSTOM_CAP, cap = 3),
+        trusTeeV2CapMode = ImpressionCapMode.CUSTOM_CAP,
+        trusTeeV2Cap = 3,
       )
 
     val details = decryptFulfillmentDetails(fulfillment)
-    // 3 + 3 + 128, clipping the two VIDs above the cap.
-    assertThat(details.impression.value).isEqualTo(134L)
+    // Clipped to 3 + 3 + 128 before a seeded draw, so the clip travels rather than the value.
+    assertThat(details.impression.noiseMechanism)
+      .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
     assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(3)
   }
 

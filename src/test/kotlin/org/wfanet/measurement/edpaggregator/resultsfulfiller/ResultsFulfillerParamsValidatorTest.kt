@@ -229,17 +229,12 @@ class ResultsFulfillerParamsValidatorTest {
   }
 
   @Test
-  fun `a TrusTeeV2 impression count config is validated at config load`() {
+  fun `a TrusTeeV2 impression count refuses a cap mode it cannot read`() {
     val invalidParams =
       VALID_PARAMS.copy {
-        trusTeeV2Config =
-          ResultsFulfillerParamsKt.trusTeeV2Config {
-            impressionCountsParams =
-              ResultsFulfillerParamsKt.impressionCountsParams {
-                capMode = ResultsFulfillerParams.ImpressionCapMode.DYNAMIC
-                noiseParams = ResultsFulfillerParamsKt.noiseParams { noiseType = NoiseType.NONE }
-              }
-          }
+        impressionCapMode = ResultsFulfillerParams.ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP
+        impressionMaxFrequencyPerUser = 0
+        trusTeeV2Config = ResultsFulfillerParamsKt.trusTeeV2Config { includeImpressionCount = true }
       }
 
     val exception =
@@ -247,21 +242,16 @@ class ResultsFulfillerParamsValidatorTest {
         ResultsFulfillerParamsValidator.validate(invalidParams)
       }
 
-    assertThat(exception).hasMessageThat().contains("DYNAMIC requires noise_type")
+    assertThat(exception).hasMessageThat().contains("MultiMeasurementSpec carries no cap")
   }
 
   @Test
-  fun `a valid TrusTeeV2 impression count config passes validation`() {
+  fun `a TrusTeeV2 impression count passes validation under an explicit cap mode`() {
     ResultsFulfillerParamsValidator.validate(
       VALID_PARAMS.copy {
-        trusTeeV2Config =
-          ResultsFulfillerParamsKt.trusTeeV2Config {
-            impressionCountsParams =
-              ResultsFulfillerParamsKt.impressionCountsParams {
-                capMode = ResultsFulfillerParams.ImpressionCapMode.UNCAPPED
-                noiseParams = ResultsFulfillerParamsKt.noiseParams { noiseType = NoiseType.NONE }
-              }
-          }
+        impressionCapMode = ResultsFulfillerParams.ImpressionCapMode.UNCAPPED
+        impressionMaxFrequencyPerUser = 0
+        trusTeeV2Config = ResultsFulfillerParamsKt.trusTeeV2Config { includeImpressionCount = true }
       },
       DATA_PROVIDER,
     )
