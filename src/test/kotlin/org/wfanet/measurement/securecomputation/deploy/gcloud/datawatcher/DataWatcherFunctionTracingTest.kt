@@ -28,6 +28,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
 @RunWith(JUnit4::class)
 class DataWatcherFunctionTracingTest {
@@ -91,6 +92,45 @@ class DataWatcherFunctionTracingTest {
     DataWatcherFunction(pathReceiver).accept(cloudEvent)
 
     assertThat(recordedTraceIds).containsExactly(expectedTraceId)
+  }
+
+  @Test
+  fun `persisted done metadata overrides CloudEvent trace context`() {
+    val expectedTraceId = "11111111111111111111111111111111"
+    val persistedTraceParent = "00-$expectedTraceId-2222222222222222-01"
+    var receivedMetadata: Map<String, String> = emptyMap()
+    var receivedTraceId = ""
+    val cloudEventData =
+      """
+      {
+        "bucket": "test-bucket",
+        "name": "path/to/done",
+        "size": "0",
+        "generation": "123",
+        "metadata": {
+          "xmm-traceparent": "$persistedTraceParent",
+          "xmm-raw-impression-upload": "dataProviders/dp/rawImpressionUploads/up"
+        }
+      }
+      """
+        .trimIndent()
+    val cloudEvent =
+      TestCloudEvent(
+        dataBytes = cloudEventData.toByteArray(Charsets.UTF_8),
+        extensions =
+          mapOf("traceparent" to "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"),
+      )
+
+    DataWatcherFunction { _, metadata ->
+        receivedMetadata = metadata
+        receivedTraceId = Span.current().spanContext.traceId
+      }
+      .accept(cloudEvent)
+
+    assertThat(receivedTraceId).isEqualTo(expectedTraceId)
+    assertThat(receivedMetadata["xmm-raw-impression-upload"])
+      .isEqualTo("dataProviders/dp/rawImpressionUploads/up")
+    assertThat(receivedMetadata[DataWatcher.GENERATION_METADATA_KEY]).isEqualTo("123")
   }
 
   private class TestCloudEvent(

@@ -22,6 +22,7 @@ import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
@@ -40,6 +41,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -120,6 +122,12 @@ class DataAvailabilitySync(
   private val errorIfGapsExist: Boolean,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
+  enum class Outcome {
+    NO_WORK,
+    BLOCKED_GAPS,
+    PUBLISHED,
+  }
+
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
   /** Holds an [ImpressionMetadata] along with its associated impressions blob key. */
@@ -149,7 +157,7 @@ class DataAvailabilitySync(
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    */
-  suspend fun sync(doneBlobPath: String) {
+  suspend fun sync(doneBlobPath: String): Outcome {
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
@@ -176,7 +184,7 @@ class DataAvailabilitySync(
         logger.info("There were no valid impressions metadata.")
         // Record sync duration even if no records
         recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
-        return
+        return Outcome.NO_WORK
       }
 
       // Count total records
@@ -195,6 +203,14 @@ class DataAvailabilitySync(
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys)
       }
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.impression_metadata_scanned",
+          Attributes.builder()
+            .put(RECORD_COUNT_ATTR, totalRecords.toLong())
+            .put(XmmTraceAttributes.OUTCOME, "succeeded")
+            .build(),
+        )
 
       // Record metadata-store completion separately. Disjoint marker writes prevent an older
       // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
@@ -285,6 +301,14 @@ class DataAvailabilitySync(
         )
       }
       if (blockedDetails.isNotEmpty()) {
+        Span.current()
+          .addEvent(
+            "edpa.data_availability.gap_decision",
+            Attributes.of(
+              XmmTraceAttributes.OUTCOME,
+              if (errorIfGapsExist) "blocked" else "allowed",
+            ),
+          )
         logger.warning(
           "Date gaps or in-range unfinalized dates detected in $edpImpressionPath. " +
             blockedDetails.joinToString("; ")
@@ -295,7 +319,7 @@ class DataAvailabilitySync(
               "dates in $edpImpressionPath."
           )
           recordSyncDuration(syncStartTime, SYNC_STATUS_SKIPPED_GAPS)
-          return
+          return Outcome.BLOCKED_GAPS
         }
       }
       throttler.onReady {
@@ -322,6 +346,11 @@ class DataAvailabilitySync(
           throw Exception("Error replacing DataAvailability intervals", e)
         }
       }
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.kingdom_published",
+          Attributes.of(XmmTraceAttributes.OUTCOME, "succeeded"),
+        )
 
       // This marker is the durable completion signal for both phases of synchronization. Only
       // update the publication ID here. If another attempt has written a newer sync ID while this
@@ -330,6 +359,11 @@ class DataAvailabilitySync(
         blobKey = doneBlobUri.key,
         metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
       )
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.sync_marker_written",
+          Attributes.of(XmmTraceAttributes.OUTCOME, "succeeded"),
+        )
 
       // Record successful sync
       recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
@@ -344,6 +378,7 @@ class DataAvailabilitySync(
           SYNC_STATUS_SUCCESS,
         ),
       )
+      return Outcome.PUBLISHED
     } catch (e: Exception) {
       // Record sync duration even on failure
       recordSyncDuration(syncStartTime, SYNC_STATUS_FAILED)
@@ -472,6 +507,23 @@ class DataAvailabilitySync(
             }
             .impressionMetadataList
         }
+      val unchangedCount =
+        impressionMetadataList.size -
+          (toCreate.map { it.impressionMetadata.blobUri } +
+              toUpdate.map { it.impressionMetadata.blobUri } +
+              toRestore.map { it.blobUri })
+            .toSet()
+            .size
+      Span.current()
+        .addEvent(
+          "edpa.data_availability.impression_metadata_actions",
+          Attributes.builder()
+            .put(CREATED_COUNT_ATTR, createResponses.size.toLong())
+            .put(UPDATED_COUNT_ATTR, updateResponses.size.toLong())
+            .put(RESTORED_COUNT_ATTR, restoreResponses.size.toLong())
+            .put(UNCHANGED_COUNT_ATTR, unchangedCount.toLong())
+            .build(),
+        )
 
       // Set GCS object metadata on every scanned metadata blob — not just newly
       // created/updated ones. A re-sync of a date whose metadata content is unchanged would
@@ -732,6 +784,12 @@ class DataAvailabilitySync(
   }
 
   companion object {
+    private val RECORD_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.count")
+    private val CREATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.created")
+    private val UPDATED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.updated")
+    private val RESTORED_COUNT_ATTR = AttributeKey.longKey("xmm.edpa.impression_metadata.restored")
+    private val UNCHANGED_COUNT_ATTR =
+      AttributeKey.longKey("xmm.edpa.impression_metadata.unchanged")
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")

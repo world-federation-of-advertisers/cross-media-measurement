@@ -20,6 +20,15 @@ import io.opentelemetry.api.common.AttributeKey
 
 /** Stable OpenTelemetry attributes for one VID-labeling pipeline execution. */
 object VidLabelingTraceAttributes {
+  const val RAW_IMPRESSION_UPLOAD_METADATA_KEY = "xmm-raw-impression-upload"
+  const val MODEL_LINE_METADATA_KEY = "xmm-model-line"
+  const val VID_LABELING_JOB_METADATA_KEY = "xmm-vid-labeling-job"
+  const val TRACEPARENT_METADATA_KEY = "xmm-traceparent"
+  const val TRACESTATE_METADATA_KEY = "xmm-tracestate"
+  const val RAW_IMPRESSION_UPLOAD_HEADER = "X-Raw-Impression-Upload"
+  const val MODEL_LINE_HEADER = "X-Model-Line"
+  const val VID_LABELING_JOB_HEADER = "X-Vid-Labeling-Job"
+  const val DATA_WATCHER_GENERATION_HEADER = "X-DataWatcher-Generation"
   const val DATA_PROVIDER_NAME_STRING = "xmm.data_provider.name"
   const val MODEL_LINE_NAME_STRING = "xmm.model_line.name"
   const val MODEL_LINE_NAMES_STRING = "xmm.model_line.names"

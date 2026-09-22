@@ -22,6 +22,8 @@ import com.google.cloud.functions.HttpResponse
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
@@ -38,6 +40,7 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
@@ -46,6 +49,7 @@ import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -143,8 +147,39 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         )
 
       Tracing.withW3CTraceContext(request) {
-        runBlocking(Context.current().asContextElement()) {
-          dataAvailabilitySync.sync(doneBlobPath)
+        val attributes =
+          Attributes.builder()
+            .put(
+              VidLabelingTraceAttributes.DATA_PROVIDER_NAME,
+              dataAvailabilitySyncConfig.dataProvider,
+            )
+            .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_availability_sync")
+            .put(XmmTraceAttributes.OUTCOME, "started")
+            .also { builder ->
+              request
+                .getFirstHeader(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_HEADER)
+                .ifPresent {
+                  builder.put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, it)
+                }
+              request.getFirstHeader(VidLabelingTraceAttributes.MODEL_LINE_HEADER).ifPresent {
+                builder.put(VidLabelingTraceAttributes.MODEL_LINE_NAME, it)
+              }
+              request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
+                builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
+              }
+              request
+                .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
+                .map(String::toLongOrNull)
+                .orElse(null)
+                ?.let { builder.put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, it) }
+            }
+            .build()
+        Tracing.trace("edpa.data_availability.sync", attributes) {
+          val outcome =
+            runBlocking(Context.current().asContextElement()) {
+              dataAvailabilitySync.sync(doneBlobPath)
+            }
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
         }
       }
     } finally {
