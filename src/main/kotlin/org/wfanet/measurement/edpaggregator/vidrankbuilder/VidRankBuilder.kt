@@ -18,16 +18,26 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.collect
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -125,6 +135,7 @@ class VidRankBuilder(
   private val maxFileBatchSizeBytes: Long,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
+  private val traceContextProvider: () -> Map<String, String> = W3CTraceContext::inject,
 ) {
   init {
     require(maxFileBatchSizeBytes > 0) { "maxFileBatchSizeBytes must be > 0" }
@@ -139,7 +150,11 @@ class VidRankBuilder(
    * @property subpoolsRanked subpools this job ranked (0 on a redelivery short-circuit).
    * @property lastJobOut whether this job was the last out (and ran the Phase-2 fan-out).
    */
-  data class Result(val subpoolsRanked: Int, val lastJobOut: Boolean)
+  data class Result(
+    val subpoolsRanked: Int,
+    val lastJobOut: Boolean,
+    val outcome: String = "succeeded",
+  )
 
   /**
    * Runs the full Phase-1 work for one `RankerJob`.
@@ -148,7 +163,35 @@ class VidRankBuilder(
    * the job `FAILED` itself. The workload-agnostic DLQ listener fails only the WorkItem on retry
    * exhaustion.
    */
-  suspend fun run(): Result = runRankerJob()
+  suspend fun run(): Result =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.rank",
+      attributes =
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, rawImpressionUpload)
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine)
+          .put(VidLabelingTraceAttributes.RANKER_JOB_NAME, rankerJob)
+          .put(VidLabelingTraceAttributes.PIPELINE_PHASE, "phase1")
+          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "rank")
+          .put(XmmTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      runRankerJob().also { result ->
+        Span.current()
+          .setAttribute(SUBPOOLS_RANKED, result.subpoolsRanked.toLong())
+          .setAttribute(LAST_JOB_OUT, result.lastJobOut)
+          .setAttribute(XmmTraceAttributes.OUTCOME, result.outcome)
+        VidLabelingTraceLogging.log(
+          logger,
+          "edpa.vid_labeling.rank_completed",
+          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+          VidLabelingTraceAttributes.RANKER_JOB_NAME_STRING to rankerJob,
+          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "rank",
+          XmmTraceAttributes.OUTCOME_STRING to result.outcome,
+        )
+      }
+    }
 
   private suspend fun runRankerJob(): Result {
     // Gate on job state: an already-SUCCEEDED job on redelivery skips the expensive re-rank and
@@ -168,7 +211,7 @@ class VidRankBuilder(
       }
     if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
       logger.info("Parent ${parent.name} is FAILED; skipping stale Phase-1 work")
-      return Result(0, lastJobOut = false)
+      return Result(0, lastJobOut = false, outcome = "stale_parent")
     }
     check(parent.state == RawImpressionUploadModelLine.State.RANKING) {
       "Parent ${parent.name} has not reached RANKING"
@@ -178,11 +221,60 @@ class VidRankBuilder(
     // across cores by [SubpoolRanker]. A failure propagates so the framework nacks and Pub/Sub
     // retries.
     for ((poolOffset, blobUri) in subpoolMapBlobUris) {
-      val rankedSize =
-        requireNotNull(subpoolRankedSizes[poolOffset]) {
-          "subpool_ranked_sizes missing offset $poolOffset for $rankerJob"
+      val result =
+        try {
+          val rankedSize =
+            requireNotNull(subpoolRankedSizes[poolOffset]) {
+              "subpool_ranked_sizes missing offset $poolOffset for $rankerJob"
+            }
+          subpoolRanker.rank(poolOffset, blobUri, rankedSize)
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          logRankLifecycle(
+            Level.WARNING,
+            "edpa.vid_labeling.rank.subpool_failed",
+            "rank",
+            "failed",
+            VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset.toString(),
+            XmmTraceAttributes.ERROR_TYPE_STRING to XmmTraceAttributes.errorType(e),
+            XmmTraceAttributes.ERROR_CODE_STRING to XmmTraceAttributes.errorCode(e),
+          )
+          throw e
         }
-      subpoolRanker.rank(poolOffset, blobUri, rankedSize)
+      Span.current()
+        .addEvent(
+          "edpa.vid_labeling.rank.subpool",
+          Attributes.builder()
+            .put(POOL_OFFSET, poolOffset)
+            .put(XmmTraceAttributes.OUTCOME, if (result.skipped) "already_completed" else "written")
+            .put(ALLOCATED, result.allocated)
+            .put(RENEWED, result.renewed)
+            .put(OVERFLOW, result.overflow)
+            .put(FREED, result.freed)
+            .put(BACKFILL_REUSED, result.backfillReusedOldRank)
+            .put(BACKFILL_COLLISIONS, result.backfillRankCollisions)
+            .build(),
+        )
+      logRankLifecycle(
+        Level.INFO,
+        "edpa.vid_labeling.rank.subpool",
+        "rank",
+        if (result.skipped) "already_completed" else "written",
+        VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset.toString(),
+        VidLabelingTraceAttributes.RANK_ALLOCATED_STRING to result.allocated.toString(),
+        VidLabelingTraceAttributes.RANK_RENEWED_STRING to result.renewed.toString(),
+        VidLabelingTraceAttributes.RANK_OVERFLOW_STRING to result.overflow.toString(),
+        VidLabelingTraceAttributes.RANK_FREED_STRING to result.freed.toString(),
+        VidLabelingTraceAttributes.RANK_BACKFILL_REUSED_STRING to
+          result.backfillReusedOldRank.toString(),
+        VidLabelingTraceAttributes.RANK_BACKFILL_COLLISIONS_STRING to
+          result.backfillRankCollisions.toString(),
+      )
+      logRankIndexBlob(poolOffset, "prior_snapshot", result.priorSnapshotName)
+      result.backfillSnapshotName?.let { logRankIndexBlob(poolOffset, "backfill_snapshot", it) }
+      logRankIndexBlob(poolOffset, "snapshot", result.snapshotRankIndexBlobName)
+      logRankIndexBlob(poolOffset, "day_only", result.dayOnlyRankIndexBlobName)
     }
 
     val markResponse =
@@ -213,7 +305,7 @@ class VidRankBuilder(
         logger.info(
           "RankerJob $rankerJob already SUCCEEDED by another ranker (${e.status.code}); acking"
         )
-        return Result(subpoolMapBlobUris.size, lastJobOut = false)
+        return Result(subpoolMapBlobUris.size, lastJobOut = false, outcome = "already_completed")
       }
 
     if (markResponse.isLastJob) {
@@ -221,8 +313,8 @@ class VidRankBuilder(
         requireNotNull(getParent()) {
           "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
         }
-      runLastJobOut(parent)
-      return Result(subpoolMapBlobUris.size, lastJobOut = true)
+      val outcome = runLastJobOut(parent)
+      return Result(subpoolMapBlobUris.size, lastJobOut = true, outcome = outcome)
     }
     return Result(subpoolMapBlobUris.size, lastJobOut = false)
   }
@@ -245,17 +337,25 @@ class VidRankBuilder(
       "Parent ${parent.name} has not reached RANKING; retry this WorkItem after Phase 0 commits " +
         "the transition"
     }
+    if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
+      logger.info("RankerJob $rankerJob already SUCCEEDED; parent is FAILED, treating as stale")
+      return Result(0, lastJobOut = false, outcome = "stale_parent")
+    }
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("RankerJob $rankerJob already SUCCEEDED; nothing to recover (parent advanced)")
-      return Result(0, lastJobOut = false)
+      return Result(0, lastJobOut = false, outcome = "already_completed")
     }
     if (!allRankerJobsSucceeded()) {
       logger.info("RankerJob $rankerJob already SUCCEEDED; other jobs still pending")
-      return Result(0, lastJobOut = false)
+      return Result(0, lastJobOut = false, outcome = "already_completed")
     }
     logger.info("RankerJob $rankerJob already SUCCEEDED; recovering last-job-out")
-    runLastJobOut(parent)
-    return Result(0, lastJobOut = true)
+    val outcome = runLastJobOut(parent)
+    return Result(
+      0,
+      lastJobOut = true,
+      outcome = if (outcome == "succeeded") "recovered" else outcome,
+    )
   }
 
   /**
@@ -275,7 +375,24 @@ class VidRankBuilder(
    * original crashed mid-`createVidLabelingJobs`.) If a future change could mutate the file list
    * post-`CREATED`, recovery would need a different strategy.
    */
-  private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine) {
+  private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine): String =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.rank.finalize",
+      attributes =
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, rawImpressionUpload)
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine)
+          .put(VidLabelingTraceAttributes.RANKER_JOB_NAME, rankerJob)
+          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "rank_finalize")
+          .put(XmmTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      val outcome = runLastJobOutInternal(parent)
+      Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome)
+      outcome
+    }
+
+  private suspend fun runLastJobOutInternal(parent: RawImpressionUploadModelLine): String {
     check(
       parent.state != RawImpressionUploadModelLine.State.CREATED &&
         parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING
@@ -285,27 +402,95 @@ class VidRankBuilder(
     }
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("Parent ${parent.name} already past RANKING; last-job-out already complete")
-      return
+      return "already_completed"
     }
     val published = fanOutLabeling()
-    markParentLabeling(parent)
+    val transitionOutcome = markParentLabeling(parent)
+    Span.current()
+      .addEvent(
+        "edpa.vid_labeling.rank.parent_transition",
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME, parent.name)
+          .put(XmmTraceAttributes.OUTCOME, transitionOutcome.telemetryValue)
+          .build(),
+      )
+    logRankLifecycle(
+      Level.INFO,
+      "edpa.vid_labeling.rank.parent_transition",
+      "rank_finalize",
+      transitionOutcome.telemetryValue,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
+    )
+    if (transitionOutcome == ParentTransitionOutcome.STALE_PARENT) return "stale_parent"
     if (published == 0) {
       // No `VidLabelingJob` exists for this (upload, model line) — an empty upload with no
       // `RawImpressionUploadFile`s to bin-pack — so no Phase-2 last-job-out will ever mark the
       // parent `COMPLETED`. Complete it here (there is nothing to label) instead of stranding it in
       // `LABELING`. Re-read for the post-`LABELING` etag; `markParentCompleted` swallows the benign
       // already-advanced races, so a redelivery is a no-op.
-      val labeled = getParent()
-      if (labeled != null) {
-        markParentCompleted(labeled)
+      val labeled =
+        requireNotNull(getParent()) {
+          "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
+        }
+      val completionOutcome =
+        when (labeled.state) {
+          RawImpressionUploadModelLine.State.FAILED -> ParentTransitionOutcome.STALE_PARENT
+          RawImpressionUploadModelLine.State.COMPLETED -> ParentTransitionOutcome.ALREADY_COMPLETED
+          else -> markParentCompleted(labeled)
+        }
+      Span.current()
+        .addEvent(
+          "edpa.vid_labeling.rank.parent_transition",
+          Attributes.builder()
+            .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME, labeled.name)
+            .put(XmmTraceAttributes.OUTCOME, completionOutcome.telemetryValue)
+            .build(),
+        )
+      logRankLifecycle(
+        Level.INFO,
+        "edpa.vid_labeling.rank.parent_transition",
+        "rank_finalize",
+        completionOutcome.telemetryValue,
+        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to labeled.name,
+      )
+      logger.info(
+        when (completionOutcome) {
+          ParentTransitionOutcome.COMPLETED ->
+            "Last-job-out for $modelLine: no files to label; parent -> COMPLETED"
+          ParentTransitionOutcome.ALREADY_COMPLETED ->
+            "Last-job-out for $modelLine: no files to label; parent already COMPLETED"
+          ParentTransitionOutcome.STALE_PARENT ->
+            "Last-job-out for $modelLine: no files to label; parent became FAILED"
+          ParentTransitionOutcome.LABELING -> error("Unexpected LABELING completion outcome")
+        }
+      )
+      return when (completionOutcome) {
+        ParentTransitionOutcome.COMPLETED -> "no_work"
+        ParentTransitionOutcome.STALE_PARENT -> "stale_parent"
+        ParentTransitionOutcome.ALREADY_COMPLETED -> "already_completed"
+        ParentTransitionOutcome.LABELING -> error("Unexpected LABELING completion outcome")
       }
-      logger.info("Last-job-out for $modelLine: no files to label; parent -> COMPLETED")
-      return
     }
     logger.info(
-      "Last-job-out for $modelLine: published $published VidLabelingJob WorkItem(s); parent -> " +
-        "LABELING"
+      when (transitionOutcome) {
+        ParentTransitionOutcome.LABELING ->
+          "Last-job-out for $modelLine: published $published VidLabelingJob WorkItem(s); parent -> " +
+            "LABELING"
+        ParentTransitionOutcome.ALREADY_COMPLETED ->
+          "Last-job-out for $modelLine: published $published VidLabelingJob WorkItem(s); parent " +
+            "already advanced"
+        ParentTransitionOutcome.STALE_PARENT ->
+          "Last-job-out for $modelLine: published $published VidLabelingJob WorkItem(s); parent " +
+            "became FAILED"
+        ParentTransitionOutcome.COMPLETED -> error("Unexpected COMPLETED labeling outcome")
+      }
     )
+    return when (transitionOutcome) {
+      ParentTransitionOutcome.LABELING -> "succeeded"
+      ParentTransitionOutcome.ALREADY_COMPLETED -> "already_completed"
+      ParentTransitionOutcome.STALE_PARENT -> "stale_parent"
+      ParentTransitionOutcome.COMPLETED -> error("Unexpected COMPLETED labeling outcome")
+    }
   }
 
   /**
@@ -383,6 +568,23 @@ class VidRankBuilder(
           "${group.size} requests"
       }
       created.addAll(response.vidLabelingJobsList)
+      for (job in response.vidLabelingJobsList) {
+        Span.current()
+          .addEvent(
+            "edpa.vid_labeling.rank.vid_labeling_job",
+            Attributes.builder()
+              .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, job.name)
+              .put(XmmTraceAttributes.OUTCOME, "resolved")
+              .build(),
+          )
+        logRankLifecycle(
+          Level.INFO,
+          "edpa.vid_labeling.rank.vid_labeling_job",
+          "rank_finalize",
+          "resolved",
+          VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to job.name,
+        )
+      }
     }
     return created
   }
@@ -396,6 +598,7 @@ class VidRankBuilder(
   private suspend fun publishVidLabelerWorkItem(job: VidLabelingJob) {
     val params = vidLabelerParamsTemplate.copy { vidLabelingJob = job.name }
     val workItemId = WorkItemIds.forVidLabeler(job.name)
+    var outcome = "created"
     try {
       rpcThrottlers.controlPlane.onReady {
         workItemsStub.createWorkItem(
@@ -403,13 +606,19 @@ class VidRankBuilder(
             this.workItemId = workItemId
             workItem = workItem {
               queue = vidLabelerQueue
-              workItemParams = workItemParams { appParams = params.pack() }.pack()
+              workItemParams =
+                workItemParams {
+                    appParams = params.pack()
+                    traceContext.putAll(traceContextProvider())
+                  }
+                  .pack()
             }
           }
         )
       }
     } catch (e: StatusException) {
       if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+      outcome = "already_exists"
       logger.warning(
         "WorkItem " +
           workItemId +
@@ -418,6 +627,23 @@ class VidRankBuilder(
           "silently skipped here (same shape as the dispatcher ALREADY_EXISTS/BlobUri bug)"
       )
     }
+    Span.current()
+      .addEvent(
+        "edpa.vid_labeling.rank.work_item",
+        Attributes.builder()
+          .put(XmmTraceAttributes.WORK_ITEM_NAME, "workItems/$workItemId")
+          .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, job.name)
+          .put(XmmTraceAttributes.OUTCOME, outcome)
+          .build(),
+      )
+    logRankLifecycle(
+      Level.INFO,
+      "edpa.vid_labeling.rank.work_item",
+      "rank_finalize",
+      outcome,
+      XmmTraceAttributes.WORK_ITEM_NAME_STRING to "workItems/$workItemId",
+      VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to job.name,
+    )
   }
 
   /**
@@ -430,7 +656,9 @@ class VidRankBuilder(
     deterministicUuid("$rawImpressionUpload|$modelLine|labelingJob|$batchIndex")
 
   /** Flips the parent `RANKING` -> `LABELING`, swallowing the benign "already advanced" races. */
-  private suspend fun markParentLabeling(parent: RawImpressionUploadModelLine) {
+  private suspend fun markParentLabeling(
+    parent: RawImpressionUploadModelLine
+  ): ParentTransitionOutcome {
     try {
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineLabeling(
@@ -441,6 +669,7 @@ class VidRankBuilder(
           }
         )
       }
+      return ParentTransitionOutcome.LABELING
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
@@ -448,20 +677,25 @@ class VidRankBuilder(
         throw e
       }
       val current = getParent()
-      if (
-        current != null &&
-          current.state in
-            setOf(
-              RawImpressionUploadModelLine.State.FAILED,
-              RawImpressionUploadModelLine.State.LABELING,
-              RawImpressionUploadModelLine.State.COMPLETED,
+      if (current != null) {
+        return when (current.state) {
+          RawImpressionUploadModelLine.State.FAILED -> {
+            logger.info(
+              "markRawImpressionUploadModelLineLabeling(${parent.name}) conflicted because the " +
+                "parent is now FAILED; treating this delivery as stale"
             )
-      ) {
-        logger.info(
-          "markRawImpressionUploadModelLineLabeling(${parent.name}) conflicted because the parent " +
-            "is now ${current.state}; treating as done"
-        )
-        return
+            ParentTransitionOutcome.STALE_PARENT
+          }
+          RawImpressionUploadModelLine.State.LABELING,
+          RawImpressionUploadModelLine.State.COMPLETED -> {
+            logger.info(
+              "markRawImpressionUploadModelLineLabeling(${parent.name}) conflicted because the " +
+                "parent is now ${current.state}; treating as already completed"
+            )
+            ParentTransitionOutcome.ALREADY_COMPLETED
+          }
+          else -> throw e
+        }
       }
       throw e
     }
@@ -473,7 +707,9 @@ class VidRankBuilder(
    * drive the completion; the normal (non-empty) path leaves `COMPLETED` to the Phase-2
    * last-job-out.
    */
-  private suspend fun markParentCompleted(parent: RawImpressionUploadModelLine) {
+  private suspend fun markParentCompleted(
+    parent: RawImpressionUploadModelLine
+  ): ParentTransitionOutcome {
     try {
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
@@ -484,16 +720,22 @@ class VidRankBuilder(
           }
         )
       }
+      return ParentTransitionOutcome.COMPLETED
     } catch (e: StatusException) {
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
       ) {
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineCompleted(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
-      )
+      val current = getParent()
+      if (current != null) {
+        return when (current.state) {
+          RawImpressionUploadModelLine.State.FAILED -> ParentTransitionOutcome.STALE_PARENT
+          RawImpressionUploadModelLine.State.COMPLETED -> ParentTransitionOutcome.ALREADY_COMPLETED
+          else -> throw e
+        }
+      }
+      throw e
     }
   }
 
@@ -572,6 +814,38 @@ class VidRankBuilder(
 
   private fun markSucceededRequestId(): String = deterministicUuid("$rankerJob|succeeded")
 
+  private fun logRankIndexBlob(poolOffset: Long, type: String, name: String?) {
+    logRankLifecycle(
+      Level.INFO,
+      "edpa.vid_labeling.rank.rank_index_blob",
+      "rank",
+      if (name == null) "not_found" else "resolved",
+      VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset.toString(),
+      VidLabelingTraceAttributes.RANK_INDEX_BLOB_TYPE_STRING to type,
+      VidLabelingTraceAttributes.RANK_INDEX_BLOB_NAME_STRING to name,
+    )
+  }
+
+  private fun logRankLifecycle(
+    level: Level,
+    event: String,
+    lifecycleStage: String,
+    outcome: String,
+    vararg fields: Pair<String, String?>,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      level,
+      event,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.RANKER_JOB_NAME_STRING to rankerJob,
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to lifecycleStage,
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      *fields,
+    )
+  }
+
   /**
    * Deterministic UUID4 from [seed], stable across redeliveries so the server reuses an existing
    * row/transition rather than duplicating. MD5 digest with RFC-4122 version (4) + variant bits
@@ -586,6 +860,22 @@ class VidRankBuilder(
   }
 
   companion object {
+    private enum class ParentTransitionOutcome(val telemetryValue: String) {
+      LABELING("labeling"),
+      COMPLETED("completed"),
+      ALREADY_COMPLETED("already_completed"),
+      STALE_PARENT("stale_parent"),
+    }
+
+    private val SUBPOOLS_RANKED = AttributeKey.longKey("xmm.edpa.rank.subpools_ranked")
+    private val LAST_JOB_OUT = AttributeKey.booleanKey("xmm.edpa.rank.last_job_out")
+    private val POOL_OFFSET = AttributeKey.longKey("xmm.edpa.pool_offset")
+    private val ALLOCATED = AttributeKey.longKey("xmm.edpa.rank.allocated")
+    private val RENEWED = AttributeKey.longKey("xmm.edpa.rank.renewed")
+    private val OVERFLOW = AttributeKey.longKey("xmm.edpa.rank.overflow")
+    private val FREED = AttributeKey.longKey("xmm.edpa.rank.freed")
+    private val BACKFILL_REUSED = AttributeKey.longKey("xmm.edpa.rank.backfill_reused")
+    private val BACKFILL_COLLISIONS = AttributeKey.longKey("xmm.edpa.rank.backfill_collisions")
     /**
      * Default max `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call (the
      * service's per-batch limit).
