@@ -79,7 +79,7 @@ message MetricSpec {
     // Number of selected VIDs with a non-zero count.
     REACH = 1;
     // Histogram of the counts of the selected VIDs, folded at
-    // [maximum_frequency][].
+    // [max_frequency][].
     FREQUENCY = 2;
     // Sum of the counts of the selected VIDs.
     IMPRESSIONS = 3;
@@ -89,7 +89,7 @@ message MetricSpec {
 
   // Counts above this fold into the top bin. Set for
   // [FREQUENCY][Metric.FREQUENCY].
-  int32 maximum_frequency = 2;
+  int32 max_frequency = 2;
 }
 
 // The internal Duchy copy of [wfa.measurement.system.v1alpha.Query][].
