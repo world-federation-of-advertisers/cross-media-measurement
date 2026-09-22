@@ -225,15 +225,21 @@ message ResultsFulfillerParams {
     // the vector covers, so it carries no sampling error.
     //
     // Clipping follows `impression_cap_mode` and
-    // `impression_max_frequency_per_user`. Noise uses the top preference in
-    // `noise_params`.
+    // `impression_max_frequency_per_user`. `noise_params` is not read here:
+    // the cap mode decides who noises the count, since only one mechanism is
+    // available to each.
     //
-    // NONE leaves the count for the TEE to noise once per released figure,
-    // which is fewer draws than noising once per requisition. It releases an
-    // unnoised aggregate to the TEE, which already holds the vector that
-    // aggregate summarizes.
+    // UNCAPPED has no per-user bound to calibrate a sampler to, so the count
+    // goes out unnoised for the TEE to noise once per released figure. That is
+    // fewer draws than noising once per requisition, and the TEE already holds
+    // the vector the count summarizes.
     //
-    // USE_MEASUREMENT_SPEC_CAP cannot be used here, since a
+    // CUSTOM_CAP and DYNAMIC are noised here with
+    // DETERMINISTIC_TRUNCATED_LAPLACE, whose parameters are compiled into the
+    // attested image. CONTINUOUS_GAUSSIAN needs privacy params from the
+    // `MeasurementSpec`, and a `MultiMeasurementSpec` carries none.
+    //
+    // USE_MEASUREMENT_SPEC_CAP cannot be used here for the same reason: a
     // `MultiMeasurementSpec` carries no cap to read.
     bool include_impression_count = 1;
   }
