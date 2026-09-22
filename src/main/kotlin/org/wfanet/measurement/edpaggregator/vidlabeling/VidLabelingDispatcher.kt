@@ -24,12 +24,14 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import java.time.Clock
 import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -48,6 +50,7 @@ import org.wfanet.measurement.api.v2alpha.listModelLinesRequest
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
@@ -55,6 +58,8 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.generationMatchedBlob
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadFileKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt.filter as rankIndexFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequestKt.filter as rawUploadFileFilter
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt.filter as rawUploadFilter
@@ -236,6 +241,7 @@ class VidLabelingDispatcher(
           isRegistrationComplete(exactRevision)
       ) {
         logger.info("RawImpressionUpload ${exactRevision.name} is already registered")
+        recordUploadLifecycle(exactRevision.name, doneBlobGeneration, "already_registered")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
@@ -278,6 +284,9 @@ class VidLabelingDispatcher(
           (registrationBaseline == null || isRegistrationComplete(registrationBaseline))
       ) {
         logger.info("No new raw impression object versions found in $folderPrefix")
+        if (registrationBaseline != null) {
+          recordUploadLifecycle(registrationBaseline.name, doneBlobGeneration, "no_work")
+        }
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
@@ -303,6 +312,11 @@ class VidLabelingDispatcher(
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
+      Span.current()
+        .setAttribute(
+          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME,
+          rawImpressionUpload.name,
+        )
 
       // Creating this revision atomically supersedes any incomplete predecessor. Re-read the
       // chain and recompute the delta so a concurrent newer marker either wins cleanly, or this
@@ -331,6 +345,7 @@ class VidLabelingDispatcher(
           ?: rawImpressionUpload
       if (refreshedCurrent.registrationComplete) {
         logger.info("RawImpressionUpload ${refreshedCurrent.name} is already registered")
+        recordUploadLifecycle(refreshedCurrent.name, doneBlobGeneration, "already_registered")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
@@ -349,6 +364,7 @@ class VidLabelingDispatcher(
       if (blobsToRegister.isEmpty() && !hasRegisteredFiles(refreshedCurrent.name)) {
         markRegistrationComplete(rawImpressionUpload)
         logger.info("No new raw impression object versions found in $folderPrefix")
+        recordUploadLifecycle(rawImpressionUpload.name, doneBlobGeneration, "no_work")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
@@ -366,6 +382,7 @@ class VidLabelingDispatcher(
       if (resolvedModelLineNames.isEmpty()) {
         markRegistrationComplete(rawImpressionUpload)
         logger.info("No active model lines resolved for $modelSuiteName")
+        recordUploadLifecycle(rawImpressionUpload.name, doneBlobGeneration, "no_work")
         recordUploadDuration(startTime, UPLOAD_STATUS_SUCCESS)
         return
       }
@@ -377,6 +394,7 @@ class VidLabelingDispatcher(
         "Registered upload ${rawImpressionUpload.name} with ${blobsToRegister.size} files and " +
           "${resolvedModelLineNames.size} model lines"
       )
+      recordUploadLifecycle(rawImpressionUpload.name, doneBlobGeneration, "succeeded")
 
       dispatchFastPath(rawImpressionUpload.name)
 
@@ -407,6 +425,8 @@ class VidLabelingDispatcher(
         metrics.uploadsDispatchedCounter.add(1, Attributes.of(DATA_PROVIDER_ATTR, dataProviderName))
         logger.info("Fast-path dispatched ${dispatchResult.dispatchedUpload}")
       }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
       logger.log(
         Level.WARNING,
@@ -415,6 +435,20 @@ class VidLabelingDispatcher(
         e,
       )
     }
+  }
+
+  private fun recordUploadLifecycle(uploadName: String, doneBlobGeneration: Long, outcome: String) {
+    Span.current()
+      .setAttribute(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, uploadName)
+      .setAttribute(XmmTraceAttributes.OUTCOME, outcome)
+    VidLabelingTraceLogging.log(
+      logger,
+      "edpa.vid_labeling.upload_registered",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to uploadName,
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to doneBlobGeneration.toString(),
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+    )
   }
 
   /**
