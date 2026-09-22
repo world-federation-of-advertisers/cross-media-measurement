@@ -49,11 +49,16 @@ import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.*
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.logging.Handler
+import java.util.logging.Level
+import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlin.math.ln
 import kotlin.math.sqrt
 import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flow
@@ -97,6 +102,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionFulfillmentGrpcKt.Requisiti
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.honestMajorityShareShuffle
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.DuchyEntryKt.value
 import org.wfanet.measurement.api.v2alpha.RequisitionKt.duchyEntry
+import org.wfanet.measurement.api.v2alpha.RequisitionSpec
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventFilter
 import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.eventGroupEntry
@@ -104,6 +110,7 @@ import org.wfanet.measurement.api.v2alpha.RequisitionSpecKt.events
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineImplBase
 import org.wfanet.measurement.api.v2alpha.RequisitionsGrpcKt.RequisitionsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.certificate
+import org.wfanet.measurement.api.v2alpha.copy
 import org.wfanet.measurement.api.v2alpha.differentialPrivacyParams
 import org.wfanet.measurement.api.v2alpha.eventGroup
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
@@ -135,6 +142,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyAndCapture
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
@@ -154,6 +162,7 @@ import org.wfanet.measurement.edpaggregator.requisitionfetcher.SingleRequisition
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.DirectMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.HMShuffleMeasurementFulfiller
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.MeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.fulfillers.TrusTeeMeasurementFulfiller
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.NoOpFulfillerSelector
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
@@ -418,6 +427,220 @@ class ResultsFulfillerTest {
     assertThat(attempts.get()).isEqualTo(3)
   }
 
+  @Test
+  fun `GetRequisition preflight failure is attributed only to affected Requisition`(): Unit =
+    runBlocking {
+      val secondRequisition =
+        DIRECT_RNF_REQUISITION.toBuilder()
+          .setName("dataProviders/AAAAAAAAAHs/requisitions/second")
+          .build()
+      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+        .thenReturn(
+          listRequisitionMetadataResponse {
+            for (requisition in listOf(DIRECT_RNF_REQUISITION, secondRequisition)) {
+              requisitionMetadata += requisitionMetadata {
+                state = RequisitionMetadata.State.STORED
+                cmmsCreateTime = timestamp { seconds = 12345 }
+                cmmsRequisition = requisition.name
+                blobUri = "some-prefix"
+                blobTypeUrl = "some-blob-type-url"
+                groupId = "preflight-group"
+                report = "report-name"
+              }
+            }
+          }
+        )
+      whenever(requisitionsServiceMock.getRequisition(any())).thenAnswer {
+        val request = it.arguments[0] as org.wfanet.measurement.api.v2alpha.GetRequisitionRequest
+        if (request.name == DIRECT_RNF_REQUISITION.name) {
+          throw Status.UNAVAILABLE.asRuntimeException()
+        }
+        requisition { state = Requisition.State.UNFULFILLED }
+      }
+      val tmpDir = Files.createTempDirectory(null).toFile()
+      val resultsFulfiller =
+        ResultsFulfiller(
+          dataProvider = EDP_NAME,
+          requisitionMetadataStub = requisitionMetadataStub,
+          requisitionsStub = requisitionsStub,
+          requisitionsThrottler = FakeThrottler(),
+          kingdomThrottler = FakeThrottler(),
+          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+          groupedRequisitions =
+            groupedRequisitions {
+              groupId = "preflight-group"
+              report = "report-name"
+              requisitions +=
+                listOf(DIRECT_RNF_REQUISITION, secondRequisition).map { requisition ->
+                  requisitionEntry { this.requisition = Any.pack(requisition) }
+                }
+            },
+          modelLineInfoMap = emptyMap(),
+          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+          impressionDataSourceProvider =
+            ImpressionDataSourceProvider(
+              impressionMetadataStub = impressionMetadataStub,
+              dataProvider = EDP_NAME,
+              impressionsMetadataStorageConfig = StorageConfig(rootDirectory = tmpDir),
+            ),
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmpDir),
+          fulfillerSelector = NoOpFulfillerSelector(),
+          metrics = metrics,
+        )
+
+      val logRecords = mutableListOf<LogRecord>()
+      val logHandler =
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            logRecords += record
+          }
+
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val rootLogger = Logger.getLogger("")
+      rootLogger.addHandler(logHandler)
+      try {
+        assertFailsWith<Exception> { resultsFulfiller.fulfillRequisitions() }
+      } finally {
+        rootLogger.removeHandler(logHandler)
+      }
+      val failureLog =
+        logRecords.single {
+          it.message.startsWith("event=edp_aggregator.results_fulfiller.group_failed")
+        }
+      assertThat(failureLog.level).isEqualTo(Level.SEVERE)
+      assertThat(failureLog.thrown).isNotNull()
+      assertThat(failureLog.message).contains("xmm.report.name=report-name")
+      assertThat(failureLog.message).contains("xmm.edpa.group_id=preflight-group")
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=results_fulfillment")
+      assertThat(failureLog.message).contains("xmm.outcome=failed")
+      assertThat(failureLog.message).contains("xmm.error.code=grpc.UNAVAILABLE")
+
+      val failedSpans =
+        collectSpans().filter {
+          it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) == "results_fulfillment" &&
+            it.attributes.get(ReportTraceAttributes.OUTCOME) == "failed"
+        }
+      assertThat(failedSpans.map { it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) })
+        .containsExactly(DIRECT_RNF_REQUISITION.name)
+    }
+
+  @Test
+  fun `fulfillRequisitions records failure only for causative child when sibling is cancelled`():
+    Unit = runBlocking {
+    val secondRequisitionName = "dataProviders/AAAAAAAAAHs/requisitions/second"
+    val secondRequisition = DIRECT_RNF_REQUISITION.copy { name = secondRequisitionName }
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse {})
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          for (requisition in listOf(DIRECT_RNF_REQUISITION, secondRequisition)) {
+            requisitionMetadata += requisitionMetadata {
+              state = RequisitionMetadata.State.STORED
+              cmmsCreateTime = timestamp { seconds = 12345 }
+              cmmsRequisition = requisition.name
+              blobUri = "some-prefix"
+              blobTypeUrl = "some-blob-type-url"
+              groupId = "concurrent-group"
+              report = "report-name"
+            }
+          }
+        }
+      )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "cancellation"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      emptyList(),
+      listOf(DIRECT_RNF_REQUISITION),
+    )
+    val groupedRequisitions =
+      loadGroupedRequisitions(requisitionsTmpPath).copy {
+        requisitions += requisitionEntry { requisition = Any.pack(secondRequisition) }
+      }
+    val siblingStarted = CompletableDeferred<Unit>()
+    val fulfillerSelector =
+      object : FulfillerSelector {
+        override suspend fun selectFulfiller(
+          requisition: Requisition,
+          measurementSpec: MeasurementSpec,
+          requisitionSpec: RequisitionSpec,
+          frequencyVector: StripedByteFrequencyVector,
+          populationSpec: org.wfanet.measurement.api.v2alpha.PopulationSpec,
+          kekUri: String?,
+        ): MeasurementFulfiller {
+          return object : MeasurementFulfiller {
+            override suspend fun fulfillRequisition() {
+              if (requisition.name == DIRECT_RNF_REQUISITION.name) {
+                siblingStarted.await()
+                error("causative failure")
+              }
+              siblingStarted.complete(Unit)
+              awaitCancellation()
+            }
+          }
+        }
+      }
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider =
+          ImpressionDataSourceProvider(
+            impressionMetadataStub = impressionMetadataStub,
+            dataProvider = EDP_NAME,
+            impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+          ),
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
+
+    assertFailsWith<IllegalStateException> { resultsFulfiller.fulfillRequisitions(parallelism = 2) }
+
+    val failedRequisitionNames =
+      collectSpans()
+        .filter {
+          it.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE) == "results_fulfillment" &&
+            it.attributes.get(ReportTraceAttributes.OUTCOME) == "failed"
+        }
+        .mapNotNull { it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) }
+        .toSet()
+    assertThat(failedRequisitionNames).containsExactly(DIRECT_RNF_REQUISITION.name)
+    assertThat(
+        collectSpans()
+          .filter {
+            it.attributes.get(ReportTraceAttributes.REQUISITION_NAME) == secondRequisitionName
+          }
+          .map { it.attributes.get(ReportTraceAttributes.OUTCOME) }
+      )
+      .doesNotContain("failed")
+  }
+
   /**
    * Builds a [ResultsFulfiller] whose requisition group is empty, so [fulfillRequisitions]
    * exercises only the `ListRequisitionMetadata` retry path and then returns (nothing to fulfill).
@@ -607,6 +830,11 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    val preflightSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.preflight_requisition" }
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("prepared")
   }
 
   @Test
@@ -1507,6 +1735,19 @@ class ResultsFulfillerTest {
       startProcessingRequisitionMetadata(any())
     }
     verifyBlocking(requisitionMetadataServiceMock, times(1)) { fulfillRequisitionMetadata(any()) }
+    val spans = collectSpans()
+    val preflightSpan =
+      spans.single { it.name == "edp_aggregator.results_fulfiller.preflight_requisition" }
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.REQUISITION_STATE))
+      .isEqualTo(Requisition.State.FULFILLED.name)
+    assertThat(preflightSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+      .isEqualTo("already_completed")
+    assertThat(spans.map { it.name })
+      .doesNotContain("edp_aggregator.results_fulfiller.requisition_no_op")
+    val groupSpan = spans.single { it.name == "results_fulfiller.process_group" }
+    assertThat(groupSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)).isNull()
   }
 
   @Test
@@ -1616,6 +1857,17 @@ class ResultsFulfillerTest {
     assertThat(retryPoint.value).isEqualTo(1)
     val groupIdKey = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
     assertThat(retryPoint.attributes.get(groupIdKey)).isEqualTo(groupedRequisitions.groupId)
+    val failureSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.shared_failure" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("results_fulfillment")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("IllegalStateException")
   }
 
   @Test
@@ -2069,122 +2321,155 @@ class ResultsFulfillerTest {
       }
       verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
       verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+
+      val spans = collectSpans()
+      val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
+      assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
+      assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("RequisitionRefusalException.Default")
+      val processingSpan = spans.first { it.name == "requisition_processing" }
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
+      assertThat(processingSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+      val refusalSpan =
+        spans.first { it.name == "edp_aggregator.results_fulfiller.refuse_requisition" }
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+        .isEqualTo(REQUISITION_NAME)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("requisition_refusal")
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+        .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+      assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("refused")
     }
 
   @Test
-  fun `runWork refuses TrusTee requisition and updates metadata store when multi-party noise validation fails`() =
-    runBlocking {
-      val impressionsTmpPath = Files.createTempDirectory(null).toFile()
-      val metadataTmpPath = Files.createTempDirectory(null).toFile()
-      val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
-      val impressions =
-        List(130) {
-          LABELED_IMPRESSION.copy {
-            vid = it.toLong() + 1
-            eventTime = TIME_RANGE.start.toProtoTime()
+  fun `runWork traces failed Kingdom refusal for TrusTee requisition`() = runBlocking {
+    val impressionsTmpPath = Files.createTempDirectory(null).toFile()
+    val metadataTmpPath = Files.createTempDirectory(null).toFile()
+    val requisitionsTmpPath = Files.createTempDirectory(null).toFile()
+    val impressions =
+      List(130) {
+        LABELED_IMPRESSION.copy {
+          vid = it.toLong() + 1
+          eventTime = TIME_RANGE.start.toProtoTime()
+        }
+      }
+
+    val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
+
+    val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
+
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
+
+    whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
+      .thenReturn(
+        listRequisitionMetadataResponse {
+          requisitionMetadata += requisitionMetadata {
+            state = RequisitionMetadata.State.STORED
+            cmmsCreateTime = timestamp { seconds = 12345 }
+            cmmsRequisition = REQUISITION_NAME
+            blobUri = "some-prefix"
+            blobTypeUrl = "some-blob-type-url"
+            groupId = "an-existing-group-id"
+            report = "report-name"
           }
         }
-
-      val dates = FIRST_EVENT_DATE.datesUntil(LAST_EVENT_DATE.plusDays(1)).toList()
-
-      val impressionMetadataList = createImpressionMetadataList(dates, EVENT_GROUP_NAME)
-
-      whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
-        .thenReturn(listImpressionMetadataResponse { impressionMetadata += impressionMetadataList })
-
-      whenever(requisitionMetadataServiceMock.listRequisitionMetadata(any()))
-        .thenReturn(
-          listRequisitionMetadataResponse {
-            requisitionMetadata += requisitionMetadata {
-              state = RequisitionMetadata.State.STORED
-              cmmsCreateTime = timestamp { seconds = 12345 }
-              cmmsRequisition = REQUISITION_NAME
-              blobUri = "some-prefix"
-              blobTypeUrl = "some-blob-type-url"
-              groupId = "an-existing-group-id"
-              report = "report-name"
-            }
-          }
-        )
-      whenever(requisitionsServiceMock.getRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
-      whenever(requisitionsServiceMock.refuseRequisition(any()))
-        .thenReturn(requisition { state = Requisition.State.REFUSED })
-      whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
-        .thenReturn(requisitionMetadata {})
-
-      val kmsClient = FakeKmsClient()
-      val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
-      val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
-      kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
-      createData(
-        kmsClient,
-        kekUri,
-        impressionsTmpPath,
-        metadataTmpPath,
-        requisitionsTmpPath,
-        impressions,
-        listOf(TRUSTEE_NO_NOISE_REQUISITION),
       )
-      val impressionsMetadataService =
-        ImpressionDataSourceProvider(
-          impressionMetadataStub = impressionMetadataStub,
-          dataProvider = "dataProviders/123",
-          impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
-        )
+    whenever(requisitionsServiceMock.getRequisition(any()))
+      .thenReturn(requisition { state = Requisition.State.UNFULFILLED })
+    whenever(requisitionsServiceMock.refuseRequisition(any()))
+      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    whenever(requisitionMetadataServiceMock.refuseRequisitionMetadata(any()))
+      .thenReturn(requisitionMetadata {})
 
-      val fulfillerSelector =
-        DefaultFulfillerSelector(
-          requisitionsStub = requisitionsStub,
-          requisitionsThrottler = FakeThrottler(),
-          kingdomThrottler = FakeThrottler(),
-          requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
-          dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
-          dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
-          noiserSelector = NoNoiserSelector(),
-          resultMinimumThresholds = null,
-          overrideImpressionMaxFrequencyPerUser = null,
-          supportedMultiPartyNoiseMechanisms =
-            setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
-          trusTeeConfig =
-            TrusTeeConfig(
-              kmsClient = kmsClient,
-              workloadIdentityProvider = "test-wip",
-              impersonatedServiceAccount = "test-sa@example.com",
-              awsKmsParams = null,
-            ),
-          kekUriToKeyNameMap = emptyMap(),
-        )
+    val kmsClient = FakeKmsClient()
+    val kekUri = FakeKmsClient.KEY_URI_PREFIX + "kek"
+    val kmsKeyHandle = KeysetHandle.generateNew(KeyTemplates.get("AES128_GCM"))
+    kmsClient.setAead(kekUri, kmsKeyHandle.getPrimitive(Aead::class.java))
+    createData(
+      kmsClient,
+      kekUri,
+      impressionsTmpPath,
+      metadataTmpPath,
+      requisitionsTmpPath,
+      impressions,
+      listOf(TRUSTEE_NO_NOISE_REQUISITION),
+    )
+    val impressionsMetadataService =
+      ImpressionDataSourceProvider(
+        impressionMetadataStub = impressionMetadataStub,
+        dataProvider = "dataProviders/123",
+        impressionsMetadataStorageConfig = StorageConfig(rootDirectory = metadataTmpPath),
+      )
 
-      val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
+    val fulfillerSelector =
+      DefaultFulfillerSelector(
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        requisitionFulfillmentStubMap = mapOf(DUCHY_ONE_NAME to requisitionFulfillmentStub),
+        dataProviderCertificateKey = DATA_PROVIDER_CERTIFICATE_KEY,
+        dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
+        noiserSelector = NoNoiserSelector(),
+        resultMinimumThresholds = null,
+        overrideImpressionMaxFrequencyPerUser = null,
+        supportedMultiPartyNoiseMechanisms =
+          setOf(ProtocolConfig.NoiseMechanism.CONTINUOUS_GAUSSIAN),
+        trusTeeConfig =
+          TrusTeeConfig(
+            kmsClient = kmsClient,
+            workloadIdentityProvider = "test-wip",
+            impersonatedServiceAccount = "test-sa@example.com",
+            awsKmsParams = null,
+          ),
+        kekUriToKeyNameMap = emptyMap(),
+      )
 
-      val resultsFulfiller =
-        ResultsFulfiller(
-          dataProvider = EDP_NAME,
-          privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
-          requisitionMetadataStub = requisitionMetadataStub,
-          requisitionsStub = requisitionsStub,
-          requisitionsThrottler = FakeThrottler(),
-          kingdomThrottler = FakeThrottler(),
-          groupedRequisitions = groupedRequisitions,
-          modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
-          pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
-          impressionDataSourceProvider = impressionsMetadataService,
-          impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
-          kmsClient = kmsClient,
-          fulfillerSelector = fulfillerSelector,
-          metrics = metrics,
-        )
+    val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
 
-      resultsFulfiller.fulfillRequisitions()
+    val resultsFulfiller =
+      ResultsFulfiller(
+        dataProvider = EDP_NAME,
+        privateEncryptionKey = PRIVATE_ENCRYPTION_KEY,
+        requisitionMetadataStub = requisitionMetadataStub,
+        requisitionsStub = requisitionsStub,
+        requisitionsThrottler = FakeThrottler(),
+        kingdomThrottler = FakeThrottler(),
+        groupedRequisitions = groupedRequisitions,
+        modelLineInfoMap = mapOf("some-model-line" to MODEL_LINE_INFO),
+        pipelineConfiguration = DEFAULT_PIPELINE_CONFIGURATION,
+        impressionDataSourceProvider = impressionsMetadataService,
+        impressionsStorageConfig = StorageConfig(rootDirectory = impressionsTmpPath),
+        kmsClient = kmsClient,
+        fulfillerSelector = fulfillerSelector,
+        metrics = metrics,
+      )
 
-      verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
-      verifyBlocking(requisitionMetadataServiceMock, times(1)) {
-        startProcessingRequisitionMetadata(any())
-      }
-      verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
-      verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+    resultsFulfiller.fulfillRequisitions()
+
+    verifyBlocking(requisitionsServiceMock, times(0)) { fulfillDirectRequisition(any()) }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) {
+      startProcessingRequisitionMetadata(any())
     }
+    verifyBlocking(requisitionMetadataServiceMock, times(1)) { refuseRequisitionMetadata(any()) }
+    verifyBlocking(requisitionsServiceMock, times(1)) { refuseRequisition(any()) }
+    val refusalSpan =
+      collectSpans().single { it.name == "edp_aggregator.results_fulfiller.refuse_requisition" }
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("requisition_refusal")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.REFUSAL_ORIGIN))
+      .isEqualTo(ReportTraceAttributes.RESULTS_FULFILLER_REFUSAL_ORIGIN)
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusException")
+    assertThat(refusalSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
+  }
 
   @Test
   fun `runWork fulfills HMSS no-noise requisition when multi-party config is empty`() =
@@ -2685,7 +2970,7 @@ class ResultsFulfillerTest {
             blobUri = "telemetry-prefix"
             blobTypeUrl = "telemetry-blob-type-url"
             groupId = "telemetry-group-id"
-            report = "reports/telemetry-report"
+            report = "some-report"
           }
         }
       )
@@ -2813,26 +3098,44 @@ class ResultsFulfillerTest {
 
     val spans = collectSpans()
     val reportSpan = spans.first { it.name == "report_fulfillment" }
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo("some-report")
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
+    assertThat(reportSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo("measurementConsumers/mc/basicReports/telemetry-basic-report")
     val reportFinishedEvent = reportSpan.events.first { it.name == "report_processing_finished" }
     val reportIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.report_id")
     val groupIdAttr = AttributeKey.stringKey("edpa.results_fulfiller.group_id")
     val statusAttr = AttributeKey.stringKey("edpa.results_fulfiller.status")
-    assertThat(reportFinishedEvent.attributes.get(reportIdAttr))
-      .isEqualTo("reports/telemetry-report")
+    assertThat(reportFinishedEvent.attributes.get(reportIdAttr)).isEqualTo("some-report")
     val expectedGroupId = groupedRequisitions.groupId
     assertThat(reportFinishedEvent.attributes.get(groupIdAttr)).isEqualTo(expectedGroupId)
     assertThat(reportFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
-    assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.OK)
+    assertThat(reportSpan.status.statusCode).isEqualTo(StatusCode.UNSET)
 
     val requisitionSpan = spans.first { it.name == "requisition_fulfillment" }
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.REPORT_NAME))
+      .isEqualTo("some-report")
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.GROUP_ID))
+      .isEqualTo(groupedRequisitions.groupId)
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo("measurementConsumers/mc/basicReports/telemetry-basic-report")
+    assertThat(requisitionSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
     val requisitionFinishedEvent =
       requisitionSpan.events.first { it.name == "requisition_processing_finished" }
     val requisitionAttr = AttributeKey.stringKey("edpa.results_fulfiller.cmms_requisition")
     assertThat(requisitionFinishedEvent.attributes.get(requisitionAttr)).isEqualTo(REQUISITION_NAME)
-    assertThat(requisitionFinishedEvent.attributes.get(reportIdAttr))
-      .isEqualTo("reports/telemetry-report")
+    assertThat(requisitionFinishedEvent.attributes.get(reportIdAttr)).isEqualTo("some-report")
     assertThat(requisitionFinishedEvent.attributes.get(statusAttr)).isEqualTo("success")
-    assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.OK)
+    assertThat(requisitionSpan.status.statusCode).isEqualTo(StatusCode.UNSET)
+
+    val processingSpan = spans.first { it.name == "requisition_processing" }
+    assertThat(processingSpan.attributes.get(ReportTraceAttributes.REQUISITION_NAME))
+      .isEqualTo(REQUISITION_NAME)
+    assertThat(processingSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("succeeded")
   }
 
   @Test
@@ -4261,7 +4564,11 @@ class ResultsFulfillerTest {
       delta = 1E-12
     }
     private val RNF_MEASUREMENT_SPEC = measurementSpec {
-      reportingMetadata = MeasurementSpecKt.reportingMetadata { report = "some-report" }
+      reportingMetadata =
+        MeasurementSpecKt.reportingMetadata {
+          report = "some-report"
+          basicReport = "measurementConsumers/mc/basicReports/telemetry-basic-report"
+        }
       measurementPublicKey = MC_PUBLIC_KEY.pack()
       reachAndFrequency = reachAndFrequency {
         reachPrivacyParams = OUTPUT_DP_PARAMS

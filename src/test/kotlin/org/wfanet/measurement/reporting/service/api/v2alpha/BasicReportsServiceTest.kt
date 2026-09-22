@@ -30,6 +30,11 @@ import com.google.type.timeZone
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.nio.file.Paths
 import java.security.SecureRandom
 import java.time.Clock
@@ -41,6 +46,7 @@ import kotlin.random.asKotlinRandom
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
@@ -77,6 +83,7 @@ import org.wfanet.measurement.api.v2alpha.enumerateValidModelLinesResponse
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.Person
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.TestEvent
 import org.wfanet.measurement.api.v2alpha.modelLine
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.base64UrlEncode
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
 import org.wfanet.measurement.common.getRuntimePath
@@ -85,6 +92,7 @@ import org.wfanet.measurement.common.grpc.testing.StatusExceptionSubject.Compani
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.RandomIdGenerator
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.config.reporting.ImpressionQualificationFilterConfig.ImpressionQualificationFilterSpec
@@ -273,9 +281,22 @@ class BasicReportsServiceTest {
   private lateinit var modelLinesService: ModelLinesCoroutineStub
 
   private lateinit var service: BasicReportsService
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   @Before
   fun initService() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     measurementConsumersService = MeasurementConsumersCoroutineStub(grpcTestServerRule.channel)
     internalImpressionQualificationFiltersService =
       InternalImpressionQualificationFiltersCoroutineStub(grpcTestServerRule.channel)
@@ -306,6 +327,11 @@ class BasicReportsServiceTest {
         baseExternalImpressionQualificationFilterIds = emptyList(),
         enableReportingSetReportingUnitComponents = true,
       )
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
   }
 
   @Test
@@ -1008,6 +1034,9 @@ class BasicReportsServiceTest {
         createReportRequest {
           parent = request.parent
           report = report {
+            this.basicReport =
+              BasicReportKey(measurementConsumerKey.measurementConsumerId, request.basicReportId)
+                .toName()
             reportingMetricEntries +=
               ReportKt.reportingMetricEntry {
                 key =
@@ -3974,6 +4003,15 @@ class BasicReportsServiceTest {
 
       assertThat(exception).status().code().isEqualTo(Status.Code.PERMISSION_DENIED)
       assertThat(exception).hasMessageThat().contains(BasicReportsService.Permission.CREATE)
+      val span =
+        spanExporter.finishedSpanItems.single { it.name == "reporting.basic_report.create" }
+      assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+        .isEqualTo(BasicReportKey(measurementConsumerKey, request.basicReportId).toName())
+      assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("basic_report_creation")
+      assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+        .isEqualTo("StatusRuntimeException")
     }
 
   @Test
@@ -4264,6 +4302,17 @@ class BasicReportsServiceTest {
           metadata[Errors.Metadata.BASIC_REPORT.key] = createdBasicReport.name
         }
       )
+    val failureSpan =
+      spanExporter.finishedSpanItems.single {
+        it.name == "reporting.basic_report.create" &&
+          it.attributes.get(ReportTraceAttributes.OUTCOME) == "failed"
+      }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo(createdBasicReport.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("basic_report_creation")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test
@@ -11107,6 +11156,13 @@ class BasicReportsServiceTest {
           metadata[Errors.Metadata.BASIC_REPORT.key] = request.name
         }
       )
+    val span = spanExporter.finishedSpanItems.single { it.name == "reporting.basic_report.get" }
+    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME)).isEqualTo(request.name)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("basic_report_api_fetch")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("StatusRuntimeException")
   }
 
   @Test

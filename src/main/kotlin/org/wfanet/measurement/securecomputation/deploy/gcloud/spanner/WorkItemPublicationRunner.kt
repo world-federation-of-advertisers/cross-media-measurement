@@ -27,6 +27,8 @@ import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceLogging
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationClaimResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResult
@@ -34,6 +36,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.claimWo
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.completeWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.reconcileWorkItemPublications
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItemPublication
+import org.wfanet.measurement.securecomputation.service.WorkItemKey
 import org.wfanet.measurement.securecomputation.service.internal.QueueMapping
 import org.wfanet.measurement.securecomputation.service.internal.WorkItemPublisher
 
@@ -174,39 +177,94 @@ class WorkItemPublicationRunner(
 
   private fun logSkippedPublication(claim: WorkItemPublicationClaimResult.Skipped) {
     when (claim.reason) {
-      WorkItemPublicationClaimResult.Skipped.Reason.QUEUE_NOT_FOUND ->
+      WorkItemPublicationClaimResult.Skipped.Reason.QUEUE_NOT_FOUND -> {
+        logReportTraceLifecycle(
+          claim.workItemResourceId,
+          outcome = "failed",
+          errorType = "QueueNotFound",
+        )
         logger.warning(
           "Deferring WorkItem ${claim.workItemResourceId}: queue ID ${claim.queueId} is not in " +
             "the configured queue mapping"
         )
-      WorkItemPublicationClaimResult.Skipped.Reason.LEGACY_DEAD_LETTER_TERMINALIZED ->
+      }
+      WorkItemPublicationClaimResult.Skipped.Reason.LEGACY_DEAD_LETTER_TERMINALIZED -> {
+        logReportTraceLifecycle(
+          claim.workItemResourceId,
+          outcome = "failed",
+          errorType = "LegacyDeadLetterTerminalized",
+        )
         logger.warning(
           "Terminalized WorkItem ${claim.workItemResourceId} from a legacy application-managed " +
             "dead-letter publication"
         )
+      }
       WorkItemPublicationClaimResult.Skipped.Reason.WORK_ITEM_STATE_MISMATCH -> Unit
     }
   }
 
   private suspend fun publishClaimedWorkItem(publication: WorkItemPublicationResult): Boolean {
+    logReportTraceLifecycle(
+      publication.workItem.workItemResourceId,
+      outcome = "started",
+      errorType = null,
+    )
     try {
       workItemPublisher.publishMessage(publication.queueResourceId, publication.workItem)
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      scheduleRetry(publication)
-      logger.log(
-        Level.WARNING,
-        "Unable to publish WorkItem ${publication.workItem.workItemResourceId}",
-        e,
+      logReportTraceLifecycle(
+        publication.workItem.workItemResourceId,
+        outcome = "retryable_failure",
+        error = e,
       )
+      scheduleRetry(publication)
       return false
     }
 
+    logReportTraceLifecycle(
+      publication.workItem.workItemResourceId,
+      outcome = "succeeded",
+      errorType = null,
+    )
     databaseClient.readWriteTransaction().run { transaction ->
       transaction.completeWorkItemPublication(publication.workItemId, publication.leaseToken)
     }
     return true
+  }
+
+  private fun logReportTraceLifecycle(
+    workItemResourceId: String,
+    outcome: String,
+    errorType: String?,
+  ) {
+    ReportTraceLogging.log(
+      logger,
+      "secure_computation.work_item.publication",
+      ReportTraceAttributes.WORK_ITEM_NAME_STRING to WorkItemKey(workItemResourceId).toName(),
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "work_item_publication",
+      ReportTraceAttributes.OUTCOME_STRING to outcome,
+      ReportTraceAttributes.ERROR_TYPE_STRING to errorType,
+    )
+  }
+
+  private fun logReportTraceLifecycle(
+    workItemResourceId: String,
+    outcome: String,
+    error: Throwable,
+  ) {
+    ReportTraceLogging.log(
+      logger,
+      Level.WARNING,
+      error,
+      "secure_computation.work_item.publication",
+      ReportTraceAttributes.WORK_ITEM_NAME_STRING to WorkItemKey(workItemResourceId).toName(),
+      ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "work_item_publication",
+      ReportTraceAttributes.OUTCOME_STRING to outcome,
+      ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error),
+      ReportTraceAttributes.ERROR_CODE_STRING to ReportTraceAttributes.errorCode(error),
+    )
   }
 
   private suspend fun scheduleRetry(publication: WorkItemPublicationResult) {

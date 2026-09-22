@@ -19,6 +19,10 @@ run-name: >-
   apply=${{ inputs.apply }},
   image-tag=${{ inputs.image-tag }}
 
+concurrency:
+  group: terraform-cmms-${{ inputs.environment }}
+  cancel-in-progress: false
+
 on:
   workflow_call:
     inputs:
@@ -340,6 +344,8 @@ jobs:
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
         REPORTING_OPERATORS: ${{ vars.REPORTING_OPERATORS }}
+        REPORT_TRACE_OPERATORS: ${{ vars.REPORT_TRACE_OPERATORS }}
+        REPORT_TRACE_OBSERVABILITY_PROJECTS: ${{ vars.REPORT_TRACE_OBSERVABILITY_PROJECTS }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -406,12 +412,24 @@ jobs:
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
         -var="reporting_operators=${REPORTING_OPERATORS:-[]}"
+        -var="report_trace_operators=${REPORT_TRACE_OPERATORS:-[]}"
+        -var="report_trace_observability_projects=${REPORT_TRACE_OBSERVABILITY_PROJECTS:-[]}"
         -out=tfplan
 
     - name: terraform apply
       if: ${{ inputs.apply }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: terraform apply -input=false tfplan
+
+    - name: Show recent GKE operations after Terraform failure
+      if: ${{ failure() }}
+      continue-on-error: true
+      run: |
+        gcloud container operations list \
+          --location=- \
+          --limit=20 \
+          --sort-by=~startTime \
+          --format='table(name,operationType,status,startTime,endTime,statusMessage)'
 
     - name: Read WorkItem TEE MIG names
       id: terraform_outputs

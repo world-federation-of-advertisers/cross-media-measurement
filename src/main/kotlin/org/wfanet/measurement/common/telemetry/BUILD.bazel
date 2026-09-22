@@ -1,0 +1,39 @@
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
+
+package(default_visibility = ["//visibility:public"])
+
+kt_jvm_library(
+    name = "open_telemetry_sdk_manager",
+    srcs = ["OpenTelemetrySdkManager.kt"],
+    deps = [
+        "//imports/java/com/google/cloud/opentelemetry:exporter_auto",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_logging",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_metrics",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_trace",
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:sdk_autoconfigure",
+        "//imports/java/io/opentelemetry/sdk:sdk_logs",
+        "//imports/java/io/opentelemetry/sdk:sdk_metrics",
+    ],
+)
+
+kt_jvm_library(
+    name = "report_tracing",
+    srcs = [
+        "ReportTraceAttributes.kt",
+        "ReportTraceLogging.kt",
+        "ReportTracing.kt",
+        "W3CTraceContext.kt",
+    ],
+    deps = [
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/api:context",
+        "//imports/java/io/opentelemetry/extension:kotlin",
+        "//src/main/proto/wfa/measurement/api/v2alpha:measurement_spec_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)

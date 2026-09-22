@@ -71,6 +71,7 @@ fun SystemComputation.toKingdomComputationDetails(): KingdomComputationDetails {
   return kingdomComputationDetails {
     this.publicApiVersion = source.publicApiVersion
     measurementSpec = source.measurementSpec
+    measurement = source.measurement
     participantCount = source.computationParticipantsCount
     measurementPublicKey =
       when (publicApiVersion) {

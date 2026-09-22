@@ -267,10 +267,12 @@ data-availability health per model line. Per its config it flags:
 For the `gap`, `zero_impression`, `without_done_blob`, `late_arriving`,
 `unprocessed_done`, `unpublished_availability`, and `spurious_deletion` statuses,
 `edpa.data_availability.date_count` includes
-`edpa.data_availability_monitor.data_date=YYYY-MM-DD`. Configure issue alerts to preserve or group
-by `data_date`, `model_line`, and `date_status`; aggregating away `data_date` preserves the total
-count but loses the date that an operator needs for targeted recovery. Healthy-date and
-legitimate-deletion count points omit `data_date` to avoid creating non-actionable per-date series.
+`edpa.data_availability_monitor.data_date=YYYY-MM-DD`. Configure monitor issue alerts to filter on
+`edpa.data_availability_monitor.source=monitor` and preserve or group by `data_date`, `model_line`,
+and `date_status`; `DataAvailabilitySync` emits the same metric without `data_date`. Aggregating
+away `data_date` preserves the total count but loses the date that an operator needs for targeted
+recovery. Healthy-date and legitimate-deletion count points omit `data_date` to avoid creating
+non-actionable per-date series.
 See [Recover missing ImpressionMetadata](../gke/recover-missing-impression-metadata.md) for the
 one-day manual Job procedure.
 
@@ -809,6 +811,9 @@ One `configs` entry per EDP.
 ```textproto
 # proto-file: wfa/measurement/config/edpaggregator/requisition_fetcher_config.proto
 # proto-message: wfa.measurement.config.edpaggregator.RequisitionFetcherConfig
+requisition_refusal_duration {
+  seconds: 172800  # 48 hours
+}
 configs {
   data_provider: "dataProviders/DATA_PROVIDER_ID"
   requisition_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
@@ -856,6 +861,25 @@ configs {
   }
 }
 ```
+
+`requisition_refusal_duration` bounds how long RequisitionFetcher will attempt to fulfill an
+unfulfilled Kingdom Requisition. The field is optional and defaults to 48 hours; when specified it
+must be positive. Age is measured from the public Requisition's Kingdom `update_time`, and the
+Requisition is refused with `DECLINED` only when it is strictly older than the configured duration.
+The exact boundary remains eligible for fulfillment. A Requisition whose `update_time` is absent or
+invalid is logged and is not automatically refused because its age cannot be established.
+
+Age-based refusal also applies to Requisitions with existing `STORED`, `QUEUED`, or `PROCESSING`
+metadata. RequisitionFetcher refuses the Kingdom Requisition first, which makes the terminal
+Kingdom state authoritative even if a ResultsFulfiller worker is already running, and then marks
+the matching metadata `REFUSED`. If every metadata member in the group is terminal, the fetcher
+generation-fails its WorkItem; otherwise ResultsFulfiller skips terminal Kingdom Requisitions and
+continues eligible siblings. Failing a WorkItem fences its control-plane state but does not forcibly
+stop an already-running TEE, so the prior Kingdom refusal is the safety boundary. If the Kingdom
+refusal races with fulfillment, withdrawal, or another refusal, the fetcher reads the authoritative
+Kingdom state and applies the matching local terminal transition. If the Requisition remains
+`UNFULFILLED` or its state cannot be resolved, it and its group are excluded from dispatch for the
+current run; a later scheduled invocation retries the refusal.
 
 `work_item_dispatch` is required for every configured data provider. RequisitionFetcher writes every
 new grouped blob under its nested `storage_path_prefix` and dispatches it directly. The top-level
