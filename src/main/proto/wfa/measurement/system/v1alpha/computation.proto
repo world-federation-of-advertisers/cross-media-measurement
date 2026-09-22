@@ -18,6 +18,7 @@ package wfa.measurement.system.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/protobuf/descriptor.proto";
 import "wfa/measurement/system/v1alpha/computation_participant.proto";
 import "wfa/measurement/system/v1alpha/differential_privacy.proto";
 import "wfa/measurement/system/v1alpha/population_spec.proto";
@@ -265,6 +266,25 @@ message Computation {
     // [VidFilter.attributes][] and [Query.grouping_paths][] resolve against
     // it.
     PopulationSpec population_spec = 2;
+
+    // The event message type that [population_spec][]'s subpopulation
+    // attributes are written against.
+    message EventDescriptor {
+      // `FileDescriptorSet` including the `FileDescriptorProto` of the event
+      // message type and the transitive closure of its dependencies.
+      google.protobuf.FileDescriptorSet descriptor_set = 1;
+
+      // Full name of the event message type within `descriptor_set`.
+      string event_message_type = 2;
+    }
+    // Schema for reading a named field out of a
+    // [PopulationSpec.SubPopulation.attributes][] entry, which is a packed
+    // event template message.
+    //
+    // Resolved by the Kingdom alongside [population_spec][], so a Duchy reads
+    // subpopulation attributes without event template configuration of its
+    // own.
+    EventDescriptor event_descriptor = 3;
   }
   // What a TrusTEE v2 Duchy computes. Set if and only if `measurement_spec`
   // carries a `MultiMeasurementSpec`.

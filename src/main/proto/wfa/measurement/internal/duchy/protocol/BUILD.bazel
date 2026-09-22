@@ -192,6 +192,7 @@ proto_library(
         "//src/main/proto/wfa/measurement/internal/duchy:population_spec_proto",
         "//src/main/proto/wfa/measurement/internal/duchy:query_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/config:protocols_setup_config_proto",
+        "@com_google_protobuf//:descriptor_proto",
     ],
 )
 

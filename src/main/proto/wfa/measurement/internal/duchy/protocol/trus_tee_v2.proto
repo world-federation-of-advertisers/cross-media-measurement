@@ -18,6 +18,7 @@ package wfa.measurement.internal.duchy.protocol;
 
 import "wfa/measurement/internal/duchy/config/protocols_setup_config.proto";
 import "wfa/measurement/internal/duchy/population_spec.proto";
+import "google/protobuf/descriptor.proto";
 import "wfa/measurement/internal/duchy/query.proto";
 
 option java_package = "org.wfanet.measurement.internal.duchy.protocol";
@@ -59,6 +60,22 @@ message TrusTeeV2 {
 
     // Copied likewise. What attribute filters and groupings resolve against.
     wfa.measurement.internal.duchy.PopulationSpec population_spec = 3;
+
+    // Copied likewise. Schema for reading a named field out of a
+    // [PopulationSpec.SubPopulation.attributes][] entry, which is a packed
+    // event template message.
+    EventDescriptor event_descriptor = 4;
+  }
+
+  // The event message type that a computation's `PopulationSpec` subpopulation
+  // attributes are written against.
+  message EventDescriptor {
+    // `FileDescriptorSet` including the `FileDescriptorProto` of the event
+    // message type and the transitive closure of its dependencies.
+    google.protobuf.FileDescriptorSet descriptor_set = 1;
+
+    // Full name of the event message type within `descriptor_set`.
+    string event_message_type = 2;
   }
 
   // Every stage reads the computation's own details.
