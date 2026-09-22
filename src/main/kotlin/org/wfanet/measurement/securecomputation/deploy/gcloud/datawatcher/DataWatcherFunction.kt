@@ -29,6 +29,7 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.nio.file.Paths
+import java.security.MessageDigest
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
@@ -37,9 +38,11 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -90,22 +93,32 @@ class DataWatcherFunction(
         data.metadataMap + (DataWatcher.GENERATION_METADATA_KEY to data.generation.toString())
 
       Tracing.withW3CTraceContext(event) {
-        Tracing.trace(
-          spanName = SPAN_DATA_WATCHER_HANDLE_EVENT,
-          attributes =
-            Attributes.of(
-              ATTR_BUCKET_NAME,
-              bucket,
-              ATTR_BLOB_NAME,
-              blobKey,
-              ATTR_DATA_PATH,
-              path,
-              ATTR_BLOB_SIZE_BYTES,
-              size,
-            ),
-        ) {
-          val currentContext = Context.current()
-          runBlocking(currentContext.asContextElement()) { pathReceiver(path, objectMetadata) }
+        val persistedTraceContext = buildMap {
+          objectMetadata[VidLabelingTraceAttributes.TRACEPARENT_METADATA_KEY]?.let {
+            put("traceparent", it)
+          }
+          objectMetadata[VidLabelingTraceAttributes.TRACESTATE_METADATA_KEY]?.let {
+            put("tracestate", it)
+          }
+        }
+        val parentContext =
+          if (persistedTraceContext.isEmpty()) Context.current()
+          else W3CTraceContext.extract(persistedTraceContext)
+        val scope = parentContext.makeCurrent()
+        try {
+          Tracing.trace(
+            spanName = SPAN_DATA_WATCHER_HANDLE_EVENT,
+            attributes =
+              Attributes.builder()
+                .put(ATTR_DATA_PATH_DIGEST, digest(path))
+                .put(ATTR_BLOB_SIZE_BYTES, size)
+                .build(),
+          ) {
+            val currentContext = Context.current()
+            runBlocking(currentContext.asContextElement()) { pathReceiver(path, objectMetadata) }
+          }
+        } finally {
+          scope.close()
         }
       }
     } finally {
@@ -128,11 +141,17 @@ class DataWatcherFunction(
      */
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
 
-    private val ATTR_BUCKET_NAME = AttributeKey.stringKey("bucket")
-    private val ATTR_BLOB_NAME = AttributeKey.stringKey("blob_name")
-    private val ATTR_DATA_PATH = AttributeKey.stringKey("data_path")
+    private val ATTR_DATA_PATH_DIGEST = AttributeKey.stringKey("xmm.gcs.object.path_digest")
     private val ATTR_BLOB_SIZE_BYTES = AttributeKey.longKey("blob_size_bytes")
     private const val SPAN_DATA_WATCHER_HANDLE_EVENT = "data_watcher.handle_event"
+
+    private fun digest(value: String): String =
+      MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString(
+        separator = ""
+      ) {
+        "%02x".format(it)
+      }
+
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val certFilePath: String by lazy { checkIsPath("CERT_FILE_PATH") }
     private val privateKeyFilePath: String by lazy { checkIsPath("PRIVATE_KEY_FILE_PATH") }

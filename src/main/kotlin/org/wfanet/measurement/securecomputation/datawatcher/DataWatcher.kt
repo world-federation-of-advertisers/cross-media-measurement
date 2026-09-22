@@ -39,6 +39,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.toJson
 import org.wfanet.measurement.config.securecomputation.WatchedPath
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -239,6 +240,19 @@ class DataWatcher(
         .header("Authorization", "Bearer $jwt")
         .header(DATA_WATCHER_PATH_HEADER, path)
 
+    for ((key, value) in W3CTraceContext.inject()) {
+      requestBuilder.header(key, value)
+    }
+    objectMetadata[VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_METADATA_KEY]?.let {
+      requestBuilder.header(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_HEADER, it)
+    }
+    objectMetadata[VidLabelingTraceAttributes.MODEL_LINE_METADATA_KEY]?.let {
+      requestBuilder.header(VidLabelingTraceAttributes.MODEL_LINE_HEADER, it)
+    }
+    objectMetadata[VidLabelingTraceAttributes.VID_LABELING_JOB_METADATA_KEY]?.let {
+      requestBuilder.header(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER, it)
+    }
+
     if (WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY in objectMetadata) {
       requestBuilder.header(
         IMPRESSION_METADATA_RESOURCE_ID_HEADER,
@@ -250,7 +264,7 @@ class DataWatcher(
     // request ids); DataWatcherFunction stashes it in objectMetadata under GENERATION_METADATA_KEY.
     if (GENERATION_METADATA_KEY in objectMetadata) {
       requestBuilder.header(
-        DATA_WATCHER_GENERATION_HEADER,
+        VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER,
         objectMetadata.getValue(GENERATION_METADATA_KEY),
       )
     }
@@ -390,7 +404,6 @@ class DataWatcher(
         Status.Code.UNAVAILABLE,
       )
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
-    private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"
     private const val RECOVERY_SOURCE_UPLOAD_HEADER: String = "X-Recovery-Source-Upload"
     private const val EVICTION_OPERATION_ID_HEADER: String = "X-Eviction-Operation-Id"

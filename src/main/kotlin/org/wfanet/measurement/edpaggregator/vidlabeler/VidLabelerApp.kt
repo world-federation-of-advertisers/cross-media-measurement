@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import com.google.cloud.storage.BlobInfo
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
@@ -29,8 +30,11 @@ import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -63,6 +67,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
+import org.wfanet.measurement.gcloud.gcs.GcsStorageRetryConfig
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -1140,27 +1145,57 @@ class VidLabelerApp(
         eventDate,
       )
     val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
-    val storageClient =
-      SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-    try {
-      storageClient.writeBlob(doneBlobUri.key, ByteString.EMPTY)
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      logLabelFailure(
-        Level.WARNING,
-        "edpa.vid_labeling.label.done_object",
-        params,
-        dataProvider,
-        "label_finalize",
-        "failed",
-        e,
-        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
-        VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
-        VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to storageUriHash(doneUri),
-      )
-      throw e
-    }
+    val generation =
+      try {
+        if (doneBlobUri.scheme == "gs") {
+          val traceContext = W3CTraceContext.inject()
+          val metadata = buildMap {
+            put(
+              VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_METADATA_KEY,
+              params.rawImpressionUpload,
+            )
+            put(VidLabelingTraceAttributes.MODEL_LINE_METADATA_KEY, cmmsModelLine)
+            put(VidLabelingTraceAttributes.VID_LABELING_JOB_METADATA_KEY, params.vidLabelingJob)
+            traceContext["traceparent"]?.let {
+              put(VidLabelingTraceAttributes.TRACEPARENT_METADATA_KEY, it)
+            }
+            traceContext["tracestate"]?.let {
+              put(VidLabelingTraceAttributes.TRACESTATE_METADATA_KEY, it)
+            }
+          }
+          withContext(Dispatchers.IO) {
+            GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = storageConfig.projectId)
+              .service
+              .create(
+                BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key)
+                  .setMetadata(metadata)
+                  .build(),
+                ByteArray(0),
+              )
+              .generation
+          }
+        } else {
+          SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+            .writeBlob(doneBlobUri.key, ByteString.EMPTY)
+          null
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        logLabelFailure(
+          Level.WARNING,
+          "edpa.vid_labeling.label.done_object",
+          params,
+          dataProvider,
+          "label_finalize",
+          "failed",
+          e,
+          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
+          VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
+          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to storageUriHash(doneUri),
+        )
+        throw e
+      }
     metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
     logger.info("Wrote done marker $doneUri")
     Span.current()
@@ -1171,6 +1206,11 @@ class VidLabelerApp(
           .put(VidLabelingTraceAttributes.LABEL_EVENT_DATE, eventDate.toString())
           .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, storageUriHash(doneUri))
           .put(XmmTraceAttributes.OUTCOME, "written")
+          .also { builder ->
+            if (generation != null) {
+              builder.put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
+            }
+          }
           .build(),
       )
     logLabelLifecycle(
@@ -1183,6 +1223,7 @@ class VidLabelerApp(
       VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
       VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
       VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to storageUriHash(doneUri),
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation?.toString(),
     )
   }
 

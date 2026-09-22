@@ -65,6 +65,7 @@ import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.watchedPath
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -663,10 +664,26 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      val objectMetadata = mapOf(DataWatcher.GENERATION_METADATA_KEY to "42")
+      val objectMetadata =
+        mapOf(
+          DataWatcher.GENERATION_METADATA_KEY to "42",
+          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_METADATA_KEY to
+            "dataProviders/dp/rawImpressionUploads/up",
+          VidLabelingTraceAttributes.MODEL_LINE_METADATA_KEY to "modelProviders/mp/modelLines/ml",
+          VidLabelingTraceAttributes.VID_LABELING_JOB_METADATA_KEY to
+            "dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job",
+        )
       dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", objectMetadata)
 
       assertThat(server.getLastRequestHeader("X-DataWatcher-Generation")).isEqualTo("42")
+      assertThat(
+          server.getLastRequestHeader(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_HEADER)
+        )
+        .isEqualTo("dataProviders/dp/rawImpressionUploads/up")
+      assertThat(server.getLastRequestHeader(VidLabelingTraceAttributes.MODEL_LINE_HEADER))
+        .isEqualTo("modelProviders/mp/modelLines/ml")
+      assertThat(server.getLastRequestHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER))
+        .isEqualTo("dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job")
       server.stop()
     }
   }
