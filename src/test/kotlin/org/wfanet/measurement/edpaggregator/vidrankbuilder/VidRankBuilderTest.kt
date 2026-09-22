@@ -25,6 +25,9 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.util.concurrent.atomic.AtomicReference
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -78,6 +81,9 @@ private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml1"
 private const val RANKER_JOB = "dataProviders/dp/rawImpressionUploads/up1/rankerJobs/rj7"
 private const val PARENT_NAME =
   "dataProviders/dp/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
+private const val PRIOR_SNAPSHOT = "$UPLOAD/rankIndexBlobs/prior"
+private const val SNAPSHOT = "$UPLOAD/rankIndexBlobs/snapshot"
+private const val DAY_ONLY = "$UPLOAD/rankIndexBlobs/day-only"
 private const val QUEUE = "queues/vid-labeler"
 private val TRACE_CONTEXT =
   mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
@@ -93,6 +99,18 @@ private val VID_LABELER_TEMPLATE = vidLabelerParams {
 class VidRankBuilderTest {
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
+  private val logRecords = mutableListOf<LogRecord>()
+  private val traceLogger = Logger.getLogger(VidRankBuilder::class.java.name)
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initTelemetry() {
@@ -107,10 +125,13 @@ class VidRankBuilderTest {
             .build()
         )
         .buildAndRegisterGlobal()
+    logRecords.clear()
+    traceLogger.addHandler(logHandler)
   }
 
   @After
   fun cleanupTelemetry() {
+    traceLogger.removeHandler(logHandler)
     openTelemetry.close()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
@@ -128,6 +149,9 @@ class VidRankBuilderTest {
         overflow = 0,
         freed = 0,
         cumulativeSize = 1,
+        priorSnapshotName = PRIOR_SNAPSHOT,
+        snapshotRankIndexBlobName = SNAPSHOT,
+        dayOnlyRankIndexBlobName = DAY_ONLY,
       )
   }
 
@@ -265,6 +289,7 @@ class VidRankBuilderTest {
     workItemsStub: WorkItemsCoroutineStub = mock(),
     maxFileBatchSizeBytes: Long = 1_000_000_000,
     vidLabelerQueue: String = QUEUE,
+    rankedSizes: Map<Long, Int> = subpoolRankedSizes,
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
     traceContextProvider: () -> Map<String, String> = { emptyMap() },
   ) =
@@ -279,7 +304,7 @@ class VidRankBuilderTest {
       modelLine = MODEL_LINE,
       rankerJob = RANKER_JOB,
       subpoolMapBlobUris = subpoolMapBlobUris,
-      subpoolRankedSizes = subpoolRankedSizes,
+      subpoolRankedSizes = rankedSizes,
       vidLabelerParamsTemplate = VID_LABELER_TEMPLATE,
       vidLabelerQueue = vidLabelerQueue,
       maxFileBatchSizeBytes = maxFileBatchSizeBytes,
@@ -312,6 +337,25 @@ class VidRankBuilderTest {
     verifyBlocking(vidLabelingJobs, never()) { batchCreateVidLabelingJobs(any(), any()) }
     assertThat(published).isEmpty()
     verifyBlocking(modelLines, never()) { markRawImpressionUploadModelLineLabeling(any(), any()) }
+    val subpoolLog =
+      logRecords.single { it.message.contains("event=edpa.vid_labeling.rank.subpool ") }
+    assertThat(subpoolLog.message).contains("xmm.edpa.pool_offset=7")
+    assertThat(subpoolLog.message).contains("xmm.lifecycle.stage=rank")
+    assertThat(subpoolLog.message).contains("xmm.outcome=written")
+    val blobLogs =
+      logRecords.filter { it.message.contains("event=edpa.vid_labeling.rank.rank_index_blob ") }
+    val priorLog =
+      blobLogs.single { it.message.contains("xmm.edpa.rank_index_blob.type=prior_snapshot") }
+    assertThat(priorLog.message).contains("xmm.edpa.rank_index_blob.name=$PRIOR_SNAPSHOT")
+    val snapshotLog =
+      blobLogs.single { it.message.contains("xmm.edpa.rank_index_blob.type=snapshot") }
+    assertThat(snapshotLog.message).contains("xmm.edpa.rank_index_blob.name=$SNAPSHOT")
+    val dayOnlyLog =
+      blobLogs.single { it.message.contains("xmm.edpa.rank_index_blob.type=day_only") }
+    assertThat(dayOnlyLog.message).contains("xmm.edpa.rank_index_blob.name=$DAY_ONLY")
+    val completionLog =
+      logRecords.single { it.message.contains("event=edpa.vid_labeling.rank_completed ") }
+    assertThat(completionLog.message).contains("xmm.lifecycle.stage=rank")
   }
 
   @Test
@@ -391,6 +435,24 @@ class VidRankBuilderTest {
       val transition =
         finalizeSpan.events.single { it.name == "edpa.vid_labeling.rank.parent_transition" }
       assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("labeling")
+      assertThat(
+          logRecords
+            .single { it.message.contains("event=edpa.vid_labeling.rank.vid_labeling_job ") }
+            .message
+        )
+        .contains("xmm.lifecycle.stage=rank_finalize")
+      assertThat(
+          logRecords
+            .single { it.message.contains("event=edpa.vid_labeling.rank.work_item ") }
+            .message
+        )
+        .contains("xmm.outcome=created")
+      assertThat(
+          logRecords
+            .single { it.message.contains("event=edpa.vid_labeling.rank.parent_transition ") }
+            .message
+        )
+        .contains("xmm.outcome=labeling")
     }
 
   @Test
@@ -406,6 +468,25 @@ class VidRankBuilderTest {
     assertThat(result.outcome).isEqualTo("stale_parent")
     verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
     verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
+  }
+
+  @Test
+  fun `succeeded ranker redelivery reports a failed parent as stale`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.SUCCEEDED)
+
+    val result =
+      builder(ranker, rankerJobs, modelLinesMock(RawImpressionUploadModelLine.State.FAILED)).run()
+
+    assertThat(result.subpoolsRanked).isEqualTo(0)
+    assertThat(result.lastJobOut).isFalse()
+    assertThat(result.outcome).isEqualTo("stale_parent")
+    verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
+    verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
+    val completionLog =
+      logRecords.single { it.message.contains("event=edpa.vid_labeling.rank_completed ") }
+    assertThat(completionLog.message).contains("xmm.outcome=stale_parent")
+    assertThat(completionLog.message).doesNotContain("xmm.outcome=already_completed")
   }
 
   @Test
@@ -731,7 +812,76 @@ class VidRankBuilderTest {
     // The DLQ listener owns the terminal FAILED transition on retry exhaustion; this worker never
     // marks the job FAILED itself.
     verifyBlocking(rankerJobs, never()) { markRankerJobFailed(any(), any()) }
+    val failureLog =
+      logRecords.single { it.message.contains("event=edpa.vid_labeling.rank.subpool_failed ") }
+    assertThat(failureLog.message).contains("xmm.edpa.pool_offset=7")
+    assertThat(failureLog.message).contains("xmm.lifecycle.stage=rank")
+    assertThat(failureLog.message).contains("xmm.outcome=failed")
+    assertThat(failureLog.message).contains("xmm.error.type=IllegalStateException")
   }
+
+  @Test
+  fun `missing ranked size records the affected pool offset`() = runBlocking {
+    val ranker = rankerMock()
+    val rankerJobs = rankerJobsMock(state = RankerJob.State.CREATED)
+
+    assertFailsWith<IllegalArgumentException> {
+      builder(ranker, rankerJobs, rankedSizes = emptyMap()).run()
+    }
+
+    verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
+    val failureLog =
+      logRecords.single { it.message.contains("event=edpa.vid_labeling.rank.subpool_failed ") }
+    assertThat(failureLog.message).contains("xmm.edpa.pool_offset=7")
+    assertThat(failureLog.message).contains("xmm.outcome=failed")
+    assertThat(failureLog.message).contains("xmm.error.type=IllegalArgumentException")
+  }
+
+  @Test
+  fun `concurrent failed parent is reported as stale rather than already completed`() =
+    runBlocking<Unit> {
+      fun parentResponse(state: RawImpressionUploadModelLine.State) =
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            this.state = state
+            etag = "etag-parent"
+          }
+        }
+
+      val modelLines =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturnConsecutively
+            listOf(
+              parentResponse(RawImpressionUploadModelLine.State.RANKING),
+              parentResponse(RawImpressionUploadModelLine.State.RANKING),
+              parentResponse(RawImpressionUploadModelLine.State.FAILED),
+            )
+          onBlocking { markRawImpressionUploadModelLineLabeling(any(), any()) } doAnswer
+            {
+              throw StatusException(Status.ABORTED)
+            }
+        }
+
+      val result =
+        builder(
+            rankerMock(),
+            rankerJobsMock(isLastJob = true),
+            modelLinesStub = modelLines,
+            workItemsStub = recordingWorkItems(mutableListOf()),
+          )
+          .run()
+
+      assertThat(result.outcome).isEqualTo("stale_parent")
+      verifyBlocking(modelLines, never()) {
+        markRawImpressionUploadModelLineCompleted(any(), any())
+      }
+      val transitionLog =
+        logRecords.single { it.message.contains("event=edpa.vid_labeling.rank.parent_transition ") }
+      assertThat(transitionLog.message).contains("xmm.outcome=stale_parent")
+      assertThat(transitionLog.message).doesNotContain("xmm.outcome=already_completed")
+    }
 
   @Test
   fun `lost etag race on mark succeeded acks when the job is already succeeded`() = runBlocking {

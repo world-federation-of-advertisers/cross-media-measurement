@@ -29,12 +29,19 @@ object VidLabelingTraceAttributes {
   const val RANKER_JOB_NAME_STRING = "xmm.edpa.ranker_job.name"
   const val VID_LABELING_JOB_NAME_STRING = "xmm.edpa.vid_labeling_job.name"
   const val RANK_INDEX_BLOB_NAME_STRING = "xmm.edpa.rank_index_blob.name"
+  const val RANK_INDEX_BLOB_TYPE_STRING = "xmm.edpa.rank_index_blob.type"
   const val IMPRESSION_METADATA_NAME_STRING = "xmm.edpa.impression_metadata.name"
   const val RECOVERY_WORK_ITEM_NAME_STRING = "xmm.edpa.recovery_work_item.name"
   const val PIPELINE_PHASE_STRING = "xmm.edpa.pipeline.phase"
   const val GCS_OBJECT_GENERATION_STRING = "xmm.gcs.object.generation"
   const val POOL_OFFSET_STRING = "xmm.edpa.pool_offset"
   const val SHARD_INDEX_STRING = "xmm.edpa.shard_index"
+  const val RANK_ALLOCATED_STRING = "xmm.edpa.rank.allocated"
+  const val RANK_RENEWED_STRING = "xmm.edpa.rank.renewed"
+  const val RANK_OVERFLOW_STRING = "xmm.edpa.rank.overflow"
+  const val RANK_FREED_STRING = "xmm.edpa.rank.freed"
+  const val RANK_BACKFILL_REUSED_STRING = "xmm.edpa.rank.backfill_reused"
+  const val RANK_BACKFILL_COLLISIONS_STRING = "xmm.edpa.rank.backfill_collisions"
 
   val DATA_PROVIDER_NAME: AttributeKey<String> = AttributeKey.stringKey(DATA_PROVIDER_NAME_STRING)
   val MODEL_LINE_NAME: AttributeKey<String> = AttributeKey.stringKey(MODEL_LINE_NAME_STRING)
@@ -49,6 +56,8 @@ object VidLabelingTraceAttributes {
     AttributeKey.stringKey(VID_LABELING_JOB_NAME_STRING)
   val RANK_INDEX_BLOB_NAME: AttributeKey<String> =
     AttributeKey.stringKey(RANK_INDEX_BLOB_NAME_STRING)
+  val RANK_INDEX_BLOB_TYPE: AttributeKey<String> =
+    AttributeKey.stringKey(RANK_INDEX_BLOB_TYPE_STRING)
   val IMPRESSION_METADATA_NAME: AttributeKey<String> =
     AttributeKey.stringKey(IMPRESSION_METADATA_NAME_STRING)
   val RECOVERY_WORK_ITEM_NAME: AttributeKey<String> =
@@ -68,11 +77,18 @@ object VidLabelingTraceAttributes {
       RANKER_JOB_NAME_STRING,
       VID_LABELING_JOB_NAME_STRING,
       RANK_INDEX_BLOB_NAME_STRING,
+      RANK_INDEX_BLOB_TYPE_STRING,
       IMPRESSION_METADATA_NAME_STRING,
       RECOVERY_WORK_ITEM_NAME_STRING,
       PIPELINE_PHASE_STRING,
       GCS_OBJECT_GENERATION_STRING,
       POOL_OFFSET_STRING,
       SHARD_INDEX_STRING,
+      RANK_ALLOCATED_STRING,
+      RANK_RENEWED_STRING,
+      RANK_OVERFLOW_STRING,
+      RANK_FREED_STRING,
+      RANK_BACKFILL_REUSED_STRING,
+      RANK_BACKFILL_COLLISIONS_STRING,
     )
 }
