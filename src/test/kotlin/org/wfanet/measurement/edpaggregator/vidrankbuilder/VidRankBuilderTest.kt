@@ -19,9 +19,16 @@ package org.wfanet.measurement.edpaggregator.vidrankbuilder
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
@@ -33,7 +40,10 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
+import org.wfanet.measurement.common.Instrumentation
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
@@ -69,6 +79,8 @@ private const val RANKER_JOB = "dataProviders/dp/rawImpressionUploads/up1/ranker
 private const val PARENT_NAME =
   "dataProviders/dp/rawImpressionUploads/up1/rawImpressionUploadModelLines/rl1"
 private const val QUEUE = "queues/vid-labeler"
+private val TRACE_CONTEXT =
+  mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
 private val VID_LABELER_TEMPLATE = vidLabelerParams {
   dataProvider = "dataProviders/dp"
@@ -79,6 +91,31 @@ private val VID_LABELER_TEMPLATE = vidLabelerParams {
 
 @RunWith(JUnit4::class)
 class VidRankBuilderTest {
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
+
+  @Before
+  fun initTelemetry() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+  }
+
   private val subpoolMapBlobUris = mapOf(7L to "merged/subpool-7")
   private val subpoolRankedSizes = mapOf(7L to 100)
 
@@ -229,6 +266,7 @@ class VidRankBuilderTest {
     maxFileBatchSizeBytes: Long = 1_000_000_000,
     vidLabelerQueue: String = QUEUE,
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    traceContextProvider: () -> Map<String, String> = { emptyMap() },
   ) =
     VidRankBuilder(
       subpoolRanker = subpoolRanker,
@@ -246,6 +284,7 @@ class VidRankBuilderTest {
       vidLabelerQueue = vidLabelerQueue,
       maxFileBatchSizeBytes = maxFileBatchSizeBytes,
       rpcThrottlers = rpcThrottlers,
+      traceContextProvider = traceContextProvider,
     )
 
   @Test
@@ -277,7 +316,7 @@ class VidRankBuilderTest {
 
   @Test
   fun `last job out creates VidLabelingJobs, publishes WorkItems, and flips parent to LABELING`() =
-    runBlocking {
+    runBlocking<Unit> {
       val ranker = rankerMock()
       val rankerJobs = rankerJobsMock(isLastJob = true)
       val jobRequests = mutableListOf<BatchCreateVidLabelingJobsRequest>()
@@ -294,6 +333,7 @@ class VidRankBuilderTest {
             vidLabelingJobs,
             workItemsStub = recordingWorkItems(published),
             rpcThrottlers = recordingThrottlers.throttlers,
+            traceContextProvider = { TRACE_CONTEXT },
           )
           .run()
 
@@ -303,6 +343,15 @@ class VidRankBuilderTest {
       assertThat(published).hasSize(1)
       val params = publishedParams(published.single())
       assertThat(params.vidLabelingJob).isNotEmpty()
+      assertThat(
+          published
+            .single()
+            .workItem
+            .workItemParams
+            .unpack(WorkItemParams::class.java)
+            .traceContextMap
+        )
+        .containsExactlyEntriesIn(TRACE_CONTEXT)
       assertThat(createdFileBatches(jobRequests).single())
         .containsExactly("$UPLOAD/files/0", "$UPLOAD/files/1", "$UPLOAD/files/2")
       // Template fields carry through.
@@ -312,6 +361,36 @@ class VidRankBuilderTest {
       assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
       assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(3)
       assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
+      val rankSpan = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.rank" }
+      assertThat(rankSpan.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE))
+        .isEqualTo("phase1")
+      assertThat(rankSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("succeeded")
+      assertThat(
+          rankSpan.attributes.get(
+            io.opentelemetry.api.common.AttributeKey.longKey("xmm.edpa.rank.subpools_ranked")
+          )
+        )
+        .isEqualTo(1L)
+      val finalizeSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.rank.finalize" }
+      assertThat(finalizeSpan.events.map { it.name })
+        .containsAtLeast(
+          "edpa.vid_labeling.rank.vid_labeling_job",
+          "edpa.vid_labeling.rank.work_item",
+          "edpa.vid_labeling.rank.parent_transition",
+        )
+      val jobEvent =
+        finalizeSpan.events.single { it.name == "edpa.vid_labeling.rank.vid_labeling_job" }
+      assertThat(jobEvent.attributes.get(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME))
+        .isNotEmpty()
+      assertThat(jobEvent.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("resolved")
+      val workItemEvent =
+        finalizeSpan.events.single { it.name == "edpa.vid_labeling.rank.work_item" }
+      assertThat(workItemEvent.attributes.get(XmmTraceAttributes.WORK_ITEM_NAME)).isNotEmpty()
+      assertThat(workItemEvent.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("created")
+      val transition =
+        finalizeSpan.events.single { it.name == "edpa.vid_labeling.rank.parent_transition" }
+      assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("labeling")
     }
 
   @Test
@@ -324,6 +403,7 @@ class VidRankBuilderTest {
 
     assertThat(result.subpoolsRanked).isEqualTo(0)
     assertThat(result.lastJobOut).isFalse()
+    assertThat(result.outcome).isEqualTo("stale_parent")
     verifyBlocking(ranker, never()) { rank(any(), any(), any()) }
     verifyBlocking(rankerJobs, never()) { markRankerJobSucceeded(any(), any()) }
   }
