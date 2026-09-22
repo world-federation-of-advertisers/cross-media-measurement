@@ -30,8 +30,11 @@ object VidLabelingTraceAttributes {
   const val VID_LABELING_JOB_NAME_STRING = "xmm.edpa.vid_labeling_job.name"
   const val RANK_INDEX_BLOB_NAME_STRING = "xmm.edpa.rank_index_blob.name"
   const val IMPRESSION_METADATA_NAME_STRING = "xmm.edpa.impression_metadata.name"
+  const val RECOVERY_WORK_ITEM_NAME_STRING = "xmm.edpa.recovery_work_item.name"
   const val PIPELINE_PHASE_STRING = "xmm.edpa.pipeline.phase"
+  const val GCS_OBJECT_PATH_HASH_STRING = "xmm.gcs.object.path_hash"
   const val GCS_OBJECT_GENERATION_STRING = "xmm.gcs.object.generation"
+  const val SHARD_INDEX_STRING = "xmm.edpa.shard_index"
 
   val DATA_PROVIDER_NAME: AttributeKey<String> = AttributeKey.stringKey(DATA_PROVIDER_NAME_STRING)
   val MODEL_LINE_NAME: AttributeKey<String> = AttributeKey.stringKey(MODEL_LINE_NAME_STRING)
@@ -48,8 +51,13 @@ object VidLabelingTraceAttributes {
     AttributeKey.stringKey(RANK_INDEX_BLOB_NAME_STRING)
   val IMPRESSION_METADATA_NAME: AttributeKey<String> =
     AttributeKey.stringKey(IMPRESSION_METADATA_NAME_STRING)
+  val RECOVERY_WORK_ITEM_NAME: AttributeKey<String> =
+    AttributeKey.stringKey(RECOVERY_WORK_ITEM_NAME_STRING)
   val PIPELINE_PHASE: AttributeKey<String> = AttributeKey.stringKey(PIPELINE_PHASE_STRING)
+  val GCS_OBJECT_PATH_HASH: AttributeKey<String> =
+    AttributeKey.stringKey(GCS_OBJECT_PATH_HASH_STRING)
   val GCS_OBJECT_GENERATION: AttributeKey<Long> = AttributeKey.longKey(GCS_OBJECT_GENERATION_STRING)
+  val SHARD_INDEX: AttributeKey<Long> = AttributeKey.longKey(SHARD_INDEX_STRING)
 
   val SAFE_LOG_FIELD_NAMES: Set<String> =
     setOf(
@@ -62,7 +70,10 @@ object VidLabelingTraceAttributes {
       VID_LABELING_JOB_NAME_STRING,
       RANK_INDEX_BLOB_NAME_STRING,
       IMPRESSION_METADATA_NAME_STRING,
+      RECOVERY_WORK_ITEM_NAME_STRING,
       PIPELINE_PHASE_STRING,
+      GCS_OBJECT_PATH_HASH_STRING,
       GCS_OBJECT_GENERATION_STRING,
+      SHARD_INDEX_STRING,
     )
 }

@@ -16,12 +16,21 @@
 
 package org.wfanet.measurement.edpaggregator.telemetry
 
+import java.security.MessageDigest
 import java.util.logging.Level
 import java.util.logging.Logger
 import org.wfanet.measurement.common.telemetry.XmmTraceLogging
 
 /** Writes payload-free VID-labeling lifecycle evidence. */
 object VidLabelingTraceLogging {
+  /** Returns a stable, one-way SHA-256 digest suitable for correlating a sensitive identifier. */
+  fun sha256(value: String): String =
+    MessageDigest.getInstance("SHA-256").digest(value.toByteArray(Charsets.UTF_8)).joinToString(
+      separator = ""
+    ) { byte ->
+      (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
+
   fun log(logger: Logger, event: String, vararg fields: Pair<String, String?>) {
     log(logger, Level.INFO, event, *fields)
   }

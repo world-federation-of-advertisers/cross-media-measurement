@@ -19,7 +19,11 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
+import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.toList
@@ -34,8 +38,13 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.pack
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileBinPacker
+import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
@@ -140,6 +149,7 @@ class VidLabelingDispatchSequencer(
   private val maxFileBatchSizeBytes: Long,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val maxJobsPerBatchCreate: Int = DEFAULT_MAX_JOBS_PER_BATCH_CREATE,
+  private val traceContextProvider: () -> Map<String, String> = W3CTraceContext::inject,
 ) {
 
   /** Outcome of one [dispatchNext] call. */
@@ -171,7 +181,22 @@ class VidLabelingDispatchSequencer(
    * Safe to call concurrently with another invocation (e.g. the fast path racing the monitor): the
    * per-model-line etag CAS ensures each model line is claimed at most once.
    */
-  suspend fun dispatchNext(): DispatchResult {
+  suspend fun dispatchNext(): DispatchResult =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.dispatch.scan",
+      attributes =
+        Attributes.builder()
+          .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProviderName)
+          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "dispatch")
+          .put(XmmTraceAttributes.OUTCOME, "started")
+          .build(),
+    ) {
+      dispatchNextInternal().also {
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
+      }
+    }
+
+  private suspend fun dispatchNextInternal(): DispatchResult {
     val uploads: List<RawImpressionUpload> =
       (listUploads(RawImpressionUpload.State.CREATED) +
           listUploads(RawImpressionUpload.State.ACTIVE))
@@ -218,9 +243,11 @@ class VidLabelingDispatchSequencer(
         }
       }
       if (nonMemoized.isNotEmpty()) {
-        dispatchNonMemoizedBundle(upload.name, nonMemoized)
+        val dispatched = dispatchNonMemoizedBundle(upload.name, nonMemoized)
         for (bundled in nonMemoized) busyModelLines += bundled.modelLine.cmmsModelLine
-        if (dispatchedUpload == null) dispatchedUpload = upload.name
+        if (dispatched) {
+          if (dispatchedUpload == null) dispatchedUpload = upload.name
+        }
       }
     }
 
@@ -270,7 +297,24 @@ class VidLabelingDispatchSequencer(
   private suspend fun dispatchNonMemoizedBundle(
     uploadName: String,
     bundle: List<BundledModelLine>,
-  ) {
+  ): Boolean =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.dispatch",
+      attributes = dispatchAttributes(uploadName, "phase2"),
+    ) {
+      val dispatched = dispatchNonMemoizedBundleInternal(uploadName, bundle)
+      if (dispatched) {
+        recordDispatched(uploadName, "phase2")
+      } else {
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "no_work")
+      }
+      dispatched
+    }
+
+  private suspend fun dispatchNonMemoizedBundleInternal(
+    uploadName: String,
+    bundle: List<BundledModelLine>,
+  ): Boolean {
     require(maxFileBatchSizeBytes > 0) {
       "max_file_batch_size_bytes missing for non-memoized model lines under $uploadName; " +
         "set it on VidLabelingConfig for this DataProvider"
@@ -294,7 +338,7 @@ class VidLabelingDispatchSequencer(
         "No RawImpressionUploadFiles under $uploadName; nothing to label for non-memoized model " +
           "lines $modelLineNames; leaving them CREATED for retry"
       )
-      return
+      return false
     }
 
     val batches: List<List<String>> = RawImpressionFileBinPacker.pack(files, maxFileBatchSizeBytes)
@@ -304,6 +348,7 @@ class VidLabelingDispatchSequencer(
       createWorkItem(uploadName, modelLineNames, modelBlobPathByLine, resolvedModelLines, job.name)
     }
     for (bundled in bundle) markLabeling(bundled.modelLine.name, bundled.modelLine.etag)
+    return true
   }
 
   /** Lists the `RawImpressionUploadFile` children of [uploadName]. */
@@ -343,28 +388,53 @@ class VidLabelingDispatchSequencer(
     val created = mutableListOf<VidLabelingJob>()
     for (group in batches.withIndex().chunked(maxJobsPerBatchCreate)) {
       val response =
-        rpcThrottlers.metadataWrite.onReady {
-          vidLabelingJobStub.batchCreateVidLabelingJobs(
-            batchCreateVidLabelingJobsRequest {
-              parent = uploadName
-              for ((batchIndex, batch) in group) {
-                requests += createVidLabelingJobRequest {
+        try {
+          rpcThrottlers.metadataWrite
+            .onReady {
+              vidLabelingJobStub.batchCreateVidLabelingJobs(
+                batchCreateVidLabelingJobsRequest {
                   parent = uploadName
-                  vidLabelingJob = vidLabelingJob {
-                    cmmsModelLines += modelLineNames
-                    rawImpressionUploadFiles += batch
+                  for ((batchIndex, batch) in group) {
+                    requests += createVidLabelingJobRequest {
+                      parent = uploadName
+                      vidLabelingJob = vidLabelingJob {
+                        cmmsModelLines += modelLineNames
+                        rawImpressionUploadFiles += batch
+                      }
+                      requestId =
+                        RequestIds.forVidLabelingJob(uploadName, modelLineNames, batchIndex)
+                    }
                   }
-                  requestId = RequestIds.forVidLabelingJob(uploadName, modelLineNames, batchIndex)
                 }
+              )
+            }
+            .also {
+              check(it.vidLabelingJobsList.size == group.size) {
+                "BatchCreateVidLabelingJobs returned ${it.vidLabelingJobsList.size} jobs for " +
+                  "${group.size} requests"
               }
             }
-          )
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          for (modelLineName in modelLineNames) {
+            recordDispatchFailure(
+              "job",
+              e,
+              VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME to uploadName,
+              VidLabelingTraceAttributes.MODEL_LINE_NAME to modelLineName,
+            )
+          }
+          throw e
         }
-      check(response.vidLabelingJobsList.size == group.size) {
-        "BatchCreateVidLabelingJobs returned ${response.vidLabelingJobsList.size} jobs for " +
-          "${group.size} requests"
-      }
       created.addAll(response.vidLabelingJobsList)
+      for (job in response.vidLabelingJobsList) {
+        recordDispatchEvent(
+          "job",
+          VidLabelingTraceAttributes.VID_LABELING_JOB_NAME to job.name,
+          XmmTraceAttributes.OUTCOME to "resolved",
+        )
+      }
     }
     return created
   }
@@ -380,6 +450,24 @@ class VidLabelingDispatchSequencer(
    * creates.
    */
   private suspend fun dispatchMemoized(
+    uploadName: String,
+    modelLine: RawImpressionUploadModelLine,
+    shardInfo: ResolvedShardInfo,
+  ) =
+    Tracing.traceSuspending(
+      spanName = "edpa.vid_labeling.dispatch",
+      attributes =
+        dispatchAttributes(uploadName, "phase0")
+          .toBuilder()
+          .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine.cmmsModelLine)
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME, modelLine.name)
+          .build(),
+    ) {
+      dispatchMemoizedInternal(uploadName, modelLine, shardInfo)
+      recordDispatched(uploadName, "phase0", modelLine.cmmsModelLine)
+    }
+
+  private suspend fun dispatchMemoizedInternal(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
@@ -615,7 +703,12 @@ class VidLabelingDispatchSequencer(
       this.workItemId = workItemId
       workItem = workItem {
         queue = queueName
-        workItemParams = workItemParams { appParams = params.pack() }.pack()
+        workItemParams =
+          workItemParams {
+              appParams = params.pack()
+              traceContext.putAll(traceContextProvider())
+            }
+            .pack()
       }
     }
     try {
@@ -625,11 +718,39 @@ class VidLabelingDispatchSequencer(
         // A concurrent dispatch already created this WorkItem; the deterministic ID makes this a
         // no-op. Safe to ignore.
         logger.info("WorkItem $workItemId already exists; skipping (concurrent dispatch)")
+        recordDispatchEvent(
+          "work_item",
+          XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+          VidLabelingTraceAttributes.VID_LABELING_JOB_NAME to vidLabelingJobName,
+          XmmTraceAttributes.OUTCOME to "already_exists",
+        )
         return
       }
+      recordDispatchFailure(
+        "work_item",
+        e,
+        XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+        VidLabelingTraceAttributes.VID_LABELING_JOB_NAME to vidLabelingJobName,
+      )
+      throw e
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      recordDispatchFailure(
+        "work_item",
+        e,
+        XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+        VidLabelingTraceAttributes.VID_LABELING_JOB_NAME to vidLabelingJobName,
+      )
       throw e
     }
     logger.info("Created WorkItem $workItemId for job $vidLabelingJobName")
+    recordDispatchEvent(
+      "work_item",
+      XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+      VidLabelingTraceAttributes.VID_LABELING_JOB_NAME to vidLabelingJobName,
+      XmmTraceAttributes.OUTCOME to "created",
+    )
   }
 
   private suspend fun markLabeling(modelLineName: String, etag: String) {
@@ -643,14 +764,38 @@ class VidLabelingDispatchSequencer(
           }
         )
       }
+      recordDispatchEvent(
+        "transition",
+        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+        XmmTraceAttributes.OUTCOME to "labeling",
+      )
     } catch (e: StatusException) {
       if (isConcurrentClaimLoss(e)) {
         logger.info(
           "Skipping LABELING for $modelLineName: ${e.status.code} (claimed by a concurrent " +
             "dispatch)"
         )
+        recordDispatchEvent(
+          "transition",
+          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+          XmmTraceAttributes.OUTCOME to "superseded",
+        )
         return
       }
+      recordDispatchFailure(
+        "transition",
+        e,
+        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+      )
+      throw e
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      recordDispatchFailure(
+        "transition",
+        e,
+        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+      )
       throw e
     }
   }
@@ -669,26 +814,59 @@ class VidLabelingDispatchSequencer(
             }
           )
         }
+        recordDispatchEvent(
+          "transition",
+          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+          XmmTraceAttributes.OUTCOME to "pool_assigning",
+        )
         return
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.FAILED_PRECONDITION) {
           logger.info(
             "Skipping POOL_ASSIGNING for $modelLineName: another upload owns the model line"
           )
+          recordDispatchEvent(
+            "transition",
+            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+            XmmTraceAttributes.OUTCOME to "superseded",
+          )
           return
         }
-        if (e.status.code != Status.Code.ABORTED) throw e
+        if (e.status.code != Status.Code.ABORTED) {
+          recordDispatchFailure(
+            "transition",
+            e,
+            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+          )
+          throw e
+        }
 
         val current =
-          rpcThrottlers.metadataRead.onReady {
-            rawImpressionUploadModelLineStub.getRawImpressionUploadModelLine(
-              getRawImpressionUploadModelLineRequest { name = modelLineName }
+          try {
+            rpcThrottlers.metadataRead.onReady {
+              rawImpressionUploadModelLineStub.getRawImpressionUploadModelLine(
+                getRawImpressionUploadModelLineRequest { name = modelLineName }
+              )
+            }
+          } catch (readError: CancellationException) {
+            throw readError
+          } catch (readError: Exception) {
+            recordDispatchFailure(
+              "transition",
+              readError,
+              VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
             )
+            throw readError
           }
         if (current.state != RawImpressionUploadModelLine.State.CREATED) {
           logger.info(
             "Skipping POOL_ASSIGNING for $modelLineName: a concurrent update changed its state to " +
               current.state
+          )
+          recordDispatchEvent(
+            "transition",
+            VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
+            XmmTraceAttributes.OUTCOME to "superseded",
           )
           return
         }
@@ -735,11 +913,31 @@ class VidLabelingDispatchSequencer(
         }
       }
       val response =
-        rpcThrottlers.metadataWrite.onReady {
-          poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
+        try {
+          rpcThrottlers.metadataWrite.onReady {
+            poolAssignmentJobStub.batchCreatePoolAssignmentJobs(request)
+          }
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          for (shardIndex in shardChunk) {
+            recordDispatchFailure(
+              "job",
+              e,
+              shardIndex,
+              VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME to uploadName,
+              VidLabelingTraceAttributes.MODEL_LINE_NAME to modelLineName,
+            )
+          }
+          throw e
         }
       for (job in response.poolAssignmentJobsList) {
         jobsByShard[job.shardIndex] = job.name
+        recordDispatchEvent(
+          "job",
+          VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME to job.name,
+          XmmTraceAttributes.OUTCOME to "resolved",
+        )
       }
     }
     return jobsByShard
@@ -797,7 +995,12 @@ class VidLabelingDispatchSequencer(
       this.workItemId = workItemId
       workItem = workItem {
         queue = poolAssignerQueueName
-        workItemParams = workItemParams { appParams = params.pack() }.pack()
+        workItemParams =
+          workItemParams {
+              appParams = params.pack()
+              traceContext.putAll(traceContextProvider())
+            }
+            .pack()
       }
     }
     try {
@@ -807,12 +1010,118 @@ class VidLabelingDispatchSequencer(
         // A concurrent dispatch already created this WorkItem; the deterministic ID makes this a
         // no-op. Safe to ignore.
         logger.info("WorkItem $workItemId already exists; skipping (concurrent dispatch)")
+        recordDispatchEvent(
+          "work_item",
+          XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+          VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME to poolAssignmentJob,
+          XmmTraceAttributes.OUTCOME to "already_exists",
+        )
         return
       }
+      recordDispatchFailure(
+        "work_item",
+        e,
+        XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+        VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME to poolAssignmentJob,
+      )
+      throw e
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      recordDispatchFailure(
+        "work_item",
+        e,
+        XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+        VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME to poolAssignmentJob,
+      )
       throw e
     }
     logger.info(
       "Created SubpoolAssigner WorkItem $workItemId for model line $modelLineName shard $shardIndex"
+    )
+    recordDispatchEvent(
+      "work_item",
+      XmmTraceAttributes.WORK_ITEM_NAME to "workItems/$workItemId",
+      VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME to poolAssignmentJob,
+      XmmTraceAttributes.OUTCOME to "created",
+    )
+  }
+
+  private fun dispatchAttributes(uploadName: String, phase: String): Attributes =
+    Attributes.builder()
+      .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProviderName)
+      .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, uploadName)
+      .put(VidLabelingTraceAttributes.PIPELINE_PHASE, phase)
+      .put(XmmTraceAttributes.LIFECYCLE_STAGE, "dispatch")
+      .put(XmmTraceAttributes.OUTCOME, "started")
+      .build()
+
+  private fun recordDispatched(uploadName: String, phase: String, modelLineName: String? = null) {
+    Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
+    VidLabelingTraceLogging.log(
+      logger,
+      "edpa.vid_labeling.dispatched",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to uploadName,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLineName,
+      VidLabelingTraceAttributes.PIPELINE_PHASE_STRING to phase,
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "dispatch",
+      XmmTraceAttributes.OUTCOME_STRING to "succeeded",
+    )
+  }
+
+  private fun recordDispatchEvent(
+    event: String,
+    vararg attributes: Pair<io.opentelemetry.api.common.AttributeKey<String>, String>,
+  ) {
+    val builder = Attributes.builder()
+    for ((key, value) in attributes) {
+      builder.put(key, value)
+    }
+    Span.current().addEvent("edpa.vid_labeling.dispatch.$event", builder.build())
+    VidLabelingTraceLogging.log(
+      logger,
+      "edpa.vid_labeling.dispatch.$event",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "dispatch",
+      *attributes.map { (key, value) -> key.key to value }.toTypedArray(),
+    )
+  }
+
+  private fun recordDispatchFailure(
+    event: String,
+    error: Throwable,
+    vararg attributes: Pair<io.opentelemetry.api.common.AttributeKey<String>, String>,
+  ) {
+    recordDispatchFailure(event, error, null, *attributes)
+  }
+
+  private fun recordDispatchFailure(
+    event: String,
+    error: Throwable,
+    shardIndex: Int?,
+    vararg attributes: Pair<io.opentelemetry.api.common.AttributeKey<String>, String>,
+  ) {
+    val failureAttributes = attributes.toMutableList()
+    failureAttributes += XmmTraceAttributes.OUTCOME to "failed"
+    failureAttributes += XmmTraceAttributes.ERROR_TYPE to XmmTraceAttributes.errorType(error)
+    XmmTraceAttributes.errorCode(error)?.let {
+      failureAttributes += XmmTraceAttributes.ERROR_CODE to it
+    }
+    val builder = Attributes.builder()
+    for ((key, value) in failureAttributes) {
+      builder.put(key, value)
+    }
+    shardIndex?.let { builder.put(VidLabelingTraceAttributes.SHARD_INDEX, it.toLong()) }
+    Span.current().addEvent("edpa.vid_labeling.dispatch.$event", builder.build())
+    VidLabelingTraceLogging.log(
+      logger,
+      Level.WARNING,
+      "edpa.vid_labeling.dispatch.$event",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      VidLabelingTraceAttributes.SHARD_INDEX_STRING to shardIndex?.toString(),
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "dispatch",
+      *failureAttributes.map { (key, value) -> key.key to value }.toTypedArray(),
     )
   }
 
