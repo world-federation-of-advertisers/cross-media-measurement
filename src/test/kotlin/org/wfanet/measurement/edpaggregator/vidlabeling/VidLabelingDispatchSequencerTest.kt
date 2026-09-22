@@ -28,6 +28,9 @@ import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Instant
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -100,6 +103,18 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 class VidLabelingDispatchSequencerTest {
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   @Before
   fun initTelemetry() {
@@ -114,10 +129,13 @@ class VidLabelingDispatchSequencerTest {
             .build()
         )
         .buildAndRegisterGlobal()
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
   }
 
   @After
   fun cleanupTelemetry() {
+    rootLogger.removeHandler(logHandler)
     openTelemetry.close()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
@@ -619,7 +637,7 @@ class VidLabelingDispatchSequencerTest {
         )
         .hasSize(NUMBER_OF_SHARDS)
       assertThat(jobEvents.map { it.attributes.get(XmmTraceAttributes.OUTCOME) }.toSet())
-        .containsExactly("created")
+        .containsExactly("resolved")
       val workItemEvents =
         dispatchSpan.events.filter { it.name == "edpa.vid_labeling.dispatch.work_item" }
       assertThat(workItemEvents.mapNotNull { it.attributes.get(XmmTraceAttributes.WORK_ITEM_NAME) })
@@ -633,6 +651,17 @@ class VidLabelingDispatchSequencerTest {
         )
         .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/ml1")
       assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("pool_assigning")
+      val jobLogs =
+        logRecords.filter { it.message.contains("event=edpa.vid_labeling.dispatch.job ") }
+      assertThat(jobLogs).hasSize(NUMBER_OF_SHARDS)
+      jobLogs.forEach {
+        assertThat(it.message).contains("xmm.lifecycle.stage=dispatch")
+        assertThat(it.message).contains("xmm.outcome=resolved")
+      }
+      val workItemLogs =
+        logRecords.filter { it.message.contains("event=edpa.vid_labeling.dispatch.work_item ") }
+      assertThat(workItemLogs).hasSize(NUMBER_OF_SHARDS)
+      workItemLogs.forEach { assertThat(it.message).contains("xmm.work_item.name=workItems/") }
     }
 
   @Test
@@ -736,6 +765,31 @@ class VidLabelingDispatchSequencerTest {
     }
 
   @Test
+  fun `dispatchNext records shard identities when PoolAssignmentJob creation fails`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      whenever(poolAssignmentJobService.batchCreatePoolAssignmentJobs(any())).thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("metadata unavailable"))
+      }
+
+      assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      val failureLogs =
+        logRecords.filter {
+          it.message.contains("event=edpa.vid_labeling.dispatch.job ") &&
+            it.message.contains("xmm.outcome=failed")
+        }
+      assertThat(failureLogs).hasSize(NUMBER_OF_SHARDS)
+      assertThat(failureLogs.any { it.message.contains("xmm.edpa.shard_index=0") }).isTrue()
+      assertThat(failureLogs.any { it.message.contains("xmm.edpa.shard_index=1") }).isTrue()
+    }
+
+  @Test
   fun `dispatchNext tolerates an already-existing SubpoolAssigner WorkItem`() =
     runBlocking<Unit> {
       stubUploads(
@@ -758,6 +812,32 @@ class VidLabelingDispatchSequencerTest {
       verifyBlocking(rawImpressionUploadModelLineService) {
         markRawImpressionUploadModelLinePoolAssigning(any())
       }
+    }
+
+  @Test
+  fun `dispatchNext records a failed SubpoolAssigner WorkItem identifier`() =
+    runBlocking<Unit> {
+      stubUploads(
+        created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
+      )
+      stubModelLines(createdModelLine())
+      stubShardResolution(memoized = true)
+      stubModelLine()
+      stubPoolAssignmentJobs()
+      whenever(workItemsService.createWorkItem(any())).thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("control plane unavailable"))
+      }
+
+      assertFailsWith<StatusException> { createSequencer().dispatchNext() }
+
+      val failureLog =
+        logRecords.single {
+          it.message.contains("event=edpa.vid_labeling.dispatch.work_item ") &&
+            it.message.contains("xmm.outcome=failed")
+        }
+      assertThat(failureLog.message).contains("xmm.work_item.name=workItems/")
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=dispatch")
+      assertThat(failureLog.message).contains("xmm.error.code=grpc.UNAVAILABLE")
     }
 
   @Test
