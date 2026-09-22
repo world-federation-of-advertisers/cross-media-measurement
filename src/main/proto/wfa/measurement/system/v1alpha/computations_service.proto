@@ -107,7 +107,20 @@ message SetComputationResultRequest {
   // Encrypted `SignedData` message from the public API containing a serialized
   // `Result` message from the public API, which can be verified using
   // `aggregator_certificate.
+  //
+  // A multimeasurement sets `encrypted_results` instead.
   bytes encrypted_result = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // Encrypted `SignedData` messages from the public API, each containing a
+  // serialized `Result` message from the public API, which can be verified
+  // using `aggregator_certificate`.
+  //
+  // Set instead of `encrypted_result` for a multimeasurement, whose aggregator
+  // produces one `Result` per query per grouping combination. Each is stored
+  // as its own result of the `Measurement`, and the cell it belongs to is
+  // named by `Result.query_id` and `Result.attributes` inside the signed
+  // message.
+  repeated bytes encrypted_results = 6;
 
   // Version of the public API for serialized message definitions.
   string public_api_version = 5 [(google.api.field_behavior) = REQUIRED];
