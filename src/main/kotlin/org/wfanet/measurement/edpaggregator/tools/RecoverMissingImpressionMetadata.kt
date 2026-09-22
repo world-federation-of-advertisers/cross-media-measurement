@@ -46,6 +46,7 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -188,24 +189,24 @@ class RecoverMissingImpressionMetadata : Runnable {
     require(storageConfig.bucketName.isNotEmpty()) { "GCS bucket_name must be set" }
     val today = LocalDate.now(ZoneOffset.UTC)
     val selectedDataDates = dateSelection.dataDates.toSet()
-    val earliestDataDate: LocalDate
-    val latestDataDate: LocalDate
-    if (selectedDataDates.isNotEmpty()) {
-      require(selectedDataDates.none { it.isAfter(today) }) {
-        "data-date must not be after the current UTC date"
+    val recoveryDateSelection =
+      if (selectedDataDates.isNotEmpty()) {
+        require(selectedDataDates.none { it.isAfter(today) }) {
+          "data-date must not be after the current UTC date"
+        }
+        DataDateSelection.SelectedDates(selectedDataDates)
+      } else {
+        val dateRange = checkNotNull(dateSelection.dateRange)
+        require(dateRange.lookbackDays > 0) { "lookback-days must be greater than zero" }
+        require(dateRange.endDaysAgo >= 0) { "end-days-ago must not be negative" }
+        require(dateRange.endDaysAgo < dateRange.lookbackDays) {
+          "end-days-ago must be less than lookback-days"
+        }
+        DataDateSelection.Range(
+          earliestDate = today.minusDays((dateRange.lookbackDays - 1).toLong()),
+          latestDate = today.minusDays(dateRange.endDaysAgo.toLong()),
+        )
       }
-      earliestDataDate = checkNotNull(selectedDataDates.minOrNull())
-      latestDataDate = checkNotNull(selectedDataDates.maxOrNull())
-    } else {
-      val dateRange = checkNotNull(dateSelection.dateRange)
-      require(dateRange.lookbackDays > 0) { "lookback-days must be greater than zero" }
-      require(dateRange.endDaysAgo >= 0) { "end-days-ago must not be negative" }
-      require(dateRange.endDaysAgo < dateRange.lookbackDays) {
-        "end-days-ago must be less than lookback-days"
-      }
-      earliestDataDate = today.minusDays((dateRange.lookbackDays - 1).toLong())
-      latestDataDate = today.minusDays(dateRange.endDaysAgo.toLong())
-    }
     val storageApiEndpoint = storageApiEndpoint
     val storageClient =
       GcsStorageClient(
@@ -253,9 +254,7 @@ class RecoverMissingImpressionMetadata : Runnable {
         dataProviderName = config.dataProvider,
         throttler = throttler,
         impressionMetadataBatchSize = impressionMetadataBatchSize,
-        earliestDataDate = earliestDataDate,
-        latestDataDate = latestDataDate,
-        selectedDataDates = selectedDataDates,
+        dateSelection = recoveryDateSelection,
         sync = { doneBlobUri, metadataBlobKeys ->
           val filteringStorageClient =
             FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)

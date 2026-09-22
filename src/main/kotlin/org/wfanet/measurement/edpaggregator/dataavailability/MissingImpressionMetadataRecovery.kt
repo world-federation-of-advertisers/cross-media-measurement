@@ -39,6 +39,21 @@ import org.wfanet.measurement.edpaggregator.v1alpha.undeleteImpressionMetadataRe
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.StorageClient
 
+/** Selects either an inclusive range or a nonempty set of exact data dates. */
+sealed class DataDateSelection {
+  data class Range(val earliestDate: LocalDate, val latestDate: LocalDate) : DataDateSelection() {
+    init {
+      require(!latestDate.isBefore(earliestDate)) { "data date range must not be empty" }
+    }
+  }
+
+  data class SelectedDates(val dates: Set<LocalDate>) : DataDateSelection() {
+    init {
+      require(dates.isNotEmpty()) { "selected data dates must not be empty" }
+    }
+  }
+}
+
 /**
  * Recovers finalized metadata blobs that have no corresponding `ImpressionMetadata` resource.
  *
@@ -54,13 +69,10 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dataProviderName Parent resource name for metadata list requests.
  * @param throttler Throttles metadata list and mutation requests.
  * @param impressionMetadataBatchSize Maximum results per metadata list page.
- * @param earliestDataDate Earliest date folder included in the reconciliation.
- * @param latestDataDate Latest date folder included in the reconciliation.
+ * @param dateSelection Date folders included in the reconciliation.
  * @param sync Re-runs data availability sync for a completion blob and selected metadata keys, and
  *   returns the keys that sync processed.
  * @param metrics Records reconciliation results.
- * @param selectedDataDates Exact date folders to reconcile. When empty, every date in the
- *   configured range is reconciled.
  */
 class MissingImpressionMetadataRecovery(
   private val storageClient: StorageClient,
@@ -70,11 +82,9 @@ class MissingImpressionMetadataRecovery(
   private val dataProviderName: String,
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
-  private val earliestDataDate: LocalDate,
-  private val latestDataDate: LocalDate,
+  private val dateSelection: DataDateSelection,
   private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Set<String>,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
-  private val selectedDataDates: Set<LocalDate> = emptySet(),
 ) {
   init {
     require(edpImpressionPath.isNotEmpty()) { "edpImpressionPath must not be empty" }
@@ -82,10 +92,6 @@ class MissingImpressionMetadataRecovery(
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
-    }
-    require(!latestDataDate.isBefore(earliestDataDate)) { "data date range must not be empty" }
-    require(selectedDataDates.all { it in earliestDataDate..latestDataDate }) {
-      "selectedDataDates must be within the data date range"
     }
   }
 
@@ -452,7 +458,14 @@ class MissingImpressionMetadataRecovery(
     )
   }
 
-  /** Lists date folders in the configured window without loading their contents. */
+  private fun isSelectedDataDate(date: LocalDate): Boolean {
+    return when (val selection = dateSelection) {
+      is DataDateSelection.Range -> date in selection.earliestDate..selection.latestDate
+      is DataDateSelection.SelectedDates -> date in selection.dates
+    }
+  }
+
+  /** Lists selected date folders without loading their contents. */
   private suspend fun listDateFolderPrefixes(): List<String> {
     val prefixesToVisit = ArrayDeque<String>()
     val dateFolderPrefixes = mutableListOf<String>()
@@ -472,10 +485,7 @@ class MissingImpressionMetadataRecovery(
         val date = runCatching { LocalDate.parse(folderName) }.getOrNull()
         if (date == null) {
           prefixesToVisit.addLast(keyOrPrefix)
-        } else if (
-          date in earliestDataDate..latestDataDate &&
-            (selectedDataDates.isEmpty() || date in selectedDataDates)
-        ) {
+        } else if (isSelectedDataDate(date)) {
           dateFolderPrefixes += keyOrPrefix
         }
       }

@@ -31,6 +31,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -117,6 +118,29 @@ class MissingImpressionMetadataRecoveryTest {
     openTelemetry.close()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
+  }
+
+  @Test
+  fun `date range rejects latest date before earliest date`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DataDateSelection.Range(
+          earliestDate = LocalDate.parse("2026-08-02"),
+          latestDate = LocalDate.parse("2026-08-01"),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("range must not be empty")
+  }
+
+  @Test
+  fun `selected dates rejects empty set`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DataDateSelection.SelectedDates(emptySet())
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not be empty")
   }
 
   @Test
@@ -365,7 +389,10 @@ class MissingImpressionMetadataRecoveryTest {
           storageClient,
           impressionMetadataBatchSize = 100,
           registerSyncedMetadata = true,
-          selectedDataDates = setOf(LocalDate.parse("2026-08-01"), LocalDate.parse("2026-08-03")),
+          dateSelection =
+            DataDateSelection.SelectedDates(
+              setOf(LocalDate.parse("2026-08-01"), LocalDate.parse("2026-08-03"))
+            ),
         ) { _, _ ->
         }
         .recover()
@@ -870,7 +897,11 @@ class MissingImpressionMetadataRecoveryTest {
     storageClient: BlobMetadataStorageClient,
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
-    selectedDataDates: Set<LocalDate> = emptySet(),
+    dateSelection: DataDateSelection =
+      DataDateSelection.Range(
+        earliestDate = LocalDate.parse("2026-06-01"),
+        latestDate = LocalDate.parse("2026-08-31"),
+      ),
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     buildRecovery(
@@ -878,7 +909,7 @@ class MissingImpressionMetadataRecoveryTest {
       impressionMetadataBatchSize,
       registerSyncedMetadata,
       markSyncedBlobs = true,
-      selectedDataDates = selectedDataDates,
+      dateSelection = dateSelection,
       sync,
     )
 
@@ -887,7 +918,11 @@ class MissingImpressionMetadataRecoveryTest {
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
     markSyncedBlobs: Boolean,
-    selectedDataDates: Set<LocalDate> = emptySet(),
+    dateSelection: DataDateSelection =
+      DataDateSelection.Range(
+        earliestDate = LocalDate.parse("2026-06-01"),
+        latestDate = LocalDate.parse("2026-08-31"),
+      ),
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     MissingImpressionMetadataRecovery(
@@ -901,9 +936,7 @@ class MissingImpressionMetadataRecoveryTest {
           override suspend fun <T> onReady(block: suspend () -> T): T = block()
         },
       impressionMetadataBatchSize = impressionMetadataBatchSize,
-      earliestDataDate = LocalDate.parse("2026-06-01"),
-      latestDataDate = LocalDate.parse("2026-08-31"),
-      selectedDataDates = selectedDataDates,
+      dateSelection = dateSelection,
       sync = { doneBlobUri, blobKeys ->
         val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
         storageClient.updateBlobMetadata(
