@@ -72,6 +72,7 @@ kt_jvm_library(
         "//imports/java/com/google/cloud/logging",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
         "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/common:spanner_flags",
@@ -103,6 +104,18 @@ kt_jvm_library(
     ],
 )
 
+kt_jvm_library(
+    name = "vid_labeling_trace",
+    srcs = ["VidLabelingTrace.kt"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/common/throttler:maximum_rate_throttler",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
 java_binary(
     name = "ReportTrace",
     main_class = "org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools.ReportTraceKt",
@@ -111,4 +124,11 @@ java_binary(
         ":report_trace",
         "@wfa_common_jvm//imports/java/com/google/cloud/sql/postgres:r2dbc",
     ],
+)
+
+java_binary(
+    name = "VidLabelingTrace",
+    main_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingTraceKt",
+    tags = ["manual"],
+    runtime_deps = [":vid_labeling_trace"],
 )

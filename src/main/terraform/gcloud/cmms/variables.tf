@@ -413,6 +413,20 @@ variable "report_trace_observability_projects" {
   description = "Additional projects from which the report-trace operator may read logs and traces"
 }
 
+variable "vid_labeling_trace_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups allowed to impersonate the read-only VID-labeling trace operator service account"
+}
+
+variable "vid_labeling_trace_observability_projects" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Additional projects from which the VID-labeling trace operator may read logs and traces"
+}
+
 variable "dashboard_operators" {
   type        = list(string)
   nullable    = false
