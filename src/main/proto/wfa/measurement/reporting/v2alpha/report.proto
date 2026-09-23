@@ -93,23 +93,51 @@ message Report {
     (google.api.field_behavior) = IMMUTABLE
   ];
 
-  // The interval over which Metrics are generated. This interval is
-  // closed on both sides.
+  // The time interval over which Metrics are reported.
+  //
+  // This is defined as an inclusive start timestamp and exclusive end
+  // timestamp. In mathematical notation, `[start, end)`. For example, if the
+  // start is `2026-05-01T06:00:00-04:00` and the effective end is
+  // `2026-06-01T06:00:00-04:00` then the reporting interval is
+  // `[2026-05-01T06:00:00-04:00, 2026-06-01T06:00:00-04:00)`. This means that
+  // an event at `2026-06-01T05:59:59-04:00` would be included but not an event
+  // at `2026-06-01T06:00:00-04:00`.
   message ReportingInterval {
-    // The date and time of the start of the report. The year,
-    // month, day, and time_offset are all required.
-    // If `utc_offset` is set, daylight savings is ignored and days will
-    // be 24 hours based on the time of day specified here. If `time_zone` is
-    // set, days will be based on the calendar and daylight savings will be
-    // considered; if 5 AM is chosen, the day will start with 5 AM year-round.
-    // This side of the interval is closed.
+    // The date and time of the start of the report, inclusive.
+    //
+    // The [year][google.type.DateTime.year],
+    // [month][google.type.DateTime.month], [day][google.type.DateTime.day],
+    // [hours][google.type.DateTime.hours], and
+    // [time_offset][google.type.DateTime.time_offset] fields are required.
+    //
+    // The granularity is in hours.
+
+    // The time component of this field defines the start of a reporting day. If
+    // [utc_offset][google.type.DateTime.utc_offset] is set, daylight saving
+    // time is ignored and the reporting days will be 24 hours based on the time
+    // of day specified here. If [time_zone][google.type.DateTime.time_zone] is
+    // set, the length of reporting days may vary due to daylight savings; if 5
+    // AM is chosen, the day will start at 5 AM year-round.
     google.type.DateTime report_start = 1 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
     ];
 
-    // The end date of the report. The time is considered to be the same as
-    // that specified in the report start. This side of the interval is closed.
+    // The end date of the report.
+    //
+    // Note that this should be set to the day **after** the desired final
+    // reporting day. See below.
+    //
+    // This is used to determine the (exclusive) effective report end, which is
+    // defined as the date from this field and the time from
+    // [effective_report_start][]. For example, if [effective_report_start][] is
+    // `2026-03-01T06:00:00-05:00`, and [report_end][] is `2026-04-01` then the
+    // effective report end is `2026-04-01T06:00:00-05:00`.
+    //
+    // Note that if [effective_report_start][] had a time zone of
+    // `America/New_York` specified instead of a UTC offset of `-05:00` then the
+    // effective report end would instead be `2026-04-01T06:00:00-04:00` due to
+    // daylight saving time (DST).
     google.type.Date report_end = 2 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.field_behavior) = IMMUTABLE
