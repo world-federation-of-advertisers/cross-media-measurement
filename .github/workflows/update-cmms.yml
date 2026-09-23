@@ -401,7 +401,7 @@ jobs:
       id-token: write
     with:
       environment: ${{ inputs.environment }}
-  # Provisions the QA 2026 dataset and reports over it.
+  # Provisions the high overlap dataset and reports over it.
   run-edpa-reporting-integration-test:
     if: inputs.run-tests
     needs: [

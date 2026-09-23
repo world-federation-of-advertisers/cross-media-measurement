@@ -38,7 +38,7 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 
 /**
- * JUnit [TestRule] that writes the QA 2026 synthetic dataset as pre-labeled impressions, stamped
+ * JUnit [TestRule] that writes the high overlap synthetic dataset as pre-labeled impressions, stamped
  * with the 2026 model line.
  *
  * This is **additive**: it writes under its own model line and its own date window, so the 2021
@@ -61,8 +61,8 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * unaffected until their `model_line` is set. Each EDP's write additionally no-ops when its KMS
  * settings are unresolved, mirroring [WriteReusedLabeledImpressionsRule].
  *
- * @property configProvider yields the QA 2026 [ImpressionTestDataConfig]
- * @property populationSpecProvider yields the QA 2026 synthetic population
+ * @property configProvider yields the high overlap [ImpressionTestDataConfig]
+ * @property populationSpecProvider yields the high overlap synthetic population
  * @property bucket impressions bucket
  * @property modelLineProvider yields the 2026 model line resource name to stamp; null or empty
  *   disables the rule
@@ -72,7 +72,7 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * @property edpaMetaAwsRoleArn AWS role assumed via web-identity federation
  * @property edpaMetaAwsRegion AWS region of the edpa_meta KMS key
  */
-class WriteQa2026ImpressionsRule(
+class WriteHighOverlapImpressionsRule(
   private val configProvider: () -> ImpressionTestDataConfig,
   private val populationSpecProvider: () -> PopulationSpec,
   private val bucket: String,
@@ -87,8 +87,8 @@ class WriteQa2026ImpressionsRule(
   private val gcpKmsKekUriByEdp: Map<String, String> =
     mapOf(EDP7_NAME to edp7KekUri.ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() })
 
-  // Resolved only once the rule actually runs, so environments without a QA 2026 model line never
-  // parse the 2026 specs and a malformed one cannot break the 2021 fixture's run.
+  // Resolved only once the rule actually runs, so environments without a high overlap model line never
+  // parse the specs and a malformed one cannot break the low overlap data set's run.
   private val config: ImpressionTestDataConfig by lazy { configProvider() }
   private val populationSpec: PopulationSpec by lazy { populationSpecProvider() }
 
@@ -97,7 +97,7 @@ class WriteQa2026ImpressionsRule(
       override fun evaluate() {
         val modelLine = modelLineProvider()
         if (modelLine.isNullOrEmpty()) {
-          logger.info("No QA 2026 model line configured; skipping QA 2026 impression write.")
+          logger.info("No high overlap model line configured; skipping its impression write.")
         } else {
           runBlocking { write(modelLine) }
         }
@@ -120,7 +120,7 @@ class WriteQa2026ImpressionsRule(
         .filterNot { it in gcpKmsKekUriByEdp || it in AWS_KMS_EDPS }
         .toSortedSet()
     check(unhandled.isEmpty()) {
-      "No KMS configuration for QA 2026 EDP(s) $unhandled. Add them to gcpKmsKekUriByEdp or " +
+      "No KMS configuration for high overlap EDP(s) $unhandled. Add them to gcpKmsKekUriByEdp or " +
         "AWS_KMS_EDPS, or drop them from the config's edp_names."
     }
 
@@ -135,7 +135,7 @@ class WriteQa2026ImpressionsRule(
       val kekUri = gcpKmsKekUriByEdp[eventGroup.edpName] ?: continue
       if (kekUri.isEmpty()) {
         logger.warning(
-          "${eventGroup.edpName} storage KEK URI unresolved; skipping its QA 2026 write."
+          "${eventGroup.edpName} storage KEK URI unresolved; skipping its high overlap write."
         )
         continue
       }
@@ -155,7 +155,7 @@ class WriteQa2026ImpressionsRule(
         edpaMetaAwsRegion.isEmpty() ||
         EDPA_META_AWS_WEB_IDENTITY_TOKEN_FILE.isEmpty()
     ) {
-      logger.warning("edpa_meta AWS KMS settings unresolved; skipping its QA 2026 write.")
+      logger.warning("edpa_meta AWS KMS settings unresolved; skipping its high overlap write.")
       return
     }
     val kmsClient: KmsClient =
@@ -202,14 +202,14 @@ class WriteQa2026ImpressionsRule(
       modelLineOutputBasePath = eventGroup.outputBasePath,
     )
     logger.info(
-      "Wrote QA 2026 impressions for event group '${eventGroup.eventGroupReferenceId}' under " +
-        "${eventGroup.outputBasePath}/model-line/<id>/<date>/."
+      "Wrote high overlap impressions for event group '${eventGroup.eventGroupReferenceId}' " +
+        "under ${eventGroup.outputBasePath}/model-line/<id>/<date>/."
     )
   }
 
   /**
    * Generates the per-date entity-keyed shards for an event group, stamping each with its own
-   * entity key. Every QA 2026 event group carries at least one entity key: `EventGroupSync` filters
+   * entity key. Every high overlap event group carries at least one entity key: `EventGroupSync` filters
    * its existence check by entity type, so a group without one is invisible to that check and is
    * created again on every sync.
    */
@@ -217,7 +217,7 @@ class WriteQa2026ImpressionsRule(
     eventGroup: ImpressionTestDataConfig.SyntheticEventGroup
   ): Sequence<EntityKeyedLabeledEventDateShard<TestEvent>> {
     require(eventGroup.entityKeySpecsList.isNotEmpty()) {
-      "QA 2026 event group '${eventGroup.eventGroupReferenceId}' has no entity key spec"
+      "high overlap event group '${eventGroup.eventGroupReferenceId}' has no entity key spec"
     }
 
     val shardsByDate =
@@ -251,7 +251,7 @@ class WriteQa2026ImpressionsRule(
     private const val GCS_SCHEME = "gs://"
     private const val EDP7_NAME = "edp7"
     private const val EDPA_META_NAME = "edpa_meta"
-    private const val AWS_ROLE_SESSION_NAME = "qa2026-correctness-test"
+    private const val AWS_ROLE_SESSION_NAME = "high-overlap-correctness-test"
 
     private fun env(name: String): String = System.getenv(name).orEmpty()
 

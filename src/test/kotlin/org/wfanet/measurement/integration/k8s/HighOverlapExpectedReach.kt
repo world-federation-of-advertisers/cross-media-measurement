@@ -28,14 +28,14 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 
 /**
- * Expected reach for the QA 2026 media-type and impression-qualification-filter report, derived
+ * Expected reach for the high overlap media-type and impression-qualification-filter report, derived
  * from the synthetic specs rather than from the impressions the EDP Aggregator reads.
  *
  * Reach is the number of distinct VIDs matching a filter over the reporting interval, unscaled: the
  * measured value is already scaled back up from the VID sampling interval, which affects only the
  * tolerance.
  */
-object Qa2026ExpectedReach {
+object HighOverlapExpectedReach {
 
   /** Acceptable range for every metric the report requests for one line item. */
   data class ExpectedMetrics(
@@ -48,9 +48,9 @@ object Qa2026ExpectedReach {
    * Returns the acceptable metric ranges per impression qualification filter label for each of the
    * two result groups.
    *
-   * @param config QA 2026 config restricted to the provisioned EDPs
+   * @param config high overlap config restricted to the provisioned EDPs
    * @param singleEdpName the EDP the single-EDP result group reports on
-   * @param populationSpec the QA 2026 population spec
+   * @param populationSpec the high overlap population spec
    * @param reportStart first event date, inclusive
    * @param reportEnd end of the reporting interval, exclusive
    * @param metricSpecConfig the deployed metric spec config, for the noise parameters

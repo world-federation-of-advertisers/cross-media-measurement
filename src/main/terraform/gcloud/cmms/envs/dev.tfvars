@@ -9,5 +9,5 @@ vid_labeler_population_spec_file_path             = "../../../proto/wfa/measurem
 vid_labeler_population_spec_blob_uri              = "gs://edpa-configs-storage-dev-bucket/vid-labeler-population-spec.textproto"
 edpa_model_line_population_spec_blob_uris = {
   "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/B16R2tctG4A" = "gs://edpa-configs-storage-dev-bucket/results-fulfiller-population-spec-small.textproto"
-  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk" = "gs://edpa-configs-storage-dev-bucket/qa2026-population-spec.textproto"
+  "modelProviders/Wt5MH8egH4w/modelSuites/NrAN9F9SunM/modelLines/NY6atJUixwk" = "gs://edpa-configs-storage-dev-bucket/high-overlap-population-spec.textproto"
 }

@@ -249,8 +249,8 @@ expand_template(
         "{reporting_public_api_cert_host}": "localhost",
         "{access_public_api_target}": "$(access_public_api_target)",
         "{access_public_api_cert_host}": "localhost",
-        "{model_line}": "$(qa2026_model_line)",
-        "{edp_names}": "$(qa2026_edps)",
+        "{model_line}": "$(high_overlap_model_line)",
+        "{edp_names}": "$(high_overlap_edps)",
         "{population_data_provider}": "$(pdp_name)",
         "{edp7_kek_uri}": "$(edp7_kek_uri)",
         "{edpa_meta_kek_uri}": "$(edpa_meta_kek_uri)",
@@ -266,9 +266,9 @@ kt_jvm_library(
     srcs = [
         "Edp7CloudTestConstants.kt",
         "EdpAggregatorReportingIntegrationTest.kt",
-        "Qa2026ExpectedReach.kt",
-        "Qa2026ModelResourcesRule.kt",
-        "WriteQa2026ImpressionsRule.kt",
+        "HighOverlapExpectedReach.kt",
+        "HighOverlapModelResourcesRule.kt",
+        "WriteHighOverlapImpressionsRule.kt",
     ],
     data = [
         "//src/main/k8s/local:open_id_providers_config.json",

@@ -79,7 +79,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
-import org.wfanet.measurement.integration.k8s.Qa2026ExpectedReach.ExpectedMetrics
+import org.wfanet.measurement.integration.k8s.HighOverlapExpectedReach.ExpectedMetrics
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
@@ -93,15 +93,16 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * Tests media type and impression qualification filter reporting over the EDP Aggregator, against a
  * deployed environment.
  *
- * The rules below provision the QA 2026 synthetic dataset the report is computed over. It is
+ * The rules below provision the high overlap synthetic dataset the report is computed over. It is
  * pre-labeled and carries its own Population, ModelLine and EventGroups, so none of the VID
- * labeling pipeline or 2021 fixture that `EdpAggregatorCorrectnessTest` sets up is needed here.
- * Every rule is a no-op unless `QA2026_MODEL_LINE` is set, so an environment opts in only once its
+ * labeling pipeline or low overlap data set that `EdpAggregatorCorrectnessTest` sets up is needed
+ * here.
+ * Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
  * ModelLine has been provisioned.
  */
 class EdpAggregatorReportingIntegrationTest {
 
-  /** Writes the QA 2026 EventGroup blob and waits for `EventGroupSync` to register them. */
+  /** Writes the high overlap EventGroup blob and waits for `EventGroupSync` to register them. */
   private class UploadEventGroups : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
@@ -110,7 +111,7 @@ class EdpAggregatorReportingIntegrationTest {
     private val storageClient = StorageOptions.getDefaultInstance().service
 
     /**
-     * Per-EDP blobs for the QA 2026 EventGroups.
+     * Per-EDP blobs for the high overlap EventGroups.
      *
      * [objectKey] is a distinct object under the EDP's `event-groups/` prefix, which is what the
      * DataWatcher matches on; `EventGroupSync` reads whichever blob triggered it. [objectMapKey] is
@@ -126,11 +127,11 @@ class EdpAggregatorReportingIntegrationTest {
     )
 
     private val edpStorageList: List<EdpStorage> =
-      qa2026EventGroupRefIdsByEdp.map { (edpName, referenceIds) ->
+      highOverlapEventGroupRefIdsByEdp.map { (edpName, referenceIds) ->
         EdpStorage(
           objectMapKey = "$edpName/event-groups-map/$edpName-event-group.binpb",
-          objectKey = "$edpName/event-groups/$edpName-qa2026-event-group.binpb",
-          blobUri = "gs://$bucket/$edpName/event-groups/$edpName-qa2026-event-group.binpb",
+          objectKey = "$edpName/event-groups/$edpName-high-overlap-event-group.binpb",
+          blobUri = "gs://$bucket/$edpName/event-groups/$edpName-high-overlap-event-group.binpb",
           eventGroupReferenceIds = referenceIds,
         )
       }
@@ -139,11 +140,11 @@ class EdpAggregatorReportingIntegrationTest {
       return object : Statement() {
         override fun evaluate() {
           if (MODEL_LINE.isEmpty()) {
-            logger.info("No QA 2026 model line configured; skipping EventGroup upload.")
+            logger.info("No high overlap model line configured; skipping EventGroup upload.")
           } else {
             runBlocking {
               edpStorageList.forEach { storageClient.delete(bucket, it.objectMapKey) }
-              val allEventGroups = buildEventGroups(qa2026EventGroupMap)
+              val allEventGroups = buildEventGroups(highOverlapEventGroupMap)
               for (edpStorage in edpStorageList) {
                 val groups =
                   allEventGroups.filter {
@@ -152,7 +153,7 @@ class EdpAggregatorReportingIntegrationTest {
                 uploadEventGroups(edpStorage, groups)
                 waitForEventGroupSyncToComplete(edpStorage)
               }
-              logger.info("QA 2026 Event Group Sync completed.")
+              logger.info("High overlap EventGroup sync completed.")
             }
           }
           base.evaluate()
@@ -163,7 +164,7 @@ class EdpAggregatorReportingIntegrationTest {
     private suspend fun waitForEventGroupSyncToComplete(storage: EdpStorage) {
       withTimeout(EVENT_GROUP_SYNC_TIMEOUT) {
         while (storageClient.get(bucket, storage.objectMapKey) == null) {
-          logger.info("Waiting on QA 2026 Event Group Sync to complete...")
+          logger.info("Waiting on high overlap Event Group Sync to complete...")
           delay(EVENT_GROUP_SYNC_POLLING_INTERVAL)
         }
       }
@@ -184,10 +185,10 @@ class EdpAggregatorReportingIntegrationTest {
     private fun buildEventGroups(eventGroupMap: Map<String, EventGroupConfig>): List<EventGroup> {
       return eventGroupMap.flatMap { (referenceId, config) ->
         when (config) {
-          // Every QA 2026 event group carries an entity key: EventGroupSync filters its Kingdom
+          // Every high overlap event group carries an entity key: EventGroupSync filters its Kingdom
           // listing by entity type, so one without a key would be re-created on every sync.
           is EventGroupConfig.LegacySpec ->
-            error("QA 2026 event group $referenceId has no entity key")
+            error("high overlap event group $referenceId has no entity key")
           // One EventGroup per entity key, spanning every date spec. The Kingdom enforces
           // uniqueness on both reference ID and entity key, so a row per date spec would
           // collide.
@@ -239,7 +240,7 @@ class EdpAggregatorReportingIntegrationTest {
     }
   }
 
-  /** Writes the `done` markers that trigger `DataAvailabilitySync` for the QA 2026 impressions. */
+  /** Writes the `done` markers that trigger `DataAvailabilitySync` for the high overlap impressions. */
   private class CreateDoneBlobs : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
@@ -250,21 +251,21 @@ class EdpAggregatorReportingIntegrationTest {
       return object : Statement() {
         override fun evaluate() {
           if (MODEL_LINE.isEmpty()) {
-            logger.info("No QA 2026 model line configured; skipping DONE blobs.")
+            logger.info("No high overlap model line configured; skipping DONE blobs.")
           } else {
             runBlocking {
               val modelLineId =
                 requireNotNull(ModelLineKey.fromName(MODEL_LINE)) {
-                    "QA2026_MODEL_LINE must be a full ModelLine resource name: $MODEL_LINE"
+                    "model_line must be a full ModelLine resource name: $MODEL_LINE"
                   }
                   .modelLineId
               val paths =
-                qa2026DatesByImpressionPath.flatMap { (impressionPath, dates) ->
+                highOverlapDatesByImpressionPath.flatMap { (impressionPath, dates) ->
                   dates.map { date ->
                     "gs://$bucket/$impressionPath/model-line/$modelLineId/$date/done"
                   }
                 }
-              logger.info("Creating ${paths.size} QA 2026 DONE blob(s)...")
+              logger.info("Creating ${paths.size} high overlap DONE blob(s)...")
               writeDoneBlobs(paths)
             }
           }
@@ -408,7 +409,7 @@ class EdpAggregatorReportingIntegrationTest {
 
   @Test
   fun `media type and impression qualification filter report succeeds`() = runBlocking {
-    check(MODEL_LINE.isNotEmpty()) { "QA2026_MODEL_LINE must be set to run this test" }
+    check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
 
     val report =
       reportingSystem.harness.createMediaTypeAndIqfBasicReport(
@@ -607,7 +608,7 @@ class EdpAggregatorReportingIntegrationTest {
       parseTextProto(configFile, EdpaReportingIntegrationTestConfig.getDefaultInstance())
     }
 
-    /** Resource name of the QA 2026 ModelLine, or empty where the dataset is not provisioned. */
+    /** Resource name of the high overlap ModelLine, or empty where the dataset is not provisioned. */
     val MODEL_LINE: String = TEST_CONFIG.modelLine
 
     /** Resolves a workspace-relative path in the test's runfiles. */
@@ -683,12 +684,12 @@ class EdpAggregatorReportingIntegrationTest {
      */
     private val REPORT_EVENT_GROUP_REF_IDS =
       setOf(
-        "ad_group-qa2026-e7-meta-edp7",
-        "ad_group-qa2026-e7-meta-edpa_meta",
-        "ad_group-qa2026-meta-video-edpa_meta-1",
+        "ad_group-high-overlap-e7-meta-edp7",
+        "ad_group-high-overlap-e7-meta-edpa_meta",
+        "ad_group-high-overlap-meta-video-edpa_meta-1",
       )
 
-    private val SINGLE_EDP_EVENT_GROUP_REF_IDS = setOf("ad_group-qa2026-e7-meta-edp7")
+    private val SINGLE_EDP_EVENT_GROUP_REF_IDS = setOf("ad_group-high-overlap-e7-meta-edp7")
 
     /**
      * Highest frequency to request K+ reach for.
@@ -713,7 +714,9 @@ class EdpAggregatorReportingIntegrationTest {
 
     private val IMPRESSION_TEST_DATA_CONFIG: ImpressionTestDataConfig by lazy {
       parseTextProto(
-        ImpressionTestDataConfigs.resolveSpecPath("qa2026_impression_test_data_config.textproto"),
+        ImpressionTestDataConfigs.resolveSpecPath(
+          "high_overlap_impression_test_data_config.textproto"
+        ),
         ImpressionTestDataConfig.getDefaultInstance(),
       )
     }
@@ -751,12 +754,12 @@ class EdpAggregatorReportingIntegrationTest {
       }
     }
 
-    val qa2026EventGroupMap: Map<String, EventGroupConfig> by lazy {
+    val highOverlapEventGroupMap: Map<String, EventGroupConfig> by lazy {
       ImpressionTestDataConfigs.toEventGroupMap(PROVISIONED_CONFIG)
     }
 
-    /** QA 2026 event group reference IDs by EDP, keyed `"${entityType}-${entityId}"`. */
-    val qa2026EventGroupRefIdsByEdp: Map<String, Set<String>> by lazy {
+    /** High overlap event group reference IDs by EDP, keyed `"${entityType}-${entityId}"`. */
+    val highOverlapEventGroupRefIdsByEdp: Map<String, Set<String>> by lazy {
       PROVISIONED_CONFIG.eventGroupsList
         .groupBy { it.edpName }
         .mapValues { (_, eventGroups) ->
@@ -769,7 +772,7 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     /** Every date covered by the provisioned specs, keyed by the EDP's `output_base_path`. */
-    val qa2026DatesByImpressionPath: Map<String, Set<LocalDate>> by lazy {
+    val highOverlapDatesByImpressionPath: Map<String, Set<LocalDate>> by lazy {
       val datesByPath = mutableMapOf<String, MutableSet<LocalDate>>()
       for (eventGroup in PROVISIONED_CONFIG.eventGroupsList) {
         val dates = datesByPath.getOrPut(eventGroup.outputBasePath) { mutableSetOf() }
@@ -792,8 +795,8 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     /** First date the dataset has events for. Empty unless the dataset is configured. */
-    private val qa2026EarliestEventDate: LocalDate by lazy {
-      qa2026DatesByImpressionPath.values.flatten().min()
+    private val highOverlapEarliestEventDate: LocalDate by lazy {
+      highOverlapDatesByImpressionPath.values.flatten().min()
     }
 
     /** Entity types of the reported EventGroups; CMMS defaults `entity_type_in` to `campaign`. */
@@ -816,7 +819,7 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     private val expectedMetrics: Map<String, Map<String, ExpectedMetrics>> by lazy {
-      Qa2026ExpectedReach.computeRangesByGroupAndFilter(
+      HighOverlapExpectedReach.computeRangesByGroupAndFilter(
         PROVISIONED_CONFIG,
         REPORT_EVENT_GROUP_REF_IDS,
         SINGLE_EDP_NAME,
@@ -829,21 +832,21 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     private val expectedPopulationSize: Long by lazy {
-      Qa2026ExpectedReach.populationSize(POPULATION_SPEC)
+      HighOverlapExpectedReach.populationSize(POPULATION_SPEC)
     }
 
     private val provisionModelResources =
-      Qa2026ModelResourcesRule(
+      HighOverlapModelResourcesRule(
         populationSpecProvider = { POPULATION_SPEC },
         populationDataProvider = TEST_CONFIG.populationDataProvider,
         modelLineName = MODEL_LINE,
-        earliestEventDateProvider = { qa2026EarliestEventDate },
+        earliestEventDateProvider = { highOverlapEarliestEventDate },
         kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
         kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
       )
     private val uploadEventGroups = UploadEventGroups()
     private val writeImpressions =
-      WriteQa2026ImpressionsRule(
+      WriteHighOverlapImpressionsRule(
         configProvider = { PROVISIONED_CONFIG },
         populationSpecProvider = { POPULATION_SPEC },
         bucket = TEST_CONFIG.storageBucket,

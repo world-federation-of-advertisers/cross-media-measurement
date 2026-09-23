@@ -45,7 +45,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.common
 import org.wfanet.measurement.api.v2alpha.populationSpec
 
 /**
- * Generates the QA 2026 synthetic data specs.
+ * Generates the high overlap synthetic data specs.
  *
  * The reached VID space is partitioned into one segment per primitive Venn region across four
  * aggregator EDPs, plus a deliberately sub-sigma noise probe. A segment is seeded on exactly the
@@ -55,9 +55,9 @@ import org.wfanet.measurement.api.v2alpha.populationSpec
  * are interleaved in [STRIPE_SIZE]-VID stripes cycling round-robin, so one full cycle fits inside
  * the smallest region and every region carries the full demographic mix.
  *
- * Usage: `GenerateQa2026Specs <output-directory>`
+ * Usage: `GenerateHighOverlapSpecs <output-directory>`
  */
-object GenerateQa2026Specs {
+object GenerateHighOverlapSpecs {
 
   private const val STRIPE_SIZE = 10_000
   private const val TOTAL_POPULATION = 360_000_000L
@@ -290,8 +290,8 @@ object GenerateQa2026Specs {
       ),
     )
 
-  private const val POPULATION_SPEC_FILE = "qa2026_population_spec.textproto"
-  private const val CONFIG_FILE = "qa2026_impression_test_data_config.textproto"
+  private const val POPULATION_SPEC_FILE = "high_overlap_population_spec.textproto"
+  private const val CONFIG_FILE = "high_overlap_impression_test_data_config.textproto"
 
   private val TYPE_REGISTRY: TypeRegistry =
     TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
@@ -316,7 +316,7 @@ object GenerateQa2026Specs {
    * Segments with a single entity key are unsuffixed.
    */
   private fun segmentFileName(segment: Segment, entityIndex: Int): String {
-    val base = "qa2026_seg_${segment.name.replace('-', '_')}"
+    val base = "high_overlap_seg_${segment.name.replace('-', '_')}"
     return if (segment.entityCount == 1) "$base.textproto"
     else "${base}_${entityIndex + 1}.textproto"
   }
@@ -424,8 +424,8 @@ object GenerateQa2026Specs {
 
     return syntheticEventGroupSpec {
       description =
-        "QA 2026 segment ${segment.name}: VIDs ${grouped(vidSlice.start)}-${grouped(vidEnd - 1)}" +
-          " over $flightStart..$flightEnd"
+        "high overlap segment ${segment.name}: VIDs ${grouped(vidSlice.start)}-" +
+          "${grouped(vidEnd - 1)} over $flightStart..$flightEnd"
       for (tranche in 0 until trancheCount) {
         val frequencies = blocks.keys.filter { it.tranche == tranche }.map { it.frequency }.sorted()
         if (frequencies.isEmpty()) continue
@@ -475,15 +475,15 @@ object GenerateQa2026Specs {
     for (segment in SEGMENTS) {
       for (edp in segment.edps) {
         eventGroups += syntheticEventGroup {
-          eventGroupReferenceId = "qa2026-${segment.name}-$edp"
+          eventGroupReferenceId = "high-overlap-${segment.name}-$edp"
           edpName = edp
           outputBasePath = "edp/$edp"
-          outputKey = "qa2026-${segment.name}"
+          outputKey = "high-overlap-${segment.name}"
           for (i in 0 until segment.entityCount) {
             val suffix = if (segment.entityCount == 1) "" else "-${i + 1}"
             entityKeySpecs += entityKeySpec {
               entityType = segment.entityType
-              entityId = "qa2026-${segment.name}-$edp$suffix"
+              entityId = "high-overlap-${segment.name}-$edp$suffix"
               dataSpecResourcePath = segmentFileName(segment, i)
             }
           }
@@ -511,7 +511,7 @@ object GenerateQa2026Specs {
   @JvmStatic
   fun main(args: Array<String>) {
     if (args.size != 1) {
-      System.err.println("Usage: GenerateQa2026Specs <output-directory>")
+      System.err.println("Usage: GenerateHighOverlapSpecs <output-directory>")
       exitProcess(1)
     }
     val outputDir = Paths.get(args[0]).toFile()

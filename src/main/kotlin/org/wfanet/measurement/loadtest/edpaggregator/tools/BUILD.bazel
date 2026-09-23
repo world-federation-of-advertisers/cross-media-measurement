@@ -85,8 +85,8 @@ java_binary(
 )
 
 kt_jvm_library(
-    name = "generate_qa2026_specs",
-    srcs = ["GenerateQa2026Specs.kt"],
+    name = "generate_high_overlap_specs",
+    srcs = ["GenerateHighOverlapSpecs.kt"],
     deps = [
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
@@ -98,8 +98,8 @@ kt_jvm_library(
 )
 
 java_binary(
-    name = "GenerateQa2026Specs",
-    main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateQa2026Specs",
+    name = "GenerateHighOverlapSpecs",
+    main_class = "org.wfanet.measurement.loadtest.edpaggregator.tools.GenerateHighOverlapSpecs",
     visibility = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:__pkg__"],
-    runtime_deps = [":generate_qa2026_specs"],
+    runtime_deps = [":generate_high_overlap_specs"],
 )

@@ -53,7 +53,7 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 
 /**
- * JUnit [TestRule] that ensures the QA 2026 [Population] exists and that the QA 2026 [ModelLine]
+ * JUnit [TestRule] that ensures the high overlap [Population] exists and that the high overlap [ModelLine]
  * has a [ModelRelease] and rollout pointing at it.
  *
  * The ModelLine itself is **not** created here — nothing in this repository creates a ModelLine, so
@@ -69,18 +69,18 @@ import org.wfanet.measurement.common.toProtoDate
  * The Population is keyed by a hash of the serialized spec, so re-runs reuse it and a changed spec
  * provisions a new one automatically.
  *
- * The rule is a **no-op** unless a QA 2026 model line is configured, leaving dev and head runs
- * untouched until their `QA2026_MODEL_LINE` is set.
+ * The rule is a **no-op** unless a high overlap model line is configured, leaving dev and head runs
+ * untouched until their `model_line` is set.
  *
- * @property populationSpecProvider yields the QA 2026 synthetic population spec
+ * @property populationSpecProvider yields the high overlap synthetic population spec
  * @property populationDataProvider resource name of the PDP that owns the Population
- * @property modelLineName resource name of the QA 2026 ModelLine, or empty to disable
+ * @property modelLineName resource name of the high overlap ModelLine, or empty to disable
  * @property earliestEventDateProvider yields the first date the dataset has events for, which the
  *   ModelLine must already be active on
  * @property kingdomPublicApiTarget Kingdom public API target
  * @property kingdomPublicApiCertHost expected DNS-ID in the Kingdom's TLS certificate
  */
-class Qa2026ModelResourcesRule(
+class HighOverlapModelResourcesRule(
   private val populationSpecProvider: () -> PopulationSpec,
   private val populationDataProvider: String,
   private val modelLineName: String,
@@ -93,10 +93,10 @@ class Qa2026ModelResourcesRule(
     return object : Statement() {
       override fun evaluate() {
         if (modelLineName.isEmpty()) {
-          logger.info("No QA 2026 model line configured; skipping QA 2026 model resources.")
+          logger.info("No high overlap model line configured; skipping its model resources.")
         } else if (populationDataProvider.isEmpty()) {
           logger.warning(
-            "No population_data_provider configured; skipping QA 2026 model resources."
+            "No population_data_provider configured; skipping high overlap model resources."
           )
         } else {
           provision()
@@ -111,8 +111,8 @@ class Qa2026ModelResourcesRule(
     val pdpChannel: ManagedChannel = buildChannel(PDP_CERT_FILE, PDP_KEY_FILE)
     val mpChannel: ManagedChannel = buildChannel(MP_CERT_FILE, MP_KEY_FILE)
     try {
-      val qa2026Population = ensurePopulation(pdpChannel)
-      logger.info("QA 2026 Population: ${qa2026Population.name}")
+      val highOverlapPopulation = ensurePopulation(pdpChannel)
+      logger.info("high overlap Population: ${highOverlapPopulation.name}")
 
       val modelLine =
         try {
@@ -120,8 +120,8 @@ class Qa2026ModelResourcesRule(
             .getModelLine(getModelLineRequest { name = modelLineName })
         } catch (e: StatusRuntimeException) {
           throw Exception(
-            "QA2026_MODEL_LINE '$modelLineName' not found. Provision it with the ModelRepository " +
-              "tool before enabling the QA 2026 dataset in this environment.",
+            "ModelLine '$modelLineName' not found. Provision it with the ModelRepository " +
+              "tool before enabling the high overlap dataset in this environment.",
             e,
           )
         }
@@ -131,19 +131,19 @@ class Qa2026ModelResourcesRule(
       // rather than report on a subset.
       val earliestEventDate = earliestEventDateProvider()
       check(activeStart <= earliestEventDate.atStartOfDay(ZoneOffset.UTC).toInstant()) {
-        "ModelLine $modelLineName is active from $activeStart, after the earliest QA 2026 event " +
-          "date $earliestEventDate"
+        "ModelLine $modelLineName is active from $activeStart, after the earliest high overlap " +
+          "event date $earliestEventDate"
       }
 
       // The VID labeling dispatcher selects lines purely by active window, so one reaching back to
-      // the 2021 fixture would also be dispatched for its upload and never finish.
-      val minActiveStart = FIXTURE_2021_LAST_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC)
+      // the low overlap data set would also be dispatched for its upload and never finish.
+      val minActiveStart = LOW_OVERLAP_LAST_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC)
       check(activeStart >= minActiveStart.toInstant()) {
-        "ModelLine $modelLineName is active from $activeStart, which overlaps the 2021 fixture " +
-          "ending $FIXTURE_2021_LAST_DATE. It must start at or after $minActiveStart."
+        "ModelLine $modelLineName is active from $activeStart, which overlaps the low overlap " +
+          "data set ending $LOW_OVERLAP_LAST_DATE. It must start at or after $minActiveStart."
       }
 
-      ensureModelRelease(mpChannel, qa2026Population, modelLine)
+      ensureModelRelease(mpChannel, highOverlapPopulation, modelLine)
     } finally {
       pdpChannel.shutdown()
       mpChannel.shutdown()
@@ -151,7 +151,7 @@ class Qa2026ModelResourcesRule(
   }
 
   /**
-   * Returns the [Population] for the QA 2026 spec, creating it if absent.
+   * Returns the [Population] for the high overlap spec, creating it if absent.
    *
    * The request ID is a hash of the serialized spec, so repeated runs reuse the same Population and
    * a changed spec yields a new one. Protobuf serialization is not guaranteed deterministic across
@@ -291,9 +291,9 @@ class Qa2026ModelResourcesRule(
     private const val MP_CERT_FILE = "mp1_tls.pem"
     private const val MP_KEY_FILE = "mp1_tls.key"
 
-    private const val POPULATION_DESCRIPTION = "QA 2026 synthetic population"
+    private const val POPULATION_DESCRIPTION = "high overlap synthetic population"
 
-    /** Last date of the 2021 fixture, which the QA 2026 line must stay clear of. */
-    private val FIXTURE_2021_LAST_DATE: LocalDate = LocalDate.of(2021, 3, 21)
+    /** Last date of the low overlap data set, which the high overlap line must stay clear of. */
+    private val LOW_OVERLAP_LAST_DATE: LocalDate = LocalDate.of(2021, 3, 21)
   }
 }

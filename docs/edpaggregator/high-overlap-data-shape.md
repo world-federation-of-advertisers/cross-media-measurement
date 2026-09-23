@@ -1,32 +1,33 @@
-# QA Synthetic Data Shape
+# High Overlap Data Shape
 
 ## What Is This?
 
-This describes the shape of the QA synthetic data seeded for the EDP-aggregator
-path, and — more importantly — *why* each part of it is sized the way it is. The
-spec files encode the what; this encodes the reasoning, so that the next person to
-regenerate the data preserves the properties the reports depend on.
+This describes the shape of the high overlap synthetic data seeded for the
+EDP-aggregator path, and — more importantly — *why* each part of it is sized the
+way it is. The spec files encode the what; this encodes the reasoning, so that
+the next person to regenerate the data preserves the properties the reports
+depend on.
 
 The specs are build outputs, not source. They are not checked in; a `genrule`
 produces them from
-`src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateQa2026Specs.kt`,
+`src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateHighOverlapSpecs.kt`,
 and targets consume them through the `:specs` filegroup:
 
 ```shell
-bazel build //src/main/proto/wfa/measurement/loadtest/dataprovider:gen_qa2026_specs
+bazel build //src/main/proto/wfa/measurement/loadtest/dataprovider:gen_high_overlap_specs
 ```
 
 That writes, into the package's output directory:
 
-*   `qa2026_population_spec.textproto` — the `PopulationSpec`
-*   `qa2026_seg_<name>.textproto`, or `qa2026_seg_<name>_<n>.textproto` for a
+*   `high_overlap_population_spec.textproto` — the `PopulationSpec`
+*   `high_overlap_seg_<name>.textproto`, or `high_overlap_seg_<name>_<n>.textproto` for a
     segment whose entity keys partition it — one `SyntheticEventGroupSpec` each
-*   `qa2026_impression_test_data_config.textproto` — the `ImpressionTestDataConfig`
+*   `high_overlap_impression_test_data_config.textproto` — the `ImpressionTestDataConfig`
 
 To change the data, edit the generator. Since runfiles paths are the same for
 generated and source files, tests resolve these exactly as before.
 
-`qa2026_population_spec.textproto` needs particular care: the Population's
+`high_overlap_population_spec.textproto` needs particular care: the Population's
 resource ID is a hash of the spec's serialized bytes, so any semantic change
 provisions a **new** Population and invalidates every expected reach in
 [`EdpAggregatorReportingIntegrationTest`](../../src/test/kotlin/org/wfanet/measurement/integration/k8s/EdpAggregatorReportingIntegrationTest.kt).
@@ -69,7 +70,7 @@ override.
 
 ## Reached Population
 
-`qa2026_population_spec.textproto` declares **360,000,000** VIDs, of which
+`high_overlap_population_spec.textproto` declares **360,000,000** VIDs, of which
 **10,610,000** are reachable.
 
 The full 360M is not reached; the remainder is a single filler subpopulation that
@@ -213,7 +214,7 @@ filters select real, distinct subsets:
 
 ## Event Groups
 
-`qa2026_impression_test_data_config.textproto` declares one event group per
+`high_overlap_impression_test_data_config.textproto` declares one event group per
 **(segment, EDP)** pair — 33 in total — spread across `campaign`, `ad_group` and
 `creative-id` entity key types, including multi-entity groups.
 
@@ -268,7 +269,7 @@ destroy the Venn topology entirely, silently. **Memoized** is not reproducible
 offline at all, so expected values could not be computed, and it drags in the
 rank-index retention rules and the three-phase dispatch.
 
-Writing pre-labeled sidesteps both: no VID model is provisioned for the 2026 model
+Writing pre-labeled sidesteps both: no VID model is provisioned for the high overlap model
 line, no rank index exists, and Phases 0 and 1 never run.
 
 The two trigger paths stay separate: `done` markers under the raw-impressions
@@ -278,10 +279,11 @@ labeling pipeline.
 
 ### But the 2021 Fixture's Labeling Still Gates This Data
 
-`AwaitVidLabelingRule` waits for the 2021 fixture's one pipelined date to finish
-labeling across all three `cloudtest-*` model lines, and it runs **before** the QA
-2026 rules in the same `chainRulesSequentially` chain. A stall in that path
-therefore blocks 2026 seeding even though the two share nothing.
+`AwaitVidLabelingRule` waits for the low overlap data set's one pipelined date
+to finish labeling across all three `cloudtest-*` model lines, and it runs
+**before** the high overlap rules in the same `chainRulesSequentially` chain. A
+stall in that path therefore blocks high overlap seeding even though the two
+share nothing.
 
 This is worth knowing because such stalls happen: a parent
 `RawImpressionUploadModelLine` can sit in `CREATED` with all of its
@@ -300,10 +302,10 @@ Two correctness tests run against a deployed environment, and they exercise
 | --- | --- | --- | --- |
 | EDPs | classic simulators `edp1`–`edp6` | aggregator `edp7`, `edpa_meta`, … | aggregator `edp7`, `edpa_meta`, … |
 | Data delivery | generated **in-process** by `SyntheticGeneratorEventQuery` from a spec; nothing is stored | encrypted **blobs in GCS**, read by the results fulfiller | same as `EdpAggregatorCorrectnessTest` |
-| Dataset | 2021 fixture | 2021 fixture | **QA 2026** |
+| Dataset | low overlap | low overlap | **high overlap** |
 | Asserts at | CMMS `Measurement` | CMMS `Measurement` | Reporting `BasicReport` |
 
-The 2026 data is blob-delivered, so the simulator test has no mechanism to
+The high overlap data is blob-delivered, so the simulator test has no mechanism to
 consume it — those EDPs compute events on demand rather than reading storage.
 This is also a deliberate scope boundary: expanding the classic simulators'
 volume or date coverage is explicitly out of scope, because the aggregator path
@@ -311,16 +313,16 @@ is the one production depends on and the one that could not be validated. The
 classic simulators are also being retired, so building against them would be
 building against a path that is going away.
 
-The QA 2026 dataset therefore uses the aggregator path, but it does **not** live
+The high overlap dataset therefore uses the aggregator path, but it does **not** live
 in `EdpAggregatorCorrectnessTest`. It has its own test, `EdpAggregatorReportingIntegrationTest`, which
 owns the whole chain end to end: it provisions the model resources, registers the
 EventGroups, writes the impressions, and only then reads back a `BasicReport`.
-`EdpAggregatorCorrectnessTest` is left on the 2021 fixture, untouched.
+`EdpAggregatorCorrectnessTest` is left on the low overlap data set, untouched.
 
 The split exists because the two datasets have no reason to share a test run:
 
 *   **Runtime.** Both are cloud tests against a deployed environment, and folding
-    2026 into the existing one made a long job much longer. Separate jobs run in
+    high overlap into the existing one made a long job much longer. Separate jobs run in
     parallel instead of in series.
 *   **Self-containment.** Because `EdpAggregatorReportingIntegrationTest` creates everything it reads,
     the ordering it depends on is internal to the test rather than an implicit
@@ -330,7 +332,7 @@ The split exists because the two datasets have no reason to share a test run:
     Consumer actually uses — campaign group, per-line-item results, media type
     and impression qualification filter breakdowns — over the aggregator path.
 
-`EdpAggregatorReportingIntegrationTest` also needs none of the 2021 fixture's apparatus: not its model
+`EdpAggregatorReportingIntegrationTest` also needs none of the low overlap data set's apparatus: not its model
 line, not its VID-labeling configuration, and not its config file. It carries its
 own `edpa_reporting_integration_test_config.textproto`.
 
@@ -341,11 +343,12 @@ one EDP race. The job is gated on `run-tests`, like every other test in
 `update-cmms`. To update an environment without running it, dispatch `update-cmms`
 with `run-tests: false` and then launch whichever test workflow you want directly.
 
-Opting an environment in is a second, independent switch: the `QA2026_MODEL_LINE`
-GitHub variable, which the workflow passes as the `qa2026_model_line` Bazel Make
-var. That lands in the generated `edpa_reporting_integration_test_config.textproto`
-as `model_line`, so Bazel sees it as a build input and a changed ModelLine
-re-runs the test rather than reusing a cached result. Every setup rule no-ops
+Opting an environment in is a second, independent switch: the
+`HIGH_OVERLAP_MODEL_LINE` GitHub variable, which the workflow passes as the
+`high_overlap_model_line` Bazel Make var. That lands in the generated
+`edpa_reporting_integration_test_config.textproto` as `model_line`, so Bazel sees
+it as a build input and a changed ModelLine re-runs the test rather than reusing
+a cached result. Every setup rule no-ops
 while it is empty, so an environment is unaffected until its ModelLine has been
 provisioned. The test method itself does not no-op — it fails fast if the field
 is empty, so a misconfigured environment reports an error rather than a silent
@@ -353,7 +356,7 @@ pass.
 
 ## Model Line
 
-The 2026 data uses its **own** `ModelLine` and its own Kingdom `Population`.
+The high overlap data uses its **own** `ModelLine` and its own Kingdom `Population`.
 
 A `Population` is resolved per model line — the PDP walks ModelLine → latest
 ModelRollout → ModelRelease → Population — so sharing a line with the 2021
@@ -367,9 +370,9 @@ datasets in separate directory trees.
 
 *   It must be at or before the earliest event date, or the correctness test's
     active-window check fails fast.
-*   It must stay **after the 2021 fixture's dates**. The VID labeling dispatcher
+*   It must stay **after the low overlap data set's dates**. The VID labeling dispatcher
     decides which model lines to process purely from
-    `[active_start_time, active_end_time)`, so a 2026 line active in March 2021
+    `[active_start_time, active_end_time)`, so a high overlap line active in March 2021
     would also be dispatched for the 2021 raw-impression upload. That line has no
     VID model blob by design, so the work could never finish and
     `AwaitVidLabelingRule` would time out — breaking the 2021 test.
@@ -382,7 +385,7 @@ an operator, using the `ModelRepository` tool, and referenced by resource name.
 
 `model-lines create` requires `--population`, because it creates the ModelLine, a
 `ModelRelease` and a `ModelRollout` together. Bootstrap it against any existing
-Population: `Qa2026ModelResourcesRule` then creates the correct 2026 Population
+Population: `HighOverlapModelResourcesRule` then creates the correct high overlap Population
 and attaches its own release and rollout, which supersedes the bootstrap because
 the PDP resolves the **most recent** rollout on a line.
 
@@ -400,7 +403,7 @@ unattached Population makes `population_size` wrong and nothing else.
 
 The fulfiller builds a `VidIndexMap` from a population spec blob to turn VIDs
 into frequency-vector slots, so the line must appear in `edpa_model_lines` and
-map to the 2026 spec in `edpa_model_line_population_spec_blob_uris`. Without the
+map to the high overlap spec in `edpa_model_line_population_spec_blob_uris`. Without the
 first it throws `NoSuchElementException`; with the wrong spec,
 `VidNotFoundException` on the first VID past the default spec's range.
 

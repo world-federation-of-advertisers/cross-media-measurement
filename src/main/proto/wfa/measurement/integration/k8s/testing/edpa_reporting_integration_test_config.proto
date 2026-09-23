@@ -23,7 +23,7 @@ option java_multiple_files = true;
 option java_outer_classname = "EdpaReportingIntegrationTestConfigProto";
 
 // Configuration for the EDPA reporting integration test, which provisions the
-// QA 2026 dataset and reports over it.
+// high overlap dataset and reports over it.
 message EdpaReportingIntegrationTestConfig {
   // gRPC target of Kingdom public API server.
   string kingdom_public_api_target = 1;
@@ -68,10 +68,10 @@ message EdpaReportingIntegrationTestConfig {
   // If not specified, standard TLS DNS-ID derivation will be used.
   string access_public_api_cert_host = 11;
 
-  // ModelLine the QA 2026 dataset is generated against.
+  // ModelLine the high overlap dataset is generated against.
   //
-  // Empty where the environment has no QA 2026 ModelLine, which disables all
-  // QA 2026 seeding and makes the test a no-op.
+  // Empty where the environment has no high overlap ModelLine, which disables all
+  // high overlap seeding and makes the test a no-op.
   string model_line = 12
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
@@ -80,7 +80,7 @@ message EdpaReportingIntegrationTestConfig {
   // Empty defaults to the EDPs every environment has.
   string edp_names = 13;
 
-  // DataProvider that owns the QA 2026 Population.
+  // DataProvider that owns the high overlap Population.
   string population_data_provider = 14
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
 
