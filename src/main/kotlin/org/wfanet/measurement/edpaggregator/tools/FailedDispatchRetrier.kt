@@ -227,16 +227,31 @@ class FailedDispatchRetrier(
             .filter { it.state != VidLabelingJob.State.SUCCEEDED }
             .map { WorkItemIds.forVidLabeler(it.name) }
         if (unfinishedIds.isNotEmpty()) {
-          if (unfinishedIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }) {
+          val lineages = unfinishedIds.map { findRetryLineage(it, failureAttemptId) }
+          if (
+            lineages.all { it == RetryLineage.ACTIVE_OR_SUCCEEDED } ||
+              (phasePrecedes(phase, currentState) && lineages.all { it != RetryLineage.MISSING })
+          ) {
             return phase
           }
           continue
         }
+        val completedLineages =
+          jobs
+            .map { WorkItemIds.forVidLabeler(it.name) }
+            .map { findRetryLineage(it, failureAttemptId) }
+        if (completedLineages.any { it != RetryLineage.MISSING }) return phase
+        continue
       }
       val originalWorkItemIds = workItemIdsForPhaseOrEmpty(uploadName, cmmsModelLine, phase)
+      val lineages = originalWorkItemIds.map { findRetryLineage(it, failureAttemptId) }
+      if (lineages.isNotEmpty() && lineages.all { it == RetryLineage.ACTIVE_OR_SUCCEEDED }) {
+        return phase
+      }
       if (
-        originalWorkItemIds.isNotEmpty() &&
-          originalWorkItemIds.all { retryWorkItemIsActiveOrSucceeded(it, failureAttemptId) }
+        phasePrecedes(phase, currentState) &&
+          lineages.isNotEmpty() &&
+          lineages.all { it != RetryLineage.MISSING }
       ) {
         return phase
       }
@@ -244,11 +259,12 @@ class FailedDispatchRetrier(
     return null
   }
 
-  private suspend fun retryWorkItemIsActiveOrSucceeded(
+  private suspend fun findRetryLineage(
     originalWorkItemId: String,
     failureAttemptId: String,
-  ): Boolean {
+  ): RetryLineage {
     var retryWorkItemId = RequestIds.forRetriedWorkItem(originalWorkItemId, failureAttemptId)
+    var retryExists = false
     while (true) {
       val retryWorkItem =
         try {
@@ -256,13 +272,16 @@ class FailedDispatchRetrier(
             workItemsStub.getWorkItem(getWorkItemRequest { name = "workItems/$retryWorkItemId" })
           }
         } catch (e: StatusException) {
-          if (e.status.code == Status.Code.NOT_FOUND) return false
+          if (e.status.code == Status.Code.NOT_FOUND) {
+            return if (retryExists) RetryLineage.FAILED else RetryLineage.MISSING
+          }
           throw e
         }
+      retryExists = true
       when (retryWorkItem.state) {
         WorkItem.State.QUEUED,
         WorkItem.State.RUNNING,
-        WorkItem.State.SUCCEEDED -> return true
+        WorkItem.State.SUCCEEDED -> return RetryLineage.ACTIVE_OR_SUCCEEDED
         WorkItem.State.FAILED -> {
           val failureVersion =
             "${retryWorkItem.updateTime.seconds}:${retryWorkItem.updateTime.nanos}"
@@ -274,6 +293,33 @@ class FailedDispatchRetrier(
       }
     }
   }
+
+  private fun phasePrecedes(
+    phase: RawImpressionUploadModelLine.State,
+    currentState: RawImpressionUploadModelLine.State,
+  ): Boolean =
+    when (phase) {
+      RawImpressionUploadModelLine.State.POOL_ASSIGNING ->
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.RANKING,
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      RawImpressionUploadModelLine.State.RANKING ->
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      RawImpressionUploadModelLine.State.LABELING ->
+        currentState == RawImpressionUploadModelLine.State.COMPLETED
+      RawImpressionUploadModelLine.State.CREATED,
+      RawImpressionUploadModelLine.State.COMPLETED,
+      RawImpressionUploadModelLine.State.FAILED,
+      RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,
+      RawImpressionUploadModelLine.State.UNRECOGNIZED -> false
+    }
 
   /**
    * The furthest phase [cmmsModelLine] under [uploadName] reached, inferred from which per-phase
@@ -546,4 +592,10 @@ class FailedDispatchRetrier(
     val phase: RawImpressionUploadModelLine.State,
     val workItemIds: List<String>,
   )
+
+  private enum class RetryLineage {
+    MISSING,
+    ACTIVE_OR_SUCCEEDED,
+    FAILED,
+  }
 }
