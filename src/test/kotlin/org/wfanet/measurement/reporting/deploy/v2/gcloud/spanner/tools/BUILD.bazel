@@ -39,6 +39,19 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "VidLabelingTraceTest",
+    srcs = ["VidLabelingTraceTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:vid_labeling_trace"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingTraceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
     name = "KingdomReportTraceResolverTest",
     srcs = ["KingdomReportTraceResolverTest.kt"],
     associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],
