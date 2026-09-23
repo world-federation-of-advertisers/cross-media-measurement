@@ -229,12 +229,15 @@ class ResultsFulfillerParamsValidatorTest {
   }
 
   @Test
-  fun `a TrusTeeV2 impression count refuses a cap mode it cannot read`() {
+  fun `a TrusTeeV2 impression count refuses a clip outside the noised mode`() {
     val invalidParams =
       VALID_PARAMS.copy {
-        impressionCapMode = ResultsFulfillerParams.ImpressionCapMode.USE_MEASUREMENT_SPEC_CAP
-        impressionMaxFrequencyPerUser = 0
-        trusTeeV2Config = ResultsFulfillerParamsKt.trusTeeV2Config { includeImpressionCount = true }
+        trusTeeV2Config =
+          ResultsFulfillerParamsKt.trusTeeV2Config {
+            impressionCountMode =
+              ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode.UNNOISED
+            maxFrequencyPerUser = 3
+          }
       }
 
     val exception =
@@ -242,16 +245,18 @@ class ResultsFulfillerParamsValidatorTest {
         ResultsFulfillerParamsValidator.validate(invalidParams)
       }
 
-    assertThat(exception).hasMessageThat().contains("MultiMeasurementSpec carries no cap")
+    assertThat(exception).hasMessageThat().contains("read only under NOISED")
   }
 
   @Test
-  fun `a TrusTeeV2 impression count passes validation under an explicit cap mode`() {
+  fun `a TrusTeeV2 impression count passes validation under the noised mode`() {
     ResultsFulfillerParamsValidator.validate(
       VALID_PARAMS.copy {
-        impressionCapMode = ResultsFulfillerParams.ImpressionCapMode.UNCAPPED
-        impressionMaxFrequencyPerUser = 0
-        trusTeeV2Config = ResultsFulfillerParamsKt.trusTeeV2Config { includeImpressionCount = true }
+        trusTeeV2Config =
+          ResultsFulfillerParamsKt.trusTeeV2Config {
+            impressionCountMode = ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode.NOISED
+            maxFrequencyPerUser = 3
+          }
       },
       DATA_PROVIDER,
     )

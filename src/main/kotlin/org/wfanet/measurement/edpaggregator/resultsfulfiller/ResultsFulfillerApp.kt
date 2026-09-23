@@ -222,7 +222,8 @@ class ResultsFulfillerApp(
         supportedMultiPartyNoiseMechanisms = supportedMultiPartyNoiseMechanisms,
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
-        includeTrusTeeV2ImpressionCount = fulfillerParams.trusTeeV2Config.includeImpressionCount,
+        trusTeeV2ImpressionCountMode = fulfillerParams.trusTeeV2Config.impressionCountMode,
+        trusTeeV2MaxFrequencyPerUser = fulfillerParams.trusTeeV2Config.maxFrequencyPerUser,
       )
     val modelLineInfoMapWithAliases =
       if (fulfillerParams.modelLineMapMap.isEmpty()) {

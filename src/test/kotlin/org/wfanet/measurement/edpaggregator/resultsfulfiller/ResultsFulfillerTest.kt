@@ -180,6 +180,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
+import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
@@ -3403,8 +3404,8 @@ class ResultsFulfillerTest {
   private suspend fun fulfillTrusTeeV2Requisition(
     resultMinimumThresholds: ResultMinimumThresholds?,
     vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
-    trusTeeV2CapMode: ImpressionCapMode? = null,
-    trusTeeV2Cap: Int? = null,
+    trusTeeV2ImpressionCountMode: ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
+    trusTeeV2MaxFrequencyPerUser: Int = 0,
   ): TrusTeeV2Fulfillment {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()
@@ -3472,7 +3473,7 @@ class ResultsFulfillerTest {
         dataProviderSigningKeyHandle = EDP_RESULT_SIGNING_KEY,
         noiserSelector = ContinuousGaussianNoiseSelector(),
         resultMinimumThresholds = resultMinimumThresholds,
-        overrideImpressionMaxFrequencyPerUser = trusTeeV2Cap,
+        overrideImpressionMaxFrequencyPerUser = null,
         supportedMultiPartyNoiseMechanisms = emptySet(),
         trusTeeConfig =
           TrusTeeConfig(
@@ -3482,8 +3483,8 @@ class ResultsFulfillerTest {
             awsKmsParams = null,
           ),
         kekUriToKeyNameMap = emptyMap(),
-        impressionCapMode = trusTeeV2CapMode ?: ImpressionCapMode.UNSPECIFIED,
-        includeTrusTeeV2ImpressionCount = trusTeeV2CapMode != null,
+        trusTeeV2ImpressionCountMode = trusTeeV2ImpressionCountMode,
+        trusTeeV2MaxFrequencyPerUser = trusTeeV2MaxFrequencyPerUser,
       )
 
     val groupedRequisitions = loadGroupedRequisitions(requisitionsTmpPath)
@@ -3603,12 +3604,12 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `runWork sends an uncapped TrusTeeV2 impression count`() = runBlocking {
+  fun `runWork sends an unnoised TrusTeeV2 impression count`() = runBlocking {
     val fulfillment =
       fulfillTrusTeeV2Requisition(
         resultMinimumThresholds = null,
         vidCounts = skewedVidCounts,
-        trusTeeV2CapMode = ImpressionCapMode.UNCAPPED,
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.UNNOISED,
       )
 
     val details = decryptFulfillmentDetails(fulfillment)
@@ -3619,13 +3620,13 @@ class ResultsFulfillerTest {
   }
 
   @Test
-  fun `runWork sends a capped TrusTeeV2 impression count`() = runBlocking {
+  fun `runWork sends a clipped and noised TrusTeeV2 impression count`() = runBlocking {
     val fulfillment =
       fulfillTrusTeeV2Requisition(
         resultMinimumThresholds = null,
         vidCounts = skewedVidCounts,
-        trusTeeV2CapMode = ImpressionCapMode.CUSTOM_CAP,
-        trusTeeV2Cap = 3,
+        trusTeeV2ImpressionCountMode = ImpressionCountMode.NOISED,
+        trusTeeV2MaxFrequencyPerUser = 3,
       )
 
     val details = decryptFulfillmentDetails(fulfillment)

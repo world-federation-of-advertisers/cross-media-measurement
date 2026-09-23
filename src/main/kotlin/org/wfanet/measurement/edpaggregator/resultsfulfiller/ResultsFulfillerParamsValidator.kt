@@ -124,9 +124,10 @@ object ResultsFulfillerParamsValidator {
       }
     }
 
-    if (params.trusTeeV2Config.includeImpressionCount) {
-      requireTrusTeeV2CapModeSupported(params.impressionCapMode)
-    }
+    requireTrusTeeV2ImpressionCountConfig(
+      params.trusTeeV2Config.impressionCountMode,
+      params.trusTeeV2Config.maxFrequencyPerUser,
+    )
   }
 
   private fun NoiseType.isSupported(): Boolean {

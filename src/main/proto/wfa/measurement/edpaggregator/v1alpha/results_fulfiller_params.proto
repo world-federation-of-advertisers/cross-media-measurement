@@ -219,29 +219,38 @@ message ResultsFulfillerParams {
 
   // Configuration for the `TrusTeeV2` protocol.
   message TrusTeeV2Config {
-    // Send an impression count alongside the frequency vector.
+    // How the impression count carried alongside the frequency vector is
+    // built.
     //
     // The count covers the whole population rather than the sampling interval
     // the vector covers, so it carries no sampling error.
+    enum ImpressionCountMode {
+      // No count is sent. The TEE derives one from the frequency vector.
+      UNSPECIFIED = 0;
+
+      // The raw uncapped total, released for the TEE to noise once per
+      // released figure. That is fewer draws than noising once per
+      // requisition, and the TEE already holds the vector the count
+      // summarizes. No per-user clip accompanies it.
+      UNNOISED = 1;
+
+      // Clipped and noised by this `DataProvider` with
+      // DETERMINISTIC_TRUNCATED_LAPLACE, whose parameters are compiled into
+      // the attested image. CONTINUOUS_GAUSSIAN needs privacy params from the
+      // `MeasurementSpec`, and a `MultiMeasurementSpec` carries none.
+      NOISED = 2;
+    }
+
+    ImpressionCountMode impression_count_mode = 1;
+
+    // The per-user clip under NOISED, between 1 and 127.
     //
-    // Clipping follows `impression_cap_mode` and
-    // `impression_max_frequency_per_user`. `noise_params` is not read here:
-    // the cap mode decides who noises the count, since only one mechanism is
-    // available to each.
-    //
-    // UNCAPPED has no per-user bound to calibrate a sampler to, so the count
-    // goes out unnoised for the TEE to noise once per released figure. That is
-    // fewer draws than noising once per requisition, and the TEE already holds
-    // the vector the count summarizes.
-    //
-    // CUSTOM_CAP and DYNAMIC are noised here with
-    // DETERMINISTIC_TRUNCATED_LAPLACE, whose parameters are compiled into the
-    // attested image. CONTINUOUS_GAUSSIAN needs privacy params from the
-    // `MeasurementSpec`, and a `MultiMeasurementSpec` carries none.
-    //
-    // USE_MEASUREMENT_SPEC_CAP cannot be used here for the same reason: a
-    // `MultiMeasurementSpec` carries no cap to read.
-    bool include_impression_count = 1;
+    // A frequency vector cell saturates at the largest signed byte, so a
+    // larger clip cannot be applied. Unset clips dynamically, choosing the
+    // clip from the frequency distribution, which reads the data and so is
+    // reported as a variance rather than as a clip. Must be unset under the
+    // other modes.
+    int32 max_frequency_per_user = 2;
   }
 
   // `TrusTeeV2` configuration.
