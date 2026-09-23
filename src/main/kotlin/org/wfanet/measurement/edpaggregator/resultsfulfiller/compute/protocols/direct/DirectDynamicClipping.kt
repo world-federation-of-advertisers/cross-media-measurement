@@ -59,12 +59,14 @@ private const val BAR_SENSITIVITY = 1.0
  *   vector so a re-run yields the same clip and the same count. The draws stay Gaussian, which
  *   leaves the calibration, the stopping rule and the remaining-charge weighting as analyzed.
  *
- * @param dpParams the measurement's privacy params, unused by the deterministic mechanism.
+ * @param dpParams the measurement's privacy params, required by
+ *   [DirectNoiseMechanism.CONTINUOUS_GAUSSIAN] and null for the deterministic mechanism, which
+ *   charges the params compiled into this image.
  */
 fun computeDirectDynamicallyClippedImpressions(
   directNoiseMechanism: DirectNoiseMechanism,
   frequencyData: IntArray,
-  dpParams: DpParams,
+  dpParams: DpParams?,
   vidSamplingIntervalWidth: Double,
   resultMinimumThresholds: ResultMinimumThresholds?,
 ): DynamicallyClippedImpressions {
@@ -72,7 +74,10 @@ fun computeDirectDynamicallyClippedImpressions(
   val noiseSource: DynamicClippingNoiseSource
   when (directNoiseMechanism) {
     DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> {
-      queryDpParams = dpParams
+      queryDpParams =
+        requireNotNull(dpParams) {
+          "$directNoiseMechanism requires the measurement's privacy params"
+        }
       noiseSource = StochasticStandardNormalNoiseSource()
     }
     // TODO(world-federation-of-advertisers/cross-media-measurement#4401): Rename this mechanism

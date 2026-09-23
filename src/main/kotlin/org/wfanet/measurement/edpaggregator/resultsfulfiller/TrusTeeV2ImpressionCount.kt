@@ -29,7 +29,6 @@ import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.computeDirectDynamicallyClippedImpressions
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TrusTeeV2Config
 import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
-import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 /** The clip a frequency vector cell can represent, since a cell is one signed byte. */
 private const val MAX_REPRESENTABLE_CLIP = 127
@@ -98,8 +97,7 @@ fun buildTrusTeeV2FulfillmentDetails(
             computeDirectDynamicallyClippedImpressions(
               directNoiseMechanism = DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
               frequencyData = readFrequencyData(frequencyVector),
-              // Unread for this mechanism, which takes its parameters from the attested image.
-              dpParams = DpParams(1.0, 1.0),
+              dpParams = null,
               // The count spans the whole population, so nothing scales it.
               vidSamplingIntervalWidth = 1.0,
               // This count is not thresholded here.
