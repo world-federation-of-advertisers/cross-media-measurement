@@ -38,8 +38,8 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 
 /**
- * JUnit [TestRule] that writes the high overlap synthetic dataset as pre-labeled impressions, stamped
- * with the 2026 model line.
+ * JUnit [TestRule] that writes the high overlap synthetic dataset as pre-labeled impressions,
+ * stamped with the 2026 model line.
  *
  * This is **additive**: it writes under its own model line and its own date window, so the 2021
  * fixture's event groups, specs and blobs are untouched. Impressions are stored under
@@ -87,8 +87,8 @@ class WriteHighOverlapImpressionsRule(
   private val gcpKmsKekUriByEdp: Map<String, String> =
     mapOf(EDP7_NAME to edp7KekUri.ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() })
 
-  // Resolved only once the rule actually runs, so environments without a high overlap model line never
-  // parse the specs and a malformed one cannot break the low overlap data set's run.
+  // Resolved only once the rule actually runs, so environments without a high overlap model line
+  // never parse the specs and a malformed one cannot break the low overlap data set's run.
   private val config: ImpressionTestDataConfig by lazy { configProvider() }
   private val populationSpec: PopulationSpec by lazy { populationSpecProvider() }
 
@@ -209,9 +209,9 @@ class WriteHighOverlapImpressionsRule(
 
   /**
    * Generates the per-date entity-keyed shards for an event group, stamping each with its own
-   * entity key. Every high overlap event group carries at least one entity key: `EventGroupSync` filters
-   * its existence check by entity type, so a group without one is invisible to that check and is
-   * created again on every sync.
+   * entity key. Every high overlap event group carries at least one entity key: `EventGroupSync`
+   * filters its existence check by entity type, so a group without one is invisible to that check
+   * and is created again on every sync.
    */
   private fun generateShards(
     eventGroup: ImpressionTestDataConfig.SyntheticEventGroup

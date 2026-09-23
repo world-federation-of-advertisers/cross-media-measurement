@@ -96,8 +96,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * The rules below provision the high overlap synthetic dataset the report is computed over. It is
  * pre-labeled and carries its own Population, ModelLine and EventGroups, so none of the VID
  * labeling pipeline or low overlap data set that `EdpAggregatorCorrectnessTest` sets up is needed
- * here.
- * Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
+ * here. Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
  * ModelLine has been provisioned.
  */
 class EdpAggregatorReportingIntegrationTest {
@@ -185,8 +184,8 @@ class EdpAggregatorReportingIntegrationTest {
     private fun buildEventGroups(eventGroupMap: Map<String, EventGroupConfig>): List<EventGroup> {
       return eventGroupMap.flatMap { (referenceId, config) ->
         when (config) {
-          // Every high overlap event group carries an entity key: EventGroupSync filters its Kingdom
-          // listing by entity type, so one without a key would be re-created on every sync.
+          // Every high overlap event group carries an entity key: EventGroupSync filters its
+          // Kingdom listing by entity type, so one without a key would be re-created on every sync.
           is EventGroupConfig.LegacySpec ->
             error("high overlap event group $referenceId has no entity key")
           // One EventGroup per entity key, spanning every date spec. The Kingdom enforces
@@ -240,7 +239,9 @@ class EdpAggregatorReportingIntegrationTest {
     }
   }
 
-  /** Writes the `done` markers that trigger `DataAvailabilitySync` for the high overlap impressions. */
+  /**
+   * Writes the `done` markers that trigger `DataAvailabilitySync` for the high overlap impressions.
+   */
   private class CreateDoneBlobs : TestRule {
 
     private val bucket = TEST_CONFIG.storageBucket
@@ -608,7 +609,9 @@ class EdpAggregatorReportingIntegrationTest {
       parseTextProto(configFile, EdpaReportingIntegrationTestConfig.getDefaultInstance())
     }
 
-    /** Resource name of the high overlap ModelLine, or empty where the dataset is not provisioned. */
+    /**
+     * Resource name of the high overlap ModelLine, or empty where the dataset is not provisioned.
+     */
     val MODEL_LINE: String = TEST_CONFIG.modelLine
 
     /** Resolves a workspace-relative path in the test's runfiles. */

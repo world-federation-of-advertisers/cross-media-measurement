@@ -53,8 +53,8 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 
 /**
- * JUnit [TestRule] that ensures the high overlap [Population] exists and that the high overlap [ModelLine]
- * has a [ModelRelease] and rollout pointing at it.
+ * JUnit [TestRule] that ensures the high overlap [Population] exists and that the high overlap
+ * [ModelLine] has a [ModelRelease] and rollout pointing at it.
  *
  * The ModelLine itself is **not** created here — nothing in this repository creates a ModelLine, so
  * it is provisioned once per environment by an operator and looked up by resource name. Because

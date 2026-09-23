@@ -28,8 +28,8 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 
 /**
- * Expected reach for the high overlap media-type and impression-qualification-filter report, derived
- * from the synthetic specs rather than from the impressions the EDP Aggregator reads.
+ * Expected reach for the high overlap media-type and impression-qualification-filter report,
+ * derived from the synthetic specs rather than from the impressions the EDP Aggregator reads.
  *
  * Reach is the number of distinct VIDs matching a filter over the reporting interval, unscaled: the
  * measured value is already scaled back up from the VID sampling interval, which affects only the
