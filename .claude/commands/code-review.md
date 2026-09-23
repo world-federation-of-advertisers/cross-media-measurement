@@ -16,9 +16,9 @@ To do this, follow these steps precisely:
 
 1. Read CLAUDE.md first
 
-2. View the pull request and obtain its title, description, and diff. Summarize the changes for your own context.
+2. View the pull request and obtain its title, description, and diff. Read the title and body of every issue referenced by a non-`NA` `Issue:` trailer in the PR description. Summarize the changes and issue context for your own use.
 
-3. Launch one reviewer agent to independently review the changes. Give it the PR title and description, and ask it to return a list of issues where each issue includes a description and the reason it was flagged (e.g. "CLAUDE.md adherence", "bug"). The reviewer should:
+3. Launch one reviewer agent to independently review the changes. Give it the PR title, description, and referenced issue context, and ask it to return a list of issues where each issue includes a description and the reason it was flagged (e.g. "CLAUDE.md adherence", "bug"). The reviewer should:
 
    - Audit changes for compliance with applicable CLAUDE.md files. When evaluating a file, only consider CLAUDE.md files that share its directory or a parent directory.
    - Scan for obvious bugs in the diff, including security issues and incorrect logic.
