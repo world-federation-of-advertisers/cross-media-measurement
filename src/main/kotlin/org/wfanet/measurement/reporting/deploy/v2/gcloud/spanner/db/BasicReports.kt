@@ -226,6 +226,19 @@ fun AsyncDatabaseClient.TransactionContext.setExternalReportId(
   }
 }
 
+/** Buffers an update mutation that sets ExternalReportId without changing BasicReport state. */
+fun AsyncDatabaseClient.TransactionContext.updateExternalReportId(
+  measurementConsumerId: Long,
+  basicReportId: Long,
+  externalReportId: String,
+) {
+  bufferUpdateMutation("BasicReports") {
+    set("MeasurementConsumerId").to(measurementConsumerId)
+    set("BasicReportId").to(basicReportId)
+    set("ExternalReportId").to(externalReportId)
+  }
+}
+
 /** Buffers an update mutation that sets BasicReportResultDetails for the BasicReports table. */
 fun AsyncDatabaseClient.TransactionContext.updateBasicReportResultDetails(
   measurementConsumerId: Long,

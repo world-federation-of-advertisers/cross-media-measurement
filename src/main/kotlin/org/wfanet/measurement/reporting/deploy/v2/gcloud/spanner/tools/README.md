@@ -3,6 +3,77 @@
 Command-line tools for Reporting operators that act directly on the Reporting
 databases.
 
+## `BackfillBasicReportExternalReportIds`
+
+Backfills `BasicReport.external_report_id` on stored `BasicReport`s.
+
+`BasicReport`s written through the internal `InsertBasicReport` method may omit
+this field even when an associated `Report` exists. Dashboard queries use the
+field as a report key, so missing values cause unrelated reports to be grouped
+under the same null key and prevent requisition metadata from joining to the
+report.
+
+Run the tool with `--help` for usage information.
+
+### What it does
+
+Every `BasicReport` in state `SUCCEEDED`, across all `MeasurementConsumer`s, is
+examined one `MeasurementConsumer` at a time and one page at a time. Use
+`--cmms-measurement-consumer-id` or `--create-time-after` to restrict the scan.
+
+For each `BasicReport` missing `external_report_id`, the tool reads the
+associated `Report` from Reporting Postgres using either of these explicit
+links:
+
+1.  `Report.details.basic_report` equals the full `BasicReport` resource name.
+2.  `Report.create_report_request_id` equals the stored
+    `BasicReport.create_report_request_id`.
+
+Some integrations deliberately reuse the Report's external ID as the
+BasicReport's external ID without storing either explicit link. For those
+integrations, `--match-external-basic-report-id` adds a third candidate when a
+Postgres Report with that external ID exists. This option requires
+`--cmms-measurement-consumer-id` so the convention is enabled only for a known
+integration.
+
+When the available links resolve to exactly one `Report`, its existing
+`external_report_id` is copied into the `BasicReports` Spanner row without
+changing the report state. If no `Report` is found, or the links resolve to
+multiple Reports, the `BasicReport` is logged and left unchanged. No new
+identifiers are minted. When multiple link methods are available, they must all
+resolve to the same Report.
+
+Run with `--dry-run` first. The `unresolved` and `ambiguous` counts should both
+be zero before applying the backfill.
+
+### Examples
+
+This assumes that the `BackfillBasicReportExternalReportIds` target has been
+built. For brevity, the examples do not include the full path to the
+executable.
+
+*   Report what would change without writing to either database:
+
+    ```shell
+    BackfillBasicReportExternalReportIds \
+      --spanner-project=PROJECT \
+      --spanner-instance=INSTANCE \
+      --spanner-database=reporting \
+      --postgres-cloud-sql-connection-name=CONNECTION \
+      --postgres-database=reporting-v2 \
+      --postgres-user=USER \
+      --cmms-measurement-consumer-id=MEASUREMENT_CONSUMER_ID \
+      --match-external-basic-report-id \
+      --create-time-after=2026-06-01T00:00:00Z \
+      --dry-run
+    ```
+
+*   Apply the backfill by rerunning the command without `--dry-run`.
+
+The tool uses Application Default Credentials for Spanner and Cloud SQL IAM
+authentication. See the database-access instructions below for the required
+operator identity and permissions.
+
 ## `BackfillBasicReportReportingSets`
 
 Backfills
