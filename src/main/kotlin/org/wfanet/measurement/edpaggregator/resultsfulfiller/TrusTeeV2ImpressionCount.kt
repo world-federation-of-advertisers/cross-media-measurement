@@ -44,10 +44,10 @@ private const val CONTRIBUTION_COUNT = 1
  * carries no sampling error.
  *
  * [TrusTeeV2Config.ImpressionCountMode.UNNOISED] reports the true uncapped total, which
- * [StripedByteFrequencyVector] accumulates before a cell saturates at 127, and carries no clip for
- * the TEE to noise against. [TrusTeeV2Config.ImpressionCountMode.NOISED] sums the saturated cells
- * under a clip and noises the result here, reporting the clip when [maxFrequencyPerUser] set one
- * and the variance when the clip came from the data.
+ * [StripedByteFrequencyVector] accumulates before a cell saturates at 127, and carries no clip.
+ * [TrusTeeV2Config.ImpressionCountMode.NOISED] sums the saturated cells under a clip and noises the
+ * result here, reporting the clip when [maxFrequencyPerUser] set one and the variance when the clip
+ * came from the data.
  *
  * @throws IllegalArgumentException if [mode] and [maxFrequencyPerUser] are a combination
  *   [requireTrusTeeV2ImpressionCountConfig] rejects
@@ -88,7 +88,7 @@ fun buildTrusTeeV2FulfillmentDetails(
                     contributionCount = CONTRIBUTION_COUNT,
                     maxFrequencyPerUser = maxFrequencyPerUser,
                   ),
-                // The TEE thresholds the aggregate it composes from these counts.
+                // This count is not thresholded here.
                 resultMinimumThresholds = null,
               )
             noiseMechanism = ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
@@ -106,7 +106,7 @@ fun buildTrusTeeV2FulfillmentDetails(
               dpParams = DpParams(1.0, 1.0),
               // The count spans the whole population, so nothing scales it.
               vidSamplingIntervalWidth = 1.0,
-              // The TEE thresholds the aggregate it composes from these counts.
+              // This count is not thresholded here.
               resultMinimumThresholds = null,
             )
           impression {

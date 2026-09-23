@@ -225,13 +225,12 @@ message ResultsFulfillerParams {
     // The count covers the whole population rather than the sampling interval
     // the vector covers, so it carries no sampling error.
     enum ImpressionCountMode {
-      // No count is sent. The TEE derives one from the frequency vector.
+      // No count is sent.
       UNSPECIFIED = 0;
 
-      // The raw uncapped total, released for the TEE to noise once per
-      // released figure. That is fewer draws than noising once per
-      // requisition, and the TEE already holds the vector the count
-      // summarizes. No per-user clip accompanies it.
+      // The raw uncapped total, released unnoised and with no per-user
+      // clip. This `DataProvider` draws no noise, so the count leaves as
+      // it was counted.
       UNNOISED = 1;
 
       // Clipped and noised by this `DataProvider` with
