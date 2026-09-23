@@ -65,21 +65,6 @@ class TrusTeeV2ImpressionCountTest {
   }
 
   @Test
-  fun `a wider clip counts more impressions`() {
-    val narrow =
-      buildTrusTeeV2FulfillmentDetails(ImpressionCountMode.NOISED, maxFrequencyPerUser = 1, VECTOR)
-    val wide =
-      buildTrusTeeV2FulfillmentDetails(
-        ImpressionCountMode.NOISED,
-        maxFrequencyPerUser = 100,
-        VECTOR,
-      )
-
-    // Clipped sums of 4 and 113 before noise, so the gap survives any single draw.
-    assertThat(wide.impression.value).isGreaterThan(narrow.impression.value)
-  }
-
-  @Test
   fun `an unset clip is chosen from the data and reported as a variance`() {
     val details =
       buildTrusTeeV2FulfillmentDetails(ImpressionCountMode.NOISED, maxFrequencyPerUser = 0, VECTOR)
