@@ -63,11 +63,13 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
+import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
@@ -85,11 +87,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.poolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
@@ -265,6 +269,7 @@ class VidLabelingMonitorTest {
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       rawImpressionsStorageClientProvider = { rawImpressionsStorageClient },
       vidLabeledImpressionsStorageClientProvider = { vidLabeledImpressionsStorageClient },
+      poolAssignmentJobStub = poolAssignmentJobStub,
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
       workItemsStub = workItemsStub,
@@ -817,6 +822,101 @@ class VidLabelingMonitorTest {
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
       .isEqualTo(0)
+  }
+
+  @Test
+  fun `recovers a stuck POOL_ASSIGNING model line by re-publishing a shard WorkItem`() =
+    runBlocking {
+      val uploadName = "$DATA_PROVIDER/rawImpressionUploads/active-1"
+      stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+      stubModelLines(
+        rawImpressionUploadModelLine {
+          name = "$uploadName/modelLines/ml1"
+          cmmsModelLine = MODEL_LINE
+          state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+        }
+      )
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<ListPoolAssignmentJobsRequest>(0)
+        listPoolAssignmentJobsResponse {
+          if (request.pageToken.isEmpty()) {
+            poolAssignmentJobs += poolAssignmentJob {
+              name = "$uploadName/poolAssignmentJobs/pa1"
+              cmmsModelLine = MODEL_LINE
+              shardIndex = 1
+              state = PoolAssignmentJob.State.SUCCEEDED
+            }
+            nextPageToken = "next"
+          } else {
+            poolAssignmentJobs += poolAssignmentJob {
+              name = "$uploadName/poolAssignmentJobs/pa0"
+              cmmsModelLine = MODEL_LINE
+              shardIndex = 0
+              state = PoolAssignmentJob.State.SUCCEEDED
+            }
+          }
+        }
+      }
+      val originalWorkItem = WorkItemIds.forSubpoolAssigner(uploadName, MODEL_LINE, 0)
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        val request = invocation.getArgument<GetWorkItemRequest>(0)
+        if (request.name == "workItems/$originalWorkItem") {
+          workItem { queue = "queues/pool-assigner" }
+        } else {
+          throw Status.NOT_FOUND.asRuntimeException()
+        }
+      }
+      whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
+      whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+
+      val result = createMonitor().runHealth()
+
+      assertThat(result.recoveredTransitions).isEqualTo(1)
+      val createCaptor = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService) { createWorkItem(createCaptor.capture()) }
+      assertThat(createCaptor.firstValue.workItemId)
+        .isEqualTo("$originalWorkItem-monitor-recovery-1")
+      assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/pool-assigner")
+      verifyBlocking(poolAssignmentJobService, times(2)) { listPoolAssignmentJobs(any()) }
+    }
+
+  @Test
+  fun `does not recover POOL_ASSIGNING while a shard job is unfinished`() = runBlocking {
+    val uploadName = "$DATA_PROVIDER/rawImpressionUploads/active-1"
+    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "$uploadName/modelLines/ml1"
+        cmmsModelLine = MODEL_LINE
+        state = RawImpressionUploadModelLine.State.POOL_ASSIGNING
+      }
+    )
+    whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+      .thenReturn(
+        listPoolAssignmentJobsResponse {
+          poolAssignmentJobs += poolAssignmentJob {
+            name = "$uploadName/poolAssignmentJobs/pa0"
+            cmmsModelLine = MODEL_LINE
+            shardIndex = 0
+            state = PoolAssignmentJob.State.SUCCEEDED
+          }
+          poolAssignmentJobs += poolAssignmentJob {
+            name = "$uploadName/poolAssignmentJobs/pa1"
+            cmmsModelLine = MODEL_LINE
+            shardIndex = 1
+            state = PoolAssignmentJob.State.CREATED
+          }
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.recoveredTransitions).isEqualTo(0)
+    verifyBlocking(workItemsService, never()) { getWorkItem(any()) }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
