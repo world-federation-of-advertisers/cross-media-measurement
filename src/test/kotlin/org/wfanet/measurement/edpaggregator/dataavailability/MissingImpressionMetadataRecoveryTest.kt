@@ -31,6 +31,7 @@ import java.time.LocalDate
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
+import org.junit.Assert.assertThrows
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -117,6 +118,29 @@ class MissingImpressionMetadataRecoveryTest {
     openTelemetry.close()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
+  }
+
+  @Test
+  fun `date range rejects latest date before earliest date`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DataDateSelection.Range(
+          earliestDate = LocalDate.parse("2026-08-02"),
+          latestDate = LocalDate.parse("2026-08-01"),
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("range must not be empty")
+  }
+
+  @Test
+  fun `selected dates rejects empty set`() {
+    val exception =
+      assertThrows(IllegalArgumentException::class.java) {
+        DataDateSelection.SelectedDates(emptySet())
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not be empty")
   }
 
   @Test
@@ -350,6 +374,37 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(storageClient.listedBlobPrefixes)
       .doesNotContain("$EDP_IMPRESSION_PATH/model-line/model-line-1/2025-01-01/")
     assertThat(storageClient.listedBlobPrefixes).doesNotContain("$EDP_IMPRESSION_PATH/")
+  }
+
+  @Test
+  fun `recover lists blobs only from selected date folders`(): Unit = runBlocking {
+    val delegate = InMemoryStorageClient()
+    writeFinalizedMetadata(delegate, "2026-08-01", "metadata-first.json")
+    writeFinalizedMetadata(delegate, "2026-08-02", "metadata-unselected.json")
+    writeFinalizedMetadata(delegate, "2026-08-03", "metadata-third.json")
+    val storageClient = RecordingStorageClient(delegate)
+
+    val result =
+      buildRecovery(
+          storageClient,
+          impressionMetadataBatchSize = 100,
+          registerSyncedMetadata = true,
+          dateSelection =
+            DataDateSelection.SelectedDates(
+              setOf(LocalDate.parse("2026-08-01"), LocalDate.parse("2026-08-03"))
+            ),
+        ) { _, _ ->
+        }
+        .recover()
+
+    assertThat(result.finalizedMetadataBlobs).isEqualTo(2)
+    assertThat(storageClient.listedBlobPrefixes)
+      .containsExactly(
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-01/",
+        "$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-03/",
+      )
+    assertThat(storageClient.listedBlobPrefixes)
+      .doesNotContain("$EDP_IMPRESSION_PATH/model-line/model-line-1/2026-08-02/")
   }
 
   @Test
@@ -842,6 +897,11 @@ class MissingImpressionMetadataRecoveryTest {
     storageClient: BlobMetadataStorageClient,
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
+    dateSelection: DataDateSelection =
+      DataDateSelection.Range(
+        earliestDate = LocalDate.parse("2026-06-01"),
+        latestDate = LocalDate.parse("2026-08-31"),
+      ),
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     buildRecovery(
@@ -849,6 +909,7 @@ class MissingImpressionMetadataRecoveryTest {
       impressionMetadataBatchSize,
       registerSyncedMetadata,
       markSyncedBlobs = true,
+      dateSelection = dateSelection,
       sync,
     )
 
@@ -857,6 +918,11 @@ class MissingImpressionMetadataRecoveryTest {
     impressionMetadataBatchSize: Int,
     registerSyncedMetadata: Boolean,
     markSyncedBlobs: Boolean,
+    dateSelection: DataDateSelection =
+      DataDateSelection.Range(
+        earliestDate = LocalDate.parse("2026-06-01"),
+        latestDate = LocalDate.parse("2026-08-31"),
+      ),
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     MissingImpressionMetadataRecovery(
@@ -870,8 +936,7 @@ class MissingImpressionMetadataRecoveryTest {
           override suspend fun <T> onReady(block: suspend () -> T): T = block()
         },
       impressionMetadataBatchSize = impressionMetadataBatchSize,
-      earliestDataDate = LocalDate.parse("2026-06-01"),
-      latestDataDate = LocalDate.parse("2026-08-31"),
+      dateSelection = dateSelection,
       sync = { doneBlobUri, blobKeys ->
         val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
         storageClient.updateBlobMetadata(

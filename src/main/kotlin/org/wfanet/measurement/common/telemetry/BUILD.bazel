@@ -3,6 +3,23 @@ load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 package(default_visibility = ["//visibility:public"])
 
 kt_jvm_library(
+    name = "open_telemetry_sdk_manager",
+    srcs = ["OpenTelemetrySdkManager.kt"],
+    deps = [
+        "//imports/java/com/google/cloud/opentelemetry:exporter_auto",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_logging",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_metrics",
+        "//imports/java/com/google/cloud/opentelemetry:exporter_trace",
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/instrumentation/runtimemetrics:java8",
+        "//imports/java/io/opentelemetry/sdk",
+        "//imports/java/io/opentelemetry/sdk:sdk_autoconfigure",
+        "//imports/java/io/opentelemetry/sdk:sdk_logs",
+        "//imports/java/io/opentelemetry/sdk:sdk_metrics",
+    ],
+)
+
+kt_jvm_library(
     name = "report_tracing",
     srcs = [
         "ReportTraceAttributes.kt",

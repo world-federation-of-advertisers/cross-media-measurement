@@ -16,6 +16,18 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "OpenTelemetrySdkManagerTest",
+    srcs = ["OpenTelemetrySdkManagerTest.kt"],
+    jvm_flags = ["-Dotel.sdk.disabled=true"],
+    test_class = "org.wfanet.measurement.common.telemetry.OpenTelemetrySdkManagerTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:open_telemetry_sdk_manager",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "ReportTraceLoggingTest",
     srcs = ["ReportTraceLoggingTest.kt"],
     test_class = "org.wfanet.measurement.common.telemetry.ReportTraceLoggingTest",
