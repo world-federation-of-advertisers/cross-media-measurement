@@ -21,6 +21,21 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "cloud_telemetry",
+    srcs = [
+        "CloudTelemetry.kt",
+        "GoogleCloudTelemetry.kt",
+    ],
+    deps = [
+        "//imports/java/com/google/auth:oauth_http2",
+        "//imports/java/com/google/cloud/logging",
+        "@wfa_common_jvm//imports/java/com/google/gson",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/throttler",
+    ],
+)
+
+kt_jvm_library(
     name = "report_tracing",
     srcs = [
         "ReportTraceAttributes.kt",
