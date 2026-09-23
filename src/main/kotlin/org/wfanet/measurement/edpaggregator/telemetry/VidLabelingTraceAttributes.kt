@@ -22,6 +22,7 @@ import io.opentelemetry.api.common.AttributeKey
 object VidLabelingTraceAttributes {
   const val DATA_PROVIDER_NAME_STRING = "xmm.data_provider.name"
   const val MODEL_LINE_NAME_STRING = "xmm.model_line.name"
+  const val MODEL_LINE_NAMES_STRING = "xmm.model_line.names"
   const val RAW_IMPRESSION_UPLOAD_NAME_STRING = "xmm.edpa.raw_impression_upload.name"
   const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING =
     "xmm.edpa.raw_impression_upload_model_line.name"
@@ -43,9 +44,18 @@ object VidLabelingTraceAttributes {
   const val RANK_FREED_STRING = "xmm.edpa.rank.freed"
   const val RANK_BACKFILL_REUSED_STRING = "xmm.edpa.rank.backfill_reused"
   const val RANK_BACKFILL_COLLISIONS_STRING = "xmm.edpa.rank.backfill_collisions"
+  const val LABEL_ROUTE_STRING = "xmm.edpa.label.route"
+  const val LABEL_INPUT_FILE_COUNT_STRING = "xmm.edpa.label.input_file_count"
+  const val LABEL_OUTPUT_TYPE_STRING = "xmm.edpa.label.output_type"
+  const val LABEL_EVENT_DATE_STRING = "xmm.edpa.label.event_date"
+  const val LABEL_EXPECTED_FINALIZATIONS_STRING = "xmm.edpa.label.expected_finalizations"
+  const val LABEL_DONE_OBJECTS_WRITTEN_STRING = "xmm.edpa.label.done_objects_written"
+  const val LABEL_PARENTS_COMPLETED_STRING = "xmm.edpa.label.parents_completed"
 
   val DATA_PROVIDER_NAME: AttributeKey<String> = AttributeKey.stringKey(DATA_PROVIDER_NAME_STRING)
   val MODEL_LINE_NAME: AttributeKey<String> = AttributeKey.stringKey(MODEL_LINE_NAME_STRING)
+  val MODEL_LINE_NAMES: AttributeKey<List<String>> =
+    AttributeKey.stringArrayKey(MODEL_LINE_NAMES_STRING)
   val RAW_IMPRESSION_UPLOAD_NAME: AttributeKey<String> =
     AttributeKey.stringKey(RAW_IMPRESSION_UPLOAD_NAME_STRING)
   val RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME: AttributeKey<String> =
@@ -69,6 +79,17 @@ object VidLabelingTraceAttributes {
   val GCS_OBJECT_GENERATION: AttributeKey<Long> = AttributeKey.longKey(GCS_OBJECT_GENERATION_STRING)
   val POOL_OFFSET: AttributeKey<Long> = AttributeKey.longKey(POOL_OFFSET_STRING)
   val SHARD_INDEX: AttributeKey<Long> = AttributeKey.longKey(SHARD_INDEX_STRING)
+  val LABEL_ROUTE: AttributeKey<String> = AttributeKey.stringKey(LABEL_ROUTE_STRING)
+  val LABEL_INPUT_FILE_COUNT: AttributeKey<Long> =
+    AttributeKey.longKey(LABEL_INPUT_FILE_COUNT_STRING)
+  val LABEL_OUTPUT_TYPE: AttributeKey<String> = AttributeKey.stringKey(LABEL_OUTPUT_TYPE_STRING)
+  val LABEL_EVENT_DATE: AttributeKey<String> = AttributeKey.stringKey(LABEL_EVENT_DATE_STRING)
+  val LABEL_EXPECTED_FINALIZATIONS: AttributeKey<Long> =
+    AttributeKey.longKey(LABEL_EXPECTED_FINALIZATIONS_STRING)
+  val LABEL_DONE_OBJECTS_WRITTEN: AttributeKey<Long> =
+    AttributeKey.longKey(LABEL_DONE_OBJECTS_WRITTEN_STRING)
+  val LABEL_PARENTS_COMPLETED: AttributeKey<Long> =
+    AttributeKey.longKey(LABEL_PARENTS_COMPLETED_STRING)
 
   val SAFE_LOG_FIELD_NAMES: Set<String> =
     setOf(
@@ -94,5 +115,12 @@ object VidLabelingTraceAttributes {
       RANK_FREED_STRING,
       RANK_BACKFILL_REUSED_STRING,
       RANK_BACKFILL_COLLISIONS_STRING,
+      LABEL_ROUTE_STRING,
+      LABEL_INPUT_FILE_COUNT_STRING,
+      LABEL_OUTPUT_TYPE_STRING,
+      LABEL_EVENT_DATE_STRING,
+      LABEL_EXPECTED_FINALIZATIONS_STRING,
+      LABEL_DONE_OBJECTS_WRITTEN_STRING,
+      LABEL_PARENTS_COMPLETED_STRING,
     )
 }

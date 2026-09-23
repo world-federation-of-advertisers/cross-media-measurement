@@ -36,6 +36,9 @@ import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -160,6 +163,18 @@ class VidLabelerAppTest {
   private lateinit var encryptedDek: EncryptedDek
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
 
   private val mockQueueSubscriber: QueueSubscriber = mock()
   private val mockParquetStorageClient: ParquetStorageClient = mock()
@@ -178,6 +193,8 @@ class VidLabelerAppTest {
             .build()
         )
         .buildAndRegisterGlobal()
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
     AeadConfig.register()
     kmsClient =
       FakeKmsClient().apply {
@@ -193,6 +210,7 @@ class VidLabelerAppTest {
 
   @After
   fun tearDown() {
+    rootLogger.removeHandler(logHandler)
     openTelemetry.close()
     GlobalOpenTelemetry.resetForTest()
     Instrumentation.resetForTest()
@@ -377,50 +395,66 @@ class VidLabelerAppTest {
     assertThat(span.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE)).isEqualTo("phase2")
     assertThat(span.attributes.get(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME))
       .isEqualTo(VID_LABELING_JOB)
+    assertThat(span.attributes.get(VidLabelingTraceAttributes.LABEL_ROUTE)).isEqualTo("memoized")
+    assertThat(span.attributes.get(VidLabelingTraceAttributes.MODEL_LINE_NAMES))
+      .containsExactly(MODEL_LINE)
+    assertThat(span.attributes.get(VidLabelingTraceAttributes.LABEL_INPUT_FILE_COUNT)).isEqualTo(0L)
     assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("succeeded")
-    val jobEvent = span.events.single { it.name == "edpa.vid_labeling.label.job_succeeded" }
+    val finalizeSpan =
+      spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
+    assertThat(finalizeSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("not_last_out")
+    val jobEvent = finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.job_succeeded" }
     assertThat(jobEvent.attributes.get(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME))
       .isEqualTo(VID_LABELING_JOB)
+    val completionLog =
+      logRecords.single { it.message.contains("event=edpa.vid_labeling.label_completed ") }
+    assertThat(completionLog.message).contains("xmm.lifecycle.stage=label")
   }
 
   @Test
-  fun `runWork labels the non-memoized path and marks job succeeded`() = runBlocking {
-    // No rank index is seeded: the non-memoized (hash-only) path reads no RankIndexBlob and wraps
-    // its labeled output with the EDP's KEK from encryptKekUris instead.
-    vidLabelingJobsService.stub {
-      onBlocking { getVidLabelingJob(any()) } doReturn
-        vidLabelingJob {
-          name = VID_LABELING_JOB
-          state = VidLabelingJob.State.CREATED
-          etag = "etag-1"
-        }
-      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
-        markVidLabelingJobSucceededResponse {
-          vidLabelingJob = vidLabelingJob {
+  fun `runWork labels the non-memoized path and marks job succeeded`() =
+    runBlocking<Unit> {
+      // No rank index is seeded: the non-memoized (hash-only) path reads no RankIndexBlob and wraps
+      // its labeled output with the EDP's KEK from encryptKekUris instead.
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doReturn
+          vidLabelingJob {
             name = VID_LABELING_JOB
-            state = VidLabelingJob.State.SUCCEEDED
+            state = VidLabelingJob.State.CREATED
+            etag = "etag-1"
           }
-        }
-    }
-    val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
+        onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+          markVidLabelingJobSucceededResponse {
+            vidLabelingJob = vidLabelingJob {
+              name = VID_LABELING_JOB
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+          }
+      }
+      val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val app = createApp(rpcThrottlers = recordingThrottlers.throttlers)
-    app.runWork(buildMessage(nonMemoizedParams()))
+      val app = createApp(rpcThrottlers = recordingThrottlers.throttlers)
+      app.runWork(buildMessage(nonMemoizedParams()))
 
-    val captor = argumentCaptor<MarkVidLabelingJobSucceededRequest>()
-    verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(captor.capture()) }
-    assertThat(captor.firstValue.name).isEqualTo(VID_LABELING_JOB)
-    assertThat(captor.firstValue.etag).isEqualTo("etag-1")
-    assertThat(captor.firstValue.requestId).isNotEmpty()
-    // Not last-job-out: no model line completed, so no transition.
-    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
-      markRawImpressionUploadModelLineCompleted(any())
+      val captor = argumentCaptor<MarkVidLabelingJobSucceededRequest>()
+      verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(captor.capture()) }
+      assertThat(captor.firstValue.name).isEqualTo(VID_LABELING_JOB)
+      assertThat(captor.firstValue.etag).isEqualTo("etag-1")
+      assertThat(captor.firstValue.requestId).isNotEmpty()
+      // Not last-job-out: no model line completed, so no transition.
+      verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+        markRawImpressionUploadModelLineCompleted(any())
+      }
+      assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
+      assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
+      assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
+      assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
+      val span = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
+      assertThat(span.attributes.get(VidLabelingTraceAttributes.LABEL_ROUTE))
+        .isEqualTo("non_memoized")
+      assertThat(span.attributes.get(VidLabelingTraceAttributes.MODEL_LINE_NAMES))
+        .containsExactly(MODEL_LINE)
     }
-    assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
-    assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(1)
-    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
-  }
 
   @Test
   fun `runWork on last-job-out completes model line`() = runBlocking {
@@ -510,8 +544,18 @@ class VidLabelerAppTest {
       markRawImpressionUploadModelLineCompleted(any())
     }
     val span = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
-    assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("recovered")
-    val transition = span.events.single { it.name == "edpa.vid_labeling.label.parent_transition" }
+    assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("missing")
+    val finalizeSpan =
+      spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
+    assertThat(finalizeSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("missing")
+    assertThat(finalizeSpan.attributes.get(VidLabelingTraceAttributes.LABEL_EXPECTED_FINALIZATIONS))
+      .isEqualTo(1L)
+    assertThat(finalizeSpan.attributes.get(VidLabelingTraceAttributes.LABEL_DONE_OBJECTS_WRITTEN))
+      .isEqualTo(0L)
+    assertThat(finalizeSpan.attributes.get(VidLabelingTraceAttributes.LABEL_PARENTS_COMPLETED))
+      .isEqualTo(1L)
+    val transition =
+      finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.parent_transition" }
     assertThat(transition.attributes.get(VidLabelingTraceAttributes.MODEL_LINE_NAME))
       .isEqualTo(MODEL_LINE)
     assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("completed")
@@ -542,13 +586,13 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork warns and continues when no matching RawImpressionUploadModelLine`() = runBlocking {
+  fun `runWork reports missing when replay cannot resolve the parent model line`() = runBlocking {
     seedRankIndexBlob()
     vidLabelingJobsService.stub {
       onBlocking { getVidLabelingJob(any()) } doReturn
         vidLabelingJob {
           name = VID_LABELING_JOB
-          state = VidLabelingJob.State.CREATED
+          state = VidLabelingJob.State.SUCCEEDED
           etag = "etag-1"
         }
       onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
@@ -580,6 +624,19 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService, never()) {
       markRawImpressionUploadModelLineCompleted(any())
     }
+    val rootSpan = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
+    assertThat(rootSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("missing")
+    val finalizeSpan =
+      spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
+    assertThat(finalizeSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("missing")
+    assertThat(finalizeSpan.attributes.get(VidLabelingTraceAttributes.LABEL_PARENTS_COMPLETED))
+      .isEqualTo(0L)
+    val missingParentLog =
+      logRecords.single {
+        it.message.contains("event=edpa.vid_labeling.label.parent_transition ") &&
+          it.message.contains("xmm.outcome=missing")
+      }
+    assertThat(missingParentLog.message).contains("xmm.lifecycle.stage=label_finalize")
   }
 
   @Test
@@ -1028,6 +1085,16 @@ class VidLabelerAppTest {
           }
         )
         .isEqualTo(1L)
+      val failureLog =
+        logRecords.single {
+          it.message.contains("event=edpa.vid_labeling.label.job_succeeded ") &&
+            it.message.contains("xmm.outcome=failed")
+        }
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=label_finalize")
+      assertThat(failureLog.message).contains("xmm.error.code=grpc.INTERNAL")
+      val finalizeSpan =
+        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
+      assertThat(finalizeSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("failed")
     }
 
   @Test
@@ -1078,6 +1145,13 @@ class VidLabelerAppTest {
           .value
       )
       .isEqualTo(1L)
+    val failureLog =
+      logRecords.single {
+        it.message.contains("event=edpa.vid_labeling.label.parent_transition ") &&
+          it.message.contains("xmm.outcome=failed")
+      }
+    assertThat(failureLog.message).contains("xmm.lifecycle.stage=label_finalize")
+    assertThat(failureLog.message).contains("xmm.error.code=grpc.INTERNAL")
   }
 
   companion object {
