@@ -108,8 +108,11 @@ class DataWatcherFunctionTracingTest {
         "size": "0",
         "generation": "123",
         "metadata": {
+          "xmm-trace-context-source": "vid-labeler",
           "xmm-traceparent": "$persistedTraceParent",
-          "xmm-raw-impression-upload": "dataProviders/dp/rawImpressionUploads/up"
+          "xmm-raw-impression-upload": "dataProviders/dp/rawImpressionUploads/up",
+          "xmm-model-line": "modelProviders/mp/modelSuites/ms/modelLines/ml",
+          "xmm-vid-labeling-job": "dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job"
         }
       }
       """
@@ -130,7 +133,84 @@ class DataWatcherFunctionTracingTest {
     assertThat(receivedTraceId).isEqualTo(expectedTraceId)
     assertThat(receivedMetadata["xmm-raw-impression-upload"])
       .isEqualTo("dataProviders/dp/rawImpressionUploads/up")
+    assertThat(receivedMetadata["xmm-model-line"])
+      .isEqualTo("modelProviders/mp/modelSuites/ms/modelLines/ml")
+    assertThat(receivedMetadata["xmm-vid-labeling-job"])
+      .isEqualTo("dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job")
     assertThat(receivedMetadata[DataWatcher.GENERATION_METADATA_KEY]).isEqualTo("123")
+  }
+
+  @Test
+  fun `untrusted persisted trace context does not replace CloudEvent parent`() {
+    val expectedTraceId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    var receivedMetadata: Map<String, String> = emptyMap()
+    var receivedTraceId = ""
+    val cloudEventData =
+      """
+      {
+        "bucket": "test-bucket",
+        "name": "path/to/done",
+        "size": "0",
+        "generation": "123",
+        "metadata": {
+          "xmm-traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+          "xmm-raw-impression-upload": "dataProviders/dp/rawImpressionUploads/up",
+          "xmm-model-line": "modelProviders/mp/modelSuites/ms/modelLines/ml",
+          "xmm-vid-labeling-job": "dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job"
+        }
+      }
+      """
+        .trimIndent()
+    val cloudEvent =
+      TestCloudEvent(
+        dataBytes = cloudEventData.toByteArray(Charsets.UTF_8),
+        extensions = mapOf("traceparent" to "00-$expectedTraceId-bbbbbbbbbbbbbbbb-01"),
+      )
+
+    DataWatcherFunction { _, metadata ->
+        receivedMetadata = metadata
+        receivedTraceId = Span.current().spanContext.traceId
+      }
+      .accept(cloudEvent)
+
+    assertThat(receivedTraceId).isEqualTo(expectedTraceId)
+    assertThat(receivedMetadata).doesNotContainKey("xmm-traceparent")
+    assertThat(receivedMetadata).doesNotContainKey("xmm-raw-impression-upload")
+    assertThat(receivedMetadata).doesNotContainKey("xmm-model-line")
+    assertThat(receivedMetadata).doesNotContainKey("xmm-vid-labeling-job")
+    assertThat(receivedMetadata[DataWatcher.GENERATION_METADATA_KEY]).isEqualTo("123")
+  }
+
+  @Test
+  fun `malformed persisted trace context does not replace CloudEvent parent`() {
+    val expectedTraceId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    var receivedTraceId = ""
+    val cloudEventData =
+      """
+      {
+        "bucket": "test-bucket",
+        "name": "path/to/done",
+        "size": "0",
+        "metadata": {
+          "xmm-trace-context-source": "vid-labeler",
+          "xmm-traceparent": "malformed",
+          "xmm-raw-impression-upload": "dataProviders/dp/rawImpressionUploads/up",
+          "xmm-model-line": "modelProviders/mp/modelSuites/ms/modelLines/ml",
+          "xmm-vid-labeling-job": "dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job"
+        }
+      }
+      """
+        .trimIndent()
+    val cloudEvent =
+      TestCloudEvent(
+        dataBytes = cloudEventData.toByteArray(Charsets.UTF_8),
+        extensions = mapOf("traceparent" to "00-$expectedTraceId-bbbbbbbbbbbbbbbb-01"),
+      )
+
+    DataWatcherFunction { _, _ -> receivedTraceId = Span.current().spanContext.traceId }
+      .accept(cloudEvent)
+
+    assertThat(receivedTraceId).isEqualTo(expectedTraceId)
   }
 
   private class TestCloudEvent(

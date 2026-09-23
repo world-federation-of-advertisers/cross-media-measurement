@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
+import com.google.protobuf.util.Timestamps
 import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -26,6 +27,7 @@ import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
@@ -44,6 +46,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
@@ -331,6 +335,9 @@ class DataAvailabilitySync(
             }
           )
         } catch (e: StatusException) {
+          for (entry in availabilityEntries) {
+            logAvailabilityInterval(entry.key, entry.value, "failed", e)
+          }
           // Record CMMS RPC error
           metrics.cmmsRpcErrorsCounter.add(
             1,
@@ -351,6 +358,9 @@ class DataAvailabilitySync(
           "edpa.data_availability.kingdom_published",
           Attributes.of(XmmTraceAttributes.OUTCOME, "succeeded"),
         )
+      for (entry in availabilityEntries) {
+        logAvailabilityInterval(entry.key, entry.value, "published")
+      }
 
       // This marker is the durable completion signal for both phases of synchronization. Only
       // update the publication ID here. If another attempt has written a newer sync ID while this
@@ -454,58 +464,70 @@ class DataAvailabilitySync(
       // BatchCreate new entries, chunked at the RPC boundary
       val createResponses =
         toCreate.chunked(impressionMetadataBatchSize).flatMap { createChunk ->
-          throttler
-            .onReady {
-              impressionMetadataServiceStub.batchCreateImpressionMetadata(
-                batchCreateImpressionMetadataRequest {
-                  parent = dataProviderName
-                  createChunk.forEach { item ->
-                    requests += createImpressionMetadataRequest {
-                      parent = dataProviderName
-                      impressionMetadata = item.impressionMetadata
-                      requestId = contentAwareRequestId(item.impressionMetadata)
+          runMetadataAction(
+            action = "created",
+            attempted = createChunk.map { it.impressionMetadata },
+          ) {
+            throttler
+              .onReady {
+                impressionMetadataServiceStub.batchCreateImpressionMetadata(
+                  batchCreateImpressionMetadataRequest {
+                    parent = dataProviderName
+                    createChunk.forEach { item ->
+                      requests += createImpressionMetadataRequest {
+                        parent = dataProviderName
+                        impressionMetadata = item.impressionMetadata
+                        requestId = contentAwareRequestId(item.impressionMetadata)
+                      }
                     }
                   }
-                }
-              )
-            }
-            .impressionMetadataList
+                )
+              }
+              .impressionMetadataList
+          }
         }
 
       // BatchUpdate changed entries, chunked at the RPC boundary
       val updateResponses =
         toUpdate.chunked(impressionMetadataBatchSize).flatMap { updateChunk ->
-          throttler
-            .onReady {
-              impressionMetadataServiceStub.batchUpdateImpressionMetadata(
-                batchUpdateImpressionMetadataRequest {
-                  parent = dataProviderName
-                  updateChunk.forEach { item ->
-                    requests += updateImpressionMetadataRequest {
-                      impressionMetadata = item.impressionMetadata
-                      requestId = contentAwareRequestId(item.impressionMetadata)
+          runMetadataAction(
+            action = "updated",
+            attempted = updateChunk.map { it.impressionMetadata },
+          ) {
+            throttler
+              .onReady {
+                impressionMetadataServiceStub.batchUpdateImpressionMetadata(
+                  batchUpdateImpressionMetadataRequest {
+                    parent = dataProviderName
+                    updateChunk.forEach { item ->
+                      requests += updateImpressionMetadataRequest {
+                        impressionMetadata = item.impressionMetadata
+                        requestId = contentAwareRequestId(item.impressionMetadata)
+                      }
                     }
                   }
-                }
-              )
-            }
-            .impressionMetadataList
+                )
+              }
+              .impressionMetadataList
+          }
         }
 
       // Restore soft-deleted entries only after their latest content has been persisted. This
       // prevents stale metadata from becoming visible if an update fails.
       val restoreResponses =
         toRestore.chunked(impressionMetadataBatchSize).flatMap { restoreChunk ->
-          throttler
-            .onReady {
-              impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
-                batchUndeleteImpressionMetadataRequest {
-                  parent = dataProviderName
-                  names += restoreChunk.map { it.name }
-                }
-              )
-            }
-            .impressionMetadataList
+          runMetadataAction(action = "restored", attempted = restoreChunk) {
+            throttler
+              .onReady {
+                impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
+                  batchUndeleteImpressionMetadataRequest {
+                    parent = dataProviderName
+                    names += restoreChunk.map { it.name }
+                  }
+                )
+              }
+              .impressionMetadataList
+          }
         }
       val unchangedCount =
         impressionMetadataList.size -
@@ -536,6 +558,16 @@ class DataAvailabilitySync(
           createResponses.associateBy { it.blobUri } +
           restoreResponses.associateBy { it.blobUri } +
           updateResponses.associateBy { it.blobUri })
+      val changedBlobUris =
+        (toCreate.map { it.impressionMetadata.blobUri } +
+            toUpdate.map { it.impressionMetadata.blobUri } +
+            toRestore.map { it.blobUri })
+          .toSet()
+      for ((blobUri, existing) in existingByBlobUri) {
+        if (blobUri !in changedBlobUris) {
+          logImpressionMetadata(existing, "unchanged", "succeeded")
+        }
+      }
       for (item in impressionMetadataList) {
         val blobUri = item.impressionMetadata.blobUri
         val resultMetadata = resourceIdByBlobUri.getValue(blobUri)
@@ -563,6 +595,79 @@ class DataAvailabilitySync(
       throw Exception("Error saving Impressions Metadata", e)
     }
   }
+
+  private suspend fun runMetadataAction(
+    action: String,
+    attempted: List<ImpressionMetadata>,
+    block: suspend () -> List<ImpressionMetadata>,
+  ): List<ImpressionMetadata> {
+    return try {
+      block().also { persisted ->
+        for (impressionMetadata in persisted) {
+          logImpressionMetadata(impressionMetadata, action, "succeeded")
+        }
+      }
+    } catch (e: StatusException) {
+      for (impressionMetadata in attempted) {
+        logImpressionMetadata(impressionMetadata, action, "failed", e)
+      }
+      throw Exception("Error applying ImpressionMetadata action $action", e)
+    }
+  }
+
+  private fun logImpressionMetadata(
+    impressionMetadata: ImpressionMetadata,
+    action: String,
+    outcome: String,
+    error: Throwable? = null,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      if (error == null) Level.INFO else Level.WARNING,
+      "edpa.data_availability.impression_metadata",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      VidLabelingTraceAttributes.IMPRESSION_METADATA_NAME_STRING to
+        impressionMetadata.name.takeIf { it.isNotEmpty() },
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to impressionMetadata.modelLine,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to
+        storageUriHash(impressionMetadata.blobUri),
+      VidLabelingTraceAttributes.IMPRESSION_METADATA_ACTION_STRING to action,
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_metadata",
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
+    )
+  }
+
+  private fun logAvailabilityInterval(
+    modelLine: String,
+    interval: com.google.type.Interval,
+    outcome: String,
+    error: Throwable? = null,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      if (error == null) Level.INFO else Level.WARNING,
+      "edpa.data_availability.interval_published",
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.AVAILABILITY_INTERVAL_START_STRING to
+        Timestamps.toString(interval.startTime),
+      VidLabelingTraceAttributes.AVAILABILITY_INTERVAL_END_STRING to
+        Timestamps.toString(interval.endTime),
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_publish",
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
+    )
+  }
+
+  private fun storageUriHash(uri: String): String =
+    MessageDigest.getInstance("SHA-256").digest(uri.toByteArray(UTF_8)).joinToString(
+      separator = ""
+    ) { byte ->
+      (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun listImpressionMetadataByBlobUris(

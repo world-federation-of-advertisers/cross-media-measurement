@@ -25,6 +25,17 @@ object VidLabelingTraceAttributes {
   const val VID_LABELING_JOB_METADATA_KEY = "xmm-vid-labeling-job"
   const val TRACEPARENT_METADATA_KEY = "xmm-traceparent"
   const val TRACESTATE_METADATA_KEY = "xmm-tracestate"
+  const val TRACE_CONTEXT_SOURCE_METADATA_KEY = "xmm-trace-context-source"
+  const val TRACE_CONTEXT_SOURCE_VID_LABELER = "vid-labeler"
+  val PERSISTED_BOUNDARY_METADATA_KEYS: Set<String> =
+    setOf(
+      RAW_IMPRESSION_UPLOAD_METADATA_KEY,
+      MODEL_LINE_METADATA_KEY,
+      VID_LABELING_JOB_METADATA_KEY,
+      TRACEPARENT_METADATA_KEY,
+      TRACESTATE_METADATA_KEY,
+      TRACE_CONTEXT_SOURCE_METADATA_KEY,
+    )
   const val RAW_IMPRESSION_UPLOAD_HEADER = "X-Raw-Impression-Upload"
   const val MODEL_LINE_HEADER = "X-Model-Line"
   const val VID_LABELING_JOB_HEADER = "X-Vid-Labeling-Job"
@@ -60,6 +71,9 @@ object VidLabelingTraceAttributes {
   const val LABEL_EXPECTED_FINALIZATIONS_STRING = "xmm.edpa.label.expected_finalizations"
   const val LABEL_DONE_OBJECTS_WRITTEN_STRING = "xmm.edpa.label.done_objects_written"
   const val LABEL_PARENTS_COMPLETED_STRING = "xmm.edpa.label.parents_completed"
+  const val IMPRESSION_METADATA_ACTION_STRING = "xmm.edpa.impression_metadata.action"
+  const val AVAILABILITY_INTERVAL_START_STRING = "xmm.edpa.availability.interval_start"
+  const val AVAILABILITY_INTERVAL_END_STRING = "xmm.edpa.availability.interval_end"
 
   val DATA_PROVIDER_NAME: AttributeKey<String> = AttributeKey.stringKey(DATA_PROVIDER_NAME_STRING)
   val MODEL_LINE_NAME: AttributeKey<String> = AttributeKey.stringKey(MODEL_LINE_NAME_STRING)
@@ -131,5 +145,8 @@ object VidLabelingTraceAttributes {
       LABEL_EXPECTED_FINALIZATIONS_STRING,
       LABEL_DONE_OBJECTS_WRITTEN_STRING,
       LABEL_PARENTS_COMPLETED_STRING,
+      IMPRESSION_METADATA_ACTION_STRING,
+      AVAILABILITY_INTERVAL_START_STRING,
+      AVAILABILITY_INTERVAL_END_STRING,
     )
 }
