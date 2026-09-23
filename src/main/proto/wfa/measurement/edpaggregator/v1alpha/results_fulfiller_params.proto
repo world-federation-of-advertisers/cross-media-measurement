@@ -220,35 +220,23 @@ message ResultsFulfillerParams {
   // Configuration for the `TrusTeeV2` protocol.
   message TrusTeeV2Config {
     // How the impression count carried alongside the frequency vector is
-    // built.
-    //
-    // The count covers the whole population rather than the sampling interval
-    // the vector covers, so it carries no sampling error.
+    // built. The count covers the whole population, so it carries no sampling
+    // error.
     enum ImpressionCountMode {
       // No count is sent.
       UNSPECIFIED = 0;
 
-      // The raw uncapped total, released unnoised and with no per-user
-      // clip. This `DataProvider` draws no noise, so the count leaves as
-      // it was counted.
+      // The raw uncapped total, with no per-user clip.
       UNNOISED = 1;
 
-      // Clipped and noised by this `DataProvider` with
-      // DETERMINISTIC_TRUNCATED_LAPLACE, whose parameters are compiled into
-      // the attested image. CONTINUOUS_GAUSSIAN needs privacy params from the
-      // `MeasurementSpec`, and a `MultiMeasurementSpec` carries none.
+      // Clipped, then noised with DETERMINISTIC_TRUNCATED_LAPLACE.
       NOISED = 2;
     }
 
     ImpressionCountMode impression_count_mode = 1;
 
-    // The per-user clip under NOISED, between 1 and 127.
-    //
-    // A frequency vector cell saturates at the largest signed byte, so a
-    // larger clip cannot be applied. Unset clips dynamically, choosing the
-    // clip from the frequency distribution, which reads the data and so is
-    // reported as a variance rather than as a clip. Must be unset under the
-    // other modes.
+    // The per-user clip under NOISED, between 1 and 127. Unset clips
+    // dynamically. Must be unset under the other modes.
     int32 max_frequency_per_user = 2;
   }
 

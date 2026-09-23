@@ -40,14 +40,10 @@ private const val CONTRIBUTION_COUNT = 1
 /**
  * Builds the impression count a `TrusTeeV2` fulfillment carries alongside its frequency vector.
  *
- * The count covers the whole population rather than the sampling interval the vector covers, so it
- * carries no sampling error.
- *
+ * The count covers the whole population, so it carries no sampling error.
  * [TrusTeeV2Config.ImpressionCountMode.UNNOISED] reports the true uncapped total, which
- * [StripedByteFrequencyVector] accumulates before a cell saturates at 127, and carries no clip.
- * [TrusTeeV2Config.ImpressionCountMode.NOISED] sums the saturated cells under a clip and noises the
- * result here, reporting the clip when [maxFrequencyPerUser] set one and the variance when the clip
- * came from the data.
+ * [StripedByteFrequencyVector] accumulates before a cell saturates
+ * at 127. [TrusTeeV2Config.ImpressionCountMode.NOISED] sums the saturated cells under a clip.
  *
  * @throws IllegalArgumentException if [mode] and [maxFrequencyPerUser] are a combination
  *   [requireTrusTeeV2ImpressionCountConfig] rejects
