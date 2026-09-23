@@ -10,23 +10,19 @@ Provide a code review for the given pull request: $ARGUMENTS.
 **Agent assumptions (applies to all agents and subagents):**
 - All tools are functional and will work without error. Do not test tools or make exploratory calls. Make sure this is clear to every subagent that is launched.
 - Only call a tool if it is required to complete the task. Every tool call should have a clear purpose.
+- Use exactly one subagent. Do not specify a model override for it; it must inherit the driver's configured model.
 
 To do this, follow these steps precisely:
 
 1. Read CLAUDE.md first
 
-2. Launch a sonnet agent to view the pull request and return a summary of the changes
+2. View the pull request and obtain its title, description, and diff. Summarize the changes for your own context.
 
-3. Launch 4 agents in parallel to independently review the changes. Each agent should return the list of issues, where each issue includes a description and the reason it was flagged (e.g. "CLAUDE.md adherence", "bug"). The agents should do the following:
+3. Launch one reviewer agent to independently review the changes. Give it the PR title and description, and ask it to return a list of issues where each issue includes a description and the reason it was flagged (e.g. "CLAUDE.md adherence", "bug"). The reviewer should:
 
-   Agents 1 + 2: CLAUDE.md compliance sonnet agents
-   Audit changes for CLAUDE.md compliance in parallel. Note: When evaluating CLAUDE.md compliance for a file, you should only consider CLAUDE.md files that share a file path with the file or parents.
-
-   Agent 3: Opus bug agent (parallel subagent with agent 4)
-   Scan for obvious bugs. Focus only on the diff itself without reading extra context. Flag only significant bugs; ignore nitpicks and likely false positives. Do not flag issues that you cannot validate without looking at context outside of the git diff.
-
-   Agent 4: Opus bug agent (parallel subagent with agent 3)
-   Look for problems that exist in the introduced code. This could be security issues, incorrect logic, etc. Only look for issues that fall within the changed code.
+   - Audit changes for compliance with applicable CLAUDE.md files. When evaluating a file, only consider CLAUDE.md files that share its directory or a parent directory.
+   - Scan for obvious bugs in the diff, including security issues and incorrect logic.
+   - Focus only on the changed code and the minimum context needed to validate it. Ignore nitpicks and likely false positives.
 
    **CRITICAL: We only want HIGH SIGNAL issues.** Flag issues where:
    - The code will fail to compile or parse (syntax errors, type errors, missing imports, unresolved references)
@@ -40,11 +36,9 @@ To do this, follow these steps precisely:
 
    If you are not certain an issue is real, do not flag it. False positives erode trust and waste reviewer time.
 
-   In addition to the above, each subagent should be told the PR title and description. This will help provide context regarding the author's intent.
+4. Validate each issue yourself against the diff and only the context needed to establish that it is real. Do not launch additional subagents for validation.
 
-4. For each issue found in the previous step by agents 3 and 4, launch parallel subagents to validate the issue. These subagents should get the PR title and description along with a description of the issue. The agent's job is to review the issue to validate that the stated issue is truly an issue with high confidence. For example, if an issue such as "variable is not defined" was flagged, the subagent's job would be to validate that is actually true in the code. Another example would be CLAUDE.md issues. The agent should validate that the CLAUDE.md rule that was violated is scoped for this file and is actually violated. Use Opus subagents for bugs and logic issues, and sonnet agents for CLAUDE.md violations.
-
-5. Filter out any issues that were not validated in step 4. This step will give us our list of high signal issues for our review.
+5. Filter out unvalidated or duplicate issues. This step will give us our list of high signal issues for our review.
 
 6. Output a summary of the review findings to the terminal:
    - If issues were found, list each issue with a brief description.
