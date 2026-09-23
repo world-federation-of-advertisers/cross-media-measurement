@@ -17,11 +17,13 @@ package org.wfanet.measurement.integration.common
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.Truth.assertWithMessage
 import com.google.protobuf.Any as ProtoAny
+import com.google.protobuf.TypeRegistry
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.common.parseTextProto
 
 /**
@@ -46,8 +48,9 @@ class HighOverlapSpecsContractTest {
 
   private val populationSpec: PopulationSpec by lazy {
     parseTextProto(
-      ImpressionTestDataConfigs.resolveSpecPath(POPULATION_SPEC_FILE),
+      ImpressionTestDataConfigs.resolveSpecPath(config.populationSpecResourcePath),
       PopulationSpec.getDefaultInstance(),
+      TYPE_REGISTRY,
     )
   }
 
@@ -123,9 +126,11 @@ class HighOverlapSpecsContractTest {
   }
 
   @Test
-  fun `config declares the documented entity key count`() {
+  fun `config declares the documented event group and entity key counts`() {
+    assertWithMessage("event groups").that(config.eventGroupsList).hasSize(EVENT_GROUP_COUNT)
+
     val entityKeys = config.eventGroupsList.sumOf { it.entityKeySpecsCount }
-    assertThat(entityKeys).isEqualTo(ENTITY_KEY_COUNT)
+    assertWithMessage("entity key specs").that(entityKeys).isEqualTo(ENTITY_KEY_COUNT)
   }
 
   @Test
@@ -138,7 +143,9 @@ class HighOverlapSpecsContractTest {
 
   companion object {
     private const val CONFIG_FILE = "high_overlap_impression_test_data_config.textproto"
-    private const val POPULATION_SPEC_FILE = "high_overlap_population_spec.textproto"
+    /** The population spec packs its demographics into `Any`, so parsing needs the descriptor. */
+    private val TYPE_REGISTRY: TypeRegistry =
+      TypeRegistry.newBuilder().add(Common.getDescriptor()).build()
 
     private const val TOTAL_POPULATION = 360_000_000L
     private const val REACHED_VID_END = 10_610_000L
@@ -152,7 +159,10 @@ class HighOverlapSpecsContractTest {
     private const val VENN_REGIONS = 15
     private const val EDP_COUNT = 4
 
-    /** Entity keys across every segment, one EventGroup each. */
-    private const val ENTITY_KEY_COUNT = 26
+    /** One EventGroup per EDP per segment. */
+    private const val EVENT_GROUP_COUNT = 33
+
+    /** Each segment's entity keys, once per EDP the segment is seeded on. */
+    private const val ENTITY_KEY_COUNT = 53
   }
 }
