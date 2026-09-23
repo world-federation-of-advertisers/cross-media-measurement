@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadMode
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLine
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadModelLine
@@ -87,6 +88,35 @@ suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadModelLineExists(
     Key.of(dataProviderResourceId, rawImpressionUploadId, rawImpressionUploadModelLineId),
     listOf("RawImpressionUploadModelLineId"),
   ) != null
+}
+
+/** Returns the state of the model-line row identified by its CMMS resource name. */
+suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadModelLineStateByCmmsModelLine(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  cmmsModelLine: String,
+): State? {
+  val sql =
+    """
+    SELECT State
+    FROM RawImpressionUploadModelLine
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadId = @rawImpressionUploadId
+      AND CmmsModelLine = @cmmsModelLine
+    LIMIT 1
+    """
+      .trimIndent()
+  val row =
+    executeQuery(
+        statement(sql) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+          bind("rawImpressionUploadId").to(rawImpressionUploadId)
+          bind("cmmsModelLine").to(cmmsModelLine)
+        },
+        Options.tag("action=getRawImpressionUploadModelLineStateByCmmsModelLine"),
+      )
+      .singleOrNullIfEmpty() ?: return null
+  return row.getProtoEnum("State", State::forNumber)
 }
 
 /** Returns whether [rawImpressionUploadId] has any registered model-line children. */
@@ -503,6 +533,9 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.MarkCompletedRequestId,
       RawImpressionUploadModelLine.MarkFailedRequestId,
       RawImpressionUploadModelLine.FailureReason,
+      RawImpressionUploadModelLine.EvictionOperationId,
+      RawImpressionUploadModelLine.RecoveryAction,
+      RawImpressionUploadModelLine.RecoveryPredecessorRawImpressionUploadResourceId,
     FROM
       RawImpressionUploadModelLine
     """
@@ -544,6 +577,20 @@ private object RawImpressionUploadModelLineEntity {
               "FailureReason",
               RawImpressionUploadModelLineFailureReason::forNumber,
             )
+        }
+        if (!struct.isNull("EvictionOperationId")) {
+          evictionOperationId = struct.getString("EvictionOperationId")
+        }
+        if (!struct.isNull("RecoveryAction")) {
+          recoveryAction =
+            struct.getProtoEnum(
+              "RecoveryAction",
+              RawImpressionUploadModelLineRecoveryAction::forNumber,
+            )
+        }
+        if (!struct.isNull("RecoveryPredecessorRawImpressionUploadResourceId")) {
+          recoveryPredecessorRawImpressionUploadResourceId =
+            struct.getString("RecoveryPredecessorRawImpressionUploadResourceId")
         }
       },
       struct.getLong("RawImpressionUploadId"),

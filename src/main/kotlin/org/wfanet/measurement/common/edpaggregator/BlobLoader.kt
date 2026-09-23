@@ -41,10 +41,28 @@ class BlobLoader {
    * @throws IllegalStateException If no blob is found at the resolved location.
    */
   suspend fun getBytes(blobUriPrefix: String, blobKey: String, projectId: String?): ByteString {
+    return checkNotNull(getBytesOrNull(blobUriPrefix, blobKey, projectId)) {
+      "Blob '$blobKey' not found at '${resolve(blobUriPrefix, blobKey).first}'"
+    }
+  }
+
+  /**
+   * Fetches the raw bytes for the given blob if it exists.
+   *
+   * @param blobUriPrefix URI prefix where blobs are stored.
+   * @param blobKey Name of the blob to load.
+   * @param projectId Optional GCP project ID, used when reading from Google Cloud Storage.
+   * @return The blob bytes, or `null` when the resolved blob does not exist.
+   */
+  suspend fun getBytesOrNull(
+    blobUriPrefix: String,
+    blobKey: String,
+    projectId: String?,
+  ): ByteString? {
     val (fullUri, rootDir) = resolve(blobUriPrefix, blobKey)
     val client =
       SelectedStorageClient(url = fullUri, rootDirectory = rootDir, projectId = projectId)
-    val blob = requireNotNull(client.getBlob(blobKey)) { "Blob '$blobKey' not found at '$fullUri'" }
+    val blob = client.getBlob(blobKey) ?: return null
     return blob.read().flatten()
   }
 

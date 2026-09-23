@@ -48,6 +48,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
@@ -79,10 +80,10 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * downstream DataAvailabilitySync.
  *
  * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
- * out of [runWork] so the TEE framework nacks the message, leaving the job in `LABELING`/`CREATED`
- * for Pub/Sub to redeliver and retry. The terminal `FAILED` state is written by the DLQ listener on
- * retry exhaustion (see the design's failure model), which owns the single authoritative FAILED
- * transition.
+ * out of [runWork] so the TEE framework retains the delivery while another attempt owns the
+ * WorkItem, or nacks after an execution failure. On retry exhaustion the workload-agnostic DLQ
+ * listener fails only the WorkItem; it does not change the `VidLabelingJob`, which remains
+ * available for explicit workload recovery.
  *
  * @param subscriptionId Pub/Sub subscription for VID labeling queue.
  * @param queueSubscriber handles Pub/Sub pull.
@@ -167,9 +168,8 @@ class VidLabelerApp(
    *
    * Any exception thrown here propagates (including a coroutine `CancellationException`) so the TEE
    * framework nacks the message: a transient failure is retried by Pub/Sub and the job state stays
-   * in `LABELING`/`CREATED`. This worker never marks the job `FAILED` itself — the single
-   * authoritative terminal `FAILED` transition is owned by the DLQ listener on retry exhaustion
-   * (see the class-level failure model).
+   * in `LABELING`/`CREATED`. This worker never marks the job `FAILED` itself, and the
+   * workload-agnostic DLQ listener fails only the WorkItem on retry exhaustion.
    */
   override suspend fun runWork(message: Any) {
     val workItemParams = message.unpack(WorkItemParams::class.java)
@@ -654,11 +654,10 @@ class VidLabelerApp(
   }
 
   /**
-   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. Swallows
-   * only the benign already-advanced races (FAILED_PRECONDITION / ABORTED) so a redelivered
-   * last-job-out — or a concurrent worker that already advanced the line — is a no-op, and rethrows
-   * everything else so a transient failure nacks the message. The etag CAS (not a client-side state
-   * pre-check) is the source of truth, so a stale [parent] snapshot is safe.
+   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. On an
+   * optimistic-lock failure, re-reads the parent and treats the call as successful only when it is
+   * already `COMPLETED`; otherwise the error is rethrown so a prematurely delivered WorkItem is
+   * retried after the phase transition commits.
    */
   private suspend fun markParentCompleted(
     parent: RawImpressionUploadModelLine,
@@ -689,10 +688,29 @@ class VidLabelerApp(
         )
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineCompleted(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
+      val current =
+        rpcThrottlers.metadataRead.onReady {
+          rawImpressionUploadModelLinesStub.getRawImpressionUploadModelLine(
+            getRawImpressionUploadModelLineRequest { name = parent.name }
+          )
+        }
+      if (current.state == RawImpressionUploadModelLine.State.COMPLETED) {
+        logger.info(
+          "markRawImpressionUploadModelLineCompleted(${parent.name}) observed COMPLETED after " +
+            "${e.status.code}; treating as done"
+        )
+        return
+      }
+      metrics.markCompletedFailuresCounter.add(
+        1,
+        Attributes.of(
+          metrics.DATA_PROVIDER_ATTR,
+          dataProvider,
+          metrics.MODEL_LINE_ATTR,
+          parent.cmmsModelLine,
+        ),
       )
+      throw e
     }
   }
 

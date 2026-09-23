@@ -176,6 +176,18 @@ variable "image_tag" {
   type        = string
 }
 
+variable "tee_consumers_enabled" {
+  description = "Whether Secure Computation WorkItem TEE consumers may run."
+  type        = bool
+  default     = true
+}
+
+variable "requisition_fetcher_enabled" {
+  description = "Whether the RequisitionFetcher scheduler may start new invocations."
+  type        = bool
+  default     = true
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string
@@ -385,6 +397,20 @@ variable "reporting_operators" {
   default     = []
   nullable    = false
   description = "Users/groups granted impersonation of the Reporting internal service account, in order to run operational CLIs against the Reporting databases"
+}
+
+variable "report_trace_operators" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Users/groups allowed to impersonate the read-only report-trace operator service account"
+}
+
+variable "report_trace_observability_projects" {
+  type        = list(string)
+  default     = []
+  nullable    = false
+  description = "Additional projects from which the report-trace operator may read logs and traces"
 }
 
 variable "dashboard_operators" {

@@ -77,20 +77,34 @@ import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
+import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.eventGroupMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitionsKt.requisitionEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.QueueRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RegisterQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.groupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.registerQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
 /** Test class for the RequisitionFetcherFunction. */
 class RequisitionFetcherFunctionTest {
+  @Volatile private var ensureWorkItemRequest: EnsureWorkItemRequest? = null
+
   /** Temp folder to store Requisitions in test. */
   @Rule @JvmField val tempFolder = TemporaryFolder()
+
+  /** Mutable config directory visible to the function process. */
+  @Rule @JvmField val configFolder = TemporaryFolder()
 
   /** Mock of RequisitionsService. */
   private val requisitionsServiceMock: RequisitionsCoroutineImplBase = mockService {
@@ -101,9 +115,74 @@ class RequisitionFetcherFunctionTest {
   private val requisitionMetadataServiceMock: RequisitionMetadataServiceCoroutineImplBase =
     mockService {
       onBlocking { listRequisitionMetadata(any()) }.thenReturn(listRequisitionMetadataResponse {})
-      onBlocking { createRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
+      onBlocking { batchCreateRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<BatchCreateRequisitionMetadataRequest>(0)
+          batchCreateRequisitionMetadataResponse {
+            requisitionMetadata +=
+              request.requestsList.mapIndexed { index, createRequest ->
+                val source = createRequest.requisitionMetadata
+                requisitionMetadata {
+                  name = "$DATA_PROVIDER_NAME/requisitionMetadata/$index"
+                  cmmsRequisition = source.cmmsRequisition
+                  blobUri = source.blobUri
+                  blobTypeUrl = source.blobTypeUrl
+                  groupId = source.groupId
+                  cmmsCreateTime = source.cmmsCreateTime
+                  report = source.report
+                  state = RequisitionMetadata.State.STORED
+                  etag = "stored-etag-$index"
+                }
+              }
+          }
+        }
+      onBlocking { registerQueuedRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<RegisterQueuedRequisitionMetadataRequest>(0)
+          registerQueuedRequisitionMetadataResponse {
+            requisitionMetadata +=
+              request.requestsList.mapIndexed { index, createRequest ->
+                val source = createRequest.requisitionMetadata
+                requisitionMetadata {
+                  name = "$DATA_PROVIDER_NAME/requisitionMetadata/$index"
+                  cmmsRequisition = source.cmmsRequisition
+                  blobUri = source.blobUri
+                  blobTypeUrl = source.blobTypeUrl
+                  groupId = source.groupId
+                  cmmsCreateTime = source.cmmsCreateTime
+                  report = source.report
+                  workItem = request.workItem
+                  state = RequisitionMetadata.State.QUEUED
+                  etag = "queued-etag-$index"
+                }
+              }
+          }
+        }
+      onBlocking { queueRequisitionMetadata(any()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<QueueRequisitionMetadataRequest>(0)
+          requisitionMetadata {
+            name = request.name
+            workItem = request.workItem
+            state = RequisitionMetadata.State.QUEUED
+            etag = "queued-etag"
+          }
+        }
       onBlocking { refuseRequisitionMetadata(any()) }.thenReturn(requisitionMetadata {})
     }
+
+  private val workItemsServiceMock: WorkItemsGrpcKt.WorkItemsCoroutineImplBase = mockService {
+    onBlocking { ensureWorkItem(any()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<EnsureWorkItemRequest>(0)
+        ensureWorkItemRequest = request
+        workItem {
+          name = "workItems/${request.workItemId}"
+          queue = request.workItem.queue
+          workItemParams = request.workItem.workItemParams
+        }
+      }
+  }
 
   private val eventGroupsServiceMock: EventGroupsGrpcKt.EventGroupsCoroutineImplBase = mockService {
     onBlocking { getEventGroup(any()) }
@@ -141,6 +220,8 @@ class RequisitionFetcherFunctionTest {
   @Before
   fun startInfra() {
     capturedTraceparent = null
+    ensureWorkItemRequest = null
+    copyConfig("requisition-fetcher-config.textproto")
 
     /** Start gRPC server with mock Requisitions service */
     grpcServer =
@@ -157,12 +238,16 @@ class RequisitionFetcherFunctionTest {
               ),
               eventGroupsServiceMock.bindService(),
               requisitionMetadataServiceMock.bindService(),
+              workItemsServiceMock.bindService(),
             ),
         )
         .start()
     logger.info("Started gRPC server on port ${grpcServer.port}")
 
-    /** Start the RequisitionFetcherFunction process */
+    startFunction()
+  }
+
+  private fun startFunction() {
     functionProcess =
       FunctionsFrameworkInvokerProcess(
         javaBinaryPath = FETCHER_BINARY_PATH,
@@ -175,11 +260,13 @@ class RequisitionFetcherFunctionTest {
             "REQUISITION_FILE_SYSTEM_PATH" to tempFolder.root.path,
             "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
             "METADATA_STORAGE_TARGET" to "localhost:${grpcServer.port}",
+            "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
             "KINGDOM_CERT_HOST" to "localhost",
             "METADATA_STORAGE_CERT_HOST" to "localhost",
+            "SECURE_COMPUTATION_CONTROL_PLANE_CERT_HOST" to "localhost",
             "PAGE_SIZE" to "10",
             "STORAGE_PATH_PREFIX" to STORAGE_PATH_PREFIX,
-            "EDPA_CONFIG_STORAGE_BUCKET" to REQUISITION_CONFIG_FILE_SYSTEM_PATH,
+            "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configFolder.root.toPath()}",
             "GRPC_REQUEST_INTERVAL" to "1s",
             "OTEL_METRICS_EXPORTER" to "none",
             "OTEL_TRACES_EXPORTER" to "none",
@@ -197,9 +284,8 @@ class RequisitionFetcherFunctionTest {
     grpcServer.shutdown()
   }
 
-  /** Tests the RequisitionFetcherFunction as a local process. */
   @Test
-  fun `test RequisitionFetcherFunction as local process`() {
+  fun `service dispatches WorkItem`() {
     val url = "http://localhost:${functionProcess.port}"
     logger.info("Testing Cloud Function at: $url")
     val client = HttpClient.newHttpClient()
@@ -209,11 +295,11 @@ class RequisitionFetcherFunctionTest {
     logger.info("Response body: ${getResponse.body()}")
     // Verify the function worked
     assertThat(getResponse.statusCode()).isEqualTo(200)
-    val storageDir = tempFolder.root.toPath().resolve(STORAGE_PATH_PREFIX).toFile()
+    val storageDir = tempFolder.root.toPath().resolve(DIRECT_STORAGE_PATH_PREFIX).toFile()
 
     val fileName: String? =
       storageDir.takeIf { it.exists() && it.isDirectory }?.listFiles()?.singleOrNull()?.name
-    val storedRequisitionPath = Paths.get(STORAGE_PATH_PREFIX, fileName)
+    val storedRequisitionPath = Paths.get(DIRECT_STORAGE_PATH_PREFIX, fileName)
     val requisitionFile = tempFolder.root.toPath().resolve(storedRequisitionPath).toFile()
     assertThat(requisitionFile.exists()).isTrue()
     val anyMsg = Any.parseFrom(requisitionFile.readByteString())
@@ -228,6 +314,83 @@ class RequisitionFetcherFunctionTest {
       .isEqualTo(EVENT_GROUP_ENTRY.value.collectionInterval.endTime)
     assertThat(groupedRequisitions.eventGroupMapList[0].details.eventGroupReferenceId)
       .isEqualTo(EVENT_GROUP_REFERENCE_ID)
+    val workItemRequest = checkNotNull(ensureWorkItemRequest)
+    assertThat(workItemRequest.workItemId)
+      .isEqualTo("results-fulfiller-${groupedRequisitions.groupId}")
+    assertThat(workItemRequest.workItem.queue).isEqualTo("results-fulfiller-queue")
+  }
+
+  @Test
+  fun `service rejects config without work_item_dispatch`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    copyConfig(
+      "legacy-requisition-fetcher-config.textproto",
+      "requisition-fetcher-config.textproto",
+    )
+    startFunction()
+
+    val response =
+      HttpClient.newHttpClient()
+        .send(
+          HttpRequest.newBuilder()
+            .uri(URI.create("http://localhost:${functionProcess.port}"))
+            .GET()
+            .build(),
+          BodyHandlers.ofString(),
+        )
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("Invalid config")
+    assertThat(ensureWorkItemRequest).isNull()
+  }
+
+  @Test
+  fun `service fails closed when direct storage prefix is below legacy prefix`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    val mutableConfig = configFolder.root.toPath().resolve("requisition-fetcher-config.textproto")
+    mutableConfig
+      .toFile()
+      .writeText(
+        mutableConfig
+          .toFile()
+          .readText()
+          .replace(DIRECT_STORAGE_PATH_PREFIX, "$STORAGE_PATH_PREFIX/v2")
+      )
+    startFunction()
+
+    val response = invokeFunction()
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("Invalid config")
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.listFiles()).isEmpty()
+  }
+
+  @Test
+  fun `service fails closed when one provider direct prefix overlaps another legacy prefix`() {
+    functionProcess.close()
+    ensureWorkItemRequest = null
+    val legacyConfig =
+      configFolder.root.toPath().resolve("requisition-fetcher-config.textproto").toFile()
+    val originalConfig = legacyConfig.readText()
+    val secondProviderConfig =
+      originalConfig
+        .replace("dataProviders/edp7", "dataProviders/edp8")
+        .replace(
+          "storage_path_prefix: \"$STORAGE_PATH_PREFIX\"",
+          "storage_path_prefix: \"$DIRECT_STORAGE_PATH_PREFIX/legacy\"",
+        )
+    legacyConfig.writeText("$originalConfig\n$secondProviderConfig")
+    startFunction()
+
+    val response = invokeFunction()
+
+    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.body()).contains("Invalid config")
+    assertThat(ensureWorkItemRequest).isNull()
+    assertThat(tempFolder.root.listFiles()).isEmpty()
   }
 
   @Test
@@ -245,6 +408,23 @@ class RequisitionFetcherFunctionTest {
     assertThat(recordedTraceparent).isNotNull()
     val propagatedTraceId = traceIdFromTraceparent(recordedTraceparent!!)
     assertThat(propagatedTraceId).isEqualTo(expectedTraceId)
+  }
+
+  private fun invokeFunction(): java.net.http.HttpResponse<String> {
+    return HttpClient.newHttpClient()
+      .send(
+        HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:${functionProcess.port}"))
+          .GET()
+          .build(),
+        BodyHandlers.ofString(),
+      )
+  }
+
+  private fun copyConfig(fileName: String, destinationFileName: String = fileName) {
+    CONFIG_SOURCE_PATH.resolve(fileName)
+      .toFile()
+      .copyTo(configFolder.root.toPath().resolve(destinationFileName).toFile(), overwrite = true)
   }
 
   companion object {
@@ -381,12 +561,13 @@ class RequisitionFetcherFunctionTest {
     }
 
     private val STORAGE_PATH_PREFIX = "edp7"
+    private val DIRECT_STORAGE_PATH_PREFIX = "edp7-v2"
     private val SECRETS_DIR: Path =
       getRuntimePath(
         Paths.get("wfa_measurement_system", "src", "main", "k8s", "testing", "secretfiles")
       )!!
-    private val REQUISITION_CONFIG_FILE_SYSTEM_PATH =
-      "file://" +
+    private val CONFIG_SOURCE_PATH =
+      checkNotNull(
         getRuntimePath(
           Paths.get(
             "wfa_measurement_system",
@@ -402,7 +583,8 @@ class RequisitionFetcherFunctionTest {
             "requisitionfetcher",
             "testing",
           )
-        )!!
+        )
+      )
     private val serverCerts =
       SigningCerts.fromPemFiles(
         certificateFile = SECRETS_DIR.resolve("kingdom_tls.pem").toFile(),

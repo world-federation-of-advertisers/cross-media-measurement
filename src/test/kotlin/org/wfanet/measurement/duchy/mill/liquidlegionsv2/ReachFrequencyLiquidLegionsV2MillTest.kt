@@ -30,14 +30,25 @@ import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import io.grpc.Status
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.security.cert.X509Certificate
 import java.time.Clock
 import java.time.Duration
 import java.util.Base64
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
+import org.junit.After
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -52,8 +63,10 @@ import org.mockito.kotlin.whenever
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysRequest
 import org.wfanet.anysketch.crypto.CombineElGamalPublicKeysResponse
 import org.wfanet.measurement.api.v2alpha.ElGamalPublicKey as V2AlphaElGamalPublicKey
+import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.vidSamplingInterval
 import org.wfanet.measurement.api.v2alpha.measurementSpec
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.crypto.readPrivateKey
@@ -63,6 +76,7 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.DuchyInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.consent.client.common.toEncryptionPublicKey
@@ -197,6 +211,10 @@ private const val PARALLELISM = 2
 
 private const val LOCAL_ID = 1234L
 private const val GLOBAL_ID = LOCAL_ID.toString()
+private const val BASIC_REPORT_NAME = "measurementConsumers/123/basicReports/456"
+private const val REPORT_NAME = "measurementConsumers/123/reports/789"
+private const val METRIC_NAME = "measurementConsumers/123/metrics/012"
+private const val MEASUREMENT_NAME = "measurementConsumers/123/measurements/$GLOBAL_ID"
 
 private val DUCHY_ONE_KEY_PAIR =
   ElGamalKeyPair.newBuilder()
@@ -349,6 +367,17 @@ private val MEASUREMENT_SPEC = measurementSpec {
 }
 private val SERIALIZED_MEASUREMENT_SPEC: ByteString = MEASUREMENT_SPEC.toByteString()
 
+private val TRACED_MEASUREMENT_SPEC = measurementSpec {
+  nonceHashes += TEST_REQUISITION_1.nonceHash
+  nonceHashes += TEST_REQUISITION_2.nonceHash
+  nonceHashes += TEST_REQUISITION_3.nonceHash
+  reportingMetadata = reportingMetadata {
+    basicReport = BASIC_REPORT_NAME
+    report = REPORT_NAME
+    metric = METRIC_NAME
+  }
+}
+
 private val MEASUREMENT_SPEC_WITH_VID_SAMPLING_WIDTH = measurementSpec {
   nonceHashes += TEST_REQUISITION_1.nonceHash
   nonceHashes += TEST_REQUISITION_2.nonceHash
@@ -407,6 +436,15 @@ private val NON_AGGREGATOR_COMPUTATION_DETAILS =
         participant +=
           listOf(COMPUTATION_PARTICIPANT_1, COMPUTATION_PARTICIPANT_2, COMPUTATION_PARTICIPANT_3)
         partiallyCombinedPublicKey = PARTIALLY_COMBINED_PUBLIC_KEY
+      }
+  }
+
+private val TRACED_NON_AGGREGATOR_COMPUTATION_DETAILS =
+  NON_AGGREGATOR_COMPUTATION_DETAILS.copy {
+    kingdomComputation =
+      kingdomComputation.copy {
+        measurement = MEASUREMENT_NAME
+        measurementSpec = TRACED_MEASUREMENT_SPEC.toByteString()
       }
   }
 
@@ -528,6 +566,8 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
   private lateinit var aggregatorMill: ReachFrequencyLiquidLegionsV2Mill
   private lateinit var nonAggregatorMill: ReachFrequencyLiquidLegionsV2Mill
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
 
   private fun buildAdvanceComputationRequests(
     globalComputationId: String,
@@ -554,6 +594,17 @@ class ReachFrequencyLiquidLegionsV2MillTest {
 
   @Before
   fun initializeMill() = runBlocking {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
     DuchyInfo.setForTest(setOf(DUCHY_ONE_NAME, DUCHY_TWO_NAME, DUCHY_THREE_NAME))
     val csX509Certificate = readCertificate(CONSENT_SIGNALING_CERT_DER)
     val csSigningKey =
@@ -608,6 +659,136 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       )
   }
 
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+  }
+
+  private suspend fun captureReportTraceLifecycleFields(
+    block: suspend () -> Unit
+  ): List<Map<String, String>> {
+    val messages = CopyOnWriteArrayList<String>()
+    val handler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          messages += record.message
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(handler)
+    try {
+      block()
+    } finally {
+      rootLogger.removeHandler(handler)
+    }
+    return messages
+      .filter { it.contains("xmm.lifecycle.stage=duchy_stage_attempt") }
+      .map { message ->
+        message.split(' ').associate { field ->
+          field.substringBefore('=') to field.substringAfter('=')
+        }
+      }
+  }
+
+  @Test
+  fun `processClaimedWork records token retrieval failure`() = runTest {
+    val missingComputationId = "5678"
+
+    val lifecycleFields = captureReportTraceLifecycleFields {
+      assertFailsWith<ComputationDataClients.PermanentErrorException> {
+        nonAggregatorMill.processClaimedWork(missingComputationId, version = 0L)
+      }
+    }
+
+    val failureSpan =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("duchy_stage_attempt")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("ComputationDataClients.PermanentErrorException")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.NOT_FOUND")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(ComputationKey(missingComputationId).toName())
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ONE_NAME)
+    assertThat(lifecycleFields).hasSize(1)
+    assertThat(lifecycleFields.single()[ReportTraceAttributes.OUTCOME_STRING]).isEqualTo("failed")
+    assertThat(lifecycleFields.single()[ReportTraceAttributes.ERROR_CODE_STRING])
+      .isEqualTo("grpc.NOT_FOUND")
+  }
+
+  @Test
+  fun `processClaimedWork records stale delivery when claimed version changed`() = runTest {
+    fakeComputationDb.addComputation(
+      globalId = GLOBAL_ID,
+      stage = INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = TRACED_NON_AGGREGATOR_COMPUTATION_DETAILS,
+    )
+    whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+      .thenReturn(ComputationLogEntry.getDefaultInstance())
+
+    val lifecycleFields = captureReportTraceLifecycleFields {
+      nonAggregatorMill.processClaimedWork(GLOBAL_ID, version = 1L)
+    }
+
+    val staleSpan =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("stale_delivery")
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("ComputationVersionChanged")
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(MEASUREMENT_NAME)
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo(BASIC_REPORT_NAME)
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(ComputationKey(GLOBAL_ID).toName())
+    val staleLog = lifecycleFields.single()
+    assertThat(staleLog[ReportTraceAttributes.OUTCOME_STRING]).isEqualTo("stale_delivery")
+    assertThat(staleLog[ReportTraceAttributes.ERROR_TYPE_STRING])
+      .isEqualTo("ComputationVersionChanged")
+    assertThat(staleLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING]).isEqualTo(MEASUREMENT_NAME)
+    assertThat(staleLog[ReportTraceAttributes.BASIC_REPORT_NAME_STRING])
+      .isEqualTo(BASIC_REPORT_NAME)
+  }
+
+  @Test
+  fun `processClaimedWork records stale delivery when mill does not hold lock`() = runTest {
+    fakeComputationDb.addComputation(
+      globalId = GLOBAL_ID,
+      stage = INITIALIZATION_PHASE.toProtocolStage(),
+      computationDetails = TRACED_NON_AGGREGATOR_COMPUTATION_DETAILS,
+    )
+    whenever(mockComputationLogEntries.createComputationLogEntry(any()))
+      .thenReturn(ComputationLogEntry.getDefaultInstance())
+
+    val lifecycleFields = captureReportTraceLifecycleFields {
+      nonAggregatorMill.processClaimedWork(GLOBAL_ID, version = 0L)
+    }
+
+    val staleSpan =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("stale_delivery")
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("WorkLockNotHeld")
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(MEASUREMENT_NAME)
+    assertThat(staleSpan.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+      .isEqualTo(BASIC_REPORT_NAME)
+    val staleLog = lifecycleFields.single()
+    assertThat(staleLog[ReportTraceAttributes.OUTCOME_STRING]).isEqualTo("stale_delivery")
+    assertThat(staleLog[ReportTraceAttributes.ERROR_TYPE_STRING]).isEqualTo("WorkLockNotHeld")
+    assertThat(staleLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING]).isEqualTo(MEASUREMENT_NAME)
+    assertThat(staleLog[ReportTraceAttributes.BASIC_REPORT_NAME_STRING])
+      .isEqualTo(BASIC_REPORT_NAME)
+  }
+
   @Test
   fun `exceeding max attempt should fail the computation`() = runBlocking {
     // Stage 0. preparing the database and set up mock
@@ -628,10 +809,15 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           }
         }
         .build()
+    val measurementName = "measurementConsumers/123/measurements/$GLOBAL_ID"
+    val tracedComputationDetails =
+      initialComputationDetails.copy {
+        kingdomComputation = kingdomComputation.copy { measurement = measurementName }
+      }
     fakeComputationDb.addComputation(
       partialToken.localComputationId,
       partialToken.computationStage,
-      computationDetails = initialComputationDetails,
+      computationDetails = tracedComputationDetails,
       requisitions = REQUISITIONS,
     )
     // Simulate multiple attempts.
@@ -644,7 +830,9 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       fakeComputationDb.claimedComputations.clear()
     }
 
-    nonAggregatorMill.claimAndProcessWork()
+    val lifecycleFields = captureReportTraceLifecycleFields {
+      nonAggregatorMill.claimAndProcessWork()
+    }
 
     assertThat(fakeComputationDb[LOCAL_ID])
       .isEqualTo(
@@ -655,12 +843,33 @@ class ReachFrequencyLiquidLegionsV2MillTest {
           computationStage = COMPLETE.toProtocolStage()
           version = 4
           computationDetails =
-            initialComputationDetails.copy { endingState = CompletedReason.FAILED }
+            tracedComputationDetails.copy { endingState = CompletedReason.FAILED }
           requisitions += REQUISITIONS
         }
       )
 
     assertThat(fakeComputationDb.claimedComputations).isEmpty()
+    val failureSpan =
+      spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("duchy_stage_attempt")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
+      .isEqualTo("AttemptsExhausted")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(measurementName)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo(ComputationKey(GLOBAL_ID).toName())
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ONE_NAME)
+    assertThat(lifecycleFields.map { it.getValue(ReportTraceAttributes.OUTCOME_STRING) })
+      .containsExactly("started", "failed")
+      .inOrder()
+    val failureLog = lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "failed" }
+    assertThat(failureLog[ReportTraceAttributes.ERROR_TYPE_STRING]).isEqualTo("AttemptsExhausted")
+    assertThat(failureLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING]).isEqualTo(measurementName)
+    assertThat(failureLog[ReportTraceAttributes.COMPUTATION_NAME_STRING])
+      .isEqualTo(ComputationKey(GLOBAL_ID).toName())
+    assertThat(failureLog[ReportTraceAttributes.DUCHY_ID_STRING]).isEqualTo(DUCHY_ONE_NAME)
   }
 
   @Test

@@ -188,6 +188,7 @@ locals {
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
+    paused                    = !var.requisition_fetcher_enabled
     scheduler_sa_display_name = "Requisition Fetcher Scheduler"
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger requisition fetcher"
     scheduler_job_description = "Scheduled job to fetch unfulfilled requisitions from the Kingdom"
@@ -263,11 +264,17 @@ locals {
       uber_jar_path   = var.data_watcher_uber_jar_path
     },
     requisition_fetcher = {
-      function_name   = "requisition-fetcher"
-      entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
-      extra_env_vars  = var.requisition_fetcher_env_var
-      secret_mappings = var.requisition_fetcher_secret_mapping
-      uber_jar_path   = var.requisition_fetcher_uber_jar_path
+      function_name = "requisition-fetcher"
+      entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.requisitionfetcher.RequisitionFetcherFunction"
+      extra_env_vars = join(",", compact([
+        var.requisition_fetcher_env_var,
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+      ]))
+      secret_mappings = join(",", compact([
+        var.requisition_fetcher_secret_mapping,
+        "/secrets/secure-computation-ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
+      ]))
+      uber_jar_path = var.requisition_fetcher_uber_jar_path
     },
     event_group_sync = {
       function_name   = "event-group-sync"
@@ -472,6 +479,7 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
+  tee_consumers_enabled                            = var.tee_consumers_enabled
   requisition_fulfiller_config                     = local.requisition_fulfiller_config
   pubsub_iam_service_account_member                = module.secure_computation.secure_computation_internal_iam_service_account_member
   edp_aggregator_bucket_name                       = var.secure_computation_storage_bucket_name

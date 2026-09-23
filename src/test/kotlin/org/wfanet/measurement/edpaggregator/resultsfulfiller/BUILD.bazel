@@ -17,6 +17,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha/testing",
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:report_tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisition_grouper_by_report_id",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/requisitionfetcher:requisitions_validator",
@@ -178,9 +179,24 @@ kt_jvm_test(
     ],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.DefaultFulfillerSelectorTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_params_validator",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "ResultsFulfillerParamsValidatorTest",
+    srcs = ["ResultsFulfillerParamsValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_params_validator",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/protobuf/kotlin",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )

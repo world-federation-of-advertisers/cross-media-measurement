@@ -46,7 +46,7 @@ import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.gcloud.gcs.testing.StorageEmulatorRule
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
@@ -80,7 +80,7 @@ class InvokeDataWatcherFunctionTest() {
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
 
   private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
-    onBlocking { createWorkItem(any()) }.thenReturn(workItem { name = "some-work-item-name" })
+    onBlocking { ensureWorkItem(any()) }.thenReturn(workItem { name = "some-work-item-name" })
   }
 
   @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(workItemsServiceMock) }
@@ -193,10 +193,10 @@ class InvokeDataWatcherFunctionTest() {
     // a 500 if the cloud function throws an exception.
     assertThat(getResponse.statusCode()).isEqualTo(200)
 
-    val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    val ensureWorkItemRequestCaptor = argumentCaptor<EnsureWorkItemRequest>()
 
     verifyBlocking(workItemsServiceMock, times(1)) {
-      createWorkItem(createWorkItemRequestCaptor.capture())
+      ensureWorkItem(ensureWorkItemRequestCaptor.capture())
     }
   }
 

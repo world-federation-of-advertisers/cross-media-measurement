@@ -45,6 +45,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerRawImpr
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.Errors
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
@@ -877,7 +878,7 @@ class RawImpressionUploadServiceTest {
     }
 
   @Test
-  fun `eviction fence blocks public upload creation until released`(): Unit = runBlocking {
+  fun `eviction fence defers public upload processing until released`(): Unit = runBlocking {
     val operationId = UUID.randomUUID().toString()
     val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
       parent = DATA_PROVIDER_KEY.toName()
@@ -889,28 +890,6 @@ class RawImpressionUploadServiceTest {
     assertThat(initialAcquire.newlyAcquired).isTrue()
     assertThat(resumedAcquire.newlyAcquired).isFalse()
 
-    val error =
-      assertFailsWith<StatusRuntimeException> {
-        service.createRawImpressionUpload(
-          createRawImpressionUploadRequest {
-            parent = DATA_PROVIDER_KEY.toName()
-            rawImpressionUpload = rawImpressionUpload {
-              doneBlobUri = DONE_BLOB_URI
-              doneBlobGeneration = DONE_BLOB_GENERATION
-            }
-            requestId = UUID.randomUUID().toString()
-          }
-        )
-      }
-    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
-    assertThat(error.status.description).contains("eviction")
-
-    service.releaseRawImpressionUploadEvictionFence(
-      releaseRawImpressionUploadEvictionFenceRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        evictionOperationId = operationId
-      }
-    )
     val upload =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -922,8 +901,64 @@ class RawImpressionUploadServiceTest {
           requestId = UUID.randomUUID().toString()
         }
       )
-    assertThat(upload.name).isNotEmpty()
+    assertThat(upload.processingDeferred).isTrue()
+
+    service.releaseRawImpressionUploadEvictionFence(
+      releaseRawImpressionUploadEvictionFenceRequest {
+        parent = DATA_PROVIDER_KEY.toName()
+        evictionOperationId = operationId
+      }
+    )
+    val released =
+      service.getRawImpressionUpload(getRawImpressionUploadRequest { name = upload.name })
+    assertThat(released.processingDeferred).isFalse()
   }
+
+  @Test
+  fun `createRawImpressionUpload rejects malformed upload healing operation`(): Unit = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            parent = DATA_PROVIDER_KEY.toName()
+            rawImpressionUpload = rawImpressionUpload {
+              doneBlobUri = DONE_BLOB_URI
+              doneBlobGeneration = DONE_BLOB_GENERATION
+              uploadHealingOperation = "not-a-resource-name"
+            }
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `createRawImpressionUpload rejects upload healing operation under another parent`(): Unit =
+    runBlocking {
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUpload(
+            createRawImpressionUploadRequest {
+              parent = DATA_PROVIDER_KEY.toName()
+              rawImpressionUpload = rawImpressionUpload {
+                doneBlobUri = DONE_BLOB_URI
+                doneBlobGeneration = DONE_BLOB_GENERATION
+                uploadHealingOperation =
+                  UploadHealingOperationKey(
+                      DataProviderKey("another-data-provider"),
+                      UUID.randomUUID().toString(),
+                    )
+                    .toName()
+              }
+              requestId = UUID.randomUUID().toString()
+            }
+          )
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()

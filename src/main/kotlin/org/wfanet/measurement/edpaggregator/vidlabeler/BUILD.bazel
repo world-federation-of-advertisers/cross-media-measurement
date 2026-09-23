@@ -200,7 +200,7 @@ java_image(
     base = "@java_image_base_root",
     binary = ":VidLabeler",
     labels = {
-        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_LOGS_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID,OTEL_METRIC_EXPORT_INTERVAL",
+        "tee.launch_policy.allow_env_override": "EDPA_CONFIG_STORAGE_BUCKET,WORK_ITEM_CONSUMPTION_ENABLED,JAVA_TOOL_OPTIONS,OTEL_SERVICE_NAME,OTEL_METRICS_EXPORTER,OTEL_TRACES_EXPORTER,OTEL_LOGS_EXPORTER,OTEL_EXPORTER_GOOGLE_CLOUD_PROJECT_ID,OTEL_METRIC_EXPORT_INTERVAL",
         "tee.launch_policy.log_redirect": "always",
     },
     main_class = "org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerAppRunner",

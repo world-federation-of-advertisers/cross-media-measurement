@@ -54,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRe
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createPoolAssignmentJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createVidLabelingJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
@@ -175,6 +176,7 @@ class VidLabelingDispatchSequencer(
       (listUploads(RawImpressionUpload.State.CREATED) +
           listUploads(RawImpressionUpload.State.ACTIVE))
         .filter { it.registrationComplete }
+        .filter { !it.processingDeferred }
         .sortedBy { Timestamps.toNanos(it.createTime) }
     val modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>> =
       uploads.associate { it.name to listUploadModelLines(it.name) }
@@ -653,26 +655,45 @@ class VidLabelingDispatchSequencer(
     }
   }
 
-  private suspend fun markPoolAssigning(modelLineName: String, etag: String) {
-    try {
-      rpcThrottlers.metadataWrite.onReady {
-        rawImpressionUploadModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
-          markRawImpressionUploadModelLinePoolAssigningRequest {
-            name = modelLineName
-            this.etag = etag
-            requestId = RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName)
-          }
-        )
-      }
-    } catch (e: StatusException) {
-      if (isConcurrentClaimLoss(e)) {
-        logger.info(
-          "Skipping POOL_ASSIGNING for $modelLineName: ${e.status.code} (claimed by a concurrent " +
-            "dispatch)"
-        )
+  /** Retries the phase claim when child completion changed only the parent etag. */
+  private suspend fun markPoolAssigning(modelLineName: String, initialEtag: String) {
+    var etag = initialEtag
+    while (true) {
+      try {
+        rpcThrottlers.metadataWrite.onReady {
+          rawImpressionUploadModelLineStub.markRawImpressionUploadModelLinePoolAssigning(
+            markRawImpressionUploadModelLinePoolAssigningRequest {
+              name = modelLineName
+              this.etag = etag
+              requestId = RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(modelLineName)
+            }
+          )
+        }
         return
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.FAILED_PRECONDITION) {
+          logger.info(
+            "Skipping POOL_ASSIGNING for $modelLineName: another upload owns the model line"
+          )
+          return
+        }
+        if (e.status.code != Status.Code.ABORTED) throw e
+
+        val current =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadModelLineStub.getRawImpressionUploadModelLine(
+              getRawImpressionUploadModelLineRequest { name = modelLineName }
+            )
+          }
+        if (current.state != RawImpressionUploadModelLine.State.CREATED) {
+          logger.info(
+            "Skipping POOL_ASSIGNING for $modelLineName: a concurrent update changed its state to " +
+              current.state
+          )
+          return
+        }
+        etag = current.etag
       }
-      throw e
     }
   }
 

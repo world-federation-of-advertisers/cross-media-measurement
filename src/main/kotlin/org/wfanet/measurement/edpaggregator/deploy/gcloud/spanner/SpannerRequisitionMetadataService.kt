@@ -64,6 +64,8 @@ import org.wfanet.measurement.internal.edpaggregator.LookupRequisitionMetadataRe
 import org.wfanet.measurement.internal.edpaggregator.MarkWithdrawnRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.QueueRequisitionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.RefuseRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.RegisterQueuedRequisitionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.RegisterQueuedRequisitionMetadataResponse
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadata
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RequisitionMetadataState as State
@@ -72,6 +74,7 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreateRequisitionMetad
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataPageToken
 import org.wfanet.measurement.internal.edpaggregator.listRequisitionMetadataResponse
+import org.wfanet.measurement.internal.edpaggregator.registerQueuedRequisitionMetadataResponse
 
 class SpannerRequisitionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
@@ -177,6 +180,34 @@ class SpannerRequisitionMetadataService(
   override suspend fun batchCreateRequisitionMetadata(
     request: BatchCreateRequisitionMetadataRequest
   ): BatchCreateRequisitionMetadataResponse {
+    return createRequisitionMetadataBatch(request)
+  }
+
+  override suspend fun registerQueuedRequisitionMetadata(
+    request: RegisterQueuedRequisitionMetadataRequest
+  ): RegisterQueuedRequisitionMetadataResponse {
+    if (request.workItem.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    request.requestsList.forEachIndexed { index, subRequest ->
+      if (subRequest.requisitionMetadata.refusalMessage.isNotEmpty()) {
+        throw InvalidFieldValueException("requests.$index.requisition_metadata.refusal_message") {
+            "refusal_message cannot be set when registering queued metadata"
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+    val response = createRequisitionMetadataBatch(request.toBatchCreateRequest(), request.workItem)
+    return registerQueuedRequisitionMetadataResponse {
+      requisitionMetadata += response.requisitionMetadataList
+    }
+  }
+
+  private suspend fun createRequisitionMetadataBatch(
+    request: BatchCreateRequisitionMetadataRequest,
+    queuedWorkItem: String? = null,
+  ): BatchCreateRequisitionMetadataResponse {
     if (request.requestsList.isEmpty()) {
       return BatchCreateRequisitionMetadataResponse.getDefaultInstance()
     }
@@ -232,7 +263,9 @@ class SpannerRequisitionMetadataService(
 
     val results =
       try {
-        transactionRunner.run { txn -> txn.batchCreateRequisitionMetadata(request.requestsList) }
+        transactionRunner.run { txn ->
+          txn.batchCreateRequisitionMetadata(request.requestsList, queuedWorkItem)
+        }
       } catch (e: SpannerException) {
         throw e
       }
@@ -252,6 +285,14 @@ class SpannerRequisitionMetadataService(
           }
         }
     }
+  }
+
+  private fun RegisterQueuedRequisitionMetadataRequest.toBatchCreateRequest():
+    BatchCreateRequisitionMetadataRequest {
+    return BatchCreateRequisitionMetadataRequest.newBuilder()
+      .setDataProviderResourceId(dataProviderResourceId)
+      .addAllRequests(requestsList)
+      .build()
   }
 
   /**

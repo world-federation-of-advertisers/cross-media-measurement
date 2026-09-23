@@ -968,6 +968,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
   filter: String,
   modelLineName: String,
   containingReportResourceName: String,
+  basicReportResourceName: String,
 ): CreateMetricRequest {
   val source = this
   return createMetricRequest {
@@ -981,6 +982,7 @@ fun InternalReport.ReportingMetric.toCreateMetricRequest(
       modelLine = modelLineName
       filters += (source.details.groupingPredicatesList + filter).filter { it.isNotBlank() }
       containingReport = containingReportResourceName
+      basicReport = basicReportResourceName
     }
     requestId = source.createMetricRequestId
     metricId = "a" + source.createMetricRequestId

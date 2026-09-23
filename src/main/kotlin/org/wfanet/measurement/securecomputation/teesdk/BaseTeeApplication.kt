@@ -21,11 +21,25 @@ import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Parser
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
+import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.awaitCancellation
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.ReceiveChannel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
+import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
+import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -36,8 +50,14 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.completeWor
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.failWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.renewWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.service.Errors
 import org.wfanet.measurement.securecomputation.service.WorkItemKey
+
+private fun canonicalWorkItemName(name: String): String {
+  if (name.isEmpty()) return name
+  return WorkItemKey.fromName(name)?.toName() ?: WorkItemKey(name).toName()
+}
 
 /**
  * BaseTeeApplication is an abstract base class for TEE applications that automatically subscribes
@@ -49,6 +69,9 @@ import org.wfanet.measurement.securecomputation.service.WorkItemKey
  * @param parser [Parser] used to parse serialized queue messages into [T] instances.
  * @param controlPlaneThrottler optional process-scoped limiter for `WorkItems` and
  *   `WorkItemAttempts` RPCs.
+ * @param attemptUpdateRetryDelay suspends before retrying a transient attempt-state update.
+ * @param activeAttemptRetryDelay suspends before retrying ownership of a delivery whose WorkItem
+ *   already has an active attempt.
  */
 abstract class BaseTeeApplication(
   private val subscriptionId: String,
@@ -57,10 +80,28 @@ abstract class BaseTeeApplication(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val workItemAttemptsStub: WorkItemAttemptsCoroutineStub,
   private val controlPlaneThrottler: Throttler? = null,
+  private val attemptUpdateRetryDelay: suspend (Int) -> Unit = { attempt ->
+    delay(ATTEMPT_UPDATE_RETRY_BACKOFF.durationForAttempt(attempt).toMillis())
+  },
+  private val activeAttemptRetryDelay: suspend () -> Unit = {
+    delay(ACTIVE_ATTEMPT_RETRY_DELAY.toMillis())
+  },
+  private val attemptLeaseRenewalInterval: Duration = DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL,
+  private val workItemConsumptionEnabled: Boolean = workItemConsumptionEnabledFromEnvironment(),
 ) : AutoCloseable {
+
+  init {
+    require(attemptLeaseRenewalInterval > Duration.ZERO) {
+      "attemptLeaseRenewalInterval must be positive"
+    }
+  }
 
   /** Starts the TEE application by listening for messages on the specified queue. */
   suspend fun run() {
+    if (!workItemConsumptionEnabled) {
+      logger.info("WorkItem consumption is disabled; waiting without subscribing")
+      awaitCancellation()
+    }
     logger.info("Starting BaseTeeApplication for subscription: $subscriptionId")
     receiveAndProcessMessages()
   }
@@ -92,102 +133,182 @@ abstract class BaseTeeApplication(
    * @param queueMessage The raw message received from the queue of type [WorkItem].
    */
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
+    val body = queueMessage.body
+    val workItemName = canonicalWorkItemName(body.name)
+    val traceContext =
+      if (body.workItemParams.`is`(WorkItem.WorkItemParams::class.java)) {
+        runCatching {
+            body.workItemParams.unpack(WorkItem.WorkItemParams::class.java).traceContextMap
+          }
+          .getOrDefault(emptyMap())
+      } else {
+        emptyMap()
+      }
+    W3CTraceContext.withExtractedContext(traceContext) {
+      ReportTracing.traceSuspending(
+        spanName = "secure_computation.work_item.process",
+        attributes =
+          io.opentelemetry.api.common.Attributes.builder()
+            .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "work_item_processing")
+            .put(ReportTraceAttributes.OUTCOME, "started")
+            .build(),
+      ) {
+        processMessageInContext(queueMessage, workItemName)
+      }
+    }
+  }
+
+  private suspend fun processMessageInContext(
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
+    workItemName: String,
+  ) {
     logger.info("Starting to process message with ackId: ${queueMessage.ackId}")
     val body: WorkItem = queueMessage.body
 
     if (body.name.isEmpty()) {
-      logger.log(Level.SEVERE, "WorkItem name is empty. Cannot proceed. Nacking message.")
+      val error = IllegalArgumentException("WorkItem name is empty")
+      recordCurrentSpanError(error)
+      logger.log(Level.SEVERE, error) { "Cannot proceed. Nacking message." }
       queueMessage.nack()
       return
     }
     logger.info("Processing WorkItem: ${body.name}")
-    val workItemName = WorkItemKey(body.name).toName()
-    val workItemAttempt: WorkItemAttempt =
-      try {
-        val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
-        logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
-        createWorkItemAttempt(parent = workItemName, workItemAttemptId = workItemAttemptId)
-      } catch (e: ControlPlaneApiException) {
-        // If createWorkItemAttempt failed because the WorkItem is not found or in an invalid state,
-        // ack the message and stop processing.
-        val cause = e.cause
-        if (cause is StatusException) {
-          val reason = cause.errorInfo?.reason
-          if (
-            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name ||
-              reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
-          ) {
-            logger.log(Level.WARNING, e) {
-              "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
-            }
-            queueMessage.ack()
-            return
-          }
-        }
-        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
-        queueMessage.nack()
-        return
-      }
+    val workItemAttempt =
+      awaitWorkItemAttempt(
+        queueMessage,
+        workItemName,
+        body.generation.takeUnless { it == 0L } ?: 1L,
+      ) ?: return
+    Span.current().setAttribute(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttempt.name)
 
     try {
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
-      runWork(queueMessage.body.workItemParams)
+      runWorkWithLeaseRenewal(workItemAttempt, queueMessage.body.workItemParams)
       logger.info("Completed runWork for WorkItemAttempt: ${workItemAttempt.name}")
-      runCatching { completeWorkItemAttempt(workItemAttempt) }
-        .onFailure { error ->
-          when (error) {
-            is StatusException -> {
-              if (
-                error.status.code == Status.Code.FAILED_PRECONDITION &&
-                  error.errorInfo?.reason == Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
-                  error.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
-                    WorkItemAttempt.State.SUCCEEDED.name
-              ) {
-                logger.info(
-                  "WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}"
-                )
-                queueMessage.ack()
-                return@processMessage
-              } else {
-                logger.log(Level.SEVERE, error) {
-                  "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
-                }
-                queueMessage.nack()
-                return@processMessage
-              }
-            }
-          }
+      val completionError =
+        try {
+          completeWorkItemAttempt(workItemAttempt)
+          null
+        } catch (e: CancellationException) {
+          throw e
+        } catch (e: Throwable) {
+          e
         }
+      if (completionError != null) {
+        val statusException =
+          when (completionError) {
+            is StatusException -> completionError
+            is ControlPlaneApiException -> completionError.cause as? StatusException
+            else -> null
+          }
+        if (
+          statusException?.status?.code == Status.Code.FAILED_PRECONDITION &&
+            statusException.errorInfo?.reason ==
+              Errors.Reason.INVALID_WORK_ITEM_ATTEMPT_STATE.name &&
+            statusException.errorInfo
+              ?.metadataMap
+              ?.get(Errors.Metadata.WORK_ITEM_ATTEMPT_STATE.key) ==
+              WorkItemAttempt.State.SUCCEEDED.name
+        ) {
+          logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
+          Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
+          queueMessage.ack()
+          return
+        }
+        recordCurrentSpanError(completionError)
+        logger.log(Level.SEVERE, completionError) {
+          "Failed to report work item as completed. Nacking message ${queueMessage.ackId}"
+        }
+        queueMessage.nack()
+        return
+      }
       logger.info("Successfully completed processing. Acking message ${queueMessage.ackId}")
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
+      recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Failed to parse protobuf message ${queueMessage.ackId}" }
       try {
-        failWorkItem(workItemName)
+        failWorkItem(workItemName, body.generation.takeUnless { it == 0L } ?: 1L)
         logger.info("Marked WorkItem as failed. Acking message ${queueMessage.ackId}")
         queueMessage.ack()
+      } catch (error: CancellationException) {
+        throw error
       } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item.failure_writeback",
+          lifecycleStage = "work_item_failure_writeback",
+          workItemName = workItemName,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
+        )
         logger.log(Level.SEVERE, error) {
           "Failed to report work item failure. Nacking message ${queueMessage.ackId}"
         }
         queueMessage.nack()
       }
+    } catch (e: CancellationException) {
+      throw e
     } catch (e: Exception) {
+      recordCurrentSpanError(e)
       logger.log(Level.SEVERE, e) { "Error processing message ${queueMessage.ackId}" }
-      runCatching { failWorkItemAttempt(workItemAttempt, e) }
-        .onFailure { error ->
-          logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
-        }
-      logger.info("Nacking message ${queueMessage.ackId} after error")
+      try {
+        failWorkItemAttempt(workItemAttempt, e)
+        logger.info("WorkItemAttempt failure reported. Nacking message ${queueMessage.ackId}")
+      } catch (error: CancellationException) {
+        throw error
+      } catch (error: Throwable) {
+        recordFailureWriteback(
+          spanName = "secure_computation.work_item_attempt.failure_writeback",
+          lifecycleStage = "work_item_attempt_failure_writeback",
+          workItemName = workItemName,
+          workItemAttemptName = workItemAttempt.name,
+          error = error,
+        )
+        logger.log(Level.SEVERE, error) { "Failed to report work item attempt failure" }
+      }
       queueMessage.nack()
     } finally {
       logger.info("Finished processing message ${queueMessage.ackId}")
     }
   }
 
+  private fun recordFailureWriteback(
+    spanName: String,
+    lifecycleStage: String,
+    workItemName: String,
+    workItemAttemptName: String,
+    error: Throwable,
+  ) {
+    ReportTracing.recordFailure(
+      spanName,
+      io.opentelemetry.api.common.Attributes.builder()
+        .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+        .put(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttemptName)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, lifecycleStage)
+        .build(),
+      error,
+    )
+  }
+
+  private fun recordCurrentSpanError(error: Throwable) {
+    Span.current()
+      .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .also { span ->
+        ReportTraceAttributes.errorCode(error)?.let {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, it)
+        }
+      }
+      .recordException(error)
+  }
+
   private suspend fun createWorkItemAttempt(
     parent: String,
     workItemAttemptId: String,
+    expectedWorkItemGeneration: Long,
   ): WorkItemAttempt {
     try {
       return callControlPlane {
@@ -195,6 +316,8 @@ abstract class BaseTeeApplication(
           createWorkItemAttemptRequest {
             this.parent = parent
             this.workItemAttemptId = workItemAttemptId
+            this.expectedWorkItemGeneration = expectedWorkItemGeneration
+            supportsAttemptLease = true
           }
         )
       }
@@ -203,12 +326,75 @@ abstract class BaseTeeApplication(
     }
   }
 
+  private suspend fun awaitWorkItemAttempt(
+    queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
+    workItemName: String,
+    expectedWorkItemGeneration: Long,
+  ): WorkItemAttempt? {
+    while (true) {
+      try {
+        val workItemAttemptId = "work-item-attempt-" + UUID.randomUUID().toString()
+        logger.info("Creating WorkItemAttempt: $workItemAttemptId for WorkItem: $workItemName")
+        return createWorkItemAttempt(
+          parent = workItemName,
+          workItemAttemptId = workItemAttemptId,
+          expectedWorkItemGeneration = expectedWorkItemGeneration,
+        )
+      } catch (e: ControlPlaneApiException) {
+        val cause = e.cause
+        if (cause is StatusException) {
+          val reason = cause.errorInfo?.reason
+          val workItemState = cause.errorInfo?.metadataMap?.get(Errors.Metadata.WORK_ITEM_STATE.key)
+          if (
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState == WorkItem.State.RUNNING.name
+          ) {
+            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
+            logger.info(
+              "WorkItem $workItemName already has an active attempt; retaining delivery while " +
+                "waiting for ownership"
+            )
+            activeAttemptRetryDelay()
+            continue
+          }
+          val invalidTerminalState =
+            reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
+              workItemState in TERMINAL_OR_INVALID_WORK_ITEM_STATES
+          if (
+            invalidTerminalState ||
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ||
+              reason == Errors.Reason.WORK_ITEM_NOT_FOUND.name
+          ) {
+            when {
+              workItemState == WorkItem.State.SUCCEEDED.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "already_completed")
+              reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ->
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "stale_delivery")
+              else -> recordCurrentSpanError(e)
+            }
+            logger.log(Level.WARNING, e) {
+              "Non-retriable error. createWorkItemAttempt failure: reason=$reason"
+            }
+            queueMessage.ack()
+            return null
+          }
+        }
+        recordCurrentSpanError(e)
+        logger.log(Level.WARNING, e) { "Error creating a WorkItemAttempt. Nacking message." }
+        queueMessage.nack()
+        return null
+      }
+    }
+  }
+
   private suspend fun completeWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
     try {
-      callControlPlane {
-        workItemAttemptsStub.completeWorkItemAttempt(
-          completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
-        )
+      retryAttemptUpdate("CompleteWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.completeWorkItemAttempt(
+            completeWorkItemAttemptRequest { this.name = workItemAttempt.name }
+          )
+        }
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
@@ -218,15 +404,50 @@ abstract class BaseTeeApplication(
     }
   }
 
+  private suspend fun runWorkWithLeaseRenewal(workItemAttempt: WorkItemAttempt, message: Any) =
+    coroutineScope {
+      if (!workItemAttempt.hasLeaseExpirationTime()) {
+        runWork(message)
+        return@coroutineScope
+      }
+      val renewalJob = launch {
+        while (isActive) {
+          delay(attemptLeaseRenewalInterval.toMillis())
+          renewWorkItemAttempt(workItemAttempt)
+        }
+      }
+      try {
+        runWork(message)
+      } finally {
+        renewalJob.cancelAndJoin()
+      }
+    }
+
+  private suspend fun renewWorkItemAttempt(workItemAttempt: WorkItemAttempt) {
+    try {
+      retryAttemptUpdate("RenewWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.renewWorkItemAttempt(
+            renewWorkItemAttemptRequest { name = workItemAttempt.name }
+          )
+        }
+      }
+    } catch (e: StatusException) {
+      throw ControlPlaneApiException("Failed to renew WorkItemAttempt ${workItemAttempt.name}", e)
+    }
+  }
+
   private suspend fun failWorkItemAttempt(workItemAttempt: WorkItemAttempt, e: Exception) {
     try {
-      callControlPlane {
-        workItemAttemptsStub.failWorkItemAttempt(
-          failWorkItemAttemptRequest {
-            this.name = workItemAttempt.name
-            this.errorMessage = e.toString()
-          }
-        )
+      retryAttemptUpdate("FailWorkItemAttempt", workItemAttempt.name) {
+        callControlPlane {
+          workItemAttemptsStub.failWorkItemAttempt(
+            failWorkItemAttemptRequest {
+              this.name = workItemAttempt.name
+              this.errorMessage = e.toString()
+            }
+          )
+        }
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException(
@@ -236,10 +457,15 @@ abstract class BaseTeeApplication(
     }
   }
 
-  private suspend fun failWorkItem(workItemName: String) {
+  private suspend fun failWorkItem(workItemName: String, expectedWorkItemGeneration: Long) {
     try {
       callControlPlane {
-        workItemsStub.failWorkItem(failWorkItemRequest { this.name = workItemName })
+        workItemsStub.failWorkItem(
+          failWorkItemRequest {
+            name = workItemName
+            this.expectedWorkItemGeneration = expectedWorkItemGeneration
+          }
+        )
       }
     } catch (e: StatusException) {
       throw ControlPlaneApiException("Failed to set WorkItem $workItemName as failed", e)
@@ -252,6 +478,34 @@ abstract class BaseTeeApplication(
     return controlPlaneThrottler?.onReady(block) ?: block()
   }
 
+  private suspend fun retryAttemptUpdate(
+    operation: String,
+    workItemAttemptName: String,
+    block: suspend () -> Unit,
+  ) {
+    var attempt = 1
+    while (true) {
+      try {
+        block()
+        return
+      } catch (e: StatusException) {
+        if (
+          e.status.code !in RETRYABLE_ATTEMPT_UPDATE_CODES || attempt >= ATTEMPT_UPDATE_MAX_ATTEMPTS
+        ) {
+          throw e
+        }
+        logger.log(
+          Level.WARNING,
+          "$operation failed transiently for $workItemAttemptName on attempt $attempt of " +
+            "$ATTEMPT_UPDATE_MAX_ATTEMPTS; retrying",
+          e,
+        )
+        attemptUpdateRetryDelay(attempt)
+        attempt++
+      }
+    }
+  }
+
   override fun close() {
     logger.info("Closing BaseTeeApplication and QueueSubscriber for subscription: $subscriptionId")
     queueSubscriber.close()
@@ -260,5 +514,33 @@ abstract class BaseTeeApplication(
 
   companion object {
     protected val logger = Logger.getLogger(this::class.java.name)
+
+    private const val ATTEMPT_UPDATE_MAX_ATTEMPTS = 3
+    private const val WORK_ITEM_CONSUMPTION_ENABLED_ENV = "WORK_ITEM_CONSUMPTION_ENABLED"
+    val DEFAULT_ATTEMPT_LEASE_RENEWAL_INTERVAL: Duration = Duration.ofMinutes(1)
+    private val ACTIVE_ATTEMPT_RETRY_DELAY: Duration = Duration.ofSeconds(30)
+    private val ATTEMPT_UPDATE_RETRY_BACKOFF = ExponentialBackoff()
+    private val RETRYABLE_ATTEMPT_UPDATE_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNAVAILABLE,
+      )
+
+    private val TERMINAL_OR_INVALID_WORK_ITEM_STATES =
+      setOf(
+        WorkItem.State.FAILED.name,
+        WorkItem.State.SUCCEEDED.name,
+        WorkItem.State.STATE_UNSPECIFIED.name,
+        WorkItem.State.UNRECOGNIZED.name,
+      )
+
+    private fun workItemConsumptionEnabledFromEnvironment(): Boolean {
+      val value = System.getenv(WORK_ITEM_CONSUMPTION_ENABLED_ENV) ?: return true
+      return requireNotNull(value.toBooleanStrictOrNull()) {
+        "$WORK_ITEM_CONSUMPTION_ENABLED_ENV must be either true or false"
+      }
+    }
   }
 }

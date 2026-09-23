@@ -417,7 +417,8 @@ suspend fun AsyncDatabaseClient.ReadContext.fetchLatestCmmsCreateTime(
  * @return a list of [RequisitionMetadata], containing both the newly created and existing entities.
  */
 suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadata(
-  requests: List<CreateRequisitionMetadataRequest>
+  requests: List<CreateRequisitionMetadataRequest>,
+  queuedWorkItem: String? = null,
 ): List<RequisitionMetadata> {
   if (requests.isEmpty()) {
     return emptyList()
@@ -469,17 +470,24 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadat
           }
 
         val initialState =
-          if (requisitionMetadata.refusalMessage.isNotEmpty()) {
-            State.REQUISITION_METADATA_STATE_REFUSED
+          when {
+            requisitionMetadata.refusalMessage.isNotEmpty() ->
+              State.REQUISITION_METADATA_STATE_REFUSED
+            queuedWorkItem != null -> State.REQUISITION_METADATA_STATE_QUEUED
+            else -> State.REQUISITION_METADATA_STATE_STORED
+          }
+        val requisitionMetadataToInsert =
+          if (queuedWorkItem == null) {
+            requisitionMetadata
           } else {
-            State.REQUISITION_METADATA_STATE_STORED
+            requisitionMetadata.copy { workItem = queuedWorkItem }
           }
 
         insertRequisitionMetadata(
           requisitionMetadataId,
           requisitionMetadataResourceId,
           initialState,
-          requisitionMetadata,
+          requisitionMetadataToInsert,
           request.requestId,
         )
 
@@ -492,7 +500,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchCreateRequisitionMetadat
           initialState,
         )
 
-        requisitionMetadata.copy {
+        requisitionMetadataToInsert.copy {
           state = initialState
           this.requisitionMetadataResourceId = requisitionMetadataResourceId
           clearCreateTime()

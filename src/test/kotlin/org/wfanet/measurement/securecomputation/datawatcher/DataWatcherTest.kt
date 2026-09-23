@@ -27,8 +27,14 @@ import com.google.protobuf.kotlin.unpack
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
+import io.grpc.Status
+import io.grpc.StatusException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.SpanContext
+import io.opentelemetry.api.trace.TraceFlags
+import io.opentelemetry.api.trace.TraceState
 import io.opentelemetry.sdk.OpenTelemetrySdk
 import io.opentelemetry.sdk.metrics.SdkMeterProvider
 import io.opentelemetry.sdk.metrics.data.MetricData
@@ -37,6 +43,7 @@ import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.net.InetSocketAddress
 import java.net.ServerSocket
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Before
@@ -44,17 +51,25 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doReturn
+import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.controlPlaneQueueSink
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.watchedPath
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
@@ -98,7 +113,7 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `sends to control plane sink when path matches`() {
+  fun `ensures WorkItem in control plane when path matches`() {
     runBlocking {
       val topicId = "test-topic-id"
       val appParams = Int32Value.newBuilder().setValue(5).build()
@@ -119,25 +134,240 @@ class DataWatcherTest() {
           idTokenProvider = mockIdTokenProvider,
         )
 
-      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
-      val createWorkItemRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
-      verifyBlocking(workItemsServiceMock, times(1)) {
-        createWorkItem(createWorkItemRequestCaptor.capture())
+      val spanContext =
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      Span.wrap(spanContext).makeCurrent().use {
+        dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
       }
-      assertThat(createWorkItemRequestCaptor.allValues.single().workItemId)
+      val ensureWorkItemRequestCaptor = argumentCaptor<EnsureWorkItemRequest>()
+      verifyBlocking(workItemsServiceMock, times(1)) {
+        ensureWorkItem(ensureWorkItemRequestCaptor.capture())
+      }
+      assertThat(ensureWorkItemRequestCaptor.allValues.single().workItemId)
         .isEqualTo("some-work-item-id")
-      assertThat(createWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
+      assertThat(ensureWorkItemRequestCaptor.allValues.single().workItem.queue).isEqualTo(topicId)
       val workItemParams =
-        createWorkItemRequestCaptor.allValues
+        ensureWorkItemRequestCaptor.allValues
           .single()
           .workItem
           .workItemParams
           .unpack<WorkItemParams>()
       assertThat(workItemParams.dataPathParams.dataPath)
         .isEqualTo("test-schema://test-bucket/path-to-watch/some-data")
+      assertThat(workItemParams.traceContextMap)
+        .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
       val workItemAppConfig = workItemParams.appParams.unpack<Int32Value>()
       assertThat(workItemAppConfig).isEqualTo(appParams)
     }
+  }
+
+  @Test
+  fun `redelivery derives the same deterministic WorkItem ID`() = runBlocking {
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        queue = "test-topic-id"
+        appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
+      }
+    }
+    val dataWatcher =
+      DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val metadata = mapOf(DataWatcher.GENERATION_METADATA_KEY to "42")
+
+    dataWatcher.receivePath(path, metadata)
+    dataWatcher.receivePath(path, metadata)
+
+    val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues.map { it.workItemId }.toSet()).hasSize(1)
+    assertThat(requestCaptor.firstValue.workItemId).matches("dw-[0-9a-f]{60}")
+  }
+
+  @Test
+  fun `redelivery reuses trace context from existing WorkItem`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val appParams = Any.pack(Int32Value.of(5))
+    val storedTraceparent = "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+    val existingWorkItem =
+      org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+        name = "workItems/deterministic-id"
+        this.queue = queue
+        workItemParams =
+          workItemParams {
+              this.appParams = appParams
+              dataPathParams = dataPathParams { dataPath = path }
+              traceContext["traceparent"] = storedTraceparent
+            }
+            .pack()
+      }
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.ALREADY_EXISTS.asRuntimeException() doReturn
+        existingWorkItem
+      onBlocking { getWorkItem(any()) } doReturn existingWorkItem
+    }
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        this.queue = queue
+        this.appParams = appParams
+      }
+    }
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+      )
+    val redeliverySpan =
+      Span.wrap(
+        SpanContext.create(
+          "0123456789abcdef0123456789abcdef",
+          "0123456789abcdef",
+          TraceFlags.getSampled(),
+          TraceState.getDefault(),
+        )
+      )
+
+    redeliverySpan.makeCurrent().use {
+      dataWatcher.receivePath(path, mapOf(DataWatcher.GENERATION_METADATA_KEY to "42"))
+    }
+
+    val requestCaptor = argumentCaptor<EnsureWorkItemRequest>()
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(requestCaptor.capture()) }
+    val firstParams = requestCaptor.firstValue.workItem.workItemParams.unpack<WorkItemParams>()
+    val retryParams = requestCaptor.secondValue.workItem.workItemParams.unpack<WorkItemParams>()
+    assertThat(firstParams.traceContextMap)
+      .containsEntry("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+    assertThat(retryParams.traceContextMap).containsExactly("traceparent", storedTraceparent)
+    assertThat(retryParams.appParams).isEqualTo(firstParams.appParams)
+    assertThat(retryParams.dataPathParams).isEqualTo(firstParams.dataPathParams)
+  }
+
+  @Test
+  fun `redelivery succeeds when matching WorkItem is terminal`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val appParams = Any.pack(Int32Value.of(5))
+    val existingWorkItem =
+      org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+        name = "workItems/deterministic-id"
+        this.queue = queue
+        workItemParams =
+          workItemParams {
+              this.appParams = appParams
+              dataPathParams = dataPathParams { dataPath = path }
+              traceContext["traceparent"] =
+                "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"
+            }
+            .pack()
+      }
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow
+        Status.ALREADY_EXISTS.asRuntimeException() doThrow
+        Status.FAILED_PRECONDITION.asRuntimeException()
+      onBlocking { getWorkItem(any()) } doReturn existingWorkItem
+    }
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        this.queue = queue
+        this.appParams = appParams
+      }
+    }
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+      )
+
+    dataWatcher.receivePath(path, mapOf(DataWatcher.GENERATION_METADATA_KEY to "42"))
+
+    verifyBlocking(workItemsServiceMock, times(2)) { ensureWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock) { getWorkItem(any()) }
+  }
+
+  @Test
+  fun `falls back to legacy Create and validates an existing WorkItem`() = runBlocking {
+    val path = "test-schema://test-bucket/path-to-watch/some-data"
+    val queue = "test-topic-id"
+    val appParams = Int32Value.newBuilder().setValue(5).build()
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        this.queue = queue
+        this.appParams = Any.pack(appParams)
+      }
+    }
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow Status.UNIMPLEMENTED.asRuntimeException()
+      onBlocking { createWorkItem(any()) } doThrow Status.ALREADY_EXISTS.asRuntimeException()
+      onBlocking { getWorkItem(any()) } doReturn
+        org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem {
+          name = "workItems/existing"
+          this.queue = queue
+          workItemParams =
+            workItemParams {
+                this.appParams = Any.pack(appParams)
+                dataPathParams = dataPathParams { dataPath = path }
+              }
+              .pack()
+        }
+    }
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub,
+        listOf(config),
+        workItemIdGenerator = { "deterministic-id" },
+        idTokenProvider = mockIdTokenProvider,
+      )
+
+    dataWatcher.receivePath(path, mapOf(DataWatcher.GENERATION_METADATA_KEY to "42"))
+
+    verifyBlocking(workItemsServiceMock) { ensureWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock) { createWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock) { getWorkItem(any()) }
+  }
+
+  @Test
+  fun `propagates transient control-plane failure for Eventarc retry`() = runBlocking {
+    val config = watchedPath {
+      identifier = "results-fulfiller"
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        queue = "test-topic-id"
+        appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
+      }
+    }
+    workItemsServiceMock.stub {
+      onBlocking { ensureWorkItem(any()) } doThrow Status.UNAVAILABLE.asRuntimeException()
+    }
+    val dataWatcher =
+      DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
+
+    val exception =
+      assertFailsWith<StatusException> {
+        dataWatcher.receivePath(
+          "test-schema://test-bucket/path-to-watch/some-data",
+          mapOf(DataWatcher.GENERATION_METADATA_KEY to "42"),
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
   }
 
   @Test
@@ -199,6 +429,24 @@ class DataWatcherTest() {
         createWorkItem(createWorkItemRequestCaptor.capture())
       }
     }
+  }
+
+  @Test
+  fun `legacy requisition path does not match direct dispatch namespace`() = runBlocking {
+    val config = watchedPath {
+      sourcePathRegex = "gs://test-bucket/requisitions/([^/]+)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        queue = "test-topic-id"
+        appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
+      }
+    }
+    val dataWatcher =
+      DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
+
+    dataWatcher.receivePath("gs://test-bucket/requisitions-v2/group-id", emptyMap())
+
+    verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
   }
 
   @Test
@@ -424,6 +672,109 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `forwards override model lines metadata to webhook sink`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer()
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+      val modelLines =
+        "modelProviders/mp1/modelSuites/ms1/modelLines/ml1," +
+          "modelProviders/mp1/modelSuites/ms1/modelLines/ml2"
+
+      dataWatcher.receivePath(
+        "test-schema://test-bucket/path-to-watch/some-data",
+        mapOf(
+          WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to modelLines,
+          WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "dataProviders/dp/rawImpressionUploads/up1",
+          WatchedBlobs.EVICTION_OPERATION_ID_KEY to EVICTION_OPERATION_ID,
+        ),
+      )
+
+      assertThat(server.getLastRequestHeader("X-Override-Model-Lines")).isEqualTo(modelLines)
+      assertThat(server.getLastRequestHeader("X-Recovery-Source-Upload"))
+        .isEqualTo("dataProviders/dp/rawImpressionUploads/up1")
+      assertThat(server.getLastRequestHeader("X-Eviction-Operation-Id"))
+        .isEqualTo(EVICTION_OPERATION_ID)
+      server.stop()
+    }
+  }
+
+  @Test
+  fun `rejects override model lines metadata without recovery source`() {
+    runBlocking {
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:1" }
+      }
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val error =
+        assertFailsWith<IllegalArgumentException> {
+          dataWatcher.receivePath(
+            "test-schema://test-bucket/path-to-watch/some-data",
+            mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1"),
+          )
+        }
+
+      assertThat(error).hasMessageThat().contains("Recovery metadata must include")
+    }
+  }
+
+  @Test
+  fun `surfaces recovery dispatch failure so Eventarc can retry`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer(statusCode = 500)
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val error =
+        assertFailsWith<IllegalStateException> {
+          dataWatcher.receivePath(
+            "test-schema://test-bucket/path-to-watch/some-data",
+            mapOf(
+              WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
+              WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to
+                "dataProviders/dp/rawImpressionUploads/up1",
+              WatchedBlobs.EVICTION_OPERATION_ID_KEY to EVICTION_OPERATION_ID,
+            ),
+          )
+        }
+
+      assertThat(error).hasMessageThat().contains("returned 500")
+      server.stop()
+    }
+  }
+
+  companion object {
+    private const val EVICTION_OPERATION_ID = "123e4567-e89b-42d3-a456-426614174000"
+  }
+
+  @Test
   fun `omits X-DataWatcher-Generation header when object generation absent`() {
     runBlocking {
       val appParams =
@@ -456,13 +807,13 @@ class DataWatcherTest() {
   }
 }
 
-private class TestServer() {
+private class TestServer(private val statusCode: Int = 200) {
   private lateinit var handler: ServerHandler
   private lateinit var httpServer: HttpServer
 
   fun start(port: Int): HttpServer {
     httpServer = HttpServer.create(InetSocketAddress(port), 0)
-    handler = ServerHandler()
+    handler = ServerHandler(statusCode)
     httpServer.createContext("/", handler)
     httpServer.setExecutor(null)
     httpServer.start()
@@ -486,7 +837,7 @@ private class TestServer() {
       ?.firstOrNull()
   }
 
-  class ServerHandler : HttpHandler {
+  class ServerHandler(private val statusCode: Int) : HttpHandler {
     lateinit var requestBody: String
     lateinit var requestHeaders: Map<String, List<String>>
 
@@ -495,7 +846,7 @@ private class TestServer() {
       requestBody = requestBodyBytes.toString(Charsets.UTF_8)
       requestHeaders = t.requestHeaders.toMap()
       val response = "Success"
-      t.sendResponseHeaders(200, response.length.toLong())
+      t.sendResponseHeaders(statusCode, response.length.toLong())
       val os = t.responseBody
       os.write(response.toByteArray())
       os.close()

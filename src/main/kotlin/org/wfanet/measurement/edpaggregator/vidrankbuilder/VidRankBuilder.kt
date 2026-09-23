@@ -88,8 +88,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * keyed by a deterministic `request_id` and WorkItem creation by a deterministic `work_item_id`
  * (`ALREADY_EXISTS` tolerated); the parent flip is a no-op once advanced. On failure the exception
  * propagates so the framework nacks and Pub/Sub retries; this worker never marks the job `FAILED`
- * itself -- the dead-letter (DLQ) listener owns the terminal `FAILED` transition on retry
- * exhaustion.
+ * itself. The workload-agnostic DLQ listener fails only the WorkItem on retry exhaustion; the
+ * `RankerJob` remains available for explicit workload recovery.
  *
  * Concurrent-ranker protection: `MarkRankerJobSucceeded` carries the read `etag`; a stale write
  * (another VM won the race after Pub/Sub redelivery) surfaces as `ABORTED`/`FAILED_PRECONDITION`
@@ -145,8 +145,8 @@ class VidRankBuilder(
    * Runs the full Phase-1 work for one `RankerJob`.
    *
    * Any exception propagates so the framework nacks and Pub/Sub retries; this worker never marks
-   * the job `FAILED` itself -- the dead-letter (DLQ) listener owns the terminal `FAILED` transition
-   * on retry exhaustion.
+   * the job `FAILED` itself. The workload-agnostic DLQ listener fails only the WorkItem on retry
+   * exhaustion.
    */
   suspend fun run(): Result = runRankerJob()
 
@@ -160,6 +160,18 @@ class VidRankBuilder(
       }
     if (job.state == RankerJob.State.SUCCEEDED) {
       return recoverIfLastJobOut()
+    }
+
+    val parent =
+      requireNotNull(getParent()) {
+        "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
+      }
+    if (parent.state == RawImpressionUploadModelLine.State.FAILED) {
+      logger.info("Parent ${parent.name} is FAILED; skipping stale Phase-1 work")
+      return Result(0, lastJobOut = false)
+    }
+    check(parent.state == RawImpressionUploadModelLine.State.RANKING) {
+      "Parent ${parent.name} has not reached RANKING"
     }
 
     // Rank this job's subpools sequentially; each subpool's own rank build is already parallelized
@@ -226,6 +238,13 @@ class VidRankBuilder(
       requireNotNull(getParent()) {
         "RawImpressionUploadModelLine not found for $modelLine under $rawImpressionUpload"
       }
+    check(
+      parent.state != RawImpressionUploadModelLine.State.CREATED &&
+        parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING
+    ) {
+      "Parent ${parent.name} has not reached RANKING; retry this WorkItem after Phase 0 commits " +
+        "the transition"
+    }
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("RankerJob $rankerJob already SUCCEEDED; nothing to recover (parent advanced)")
       return Result(0, lastJobOut = false)
@@ -257,6 +276,13 @@ class VidRankBuilder(
    * post-`CREATED`, recovery would need a different strategy.
    */
   private suspend fun runLastJobOut(parent: RawImpressionUploadModelLine) {
+    check(
+      parent.state != RawImpressionUploadModelLine.State.CREATED &&
+        parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING
+    ) {
+      "Parent ${parent.name} has not reached RANKING; retry this WorkItem after Phase 0 commits " +
+        "the transition"
+    }
     if (parent.state != RawImpressionUploadModelLine.State.RANKING) {
       logger.info("Parent ${parent.name} already past RANKING; last-job-out already complete")
       return
@@ -421,10 +447,23 @@ class VidRankBuilder(
       ) {
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineLabeling(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
-      )
+      val current = getParent()
+      if (
+        current != null &&
+          current.state in
+            setOf(
+              RawImpressionUploadModelLine.State.FAILED,
+              RawImpressionUploadModelLine.State.LABELING,
+              RawImpressionUploadModelLine.State.COMPLETED,
+            )
+      ) {
+        logger.info(
+          "markRawImpressionUploadModelLineLabeling(${parent.name}) conflicted because the parent " +
+            "is now ${current.state}; treating as done"
+        )
+        return
+      }
+      throw e
     }
   }
 

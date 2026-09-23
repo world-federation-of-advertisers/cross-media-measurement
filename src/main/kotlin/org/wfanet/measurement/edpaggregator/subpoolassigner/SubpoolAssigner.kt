@@ -86,8 +86,8 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  *
  * Idempotent on Pub/Sub redelivery at the per-shard granularity (a job already `SUCCEEDED` short-
  * circuits the mark). On failure the error propagates so the TEE framework nacks (Pub/Sub retries
- * -> dead-letter); this worker never marks the job `FAILED` itself — the single authoritative
- * terminal `FAILED` transition is owned by the DLQ listener on retry exhaustion.
+ * -> dead-letter). Neither this worker nor the workload-agnostic DLQ listener changes the
+ * `PoolAssignmentJob`; it remains available for explicit workload recovery.
  */
 class SubpoolAssigner(
   private val rawImpressionSource: RawImpressionSource<ParquetDigestedEvent>,
@@ -134,8 +134,8 @@ class SubpoolAssigner(
 
   /**
    * Runs the full Phase-0 work for one shard. Any exception propagates so the TEE framework nacks
-   * the message; this worker never marks the job `FAILED` (the DLQ listener owns the terminal
-   * `FAILED` transition on retry exhaustion).
+   * the message. Neither this worker nor the workload-agnostic DLQ listener changes the
+   * `PoolAssignmentJob` state on retry exhaustion.
    */
   suspend fun assign(): Result = runShard()
 
@@ -253,6 +253,7 @@ class SubpoolAssigner(
    * - empty `pool_offsets` -> this shard was not the last out; nothing to do,
    * - parent state already `RANKING`/`LABELING`/`COMPLETED` -> the last-shard-out fully finished
    *   (the state flip is its last step), so there is nothing to recover,
+   * - parent state `FAILED` -> this is a stale delivery for an upload that must remain terminal,
    * - otherwise -> a crash interrupted the last-shard-out; re-run it. The merge, RankerJob
    *   creation, and WorkItem publish are all idempotent, so re-running is safe.
    *
@@ -266,7 +267,7 @@ class SubpoolAssigner(
       logger.info("PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; not last-shard-out")
       return Result(0, 0, 0, 0, lastShardOut = false)
     }
-    if (parent.state in COMPLETED_FANOUT_STATES) {
+    if (parent.state in NOOP_FANOUT_STATES) {
       logger.info(
         "PoolAssignmentJob $poolAssignmentJob already SUCCEEDED; last-shard-out already complete " +
           "(parent state=${parent.state})"
@@ -297,6 +298,15 @@ class SubpoolAssigner(
     maxEventDate: Date,
     mergedDek: EncryptedDek,
   ) {
+    if (parent.state in NOOP_FANOUT_STATES) {
+      logger.info("Skipping last-shard-out for ${parent.name}: parent state is ${parent.state}")
+      return
+    }
+    check(parent.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING) {
+      "Parent ${parent.name} has not reached POOL_ASSIGNING; retry this WorkItem after the " +
+        "dispatcher commits the phase transition"
+    }
+
     logger.info(
       "Shard $shardIndex is last-out for $modelLine; merging ${poolOffsets.size} subpools"
     )
@@ -442,11 +452,7 @@ class SubpoolAssigner(
     }
   }
 
-  /**
-   * Flips the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`. Only attempted
-   * when the parent is still `POOL_ASSIGNING`; any failure is swallowed so a redelivered
-   * last-shard-out (where another runner may have already advanced the state) is a no-op.
-   */
+  /** Flips the parent `RawImpressionUploadModelLine` `POOL_ASSIGNING` -> `RANKING`. */
   private suspend fun markParentRanking(parent: RawImpressionUploadModelLine) {
     if (parent.state != RawImpressionUploadModelLine.State.POOL_ASSIGNING) return
     try {
@@ -464,23 +470,20 @@ class SubpoolAssigner(
         )
       }
     } catch (e: StatusException) {
-      // Swallow only the benign "already advanced" races: the parent read at getParent() time is
-      // stale, so a concurrent runner that already flipped this row (or bumped its etag) surfaces
-      // as
-      // FAILED_PRECONDITION/ABORTED (the latter is the etag-mismatch code) and re-doing the flip is
-      // unnecessary. Any other error (e.g. UNAVAILABLE) is transient and must propagate so the
-      // message nacks and the idempotent last-shard-out is retried — otherwise the POOL_ASSIGNING
-      // ->
-      // RANKING flip (the completion marker that recovery gates on) is silently lost on ack.
       if (
         e.status.code != Status.Code.FAILED_PRECONDITION && e.status.code != Status.Code.ABORTED
       ) {
         throw e
       }
-      logger.info(
-        "markRawImpressionUploadModelLineRanking(${parent.name}) already advanced " +
-          "(${e.status.code}); treating as done"
-      )
+      val current = getParent()
+      if (current != null && current.state in NOOP_FANOUT_STATES) {
+        logger.info(
+          "markRawImpressionUploadModelLineRanking(${parent.name}) conflicted because the parent " +
+            "is now ${current.state}; treating as done"
+        )
+        return
+      }
+      throw e
     }
   }
 
@@ -638,11 +641,10 @@ class SubpoolAssigner(
           ?: DEFAULT_SUBPOOL_UPLOAD_CONCURRENCY)
         .coerceAtLeast(1)
 
-    /**
-     * Parent states that mean the last-shard-out fan-out already completed (state flip is last).
-     */
-    private val COMPLETED_FANOUT_STATES =
+    /** Parent states for which a stale last-shard-out delivery must not publish more work. */
+    private val NOOP_FANOUT_STATES =
       setOf(
+        RawImpressionUploadModelLine.State.FAILED,
         RawImpressionUploadModelLine.State.RANKING,
         RawImpressionUploadModelLine.State.LABELING,
         RawImpressionUploadModelLine.State.COMPLETED,
