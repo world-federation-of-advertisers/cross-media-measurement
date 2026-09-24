@@ -24,6 +24,9 @@ import com.google.gson.stream.JsonReader
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.io.InputStreamReader
@@ -68,13 +71,17 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class EventGroupSyncFunction() : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
-    logger.fine("Starting EventGroupSyncFunction")
-    val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
-    logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
+    var failureAttributes: Attributes = Attributes.empty()
     try {
+      logger.fine("Starting EventGroupSyncFunction")
+      val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
+      logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
       val requestBody = request.reader.readText()
       val eventGroupSyncConfig =
         ConfigLoader.buildEventGroupSyncConfig(requestBody, runtimeConfigs.configsList)
+      failureAttributes =
+        Attributes.of(DATA_PROVIDER_NAME_ATTRIBUTE, eventGroupSyncConfig.dataProvider)
+      functionFailureCounter.add(0, failureAttributes)
 
       runBlocking {
         Tracing.traceSuspending(
@@ -131,6 +138,9 @@ class EventGroupSyncFunction() : HttpFunction {
           )
         }
       }
+    } catch (e: Exception) {
+      functionFailureCounter.add(1, failureAttributes)
+      throw e
     } finally {
       // Critical: flush metrics and traces before function terminates
       // Without this, all telemetry recorded during execution will be lost
@@ -302,6 +312,13 @@ class EventGroupSyncFunction() : HttpFunction {
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
     private const val STAGING_BLOB_KEY = "event-group-map.recordio"
+    private val DATA_PROVIDER_NAME_ATTRIBUTE = AttributeKey.stringKey("data_provider_name")
+    private val functionFailureCounter: LongCounter by lazy {
+      Instrumentation.meter
+        .counterBuilder("edpa.event_group.sync_function_failure")
+        .setDescription("Number of failed EventGroupSyncFunction executions")
+        .build()
+    }
 
     // Name of the repeated field in the EventGroups message, in both its proto (snake_case) and
     // JSON (camelCase) spellings, since JsonFormat accepts either.

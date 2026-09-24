@@ -37,6 +37,10 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.logging.Handler
+import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -654,11 +658,33 @@ class EventGroupSyncFunctionTest() {
         .header("X-DataWatcher-Path", "")
         .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
         .build()
-    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    val failureMetricLogs = LinkedBlockingQueue<String>()
+    val metricLogHandler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          if (record.message.contains(FUNCTION_FAILURE_METRIC_NAME)) {
+            failureMetricLogs.offer(record.message)
+          }
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(metricLogHandler)
+    val (getResponse, failureMetricLog) =
+      try {
+        client.send(getRequest, HttpResponse.BodyHandlers.ofString()) to
+          failureMetricLogs.poll(5, TimeUnit.SECONDS)
+      } finally {
+        rootLogger.removeHandler(metricLogHandler)
+      }
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
+    assertThat(checkNotNull(failureMetricLog)).contains("value=1")
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
     val mappedData = runBlocking {
       MesosRecordIoStorageClient(storageClient)
@@ -1407,6 +1433,7 @@ class EventGroupSyncFunctionTest() {
       )
     private const val GCG_TARGET =
       "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
+    private const val FUNCTION_FAILURE_METRIC_NAME = "edpa.event_group.sync_function_failure"
 
     private val CAMPAIGNS =
       listOf(
