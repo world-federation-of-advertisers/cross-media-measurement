@@ -1,4 +1,4 @@
-load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
+load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library", "kt_jvm_test")
 
 kt_jvm_test(
     name = "InProcessDuchyTest",
@@ -31,6 +31,22 @@ kt_jvm_test(
     ],
 )
 
+kt_jvm_library(
+    name = "high_overlap_expected_reach",
+    srcs = ["HighOverlapExpectedReach.kt"],
+    data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/reporting:simulator",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/reporting:metric_spec_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+    ],
+)
+
 kt_jvm_test(
     name = "HighOverlapSpecsContractTest",
     srcs = ["HighOverlapSpecsContractTest.kt"],
@@ -39,6 +55,7 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
         "@com_google_protobuf//:protobuf_java",

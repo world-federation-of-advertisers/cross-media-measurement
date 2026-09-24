@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.k8s
+package org.wfanet.measurement.integration.common
 
 import java.time.Instant
 import java.time.LocalDate
@@ -23,7 +23,6 @@ import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.config.reporting.MetricSpecConfig
-import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 

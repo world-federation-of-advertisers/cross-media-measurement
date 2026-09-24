@@ -79,7 +79,8 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.integration.common.EventGroupConfig
 import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
-import org.wfanet.measurement.integration.k8s.HighOverlapExpectedReach.ExpectedMetrics
+import org.wfanet.measurement.integration.common.HighOverlapExpectedReach
+import org.wfanet.measurement.integration.common.HighOverlapExpectedReach.ExpectedMetrics
 import org.wfanet.measurement.loadtest.reporting.ReportingUserSimulator
 import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport

@@ -23,6 +23,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.VidRange
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.common.parseTextProto
 
@@ -54,27 +55,32 @@ class HighOverlapSpecsContractTest {
     )
   }
 
-  /** VID range starts mapped to the EDPs seeded on them, which is what defines a Venn region. */
-  private val edpsByVidRangeStart: Map<Long, Set<String>> by lazy {
-    val byStart = mutableMapOf<Long, MutableSet<String>>()
-    for (eventGroup in config.eventGroupsList) {
-      for (entityKeySpec in eventGroup.entityKeySpecsList) {
+  private data class SeededRange(val edpName: String, val entityId: String, val range: VidRange)
+
+  /** Every VID range in the generated specs, with the EDP and entity key it is seeded on. */
+  private val seededRanges: List<SeededRange> by lazy {
+    config.eventGroupsList.flatMap { eventGroup ->
+      eventGroup.entityKeySpecsList.flatMap { entityKeySpec ->
         val spec =
           ImpressionTestDataConfigs.resolveSyntheticEventGroupSpec(
             entityKeySpec.dataSpecResourcePath
           )
-        for (dateSpec in spec.dateSpecsList) {
-          for (frequencySpec in dateSpec.frequencySpecsList) {
-            for (vidRangeSpec in frequencySpec.vidRangeSpecsList) {
-              byStart
-                .getOrPut(vidRangeSpec.vidRange.start) { mutableSetOf() }
-                .add(eventGroup.edpName)
+        spec.dateSpecsList.flatMap { dateSpec ->
+          dateSpec.frequencySpecsList.flatMap { frequencySpec ->
+            frequencySpec.vidRangeSpecsList.map {
+              SeededRange(eventGroup.edpName, entityKeySpec.entityId, it.vidRange)
             }
           }
         }
       }
     }
-    byStart
+  }
+
+  /** The EDPs seeded on each VID range, which is what defines a Venn region. */
+  private val edpsByVidRangeStart: Map<Long, Set<String>> by lazy {
+    seededRanges.groupBy { it.range.start }.mapValues { (_, seeded) ->
+      seeded.map { it.edpName }.toSet()
+    }
   }
 
   @Test
@@ -135,9 +141,17 @@ class HighOverlapSpecsContractTest {
 
   @Test
   fun `segment VID ranges stay inside the reached range`() {
-    for ((start, edps) in edpsByVidRangeStart) {
-      assertWithMessage("range starting $start on $edps").that(start).isAtLeast(1L)
-      assertWithMessage("range starting $start on $edps").that(start).isAtMost(REACHED_VID_END)
+    for (seeded in seededRanges) {
+      assertWithMessage("${seeded.entityId} on ${seeded.edpName}: range start")
+        .that(seeded.range.start)
+        .isAtLeast(1L)
+      // Exclusive end, so the last valid value is one past the last reached VID.
+      assertWithMessage("${seeded.entityId} on ${seeded.edpName}: range end")
+        .that(seeded.range.endExclusive)
+        .isAtMost(REACHED_VID_END + 1)
+      assertWithMessage("${seeded.entityId} on ${seeded.edpName}: range is non-empty")
+        .that(seeded.range.endExclusive)
+        .isGreaterThan(seeded.range.start)
     }
   }
 
