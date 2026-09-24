@@ -20,28 +20,20 @@ option java_package = "org.wfanet.measurement.internal.duchy";
 option java_multiple_files = true;
 
 // The internal Duchy copy of
-// [wfa.measurement.system.v1alpha.EventTemplateField][].
-message EventTemplateField {
-  // Field path with respect to the local market Event message, with `.` as the
-  // traversal operator, e.g. "person.age_group".
-  string path = 1;
-
-  // Value of an event template field.
-  message FieldValue {
-    // Value type selector.
-    oneof selector {
-      // Value as a string.
-      string string_value = 1;
-      // Value as the symbol of an enum value, e.g. "VIDEO" rather than "1".
-      string enum_value = 2;
-      // Value as a Boolean.
-      bool bool_value = 3;
-      // Value as a float.
-      float float_value = 4;
-    }
+// [wfa.measurement.system.v1alpha.PopulationAttributeValue][]: the value of a
+// field whose [EventFieldDescriptor.population_attribute][] is true.
+message PopulationAttributeValue {
+  // Value type selector.
+  oneof selector {
+    // Value as a string.
+    string string_value = 1;
+    // Value as the symbol of an enum value, e.g. "VIDEO" rather than "1".
+    string enum_value = 2;
+    // Value as a Boolean.
+    bool bool_value = 3;
+    // Value as a float.
+    float float_value = 4;
   }
-  // Value of the field.
-  FieldValue value = 2;
 }
 
 // The internal Duchy copy of [wfa.measurement.system.v1alpha.VectorSet][].
@@ -63,33 +55,9 @@ message VidFilter {
   // A VID passes when it satisfies any clause.
   repeated ReachClause reach_clauses = 1;
 
-  // The VID falls in a subpopulation matching every entry, keyed by
-  // [EventTemplateField.path][]. Each path names a population attribute
-  // field, one whose [EventFieldDescriptor.population_attribute][] is
-  // true.
-  map<string, EventTemplateField.FieldValue> attributes = 2;
-}
-
-// The internal Duchy copy of [wfa.measurement.system.v1alpha.MetricSpec][].
-message MetricSpec {
-  // A metric over the selected VIDs and their counts in [Query.summands][].
-  enum Metric {
-    // Default value. Never set intentionally.
-    METRIC_UNSPECIFIED = 0;
-    // Number of selected VIDs with a non-zero count.
-    REACH = 1;
-    // Histogram of the counts of the selected VIDs, folded at
-    // [max_frequency][].
-    FREQUENCY = 2;
-    // Sum of the counts of the selected VIDs.
-    IMPRESSIONS = 3;
-  }
-  // The metric.
-  Metric metric = 1;
-
-  // Counts above this fold into the top bin. Set for
-  // [FREQUENCY][Metric.FREQUENCY].
-  int32 max_frequency = 2;
+  // The VID falls in a subpopulation matching every entry, keyed by the field
+  // path.
+  map<string, PopulationAttributeValue> attributes = 2;
 }
 
 // The internal Duchy copy of [wfa.measurement.system.v1alpha.Query][].
@@ -105,10 +73,13 @@ message Query {
 
   // GROUP BY. One result per combination of the values these fields take
   // across [PopulationSpec.subpopulations][], resolved per VID from the
-  // subpopulation it falls in. Each entry is an [EventTemplateField.path][]
-  // naming a population attribute field.
+  // subpopulation it falls in. Each entry is the path of a
+  // population attribute field.
   repeated string grouping_paths = 4;
 
-  // SELECT.
-  repeated MetricSpec metrics = 5;
+  // Counts above this fold into the top bin of the frequency histogram.
+  //
+  // Every cell reports reach, frequency and impressions; they read off one
+  // histogram, so producing all three costs no more than producing one.
+  int32 max_frequency = 5;
 }

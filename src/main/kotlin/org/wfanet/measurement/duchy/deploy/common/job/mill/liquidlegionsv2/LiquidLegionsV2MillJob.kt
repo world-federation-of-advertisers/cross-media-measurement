@@ -168,6 +168,7 @@ abstract class LiquidLegionsV2MillJob : Runnable {
           )
         ComputationTypeEnum.ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE,
         ComputationTypeEnum.ComputationType.TRUS_TEE,
+        ComputationTypeEnum.ComputationType.TRUS_TEE_V2,
         ComputationTypeEnum.ComputationType.UNSPECIFIED,
         ComputationTypeEnum.ComputationType.UNRECOGNIZED ->
           error("Unsupported ComputationType ${claimedComputationFlags.claimedComputationType}")
