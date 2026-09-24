@@ -15,6 +15,19 @@
 data "google_client_config" "default" {}
 data "google_project" "project" {}
 
+resource "google_spanner_database_iam_member" "vid_labeling_trace_operator" {
+  instance = google_spanner_database.edp_aggregator.instance
+  database = google_spanner_database.edp_aggregator.name
+  role     = "roles/spanner.databaseReader"
+  member   = var.vid_labeling_trace_operator_member
+}
+
+resource "google_storage_bucket_iam_member" "vid_labeling_trace_operator" {
+  bucket = var.edp_aggregator_bucket_name
+  role   = "roles/storage.objectViewer"
+  member = var.vid_labeling_trace_operator_member
+}
+
 locals {
   google_project_id = trimprefix(data.google_project.project.id, "projects/")
 
@@ -331,11 +344,11 @@ module "requisition_fetcher_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars   = var.cloud_function_configs.requisition_fetcher.extra_env_vars
-  secret_mappings   = var.cloud_function_configs.requisition_fetcher.secret_mappings
-  uber_jar_path     = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  secrets_to_access = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
-  config_path       = var.requisition_fetcher_config.local_path
+  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.requisition_fetcher_config.local_path
 
   # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
   # run longer than that for incremental draining to happen at all — the gen2 default of 60s would

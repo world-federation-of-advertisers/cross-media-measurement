@@ -47,8 +47,14 @@ resource "google_spanner_database_iam_member" "secure_computation_internal" {
   }
 }
 
+resource "google_spanner_database_iam_member" "vid_labeling_trace_operator" {
+  instance = google_spanner_database.secure_computation.instance
+  database = google_spanner_database.secure_computation.name
+  role     = "roles/spanner.databaseReader"
+  member   = var.vid_labeling_trace_operator_member
+}
+
 resource "google_compute_address" "api_server" {
   name    = "secure-computation-public"
   address = var.secure_computation_api_server_ip_address
 }
-

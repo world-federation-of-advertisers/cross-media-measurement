@@ -21,6 +21,7 @@ import com.google.cloud.logging.Payload
 import com.google.cloud.logging.SourceLocation
 import com.google.common.truth.Truth.assertThat
 import java.time.Instant
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.mockito.kotlin.any
@@ -28,6 +29,61 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 
 class GoogleCloudTelemetryTest {
+  @Test
+  fun `log reader reports rendered output truncation`() = runBlocking {
+    val logging = mock<Logging>()
+    val page = mock<Page<LogEntry>>()
+    val entries =
+      (1..2).map { index ->
+        LogEntry.newBuilder(
+            Payload.StringPayload.of(
+              "event=event-$index xmm.lifecycle.stage=label xmm.report.name=reports/report-1"
+            )
+          )
+          .setLogName("projects/logging-project/logs/stdout")
+          .setTimestamp(NOW.plusMillis(index.toLong()))
+          .build()
+      }
+    whenever(page.values).thenReturn(entries)
+    whenever(page.hasNextPage()).thenReturn(false)
+    whenever(logging.listLogEntries(any(), any(), any())).thenReturn(page)
+    val reader =
+      GoogleCloudLogReader(
+        "logging-project",
+        logging,
+        setOf("event", "xmm.lifecycle.stage", "xmm.report.name"),
+        setOf("xmm.report.name"),
+      )
+
+    val error =
+      assertFailsWith<CloudLogCollectionTruncatedException> {
+        reader.read(listOf("reports/report-1"), NOW.minusSeconds(1), NOW.plusSeconds(1), 1)
+      }
+
+    assertThat(error.partialEntries).hasSize(1)
+  }
+
+  @Test
+  fun `correlation search preserves bare computation id`() {
+    assertThat(GoogleCloudLogReader.correlationSearchValues("computations/abc"))
+      .containsExactly("computations/abc", "abc")
+      .inOrder()
+  }
+
+  @Test
+  fun `trace reader preserves unbounded sentinel`() {
+    assertThat(GoogleCloudTraceReader.readLimit(Int.MAX_VALUE)).isEqualTo(Int.MAX_VALUE)
+  }
+
+  @Test
+  fun `trace retention keeps an older failure`() {
+    val failure = span("failure", NOW.minusSeconds(100), mapOf("xmm.outcome" to "failed_writeback"))
+    val newest = span("newest", NOW, emptyMap())
+
+    assertThat(GoogleCloudTraceReader.retainSpans(listOf(newest, failure), 1))
+      .containsExactly(failure)
+  }
+
   @Test
   fun `log reader preserves ordinary JSON application message`() = runBlocking {
     val logging = mock<Logging>()
@@ -117,5 +173,12 @@ class GoogleCloudTelemetryTest {
 
   companion object {
     private val NOW = Instant.parse("2026-09-10T12:00:00Z")
+
+    private fun span(
+      id: String,
+      startTime: Instant,
+      attributes: Map<String, String>,
+    ): CloudTraceSpan =
+      CloudTraceSpan("project", "trace", id, null, id, "service", startTime, null, attributes)
   }
 }
