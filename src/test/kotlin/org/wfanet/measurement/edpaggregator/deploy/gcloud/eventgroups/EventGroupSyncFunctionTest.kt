@@ -583,51 +583,18 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync preserves event group map when JSON parsing fails`() {
+  fun `sync preserves event group map when JSON parsing fails after partial output`() {
     val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
       eventGroupReferenceId = "previous-reference-id"
       eventGroupResource = "previous-resource-name"
     }
+    val firstEventGroupJson = JsonFormat.printer().print(CAMPAIGNS.first())
     val newCampaign =
       """
         {
-          "events": [
+          "eventGroups": [
+            $firstEventGroupJson,
             {
-              "eventGroupReferenceId": "reference-id-4",
-              "eventGroupMetadata": {
-                "adMetadata": {
-                  "campaignMetadata": {
-                    "brand": "brand-2",
-                    "campaign": "campaign-2"
-                  }
-                }
-              },
-              "dataAvailabilityInterval": {
-                "startTime": "1970-01-01T00:03:20Z",
-                "endTime": "1970-01-01T00:05:00Z"
-              },
-              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
-              "mediaTypes": ["OTHER"]
-            },
-            {
-              "eventGroupReferenceId": "reference-id-5",
-              "eventGroupMetadata": {
-                "adMetadata": {
-                  "campaignMetadata": {
-                    "brand": "brand-2",
-                    "campaign": "campaign-3"
-                  }
-                }
-              },
-              "dataAvailabilityInterval": {
-                "startTime": "1970-01-01T00:03:20Z",
-                "endTime": "1970-01-01T00:05:00Z"
-              },
-              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
-              "mediaTypes": ["OTHER"]
-            }
-           ]
-          }
     """
         .trimIndent()
 
@@ -666,7 +633,7 @@ class EventGroupSyncFunctionTest() {
 
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
+    val previousFreshnessToken = runBlocking {
       storageClient.writeBlob(
         "some/path/campaigns-blob-uri.json",
         flowOf(ByteString.copyFromUtf8(newCampaign)),
@@ -676,6 +643,7 @@ class EventGroupSyncFunctionTest() {
           "some/other/path/event-groups-map-uri",
           flowOf(previousMappedEventGroup.toByteString()),
         )
+      checkNotNull(storageClient.getFreshnessToken("some/other/path/event-groups-map-uri"))
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -700,6 +668,10 @@ class EventGroupSyncFunctionTest() {
         .toList()
     }
     assertThat(mappedData).containsExactly(previousMappedEventGroup)
+    assertThat(
+        runBlocking { storageClient.getFreshnessToken("some/other/path/event-groups-map-uri") }
+      )
+      .isEqualTo(previousFreshnessToken)
   }
 
   @Test
