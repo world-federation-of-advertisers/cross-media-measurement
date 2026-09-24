@@ -179,8 +179,8 @@ resource "google_project_iam_member" "report_trace_operator_service_usage_consum
   member   = google_service_account.report_trace_operator.member
 }
 
-# Dedicated least-privilege identity for the VID-labeling trace CLI. It can
-# inspect telemetry but cannot read or mutate application databases or buckets.
+# Dedicated least-privilege identity for the VID-labeling trace CLI. Sibling modules grant it
+# read-only access to authoritative pipeline state and object metadata.
 resource "google_service_account" "vid_labeling_trace_operator" {
   account_id   = "vid-labeling-trace-operator"
   display_name = "VID labeling trace operator"

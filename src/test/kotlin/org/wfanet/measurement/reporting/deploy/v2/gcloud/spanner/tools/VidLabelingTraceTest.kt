@@ -15,14 +15,62 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import java.io.PrintWriter
+import java.io.StringWriter
+import java.time.Clock
 import java.time.Instant
+import java.time.ZoneOffset
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
 import org.wfanet.measurement.common.telemetry.CloudTraceReader
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+
+private fun main(args: Array<String>, dependencies: VidLabelingTraceDependencies): Int =
+  runVidLabelingTrace(args, dependencies)
 
 class VidLabelingTraceTest {
+  @Test
+  fun `artifact file names cannot collide`() {
+    val first = "dataProviders/a/rawImpressionUploads/b__c"
+    val second = "dataProviders/a__b/rawImpressionUploads/c"
+
+    assertThat(VidLabelingTraceOutput.artifactFileName(first))
+      .isNotEqualTo(VidLabelingTraceOutput.artifactFileName(second))
+  }
+
+  @Test
+  fun `render retains safe error classification`() {
+    val collection =
+      VidLabelingTraceCollection(
+        RAW_UPLOAD,
+        VidLabelingTraceStatus.PARTIAL,
+        VidLabelingExecutionStatus.FAILED,
+        emptyList(),
+        listOf(
+          VidLabelingEvidence(
+            Instant.parse("2026-09-01T00:00:00Z"),
+            "project",
+            "log",
+            "worker",
+            "label",
+            "failed",
+            mapOf("xmm.error.type" to "IllegalStateException", "xmm.error.code" to "grpc.INTERNAL"),
+          )
+        ),
+        emptyList(),
+        emptyList(),
+      )
+
+    val output = VidLabelingTraceOutput.render(collection)
+
+    assertThat(output).contains("xmm.error.type=IllegalStateException")
+    assertThat(output).contains("xmm.error.code=grpc.INTERNAL")
+    assertThat(output).contains("## Errors")
+  }
+
   @Test
   fun `collect traverses mixed routes and excludes another upload`() = runBlocking {
     val entries = buildList {
@@ -67,6 +115,7 @@ class VidLabelingTraceTest {
       VidLabelingTraceCollector(
         logReaderFactory = { logReader },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph() },
       )
 
     val collection = collector.collect(request())
@@ -107,6 +156,7 @@ class VidLabelingTraceTest {
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph() },
       )
 
     val collection = collector.collect(request(correlationValueLimit = 1, traceIdLimit = 1))
@@ -115,6 +165,210 @@ class VidLabelingTraceTest {
     assertThat(collection.warnings.single { "Discovery limit" in it })
       .contains("correlation values and trace IDs")
     assertThat(collection.sourceStatuses.any { it.status == "truncated" }).isTrue()
+  }
+
+  @Test
+  fun `collect reports exhausted expansion rounds as partial`() = runBlocking {
+    val entries =
+      listOf(
+        entry(
+          "upload_registration",
+          "xmm.edpa.vid_labeling_job.name=" + RAW_UPLOAD + "/vidLabelingJobs/new-job",
+          rawImpressionUpload = RAW_UPLOAD,
+          traceId = ROOT_TRACE,
+        )
+      )
+    val rootOnlyGraph = testGraph(emptyList())
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(entries) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { rootOnlyGraph },
+      )
+
+    val collection = collector.collect(request(expansionRounds = 1))
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(collection.warnings).contains("Discovery limit reached for expansion rounds.")
+  }
+
+  @Test
+  fun `collect reports a registered upload with no model lines as no work`() = runBlocking {
+    val graph =
+      testGraph(emptyList()).let {
+        it.copy(upload = it.upload.toBuilder().setRegistrationComplete(true).build())
+      }
+    val entries =
+      listOf(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE))
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(entries) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { graph },
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+    assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.NO_WORK)
+  }
+
+  @Test
+  fun `collect requires evidence for every concrete child`() = runBlocking {
+    val modelLine = NON_MEMOIZED_MODEL_LINE
+    val childOne = RAW_UPLOAD + "/vidLabelingJobs/one"
+    val childTwo = RAW_UPLOAD + "/vidLabelingJobs/two"
+    val graph =
+      testGraph(listOf(modelLine))
+        .copy(
+          nodes =
+            listOf(
+              ExpectedTraceNode(
+                childOne,
+                modelLine,
+                "label",
+                "SUCCEEDED",
+                mapOf(
+                  "xmm.edpa.vid_labeling_job.name" to childOne,
+                  "xmm.model_line.name" to modelLine,
+                ),
+              ),
+              ExpectedTraceNode(
+                childTwo,
+                modelLine,
+                "label",
+                "SUCCEEDED",
+                mapOf(
+                  "xmm.edpa.vid_labeling_job.name" to childTwo,
+                  "xmm.model_line.name" to modelLine,
+                ),
+              ),
+            )
+        )
+    val entries =
+      listOf(
+        entry(
+          "label",
+          "xmm.model_line.name=" + modelLine + " xmm.edpa.vid_labeling_job.name=" + childOne,
+          rawImpressionUpload = RAW_UPLOAD,
+          traceId = ROOT_TRACE,
+        )
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(entries) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { graph },
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.PARTIAL)
+    assertThat(collection.modelLines.single().missingStages).contains(childTwo)
+  }
+
+  @Test
+  fun `collect treats downstream stages after terminal failure as not applicable`() = runBlocking {
+    val modelLine = NON_MEMOIZED_MODEL_LINE
+    val job = RAW_UPLOAD + "/vidLabelingJobs/failed"
+    val graph =
+      testGraph(listOf(modelLine))
+        .copy(
+          nodes =
+            listOf(
+              ExpectedTraceNode(
+                job,
+                modelLine,
+                "label",
+                "FAILED",
+                mapOf("xmm.edpa.vid_labeling_job.name" to job, "xmm.model_line.name" to modelLine),
+              ),
+              ExpectedTraceNode(
+                modelLine + ":availability",
+                modelLine,
+                "data_availability_publish",
+                "NOT_REACHED",
+                mapOf("xmm.model_line.name" to modelLine),
+                ExpectedNodeDisposition.NOT_APPLICABLE,
+              ),
+            )
+        )
+    val entries =
+      listOf(
+        entry(
+          "label",
+          "xmm.model_line.name=" + modelLine + " xmm.edpa.vid_labeling_job.name=" + job,
+          rawImpressionUpload = RAW_UPLOAD,
+          outcome = "failed",
+          traceId = ROOT_TRACE,
+        )
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(entries) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { graph },
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+    assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.FAILED)
+  }
+
+  @Test
+  fun `runVidLabelingTrace exercises CLI contract`() {
+    val entries = buildList {
+      add(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE))
+      addAll(
+        routeEntries(
+          NON_MEMOIZED_MODEL_LINE,
+          "non_memoized",
+          NON_MEMOIZED_STAGES,
+          "direct",
+          DIRECT_TRACE,
+        )
+      )
+      add(
+        entry(
+          "data_availability_publish",
+          modelLineFields(NON_MEMOIZED_MODEL_LINE),
+          traceId = DIRECT_AVAILABILITY_TRACE,
+        )
+      )
+    }
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(entries) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
+      )
+    val output = StringWriter()
+
+    val exitCode =
+      main(
+        arrayOf(
+          "--raw-impression-upload=$RAW_UPLOAD",
+          "--observability-project=project",
+          "--start-time=2026-08-31T00:00:00Z",
+          "--end-time=2026-09-02T00:00:00Z",
+          "--allow-partial",
+          "--edpa-public-api-target=unused",
+          "--control-plane-api-target=unused",
+          "--kingdom-public-api-target=unused",
+          "--tls-cert-file=unused",
+          "--tls-key-file=unused",
+          "--cert-collection-file=unused",
+        ),
+        VidLabelingTraceDependencies(
+          collector,
+          Clock.fixed(Instant.parse("2026-09-02T00:00:00Z"), ZoneOffset.UTC),
+          PrintWriter(output, true),
+        ),
+      )
+
+    assertThat(exitCode).isEqualTo(0)
+    assertThat(output.toString()).contains("# VID labeling trace")
   }
 
   @Test
@@ -152,6 +406,7 @@ class VidLabelingTraceTest {
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
       )
 
     val collection = collector.collect(request())
@@ -167,6 +422,7 @@ class VidLabelingTraceTest {
       VidLabelingTraceCollector(
         logReaderFactory = { CloudLogReader { _, _, _, _ -> throw IllegalStateException() } },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { testGraph() },
       )
 
     val collection = collector.collect(request())
@@ -202,10 +458,14 @@ class VidLabelingTraceTest {
     assertThat(failed).isTrue()
     assertThat(writtenFiles).hasSize(2)
     assertThat(writtenFiles[0]).startsWith("invalid__")
-    assertThat(writtenFiles[1]).isEqualTo("123__upload-1.md")
+    assertThat(writtenFiles[1]).isEqualTo(VidLabelingTraceOutput.artifactFileName(RAW_UPLOAD))
   }
 
-  private fun request(correlationValueLimit: Int = 500, traceIdLimit: Int = 500) =
+  private fun request(
+    correlationValueLimit: Int = 500,
+    traceIdLimit: Int = 500,
+    expansionRounds: Int = 4,
+  ) =
     VidLabelingTraceRequest(
       RAW_UPLOAD,
       listOf("observability-project"),
@@ -213,7 +473,62 @@ class VidLabelingTraceTest {
       Instant.parse("2026-09-02T00:00:00Z"),
       correlationValueLimit = correlationValueLimit,
       traceIdLimit = traceIdLimit,
+      expansionRounds = expansionRounds,
     )
+
+  private fun testGraph(
+    modelLineNames: List<String> = listOf(MEMOIZED_MODEL_LINE, NON_MEMOIZED_MODEL_LINE)
+  ): VidLabelingAuthoritativeGraph {
+    val upload =
+      RawImpressionUpload.newBuilder()
+        .setName(RAW_UPLOAD)
+        .setState(RawImpressionUpload.State.COMPLETED)
+        .setDoneBlobGeneration(1)
+        .build()
+    val modelLines =
+      modelLineNames.mapIndexed { index, modelLine ->
+        val id = if (modelLine == MEMOIZED_MODEL_LINE) "memo" else "direct"
+        RawImpressionUploadModelLine.newBuilder()
+          .setName(RAW_UPLOAD + "/rawImpressionUploadModelLines/" + id)
+          .setCmmsModelLine(modelLine)
+          .setState(RawImpressionUploadModelLine.State.COMPLETED)
+          .build()
+      }
+    val nodes = buildList {
+      add(
+        ExpectedTraceNode(
+          RAW_UPLOAD,
+          null,
+          "upload_registration",
+          "COMPLETED",
+          mapOf("xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD),
+        )
+      )
+      for ((index, modelLine) in modelLineNames.withIndex()) {
+        val memoized = modelLine == MEMOIZED_MODEL_LINE
+        val stages = if (memoized) MEMOIZED_STAGES else NON_MEMOIZED_STAGES
+        val child =
+          RAW_UPLOAD + "/rawImpressionUploadModelLines/" + if (memoized) "memo" else "direct"
+        for (stage in stages) {
+          val identifiers =
+            if (stage in setOf("data_watcher", "data_availability_publish")) {
+              mapOf(
+                "xmm.model_line.name" to modelLine,
+                "xmm.edpa.label.route" to if (memoized) "memoized" else "non_memoized",
+              )
+            } else {
+              mapOf(
+                "xmm.model_line.name" to modelLine,
+                "xmm.edpa.raw_impression_upload_model_line.name" to child,
+                "xmm.edpa.label.route" to if (memoized) "memoized" else "non_memoized",
+              )
+            }
+          add(ExpectedTraceNode(child + ":" + stage, modelLine, stage, "SUCCEEDED", identifiers))
+        }
+      }
+    }
+    return VidLabelingAuthoritativeGraph(upload, modelLines, nodes)
+  }
 
   private fun routeEntries(
     modelLine: String,
