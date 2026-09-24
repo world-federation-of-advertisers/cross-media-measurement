@@ -83,20 +83,23 @@ class GoogleCloudLogReader(
   ): List<CloudLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
     val predicates =
-      correlationValues.distinct().map { value ->
-        val escaped = escape(value)
-        (listOf(
-            "textPayload:\"$escaped\"",
-            "jsonPayload.message:\"$escaped\"",
-            "jsonPayload.MESSAGE:\"$escaped\"",
-          ) +
-            correlationFields.flatMap { field ->
-              listOf(
-                "jsonPayload.\"$field\"=\"$escaped\"",
-                "jsonPayload.attributes.\"$field\"=\"$escaped\"",
-              )
-            })
-          .joinToString(" OR ", "(", ")")
+      correlationValues.distinct().flatMap { value ->
+        val values = correlationSearchValues(value)
+        values.map { candidate ->
+          val escaped = escape(candidate)
+          (listOf(
+              "textPayload:\"$escaped\"",
+              "jsonPayload.message:\"$escaped\"",
+              "jsonPayload.MESSAGE:\"$escaped\"",
+            ) +
+              correlationFields.flatMap { field ->
+                listOf(
+                  "jsonPayload.\"$field\"=\"$escaped\"",
+                  "jsonPayload.attributes.\"$field\"=\"$escaped\"",
+                )
+              })
+            .joinToString(" OR ", "(", ")")
+        }
       }
     return readPredicates(predicates, startTime, endTime, limit)
   }
@@ -128,8 +131,10 @@ class GoogleCloudLogReader(
     val entries = mutableListOf<LogEntry>()
     var truncatedQueries = 0
     val rawLimit =
-      (limit.toLong() + maxGrpcContextEntries).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
-    for (filter in chunkFilters(timeFilter, predicates)) {
+      if (limit == Int.MAX_VALUE) limit
+      else (limit.toLong() + maxGrpcContextEntries + 1).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+    val filters = chunkFilters(timeFilter, predicates)
+    for ((filterIndex, filter) in filters.withIndex()) {
       var page = listEntries(filter, rawLimit)
       while (true) {
         for (entry in page.values) {
@@ -141,17 +146,17 @@ class GoogleCloudLogReader(
         page =
           requestThrottler.onReady { runInterruptible(Dispatchers.IO) { currentPage.nextPage } }
       }
-      if (entries.size == rawLimit || page.hasNextPage()) truncatedQueries++
+      if (page.hasNextPage() || (entries.size == rawLimit && filterIndex < filters.lastIndex)) {
+        truncatedQueries++
+      }
       if (entries.size == rawLimit) break
     }
     val filtered = filterVerboseGrpcEntries(entries.distinct(), startTime, endTime)
-    val rendered =
-      filtered.entries
-        .mapNotNull(::toCloudLogEntry)
-        .distinct()
-        .sortedByDescending { it.timestamp }
-        .take(limit)
-    if (truncatedQueries > 0 || filtered.classificationIncomplete) {
+    val renderedEntries =
+      filtered.entries.mapNotNull(::toCloudLogEntry).distinct().sortedByDescending { it.timestamp }
+    val outputTruncated = renderedEntries.size > limit
+    val rendered = renderedEntries.take(limit)
+    if (truncatedQueries > 0 || filtered.classificationIncomplete || outputTruncated) {
       throw CloudLogCollectionTruncatedException(
         rendered,
         filtered.contextEntriesExamined,
@@ -505,6 +510,14 @@ class GoogleCloudLogReader(
     private val GRPC_CONTEXT_LOOKBACK: Duration = Duration.ofSeconds(10)
     private val LOGGER_LABEL_KEYS =
       listOf("logger", "logger_name", "loggerName", "logging.googleapis.com/logger")
+
+    internal fun correlationSearchValues(value: String): List<String> {
+      return if (value.startsWith("computations/")) {
+        listOf(value, value.substringAfterLast('/'))
+      } else {
+        listOf(value)
+      }
+    }
   }
 }
 
@@ -561,13 +574,14 @@ class GoogleCloudTraceReader(
       val semaphore = Semaphore(maxConcurrency)
       queries.map { query -> async { semaphore.withPermit { query() } } }.awaitAll().flatten()
     }
-    return spans
-      .filter {
-        !it.startTime.isAfter(endTime) && !(it.endTime ?: it.startTime).isBefore(startTime)
-      }
-      .distinct()
-      .sortedByDescending { it.startTime }
-      .take(if (limit == Int.MAX_VALUE) limit else limit + 1)
+    return retainSpans(
+      spans
+        .filter {
+          !it.startTime.isAfter(endTime) && !(it.endTime ?: it.startTime).isBefore(startTime)
+        }
+        .distinct(),
+      readLimit(limit),
+    )
   }
 
   private suspend fun listTraces(
@@ -584,7 +598,7 @@ class GoogleCloudTraceReader(
       val parameters =
         mutableMapOf(
           "view" to "COMPLETE",
-          "pageSize" to (limit + 1).coerceAtMost(MAX_PAGE_SIZE).toString(),
+          "pageSize" to readLimit(limit).coerceAtMost(MAX_PAGE_SIZE).toString(),
           "startTime" to startTime.toString(),
           "endTime" to endTime.toString(),
           "filter" to filter,
@@ -600,8 +614,8 @@ class GoogleCloudTraceReader(
       val root = JsonParser.parseString(response.body()).asJsonObject
       spans += parseResponse(project, root, null)
       pageToken = root.optionalString("nextPageToken")
-    } while (pageToken != null && spans.size <= limit)
-    return spans.take(limit + 1)
+    } while (pageToken != null && spans.size < readLimit(limit))
+    return retainSpans(spans, readLimit(limit))
   }
 
   private suspend fun readTrace(
@@ -687,6 +701,20 @@ class GoogleCloudTraceReader(
     private val TRACE_ID_PATTERN = Regex("(?i)[0-9a-f]{32}")
 
     private fun urlEncode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8)
+
+    internal fun readLimit(limit: Int): Int = if (limit == Int.MAX_VALUE) limit else limit + 1
+
+    internal fun retainSpans(spans: List<CloudTraceSpan>, limit: Int): List<CloudTraceSpan> {
+      if (spans.size <= limit) return spans
+      val failures = spans.filter { isFailureOutcome(it.attributes["xmm.outcome"]) }
+      return (failures + spans.sortedByDescending { it.startTime }).distinct().take(limit)
+    }
+
+    private fun isFailureOutcome(outcome: String?): Boolean {
+      val normalized = outcome?.lowercase() ?: return false
+      return normalized in setOf("failed", "failure", "error", "refused", "report_failed") ||
+        normalized.startsWith("failed_")
+    }
   }
 }
 

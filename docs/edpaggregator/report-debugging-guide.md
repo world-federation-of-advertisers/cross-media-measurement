@@ -485,9 +485,12 @@ pipeline failure.
 Configure `VID_LABELING_TRACE_OPERATORS` with the IAM members allowed to
 impersonate the dedicated VID-labeling trace operator, and list any additional
 telemetry projects in `VID_LABELING_TRACE_OBSERVABILITY_PROJECTS`. The identity
-has only Logging Viewer, Cloud Trace Viewer, and Service Usage Consumer roles;
-it has no application database or bucket access. After applying Terraform,
-create impersonated Application Default Credentials and run:
+has Logging Viewer, Cloud Trace Viewer, Service Usage Consumer, read-only access
+to the EDPA and Secure Computation databases, and object-viewer access to the
+VID-labeling storage bucket. It has no write or KMS-decrypt role. The command
+also uses the DataProvider's mutual-TLS identity for the read-only EDPA,
+control-plane, and Kingdom APIs. After applying Terraform, create impersonated
+Application Default Credentials and run:
 
 ```bash
 VID_LABELING_TRACE_SERVICE_ACCOUNT="$(terraform output -raw vid_labeling_trace_operator_service_account_email)"
@@ -499,6 +502,13 @@ bazel run \
   -- \
   --observability-project=<EDPA_PROJECT_ID> \
   --observability-project=<SECURE_COMPUTATION_PROJECT_ID> \
+  --edpa-public-api-target=<EDPA_PUBLIC_API_TARGET> \
+  --control-plane-api-target=<CONTROL_PLANE_API_TARGET> \
+  --kingdom-public-api-target=<KINGDOM_PUBLIC_API_TARGET> \
+  --tls-cert-file=<DATA_PROVIDER_TLS_CERT_FILE> \
+  --tls-key-file=<DATA_PROVIDER_TLS_KEY_FILE> \
+  --cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
+  --gcs-project=<EDPA_PROJECT_ID> \
   --raw-impression-upload=dataProviders/<DATA_PROVIDER_ID>/rawImpressionUploads/<UPLOAD_ID> \
   --output-dir=/tmp/vid-labeling-traces
 ```
