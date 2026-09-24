@@ -19,7 +19,9 @@ Run the tool with `--help` for usage information.
 
 Every `BasicReport` in state `SUCCEEDED`, across all `MeasurementConsumer`s, is
 examined one `MeasurementConsumer` at a time and one page at a time. Use
-`--cmms-measurement-consumer-id` or `--create-time-after` to restrict the scan.
+`--cmms-measurement-consumer-id` to restrict the scan. Use `--create-time-after`
+to restrict which `BasicReport`s are eligible for updates; older rows are still
+considered when checking that a Report is not already claimed.
 
 For each `BasicReport` missing `external_report_id`, the tool reads the
 associated `Report` from Reporting Postgres using either of these explicit

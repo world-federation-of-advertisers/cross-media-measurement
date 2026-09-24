@@ -43,9 +43,10 @@ import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
  * conflict detection so an existing or inferred link cannot be duplicated.
  *
  * @param dryRun when true, no database write is issued
- * @param createTimeAfter when set, only BasicReports created after this time are examined
+ * @param createTimeAfter when set, only BasicReports created after this time are eligible for
+ *   updates; older rows still participate in conflict detection
  * @param cmmsMeasurementConsumerIds when non-empty, only BasicReports belonging to these
- *   MeasurementConsumers are examined
+ *   MeasurementConsumers are scanned
  * @param matchExternalBasicReportId when true, an `external_basic_report_id` is considered a match
  *   only when a Postgres Report with the same external ID exists. This must only be enabled for
  *   integrations that deliberately use the same external ID for both resources.
@@ -98,8 +99,14 @@ class BasicReportExternalReportIdBackfiller(
     EXTERNAL_BASIC_REPORT_ID("same external ID"),
   }
 
+  private data class BasicReportReference(
+    val measurementConsumerId: Long,
+    val basicReportId: Long,
+    val createTime: Timestamp,
+  )
+
   private data class PlannedUpdate(
-    val basicReportResult: BasicReportResult,
+    val basicReport: BasicReportReference,
     val externalReportId: String,
     val matchSources: Set<MatchSource>,
   )
@@ -121,8 +128,18 @@ class BasicReportExternalReportIdBackfiller(
   private var earliestCreateTime: Timestamp? = null
   private var latestCreateTime: Timestamp? = null
 
-  /** Executes the backfill and returns outcome counts. */
+  /**
+   * Executes the backfill and returns outcome counts.
+   *
+   * @throws IllegalArgumentException if same-ID matching has no MeasurementConsumer scope or a
+   *   requested MeasurementConsumer does not exist
+   * @throws IllegalStateException if any candidate mapping is not one-to-one
+   */
   suspend fun run(): Result {
+    require(!matchExternalBasicReportId || cmmsMeasurementConsumerIds.isNotEmpty()) {
+      "Matching by external BasicReport ID requires a MeasurementConsumer scope"
+    }
+
     // BasicReports is interleaved in MeasurementConsumers, so scoping each query to a
     // MeasurementConsumer turns a full table scan into a key-range read.
     val availableCmmsMeasurementConsumerIds: List<String> =
@@ -189,7 +206,21 @@ class BasicReportExternalReportIdBackfiller(
     cmmsMeasurementConsumerId: String
   ): MeasurementConsumerPlan {
     val reportLinkIndex: ReportLinkIndex = readReportLinkIndex(cmmsMeasurementConsumerId)
-    val allBasicReportResults = mutableListOf<BasicReportResult>()
+    val claimsByExternalReportId = mutableMapOf<String, MutableMap<String, MutableSet<String>>>()
+    for ((externalReportId, basicReportNames) in
+      reportLinkIndex.basicReportNamesByExternalReportId) {
+      for (basicReportName in basicReportNames) {
+        addClaim(
+          claimsByExternalReportId,
+          externalReportId,
+          basicReportName,
+          MatchSource.BASIC_REPORT_NAME.description,
+        )
+      }
+    }
+
+    val candidateMatchesByBasicReportName = mutableMapOf<String, Map<String, Set<MatchSource>>>()
+    val selectedBasicReportsByName = mutableMapOf<String, BasicReportReference>()
     var pageToken: ListBasicReportsPageToken? = null
     do {
       val page: List<BasicReportResult> =
@@ -208,7 +239,59 @@ class BasicReportExternalReportIdBackfiller(
 
       val hasNextPage = page.size == PAGE_SIZE + 1
       val basicReportResults = if (hasNextPage) page.subList(0, PAGE_SIZE) else page
-      allBasicReportResults += basicReportResults
+      for (basicReportResult in basicReportResults) {
+        val basicReport: BasicReport = basicReportResult.basicReport
+        val basicReportName =
+          BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
+            .toName()
+        val isSelected =
+          basicReport.state == BasicReport.State.SUCCEEDED &&
+            (createTimeAfter == null ||
+              Timestamps.compare(basicReport.createTime, createTimeAfter) > 0)
+        if (isSelected) {
+          examined++
+        }
+        if (basicReport.externalReportId.isNotEmpty()) {
+          addClaim(
+            claimsByExternalReportId,
+            basicReport.externalReportId,
+            basicReportName,
+            "stored BasicReport.external_report_id",
+          )
+          if (isSelected) {
+            alreadyValid++
+          }
+          continue
+        }
+
+        val candidateMatches: Map<String, Set<MatchSource>> =
+          findCandidateMatches(basicReport, basicReportName, reportLinkIndex)
+        for ((externalReportId, matchSources) in candidateMatches) {
+          for (matchSource in matchSources) {
+            addClaim(
+              claimsByExternalReportId,
+              externalReportId,
+              basicReportName,
+              matchSource.description,
+            )
+          }
+        }
+        if (!isSelected) {
+          continue
+        }
+        candidateMatchesByBasicReportName[basicReportName] = candidateMatches
+        selectedBasicReportsByName[basicReportName] =
+          BasicReportReference(
+            measurementConsumerId = basicReportResult.measurementConsumerId,
+            basicReportId = basicReportResult.basicReportId,
+            createTime = basicReport.createTime,
+          )
+        if (candidateMatches.isEmpty()) {
+          logger.warning { "BasicReport $basicReportName has no associated Report in Postgres" }
+          unresolved++
+          skipped++
+        }
+      }
 
       pageToken =
         if (hasNextPage) {
@@ -225,71 +308,6 @@ class BasicReportExternalReportIdBackfiller(
           null
         }
     } while (pageToken != null)
-
-    val claimsByExternalReportId = mutableMapOf<String, MutableMap<String, MutableSet<String>>>()
-    for ((externalReportId, basicReportNames) in
-      reportLinkIndex.basicReportNamesByExternalReportId) {
-      for (basicReportName in basicReportNames) {
-        addClaim(
-          claimsByExternalReportId,
-          externalReportId,
-          basicReportName,
-          MatchSource.BASIC_REPORT_NAME.description,
-        )
-      }
-    }
-
-    val candidateMatchesByBasicReportName = mutableMapOf<String, Map<String, Set<MatchSource>>>()
-    val missingBasicReportsByName = mutableMapOf<String, BasicReportResult>()
-    for (basicReportResult in allBasicReportResults) {
-      val basicReport: BasicReport = basicReportResult.basicReport
-      val basicReportName =
-        BasicReportKey(basicReport.cmmsMeasurementConsumerId, basicReport.externalBasicReportId)
-          .toName()
-      val isSelected =
-        basicReport.state == BasicReport.State.SUCCEEDED &&
-          (createTimeAfter == null ||
-            Timestamps.compare(basicReport.createTime, createTimeAfter) > 0)
-      if (isSelected) {
-        examined++
-      }
-      if (basicReport.externalReportId.isNotEmpty()) {
-        addClaim(
-          claimsByExternalReportId,
-          basicReport.externalReportId,
-          basicReportName,
-          "stored BasicReport.external_report_id",
-        )
-        if (isSelected) {
-          alreadyValid++
-        }
-        continue
-      }
-
-      val candidateMatches: Map<String, Set<MatchSource>> =
-        findCandidateMatches(basicReport, basicReportName, reportLinkIndex)
-      for ((externalReportId, matchSources) in candidateMatches) {
-        for (matchSource in matchSources) {
-          addClaim(
-            claimsByExternalReportId,
-            externalReportId,
-            basicReportName,
-            matchSource.description,
-          )
-        }
-      }
-      if (!isSelected) {
-        continue
-      }
-      candidateMatchesByBasicReportName[basicReportName] = candidateMatches
-      missingBasicReportsByName[basicReportName] = basicReportResult
-      if (candidateMatches.isEmpty()) {
-        logger.warning { "BasicReport $basicReportName has no associated Report in Postgres" }
-        unresolved++
-        skipped++
-        continue
-      }
-    }
 
     val conflictMessages = mutableListOf<String>()
     for ((basicReportName, candidateMatches) in candidateMatchesByBasicReportName) {
@@ -318,7 +336,7 @@ class BasicReportExternalReportIdBackfiller(
     }
 
     val updates = mutableListOf<PlannedUpdate>()
-    for ((basicReportName, basicReportResult) in missingBasicReportsByName) {
+    for ((basicReportName, basicReportReference) in selectedBasicReportsByName) {
       val candidateMatches: Map<String, Set<MatchSource>> =
         candidateMatchesByBasicReportName.getValue(basicReportName)
       if (candidateMatches.isEmpty()) {
@@ -333,7 +351,7 @@ class BasicReportExternalReportIdBackfiller(
         continue
       }
       val (externalReportId, matchSources) = candidateMatches.entries.single()
-      updates += PlannedUpdate(basicReportResult, externalReportId, matchSources)
+      updates += PlannedUpdate(basicReportReference, externalReportId, matchSources)
     }
 
     return MeasurementConsumerPlan(updates, conflictMessages)
@@ -382,12 +400,12 @@ class BasicReportExternalReportIdBackfiller(
     if (MatchSource.EXTERNAL_BASIC_REPORT_ID in update.matchSources) {
       matchedByExternalBasicReportId++
     }
-    recordCreateTime(update.basicReportResult.basicReport.createTime)
+    recordCreateTime(update.basicReport.createTime)
     if (!dryRun) {
       spannerClient.readWriteTransaction().run { transaction ->
         transaction.updateExternalReportId(
-          measurementConsumerId = update.basicReportResult.measurementConsumerId,
-          basicReportId = update.basicReportResult.basicReportId,
+          measurementConsumerId = update.basicReport.measurementConsumerId,
+          basicReportId = update.basicReport.basicReportId,
           externalReportId = update.externalReportId,
         )
       }

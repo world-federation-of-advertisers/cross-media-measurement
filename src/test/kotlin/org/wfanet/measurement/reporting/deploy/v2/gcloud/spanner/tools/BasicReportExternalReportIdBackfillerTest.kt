@@ -17,8 +17,12 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -247,6 +251,175 @@ class BasicReportExternalReportIdBackfillerTest {
     }
 
   @Test
+  fun `run detects reverse conflict across page boundary`() =
+    runBlocking<Unit> {
+      createReport(EXTERNAL_REPORT_ID, CREATE_REPORT_REQUEST_ID, "")
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, "page-00", CREATE_REPORT_REQUEST_ID, "")
+      for (index in 1 until TEST_PAGE_SIZE) {
+        insertBasicReport(
+          SPANNER_BASIC_REPORT_ID + index,
+          "page-${index.toString().padStart(2, '0')}",
+          "",
+          "existing-report-$index",
+        )
+      }
+      insertBasicReport(
+        SPANNER_BASIC_REPORT_ID + TEST_PAGE_SIZE,
+        "page-20",
+        CREATE_REPORT_REQUEST_ID,
+        "",
+      )
+
+      assertFailsWith<IllegalStateException> {
+        newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
+      }
+
+      assertThat(readBasicReport("page-00").externalReportId).isEmpty()
+      assertThat(readBasicReport("page-20").externalReportId).isEmpty()
+    }
+
+  @Test
+  fun `run fails when Report is already claimed by another BasicReport`() =
+    runBlocking<Unit> {
+      createReport(EXTERNAL_REPORT_ID, CREATE_REPORT_REQUEST_ID, "")
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", EXTERNAL_REPORT_ID)
+      insertBasicReport(
+        OTHER_SPANNER_BASIC_REPORT_ID,
+        OTHER_EXTERNAL_BASIC_REPORT_ID,
+        CREATE_REPORT_REQUEST_ID,
+        "",
+      )
+
+      assertFailsWith<IllegalStateException> {
+        newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
+      }
+
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(EXTERNAL_REPORT_ID)
+      assertThat(readBasicReport(OTHER_EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+    }
+
+  @Test
+  fun `run in dry-run mode reports conflicts without failing`() =
+    runBlocking<Unit> {
+      val basicReportName =
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName()
+      createReport(EXTERNAL_BASIC_REPORT_ID, "", "")
+      createReport(EXTERNAL_REPORT_ID, "", basicReportName)
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
+      val logRecords = mutableListOf<LogRecord>()
+      val logger = Logger.getLogger("")
+      val handler = recordingHandler(logRecords)
+      logger.addHandler(handler)
+
+      val result =
+        try {
+          newBackfiller(dryRun = true, matchExternalBasicReportId = true).run()
+        } finally {
+          logger.removeHandler(handler)
+        }
+
+      assertThat(result.updated).isEqualTo(0)
+      assertThat(result.ambiguous).isEqualTo(1)
+      assertThat(
+          logRecords.any {
+            it.message.contains(basicReportName) &&
+              it.message.contains(EXTERNAL_BASIC_REPORT_ID) &&
+              it.message.contains(EXTERNAL_REPORT_ID)
+          }
+        )
+        .isTrue()
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+    }
+
+  @Test
+  fun `run only updates BasicReports after create-time boundary`() =
+    runBlocking<Unit> {
+      val oldBasicReportId = "old-basic-report"
+      val newBasicReportId = "new-basic-report"
+      createReport(
+        "old-report",
+        "",
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, oldBasicReportId).toName(),
+      )
+      createReport(
+        "new-report",
+        "",
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, newBasicReportId).toName(),
+      )
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, oldBasicReportId, "", "")
+      val createTimeAfter = readBasicReport(oldBasicReportId).createTime
+      insertBasicReport(OTHER_SPANNER_BASIC_REPORT_ID, newBasicReportId, "", "")
+
+      val result =
+        newBackfiller(
+            dryRun = false,
+            createTimeAfter = createTimeAfter,
+            cmmsMeasurementConsumerIds = setOf(CMMS_MEASUREMENT_CONSUMER_ID),
+            matchExternalBasicReportId = false,
+          )
+          .run()
+
+      assertThat(result.examined).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(readBasicReport(oldBasicReportId).externalReportId).isEmpty()
+      assertThat(readBasicReport(newBasicReportId).externalReportId).isEqualTo("new-report")
+    }
+
+  @Test
+  fun `run only updates requested MeasurementConsumers`() =
+    runBlocking<Unit> {
+      val basicReportName =
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName()
+      createReport(EXTERNAL_REPORT_ID, "", basicReportName)
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
+      spannerClient.readWriteTransaction().run { transaction ->
+        transaction.insertMeasurementConsumer(
+          measurementConsumerId = OTHER_SPANNER_MEASUREMENT_CONSUMER_ID,
+          measurementConsumer =
+            measurementConsumer { cmmsMeasurementConsumerId = OTHER_CMMS_MEASUREMENT_CONSUMER_ID },
+        )
+      }
+      insertBasicReport(
+        measurementConsumerId = OTHER_SPANNER_MEASUREMENT_CONSUMER_ID,
+        cmmsMeasurementConsumerId = OTHER_CMMS_MEASUREMENT_CONSUMER_ID,
+        basicReportId = OTHER_SPANNER_BASIC_REPORT_ID,
+        externalBasicReportId = OTHER_EXTERNAL_BASIC_REPORT_ID,
+        createReportRequestId = "",
+        externalReportId = "",
+      )
+
+      val result = newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
+
+      assertThat(result.examined).isEqualTo(1)
+      assertThat(result.updated).isEqualTo(1)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(EXTERNAL_REPORT_ID)
+      assertThat(
+          readBasicReport(OTHER_CMMS_MEASUREMENT_CONSUMER_ID, OTHER_EXTERNAL_BASIC_REPORT_ID)
+            .externalReportId
+        )
+        .isEmpty()
+    }
+
+  @Test
+  fun `run rejects same-ID matching without MeasurementConsumer scope`() =
+    runBlocking<Unit> {
+      val exception =
+        assertFailsWith<IllegalArgumentException> {
+          newBackfiller(
+              dryRun = true,
+              createTimeAfter = null,
+              cmmsMeasurementConsumerIds = emptySet(),
+              matchExternalBasicReportId = true,
+            )
+            .run()
+        }
+
+      assertThat(exception).hasMessageThat().contains("MeasurementConsumer scope")
+    }
+
+  @Test
   fun `dry run writes nothing`() =
     runBlocking<Unit> {
       createReport(EXTERNAL_BASIC_REPORT_ID, "", "")
@@ -275,12 +448,26 @@ class BasicReportExternalReportIdBackfillerTest {
     dryRun: Boolean,
     matchExternalBasicReportId: Boolean,
   ): BasicReportExternalReportIdBackfiller {
+    return newBackfiller(
+      dryRun = dryRun,
+      createTimeAfter = null,
+      cmmsMeasurementConsumerIds = setOf(CMMS_MEASUREMENT_CONSUMER_ID),
+      matchExternalBasicReportId = matchExternalBasicReportId,
+    )
+  }
+
+  private fun newBackfiller(
+    dryRun: Boolean,
+    createTimeAfter: Timestamp?,
+    cmmsMeasurementConsumerIds: Set<String>,
+    matchExternalBasicReportId: Boolean,
+  ): BasicReportExternalReportIdBackfiller {
     return BasicReportExternalReportIdBackfiller(
       spannerClient = spannerClient,
       postgresClient = postgresClient,
       dryRun = dryRun,
-      createTimeAfter = null,
-      cmmsMeasurementConsumerIds = setOf(CMMS_MEASUREMENT_CONSUMER_ID),
+      createTimeAfter = createTimeAfter,
+      cmmsMeasurementConsumerIds = cmmsMeasurementConsumerIds,
       matchExternalBasicReportId = matchExternalBasicReportId,
     )
   }
@@ -353,13 +540,31 @@ class BasicReportExternalReportIdBackfillerTest {
     createReportRequestId: String,
     externalReportId: String,
   ) {
+    insertBasicReport(
+      measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
+      cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID,
+      basicReportId = basicReportId,
+      externalBasicReportId = externalBasicReportId,
+      createReportRequestId = createReportRequestId,
+      externalReportId = externalReportId,
+    )
+  }
+
+  private suspend fun insertBasicReport(
+    measurementConsumerId: Long,
+    cmmsMeasurementConsumerId: String,
+    basicReportId: Long,
+    externalBasicReportId: String,
+    createReportRequestId: String,
+    externalReportId: String,
+  ) {
     spannerClient.readWriteTransaction().run { transaction ->
       transaction.insertBasicReport(
         basicReportId = basicReportId,
-        measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
+        measurementConsumerId = measurementConsumerId,
         basicReport =
           basicReport {
-            cmmsMeasurementConsumerId = CMMS_MEASUREMENT_CONSUMER_ID
+            this.cmmsMeasurementConsumerId = cmmsMeasurementConsumerId
             this.externalBasicReportId = externalBasicReportId
             this.createReportRequestId = createReportRequestId
             this.externalReportId = externalReportId
@@ -371,15 +576,34 @@ class BasicReportExternalReportIdBackfillerTest {
   }
 
   private suspend fun readBasicReport(externalBasicReportId: String): BasicReport {
+    return readBasicReport(CMMS_MEASUREMENT_CONSUMER_ID, externalBasicReportId)
+  }
+
+  private suspend fun readBasicReport(
+    cmmsMeasurementConsumerId: String,
+    externalBasicReportId: String,
+  ): BasicReport {
     return spannerClient.readOnlyTransaction().use { transaction ->
       transaction
-        .getBasicReportByExternalId(CMMS_MEASUREMENT_CONSUMER_ID, externalBasicReportId)
+        .getBasicReportByExternalId(cmmsMeasurementConsumerId, externalBasicReportId)
         .basicReport
     }
   }
 
+  private fun recordingHandler(records: MutableList<LogRecord>): Handler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        records += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
+
   companion object {
     private const val CMMS_MEASUREMENT_CONSUMER_ID = "measurement-consumer"
+    private const val OTHER_CMMS_MEASUREMENT_CONSUMER_ID = "other-measurement-consumer"
     private const val CMMS_DATA_PROVIDER_ID = "data-provider"
     private const val CMMS_EVENT_GROUP_ID = "event-group"
     private const val EXTERNAL_REPORTING_SET_ID = "reporting-set"
@@ -391,9 +615,11 @@ class BasicReportExternalReportIdBackfillerTest {
     private const val SAFE_EXTERNAL_REPORT_ID = "safe-report-id"
     private const val CREATE_REPORT_REQUEST_ID = "create-report-request-id"
     private const val SPANNER_MEASUREMENT_CONSUMER_ID = 1L
+    private const val OTHER_SPANNER_MEASUREMENT_CONSUMER_ID = 5L
     private const val SPANNER_BASIC_REPORT_ID = 2L
     private const val OTHER_SPANNER_BASIC_REPORT_ID = 3L
     private const val SAFE_SPANNER_BASIC_REPORT_ID = 4L
+    private const val TEST_PAGE_SIZE = 20
 
     private var nextInternalId = 100L
     private var nextExternalId = 1_000L

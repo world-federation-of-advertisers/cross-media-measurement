@@ -56,8 +56,8 @@ class BackfillBasicReportExternalReportIds : Runnable {
     names = ["--create-time-after"],
     description =
       [
-        "Only examine BasicReports created after this RFC 3339 time, e.g. 2026-06-01T00:00:00Z.",
-        "When unset, all SUCCEEDED BasicReports are examined.",
+        "Only backfill BasicReports created after this RFC 3339 time, e.g. 2026-06-01T00:00:00Z.",
+        "When unset, all SUCCEEDED BasicReports are eligible.",
       ],
   )
   private var createTimeAfter: String? = null
