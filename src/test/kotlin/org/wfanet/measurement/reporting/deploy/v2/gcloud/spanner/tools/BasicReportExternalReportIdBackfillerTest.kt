@@ -19,6 +19,7 @@ package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.ClassRule
@@ -102,27 +103,29 @@ class BasicReportExternalReportIdBackfillerTest {
   fun `backfills matching Report ID when explicitly enabled`() =
     runBlocking<Unit> {
       createReport(EXTERNAL_BASIC_REPORT_ID, "", "")
-      insertBasicReport(EXTERNAL_BASIC_REPORT_ID, "", "")
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
 
       val result = newBackfiller(dryRun = false, matchExternalBasicReportId = true).run()
 
       assertThat(result.updated).isEqualTo(1)
       assertThat(result.matchedByExternalBasicReportId).isEqualTo(1)
-      assertThat(readBasicReport().externalReportId).isEqualTo(EXTERNAL_BASIC_REPORT_ID)
-      assertThat(readBasicReport().state).isEqualTo(BasicReport.State.SUCCEEDED)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(EXTERNAL_BASIC_REPORT_ID)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).state)
+        .isEqualTo(BasicReport.State.SUCCEEDED)
     }
 
   @Test
   fun `does not infer matching Report ID unless explicitly enabled`() =
     runBlocking<Unit> {
       createReport(EXTERNAL_BASIC_REPORT_ID, "", "")
-      insertBasicReport(EXTERNAL_BASIC_REPORT_ID, "", "")
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
 
       val result = newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
 
       assertThat(result.updated).isEqualTo(0)
       assertThat(result.unresolved).isEqualTo(1)
-      assertThat(readBasicReport().externalReportId).isEmpty()
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
     }
 
   @Test
@@ -131,66 +134,141 @@ class BasicReportExternalReportIdBackfillerTest {
       val basicReportName =
         BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName()
       createReport(EXTERNAL_REPORT_ID, "", basicReportName)
-      insertBasicReport(EXTERNAL_BASIC_REPORT_ID, "", "")
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
 
       val result = newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
 
       assertThat(result.updated).isEqualTo(1)
       assertThat(result.matchedByBasicReportName).isEqualTo(1)
-      assertThat(readBasicReport().externalReportId).isEqualTo(EXTERNAL_REPORT_ID)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(EXTERNAL_REPORT_ID)
     }
 
   @Test
   fun `backfills from create Report request ID`() =
     runBlocking<Unit> {
       createReport(EXTERNAL_REPORT_ID, CREATE_REPORT_REQUEST_ID, "")
-      insertBasicReport(EXTERNAL_BASIC_REPORT_ID, CREATE_REPORT_REQUEST_ID, "")
+      insertBasicReport(
+        SPANNER_BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        CREATE_REPORT_REQUEST_ID,
+        "",
+      )
 
       val result = newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
 
       assertThat(result.updated).isEqualTo(1)
       assertThat(result.matchedByCreateReportRequestId).isEqualTo(1)
-      assertThat(readBasicReport().externalReportId).isEqualTo(EXTERNAL_REPORT_ID)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(EXTERNAL_REPORT_ID)
     }
 
   @Test
-  fun `skips conflicting links`() =
+  fun `run fails without writes when BasicReport resolves to multiple Reports`() =
     runBlocking<Unit> {
       val basicReportName =
         BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName()
       createReport(EXTERNAL_BASIC_REPORT_ID, "", "")
       createReport(EXTERNAL_REPORT_ID, "", basicReportName)
-      insertBasicReport(EXTERNAL_BASIC_REPORT_ID, "", "")
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
 
-      val result = newBackfiller(dryRun = false, matchExternalBasicReportId = true).run()
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          newBackfiller(dryRun = false, matchExternalBasicReportId = true).run()
+        }
 
-      assertThat(result.updated).isEqualTo(0)
-      assertThat(result.ambiguous).isEqualTo(1)
-      assertThat(readBasicReport().externalReportId).isEmpty()
+      assertThat(exception).hasMessageThat().contains(basicReportName)
+      assertThat(exception).hasMessageThat().contains(EXTERNAL_BASIC_REPORT_ID)
+      assertThat(exception).hasMessageThat().contains(EXTERNAL_REPORT_ID)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+    }
+
+  @Test
+  fun `run fails without writes when Report resolves to multiple BasicReports`() =
+    runBlocking<Unit> {
+      val otherBasicReportName =
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, OTHER_EXTERNAL_BASIC_REPORT_ID).toName()
+      createReport(EXTERNAL_BASIC_REPORT_ID, "", otherBasicReportName)
+      val safeBasicReportName =
+        BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, SAFE_EXTERNAL_BASIC_REPORT_ID).toName()
+      createReport(SAFE_EXTERNAL_REPORT_ID, "", safeBasicReportName)
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
+      insertBasicReport(OTHER_SPANNER_BASIC_REPORT_ID, OTHER_EXTERNAL_BASIC_REPORT_ID, "", "")
+      insertBasicReport(SAFE_SPANNER_BASIC_REPORT_ID, SAFE_EXTERNAL_BASIC_REPORT_ID, "", "")
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          newBackfiller(dryRun = false, matchExternalBasicReportId = true).run()
+        }
+
+      assertThat(exception).hasMessageThat().contains(EXTERNAL_BASIC_REPORT_ID)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName())
+      assertThat(exception).hasMessageThat().contains(otherBasicReportName)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+      assertThat(readBasicReport(OTHER_EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+      assertThat(readBasicReport(SAFE_EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+    }
+
+  @Test
+  fun `run fails without writes when create Report request ID is shared`() =
+    runBlocking<Unit> {
+      createReport(EXTERNAL_REPORT_ID, CREATE_REPORT_REQUEST_ID, "")
+      insertBasicReport(
+        SPANNER_BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        CREATE_REPORT_REQUEST_ID,
+        "",
+      )
+      insertBasicReport(
+        OTHER_SPANNER_BASIC_REPORT_ID,
+        OTHER_EXTERNAL_BASIC_REPORT_ID,
+        CREATE_REPORT_REQUEST_ID,
+        "",
+      )
+
+      val exception =
+        assertFailsWith<IllegalStateException> {
+          newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
+        }
+
+      assertThat(exception).hasMessageThat().contains(EXTERNAL_REPORT_ID)
+      assertThat(exception)
+        .hasMessageThat()
+        .contains(BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID).toName())
+      assertThat(exception)
+        .hasMessageThat()
+        .contains(
+          BasicReportKey(CMMS_MEASUREMENT_CONSUMER_ID, OTHER_EXTERNAL_BASIC_REPORT_ID).toName()
+        )
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+      assertThat(readBasicReport(OTHER_EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
     }
 
   @Test
   fun `dry run writes nothing`() =
     runBlocking<Unit> {
       createReport(EXTERNAL_BASIC_REPORT_ID, "", "")
-      insertBasicReport(EXTERNAL_BASIC_REPORT_ID, "", "")
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", "")
 
       val result = newBackfiller(dryRun = true, matchExternalBasicReportId = true).run()
 
       assertThat(result.updated).isEqualTo(1)
-      assertThat(readBasicReport().externalReportId).isEmpty()
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
     }
 
   @Test
   fun `leaves existing external Report ID unchanged`() =
     runBlocking<Unit> {
-      insertBasicReport(EXTERNAL_BASIC_REPORT_ID, "", EXTERNAL_REPORT_ID)
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", EXTERNAL_REPORT_ID)
 
       val result = newBackfiller(dryRun = false, matchExternalBasicReportId = true).run()
 
       assertThat(result.alreadyValid).isEqualTo(1)
       assertThat(result.updated).isEqualTo(0)
-      assertThat(readBasicReport().externalReportId).isEqualTo(EXTERNAL_REPORT_ID)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(EXTERNAL_REPORT_ID)
     }
 
   private fun newBackfiller(
@@ -270,13 +348,14 @@ class BasicReportExternalReportIdBackfillerTest {
   }
 
   private suspend fun insertBasicReport(
+    basicReportId: Long,
     externalBasicReportId: String,
     createReportRequestId: String,
     externalReportId: String,
   ) {
     spannerClient.readWriteTransaction().run { transaction ->
       transaction.insertBasicReport(
-        basicReportId = SPANNER_BASIC_REPORT_ID,
+        basicReportId = basicReportId,
         measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
         basicReport =
           basicReport {
@@ -291,10 +370,10 @@ class BasicReportExternalReportIdBackfillerTest {
     }
   }
 
-  private suspend fun readBasicReport(): BasicReport {
+  private suspend fun readBasicReport(externalBasicReportId: String): BasicReport {
     return spannerClient.readOnlyTransaction().use { transaction ->
       transaction
-        .getBasicReportByExternalId(CMMS_MEASUREMENT_CONSUMER_ID, EXTERNAL_BASIC_REPORT_ID)
+        .getBasicReportByExternalId(CMMS_MEASUREMENT_CONSUMER_ID, externalBasicReportId)
         .basicReport
     }
   }
@@ -306,10 +385,15 @@ class BasicReportExternalReportIdBackfillerTest {
     private const val EXTERNAL_REPORTING_SET_ID = "reporting-set"
     private const val EXTERNAL_METRIC_CALCULATION_SPEC_ID = "metric-calculation-spec"
     private const val EXTERNAL_BASIC_REPORT_ID = "shared-report-id"
+    private const val OTHER_EXTERNAL_BASIC_REPORT_ID = "other-basic-report-id"
+    private const val SAFE_EXTERNAL_BASIC_REPORT_ID = "safe-basic-report-id"
     private const val EXTERNAL_REPORT_ID = "report-id"
+    private const val SAFE_EXTERNAL_REPORT_ID = "safe-report-id"
     private const val CREATE_REPORT_REQUEST_ID = "create-report-request-id"
     private const val SPANNER_MEASUREMENT_CONSUMER_ID = 1L
     private const val SPANNER_BASIC_REPORT_ID = 2L
+    private const val OTHER_SPANNER_BASIC_REPORT_ID = 3L
+    private const val SAFE_SPANNER_BASIC_REPORT_ID = 4L
 
     private var nextInternalId = 100L
     private var nextExternalId = 1_000L

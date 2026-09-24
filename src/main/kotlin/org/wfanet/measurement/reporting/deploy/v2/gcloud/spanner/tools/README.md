@@ -38,13 +38,16 @@ integration.
 
 When the available links resolve to exactly one `Report`, its existing
 `external_report_id` is copied into the `BasicReports` Spanner row without
-changing the report state. If no `Report` is found, or the links resolve to
-multiple Reports, the `BasicReport` is logged and left unchanged. No new
-identifiers are minted. When multiple link methods are available, they must all
-resolve to the same Report.
+changing the report state. The tool first plans the complete selected scope and
+requires a one-to-one mapping in both directions. If any `BasicReport` maps to
+multiple Reports, or any Report maps to multiple `BasicReport`s, a real run
+fails before issuing any writes. A dry run reports every conflict. If no
+`Report` is found, the `BasicReport` is logged and skipped. No new identifiers
+are minted.
 
-Run with `--dry-run` first. The `unresolved` and `ambiguous` counts should both
-be zero before applying the backfill.
+Run with `--dry-run` first. Resolve every ambiguous mapping before applying the
+backfill. Unresolved rows may remain when no trustworthy link exists; they are
+left unchanged.
 
 ### Examples
 
