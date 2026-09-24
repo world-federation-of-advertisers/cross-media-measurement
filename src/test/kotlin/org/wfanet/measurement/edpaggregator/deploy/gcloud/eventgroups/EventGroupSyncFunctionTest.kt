@@ -97,6 +97,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.ent
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
@@ -582,7 +583,11 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync registersUnregisteredEventGroups using JSON format throws for invalid json`() {
+  fun `sync preserves event group map when JSON parsing fails`() {
+    val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "previous-resource-name"
+    }
     val newCampaign =
       """
         {
@@ -666,6 +671,11 @@ class EventGroupSyncFunctionTest() {
         "some/path/campaigns-blob-uri.json",
         flowOf(ByteString.copyFromUtf8(newCampaign)),
       )
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/other/path/event-groups-map-uri",
+          flowOf(previousMappedEventGroup.toByteString()),
+        )
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -682,6 +692,14 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(previousMappedEventGroup)
   }
 
   @Test
@@ -854,6 +872,8 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    assertThat(runBlocking { storageClient.getBlob("some/other/path/event-groups-map-uri") })
+      .isNull()
   }
 
   @Test

@@ -27,13 +27,17 @@ import io.grpc.ClientInterceptors
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.io.InputStreamReader
+import java.nio.file.Files
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
@@ -55,6 +59,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /*
  * Cloud Run Function that receives a [HTTPRequest] with EventGroupSyncConfig. It updates/registers
@@ -135,7 +140,11 @@ class EventGroupSyncFunction() : HttpFunction {
   }
 
   /**
-   * Writes the event group mapping data to blob storage.
+   * Writes the event group mapping data to blob storage after staging it locally.
+   *
+   * The destination is updated only after [mappedData] completes. A failed sync therefore leaves
+   * the previous mapping intact. The conditional write also prevents an older concurrent invocation
+   * from overwriting a mapping published after this invocation started.
    *
    * @param mappedData Flow of MappedEventGroup containing event group reference IDs and resource
    *   names
@@ -151,17 +160,37 @@ class EventGroupSyncFunction() : HttpFunction {
     ) {
       val mappedDataBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupMapBlobUri)
-      MesosRecordIoStorageClient(
-          SelectedStorageClient(
-            blobUri = mappedDataBlobUri,
-            rootDirectory =
-              if (eventGroupSyncConfig.eventGroupMapStorage.hasFileSystem())
-                File(checkNotNull(fileSystemStorageRoot))
-              else null,
-            projectId = eventGroupSyncConfig.eventGroupMapStorage.gcs.projectId,
-          )
+      val destinationStorageClient =
+        SelectedStorageClient(
+          blobUri = mappedDataBlobUri,
+          rootDirectory =
+            if (eventGroupSyncConfig.eventGroupMapStorage.hasFileSystem())
+              File(checkNotNull(fileSystemStorageRoot))
+            else null,
+          projectId = eventGroupSyncConfig.eventGroupMapStorage.gcs.projectId,
         )
-        .writeBlob(mappedDataBlobUri.key, mappedData.map { it.toByteString() })
+      val destinationFreshnessToken =
+        destinationStorageClient.getFreshnessToken(mappedDataBlobUri.key)
+      val stagingDirectory =
+        withContext(Dispatchers.IO) { Files.createTempDirectory("event-group-map-").toFile() }
+      try {
+        val stagingStorageClient = FileSystemStorageClient(stagingDirectory)
+        MesosRecordIoStorageClient(stagingStorageClient)
+          .writeBlob(STAGING_BLOB_KEY, mappedData.map { it.toByteString() })
+        val stagingBlob = checkNotNull(stagingStorageClient.getBlob(STAGING_BLOB_KEY))
+
+        if (destinationFreshnessToken == null) {
+          destinationStorageClient.writeBlobIfNotFound(mappedDataBlobUri.key, stagingBlob.read())
+        } else {
+          destinationStorageClient.writeBlobIfUnchanged(
+            mappedDataBlobUri.key,
+            destinationFreshnessToken,
+            stagingBlob.read(),
+          )
+        }
+      } finally {
+        withContext(NonCancellable + Dispatchers.IO) { stagingDirectory.deleteRecursively() }
+      }
     }
   }
 
@@ -272,6 +301,7 @@ class EventGroupSyncFunction() : HttpFunction {
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
+    private const val STAGING_BLOB_KEY = "event-group-map.recordio"
 
     // Name of the repeated field in the EventGroups message, in both its proto (snake_case) and
     // JSON (camelCase) spellings, since JsonFormat accepts either.
