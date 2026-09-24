@@ -24,6 +24,9 @@ option java_outer_classname = "EdpaReportingIntegrationTestConfigProto";
 
 // Configuration for the EDPA reporting integration test, which provisions the
 // high overlap dataset and reports over it.
+//
+// TODO(world-federation-of-advertisers/cross-media-measurement#4561):
+// Factor the fields shared with CorrectnessTestConfig into a common message.
 message EdpaReportingIntegrationTestConfig {
   // gRPC target of Kingdom public API server.
   string kingdom_public_api_target = 1;
@@ -83,6 +86,10 @@ message EdpaReportingIntegrationTestConfig {
   // DataProvider that owns the high overlap Population.
   string population_data_provider = 14
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
+
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4562):
+  // Replace the four fields below with repeated entries of EDP name plus
+  // KmsConfig, so adding an EDP is a config change rather than a proto change.
 
   // Google Cloud KMS KEK URI for edp7 impressions.
   //

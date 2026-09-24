@@ -72,6 +72,9 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * @property edpaMetaAwsRoleArn AWS role assumed via web-identity federation
  * @property edpaMetaAwsRegion AWS region of the edpa_meta KMS key
  */
+// TODO(world-federation-of-advertisers/cross-media-measurement#4564): Extract a shared
+// SyntheticDataSeeder from GenerateSyntheticData and reduce this rule to a
+// lifecycle wrapper around it.
 class WriteHighOverlapImpressionsRule(
   private val configProvider: () -> ImpressionTestDataConfig,
   private val populationSpecProvider: () -> PopulationSpec,

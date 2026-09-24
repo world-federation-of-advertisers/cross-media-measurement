@@ -65,6 +65,9 @@ object GenerateHighOverlapSpecs {
   /** Highest VID any segment reaches, rounded up to a whole stripe. */
   private const val REACHED_VID_END = 10_610_000L
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4563): Move the EDP
+  // names and the segment table below into a HighOverlapDatasetSpec config, so
+  // that changing the dataset does not mean changing code.
   private const val EDP7 = "edp7"
   private const val META = "edpa_meta"
   private const val VIDEO = "edpa_video_pub"
