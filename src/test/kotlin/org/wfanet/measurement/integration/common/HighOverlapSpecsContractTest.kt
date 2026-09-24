@@ -78,9 +78,9 @@ class HighOverlapSpecsContractTest {
 
   /** The EDPs seeded on each VID range, which is what defines a Venn region. */
   private val edpsByVidRangeStart: Map<Long, Set<String>> by lazy {
-    seededRanges.groupBy { it.range.start }.mapValues { (_, seeded) ->
-      seeded.map { it.edpName }.toSet()
-    }
+    seededRanges
+      .groupBy { it.range.start }
+      .mapValues { (_, seeded) -> seeded.map { it.edpName }.toSet() }
   }
 
   @Test
