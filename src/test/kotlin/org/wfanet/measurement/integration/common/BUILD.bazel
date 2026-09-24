@@ -33,6 +33,7 @@ kt_jvm_test(
 
 kt_jvm_library(
     name = "high_overlap_expected_reach",
+    testonly = True,
     srcs = ["HighOverlapExpectedReach.kt"],
     data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
     visibility = ["//src/test/kotlin/org/wfanet/measurement/integration:__subpackages__"],
