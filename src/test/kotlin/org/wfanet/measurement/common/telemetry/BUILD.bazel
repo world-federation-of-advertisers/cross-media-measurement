@@ -5,13 +5,14 @@ package(default_testonly = True)
 kt_jvm_test(
     name = "GoogleCloudTelemetryTest",
     srcs = ["GoogleCloudTelemetryTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry"],
     test_class = "org.wfanet.measurement.common.telemetry.GoogleCloudTelemetryTest",
     deps = [
         "//imports/java/com/google/cloud/logging",
-        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
         "@wfa_common_jvm//imports/java/com/google/api/gax",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
     ],

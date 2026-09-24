@@ -16,5 +16,6 @@
 module "secure_computation" {
   source = "../modules/secure-computation"
 
-  spanner_instance                          = google_spanner_instance.spanner_instance
+  spanner_instance                   = google_spanner_instance.spanner_instance
+  vid_labeling_trace_operator_member = "serviceAccount:${module.reporting_v2.vid_labeling_trace_operator_service_account_email}"
 }
