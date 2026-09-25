@@ -180,6 +180,25 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
+  fun mcDetailsDerivesMeasurementConsumerFromExternalId() {
+    // Regression guard: EventGroups stores only the internal MeasurementConsumer FK, and
+    // externalIdToApiId converts whatever INT64 it is given. Passing eg.MeasurementConsumerId
+    // therefore produced a well-formed API ID that matched no MeasurementConsumer and exposed
+    // the internal key to EDPs. The external ID must be resolved via the MeasurementConsumers
+    // join instead.
+    val sql = readSqlFile("mc_details.sql")
+    for (platformEnabled in listOf(true, false)) {
+      val rendered = render(sql, platformEnabled)
+      assertThat(rendered)
+        .contains(
+          "externalIdToApiId`(mcs.ExternalMeasurementConsumerId) AS CmmsMeasurementConsumer"
+        )
+      assertThat(rendered).contains("ON eg.MeasurementConsumerId = mcs.MeasurementConsumerId")
+      assertThat(rendered).doesNotContain("externalIdToApiId`(eg.MeasurementConsumerId)")
+    }
+  }
+
+  @Test
   fun allSqlFilesUseExternalQuery() {
     for (fileName in SQL_FILES) {
       val sql = readSqlFile(fileName)
