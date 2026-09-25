@@ -37,6 +37,10 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.logging.Handler
+import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -97,6 +101,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.ent
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
@@ -582,47 +587,18 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync registersUnregisteredEventGroups using JSON format throws for invalid json`() {
+  fun `sync preserves event group map when JSON parsing fails after partial output`() {
+    val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "previous-resource-name"
+    }
+    val firstEventGroupJson = JsonFormat.printer().print(CAMPAIGNS.first())
     val newCampaign =
       """
         {
-          "events": [
+          "eventGroups": [
+            $firstEventGroupJson,
             {
-              "eventGroupReferenceId": "reference-id-4",
-              "eventGroupMetadata": {
-                "adMetadata": {
-                  "campaignMetadata": {
-                    "brand": "brand-2",
-                    "campaign": "campaign-2"
-                  }
-                }
-              },
-              "dataAvailabilityInterval": {
-                "startTime": "1970-01-01T00:03:20Z",
-                "endTime": "1970-01-01T00:05:00Z"
-              },
-              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
-              "mediaTypes": ["OTHER"]
-            },
-            {
-              "eventGroupReferenceId": "reference-id-5",
-              "eventGroupMetadata": {
-                "adMetadata": {
-                  "campaignMetadata": {
-                    "brand": "brand-2",
-                    "campaign": "campaign-3"
-                  }
-                }
-              },
-              "dataAvailabilityInterval": {
-                "startTime": "1970-01-01T00:03:20Z",
-                "endTime": "1970-01-01T00:05:00Z"
-              },
-              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
-              "mediaTypes": ["OTHER"]
-            }
-           ]
-          }
     """
         .trimIndent()
 
@@ -661,11 +637,17 @@ class EventGroupSyncFunctionTest() {
 
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
+    val previousFreshnessToken = runBlocking {
       storageClient.writeBlob(
         "some/path/campaigns-blob-uri.json",
         flowOf(ByteString.copyFromUtf8(newCampaign)),
       )
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/other/path/event-groups-map-uri",
+          flowOf(previousMappedEventGroup.toByteString()),
+        )
+      checkNotNull(storageClient.getFreshnessToken("some/other/path/event-groups-map-uri"))
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -676,12 +658,46 @@ class EventGroupSyncFunctionTest() {
         .header("X-DataWatcher-Path", "")
         .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
         .build()
-    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    val failureMetricLogs = LinkedBlockingQueue<String>()
+    val metricLogHandler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          if (record.message.contains(FUNCTION_FAILURE_METRIC_NAME)) {
+            failureMetricLogs.offer(record.message)
+          }
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(metricLogHandler)
+    val (getResponse, failureMetricLog) =
+      try {
+        client.send(getRequest, HttpResponse.BodyHandlers.ofString()) to
+          failureMetricLogs.poll(5, TimeUnit.SECONDS)
+      } finally {
+        rootLogger.removeHandler(metricLogHandler)
+      }
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
+    assertThat(checkNotNull(failureMetricLog)).contains("value=1")
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(previousMappedEventGroup)
+    assertThat(
+        runBlocking { storageClient.getFreshnessToken("some/other/path/event-groups-map-uri") }
+      )
+      .isEqualTo(previousFreshnessToken)
   }
 
   @Test
@@ -854,6 +870,8 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    assertThat(runBlocking { storageClient.getBlob("some/other/path/event-groups-map-uri") })
+      .isNull()
   }
 
   @Test
@@ -1415,6 +1433,7 @@ class EventGroupSyncFunctionTest() {
       )
     private const val GCG_TARGET =
       "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
+    private const val FUNCTION_FAILURE_METRIC_NAME = "edpa.event_group.sync_function_failure"
 
     private val CAMPAIGNS =
       listOf(
