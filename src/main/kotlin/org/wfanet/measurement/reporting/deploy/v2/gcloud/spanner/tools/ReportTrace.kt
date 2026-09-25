@@ -71,7 +71,17 @@ import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.parseTextProto
+import org.wfanet.measurement.common.telemetry.CloudLogCollectionTruncatedException
+import org.wfanet.measurement.common.telemetry.CloudLogEntry
+import org.wfanet.measurement.common.telemetry.CloudLogReader
+import org.wfanet.measurement.common.telemetry.CloudTelemetrySourceStatus
+import org.wfanet.measurement.common.telemetry.CloudTraceReader
+import org.wfanet.measurement.common.telemetry.CloudTraceSpan
+import org.wfanet.measurement.common.telemetry.GoogleCloudLogReader as SharedGoogleCloudLogReader
+import org.wfanet.measurement.common.telemetry.GoogleCloudTraceReader as SharedGoogleCloudTraceReader
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.SafeTelemetryText
+import org.wfanet.measurement.common.telemetry.buildCloudTelemetryLoggingOptions
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
@@ -92,7 +102,7 @@ private const val REPORT_NOT_CREATED = "(not created)"
 private const val LOGGING_READ_SCOPE = "https://www.googleapis.com/auth/logging.read"
 private val FAILURE_OUTCOMES = setOf("failed", "failure", "error", "refused", "report_failed")
 
-internal fun buildReportTraceLoggingOptions(
+internal fun buildXmmTraceLoggingOptions(
   project: String,
   credentials: GoogleCredentials = GoogleCredentials.getApplicationDefault(),
 ): LoggingOptions {
@@ -104,6 +114,11 @@ internal fun buildReportTraceLoggingOptions(
     .setCredentials(projectCredentials)
     .build()
 }
+
+internal fun buildReportTraceLoggingOptions(
+  project: String,
+  credentials: GoogleCredentials = GoogleCredentials.getApplicationDefault(),
+): LoggingOptions = buildXmmTraceLoggingOptions(project, credentials)
 
 private fun isFailureOutcome(outcome: String?): Boolean {
   val normalized = outcome?.lowercase() ?: return false
@@ -154,28 +169,9 @@ internal data class ReportTraceContext(
         .distinct()
 }
 
-/** A single Cloud Logging entry in an end-to-end report timeline. */
-internal data class ReportTraceLogEntry(
-  val sourceProject: String,
-  val timestamp: Instant,
-  val service: String,
-  val severity: String,
-  val trace: String?,
-  val message: String,
-)
+internal typealias ReportTraceLogEntry = CloudLogEntry
 
-/** A Cloud Trace v1 span. The read API exposes span labels, but not OTel events or status. */
-internal data class ReportTraceSpan(
-  val sourceProject: String,
-  val traceId: String,
-  val spanId: String,
-  val parentSpanId: String?,
-  val name: String,
-  val service: String,
-  val startTime: Instant,
-  val endTime: Instant?,
-  val attributes: Map<String, String>,
-)
+internal typealias ReportTraceSpan = CloudTraceSpan
 
 internal enum class ReportTraceArtifactStatus {
   COMPLETE,
@@ -186,15 +182,7 @@ internal enum class ReportTraceArtifactStatus {
 internal class ReportTraceQuotaExhaustedException(message: String, cause: Throwable) :
   Exception(message, cause)
 
-internal class ReportTraceLogCollectionTruncatedException(
-  val partialEntries: List<ReportTraceLogEntry>,
-  val contextEntriesExamined: Int,
-  val contextEntryLimit: Int,
-  val grpcClassificationIncomplete: Boolean,
-  val rawEntriesExamined: Int,
-  val rawEntryLimit: Int,
-  val rawQueriesTruncated: Int,
-) : Exception("Cloud Logging collection was truncated before it could be classified completely")
+internal typealias ReportTraceLogCollectionTruncatedException = CloudLogCollectionTruncatedException
 
 internal fun Throwable.isQuotaExhaustion(): Boolean {
   var current: Throwable? = this
@@ -228,42 +216,13 @@ internal data class ReportTraceLifecycleStage(
   val correlationValues: Set<String> = emptySet(),
 )
 
-internal data class ReportTraceSourceStatus(
-  val project: String,
-  val source: String,
-  val status: String,
-  val fetched: Int,
-  val retained: Int,
-  val note: String = "",
-)
+internal typealias ReportTraceSourceStatus = CloudTelemetrySourceStatus
 
-internal fun interface ReportTraceLogReader {
-  suspend fun read(
-    correlationValues: Collection<String>,
-    startTime: Instant,
-    endTime: Instant,
-    limit: Int,
-  ): List<ReportTraceLogEntry>
+// TODO(world-federation-of-advertisers/cross-media-measurement#4554): Remove these compatibility
+// aliases after downstream operator tools import the workflow-neutral telemetry contracts directly.
+internal typealias ReportTraceLogReader = CloudLogReader
 
-  fun withRequestThrottler(requestThrottler: Throttler): ReportTraceLogReader = this
-}
-
-internal fun interface ReportTraceSpanReader {
-  suspend fun read(
-    project: String,
-    correlationValues: Collection<String>,
-    traceIds: Collection<String>,
-    startTime: Instant,
-    endTime: Instant,
-    limit: Int,
-  ): List<ReportTraceSpan>
-
-  fun withMaxConcurrency(maxConcurrency: Int): ReportTraceSpanReader = this
-
-  fun withRequestThrottlerFactory(
-    requestThrottlerFactory: (String) -> Throttler
-  ): ReportTraceSpanReader = this
-}
+internal typealias ReportTraceSpanReader = CloudTraceReader
 
 internal fun interface BasicReportTraceResolver {
   suspend fun resolve(basicReportKey: BasicReportKey): ReportTraceContext
@@ -450,10 +409,38 @@ internal class GoogleCloudReportTraceLogReader(
     limit: Int,
   ): List<ReportTraceLogEntry> {
     require(correlationValues.isNotEmpty()) { "At least one correlation value is required" }
+    return readFilters(
+      ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime),
+      startTime,
+      endTime,
+      limit,
+    )
+  }
+
+  override suspend fun readTraceIds(
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+    limit: Int,
+  ): List<ReportTraceLogEntry> {
+    if (traceIds.isEmpty()) return emptyList()
+    return readFilters(
+      ReportTraceOutput.buildTraceLogFilters(project, traceIds, startTime, endTime),
+      startTime,
+      endTime,
+      limit,
+    )
+  }
+
+  private suspend fun readFilters(
+    filters: List<String>,
+    startTime: Instant,
+    endTime: Instant,
+    limit: Int,
+  ): List<ReportTraceLogEntry> {
     val entries = mutableListOf<LogEntry>()
     var rawEntriesExamined = 0
     var rawQueriesTruncated = 0
-    val filters = ReportTraceOutput.buildLogFilters(correlationValues, startTime, endTime)
     for (filter in filters) {
       val result = readFilter(filter, limit)
       entries += result.entries
@@ -1008,6 +995,15 @@ internal class GoogleCloudReportTraceSpanReader(
     private const val GROUP_TRACE_ATTRIBUTE = "xmm.edpa.group_id"
     private const val WORK_ITEM_TRACE_ATTRIBUTE = "xmm.work_item.name"
     private const val COMPUTATION_TRACE_ATTRIBUTE = "xmm.computation.name"
+    private const val MODEL_LINE_TRACE_ATTRIBUTE = "xmm.model_line.name"
+    private const val RAW_IMPRESSION_UPLOAD_TRACE_ATTRIBUTE = "xmm.edpa.raw_impression_upload.name"
+    private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_TRACE_ATTRIBUTE =
+      "xmm.edpa.raw_impression_upload_model_line.name"
+    private const val POOL_ASSIGNMENT_JOB_TRACE_ATTRIBUTE = "xmm.edpa.pool_assignment_job.name"
+    private const val RANKER_JOB_TRACE_ATTRIBUTE = "xmm.edpa.ranker_job.name"
+    private const val VID_LABELING_JOB_TRACE_ATTRIBUTE = "xmm.edpa.vid_labeling_job.name"
+    private const val RANK_INDEX_BLOB_TRACE_ATTRIBUTE = "xmm.edpa.rank_index_blob.name"
+    private const val IMPRESSION_METADATA_TRACE_ATTRIBUTE = "xmm.edpa.impression_metadata.name"
     private const val MAX_TRACE_PAGE_SIZE = 1000
     private const val DEFAULT_MAX_CONCURRENCY = 8
     private const val LIST_TRACES_QUOTA_UNITS = 25
@@ -1023,6 +1019,15 @@ internal class GoogleCloudReportTraceSpanReader(
         "/metrics/" in value -> listOf(METRIC_TRACE_ATTRIBUTE)
         "/measurements/" in value -> listOf(MEASUREMENT_TRACE_ATTRIBUTE)
         "/requisitions/" in value -> listOf(REQUISITION_TRACE_ATTRIBUTE)
+        "/rawImpressionUploadModelLines/" in value ->
+          listOf(RAW_IMPRESSION_UPLOAD_MODEL_LINE_TRACE_ATTRIBUTE)
+        "/poolAssignmentJobs/" in value -> listOf(POOL_ASSIGNMENT_JOB_TRACE_ATTRIBUTE)
+        "/rankerJobs/" in value -> listOf(RANKER_JOB_TRACE_ATTRIBUTE)
+        "/vidLabelingJobs/" in value -> listOf(VID_LABELING_JOB_TRACE_ATTRIBUTE)
+        "/rankIndexBlobs/" in value -> listOf(RANK_INDEX_BLOB_TRACE_ATTRIBUTE)
+        "/rawImpressionUploads/" in value -> listOf(RAW_IMPRESSION_UPLOAD_TRACE_ATTRIBUTE)
+        "/impressionMetadata/" in value -> listOf(IMPRESSION_METADATA_TRACE_ATTRIBUTE)
+        "/modelLines/" in value -> listOf(MODEL_LINE_TRACE_ATTRIBUTE)
         value.startsWith("workItems/") -> listOf(WORK_ITEM_TRACE_ATTRIBUTE)
         value.startsWith("computations/") -> listOf(COMPUTATION_TRACE_ATTRIBUTE)
         else ->
@@ -1085,6 +1090,12 @@ private fun JsonObject.optionalString(name: String): String? =
 
 internal object ReportTraceOutput {
   const val GRPC_PAYLOAD_CLASSIFICATION_SOURCE = "gRPC payload classification"
+
+  val safeLogFields: Set<String>
+    get() = SAFE_LOG_FIELDS
+
+  val logCorrelationFields: Set<String>
+    get() = LOG_CORRELATION_FIELDS
 
   fun effectiveLogSeverity(reportedSeverity: String, message: String): String {
     return when (APPLICATION_LOG_LEVEL_PATTERN.find(message)?.groupValues?.get(1)) {
@@ -1188,26 +1199,19 @@ internal object ReportTraceOutput {
           } else {
             ""
           }
-        "(textPayload:\"$escaped\" OR jsonPayload.message:\"$escaped\" OR " +
-          "jsonPayload.MESSAGE:\"$escaped\"$unqualifiedComputationPredicate OR " +
-          "jsonPayload.\"xmm.basic_report.name\"=\"$escaped\" OR " +
-          "jsonPayload.\"xmm.report.name\"=\"$escaped\" OR " +
-          "jsonPayload.\"xmm.metric.name\"=\"$escaped\" OR " +
-          "jsonPayload.\"xmm.measurement.name\"=\"$escaped\" OR " +
-          "jsonPayload.\"xmm.requisition.name\"=\"$escaped\" OR " +
-          "jsonPayload.\"xmm.edpa.group_id\"=\"$escaped\" OR " +
-          "jsonPayload.\"xmm.work_item.name\"=\"$escaped\" OR " +
-          "jsonPayload.\"xmm.computation.name\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.basic_report.name\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.report.name\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.metric.name\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.measurement.name\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.requisition.name\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.edpa.group_id\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.work_item.name\"=\"$escaped\" OR " +
-          "jsonPayload.attributes.\"xmm.computation.name\"=\"$escaped\" OR " +
-          "jsonPayload.\"edpa.report_id\"=\"$escaped\" OR " +
-          "jsonPayload.\"edpa.results_fulfiller.report_id\"=\"$escaped\")"
+        val structuredPredicates =
+          LOG_CORRELATION_FIELDS.flatMap { field ->
+            listOf(
+              "jsonPayload.\"$field\"=\"$escaped\"",
+              "jsonPayload.attributes.\"$field\"=\"$escaped\"",
+            )
+          }
+        (listOf(
+            "textPayload:\"$escaped\"",
+            "jsonPayload.message:\"$escaped\"",
+            "jsonPayload.MESSAGE:\"$escaped\"$unqualifiedComputationPredicate",
+          ) + structuredPredicates)
+          .joinToString(prefix = "(", postfix = ")", separator = " OR ")
       }
     val filters = mutableListOf<String>()
     var chunk = mutableListOf<String>()
@@ -1229,6 +1233,47 @@ internal object ReportTraceOutput {
     if (chunk.isNotEmpty()) {
       filters += buildLogFilter(timeFilter, chunk)
     }
+    return filters
+  }
+
+  fun buildTraceLogFilters(
+    project: String,
+    traceIds: Collection<String>,
+    startTime: Instant,
+    endTime: Instant,
+  ): List<String> {
+    val timeFilter = "timestamp>=\"$startTime\" AND timestamp<=\"$endTime\""
+    val predicates =
+      traceIds.distinct().map { traceId ->
+        val normalized = traceId.substringAfterLast('/')
+        require(TRACE_ID_PATTERN.matches(normalized)) { "Invalid Cloud Trace trace ID" }
+        "trace=\"projects/$project/traces/$normalized\""
+      }
+    return chunkLogPredicates(timeFilter, predicates)
+  }
+
+  private fun chunkLogPredicates(
+    timeFilter: String,
+    identifierPredicates: List<String>,
+  ): List<String> {
+    val filters = mutableListOf<String>()
+    var chunk = mutableListOf<String>()
+    for (predicate in identifierPredicates) {
+      val candidate = buildLogFilter(timeFilter, chunk + predicate)
+      if (candidate.length > MAX_LOG_FILTER_LENGTH && chunk.isNotEmpty()) {
+        filters += buildLogFilter(timeFilter, chunk)
+        require(buildLogFilter(timeFilter, listOf(predicate)).length <= MAX_LOG_FILTER_LENGTH) {
+          "One correlation value exceeds the Cloud Logging filter-size limit"
+        }
+        chunk = mutableListOf(predicate)
+      } else {
+        require(candidate.length <= MAX_LOG_FILTER_LENGTH) {
+          "One correlation value exceeds the Cloud Logging filter-size limit"
+        }
+        chunk += predicate
+      }
+    }
+    if (chunk.isNotEmpty()) filters += buildLogFilter(timeFilter, chunk)
     return filters
   }
 
@@ -2170,8 +2215,9 @@ internal object ReportTraceOutput {
     for ((index, span) in spans.withIndex()) {
       val spanKey = span.traceId to span.spanId
       spanIndices.getOrPut(spanKey, ::mutableListOf).add(index)
-      if (span.parentSpanId != null) {
-        val parentKey = span.traceId to span.parentSpanId
+      val parentSpanId = span.parentSpanId
+      if (parentSpanId != null) {
+        val parentKey = span.traceId to parentSpanId
         parentKeys.getOrPut(spanKey, ::mutableSetOf).add(parentKey)
         childKeys.getOrPut(parentKey, ::mutableSetOf).add(spanKey)
       }
@@ -3264,6 +3310,62 @@ internal object ReportTraceOutput {
       "xmm.refusal.origin",
       "xmm.error.retryable",
       "xmm.operation.result",
+      "xmm.data_provider.name",
+      "xmm.model_line.name",
+      "xmm.model_line.names",
+      "xmm.edpa.raw_impression_upload.name",
+      "xmm.edpa.raw_impression_upload_model_line.name",
+      "xmm.edpa.pool_assignment_job.name",
+      "xmm.edpa.ranker_job.name",
+      "xmm.edpa.vid_labeling_job.name",
+      "xmm.edpa.rank_index_blob.name",
+      "xmm.edpa.rank_index_blob.type",
+      "xmm.edpa.impression_metadata.name",
+      "xmm.edpa.recovery_work_item.name",
+      "xmm.edpa.pipeline.phase",
+      "xmm.edpa.label.route",
+      "xmm.gcs.object.generation",
+      "xmm.gcs.object.path_hash",
+      "xmm.edpa.pool_offset",
+      "xmm.edpa.shard_index",
+      "xmm.edpa.rank.allocated",
+      "xmm.edpa.rank.renewed",
+      "xmm.edpa.rank.overflow",
+      "xmm.edpa.rank.freed",
+      "xmm.edpa.rank.backfill_reused",
+      "xmm.edpa.rank.backfill_collisions",
+      "xmm.edpa.label.input_file_count",
+      "xmm.edpa.label.output_type",
+      "xmm.edpa.label.event_date",
+      "xmm.edpa.label.expected_finalizations",
+      "xmm.edpa.label.done_objects_written",
+      "xmm.edpa.label.parents_completed",
+      "xmm.edpa.impression_metadata.action",
+      "xmm.edpa.availability.interval_start",
+      "xmm.edpa.availability.interval_end",
+    )
+  private val LOG_CORRELATION_FIELDS =
+    setOf(
+      "xmm.basic_report.name",
+      "xmm.report.name",
+      "xmm.metric.name",
+      "xmm.measurement.name",
+      "xmm.requisition.name",
+      "xmm.edpa.group_id",
+      "xmm.work_item.name",
+      "xmm.computation.name",
+      "edpa.report_id",
+      "edpa.results_fulfiller.report_id",
+      "xmm.data_provider.name",
+      "xmm.model_line.name",
+      "xmm.edpa.raw_impression_upload.name",
+      "xmm.edpa.raw_impression_upload_model_line.name",
+      "xmm.edpa.pool_assignment_job.name",
+      "xmm.edpa.ranker_job.name",
+      "xmm.edpa.vid_labeling_job.name",
+      "xmm.edpa.rank_index_blob.name",
+      "xmm.edpa.impression_metadata.name",
+      "xmm.edpa.recovery_work_item.name",
     )
   private val DISCOVERABLE_IDENTIFIER_ATTRIBUTES =
     setOf(
@@ -3275,6 +3377,14 @@ internal object ReportTraceOutput {
       "xmm.edpa.group_id",
       "xmm.work_item.name",
       "xmm.computation.name",
+      "xmm.model_line.name",
+      "xmm.edpa.raw_impression_upload.name",
+      "xmm.edpa.raw_impression_upload_model_line.name",
+      "xmm.edpa.pool_assignment_job.name",
+      "xmm.edpa.ranker_job.name",
+      "xmm.edpa.vid_labeling_job.name",
+      "xmm.edpa.rank_index_blob.name",
+      "xmm.edpa.impression_metadata.name",
     )
   private val CORRELATABLE_IDENTIFIER_ATTRIBUTES =
     DISCOVERABLE_IDENTIFIER_ATTRIBUTES + "xmm.work_item_attempt.name"
@@ -3283,10 +3393,17 @@ internal object ReportTraceOutput {
       "(?:measurementConsumers/[A-Za-z0-9_-]+/(?:basicReports|reports|metrics|measurements)/" +
         "[A-Za-z0-9._-]+|dataProviders/[A-Za-z0-9_-]+/requisitions/[A-Za-z0-9._-]+|" +
         "workItems/[A-Za-z0-9._-]+(?:/workItemAttempts/[A-Za-z0-9._-]+)?|" +
-        "computations/[A-Za-z0-9_-]+)"
+        "computations/[A-Za-z0-9_-]+|" +
+        "dataProviders/[A-Za-z0-9_-]+/rawImpressionUploads/[A-Za-z0-9._-]+(?:" +
+        "/(?:rawImpressionUploadModelLines|poolAssignmentJobs|rankerJobs|vidLabelingJobs|" +
+        "rankIndexBlobs)/[A-Za-z0-9._-]+)?|" +
+        "dataProviders/[A-Za-z0-9_-]+/impressionMetadata/[A-Za-z0-9._-]+|" +
+        "modelProviders/[A-Za-z0-9_-]+/modelSuites/[A-Za-z0-9_-]+/modelLines/" +
+        "[A-Za-z0-9._-]+)"
     )
   private val UUID_PATTERN =
     Regex("(?i)\\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\\b")
+  private val TRACE_ID_PATTERN = Regex("(?i)[0-9a-f]{32}")
   /** Known pre-structured-logging formats which contain a bare Duchy computation ID. */
   private val UNSTRUCTURED_COMPUTATION_IDENTIFIER_PATTERNS =
     listOf(
@@ -3349,8 +3466,7 @@ internal object ReportTraceOutput {
       ),
       Regex("(?is)(-----BEGIN [^-]*PRIVATE KEY-----).*?(-----END [^-]*PRIVATE KEY-----)"),
     )
-  private val SAFE_TEXT_FIELD_PATTERN =
-    Regex("(?:^|\\s)(${SAFE_LOG_FIELDS.joinToString("|") { Regex.escape(it) }})=([^\\s]+)")
+  private val SAFE_TEXT = SafeTelemetryText(SAFE_LOG_FIELDS)
   private val APPLICATION_LOG_LEVEL_PATTERN =
     Regex("^\\s*(SEVERE|WARNING|WARN|INFO|CONFIG|FINE|FINER|FINEST):\\s")
   private val VERBOSE_GRPC_LOG_PATTERN =
@@ -3390,12 +3506,8 @@ internal object ReportTraceOutput {
     val isClient: Boolean,
   )
 
-  private fun safeTextFields(text: String): Map<String, String> {
-    return buildMap {
-      for (match in SAFE_TEXT_FIELD_PATTERN.findAll(text)) {
-        putIfAbsent(match.groupValues[1], match.groupValues[2])
-      }
-    }
+  internal fun safeTextFields(text: String): Map<String, String> {
+    return SAFE_TEXT.fields(text)
   }
 }
 
@@ -5009,13 +5121,15 @@ suspend fun main(args: Array<String>) {
       args,
       ReportTraceDependencies(
         logReaderFactory = { project, includeGrpcPayloads ->
-          GoogleCloudReportTraceLogReader(
+          SharedGoogleCloudLogReader(
             project,
-            buildReportTraceLoggingOptions(project).service,
+            buildCloudTelemetryLoggingOptions(project).service,
+            ReportTraceOutput.safeLogFields,
+            ReportTraceOutput.logCorrelationFields,
             includeGrpcPayloads,
           )
         },
-        spanReaderFactory = { GoogleCloudReportTraceSpanReader() },
+        spanReaderFactory = { SharedGoogleCloudTraceReader(::reportTraceAttributesFor) },
         resolverFactory = { spanner, postgres ->
           DatabaseBasicReportTraceResolver(spanner.databaseClient, postgres)
         },
@@ -5028,6 +5142,28 @@ suspend fun main(args: Array<String>) {
     )
   if (exitCode != 0) {
     exitProcess(exitCode)
+  }
+}
+
+private fun reportTraceAttributesFor(value: String): Collection<String> {
+  return when {
+    "/basicReports/" in value -> listOf("xmm.basic_report.name")
+    "/reports/" in value -> listOf("xmm.report.name")
+    "/metrics/" in value -> listOf("xmm.metric.name")
+    "/measurements/" in value -> listOf("xmm.measurement.name")
+    "/requisitions/" in value -> listOf("xmm.requisition.name")
+    "/rawImpressionUploadModelLines/" in value ->
+      listOf("xmm.edpa.raw_impression_upload_model_line.name")
+    "/poolAssignmentJobs/" in value -> listOf("xmm.edpa.pool_assignment_job.name")
+    "/rankerJobs/" in value -> listOf("xmm.edpa.ranker_job.name")
+    "/vidLabelingJobs/" in value -> listOf("xmm.edpa.vid_labeling_job.name")
+    "/rankIndexBlobs/" in value -> listOf("xmm.edpa.rank_index_blob.name")
+    "/rawImpressionUploads/" in value -> listOf("xmm.edpa.raw_impression_upload.name")
+    "/impressionMetadata/" in value -> listOf("xmm.edpa.impression_metadata.name")
+    "/modelLines/" in value -> listOf("xmm.model_line.name")
+    value.startsWith("workItems/") -> listOf("xmm.work_item.name")
+    value.startsWith("computations/") -> listOf("xmm.computation.name")
+    else -> listOf("xmm.edpa.group_id", "xmm.metric.request_id", "xmm.measurement.request_id")
   }
 }
 

@@ -471,6 +471,53 @@ or correlate a failure that occurred before any BasicReport or creation-request
 identity existed. Missing evidence is therefore reported as `UNKNOWN` or
 `MISSING`, not as proof that the operation never ran.
 
+## Print a VID-labeling timeline with `vid-labeling-trace`
+
+The `VidLabelingTrace` operator CLI starts from one or more
+`RawImpressionUpload` resource names and follows only upload-scoped durable
+resources and trace identities. It renders separate memoized and non-memoized
+model-line routes through upload registration, dispatch, assignment and rank
+when applicable, labeling, DataWatcher, ImpressionMetadata, and availability
+publication. Evidence completeness and the latest execution outcome are
+reported independently so a truncated telemetry query is not mistaken for a
+pipeline failure.
+
+Configure `VID_LABELING_TRACE_OPERATORS` with the IAM members allowed to
+impersonate the dedicated VID-labeling trace operator, and list any additional
+telemetry projects in `VID_LABELING_TRACE_OBSERVABILITY_PROJECTS`. The identity
+has Logging Viewer, Cloud Trace Viewer, Service Usage Consumer, and object-viewer
+access to the VID-labeling storage bucket. It has no direct database, write, or
+KMS-decrypt role. The command uses the DataProvider's mutual-TLS identity for
+the read-only EDPA, control-plane, and Kingdom APIs. After applying Terraform,
+create impersonated Application Default Credentials and run:
+
+```bash
+VID_LABELING_TRACE_SERVICE_ACCOUNT="$(terraform output -raw vid_labeling_trace_operator_service_account_email)"
+gcloud auth application-default login \
+  --impersonate-service-account="$VID_LABELING_TRACE_SERVICE_ACCOUNT" \
+  --billing-project=<CMMS_PROJECT_ID>
+bazel run \
+  //src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:VidLabelingTrace \
+  -- \
+  --observability-project=<EDPA_PROJECT_ID> \
+  --observability-project=<SECURE_COMPUTATION_PROJECT_ID> \
+  --edpa-public-api-target=<EDPA_PUBLIC_API_TARGET> \
+  --control-plane-api-target=<CONTROL_PLANE_API_TARGET> \
+  --kingdom-public-api-target=<KINGDOM_PUBLIC_API_TARGET> \
+  --tls-cert-file=<DATA_PROVIDER_TLS_CERT_FILE> \
+  --tls-key-file=<DATA_PROVIDER_TLS_KEY_FILE> \
+  --cert-collection-file=<ROOT_CERT_COLLECTION_FILE> \
+  --gcs-project=<EDPA_PROJECT_ID> \
+  --raw-impression-upload=dataProviders/<DATA_PROVIDER_ID>/rawImpressionUploads/<UPLOAD_ID> \
+  --output-dir=/tmp/vid-labeling-traces
+```
+
+Repeat `--raw-impression-upload` for a batch. Each upload is isolated into a
+path-safe Markdown artifact, and one malformed or failed upload does not stop
+the remaining batch. The command exits nonzero for incomplete evidence unless
+`--allow-partial` is set. Output is restricted to allowlisted operational
+metadata; raw log payloads, object URIs, and payload contents are not rendered.
+
 ## Lifecycle overview
 
 ```

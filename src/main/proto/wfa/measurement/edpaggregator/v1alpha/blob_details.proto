@@ -85,4 +85,13 @@ message BlobDetails {
   // individual impression need not be associated with all of them.
   repeated EntityKeyGroup entity_keys = 6
       [(google.api.field_behavior) = REQUIRED];
+
+  // Raw impression upload that produced this labeled output. Empty for
+  // metadata created outside the VID-labeling pipeline.
+  string raw_impression_upload = 7 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
 }

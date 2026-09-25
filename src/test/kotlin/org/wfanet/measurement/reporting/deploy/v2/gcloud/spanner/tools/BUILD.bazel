@@ -39,6 +39,57 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "VidLabelingTraceTest",
+    srcs = ["VidLabelingTraceTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:vid_labeling_trace"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingTraceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_test(
+    name = "VidLabelingTraceStateTest",
+    srcs = ["VidLabelingTraceStateTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:vid_labeling_trace"],
+    test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingTraceStateTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:data_providers_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_shard_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_shards_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_test(
     name = "KingdomReportTraceResolverTest",
     srcs = ["KingdomReportTraceResolverTest.kt"],
     associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:report_trace"],

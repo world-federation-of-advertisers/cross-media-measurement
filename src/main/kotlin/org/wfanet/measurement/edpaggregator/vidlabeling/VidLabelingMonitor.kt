@@ -845,8 +845,8 @@ class VidLabelingMonitor(
         metrics.recoveryStepFailuresCounter.add(1, recoveryStepAttributes("get_original"))
         return RecoveryOutcome.NOOP
       }
-    for (attempt in 1..MAX_RECOVERY_ATTEMPTS) {
-      val recoveryId = "$workItemId-monitor-recovery-$attempt"
+    for (attempt in 1..WorkItemIds.MAX_MONITOR_RECOVERY_ATTEMPTS) {
+      val recoveryId = WorkItemIds.forMonitorRecovery(workItemId, attempt)
       try {
         Span.current()
           .setAttribute(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME, "workItems/$recoveryId")
@@ -933,6 +933,6 @@ class VidLabelingMonitor(
      * escalating (raising [VidLabelingMonitorMetrics.recoveryExhaustedGauge] and giving up). With
      * the daily health cadence this is ~one attempt/day, so escalation fires after ~3 days.
      */
-    private const val MAX_RECOVERY_ATTEMPTS = 3
+    private const val MAX_RECOVERY_ATTEMPTS = WorkItemIds.MAX_MONITOR_RECOVERY_ATTEMPTS
   }
 }

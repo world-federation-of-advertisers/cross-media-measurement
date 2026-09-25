@@ -144,6 +144,33 @@ class ImpressionMetadataServiceTest {
     }
 
   @Test
+  fun `listImpressionMetadata filters by source raw impression upload`() = runBlocking {
+    val sourceUpload = DATA_PROVIDER_KEY.toName() + "/rawImpressionUploads/upload-1"
+    val created =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              rawImpressionUpload = sourceUpload
+              outputDoneBlobGeneration = 77L
+            }
+        }
+      )
+
+    val response =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter = ListImpressionMetadataRequestKt.filter { rawImpressionUpload = sourceUpload }
+        }
+      )
+
+    assertThat(created.rawImpressionUpload).isEqualTo(sourceUpload)
+    assertThat(response.impressionMetadataList).containsExactly(created)
+  }
+
+  @Test
   fun `createImpressionMetadata with existing requestId returns the existing ImpressionMetadata`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
