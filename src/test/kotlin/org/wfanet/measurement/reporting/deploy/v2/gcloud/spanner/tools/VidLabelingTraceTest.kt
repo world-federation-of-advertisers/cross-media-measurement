@@ -25,6 +25,7 @@ import org.junit.Test
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
 import org.wfanet.measurement.common.telemetry.CloudTraceReader
+import org.wfanet.measurement.common.telemetry.CloudTraceSpan
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -75,8 +76,7 @@ class VidLabelingTraceTest {
         ),
       )
     val logReader = FakeCloudLogReader(entries)
-    val finalStateResolver = VidLabelingFinalStateResolver { _, _, identities ->
-      if (identity !in identities) return@VidLabelingFinalStateResolver emptyList()
+    val finalStateResolver = VidLabelingFinalStateResolver { _, _ ->
       listOf(
         ExpectedTraceNode(
           "watcher",
@@ -195,10 +195,39 @@ class VidLabelingTraceTest {
       )
     }
     val logReader = FakeCloudLogReader(entries)
+    val workItem = "workItems/memoized-ranker-retry"
+    val spanQueries = mutableListOf<Pair<Set<String>, Set<String>>>()
+    val spanReader = CloudTraceReader { project, correlationValues, traceIds, _, _, _ ->
+      spanQueries += correlationValues.toSet() to traceIds.toSet()
+      if (RAW_UPLOAD !in correlationValues && ROOT_TRACE !in traceIds) {
+        emptyList()
+      } else {
+        listOf(
+          CloudTraceSpan(
+            project,
+            ROOT_TRACE,
+            "span-1",
+            null,
+            "edpa.vid_labeling.rank",
+            "vid-rank-builder",
+            Instant.parse("2026-09-01T00:00:01Z"),
+            Instant.parse("2026-09-01T00:00:02Z"),
+            mapOf(
+              "xmm.lifecycle.stage" to "rank",
+              "xmm.outcome" to "succeeded",
+              "xmm.edpa.raw_impression_upload.name" to RAW_UPLOAD,
+              "xmm.model_line.name" to MEMOIZED_MODEL_LINE,
+              "xmm.work_item.name" to workItem,
+              "xmm.work_item.generation" to "2",
+            ),
+          )
+        )
+      }
+    }
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { logReader },
-        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        spanReader = spanReader,
         stateResolver = VidLabelingStateResolver { testGraph() },
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
@@ -212,6 +241,9 @@ class VidLabelingTraceTest {
     assertThat(collection.modelLines.flatMap { it.missingStages }).isEmpty()
     assertThat(collection.evidence.flatMap { it.identifiers.values })
       .doesNotContain(OTHER_RAW_UPLOAD)
+    assertThat(collection.evidence.flatMap { it.identifiers.values }).contains(workItem)
+    assertThat(collection.evidence.any { it.source == "span" }).isTrue()
+    assertThat(spanQueries.any { (values, _) -> RAW_UPLOAD in values }).isTrue()
     assertThat(logReader.traceQueries.flatten())
       .containsAtLeast(ROOT_TRACE, MEMO_AVAILABILITY_TRACE, DIRECT_AVAILABILITY_TRACE)
     val artifact = VidLabelingTraceOutput.render(collection)
@@ -723,7 +755,7 @@ class VidLabelingTraceTest {
   }
 
   companion object {
-    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _, _ -> emptyList() }
+    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _ -> emptyList() }
     private const val RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-1"
     private const val OTHER_RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-2"
     private const val MEMOIZED_MODEL_LINE =
