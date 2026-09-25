@@ -24,6 +24,7 @@ import io.cloudevents.CloudEvent
 import io.grpc.ClientInterceptors
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
@@ -31,15 +32,18 @@ import java.io.File
 import java.nio.file.Paths
 import java.time.Duration
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
@@ -90,22 +94,33 @@ class DataWatcherFunction(
         data.metadataMap + (DataWatcher.GENERATION_METADATA_KEY to data.generation.toString())
 
       Tracing.withW3CTraceContext(event) {
-        Tracing.trace(
-          spanName = SPAN_DATA_WATCHER_HANDLE_EVENT,
-          attributes =
-            Attributes.of(
-              ATTR_BUCKET_NAME,
-              bucket,
-              ATTR_BLOB_NAME,
-              blobKey,
-              ATTR_DATA_PATH,
-              path,
-              ATTR_BLOB_SIZE_BYTES,
-              size,
-            ),
-        ) {
-          val currentContext = Context.current()
-          runBlocking(currentContext.asContextElement()) { pathReceiver(path, objectMetadata) }
+        val forwardedMetadata =
+          objectMetadata - VidLabelingTraceAttributes.PERSISTED_BOUNDARY_METADATA_KEYS
+        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(path, data.generation)
+        val attributes =
+          Attributes.builder()
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+            .put(ATTR_BLOB_SIZE_BYTES, size)
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
+            .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_watcher")
+            .put(XmmTraceAttributes.OUTCOME, "started")
+            .build()
+        Tracing.trace(spanName = SPAN_DATA_WATCHER_HANDLE_EVENT, attributes = attributes) {
+          try {
+            val currentContext = Context.current()
+            runBlocking(currentContext.asContextElement()) { pathReceiver(path, forwardedMetadata) }
+            Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            Span.current()
+              .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
+              .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(e))
+            XmmTraceAttributes.errorCode(e)?.let {
+              Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it)
+            }
+            throw e
+          }
         }
       }
     } finally {
@@ -128,9 +143,6 @@ class DataWatcherFunction(
      */
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
 
-    private val ATTR_BUCKET_NAME = AttributeKey.stringKey("bucket")
-    private val ATTR_BLOB_NAME = AttributeKey.stringKey("blob_name")
-    private val ATTR_DATA_PATH = AttributeKey.stringKey("data_path")
     private val ATTR_BLOB_SIZE_BYTES = AttributeKey.longKey("blob_size_bytes")
     private const val SPAN_DATA_WATCHER_HANDLE_EVENT = "data_watcher.handle_event"
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L

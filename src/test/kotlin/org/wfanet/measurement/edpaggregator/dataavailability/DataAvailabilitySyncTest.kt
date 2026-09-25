@@ -33,10 +33,15 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlin.test.assertFailsWith
 import kotlin.test.fail
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.rules.TemporaryFolder
@@ -89,6 +94,29 @@ enum class BlobEncoding {
 
 @RunWith(JUnit4::class)
 class DataAvailabilitySyncTest {
+  private val logRecords = mutableListOf<LogRecord>()
+  private val rootLogger = Logger.getLogger("")
+  private val logHandler =
+    object : Handler() {
+      override fun publish(record: LogRecord) {
+        logRecords += record
+      }
+
+      override fun flush() {}
+
+      override fun close() {}
+    }
+
+  @Before
+  fun setUpLogging() {
+    logRecords.clear()
+    rootLogger.addHandler(logHandler)
+  }
+
+  @After
+  fun tearDownLogging() {
+    rootLogger.removeHandler(logHandler)
+  }
 
   private val bucket = "file:///my-bucket"
   private val folderPrefix = "edp/edpa_edp/timestamp/"
@@ -246,6 +274,28 @@ class DataAvailabilitySyncTest {
       computeModelLineBounds(boundsRequestCaptor.capture())
     }
     assertThat(boundsRequestCaptor.firstValue.parent).isEqualTo("dataProviders/dataProvider123")
+    val metadataLog =
+      logRecords.single { it.message.contains("event=edpa.data_availability.impression_metadata ") }
+    assertThat(metadataLog.message)
+      .contains(
+        "xmm.edpa.impression_metadata.name=" +
+          "dataProviders/dataProvider123/impressionMetadata/im-0"
+      )
+    assertThat(metadataLog.message)
+      .contains(
+        "xmm.model_line.name=modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+      )
+    assertThat(metadataLog.message).contains("xmm.lifecycle.stage=data_availability_metadata")
+    assertThat(metadataLog.message).contains("xmm.edpa.impression_metadata.action=created")
+    assertThat(metadataLog.message).contains("xmm.outcome=succeeded")
+    val intervalLog =
+      logRecords.single { it.message.contains("event=edpa.data_availability.interval_published ") }
+    assertThat(intervalLog.message)
+      .contains(
+        "xmm.model_line.name=modelProviders/provider1/modelSuites/suite1/modelLines/modelLineA"
+      )
+    assertThat(intervalLog.message).contains("xmm.lifecycle.stage=data_availability_publish")
+    assertThat(intervalLog.message).contains("xmm.outcome=published")
   }
 
   @Test
@@ -729,6 +779,12 @@ class DataAvailabilitySyncTest {
         .isEqualTo("ReplaceDataAvailabilityIntervals")
       assertThat(cmmsErrorPoint.attributes.get(statusCodeAttributeKey))
         .isEqualTo(Status.Code.UNAVAILABLE.name)
+      val intervalFailureLog =
+        logRecords.single {
+          it.message.contains("event=edpa.data_availability.interval_published ") &&
+            it.message.contains("xmm.outcome=failed")
+        }
+      assertThat(intervalFailureLog.message).contains("xmm.error.code=grpc.UNAVAILABLE")
     } finally {
       metricsEnv.close()
     }
@@ -834,7 +890,7 @@ class DataAvailabilitySyncTest {
   fun `sync announces attempt before metadata persistence`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
-    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L, 500L to 600L))
     wheneverBlocking {
         impressionMetadataServiceMock.batchCreateImpressionMetadata(
           any<BatchCreateImpressionMetadataRequest>()
@@ -860,6 +916,22 @@ class DataAvailabilitySyncTest {
     assertThat(doneMetadata).containsKey(DataAvailabilityBlobs.SYNC_ID_KEY)
     assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.SYNCED_BY_KEY)
     assertThat(doneMetadata).doesNotContainKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
+    val failureLogs =
+      logRecords.filter {
+        it.message.contains("event=edpa.data_availability.impression_metadata ") &&
+          it.message.contains("xmm.outcome=failed")
+      }
+    assertThat(failureLogs).hasSize(2)
+    val pathHashes =
+      failureLogs.map {
+        checkNotNull(Regex("xmm.gcs.object.path_hash=([0-9a-f]{64})").find(it.message))
+          .groupValues[1]
+      }
+    assertThat(pathHashes.toSet()).hasSize(2)
+    failureLogs.forEach {
+      assertThat(it.message).contains("xmm.edpa.impression_metadata.action=created")
+      assertThat(it.message).doesNotContain("$bucket/")
+    }
   }
 
   @Test
@@ -1322,6 +1394,15 @@ class DataAvailabilitySyncTest {
 
       // replaceDataAvailabilityIntervals should NOT be called due to gaps
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+      val gapDecision =
+        logRecords.single { it.message.startsWith("event=edpa.data_availability.gap_decision") }
+      assertThat(gapDecision.message)
+        .contains(
+          "xmm.model_line.name=modelProviders/provider1/modelSuites/suite1/" +
+            "modelLines/modelLine1"
+        )
+      assertThat(gapDecision.message).contains("xmm.lifecycle.stage=data_availability_publish")
+      assertThat(gapDecision.message).contains("xmm.outcome=blocked")
       assertThat(
           storageClient.updateBlobMetadataCalls.any {
             it.metadata.containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
@@ -1366,6 +1447,10 @@ class DataAvailabilitySyncTest {
 
     // replaceDataAvailabilityIntervals should be called since no gaps
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(
+        logRecords.none { it.message.startsWith("event=edpa.data_availability.gap_decision") }
+      )
+      .isTrue()
   }
 
   /**
@@ -1681,6 +1766,14 @@ class DataAvailabilitySyncTest {
 
     // replaceDataAvailabilityIntervals should still be called despite gaps
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    val gapDecision =
+      logRecords.single { it.message.startsWith("event=edpa.data_availability.gap_decision") }
+    assertThat(gapDecision.message)
+      .contains(
+        "xmm.model_line.name=modelProviders/provider1/modelSuites/suite1/" + "modelLines/modelLine1"
+      )
+    assertThat(gapDecision.message).contains("xmm.lifecycle.stage=data_availability_publish")
+    assertThat(gapDecision.message).contains("xmm.outcome=allowed")
   }
 
   @Test
@@ -2490,86 +2583,120 @@ class DataAvailabilitySyncTest {
     }
 
   @Test
-  fun `sync restores deleted impression metadata at the same blob URI`() = runBlocking {
-    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
-    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
-    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+  fun `sync restores deleted impression metadata at the same blob URI`() =
+    runBlocking<Unit> {
+      val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+      val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+      seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
-    var updatedBeforeRestore = false
-    wheneverBlocking {
-        impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
-      }
-      .thenAnswer { invocation ->
-        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
-        assertThat(request.showDeleted).isTrue()
-        listImpressionMetadataResponse {
-          impressionMetadata += impressionMetadata {
-            name = "dataProviders/dataProvider123/impressionMetadata/im-deleted"
-            blobUri = "$bucket/${folderPrefix}metadata-0.binpb"
-            blobTypeUrl =
-              "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
-            eventGroupReferenceId = "some-event-group-reference-id"
-            modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
-            interval = interval {
-              startTime = timestamp { seconds = 200 }
-              endTime = timestamp { seconds = 300 }
+      var updatedBeforeRestore = false
+      wheneverBlocking {
+          impressionMetadataServiceMock.listImpressionMetadata(any<ListImpressionMetadataRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+          assertThat(request.showDeleted).isTrue()
+          listImpressionMetadataResponse {
+            impressionMetadata += impressionMetadata {
+              name = "dataProviders/dataProvider123/impressionMetadata/im-deleted"
+              blobUri = "$bucket/${folderPrefix}metadata-0.binpb"
+              blobTypeUrl =
+                "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
+              eventGroupReferenceId = "some-event-group-reference-id"
+              modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+              interval = interval {
+                startTime = timestamp { seconds = 200 }
+                endTime = timestamp { seconds = 300 }
+              }
+              state = org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State.DELETED
             }
-            state = org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata.State.DELETED
           }
         }
-      }
-    wheneverBlocking {
-        impressionMetadataServiceMock.batchUpdateImpressionMetadata(
-          any<BatchUpdateImpressionMetadataRequest>()
-        )
-      }
-      .thenAnswer { invocation ->
-        updatedBeforeRestore = true
-        val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
-        batchUpdateImpressionMetadataResponse {
-          impressionMetadata += request.requestsList.map { it.impressionMetadata }
+      wheneverBlocking {
+          impressionMetadataServiceMock.batchUpdateImpressionMetadata(
+            any<BatchUpdateImpressionMetadataRequest>()
+          )
         }
-      }
-    wheneverBlocking {
-        impressionMetadataServiceMock.batchUndeleteImpressionMetadata(
-          any<BatchUndeleteImpressionMetadataRequest>()
+        .thenAnswer { invocation ->
+          updatedBeforeRestore = true
+          val request = invocation.getArgument<BatchUpdateImpressionMetadataRequest>(0)
+          batchUpdateImpressionMetadataResponse {
+            impressionMetadata += request.requestsList.map { it.impressionMetadata }
+          }
+        }
+      wheneverBlocking {
+          impressionMetadataServiceMock.batchUndeleteImpressionMetadata(
+            any<BatchUndeleteImpressionMetadataRequest>()
+          )
+        }
+        .thenAnswer {
+          assertThat(updatedBeforeRestore).isTrue()
+          batchUndeleteImpressionMetadataResponse {
+            impressionMetadata += impressionMetadata {
+              name = "dataProviders/dataProvider123/impressionMetadata/im-deleted"
+              blobUri = "$bucket/${folderPrefix}metadata-0.binpb"
+              modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
+              interval = interval {
+                startTime = timestamp { seconds = 300 }
+                endTime = timestamp { seconds = 400 }
+              }
+            }
+          }
+        }
+
+      val dataAvailabilitySync =
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = emptyMap(),
+          errorIfGapsExist = true,
         )
+
+      dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+      val undeleteCaptor = argumentCaptor<BatchUndeleteImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchUndeleteImpressionMetadata(undeleteCaptor.capture())
       }
-      .thenAnswer {
-        assertThat(updatedBeforeRestore).isTrue()
-        batchUndeleteImpressionMetadataResponse {}
+      assertThat(undeleteCaptor.firstValue.namesList.single())
+        .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-deleted")
+      val updateCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
+      verifyBlocking(impressionMetadataServiceMock) {
+        batchUpdateImpressionMetadata(updateCaptor.capture())
       }
-
-    val dataAvailabilitySync =
-      DataAvailabilitySync(
-        "edp/edpa_edp",
-        storageClient,
-        dataProvidersStub,
-        impressionMetadataStub,
-        "dataProviders/dataProvider123",
-        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
-        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
-        modelLineMap = emptyMap(),
-        errorIfGapsExist = true,
-      )
-
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
-
-    val undeleteCaptor = argumentCaptor<BatchUndeleteImpressionMetadataRequest>()
-    verifyBlocking(impressionMetadataServiceMock) {
-      batchUndeleteImpressionMetadata(undeleteCaptor.capture())
+      assertThat(
+          updateCaptor.firstValue.requestsList
+            .single()
+            .impressionMetadata
+            .interval
+            .startTime
+            .seconds
+        )
+        .isEqualTo(300)
+      val actionLogs =
+        logRecords.filter {
+          it.message.contains("event=edpa.data_availability.impression_metadata ") &&
+            it.message.contains(
+              "xmm.edpa.impression_metadata.name=" +
+                "dataProviders/dataProvider123/impressionMetadata/im-deleted"
+            )
+        }
+      assertThat(
+          actionLogs.mapNotNull {
+            when {
+              it.message.contains("xmm.edpa.impression_metadata.action=updated") -> "updated"
+              it.message.contains("xmm.edpa.impression_metadata.action=restored") -> "restored"
+              else -> null
+            }
+          }
+        )
+        .containsExactly("updated", "restored")
     }
-    assertThat(undeleteCaptor.firstValue.namesList.single())
-      .isEqualTo("dataProviders/dataProvider123/impressionMetadata/im-deleted")
-    val updateCaptor = argumentCaptor<BatchUpdateImpressionMetadataRequest>()
-    verifyBlocking(impressionMetadataServiceMock) {
-      batchUpdateImpressionMetadata(updateCaptor.capture())
-    }
-    assertThat(
-        updateCaptor.firstValue.requestsList.single().impressionMetadata.interval.startTime.seconds
-      )
-      .isEqualTo(300)
-  }
 
   /**
    * Seeds a directory (prefix) with BlobDetails files, one per interval. Returns the blob keys
