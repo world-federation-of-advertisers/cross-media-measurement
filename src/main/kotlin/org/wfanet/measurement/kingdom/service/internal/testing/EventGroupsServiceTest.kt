@@ -1377,6 +1377,58 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamEventGroups respects externalDataProviderId`(): Unit = runBlocking {
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val otherExternalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val expectedEventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          }
+        }
+      )
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          this.externalDataProviderId = otherExternalDataProviderId
+          this.externalMeasurementConsumerId = externalMeasurementConsumerId
+        }
+      }
+    )
+
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { this.externalDataProviderId = externalDataProviderId }
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups).containsExactly(expectedEventGroup)
+  }
+
+  @Test
+  fun `streamEventGroups returns empty for missing DataProvider`(): Unit = runBlocking {
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest { filter = filter { externalDataProviderId = 404L } }
+        )
+        .toList()
+
+    assertThat(eventGroups).isEmpty()
+  }
+
+  @Test
   fun `streamEventGroups respects externalMeasurementConsumerIdIn`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId

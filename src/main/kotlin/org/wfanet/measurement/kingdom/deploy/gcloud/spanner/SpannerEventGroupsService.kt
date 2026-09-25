@@ -23,6 +23,8 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
@@ -51,6 +53,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementCo
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.MeasurementConsumerNotFoundException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredFieldNotSetException
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCreateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroups
@@ -351,8 +354,59 @@ class SpannerEventGroupsService(
       }
     }
 
-    return StreamEventGroups(request.filter, request.orderBy, request.limit, request.view)
-      .execute(client.singleUse(timestampBound))
-      .map { it.eventGroup }
+    // The internal ID is the leading key of EventGroupsByExternalId.
+    val afterDataProviderId = getAfterDataProviderId(request)
+    val useDataProviderIndex =
+      request.filter.externalDataProviderId != 0L &&
+        request.orderBy.field == StreamEventGroupsRequest.OrderBy.Field.FIELD_NOT_SPECIFIED &&
+        hasCompatibleDataProviderIndexFilters(request.filter) &&
+        (afterDataProviderId == 0L || afterDataProviderId == request.filter.externalDataProviderId)
+
+    return flow {
+      val internalDataProviderId =
+        if (useDataProviderIndex) {
+          DataProviderReader.readDataProviderId(
+            client.singleUse(timestampBound),
+            ExternalId(request.filter.externalDataProviderId),
+          ) ?: return@flow
+        } else {
+          null
+        }
+
+      emitAll(
+        StreamEventGroups(
+            requestFilter = request.filter,
+            orderBy = request.orderBy,
+            limit = request.limit,
+            view = request.view,
+            internalDataProviderId = internalDataProviderId,
+          )
+          .execute(client.singleUse(timestampBound))
+          .map { it.eventGroup }
+      )
+    }
   }
+
+  @Suppress("DEPRECATION") // The deprecated pagination field is still part of the internal API.
+  private fun getAfterDataProviderId(request: StreamEventGroupsRequest): Long =
+    when {
+      request.filter.hasAfter() -> request.filter.after.eventGroupKey.externalDataProviderId
+      request.filter.hasEventGroupKeyAfter() ->
+        request.filter.eventGroupKeyAfter.externalDataProviderId
+      else -> 0L
+    }
+
+  private fun hasCompatibleDataProviderIndexFilters(
+    filter: StreamEventGroupsRequest.Filter
+  ): Boolean =
+    filter.externalMeasurementConsumerId == 0L &&
+      filter.externalMeasurementConsumerIdInList.isEmpty() &&
+      filter.externalDataProviderIdInList.isEmpty() &&
+      filter.mediaTypesIntersectList.isEmpty() &&
+      !filter.hasDataAvailabilityStartTimeOnOrAfter() &&
+      !filter.hasDataAvailabilityEndTimeOnOrBefore() &&
+      !filter.hasDataAvailabilityStartTimeOnOrBefore() &&
+      !filter.hasDataAvailabilityEndTimeOnOrAfter() &&
+      filter.metadataSearchQuery.isEmpty() &&
+      !filter.hasActivityContains()
 }
