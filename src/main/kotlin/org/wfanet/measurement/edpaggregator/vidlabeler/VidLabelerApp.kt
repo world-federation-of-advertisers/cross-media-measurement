@@ -33,7 +33,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
-import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.StorageConfig
@@ -1158,30 +1157,9 @@ class VidLabelerApp(
     val generation =
       try {
         if (doneBlobUri.scheme == "gs") {
-          val traceContext = W3CTraceContext.inject()
-          val metadata = buildMap {
-            put(
-              VidLabelingTraceAttributes.TRACE_CONTEXT_SOURCE_METADATA_KEY,
-              VidLabelingTraceAttributes.TRACE_CONTEXT_SOURCE_VID_LABELER,
-            )
-            put(
-              VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_METADATA_KEY,
-              rawImpressionUpload(params),
-            )
-            put(VidLabelingTraceAttributes.MODEL_LINE_METADATA_KEY, cmmsModelLine)
-            put(VidLabelingTraceAttributes.VID_LABELING_JOB_METADATA_KEY, params.vidLabelingJob)
-            traceContext["traceparent"]?.let {
-              put(VidLabelingTraceAttributes.TRACEPARENT_METADATA_KEY, it)
-            }
-            traceContext["tracestate"]?.let {
-              put(VidLabelingTraceAttributes.TRACESTATE_METADATA_KEY, it)
-            }
-          }
           writeGcsObject(
             storageConfig.projectId,
-            BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key)
-              .setMetadata(metadata)
-              .build(),
+            BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key).build(),
             ByteArray(0),
           )
         } else {
