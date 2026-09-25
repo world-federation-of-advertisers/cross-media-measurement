@@ -251,6 +251,8 @@ class BasicReportExternalReportIdBackfiller(
         if (isSelected) {
           examined++
         }
+        val candidateMatches: Map<String, Set<MatchSource>> =
+          findCandidateMatches(basicReport, basicReportName, reportLinkIndex)
         if (basicReport.externalReportId.isNotEmpty()) {
           addClaim(
             claimsByExternalReportId,
@@ -261,11 +263,8 @@ class BasicReportExternalReportIdBackfiller(
           if (isSelected) {
             alreadyValid++
           }
-          continue
         }
 
-        val candidateMatches: Map<String, Set<MatchSource>> =
-          findCandidateMatches(basicReport, basicReportName, reportLinkIndex)
         for ((externalReportId, matchSources) in candidateMatches) {
           for (matchSource in matchSources) {
             addClaim(
@@ -275,6 +274,9 @@ class BasicReportExternalReportIdBackfiller(
               matchSource.description,
             )
           }
+        }
+        if (basicReport.externalReportId.isNotEmpty()) {
+          continue
         }
         if (!isSelected) {
           continue

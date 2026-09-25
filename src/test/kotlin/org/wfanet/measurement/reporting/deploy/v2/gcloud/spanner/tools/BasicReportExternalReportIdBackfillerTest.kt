@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.protobuf.timestamp
 import com.google.type.interval
+import java.time.Instant
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -300,6 +301,33 @@ class BasicReportExternalReportIdBackfillerTest {
     }
 
   @Test
+  fun `run includes populated BasicReport request ID in conflict claims`() =
+    runBlocking<Unit> {
+      createReport(SAFE_EXTERNAL_REPORT_ID, "", "")
+      createReport(EXTERNAL_REPORT_ID, CREATE_REPORT_REQUEST_ID, "")
+      insertBasicReport(
+        SPANNER_BASIC_REPORT_ID,
+        EXTERNAL_BASIC_REPORT_ID,
+        CREATE_REPORT_REQUEST_ID,
+        SAFE_EXTERNAL_REPORT_ID,
+      )
+      insertBasicReport(
+        OTHER_SPANNER_BASIC_REPORT_ID,
+        OTHER_EXTERNAL_BASIC_REPORT_ID,
+        CREATE_REPORT_REQUEST_ID,
+        "",
+      )
+
+      assertFailsWith<IllegalStateException> {
+        newBackfiller(dryRun = false, matchExternalBasicReportId = false).run()
+      }
+
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(SAFE_EXTERNAL_REPORT_ID)
+      assertThat(readBasicReport(OTHER_EXTERNAL_BASIC_REPORT_ID).externalReportId).isEmpty()
+    }
+
+  @Test
   fun `run in dry-run mode reports conflicts without failing`() =
     runBlocking<Unit> {
       val basicReportName =
@@ -418,6 +446,16 @@ class BasicReportExternalReportIdBackfillerTest {
 
       assertThat(exception).hasMessageThat().contains("MeasurementConsumer scope")
     }
+
+  @Test
+  fun `RFC 3339 parser preserves nanoseconds`() {
+    val value = "2026-06-01T00:00:00.000000500Z"
+    val instant = Instant.parse(value)
+    val timestamp = parseRfc3339Timestamp(value)
+
+    assertThat(timestamp.seconds).isEqualTo(instant.epochSecond)
+    assertThat(timestamp.nanos).isEqualTo(instant.nano)
+  }
 
   @Test
   fun `dry run writes nothing`() =

@@ -17,13 +17,13 @@
 package org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.tools
 
 import com.google.protobuf.Timestamp
-import com.google.protobuf.util.Timestamps
 import java.time.Instant
 import java.time.format.DateTimeParseException
 import kotlin.properties.Delegates
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.gcloud.postgres.PostgresConnectionFactories
 import org.wfanet.measurement.gcloud.postgres.PostgresFlags as GCloudPostgresFlags
 import org.wfanet.measurement.gcloud.spanner.SpannerDatabaseConnector
@@ -111,7 +111,7 @@ class BackfillBasicReportExternalReportIds : Runnable {
   private fun parseCreateTimeAfter(): Timestamp? {
     val value = createTimeAfter ?: return null
     return try {
-      Timestamps.fromMillis(Instant.parse(value).toEpochMilli())
+      parseRfc3339Timestamp(value)
     } catch (e: DateTimeParseException) {
       throw CommandLine.ParameterException(
         spec.commandLine(),
@@ -121,5 +121,7 @@ class BackfillBasicReportExternalReportIds : Runnable {
     }
   }
 }
+
+internal fun parseRfc3339Timestamp(value: String): Timestamp = Instant.parse(value).toProtoTime()
 
 fun main(args: Array<String>) = commandLineMain(BackfillBasicReportExternalReportIds(), args)
