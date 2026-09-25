@@ -15,7 +15,7 @@
 MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
 SELECT
-  `${project_id}.dashboard.externalIdToApiId`(eg.MeasurementConsumerId) AS CmmsMeasurementConsumer,
+  `${project_id}.dashboard.externalIdToApiId`(mcs.ExternalMeasurementConsumerId) AS CmmsMeasurementConsumer,
   `${project_id}.dashboard.externalIdToApiId`(dp.ExternalDataProviderId) AS CmmsDataProvider,
   COUNT(*) AS EventGroupCount,
   ARRAY_AGG(IFNULL(eg.ProvidedEventGroupId, '')) AS ProvidedEventGroupIds,
@@ -67,6 +67,15 @@ LEFT JOIN (
     FROM DataProviders dp''')
 ) dp
   ON eg.DataProviderId = dp.DataProviderId
+LEFT JOIN (
+  SELECT * FROM EXTERNAL_QUERY(
+    'projects/${project_id}/locations/${region}/connections/kingdom-conn',
+    '''SELECT
+      mcs.MeasurementConsumerId,
+      mcs.ExternalMeasurementConsumerId
+    FROM MeasurementConsumers mcs''')
+) mcs
+  ON eg.MeasurementConsumerId = mcs.MeasurementConsumerId
 LEFT JOIN (
   SELECT * FROM EXTERNAL_QUERY(
     'projects/${project_id}/locations/${region}/connections/kingdom-conn',
