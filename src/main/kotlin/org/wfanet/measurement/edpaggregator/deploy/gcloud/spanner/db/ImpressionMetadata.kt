@@ -278,6 +278,12 @@ fun AsyncDatabaseClient.TransactionContext.insertImpressionMetadata(
     set("BlobTypeUrl").to(impressionMetadata.blobTypeUrl)
     set("EventGroupReferenceId").to(impressionMetadata.eventGroupReferenceId)
     set("CmmsModelLine").to(impressionMetadata.cmmsModelLine)
+    if (impressionMetadata.rawImpressionUploadResourceId.isNotEmpty()) {
+      set("RawImpressionUploadResourceId").to(impressionMetadata.rawImpressionUploadResourceId)
+    }
+    if (impressionMetadata.outputDoneBlobGeneration != 0L) {
+      set("OutputDoneBlobGeneration").to(impressionMetadata.outputDoneBlobGeneration)
+    }
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     set("State").to(impressionMetadata.state)
@@ -410,6 +416,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   // so each page can continue the same index range scan rather than repeatedly sorting matches.
   val tableIndexDirective =
     when {
+      filter.rawImpressionUploadResourceId.isNotEmpty() ->
+        "@{FORCE_INDEX=${ImpressionMetadataEntity.RAW_IMPRESSION_UPLOAD_INDEX}}"
       paginateByBlobUri -> "@{FORCE_INDEX=${ImpressionMetadataEntity.BLOB_URI_PREFIX_INDEX}}"
       filter.cmmsModelLine.isNotEmpty() && filter.eventGroupReferenceIdsList.isNotEmpty() ->
         "@{FORCE_INDEX=${ImpressionMetadataEntity.LIST_FILTER_INDEX}}"
@@ -446,6 +454,12 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
     if (filter.blobUrisList.isNotEmpty()) {
       conjuncts.add("ImpressionMetadata.BlobUri IN UNNEST(@blobUris)")
+    }
+
+    if (filter.rawImpressionUploadResourceId.isNotEmpty()) {
+      conjuncts.add(
+        "ImpressionMetadata.RawImpressionUploadResourceId = @rawImpressionUploadResourceId"
+      )
     }
 
     if (entityKeyFilter.isNotEmpty()) {
@@ -514,6 +528,10 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
 
       if (filter.blobUrisList.isNotEmpty()) {
         bind("blobUris").toStringArray(filter.blobUrisList)
+      }
+
+      if (filter.rawImpressionUploadResourceId.isNotEmpty()) {
+        bind("rawImpressionUploadResourceId").to(filter.rawImpressionUploadResourceId)
       }
 
       if (entityKeyFilter.isNotEmpty()) {
@@ -677,6 +695,8 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
     )
     request.impressionMetadata.copy {
       impressionMetadataResourceId = existing.impressionMetadata.impressionMetadataResourceId
+      rawImpressionUploadResourceId = existing.impressionMetadata.rawImpressionUploadResourceId
+      outputDoneBlobGeneration = existing.impressionMetadata.outputDoneBlobGeneration
       state = existing.impressionMetadata.state
       createTime = existing.impressionMetadata.createTime
     }
@@ -684,6 +704,9 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
 }
 
 private object ImpressionMetadataEntity {
+  /** Spanner index that backs source-upload lookups. */
+  const val RAW_IMPRESSION_UPLOAD_INDEX = "ImpressionMetadataByRawImpressionUpload"
+
   /** Spanner index that backs BlobUri prefix scans. */
   const val BLOB_URI_PREFIX_INDEX = "ImpressionMetadataByBlobUriPrefix"
 
@@ -711,6 +734,8 @@ private object ImpressionMetadataEntity {
       ImpressionMetadata.BlobTypeUrl,
       ImpressionMetadata.EventGroupReferenceId,
       ImpressionMetadata.CmmsModelLine,
+      ImpressionMetadata.RawImpressionUploadResourceId,
+      ImpressionMetadata.OutputDoneBlobGeneration,
       ImpressionMetadata.IntervalStartTime,
       ImpressionMetadata.IntervalEndTime,
       ImpressionMetadata.State,
@@ -742,6 +767,12 @@ private object ImpressionMetadataEntity {
         blobTypeUrl = struct.getString("BlobTypeUrl")
         eventGroupReferenceId = struct.getString("EventGroupReferenceId")
         cmmsModelLine = struct.getString("CmmsModelLine")
+        if (!struct.isNull("RawImpressionUploadResourceId")) {
+          rawImpressionUploadResourceId = struct.getString("RawImpressionUploadResourceId")
+        }
+        if (!struct.isNull("OutputDoneBlobGeneration")) {
+          outputDoneBlobGeneration = struct.getLong("OutputDoneBlobGeneration")
+        }
         interval =
           Interval.newBuilder()
             .setStartTime(struct.getTimestamp("IntervalStartTime").toProto())

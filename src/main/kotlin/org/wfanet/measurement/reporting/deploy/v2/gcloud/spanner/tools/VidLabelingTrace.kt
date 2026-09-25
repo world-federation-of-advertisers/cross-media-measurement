@@ -28,6 +28,9 @@ import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.grpc.TlsFlags
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
@@ -149,8 +152,13 @@ internal class VidLabelingTraceCollector(
     require(request.correlationValueLimit > 0) { "correlationValueLimit must be positive" }
     require(request.traceIdLimit > 0) { "traceIdLimit must be positive" }
 
-    var authoritativeGraph = stateResolver.resolve(request.rawImpressionUpload)
-    val initialNodes = authoritativeGraph.nodes
+    val initialGraph = stateResolver.resolve(request.rawImpressionUpload)
+    val authoritativeGraph =
+      initialGraph.copy(
+        nodes =
+          initialGraph.nodes +
+            finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
+      )
     val evidence = linkedSetOf<VidLabelingEvidence>()
     val sourceStatuses = mutableListOf<CloudTelemetrySourceStatus>()
     val correlationValues = linkedSetOf(request.rawImpressionUpload)
@@ -164,8 +172,6 @@ internal class VidLabelingTraceCollector(
       )
     var traceIdsCapped = false
     var expansionRoundsExhausted = false
-    var resolvedBoundaryIdentities = emptySet<VidLabelingTraceAttributes.GcsObjectIdentity>()
-
     var remainingRounds = request.expansionRounds
     while (remainingRounds-- > 0) {
       val originalCorrelationCount = correlationValues.size
@@ -198,20 +204,6 @@ internal class VidLabelingTraceCollector(
       val relatedEvidence = retainRelatedEvidence(request.rawImpressionUpload, evidence)
       evidence.clear()
       evidence += relatedEvidence
-      val boundaryIdentities = evidence.mapNotNull { it.gcsObjectIdentity() }.toSet()
-      if (boundaryIdentities != resolvedBoundaryIdentities) {
-        resolvedBoundaryIdentities = boundaryIdentities
-        authoritativeGraph =
-          authoritativeGraph.copy(
-            nodes =
-              initialNodes +
-                finalStateResolver.resolve(
-                  authoritativeGraph.upload,
-                  authoritativeGraph.modelLines,
-                  boundaryIdentities,
-                )
-          )
-      }
       correlationValuesCapped =
         addBounded(
           correlationValues,
@@ -229,19 +221,6 @@ internal class VidLabelingTraceCollector(
         break
       }
       if (remainingRounds == 0) expansionRoundsExhausted = true
-    }
-
-    if (resolvedBoundaryIdentities.isEmpty()) {
-      authoritativeGraph =
-        authoritativeGraph.copy(
-          nodes =
-            initialNodes +
-              finalStateResolver.resolve(
-                authoritativeGraph.upload,
-                authoritativeGraph.modelLines,
-                emptySet(),
-              )
-        )
     }
 
     if (correlationValuesCapped || traceIdsCapped || expansionRoundsExhausted) {
@@ -502,6 +481,13 @@ internal class VidLabelingTraceCollector(
       }
       if (primaryKey == GCS_PATH_HASH && node.identifiers.containsKey(GCS_GENERATION)) {
         return evidence.identifiers[GCS_GENERATION] == node.identifiers[GCS_GENERATION]
+      }
+      if (
+        primaryKey == AVAILABILITY_INTERVAL_START &&
+          node.identifiers.containsKey(AVAILABILITY_INTERVAL_END)
+      ) {
+        return evidence.identifiers[AVAILABILITY_INTERVAL_END] ==
+          node.identifiers[AVAILABILITY_INTERVAL_END]
       }
       return true
     }
@@ -806,8 +792,11 @@ internal class VidLabelingTraceCollector(
         "xmm.edpa.rank_index_blob.name",
         "xmm.edpa.raw_impression_upload_file.name",
         "xmm.gcs.object.path_hash",
+        AVAILABILITY_INTERVAL_START,
         RAW_UPLOAD_MODEL_LINE,
       )
+    private const val AVAILABILITY_INTERVAL_START = "xmm.edpa.availability.interval_start"
+    private const val AVAILABILITY_INTERVAL_END = "xmm.edpa.availability.interval_end"
   }
 }
 
@@ -1150,16 +1139,25 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         RankIndexBlobServiceCoroutineStub(edpaChannel),
         WorkItemsCoroutineStub(controlPlaneChannel),
         WorkItemAttemptsCoroutineStub(controlPlaneChannel),
+        KingdomVidLabelingRouteResolver(
+          ModelLinesCoroutineStub(kingdomChannel),
+          ModelRolloutsCoroutineStub(kingdomChannel),
+          ModelShardsCoroutineStub(kingdomChannel),
+        ),
       )
     val finalStateResolver =
       GcsKingdomFinalStateResolver(
         ImpressionMetadataServiceCoroutineStub(edpaChannel),
         DataProvidersCoroutineStub(kingdomChannel),
-        readObjectMetadata = { uri ->
+        readObjectMetadata = { uri, generation ->
           val parsed = SelectedStorageClient.parseBlobUri(uri)
-          storage.get(BlobId.of(parsed.bucket, parsed.key))?.let { blob ->
-            StoredObjectMetadata(blob.generation)
-          }
+          val blobId =
+            if (generation == null) {
+              BlobId.of(parsed.bucket, parsed.key)
+            } else {
+              BlobId.of(parsed.bucket, parsed.key, generation)
+            }
+          storage.get(blobId)?.let { blob -> StoredObjectMetadata(blob.generation) }
         },
       )
     val collector =
