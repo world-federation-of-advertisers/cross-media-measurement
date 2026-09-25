@@ -24,6 +24,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
@@ -66,7 +67,7 @@ class VidLabelingTraceStateTest {
     val resolver = GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { null }
     val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)))
+    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), emptySet())
 
     assertThat(nodes.filter { it.authoritativeState == "MISSING" }.map { it.stage })
       .containsAtLeast("data_watcher", "data_availability_metadata", "data_availability_publish")
@@ -105,9 +106,9 @@ class VidLabelingTraceStateTest {
     val resolver =
       GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { uri ->
         when (uri) {
-          "gs://raw/input/done" -> StoredObjectMetadata(7, emptyMap())
-          doneUri -> StoredObjectMetadata(9, mapOf("xmm-raw-impression-upload" to UPLOAD))
-          else -> StoredObjectMetadata(1, emptyMap())
+          "gs://raw/input/done" -> StoredObjectMetadata(7)
+          doneUri -> StoredObjectMetadata(9)
+          else -> StoredObjectMetadata(1)
         }
       }
     val upload =
@@ -118,7 +119,12 @@ class VidLabelingTraceStateTest {
         .build()
     val modelLine = modelLine("direct", DIRECT_MODEL_LINE)
 
-    val nodes = resolver.resolve(upload, listOf(modelLine))
+    val nodes =
+      resolver.resolve(
+        upload,
+        listOf(modelLine),
+        setOf(VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, 9)),
+      )
 
     assertThat(nodes.map { it.stage })
       .containsAtLeast(
@@ -266,6 +272,14 @@ class VidLabelingTraceStateTest {
           .addDataAvailabilityIntervals(availability(DIRECT_MODEL_LINE))
           .build()
       )
+    val finalStateResolver =
+      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { uri ->
+        when {
+          uri == "gs://raw/input/done" -> StoredObjectMetadata(7)
+          uri.endsWith("/done") -> StoredObjectMetadata(9)
+          else -> StoredObjectMetadata(1)
+        }
+      }
     val resolver =
       GrpcVidLabelingStateResolver(
         uploads,
@@ -277,17 +291,30 @@ class VidLabelingTraceStateTest {
         rankBlobs,
         workItems,
         attempts,
-        GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { uri ->
-          when {
-            uri == "gs://raw/input/done" -> StoredObjectMetadata(7, emptyMap())
-            uri.endsWith("/done") ->
-              StoredObjectMetadata(9, mapOf("xmm-raw-impression-upload" to UPLOAD))
-            else -> StoredObjectMetadata(1, emptyMap())
-          }
-        },
       )
 
-    val graph = resolver.resolve(UPLOAD)
+    val initialGraph = resolver.resolve(UPLOAD)
+    val boundaryIdentities =
+      setOf(
+        VidLabelingTraceAttributes.gcsObjectIdentity(
+          "gs://bucket/model-line/memoized/2026-09-01/done",
+          9,
+        ),
+        VidLabelingTraceAttributes.gcsObjectIdentity(
+          "gs://bucket/model-line/direct/2026-09-01/done",
+          9,
+        ),
+      )
+    val graph =
+      initialGraph.copy(
+        nodes =
+          initialGraph.nodes +
+            finalStateResolver.resolve(
+              initialGraph.upload,
+              initialGraph.modelLines,
+              boundaryIdentities,
+            )
+      )
 
     assertThat(graph.modelLines.map { it.cmmsModelLine })
       .containsExactly(MEMOIZED_MODEL_LINE, DIRECT_MODEL_LINE)

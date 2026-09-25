@@ -85,10 +85,11 @@ internal fun interface VidLabelingFinalStateResolver {
   suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
+    boundaryIdentities: Set<VidLabelingTraceAttributes.GcsObjectIdentity>,
   ): List<ExpectedTraceNode>
 }
 
-internal data class StoredObjectMetadata(val generation: Long, val metadata: Map<String, String>)
+internal data class StoredObjectMetadata(val generation: Long)
 
 internal class GcsKingdomFinalStateResolver(
   private val impressionMetadata: ImpressionMetadataServiceCoroutineStub,
@@ -98,6 +99,7 @@ internal class GcsKingdomFinalStateResolver(
   override suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
+    boundaryIdentities: Set<VidLabelingTraceAttributes.GcsObjectIdentity>,
   ): List<ExpectedTraceNode> {
     val dataProviderName = upload.name.substringBefore("/rawImpressionUploads/")
     val dataProvider =
@@ -125,9 +127,11 @@ internal class GcsKingdomFinalStateResolver(
         val metadataRows = listMetadata(dataProviderName, modelLine.cmmsModelLine)
         val rowsForUpload =
           metadataRows.filter { row ->
-            val done = readObjectMetadata(doneUri(row.blobUri))
-            done?.metadata?.get(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_METADATA_KEY) ==
-              upload.name
+            val uri = doneUri(row.blobUri)
+            val done = readObjectMetadata(uri)
+            done != null &&
+              VidLabelingTraceAttributes.gcsObjectIdentity(uri, done.generation) in
+                boundaryIdentities
           }
         if (
           modelLine.state == RawImpressionUploadModelLine.State.COMPLETED && rowsForUpload.isEmpty()
@@ -275,7 +279,6 @@ internal class GrpcVidLabelingStateResolver(
   private val rankBlobs: RankIndexBlobServiceCoroutineStub,
   private val workItems: WorkItemsCoroutineStub,
   private val workItemAttempts: WorkItemAttemptsCoroutineStub,
-  private val finalStateResolver: VidLabelingFinalStateResolver,
 ) : VidLabelingStateResolver {
   override suspend fun resolve(rawImpressionUpload: String): VidLabelingAuthoritativeGraph {
     val upload =
@@ -384,7 +387,6 @@ internal class GrpcVidLabelingStateResolver(
           labelRows.isNotEmpty(),
         )
     }
-    nodes += finalStateResolver.resolve(upload, modelLineRows)
     return VidLabelingAuthoritativeGraph(upload, modelLineRows, nodes)
   }
 
