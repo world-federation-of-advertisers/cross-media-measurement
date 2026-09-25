@@ -1394,6 +1394,15 @@ class DataAvailabilitySyncTest {
 
       // replaceDataAvailabilityIntervals should NOT be called due to gaps
       verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+      val gapDecision =
+        logRecords.single { it.message.startsWith("event=edpa.data_availability.gap_decision") }
+      assertThat(gapDecision.message)
+        .contains(
+          "xmm.model_line.name=modelProviders/provider1/modelSuites/suite1/" +
+            "modelLines/modelLine1"
+        )
+      assertThat(gapDecision.message).contains("xmm.lifecycle.stage=data_availability_publish")
+      assertThat(gapDecision.message).contains("xmm.outcome=blocked")
       assertThat(
           storageClient.updateBlobMetadataCalls.any {
             it.metadata.containsKey(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY)
@@ -1438,6 +1447,10 @@ class DataAvailabilitySyncTest {
 
     // replaceDataAvailabilityIntervals should be called since no gaps
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(
+        logRecords.none { it.message.startsWith("event=edpa.data_availability.gap_decision") }
+      )
+      .isTrue()
   }
 
   /**
@@ -1753,6 +1766,14 @@ class DataAvailabilitySyncTest {
 
     // replaceDataAvailabilityIntervals should still be called despite gaps
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
+    val gapDecision =
+      logRecords.single { it.message.startsWith("event=edpa.data_availability.gap_decision") }
+    assertThat(gapDecision.message)
+      .contains(
+        "xmm.model_line.name=modelProviders/provider1/modelSuites/suite1/" + "modelLines/modelLine1"
+      )
+    assertThat(gapDecision.message).contains("xmm.lifecycle.stage=data_availability_publish")
+    assertThat(gapDecision.message).contains("xmm.outcome=allowed")
   }
 
   @Test

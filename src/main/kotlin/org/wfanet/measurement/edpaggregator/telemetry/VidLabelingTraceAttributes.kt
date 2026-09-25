@@ -17,9 +17,23 @@
 package org.wfanet.measurement.edpaggregator.telemetry
 
 import io.opentelemetry.api.common.AttributeKey
+import java.nio.charset.StandardCharsets.UTF_8
+import java.security.MessageDigest
 
 /** Stable OpenTelemetry attributes for one VID-labeling pipeline execution. */
 object VidLabelingTraceAttributes {
+  data class GcsObjectIdentity(val pathHash: String, val generation: Long)
+
+  /** Returns the stable, payload-free identity for one exact GCS object version. */
+  fun gcsObjectIdentity(uri: String, generation: Long): GcsObjectIdentity =
+    GcsObjectIdentity(gcsObjectPathHash(uri), generation)
+
+  /** Returns a SHA-256 digest of a full `gs://bucket/key` URI. */
+  fun gcsObjectPathHash(uri: String): String =
+    MessageDigest.getInstance("SHA-256").digest(uri.toByteArray(UTF_8)).joinToString("") { byte ->
+      (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
+
   const val RAW_IMPRESSION_UPLOAD_METADATA_KEY = "xmm-raw-impression-upload"
   const val MODEL_LINE_METADATA_KEY = "xmm-model-line"
   const val VID_LABELING_JOB_METADATA_KEY = "xmm-vid-labeling-job"

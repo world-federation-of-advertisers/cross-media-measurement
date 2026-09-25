@@ -303,6 +303,17 @@ class DataAvailabilitySync(
           DataAvailabilityMonitorMetrics.STATUS_HEALTHY,
           healthyCount,
         )
+        if (gaps.isNotEmpty() || inRangeUnfinalized) {
+          VidLabelingTraceLogging.log(
+            logger,
+            Level.WARNING,
+            "edpa.data_availability.gap_decision",
+            VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+            VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLineKey.toName(),
+            XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_publish",
+            XmmTraceAttributes.OUTCOME_STRING to if (errorIfGapsExist) "blocked" else "allowed",
+          )
+        }
       }
       if (blockedDetails.isNotEmpty()) {
         Span.current()
@@ -630,7 +641,7 @@ class DataAvailabilitySync(
         impressionMetadata.name.takeIf { it.isNotEmpty() },
       VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to impressionMetadata.modelLine,
       VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to
-        storageUriHash(impressionMetadata.blobUri),
+        VidLabelingTraceAttributes.gcsObjectPathHash(impressionMetadata.blobUri),
       VidLabelingTraceAttributes.IMPRESSION_METADATA_ACTION_STRING to action,
       XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "data_availability_metadata",
       XmmTraceAttributes.OUTCOME_STRING to outcome,
@@ -661,13 +672,6 @@ class DataAvailabilitySync(
       XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
     )
   }
-
-  private fun storageUriHash(uri: String): String =
-    MessageDigest.getInstance("SHA-256").digest(uri.toByteArray(UTF_8)).joinToString(
-      separator = ""
-    ) { byte ->
-      (byte.toInt() and 0xff).toString(16).padStart(2, '0')
-    }
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun listImpressionMetadataByBlobUris(

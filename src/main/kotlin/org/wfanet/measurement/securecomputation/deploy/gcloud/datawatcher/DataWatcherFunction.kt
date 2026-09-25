@@ -30,7 +30,6 @@ import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.nio.file.Paths
-import java.security.MessageDigest
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
@@ -113,11 +112,12 @@ class DataWatcherFunction(
           }
         val scope = parentContext.makeCurrent()
         try {
+          val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(path, data.generation)
           val attributes =
             Attributes.builder()
-              .put(ATTR_DATA_PATH_DIGEST, digest(path))
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
               .put(ATTR_BLOB_SIZE_BYTES, size)
-              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, data.generation)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
               .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_watcher")
               .put(XmmTraceAttributes.OUTCOME, "started")
               .also { builder ->
@@ -221,7 +221,6 @@ class DataWatcherFunction(
      */
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
 
-    private val ATTR_DATA_PATH_DIGEST = AttributeKey.stringKey("xmm.gcs.object.path_digest")
     private val ATTR_BLOB_SIZE_BYTES = AttributeKey.longKey("blob_size_bytes")
     private const val SPAN_DATA_WATCHER_HANDLE_EVENT = "data_watcher.handle_event"
     private val RAW_IMPRESSION_UPLOAD_NAME_REGEX =
@@ -230,13 +229,6 @@ class DataWatcherFunction(
       Regex("^modelProviders/[^/]+/modelSuites/[^/]+/modelLines/[^/]+$")
     private val VID_LABELING_JOB_NAME_REGEX =
       Regex("^dataProviders/[^/]+/rawImpressionUploads/[^/]+/vidLabelingJobs/[^/]+$")
-
-    private fun digest(value: String): String =
-      MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString(
-        separator = ""
-      ) {
-        "%02x".format(it)
-      }
 
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val certFilePath: String by lazy { checkIsPath("CERT_FILE_PATH") }
