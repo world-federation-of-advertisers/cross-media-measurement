@@ -184,7 +184,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         Tracing.trace("edpa.data_availability.sync", attributes) {
           val outcome =
             runBlocking(Context.current().asContextElement()) {
-              dataAvailabilitySync.sync(doneBlobPath)
+              dataAvailabilitySync.sync(doneBlobPath, generation)
             }
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
         }

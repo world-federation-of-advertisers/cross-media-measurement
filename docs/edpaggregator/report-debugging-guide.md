@@ -485,12 +485,11 @@ pipeline failure.
 Configure `VID_LABELING_TRACE_OPERATORS` with the IAM members allowed to
 impersonate the dedicated VID-labeling trace operator, and list any additional
 telemetry projects in `VID_LABELING_TRACE_OBSERVABILITY_PROJECTS`. The identity
-has Logging Viewer, Cloud Trace Viewer, Service Usage Consumer, read-only access
-to the EDPA and Secure Computation databases, and object-viewer access to the
-VID-labeling storage bucket. It has no write or KMS-decrypt role. The command
-also uses the DataProvider's mutual-TLS identity for the read-only EDPA,
-control-plane, and Kingdom APIs. After applying Terraform, create impersonated
-Application Default Credentials and run:
+has Logging Viewer, Cloud Trace Viewer, Service Usage Consumer, and object-viewer
+access to the VID-labeling storage bucket. It has no direct database, write, or
+KMS-decrypt role. The command uses the DataProvider's mutual-TLS identity for
+the read-only EDPA, control-plane, and Kingdom APIs. After applying Terraform,
+create impersonated Application Default Credentials and run:
 
 ```bash
 VID_LABELING_TRACE_SERVICE_ACCOUNT="$(terraform output -raw vid_labeling_trace_operator_service_account_email)"

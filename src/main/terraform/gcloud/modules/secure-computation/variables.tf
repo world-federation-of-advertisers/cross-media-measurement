@@ -40,8 +40,3 @@ variable "spanner_database_name" {
   default     = "secure-computation"
   nullable    = false
 }
-variable "vid_labeling_trace_operator_member" {
-  description = "IAM member for the read-only VID-labeling trace operator."
-  type        = string
-}
-
