@@ -42,6 +42,7 @@ import org.wfanet.measurement.common.telemetry.GoogleCloudTraceReader
 import org.wfanet.measurement.common.telemetry.SafeTelemetryText
 import org.wfanet.measurement.common.telemetry.buildCloudTelemetryLoggingOptions
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -135,6 +136,7 @@ internal class VidLabelingTraceCollector(
   private val logReaderFactory: (String) -> CloudLogReader,
   private val spanReader: CloudTraceReader,
   private val stateResolver: VidLabelingStateResolver,
+  private val finalStateResolver: VidLabelingFinalStateResolver,
 ) {
   suspend fun collect(request: VidLabelingTraceRequest): VidLabelingTraceCollection {
     require(RAW_UPLOAD_PATTERN.matches(request.rawImpressionUpload)) {
@@ -147,7 +149,8 @@ internal class VidLabelingTraceCollector(
     require(request.correlationValueLimit > 0) { "correlationValueLimit must be positive" }
     require(request.traceIdLimit > 0) { "traceIdLimit must be positive" }
 
-    val authoritativeGraph = stateResolver.resolve(request.rawImpressionUpload)
+    var authoritativeGraph = stateResolver.resolve(request.rawImpressionUpload)
+    val initialNodes = authoritativeGraph.nodes
     val evidence = linkedSetOf<VidLabelingEvidence>()
     val sourceStatuses = mutableListOf<CloudTelemetrySourceStatus>()
     val correlationValues = linkedSetOf(request.rawImpressionUpload)
@@ -161,6 +164,7 @@ internal class VidLabelingTraceCollector(
       )
     var traceIdsCapped = false
     var expansionRoundsExhausted = false
+    var resolvedBoundaryIdentities = emptySet<VidLabelingTraceAttributes.GcsObjectIdentity>()
 
     var remainingRounds = request.expansionRounds
     while (remainingRounds-- > 0) {
@@ -194,14 +198,29 @@ internal class VidLabelingTraceCollector(
       val relatedEvidence = retainRelatedEvidence(request.rawImpressionUpload, evidence)
       evidence.clear()
       evidence += relatedEvidence
+      val boundaryIdentities = evidence.mapNotNull { it.gcsObjectIdentity() }.toSet()
+      if (boundaryIdentities != resolvedBoundaryIdentities) {
+        resolvedBoundaryIdentities = boundaryIdentities
+        authoritativeGraph =
+          authoritativeGraph.copy(
+            nodes =
+              initialNodes +
+                finalStateResolver.resolve(
+                  authoritativeGraph.upload,
+                  authoritativeGraph.modelLines,
+                  boundaryIdentities,
+                )
+          )
+      }
       correlationValuesCapped =
         addBounded(
           correlationValues,
-          evidence
-            .flatMap { item ->
-              item.identifiers.filterKeys { it in UNIQUE_CORRELATION_FIELDS }.values
-            }
-            .filter(::isCorrelationValue),
+          authoritativeGraph.correlationValues +
+            evidence
+              .flatMap { item ->
+                item.identifiers.filterKeys { it in UNIQUE_CORRELATION_FIELDS }.values
+              }
+              .filter(::isCorrelationValue),
           request.correlationValueLimit,
         ) || correlationValuesCapped
       if (
@@ -210,6 +229,19 @@ internal class VidLabelingTraceCollector(
         break
       }
       if (remainingRounds == 0) expansionRoundsExhausted = true
+    }
+
+    if (resolvedBoundaryIdentities.isEmpty()) {
+      authoritativeGraph =
+        authoritativeGraph.copy(
+          nodes =
+            initialNodes +
+              finalStateResolver.resolve(
+                authoritativeGraph.upload,
+                authoritativeGraph.modelLines,
+                emptySet(),
+              )
+        )
     }
 
     if (correlationValuesCapped || traceIdsCapped || expansionRoundsExhausted) {
@@ -468,6 +500,9 @@ internal class VidLabelingTraceCollector(
         return evidence.identifiers["xmm.work_item.generation"] ==
           node.identifiers["xmm.work_item.generation"]
       }
+      if (primaryKey == GCS_PATH_HASH && node.identifiers.containsKey(GCS_GENERATION)) {
+        return evidence.identifiers[GCS_GENERATION] == node.identifiers[GCS_GENERATION]
+      }
       return true
     }
     return node.identifiers.any { (key, value) -> evidence.identifiers[key] == value }
@@ -565,6 +600,7 @@ internal class VidLabelingTraceCollector(
     val retained = linkedSetOf<VidLabelingEvidence>()
     val identifiers = linkedSetOf(rawImpressionUpload)
     val traceIds = linkedSetOf<String>()
+    val objectIdentities = linkedSetOf<VidLabelingTraceAttributes.GcsObjectIdentity>()
     var changed: Boolean
     do {
       changed = false
@@ -576,19 +612,29 @@ internal class VidLabelingTraceCollector(
           candidate.identifiers.filterKeys { it in UNIQUE_CORRELATION_FIELDS }.values
         val directlyRelated =
           uniqueValues.any { it == rawImpressionUpload || it.startsWith(rawImpressionUpload + "/") }
+        val objectIdentity = candidate.gcsObjectIdentity()
         if (
           directlyRelated ||
             uniqueValues.any { it in identifiers } ||
-            (candidate.traceId != null && candidate.traceId in traceIds)
+            (candidate.traceId != null && candidate.traceId in traceIds) ||
+            (objectIdentity != null && objectIdentity in objectIdentities)
         ) {
           retained += candidate
           identifiers += uniqueValues
           candidate.traceId?.let { traceIds += it }
+          objectIdentity?.let { objectIdentities += it }
           changed = true
         }
       }
     } while (changed)
     return retained.toList()
+  }
+
+  private fun VidLabelingEvidence.gcsObjectIdentity():
+    VidLabelingTraceAttributes.GcsObjectIdentity? {
+    val pathHash = identifiers[GCS_PATH_HASH] ?: return null
+    val generation = identifiers[GCS_GENERATION]?.toLongOrNull() ?: return null
+    return VidLabelingTraceAttributes.GcsObjectIdentity(pathHash, generation)
   }
 
   private fun CloudLogEntry.toEvidence(): VidLabelingEvidence {
@@ -670,6 +716,8 @@ internal class VidLabelingTraceCollector(
     private const val RAW_UPLOAD = "xmm.edpa.raw_impression_upload.name"
     private const val RAW_UPLOAD_MODEL_LINE = "xmm.edpa.raw_impression_upload_model_line.name"
     private const val IMPRESSION_METADATA = "xmm.edpa.impression_metadata.name"
+    private const val GCS_PATH_HASH = "xmm.gcs.object.path_hash"
+    private const val GCS_GENERATION = "xmm.gcs.object.generation"
 
     private val SAFE_IDENTIFIER_FIELDS =
       setOf(
@@ -1102,22 +1150,17 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         RankIndexBlobServiceCoroutineStub(edpaChannel),
         WorkItemsCoroutineStub(controlPlaneChannel),
         WorkItemAttemptsCoroutineStub(controlPlaneChannel),
-        GcsKingdomFinalStateResolver(
-          ImpressionMetadataServiceCoroutineStub(edpaChannel),
-          DataProvidersCoroutineStub(kingdomChannel),
-          readObjectMetadata = { uri ->
-            val parsed = SelectedStorageClient.parseBlobUri(uri)
-            storage.get(BlobId.of(parsed.bucket, parsed.key))?.let { blob ->
-              StoredObjectMetadata(
-                blob.generation,
-                blob.metadata
-                  .orEmpty()
-                  .mapNotNull { (key, value) -> value?.let { key to it } }
-                  .toMap(),
-              )
-            }
-          },
-        ),
+      )
+    val finalStateResolver =
+      GcsKingdomFinalStateResolver(
+        ImpressionMetadataServiceCoroutineStub(edpaChannel),
+        DataProvidersCoroutineStub(kingdomChannel),
+        readObjectMetadata = { uri ->
+          val parsed = SelectedStorageClient.parseBlobUri(uri)
+          storage.get(BlobId.of(parsed.bucket, parsed.key))?.let { blob ->
+            StoredObjectMetadata(blob.generation)
+          }
+        },
       )
     val collector =
       VidLabelingTraceCollector(
@@ -1133,6 +1176,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         },
         spanReader = spanReader,
         stateResolver = stateResolver,
+        finalStateResolver = finalStateResolver,
       )
     try {
       val failed =

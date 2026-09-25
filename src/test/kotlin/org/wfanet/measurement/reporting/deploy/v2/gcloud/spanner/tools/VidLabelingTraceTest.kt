@@ -25,6 +25,7 @@ import org.junit.Test
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
 import org.wfanet.measurement.common.telemetry.CloudLogReader
 import org.wfanet.measurement.common.telemetry.CloudTraceReader
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 
@@ -32,6 +33,89 @@ private fun main(args: Array<String>, dependencies: VidLabelingTraceDependencies
   runVidLabelingTrace(args, dependencies)
 
 class VidLabelingTraceTest {
+  @Test
+  fun `collect joins separate traces by exact GCS object identity`() = runBlocking {
+    val uri = "gs://output-bucket/model-line/direct/2026-09-01/done"
+    val identity = VidLabelingTraceAttributes.gcsObjectIdentity(uri, 77L)
+    val job = RAW_UPLOAD + "/vidLabelingJobs/direct"
+    val graph =
+      testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+        .copy(
+          nodes =
+            listOf(
+              ExpectedTraceNode(
+                job,
+                NON_MEMOIZED_MODEL_LINE,
+                "label_finalize",
+                "SUCCEEDED",
+                mapOf(
+                  "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
+                  "xmm.edpa.vid_labeling_job.name" to job,
+                ),
+              )
+            )
+        )
+    val entries =
+      listOf(
+        entry(
+          "label_finalize",
+          objectIdentityFields(identity) +
+            " xmm.model_line.name=" +
+            NON_MEMOIZED_MODEL_LINE +
+            " xmm.edpa.vid_labeling_job.name=" +
+            job,
+          rawImpressionUpload = RAW_UPLOAD,
+          traceId = ROOT_TRACE,
+        ),
+        entry("data_watcher", objectIdentityFields(identity), traceId = MEMO_TRACE),
+        entry(
+          "data_availability_publish",
+          objectIdentityFields(identity) + " xmm.model_line.name=" + NON_MEMOIZED_MODEL_LINE,
+          traceId = DIRECT_TRACE,
+        ),
+      )
+    val logReader = FakeCloudLogReader(entries)
+    val finalStateResolver = VidLabelingFinalStateResolver { _, _, identities ->
+      if (identity !in identities) return@VidLabelingFinalStateResolver emptyList()
+      listOf(
+        ExpectedTraceNode(
+          "watcher",
+          NON_MEMOIZED_MODEL_LINE,
+          "data_watcher",
+          "SUCCEEDED",
+          mapOf(
+            "xmm.gcs.object.path_hash" to identity.pathHash,
+            "xmm.gcs.object.generation" to identity.generation.toString(),
+          ),
+        ),
+        ExpectedTraceNode(
+          "availability",
+          NON_MEMOIZED_MODEL_LINE,
+          "data_availability_publish",
+          "PUBLISHED",
+          mapOf(
+            "xmm.gcs.object.path_hash" to identity.pathHash,
+            "xmm.gcs.object.generation" to identity.generation.toString(),
+          ),
+        ),
+      )
+    }
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { logReader },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = finalStateResolver,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+    assertThat(collection.evidence.mapNotNull { it.traceId })
+      .containsAtLeast(ROOT_TRACE, MEMO_TRACE, DIRECT_TRACE)
+    Unit
+  }
+
   @Test
   fun `artifact file names cannot collide`() {
     val first = "dataProviders/a/rawImpressionUploads/b__c"
@@ -116,6 +200,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { logReader },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph() },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request())
@@ -157,6 +242,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph() },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request(correlationValueLimit = 1, traceIdLimit = 1))
@@ -184,6 +270,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { rootOnlyGraph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request(expansionRounds = 1))
@@ -205,6 +292,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request())
@@ -259,6 +347,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request())
@@ -308,6 +397,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request())
@@ -342,6 +432,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
     val output = StringWriter()
 
@@ -407,6 +498,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph(listOf(NON_MEMOIZED_MODEL_LINE)) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request())
@@ -423,6 +515,7 @@ class VidLabelingTraceTest {
         logReaderFactory = { CloudLogReader { _, _, _, _ -> throw IllegalStateException() } },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
         stateResolver = VidLabelingStateResolver { testGraph() },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request())
@@ -565,6 +658,12 @@ class VidLabelingTraceTest {
 
   private fun modelLineFields(modelLine: String): String = "xmm.model_line.name=" + modelLine
 
+  private fun objectIdentityFields(identity: VidLabelingTraceAttributes.GcsObjectIdentity): String =
+    "xmm.gcs.object.path_hash=" +
+      identity.pathHash +
+      " xmm.gcs.object.generation=" +
+      identity.generation
+
   private fun entry(
     stage: String,
     additionalFields: String = "",
@@ -624,6 +723,7 @@ class VidLabelingTraceTest {
   }
 
   companion object {
+    private val NOOP_FINAL_STATE_RESOLVER = VidLabelingFinalStateResolver { _, _, _ -> emptyList() }
     private const val RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-1"
     private const val OTHER_RAW_UPLOAD = "dataProviders/123/rawImpressionUploads/upload-2"
     private const val MEMOIZED_MODEL_LINE =
