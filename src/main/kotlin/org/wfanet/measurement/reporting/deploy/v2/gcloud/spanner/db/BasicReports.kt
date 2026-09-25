@@ -226,17 +226,37 @@ fun AsyncDatabaseClient.TransactionContext.setExternalReportId(
   }
 }
 
-/** Buffers an update mutation that sets ExternalReportId without changing BasicReport state. */
-fun AsyncDatabaseClient.TransactionContext.updateExternalReportId(
+/**
+ * Sets ExternalReportId without changing BasicReport state when the field is currently empty.
+ *
+ * @return whether the row was updated
+ */
+suspend fun AsyncDatabaseClient.TransactionContext.updateExternalReportIdIfEmpty(
   measurementConsumerId: Long,
   basicReportId: Long,
   externalReportId: String,
-) {
-  bufferUpdateMutation("BasicReports") {
-    set("MeasurementConsumerId").to(measurementConsumerId)
-    set("BasicReportId").to(basicReportId)
-    set("ExternalReportId").to(externalReportId)
+): Boolean {
+  val updatedRowCount =
+    executeUpdate(
+      statement(
+        """
+        UPDATE BasicReports
+        SET ExternalReportId = @externalReportId
+        WHERE MeasurementConsumerId = @measurementConsumerId
+          AND BasicReportId = @basicReportId
+          AND (ExternalReportId IS NULL OR ExternalReportId = '')
+        """
+          .trimIndent()
+      ) {
+        bind("measurementConsumerId").to(measurementConsumerId)
+        bind("basicReportId").to(basicReportId)
+        bind("externalReportId").to(externalReportId)
+      }
+    )
+  check(updatedRowCount in 0L..1L) {
+    "Updated $updatedRowCount BasicReports rows for ($measurementConsumerId, $basicReportId)"
   }
+  return updatedRowCount == 1L
 }
 
 /** Buffers an update mutation that sets BasicReportResultDetails for the BasicReports table. */

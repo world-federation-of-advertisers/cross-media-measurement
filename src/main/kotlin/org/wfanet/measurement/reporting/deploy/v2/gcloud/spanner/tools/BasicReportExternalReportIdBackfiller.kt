@@ -31,8 +31,9 @@ import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsPageTokenKt
 import org.wfanet.measurement.internal.reporting.v2.ListBasicReportsRequestKt
 import org.wfanet.measurement.internal.reporting.v2.listBasicReportsPageToken
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.BasicReportResult
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.readBasicReports
-import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateExternalReportId
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateExternalReportIdIfEmpty
 import org.wfanet.measurement.reporting.deploy.v2.postgres.readers.ReportReader
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
 
@@ -102,8 +103,13 @@ class BasicReportExternalReportIdBackfiller(
   private data class BasicReportReference(
     val measurementConsumerId: Long,
     val basicReportId: Long,
+    val cmmsMeasurementConsumerId: String,
+    val externalBasicReportId: String,
     val createTime: Timestamp,
-  )
+  ) {
+    val name: String
+      get() = BasicReportKey(cmmsMeasurementConsumerId, externalBasicReportId).toName()
+  }
 
   private data class PlannedUpdate(
     val basicReport: BasicReportReference,
@@ -115,6 +121,12 @@ class BasicReportExternalReportIdBackfiller(
     val updates: List<PlannedUpdate>,
     val conflictMessages: List<String>,
   )
+
+  private sealed class UpdateOutcome {
+    data object Updated : UpdateOutcome()
+
+    data class AlreadySet(val externalReportId: String) : UpdateOutcome()
+  }
 
   private var examined = 0
   private var alreadyValid = 0
@@ -286,6 +298,8 @@ class BasicReportExternalReportIdBackfiller(
           BasicReportReference(
             measurementConsumerId = basicReportResult.measurementConsumerId,
             basicReportId = basicReportResult.basicReportId,
+            cmmsMeasurementConsumerId = basicReport.cmmsMeasurementConsumerId,
+            externalBasicReportId = basicReport.externalBasicReportId,
             createTime = basicReport.createTime,
           )
         if (candidateMatches.isEmpty()) {
@@ -393,6 +407,45 @@ class BasicReportExternalReportIdBackfiller(
   }
 
   private suspend fun applyUpdate(update: PlannedUpdate) {
+    if (!dryRun) {
+      val outcome: UpdateOutcome =
+        spannerClient.readWriteTransaction().run { transaction ->
+          if (
+            transaction.updateExternalReportIdIfEmpty(
+              measurementConsumerId = update.basicReport.measurementConsumerId,
+              basicReportId = update.basicReport.basicReportId,
+              externalReportId = update.externalReportId,
+            )
+          ) {
+            UpdateOutcome.Updated
+          } else {
+            UpdateOutcome.AlreadySet(
+              transaction
+                .getBasicReportByExternalId(
+                  update.basicReport.cmmsMeasurementConsumerId,
+                  update.basicReport.externalBasicReportId,
+                )
+                .basicReport
+                .externalReportId
+            )
+          }
+        }
+      when (outcome) {
+        UpdateOutcome.Updated -> Unit
+        is UpdateOutcome.AlreadySet -> {
+          if (outcome.externalReportId == update.externalReportId) {
+            alreadyValid++
+          } else {
+            logger.warning {
+              "Skipping BasicReport ${update.basicReport.name}: external_report_id changed after " +
+                "planning to '${outcome.externalReportId}'; planned '${update.externalReportId}'"
+            }
+            skipped++
+          }
+          return
+        }
+      }
+    }
     if (MatchSource.BASIC_REPORT_NAME in update.matchSources) {
       matchedByBasicReportName++
     }
@@ -403,15 +456,6 @@ class BasicReportExternalReportIdBackfiller(
       matchedByExternalBasicReportId++
     }
     recordCreateTime(update.basicReport.createTime)
-    if (!dryRun) {
-      spannerClient.readWriteTransaction().run { transaction ->
-        transaction.updateExternalReportId(
-          measurementConsumerId = update.basicReport.measurementConsumerId,
-          basicReportId = update.basicReport.basicReportId,
-          externalReportId = update.externalReportId,
-        )
-      }
-    }
     updated++
   }
 

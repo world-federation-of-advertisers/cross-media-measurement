@@ -55,6 +55,7 @@ import org.wfanet.measurement.internal.reporting.v2.timeIntervals
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.getBasicReportByExternalId
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertBasicReport
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.insertMeasurementConsumer
+import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.db.updateExternalReportIdIfEmpty
 import org.wfanet.measurement.reporting.deploy.v2.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMeasurementConsumersService
 import org.wfanet.measurement.reporting.deploy.v2.postgres.PostgresMetricCalculationSpecsService
@@ -478,6 +479,25 @@ class BasicReportExternalReportIdBackfillerTest {
 
       assertThat(result.alreadyValid).isEqualTo(1)
       assertThat(result.updated).isEqualTo(0)
+      assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
+        .isEqualTo(EXTERNAL_REPORT_ID)
+    }
+
+  @Test
+  fun `conditional update leaves existing external Report ID unchanged`() =
+    runBlocking<Unit> {
+      insertBasicReport(SPANNER_BASIC_REPORT_ID, EXTERNAL_BASIC_REPORT_ID, "", EXTERNAL_REPORT_ID)
+
+      val wasUpdated =
+        spannerClient.readWriteTransaction().run { transaction ->
+          transaction.updateExternalReportIdIfEmpty(
+            measurementConsumerId = SPANNER_MEASUREMENT_CONSUMER_ID,
+            basicReportId = SPANNER_BASIC_REPORT_ID,
+            externalReportId = SAFE_EXTERNAL_REPORT_ID,
+          )
+        }
+
+      assertThat(wasUpdated).isFalse()
       assertThat(readBasicReport(EXTERNAL_BASIC_REPORT_ID).externalReportId)
         .isEqualTo(EXTERNAL_REPORT_ID)
     }
