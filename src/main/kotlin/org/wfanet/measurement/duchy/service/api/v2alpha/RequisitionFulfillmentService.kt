@@ -162,6 +162,7 @@ class RequisitionFulfillmentService(
                     dataProviderCertificate = hmss.dataProviderCertificate,
                   )
                 }
+                ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
                 ComputationStage.StageCase.TRUS_TEE -> {
                   val trusTee = header.trusTee
                   when (trusTee.dataFormat) {

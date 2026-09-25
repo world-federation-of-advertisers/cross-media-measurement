@@ -21,6 +21,7 @@ import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.TRUS_TEE
+import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.TRUS_TEE_V2
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNRECOGNIZED
 import org.wfanet.measurement.internal.duchy.ComputationTypeEnum.ComputationType.UNSPECIFIED
 
@@ -37,6 +38,7 @@ object ComputationProtocolStages :
         REACH_ONLY_LIQUID_LEGIONS_SKETCH_AGGREGATION_V2
       ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE -> HONEST_MAJORITY_SHARE_SHUFFLE
       ComputationStage.StageCase.TRUS_TEE -> TRUS_TEE
+      ComputationStage.StageCase.TRUS_TEE_V2 -> TRUS_TEE_V2
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -70,6 +72,7 @@ object ComputationProtocolStages :
           ComputationTypes.protocolEnumToLong(TRUS_TEE),
           TrusTeeProtocol.EnumStages.enumToLong(value.trusTee),
         )
+      ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
       ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
     }
   }
@@ -88,6 +91,7 @@ object ComputationProtocolStages :
       HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.EnumStages.longToEnum(value.stage).toProtocolStage()
       TRUS_TEE -> TrusTeeProtocol.EnumStages.longToEnum(value.stage).toProtocolStage()
+      TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -103,6 +107,7 @@ object ComputationProtocolStages :
       HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.validInitialStages
       TRUS_TEE -> TrusTeeProtocol.ComputationStages.validInitialStages
+      TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -118,6 +123,7 @@ object ComputationProtocolStages :
       HONEST_MAJORITY_SHARE_SHUFFLE ->
         HonestMajorityShareShuffleProtocol.ComputationStages.validTerminalStages
       TRUS_TEE -> TrusTeeProtocol.ComputationStages.validTerminalStages
+      TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
       UNSPECIFIED,
       UNRECOGNIZED -> error("protocol not set")
     }
@@ -143,6 +149,7 @@ object ComputationProtocolStages :
         ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
           HonestMajorityShareShuffleProtocol.ComputationStages.validSuccessors
         ComputationStage.StageCase.TRUS_TEE -> TrusTeeProtocol.ComputationStages.validSuccessors
+        ComputationStage.StageCase.TRUS_TEE_V2 -> error("TrusTEE v2 is not implemented")
         ComputationStage.StageCase.STAGE_NOT_SET -> error("Stage not set")
       }.getOrDefault(currentStage, setOf())
   }

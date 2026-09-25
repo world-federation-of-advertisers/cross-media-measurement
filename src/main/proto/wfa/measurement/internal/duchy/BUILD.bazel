@@ -22,6 +22,29 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "query_proto",
+    srcs = ["query.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "query_kt_jvm_proto",
+    deps = [":query_proto"],
+)
+
+proto_library(
+    name = "population_spec_proto",
+    srcs = ["population_spec.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = ["@com_google_protobuf//:any_proto"],
+)
+
+kt_jvm_proto_library(
+    name = "population_spec_kt_jvm_proto",
+    deps = [":population_spec_proto"],
+)
+
+proto_library(
     name = "computation_protocols_proto",
     srcs = ["computation_protocols.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -30,6 +53,7 @@ proto_library(
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_v2_proto",
     ],
 )
 
@@ -48,6 +72,7 @@ proto_library(
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:liquid_legions_v2_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:reach_only_liquid_legions_v2_proto",
         "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_proto",
+        "//src/main/proto/wfa/measurement/internal/duchy/protocol:trus_tee_v2_proto",
     ],
 )
 
