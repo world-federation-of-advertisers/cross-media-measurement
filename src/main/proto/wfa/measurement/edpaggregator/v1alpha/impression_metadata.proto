@@ -124,4 +124,21 @@ message ImpressionMetadata {
   // this field to filter blobs to a subset of entities without joining
   // against EventGroup metadata.
   repeated EntityKey entity_keys = 10 [(google.api.field_behavior) = OPTIONAL];
+
+  // Raw impression upload that produced this metadata. Empty for metadata
+  // created outside the VID-labeling pipeline.
+  string raw_impression_upload = 11 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Generation of the labeled-output done object that caused this metadata to
+  // be registered. Zero for metadata outside the VID-labeling pipeline.
+  int64 output_done_blob_generation = 12 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = IMMUTABLE
+  ];
 }

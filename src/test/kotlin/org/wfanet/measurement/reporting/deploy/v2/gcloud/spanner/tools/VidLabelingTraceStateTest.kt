@@ -17,14 +17,25 @@ package org.wfanet.measurement.edpaggregator.tools
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.Timestamp
 import com.google.type.Interval
+import io.grpc.Status
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
-import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelShardKt.modelBlob
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.listModelRolloutsResponse
+import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
+import org.wfanet.measurement.api.v2alpha.modelLine as kingdomModelLine
+import org.wfanet.measurement.api.v2alpha.modelRollout
+import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
@@ -49,13 +60,40 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsResponse
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsResponse
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 
 class VidLabelingTraceStateTest {
+  @Test
+  fun `route resolver reads memoization from the matching model shard`() = runBlocking {
+    val modelLines = mock<ModelLinesCoroutineStub>()
+    val modelRollouts = mock<ModelRolloutsCoroutineStub>()
+    val modelShards = mock<ModelShardsCoroutineStub>()
+    whenever(modelLines.getModelLine(any(), any()))
+      .thenReturn(kingdomModelLine { name = MEMOIZED_MODEL_LINE })
+    whenever(modelRollouts.listModelRollouts(any(), any()))
+      .thenReturn(
+        listModelRolloutsResponse {
+          this.modelRollouts += modelRollout { modelRelease = MODEL_RELEASE }
+        }
+      )
+    whenever(modelShards.listModelShards(any(), any()))
+      .thenReturn(
+        listModelShardsResponse {
+          this.modelShards += modelShard {
+            modelRelease = MODEL_RELEASE
+            modelBlob = modelBlob { modelBlobPath = "gs://models/model.bin" }
+            memoizedVidAssignmentEnabled = true
+          }
+        }
+      )
+    val resolver = KingdomVidLabelingRouteResolver(modelLines, modelRollouts, modelShards)
+
+    assertThat(resolver.isMemoized("dataProviders/123", MEMOIZED_MODEL_LINE)).isTrue()
+  }
+
   @Test
   fun `final state exposes an entirely missing completed branch`() = runBlocking {
     val metadataStub = mock<ImpressionMetadataServiceCoroutineStub>()
@@ -64,10 +102,10 @@ class VidLabelingTraceStateTest {
       .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
     whenever(dataProvidersStub.getDataProvider(any(), any()))
       .thenReturn(DataProvider.newBuilder().setName("dataProviders/123").build())
-    val resolver = GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { null }
+    val resolver = GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, _ -> null }
     val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), emptySet())
+    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)))
 
     assertThat(nodes.filter { it.authoritativeState == "MISSING" }.map { it.stage })
       .containsAtLeast("data_watcher", "data_availability_metadata", "data_availability_publish")
@@ -75,7 +113,7 @@ class VidLabelingTraceStateTest {
   }
 
   @Test
-  fun `final state resolves sidecar done object and Kingdom publication`() = runBlocking {
+  fun `final state reads exact raw done generation and resolves publication`() = runBlocking {
     val metadataStub = mock<ImpressionMetadataServiceCoroutineStub>()
     val dataProvidersStub = mock<DataProvidersCoroutineStub>()
     val row =
@@ -83,10 +121,22 @@ class VidLabelingTraceStateTest {
         .setName("dataProviders/123/impressionMetadata/metadata-1")
         .setModelLine(DIRECT_MODEL_LINE)
         .setBlobUri("gs://bucket/model-line/direct/2026-09-01/output.metadata.binpb")
+        .setRawImpressionUpload(UPLOAD)
+        .setOutputDoneBlobGeneration(9)
+        .setInterval(
+          Interval.newBuilder()
+            .setStartTime(Timestamp.newBuilder().setSeconds(1))
+            .setEndTime(Timestamp.newBuilder().setSeconds(2))
+        )
         .setState(ImpressionMetadata.State.ACTIVE)
         .build()
-    whenever(metadataStub.listImpressionMetadata(any(), any()))
-      .thenReturn(ListImpressionMetadataResponse.newBuilder().addImpressionMetadata(row).build())
+    whenever(metadataStub.listImpressionMetadata(any(), any())).thenAnswer { invocation ->
+      val request =
+        invocation.arguments[0]
+          as org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+      assertThat(request.filter.rawImpressionUpload).isEqualTo(UPLOAD)
+      ListImpressionMetadataResponse.newBuilder().addImpressionMetadata(row).build()
+    }
     whenever(dataProvidersStub.getDataProvider(any(), any()))
       .thenReturn(
         DataProvider.newBuilder()
@@ -103,10 +153,13 @@ class VidLabelingTraceStateTest {
           .build()
       )
     val doneUri = "gs://bucket/model-line/direct/2026-09-01/done"
+    val objectReads = mutableListOf<Pair<String, Long?>>()
     val resolver =
-      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { uri ->
+      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { uri, generation ->
+        objectReads += uri to generation
         when (uri) {
-          "gs://raw/input/done" -> StoredObjectMetadata(7)
+          "gs://raw/input/done" ->
+            if (generation == 7L) StoredObjectMetadata(7) else StoredObjectMetadata(8)
           doneUri -> StoredObjectMetadata(9)
           else -> StoredObjectMetadata(1)
         }
@@ -119,12 +172,7 @@ class VidLabelingTraceStateTest {
         .build()
     val modelLine = modelLine("direct", DIRECT_MODEL_LINE)
 
-    val nodes =
-      resolver.resolve(
-        upload,
-        listOf(modelLine),
-        setOf(VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, 9)),
-      )
+    val nodes = resolver.resolve(upload, listOf(modelLine))
 
     assertThat(nodes.map { it.stage })
       .containsAtLeast(
@@ -135,6 +183,55 @@ class VidLabelingTraceStateTest {
         "data_availability_publish",
       )
     assertThat(nodes.none { it.authoritativeState == "MISSING" }).isTrue()
+    assertThat(objectReads).contains("gs://raw/input/done" to 7L)
+    assertThat(objectReads).doesNotContain("gs://raw/input/done" to null)
+    assertThat(objectReads).contains(doneUri to 9L)
+  }
+
+  @Test
+  fun `final state requires Kingdom availability to cover this upload interval`() = runBlocking {
+    val metadataStub = mock<ImpressionMetadataServiceCoroutineStub>()
+    val dataProvidersStub = mock<DataProvidersCoroutineStub>()
+    whenever(metadataStub.listImpressionMetadata(any(), any()))
+      .thenReturn(
+        ListImpressionMetadataResponse.newBuilder()
+          .addImpressionMetadata(
+            ImpressionMetadata.newBuilder()
+              .setName("dataProviders/123/impressionMetadata/metadata-new")
+              .setModelLine(DIRECT_MODEL_LINE)
+              .setRawImpressionUpload(UPLOAD)
+              .setBlobUri("gs://bucket/model-line/direct/2026-09-02/output.metadata.binpb")
+              .setInterval(
+                Interval.newBuilder()
+                  .setStartTime(Timestamp.newBuilder().setSeconds(10))
+                  .setEndTime(Timestamp.newBuilder().setSeconds(20))
+              )
+              .setState(ImpressionMetadata.State.ACTIVE)
+          )
+          .build()
+      )
+    whenever(dataProvidersStub.getDataProvider(any(), any()))
+      .thenReturn(
+        DataProvider.newBuilder()
+          .setName("dataProviders/123")
+          .addDataAvailabilityIntervals(availability(DIRECT_MODEL_LINE))
+          .build()
+      )
+    val resolver =
+      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, generation ->
+        StoredObjectMetadata(generation ?: 9L)
+      }
+    val upload =
+      RawImpressionUpload.newBuilder()
+        .setName(UPLOAD)
+        .setDoneBlobUri("gs://raw/input/done")
+        .setDoneBlobGeneration(7)
+        .build()
+
+    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)))
+
+    assertThat(nodes.single { it.stage == "data_availability_publish" }.authoritativeState)
+      .isEqualTo("MISSING")
   }
 
   @Test
@@ -217,23 +314,26 @@ class VidLabelingTraceStateTest {
     val originalWorkItemName = "workItems/" + originalWorkItemId
     val retryWorkItemName =
       "workItems/" + RequestIds.forRetriedWorkItem(originalWorkItemId, "failure-1")
-    whenever(workItems.listWorkItems(any(), any()))
-      .thenReturn(
-        ListWorkItemsResponse.newBuilder()
-          .addWorkItems(
-            WorkItem.newBuilder()
-              .setName(originalWorkItemName)
-              .setState(WorkItem.State.SUCCEEDED)
-              .setGeneration(2)
-          )
-          .addWorkItems(
-            WorkItem.newBuilder()
-              .setName(retryWorkItemName)
-              .setState(WorkItem.State.RUNNING)
-              .setGeneration(1)
-          )
-          .build()
-      )
+    whenever(workItems.getWorkItem(any(), any())).thenAnswer { invocation ->
+      val request =
+        invocation.arguments[0]
+          as org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+      when (request.name) {
+        originalWorkItemName ->
+          WorkItem.newBuilder()
+            .setName(originalWorkItemName)
+            .setState(WorkItem.State.SUCCEEDED)
+            .setGeneration(2)
+            .build()
+        retryWorkItemName ->
+          WorkItem.newBuilder()
+            .setName(retryWorkItemName)
+            .setState(WorkItem.State.RUNNING)
+            .setGeneration(1)
+            .build()
+        else -> throw Status.NOT_FOUND.asException()
+      }
+    }
     whenever(attempts.listWorkItemAttempts(any(), any())).thenAnswer { invocation ->
       val request =
         invocation.arguments[0]
@@ -260,6 +360,13 @@ class VidLabelingTraceStateTest {
             .setName("dataProviders/123/impressionMetadata/" + id)
             .setModelLine(modelLineName)
             .setBlobUri("gs://bucket/model-line/" + id + "/2026-09-01/output.metadata.binpb")
+            .setRawImpressionUpload(UPLOAD)
+            .setOutputDoneBlobGeneration(9)
+            .setInterval(
+              Interval.newBuilder()
+                .setStartTime(Timestamp.newBuilder().setSeconds(1))
+                .setEndTime(Timestamp.newBuilder().setSeconds(2))
+            )
             .setState(ImpressionMetadata.State.ACTIVE)
         )
         .build()
@@ -273,9 +380,9 @@ class VidLabelingTraceStateTest {
           .build()
       )
     val finalStateResolver =
-      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { uri ->
+      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { uri, generation ->
         when {
-          uri == "gs://raw/input/done" -> StoredObjectMetadata(7)
+          uri == "gs://raw/input/done" && generation == 7L -> StoredObjectMetadata(7)
           uri.endsWith("/done") -> StoredObjectMetadata(9)
           else -> StoredObjectMetadata(1)
         }
@@ -291,29 +398,15 @@ class VidLabelingTraceStateTest {
         rankBlobs,
         workItems,
         attempts,
+        VidLabelingRouteResolver { _, modelLineName -> modelLineName == MEMOIZED_MODEL_LINE },
       )
 
     val initialGraph = resolver.resolve(UPLOAD)
-    val boundaryIdentities =
-      setOf(
-        VidLabelingTraceAttributes.gcsObjectIdentity(
-          "gs://bucket/model-line/memoized/2026-09-01/done",
-          9,
-        ),
-        VidLabelingTraceAttributes.gcsObjectIdentity(
-          "gs://bucket/model-line/direct/2026-09-01/done",
-          9,
-        ),
-      )
     val graph =
       initialGraph.copy(
         nodes =
           initialGraph.nodes +
-            finalStateResolver.resolve(
-              initialGraph.upload,
-              initialGraph.modelLines,
-              boundaryIdentities,
-            )
+            finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
       )
 
     assertThat(graph.modelLines.map { it.cmmsModelLine })
@@ -329,7 +422,66 @@ class VidLabelingTraceStateTest {
     assertThat(graph.nodes.flatMap { it.identifiers.values }.any { "/workItemAttempts/" in it })
       .isTrue()
     assertThat(graph.nodes.filter { it.stage == "data_availability_publish" }).hasSize(2)
+    verifyBlocking(workItems, never()) { listWorkItems(any(), any()) }
     Unit
+  }
+
+  @Test
+  fun `resolve keeps memoized route before phase zero creates children`() = runBlocking {
+    val uploads = mock<RawImpressionUploadServiceCoroutineStub>()
+    val rawFiles = mock<RawImpressionUploadFileServiceCoroutineStub>()
+    val uploadModelLines = mock<RawImpressionUploadModelLineServiceCoroutineStub>()
+    val poolJobs = mock<PoolAssignmentJobServiceCoroutineStub>()
+    val rankerJobs = mock<RankerJobServiceCoroutineStub>()
+    val labelingJobs = mock<VidLabelingJobServiceCoroutineStub>()
+    val rankBlobs = mock<RankIndexBlobServiceCoroutineStub>()
+    val workItems = mock<WorkItemsCoroutineStub>()
+    val attempts = mock<WorkItemAttemptsCoroutineStub>()
+    whenever(uploads.getRawImpressionUpload(any(), any()))
+      .thenReturn(RawImpressionUpload.newBuilder().setName(UPLOAD).build())
+    whenever(rawFiles.listRawImpressionUploadFiles(any(), any()))
+      .thenReturn(ListRawImpressionUploadFilesResponse.getDefaultInstance())
+    whenever(uploadModelLines.listRawImpressionUploadModelLines(any(), any()))
+      .thenReturn(
+        ListRawImpressionUploadModelLinesResponse.newBuilder()
+          .addRawImpressionUploadModelLines(
+            RawImpressionUploadModelLine.newBuilder()
+              .setName(UPLOAD + "/rawImpressionUploadModelLines/memo")
+              .setCmmsModelLine(MEMOIZED_MODEL_LINE)
+              .setState(RawImpressionUploadModelLine.State.CREATED)
+          )
+          .build()
+      )
+    whenever(poolJobs.listPoolAssignmentJobs(any(), any()))
+      .thenReturn(ListPoolAssignmentJobsResponse.getDefaultInstance())
+    whenever(rankerJobs.listRankerJobs(any(), any()))
+      .thenReturn(ListRankerJobsResponse.getDefaultInstance())
+    whenever(labelingJobs.listVidLabelingJobs(any(), any()))
+      .thenReturn(ListVidLabelingJobsResponse.getDefaultInstance())
+    whenever(rankBlobs.listRankIndexBlobs(any(), any()))
+      .thenReturn(ListRankIndexBlobsResponse.getDefaultInstance())
+    val resolver =
+      GrpcVidLabelingStateResolver(
+        uploads,
+        rawFiles,
+        uploadModelLines,
+        poolJobs,
+        rankerJobs,
+        labelingJobs,
+        rankBlobs,
+        workItems,
+        attempts,
+        VidLabelingRouteResolver { _, _ -> true },
+      )
+
+    val graph = resolver.resolve(UPLOAD)
+
+    assertThat(
+        graph.nodes
+          .single { it.id.endsWith("/rawImpressionUploadModelLines/memo") }
+          .identifiers["xmm.edpa.label.route"]
+      )
+      .isEqualTo("memoized")
   }
 
   private fun modelLine(id: String, cmmsModelLine: String): RawImpressionUploadModelLine =
@@ -355,5 +507,6 @@ class VidLabelingTraceStateTest {
     private const val MEMOIZED_MODEL_LINE =
       "modelProviders/456/modelSuites/suite/modelLines/memoized"
     private const val DIRECT_MODEL_LINE = "modelProviders/456/modelSuites/suite/modelLines/direct"
+    private const val MODEL_RELEASE = "modelProviders/456/modelSuites/suite/modelReleases/release-1"
   }
 }

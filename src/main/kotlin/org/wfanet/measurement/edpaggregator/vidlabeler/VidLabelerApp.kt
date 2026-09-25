@@ -502,6 +502,7 @@ class VidLabelerApp(
     val modelLineSpec =
       ModelLineSpec(
         modelLine = modelLine,
+        rawImpressionUpload = rawImpressionUpload(params),
         modelBlobUri =
           requireNotNull(params.modelBlobPathsMap[modelLine]) {
             "model_blob_paths must contain an entry for $modelLine"
@@ -624,6 +625,7 @@ class VidLabelerApp(
         val config = configsByModelLine.getValue(modelLine)
         ModelLineSpec(
           modelLine = modelLine,
+          rawImpressionUpload = rawImpressionUpload(params),
           modelBlobUri =
             requireNotNull(params.modelBlobPathsMap[modelLine]) {
               "model_blob_paths must contain an entry for $modelLine"

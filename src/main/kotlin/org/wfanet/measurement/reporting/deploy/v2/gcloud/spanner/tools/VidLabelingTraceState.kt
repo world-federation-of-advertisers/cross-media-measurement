@@ -14,9 +14,17 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
+import com.google.protobuf.util.Timestamps
+import io.grpc.Status
+import io.grpc.StatusException
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.GetDataProviderRequest
-import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.api.v2alpha.GetModelLineRequest
+import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequest
+import org.wfanet.measurement.api.v2alpha.ListModelShardsRequest
+import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
+import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -43,8 +51,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -81,11 +89,58 @@ internal fun interface VidLabelingStateResolver {
   suspend fun resolve(rawImpressionUpload: String): VidLabelingAuthoritativeGraph
 }
 
+internal fun interface VidLabelingRouteResolver {
+  suspend fun isMemoized(dataProvider: String, modelLine: String): Boolean
+}
+
+internal class KingdomVidLabelingRouteResolver(
+  private val modelLines: ModelLinesCoroutineStub,
+  private val modelRollouts: ModelRolloutsCoroutineStub,
+  private val modelShards: ModelShardsCoroutineStub,
+) : VidLabelingRouteResolver {
+  override suspend fun isMemoized(dataProvider: String, modelLine: String): Boolean {
+    val resolvedModelLine =
+      modelLines.getModelLine(GetModelLineRequest.newBuilder().setName(modelLine).build())
+    val modelRelease =
+      listModelRollouts(resolvedModelLine.name)
+        .firstOrNull { it.modelRelease.isNotEmpty() }
+        ?.modelRelease ?: error("No model rollout with a release found for $modelLine")
+    val shard =
+      listModelShards(dataProvider).firstOrNull {
+        it.modelRelease == modelRelease && it.hasModelBlob()
+      } ?: error("No model shard found for $modelRelease on $dataProvider")
+    return shard.memoizedVidAssignmentEnabled
+  }
+
+  private suspend fun listModelRollouts(parent: String) = buildList {
+    var token = ""
+    do {
+      val response =
+        modelRollouts.listModelRollouts(
+          ListModelRolloutsRequest.newBuilder().setParent(parent).setPageToken(token).build()
+        )
+      addAll(response.modelRolloutsList)
+      token = response.nextPageToken
+    } while (token.isNotEmpty())
+  }
+
+  private suspend fun listModelShards(parent: String) = buildList {
+    var token = ""
+    do {
+      val response =
+        modelShards.listModelShards(
+          ListModelShardsRequest.newBuilder().setParent(parent).setPageToken(token).build()
+        )
+      addAll(response.modelShardsList)
+      token = response.nextPageToken
+    } while (token.isNotEmpty())
+  }
+}
+
 internal fun interface VidLabelingFinalStateResolver {
   suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
-    boundaryIdentities: Set<VidLabelingTraceAttributes.GcsObjectIdentity>,
   ): List<ExpectedTraceNode>
 }
 
@@ -94,12 +149,11 @@ internal data class StoredObjectMetadata(val generation: Long)
 internal class GcsKingdomFinalStateResolver(
   private val impressionMetadata: ImpressionMetadataServiceCoroutineStub,
   private val dataProviders: DataProvidersCoroutineStub,
-  private val readObjectMetadata: suspend (String) -> StoredObjectMetadata?,
+  private val readObjectMetadata: suspend (String, Long?) -> StoredObjectMetadata?,
 ) : VidLabelingFinalStateResolver {
   override suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
-    boundaryIdentities: Set<VidLabelingTraceAttributes.GcsObjectIdentity>,
   ): List<ExpectedTraceNode> {
     val dataProviderName = upload.name.substringBefore("/rawImpressionUploads/")
     val dataProvider =
@@ -109,7 +163,10 @@ internal class GcsKingdomFinalStateResolver(
     val availabilityByModelLine =
       dataProvider.dataAvailabilityIntervalsList.associate { it.key to it.value }
     return buildList {
-      val rootDone = upload.doneBlobUri.takeIf { it.isNotEmpty() }?.let { readObjectMetadata(it) }
+      val rootDone =
+        upload.doneBlobUri
+          .takeIf { it.isNotEmpty() }
+          ?.let { readObjectMetadata(it, upload.doneBlobGeneration) }
       add(
         ExpectedTraceNode(
           "gcs:" + hash(upload.doneBlobUri),
@@ -124,15 +181,7 @@ internal class GcsKingdomFinalStateResolver(
         )
       )
       for (modelLine in modelLines) {
-        val metadataRows = listMetadata(dataProviderName, modelLine.cmmsModelLine)
-        val rowsForUpload =
-          metadataRows.filter { row ->
-            val uri = doneUri(row.blobUri)
-            val done = readObjectMetadata(uri)
-            done != null &&
-              VidLabelingTraceAttributes.gcsObjectIdentity(uri, done.generation) in
-                boundaryIdentities
-          }
+        val rowsForUpload = listMetadata(dataProviderName, upload.name, modelLine.cmmsModelLine)
         if (
           modelLine.state == RawImpressionUploadModelLine.State.COMPLETED && rowsForUpload.isEmpty()
         ) {
@@ -159,7 +208,8 @@ internal class GcsKingdomFinalStateResolver(
           val sidecarUri = row.blobUri
           val labeledUri = sidecarUri.removeSuffix(".metadata.binpb")
           val doneUri = doneUri(sidecarUri)
-          val doneBlob = readObjectMetadata(doneUri)
+          val doneBlob =
+            readObjectMetadata(doneUri, row.outputDoneBlobGeneration.takeIf { it != 0L })
           add(
             ExpectedTraceNode(
               row.name,
@@ -178,7 +228,7 @@ internal class GcsKingdomFinalStateResolver(
               labeledUri,
               modelLine.cmmsModelLine,
               "label",
-              readObjectMetadata(labeledUri) != null,
+              readObjectMetadata(labeledUri, null) != null,
             )
           )
           add(
@@ -186,7 +236,7 @@ internal class GcsKingdomFinalStateResolver(
               sidecarUri,
               modelLine.cmmsModelLine,
               "label_finalize",
-              readObjectMetadata(sidecarUri) != null,
+              readObjectMetadata(sidecarUri, null) != null,
             )
           )
           add(
@@ -205,23 +255,50 @@ internal class GcsKingdomFinalStateResolver(
           )
         }
         val availability = availabilityByModelLine[modelLine.cmmsModelLine]
-        add(
-          ExpectedTraceNode(
-            modelLine.name + ":kingdom_availability",
-            modelLine.cmmsModelLine,
-            "data_availability_publish",
-            if (availability == null) "MISSING" else "PUBLISHED",
-            mapOf(MODEL_LINE to modelLine.cmmsModelLine),
-            if (modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
-              ExpectedNodeDisposition.REQUIRED
-            } else {
-              ExpectedNodeDisposition.NOT_APPLICABLE
-            },
+        if (rowsForUpload.isEmpty()) {
+          add(
+            ExpectedTraceNode(
+              modelLine.name + ":kingdom_availability",
+              modelLine.cmmsModelLine,
+              "data_availability_publish",
+              "MISSING",
+              mapOf(MODEL_LINE to modelLine.cmmsModelLine),
+              if (modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
+                ExpectedNodeDisposition.REQUIRED
+              } else {
+                ExpectedNodeDisposition.NOT_APPLICABLE
+              },
+            )
           )
-        )
+        }
+        for (row in rowsForUpload) {
+          val covered = availability?.let { contains(it, row.interval) } == true
+          add(
+            ExpectedTraceNode(
+              row.name + ":kingdom_availability",
+              modelLine.cmmsModelLine,
+              "data_availability_publish",
+              if (covered) "PUBLISHED" else "MISSING",
+              mapOf(
+                MODEL_LINE to modelLine.cmmsModelLine,
+                AVAILABILITY_INTERVAL_START to Timestamps.toString(row.interval.startTime),
+                AVAILABILITY_INTERVAL_END to Timestamps.toString(row.interval.endTime),
+              ),
+              if (modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
+                ExpectedNodeDisposition.REQUIRED
+              } else {
+                ExpectedNodeDisposition.NOT_APPLICABLE
+              },
+            )
+          )
+        }
       }
     }
   }
+
+  private fun contains(container: com.google.type.Interval, contained: com.google.type.Interval) =
+    Timestamps.compare(container.startTime, contained.startTime) <= 0 &&
+      Timestamps.compare(container.endTime, contained.endTime) >= 0
 
   private fun objectNode(uri: String, modelLine: String, stage: String, exists: Boolean) =
     ExpectedTraceNode(
@@ -232,11 +309,18 @@ internal class GcsKingdomFinalStateResolver(
       mapOf(MODEL_LINE to modelLine, GCS_PATH_HASH to hash(uri)),
     )
 
-  private suspend fun listMetadata(parent: String, modelLine: String): List<ImpressionMetadata> {
+  private suspend fun listMetadata(
+    parent: String,
+    rawImpressionUpload: String,
+    modelLine: String,
+  ): List<ImpressionMetadata> {
     val result = mutableListOf<ImpressionMetadata>()
     var token = ""
     do {
-      val filter = ListImpressionMetadataRequest.Filter.newBuilder().setModelLine(modelLine)
+      val filter =
+        ListImpressionMetadataRequest.Filter.newBuilder()
+          .setModelLine(modelLine)
+          .setRawImpressionUpload(rawImpressionUpload)
       val response =
         impressionMetadata.listImpressionMetadata(
           ListImpressionMetadataRequest.newBuilder()
@@ -266,19 +350,22 @@ internal class GcsKingdomFinalStateResolver(
     private const val IMPRESSION_METADATA = "xmm.edpa.impression_metadata.name"
     private const val GCS_GENERATION = "xmm.gcs.object.generation"
     private const val GCS_PATH_HASH = "xmm.gcs.object.path_hash"
+    private const val AVAILABILITY_INTERVAL_START = "xmm.edpa.availability.interval_start"
+    private const val AVAILABILITY_INTERVAL_END = "xmm.edpa.availability.interval_end"
   }
 }
 
 internal class GrpcVidLabelingStateResolver(
   private val uploads: RawImpressionUploadServiceCoroutineStub,
   private val rawFiles: RawImpressionUploadFileServiceCoroutineStub,
-  private val modelLines: RawImpressionUploadModelLineServiceCoroutineStub,
+  private val uploadModelLines: RawImpressionUploadModelLineServiceCoroutineStub,
   private val poolJobs: PoolAssignmentJobServiceCoroutineStub,
   private val rankerJobs: RankerJobServiceCoroutineStub,
   private val labelingJobs: VidLabelingJobServiceCoroutineStub,
   private val rankBlobs: RankIndexBlobServiceCoroutineStub,
   private val workItems: WorkItemsCoroutineStub,
   private val workItemAttempts: WorkItemAttemptsCoroutineStub,
+  private val routeResolver: VidLabelingRouteResolver,
 ) : VidLabelingStateResolver {
   override suspend fun resolve(rawImpressionUpload: String): VidLabelingAuthoritativeGraph {
     val upload =
@@ -287,7 +374,6 @@ internal class GrpcVidLabelingStateResolver(
       )
     val fileRows = listRawFiles(rawImpressionUpload)
     val modelLineRows = listModelLines(rawImpressionUpload)
-    val allWorkItems = listWorkItems()
     val nodes = mutableListOf<ExpectedTraceNode>()
     nodes +=
       ExpectedTraceNode(
@@ -327,7 +413,8 @@ internal class GrpcVidLabelingStateResolver(
       val rankRows = listRankerJobs(rawImpressionUpload, modelLine.cmmsModelLine)
       val labelRows = listLabelingJobs(rawImpressionUpload, modelLine.cmmsModelLine)
       val blobRows = listRankBlobs(rawImpressionUpload, modelLine.cmmsModelLine)
-      val memoized = poolRows.isNotEmpty() || rankRows.isNotEmpty() || blobRows.isNotEmpty()
+      val memoized =
+        routeResolver.isMemoized(dataProviderName(upload.name), modelLine.cmmsModelLine)
       nodes +=
         ExpectedTraceNode(
           modelLine.name,
@@ -345,7 +432,6 @@ internal class GrpcVidLabelingStateResolver(
             modelLine.cmmsModelLine,
             "pool_assignment",
             modelLine.failureAttemptId,
-            allWorkItems,
           )
       }
       nodes +=
@@ -363,7 +449,6 @@ internal class GrpcVidLabelingStateResolver(
             modelLine.cmmsModelLine,
             "rank",
             modelLine.failureAttemptId,
-            allWorkItems,
           )
       }
       nodes += finalizeNode(modelLine, "rank_finalize", rankRows.map { it.state.name }, memoized)
@@ -376,7 +461,6 @@ internal class GrpcVidLabelingStateResolver(
             modelLine.cmmsModelLine,
             "label",
             modelLine.failureAttemptId,
-            allWorkItems,
           )
       }
       nodes +=
@@ -475,19 +559,20 @@ internal class GrpcVidLabelingStateResolver(
     modelLine: String,
     stage: String,
     failureAttemptId: String,
-    allWorkItems: List<WorkItem>,
   ): List<ExpectedTraceNode> {
     val originalName = "workItems/$originalId"
     val retryName =
       failureAttemptId
         .takeIf { it.isNotEmpty() }
         ?.let { "workItems/" + RequestIds.forRetriedWorkItem(originalId, it) }
-    val matching =
-      allWorkItems.filter {
-        it.name == originalName ||
-          it.name.startsWith(originalName + "-monitor-recovery-") ||
-          it.name == retryName
+    val names = buildList {
+      add(originalName)
+      if (retryName != null) add(retryName)
+      for (attempt in 1..WorkItemIds.MAX_MONITOR_RECOVERY_ATTEMPTS) {
+        add("workItems/" + WorkItemIds.forMonitorRecovery(originalId, attempt))
       }
+    }
+    val matching = names.mapNotNull { getWorkItemOrNull(it) }
     if (matching.isEmpty()) {
       return listOf(
         ExpectedTraceNode(
@@ -555,7 +640,7 @@ internal class GrpcVidLabelingStateResolver(
     var token = ""
     do {
       val response =
-        modelLines.listRawImpressionUploadModelLines(
+        uploadModelLines.listRawImpressionUploadModelLines(
           ListRawImpressionUploadModelLinesRequest.newBuilder()
             .setParent(parent)
             .setPageToken(token)
@@ -660,18 +745,12 @@ internal class GrpcVidLabelingStateResolver(
     return result
   }
 
-  private suspend fun listWorkItems(): List<WorkItem> {
-    val result = mutableListOf<WorkItem>()
-    var token = ""
-    do {
-      val response =
-        workItems.listWorkItems(
-          ListWorkItemsRequest.newBuilder().setPageSize(1000).setPageToken(token).build()
-        )
-      result += response.workItemsList
-      token = response.nextPageToken
-    } while (token.isNotEmpty())
-    return result
+  private suspend fun getWorkItemOrNull(name: String): WorkItem? {
+    return try {
+      workItems.getWorkItem(GetWorkItemRequest.newBuilder().setName(name).build())
+    } catch (e: StatusException) {
+      if (e.status.code == Status.Code.NOT_FOUND) null else throw e
+    }
   }
 
   private suspend fun listAttempts(parent: String): List<WorkItemAttempt> {
@@ -713,6 +792,9 @@ internal class GrpcVidLabelingStateResolver(
     private const val RECOVERY_PREDECESSOR =
       "xmm.edpa.recovery_predecessor_raw_impression_upload.name"
   }
+
+  private fun dataProviderName(upload: String): String =
+    upload.substringBefore("/rawImpressionUploads/")
 
   private fun hash(value: String): String =
     java.security.MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString(
