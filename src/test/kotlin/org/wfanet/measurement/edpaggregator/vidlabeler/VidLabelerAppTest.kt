@@ -572,7 +572,7 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork atomically creates GCS done object with correlation metadata`() = runBlocking {
+  fun `runWork creates GCS done object without trace metadata`() = runBlocking {
     val inputFile = "$UPLOAD/files/file-1"
     vidLabelingJobsService.stub {
       onBlocking { getVidLabelingJob(any()) } doReturn
@@ -640,24 +640,18 @@ class VidLabelerAppTest {
     assertThat(blobInfo.blobId.bucket).isEqualTo("output-bucket")
     assertThat(blobInfo.blobId.name).endsWith("/model-line/ml1/2026-06-30/done")
     assertThat(capturedContent.get()).isEmpty()
-    val metadata = checkNotNull(blobInfo.metadata)
-    assertThat(metadata)
-      .containsAtLeast(
-        "xmm-trace-context-source",
-        "vid-labeler",
-        "xmm-raw-impression-upload",
-        UPLOAD,
-        "xmm-model-line",
-        MODEL_LINE,
-        "xmm-vid-labeling-job",
-        VID_LABELING_JOB,
-      )
-    assertThat(metadata.getValue("xmm-traceparent")).matches("00-[0-9a-f]{32}-[0-9a-f]{16}-01")
+    assertThat(blobInfo.metadata.orEmpty()).isEmpty()
     val finalizeSpan =
       spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
     val doneEvent = finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.done_object" }
     assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION))
       .isEqualTo(321L)
+    assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH))
+      .isEqualTo(
+        VidLabelingTraceAttributes.gcsObjectPathHash(
+          "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+        )
+      )
   }
 
   @Test

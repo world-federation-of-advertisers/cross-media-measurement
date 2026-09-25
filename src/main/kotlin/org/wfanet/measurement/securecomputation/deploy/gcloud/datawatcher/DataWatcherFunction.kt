@@ -39,7 +39,6 @@ import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfigAsProtoMessage
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
@@ -62,13 +61,6 @@ class DataWatcherFunction(
     defaultDataWatcher.receivePath(path, metadata)
   }
 ) : CloudEventsFunction {
-
-  private data class PersistedBoundaryContext(
-    val context: Context,
-    val rawImpressionUpload: String,
-    val modelLine: String,
-    val vidLabelingJob: String,
-  )
 
   override fun accept(event: CloudEvent) {
     try {
@@ -102,109 +94,39 @@ class DataWatcherFunction(
         data.metadataMap + (DataWatcher.GENERATION_METADATA_KEY to data.generation.toString())
 
       Tracing.withW3CTraceContext(event) {
-        val persistedBoundary = trustedPersistedBoundary(blobKey, objectMetadata)
-        val parentContext = persistedBoundary?.context ?: Context.current()
         val forwardedMetadata =
-          if (persistedBoundary == null) {
-            objectMetadata - VidLabelingTraceAttributes.PERSISTED_BOUNDARY_METADATA_KEYS
-          } else {
-            objectMetadata
-          }
-        val scope = parentContext.makeCurrent()
-        try {
-          val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(path, data.generation)
-          val attributes =
-            Attributes.builder()
-              .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
-              .put(ATTR_BLOB_SIZE_BYTES, size)
-              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
-              .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_watcher")
-              .put(XmmTraceAttributes.OUTCOME, "started")
-              .also { builder ->
-                if (persistedBoundary != null) {
-                  builder
-                    .put(
-                      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME,
-                      persistedBoundary.rawImpressionUpload,
-                    )
-                    .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, persistedBoundary.modelLine)
-                    .put(
-                      VidLabelingTraceAttributes.VID_LABELING_JOB_NAME,
-                      persistedBoundary.vidLabelingJob,
-                    )
-                }
-              }
-              .build()
-          Tracing.trace(spanName = SPAN_DATA_WATCHER_HANDLE_EVENT, attributes = attributes) {
-            try {
-              val currentContext = Context.current()
-              runBlocking(currentContext.asContextElement()) {
-                pathReceiver(path, forwardedMetadata)
-              }
-              Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
-            } catch (e: CancellationException) {
-              throw e
-            } catch (e: Exception) {
-              Span.current()
-                .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
-                .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(e))
-              XmmTraceAttributes.errorCode(e)?.let {
-                Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it)
-              }
-              throw e
+          objectMetadata - VidLabelingTraceAttributes.PERSISTED_BOUNDARY_METADATA_KEYS
+        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(path, data.generation)
+        val attributes =
+          Attributes.builder()
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+            .put(ATTR_BLOB_SIZE_BYTES, size)
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
+            .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_watcher")
+            .put(XmmTraceAttributes.OUTCOME, "started")
+            .build()
+        Tracing.trace(spanName = SPAN_DATA_WATCHER_HANDLE_EVENT, attributes = attributes) {
+          try {
+            val currentContext = Context.current()
+            runBlocking(currentContext.asContextElement()) { pathReceiver(path, forwardedMetadata) }
+            Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            Span.current()
+              .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
+              .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(e))
+            XmmTraceAttributes.errorCode(e)?.let {
+              Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it)
             }
+            throw e
           }
-        } finally {
-          scope.close()
         }
       }
     } finally {
       // Critical for Cloud Functions: flush metrics before function freezes
       EdpaTelemetry.flush()
     }
-  }
-
-  private fun trustedPersistedBoundary(
-    blobKey: String,
-    objectMetadata: Map<String, String>,
-  ): PersistedBoundaryContext? {
-    if (!blobKey.substringAfterLast('/').equals(VALID_EMPTY_BLOB_NAME, ignoreCase = true)) {
-      return null
-    }
-    if (
-      objectMetadata[VidLabelingTraceAttributes.TRACE_CONTEXT_SOURCE_METADATA_KEY] !=
-        VidLabelingTraceAttributes.TRACE_CONTEXT_SOURCE_VID_LABELER
-    ) {
-      return null
-    }
-    val rawImpressionUpload =
-      objectMetadata[VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_METADATA_KEY]?.takeIf {
-        it.isNotEmpty()
-      } ?: return null
-    val modelLine =
-      objectMetadata[VidLabelingTraceAttributes.MODEL_LINE_METADATA_KEY]?.takeIf { it.isNotEmpty() }
-        ?: return null
-    val vidLabelingJob =
-      objectMetadata[VidLabelingTraceAttributes.VID_LABELING_JOB_METADATA_KEY]?.takeIf {
-        it.isNotEmpty()
-      } ?: return null
-    if (!RAW_IMPRESSION_UPLOAD_NAME_REGEX.matches(rawImpressionUpload)) return null
-    if (!MODEL_LINE_NAME_REGEX.matches(modelLine)) return null
-    if (!VID_LABELING_JOB_NAME_REGEX.matches(vidLabelingJob)) return null
-    if (!vidLabelingJob.startsWith("$rawImpressionUpload/vidLabelingJobs/")) return null
-    val traceParent =
-      objectMetadata[VidLabelingTraceAttributes.TRACEPARENT_METADATA_KEY]?.takeIf {
-        it.isNotEmpty()
-      } ?: return null
-    val fields = buildMap {
-      put("traceparent", traceParent)
-      objectMetadata[VidLabelingTraceAttributes.TRACESTATE_METADATA_KEY]?.let {
-        put("tracestate", it)
-      }
-    }
-    val context = W3CTraceContext.extract(fields)
-    if (!Span.fromContext(context).spanContext.isValid) return null
-    return PersistedBoundaryContext(context, rawImpressionUpload, modelLine, vidLabelingJob)
   }
 
   companion object {
@@ -223,13 +145,6 @@ class DataWatcherFunction(
 
     private val ATTR_BLOB_SIZE_BYTES = AttributeKey.longKey("blob_size_bytes")
     private const val SPAN_DATA_WATCHER_HANDLE_EVENT = "data_watcher.handle_event"
-    private val RAW_IMPRESSION_UPLOAD_NAME_REGEX =
-      Regex("^dataProviders/[^/]+/rawImpressionUploads/[^/]+$")
-    private val MODEL_LINE_NAME_REGEX =
-      Regex("^modelProviders/[^/]+/modelSuites/[^/]+/modelLines/[^/]+$")
-    private val VID_LABELING_JOB_NAME_REGEX =
-      Regex("^dataProviders/[^/]+/rawImpressionUploads/[^/]+/vidLabelingJobs/[^/]+$")
-
     private const val DEFAULT_CHANNEL_SHUTDOWN_DURATION_SECONDS: Long = 3L
     private val certFilePath: String by lazy { checkIsPath("CERT_FILE_PATH") }
     private val privateKeyFilePath: String by lazy { checkIsPath("PRIVATE_KEY_FILE_PATH") }

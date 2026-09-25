@@ -640,7 +640,7 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `forwards object generation as X-DataWatcher-Generation header to webhook sink`() {
+  fun `forwards generation without tracing provenance headers to webhook sink`() {
     runBlocking {
       val appParams =
         Struct.newBuilder()
@@ -679,11 +679,10 @@ class DataWatcherTest() {
       assertThat(
           server.getLastRequestHeader(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_HEADER)
         )
-        .isEqualTo("dataProviders/dp/rawImpressionUploads/up")
-      assertThat(server.getLastRequestHeader(VidLabelingTraceAttributes.MODEL_LINE_HEADER))
-        .isEqualTo("modelProviders/mp/modelLines/ml")
+        .isNull()
+      assertThat(server.getLastRequestHeader(VidLabelingTraceAttributes.MODEL_LINE_HEADER)).isNull()
       assertThat(server.getLastRequestHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER))
-        .isEqualTo("dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job")
+        .isNull()
       server.stop()
     }
   }

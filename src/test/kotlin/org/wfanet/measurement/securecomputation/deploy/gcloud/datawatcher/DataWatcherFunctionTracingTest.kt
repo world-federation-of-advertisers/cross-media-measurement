@@ -95,9 +95,9 @@ class DataWatcherFunctionTracingTest {
   }
 
   @Test
-  fun `persisted done metadata overrides CloudEvent trace context`() {
-    val expectedTraceId = "11111111111111111111111111111111"
-    val persistedTraceParent = "00-$expectedTraceId-2222222222222222-01"
+  fun `persisted done metadata does not override CloudEvent trace context`() {
+    val expectedTraceId = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    val persistedTraceParent = "00-11111111111111111111111111111111-2222222222222222-01"
     var receivedMetadata: Map<String, String> = emptyMap()
     var receivedTraceId = ""
     val cloudEventData =
@@ -120,8 +120,7 @@ class DataWatcherFunctionTracingTest {
     val cloudEvent =
       TestCloudEvent(
         dataBytes = cloudEventData.toByteArray(Charsets.UTF_8),
-        extensions =
-          mapOf("traceparent" to "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01"),
+        extensions = mapOf("traceparent" to "00-$expectedTraceId-bbbbbbbbbbbbbbbb-01"),
       )
 
     DataWatcherFunction { _, metadata ->
@@ -131,12 +130,10 @@ class DataWatcherFunctionTracingTest {
       .accept(cloudEvent)
 
     assertThat(receivedTraceId).isEqualTo(expectedTraceId)
-    assertThat(receivedMetadata["xmm-raw-impression-upload"])
-      .isEqualTo("dataProviders/dp/rawImpressionUploads/up")
-    assertThat(receivedMetadata["xmm-model-line"])
-      .isEqualTo("modelProviders/mp/modelSuites/ms/modelLines/ml")
-    assertThat(receivedMetadata["xmm-vid-labeling-job"])
-      .isEqualTo("dataProviders/dp/rawImpressionUploads/up/vidLabelingJobs/job")
+    assertThat(receivedMetadata).doesNotContainKey("xmm-traceparent")
+    assertThat(receivedMetadata).doesNotContainKey("xmm-raw-impression-upload")
+    assertThat(receivedMetadata).doesNotContainKey("xmm-model-line")
+    assertThat(receivedMetadata).doesNotContainKey("xmm-vid-labeling-job")
     assertThat(receivedMetadata[DataWatcher.GENERATION_METADATA_KEY]).isEqualTo("123")
   }
 

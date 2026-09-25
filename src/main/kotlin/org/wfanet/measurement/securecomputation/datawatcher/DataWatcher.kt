@@ -243,16 +243,6 @@ class DataWatcher(
     for ((key, value) in W3CTraceContext.inject()) {
       requestBuilder.header(key, value)
     }
-    objectMetadata[VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_METADATA_KEY]?.let {
-      requestBuilder.header(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_HEADER, it)
-    }
-    objectMetadata[VidLabelingTraceAttributes.MODEL_LINE_METADATA_KEY]?.let {
-      requestBuilder.header(VidLabelingTraceAttributes.MODEL_LINE_HEADER, it)
-    }
-    objectMetadata[VidLabelingTraceAttributes.VID_LABELING_JOB_METADATA_KEY]?.let {
-      requestBuilder.header(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER, it)
-    }
-
     if (WatchedBlobs.IMPRESSION_METADATA_RESOURCE_ID_KEY in objectMetadata) {
       requestBuilder.header(
         IMPRESSION_METADATA_RESOURCE_ID_HEADER,
