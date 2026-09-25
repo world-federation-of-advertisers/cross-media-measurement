@@ -22,7 +22,6 @@ import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.StochasticStandardNormalNoiseSource
-import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 import org.wfanet.measurement.eventdataprovider.privacybudgetmanagement.AcdpParamsConverter
 
@@ -47,61 +46,69 @@ private const val MAX_REPRESENTABLE_FREQUENCY = Byte.MAX_VALUE.toInt()
 private const val BAR_SENSITIVITY = 1.0
 
 /**
- * Counts the impressions in [frequencyData] with a clip derived from its own distribution, for a
- * Direct measurement under [directNoiseMechanism].
+ * Counts the impressions in [frequencyData] with a clip derived from its own distribution, charging
+ * the measurement's own [dpParams] and drawing fresh randomness.
  *
- * The count itself is mechanism-agnostic. What the mechanism decides is where the charge comes from
- * and whether the draws reproduce:
- * - [DirectNoiseMechanism.CONTINUOUS_GAUSSIAN] charges the measurement's own privacy params and
- *   draws fresh randomness, which is the composition the clip search was written against.
- * - [DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE] charges the params compiled into this
- *   image, so a measurement consumer cannot widen them, and seeds the draws from the frequency
- *   vector so a re-run yields the same clip and the same count. The draws stay Gaussian, which
- *   leaves the calibration, the stopping rule and the remaining-charge weighting as analyzed.
- *
- * @param dpParams the measurement's privacy params, unused by the deterministic mechanism.
+ * This is the composition the clip search was written against.
  */
 fun computeDirectDynamicallyClippedImpressions(
-  directNoiseMechanism: DirectNoiseMechanism,
   frequencyData: IntArray,
   dpParams: DpParams,
   vidSamplingIntervalWidth: Double,
   resultMinimumThresholds: ResultMinimumThresholds?,
-): DynamicallyClippedImpressions {
-  val queryDpParams: DpParams
-  val noiseSource: DynamicClippingNoiseSource
-  when (directNoiseMechanism) {
-    DirectNoiseMechanism.CONTINUOUS_GAUSSIAN -> {
-      queryDpParams = dpParams
-      noiseSource = StochasticStandardNormalNoiseSource()
-    }
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4401): Rename this mechanism
-    // to DETERMINISTIC_NOISE. It names a privacy regime, compiled-in params and seeded draws,
-    // rather than a distribution, and the draws here are Gaussian by design.
-    DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE -> {
-      queryDpParams =
-        DpParams(
-          DeterministicTruncatedLaplaceParams.EPSILON,
-          DeterministicTruncatedLaplaceParams.DELTA,
-        )
-      // TODO(world-federation-of-advertisers/cross-media-measurement#4387): Mix in the
-      // EDP-supplied seed component once it exists.
-      noiseSource =
-        DeterministicDynamicClippingNoiseSource(
-          DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-            frequencyData,
-            DIRECT_CONTRIBUTION_COUNT,
-          )
-        )
-    }
-    DirectNoiseMechanism.NONE,
-    DirectNoiseMechanism.CONTINUOUS_LAPLACE ->
-      throw IllegalArgumentException(
-        "$directNoiseMechanism does not support dynamic impression capping"
-      )
-  }
+): DynamicallyClippedImpressions =
+  clipDynamically(
+    frequencyData = frequencyData,
+    queryDpParams = dpParams,
+    noiseSource = StochasticStandardNormalNoiseSource(),
+    vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+    resultMinimumThresholds = resultMinimumThresholds,
+  )
 
-  return ImpressionComputations.computeDynamicallyClippedImpressionCount(
+/**
+ * Counts the impressions in [frequencyData] with a clip derived from its own distribution, charging
+ * the params compiled into this image and seeding the draws from the vector.
+ *
+ * A measurement consumer cannot widen the charge, and a re-run over the same vector yields the same
+ * clip and the same count. The draws stay Gaussian, which leaves the calibration, the stopping rule
+ * and the remaining-charge weighting as analyzed.
+ */
+// TODO(world-federation-of-advertisers/cross-media-measurement#4401): Rename this mechanism to
+// DETERMINISTIC_NOISE. It names a privacy regime, compiled-in params and seeded draws, rather than
+// a distribution, and the draws here are Gaussian by design.
+fun computeDeterministicDynamicallyClippedImpressions(
+  frequencyData: IntArray,
+  vidSamplingIntervalWidth: Double,
+  resultMinimumThresholds: ResultMinimumThresholds?,
+): DynamicallyClippedImpressions =
+  clipDynamically(
+    frequencyData = frequencyData,
+    queryDpParams =
+      DpParams(
+        DeterministicTruncatedLaplaceParams.EPSILON,
+        DeterministicTruncatedLaplaceParams.DELTA,
+      ),
+    // TODO(world-federation-of-advertisers/cross-media-measurement#4387): Mix in the EDP-supplied
+    // seed component once it exists.
+    noiseSource =
+      DeterministicDynamicClippingNoiseSource(
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+          frequencyData,
+          DIRECT_CONTRIBUTION_COUNT,
+        )
+      ),
+    vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+    resultMinimumThresholds = resultMinimumThresholds,
+  )
+
+private fun clipDynamically(
+  frequencyData: IntArray,
+  queryDpParams: DpParams,
+  noiseSource: DynamicClippingNoiseSource,
+  vidSamplingIntervalWidth: Double,
+  resultMinimumThresholds: ResultMinimumThresholds?,
+): DynamicallyClippedImpressions =
+  ImpressionComputations.computeDynamicallyClippedImpressionCount(
     frequencyVector = frequencyData,
     queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
     maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
@@ -109,4 +116,3 @@ fun computeDirectDynamicallyClippedImpressions(
     vidSamplingIntervalWidth = vidSamplingIntervalWidth,
     resultMinimumThresholds = resultMinimumThresholds,
   )
-}
