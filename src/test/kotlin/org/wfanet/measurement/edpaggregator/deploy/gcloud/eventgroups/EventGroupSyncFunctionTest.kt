@@ -37,6 +37,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.CountDownLatch
 import java.util.concurrent.LinkedBlockingQueue
 import java.util.concurrent.TimeUnit
 import java.util.logging.Handler
@@ -114,6 +115,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class EventGroupSyncFunctionTest() {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
+  private var firstBatchCreateStarted: CountDownLatch? = null
+  private var firstBatchCreateMayComplete: CountDownLatch? = null
 
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
@@ -127,6 +130,11 @@ class EventGroupSyncFunctionTest() {
       }
     onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
       .thenAnswer { invocation ->
+        val started = firstBatchCreateStarted
+        if (started != null && started.count > 0) {
+          started.countDown()
+          checkNotNull(firstBatchCreateMayComplete).await()
+        }
         batchCreateEventGroupsResponse {
           eventGroups +=
             invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map { subRequest
@@ -287,6 +295,132 @@ class EventGroupSyncFunctionTest() {
         "OTEL_LOGS_EXPORTER" to "logging",
       )
     return functionProcess.start(defaultEnv + envOverrides)
+  }
+
+  private fun assertStaleInvocationDoesNotOverwriteDestination(
+    previousMappedEventGroup: MappedEventGroup?
+  ) {
+    val staleEventGroup = buildConcurrentEventGroup("stale-reference-id")
+    val winningEventGroup = buildConcurrentEventGroup("winning-reference-id")
+    val winningMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = winningEventGroup.eventGroupReferenceId
+      eventGroupResource = "resource-name-for-${winningEventGroup.eventGroupReferenceId}"
+    }
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/stale-event-groups.binpb"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val recordIoStorageClient = MesosRecordIoStorageClient(storageClient)
+    runBlocking {
+      recordIoStorageClient.writeBlob(
+        "some/path/stale-event-groups.binpb",
+        flowOf(staleEventGroup.toByteString()),
+      )
+      recordIoStorageClient.writeBlob(
+        "some/path/winning-event-groups.binpb",
+        flowOf(winningEventGroup.toByteString()),
+      )
+      if (previousMappedEventGroup != null) {
+        recordIoStorageClient.writeBlob(
+          "some/other/path/event-groups-map-uri",
+          flowOf(previousMappedEventGroup.toByteString()),
+        )
+      }
+    }
+
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+    val url = "http://localhost:$port"
+    val client = HttpClient.newHttpClient()
+    val firstRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", "file:///some/path/stale-event-groups.binpb")
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val secondRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", "file:///some/path/winning-event-groups.binpb")
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+
+    val firstInvocationStarted = CountDownLatch(1)
+    val firstInvocationMayComplete = CountDownLatch(1)
+    firstBatchCreateStarted = firstInvocationStarted
+    firstBatchCreateMayComplete = firstInvocationMayComplete
+    val firstResponseFuture = client.sendAsync(firstRequest, HttpResponse.BodyHandlers.ofString())
+    check(firstInvocationStarted.await(10, TimeUnit.SECONDS)) {
+      "Timed out waiting for the first invocation to reach BatchCreateEventGroups"
+    }
+
+    val secondResponseFuture = client.sendAsync(secondRequest, HttpResponse.BodyHandlers.ofString())
+    val (secondResponse, winningFreshnessToken) =
+      try {
+        val response = secondResponseFuture.get(10, TimeUnit.SECONDS)
+        val freshnessToken = runBlocking {
+          checkNotNull(storageClient.getFreshnessToken("some/other/path/event-groups-map-uri"))
+        }
+        response to freshnessToken
+      } finally {
+        firstInvocationMayComplete.countDown()
+      }
+    val firstResponse = firstResponseFuture.get(10, TimeUnit.SECONDS)
+
+    assertThat(secondResponse.statusCode()).isEqualTo(200)
+    assertThat(firstResponse.statusCode()).isEqualTo(500)
+    verifyBlocking(eventGroupsServiceMock, times(2)) { batchCreateEventGroups(any()) }
+    val mappedData = runBlocking {
+      recordIoStorageClient
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(winningMappedEventGroup)
+    assertThat(
+        runBlocking { storageClient.getFreshnessToken("some/other/path/event-groups-map-uri") }
+      )
+      .isEqualTo(winningFreshnessToken)
+  }
+
+  private fun buildConcurrentEventGroup(referenceId: String) = eventGroup {
+    eventGroupReferenceId = referenceId
+    measurementConsumer = "measurementConsumers/measurement-consumer-1"
+    this.eventGroupMetadata = eventGroupMetadata {
+      this.adMetadata = adMetadata {
+        this.campaignMetadata = campaignMetadata {
+          brand = "brand"
+          campaign = "campaign"
+        }
+      }
+    }
+    dataAvailabilityInterval = interval {
+      startTime = timestamp { seconds = 200 }
+      endTime = timestamp { seconds = 300 }
+    }
+    mediaTypes += MediaType.VIDEO
   }
 
   @Test
@@ -698,6 +832,21 @@ class EventGroupSyncFunctionTest() {
         runBlocking { storageClient.getFreshnessToken("some/other/path/event-groups-map-uri") }
       )
       .isEqualTo(previousFreshnessToken)
+  }
+
+  @Test
+  fun `sync does not overwrite a newer event group map generation`() {
+    val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "previous-resource-name"
+    }
+
+    assertStaleInvocationDoesNotOverwriteDestination(previousMappedEventGroup)
+  }
+
+  @Test
+  fun `sync does not overwrite a concurrent first event group map publication`() {
+    assertStaleInvocationDoesNotOverwriteDestination(previousMappedEventGroup = null)
   }
 
   @Test
