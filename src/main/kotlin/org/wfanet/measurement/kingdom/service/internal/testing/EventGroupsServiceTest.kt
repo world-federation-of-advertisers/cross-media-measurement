@@ -1429,6 +1429,60 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
+  fun `streamEventGroups respects externalMeasurementConsumerId`(): Unit = runBlocking {
+    val externalDataProviderId =
+      population.createDataProvider(dataProvidersService).externalDataProviderId
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val otherExternalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val expectedEventGroup =
+      eventGroupsService.createEventGroup(
+        createEventGroupRequest {
+          eventGroup = eventGroup {
+            this.externalDataProviderId = externalDataProviderId
+            this.externalMeasurementConsumerId = externalMeasurementConsumerId
+          }
+        }
+      )
+    eventGroupsService.createEventGroup(
+      createEventGroupRequest {
+        eventGroup = eventGroup {
+          this.externalDataProviderId = externalDataProviderId
+          this.externalMeasurementConsumerId = otherExternalMeasurementConsumerId
+        }
+      }
+    )
+
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { this.externalMeasurementConsumerId = externalMeasurementConsumerId }
+          }
+        )
+        .toList()
+
+    assertThat(eventGroups).containsExactly(expectedEventGroup)
+  }
+
+  @Test
+  fun `streamEventGroups returns empty for missing MeasurementConsumer`(): Unit = runBlocking {
+    val eventGroups: List<EventGroup> =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest { filter = filter { externalMeasurementConsumerId = 404L } }
+        )
+        .toList()
+
+    assertThat(eventGroups).isEmpty()
+  }
+
+  @Test
   fun `streamEventGroups respects externalMeasurementConsumerIdIn`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId

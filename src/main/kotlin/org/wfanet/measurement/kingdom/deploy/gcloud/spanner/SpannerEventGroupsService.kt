@@ -55,6 +55,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.common.RequiredField
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.queries.StreamEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProviderReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchCreateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroups
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.CreateEventGroup
@@ -372,6 +373,15 @@ class SpannerEventGroupsService(
         } else {
           null
         }
+      val internalMeasurementConsumerId =
+        if (request.filter.externalMeasurementConsumerId != 0L) {
+          MeasurementConsumerReader.readMeasurementConsumerId(
+            client.singleUse(timestampBound),
+            ExternalId(request.filter.externalMeasurementConsumerId),
+          ) ?: return@flow
+        } else {
+          null
+        }
 
       emitAll(
         StreamEventGroups(
@@ -380,6 +390,7 @@ class SpannerEventGroupsService(
             limit = request.limit,
             view = request.view,
             internalDataProviderId = internalDataProviderId,
+            internalMeasurementConsumerId = internalMeasurementConsumerId,
           )
           .execute(client.singleUse(timestampBound))
           .map { it.eventGroup }

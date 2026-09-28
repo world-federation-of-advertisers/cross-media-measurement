@@ -34,6 +34,7 @@ class StreamEventGroups(
   limit: Int = 0,
   view: EventGroup.View,
   private val internalDataProviderId: InternalId?,
+  private val internalMeasurementConsumerId: InternalId?,
 ) : SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
     (if (internalDataProviderId == null) {
@@ -79,8 +80,13 @@ class StreamEventGroups(
         }
       }
       if (filter.externalMeasurementConsumerId != 0L) {
-        add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
-        bind(EXTERNAL_MEASUREMENT_CONSUMER_ID).to(filter.externalMeasurementConsumerId)
+        if (internalMeasurementConsumerId == null) {
+          add("ExternalMeasurementConsumerId = @$EXTERNAL_MEASUREMENT_CONSUMER_ID")
+          bind(EXTERNAL_MEASUREMENT_CONSUMER_ID).to(filter.externalMeasurementConsumerId)
+        } else {
+          add("EventGroups.MeasurementConsumerId = @$MEASUREMENT_CONSUMER_ID")
+          bind(MEASUREMENT_CONSUMER_ID to internalMeasurementConsumerId)
+        }
       }
       if (filter.externalMeasurementConsumerIdInList.isNotEmpty()) {
         add("ExternalMeasurementConsumerId IN UNNEST(@$EXTERNAL_MEASUREMENT_CONSUMER_IDS)")
@@ -234,6 +240,7 @@ class StreamEventGroups(
   companion object {
     const val LIMIT = "limit"
     const val DATA_PROVIDER_ID = "dataProviderId"
+    const val MEASUREMENT_CONSUMER_ID = "measurementConsumerId"
     const val EXTERNAL_DATA_PROVIDER_ID = "externalDataProviderId"
     const val EXTERNAL_MEASUREMENT_CONSUMER_ID = "externalMeasurementConsumerId"
     const val EXTERNAL_MEASUREMENT_CONSUMER_IDS = "externalMeasurementConsumerIds"
