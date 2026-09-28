@@ -37,6 +37,11 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
+import java.util.logging.Handler
+import java.util.logging.LogRecord
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.flowOf
@@ -97,6 +102,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.ent
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.metadata as eventGroupMetadata
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
+import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.mappedEventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
@@ -109,6 +115,8 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 class EventGroupSyncFunctionTest() {
   private lateinit var grpcServer: CommonServer
   private lateinit var functionProcess: FunctionsFrameworkInvokerProcess
+  private var firstBatchCreateStarted: CountDownLatch? = null
+  private var firstBatchCreateMayComplete: CountDownLatch? = null
 
   private val eventGroupsServiceMock: EventGroupsCoroutineImplBase = mockService {
     onBlocking { updateEventGroup(any<UpdateEventGroupRequest>()) }
@@ -122,6 +130,11 @@ class EventGroupSyncFunctionTest() {
       }
     onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) }
       .thenAnswer { invocation ->
+        val started = firstBatchCreateStarted
+        if (started != null && started.count > 0) {
+          started.countDown()
+          checkNotNull(firstBatchCreateMayComplete).await()
+        }
         batchCreateEventGroupsResponse {
           eventGroups +=
             invocation.getArgument<BatchCreateEventGroupsRequest>(0).requestsList.map { subRequest
@@ -282,6 +295,132 @@ class EventGroupSyncFunctionTest() {
         "OTEL_LOGS_EXPORTER" to "logging",
       )
     return functionProcess.start(defaultEnv + envOverrides)
+  }
+
+  private fun assertStaleInvocationDoesNotOverwriteDestination(
+    previousMappedEventGroup: MappedEventGroup?
+  ) {
+    val staleEventGroup = buildConcurrentEventGroup("stale-reference-id")
+    val winningEventGroup = buildConcurrentEventGroup("winning-reference-id")
+    val winningMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = winningEventGroup.eventGroupReferenceId
+      eventGroupResource = "resource-name-for-${winningEventGroup.eventGroupReferenceId}"
+    }
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupsBlobUri = "file:///some/path/stale-event-groups.binpb"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val recordIoStorageClient = MesosRecordIoStorageClient(storageClient)
+    runBlocking {
+      recordIoStorageClient.writeBlob(
+        "some/path/stale-event-groups.binpb",
+        flowOf(staleEventGroup.toByteString()),
+      )
+      recordIoStorageClient.writeBlob(
+        "some/path/winning-event-groups.binpb",
+        flowOf(winningEventGroup.toByteString()),
+      )
+      if (previousMappedEventGroup != null) {
+        recordIoStorageClient.writeBlob(
+          "some/other/path/event-groups-map-uri",
+          flowOf(previousMappedEventGroup.toByteString()),
+        )
+      }
+    }
+
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+    val url = "http://localhost:$port"
+    val client = HttpClient.newHttpClient()
+    val firstRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", "file:///some/path/stale-event-groups.binpb")
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+    val secondRequest =
+      HttpRequest.newBuilder()
+        .uri(URI.create(url))
+        .header("X-DataWatcher-Path", "file:///some/path/winning-event-groups.binpb")
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+
+    val firstInvocationStarted = CountDownLatch(1)
+    val firstInvocationMayComplete = CountDownLatch(1)
+    firstBatchCreateStarted = firstInvocationStarted
+    firstBatchCreateMayComplete = firstInvocationMayComplete
+    val firstResponseFuture = client.sendAsync(firstRequest, HttpResponse.BodyHandlers.ofString())
+    check(firstInvocationStarted.await(10, TimeUnit.SECONDS)) {
+      "Timed out waiting for the first invocation to reach BatchCreateEventGroups"
+    }
+
+    val secondResponseFuture = client.sendAsync(secondRequest, HttpResponse.BodyHandlers.ofString())
+    val (secondResponse, winningFreshnessToken) =
+      try {
+        val response = secondResponseFuture.get(10, TimeUnit.SECONDS)
+        val freshnessToken = runBlocking {
+          checkNotNull(storageClient.getFreshnessToken("some/other/path/event-groups-map-uri"))
+        }
+        response to freshnessToken
+      } finally {
+        firstInvocationMayComplete.countDown()
+      }
+    val firstResponse = firstResponseFuture.get(10, TimeUnit.SECONDS)
+
+    assertThat(secondResponse.statusCode()).isEqualTo(200)
+    assertThat(firstResponse.statusCode()).isEqualTo(500)
+    verifyBlocking(eventGroupsServiceMock, times(2)) { batchCreateEventGroups(any()) }
+    val mappedData = runBlocking {
+      recordIoStorageClient
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(winningMappedEventGroup)
+    assertThat(
+        runBlocking { storageClient.getFreshnessToken("some/other/path/event-groups-map-uri") }
+      )
+      .isEqualTo(winningFreshnessToken)
+  }
+
+  private fun buildConcurrentEventGroup(referenceId: String) = eventGroup {
+    eventGroupReferenceId = referenceId
+    measurementConsumer = "measurementConsumers/measurement-consumer-1"
+    this.eventGroupMetadata = eventGroupMetadata {
+      this.adMetadata = adMetadata {
+        this.campaignMetadata = campaignMetadata {
+          brand = "brand"
+          campaign = "campaign"
+        }
+      }
+    }
+    dataAvailabilityInterval = interval {
+      startTime = timestamp { seconds = 200 }
+      endTime = timestamp { seconds = 300 }
+    }
+    mediaTypes += MediaType.VIDEO
   }
 
   @Test
@@ -582,47 +721,18 @@ class EventGroupSyncFunctionTest() {
   }
 
   @Test
-  fun `sync registersUnregisteredEventGroups using JSON format throws for invalid json`() {
+  fun `sync preserves event group map when JSON parsing fails after partial output`() {
+    val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "previous-resource-name"
+    }
+    val firstEventGroupJson = JsonFormat.printer().print(CAMPAIGNS.first())
     val newCampaign =
       """
         {
-          "events": [
+          "eventGroups": [
+            $firstEventGroupJson,
             {
-              "eventGroupReferenceId": "reference-id-4",
-              "eventGroupMetadata": {
-                "adMetadata": {
-                  "campaignMetadata": {
-                    "brand": "brand-2",
-                    "campaign": "campaign-2"
-                  }
-                }
-              },
-              "dataAvailabilityInterval": {
-                "startTime": "1970-01-01T00:03:20Z",
-                "endTime": "1970-01-01T00:05:00Z"
-              },
-              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
-              "mediaTypes": ["OTHER"]
-            },
-            {
-              "eventGroupReferenceId": "reference-id-5",
-              "eventGroupMetadata": {
-                "adMetadata": {
-                  "campaignMetadata": {
-                    "brand": "brand-2",
-                    "campaign": "campaign-3"
-                  }
-                }
-              },
-              "dataAvailabilityInterval": {
-                "startTime": "1970-01-01T00:03:20Z",
-                "endTime": "1970-01-01T00:05:00Z"
-              },
-              "measurementConsumer": "measurementConsumers/measurement-consumer-2",
-              "mediaTypes": ["OTHER"]
-            }
-           ]
-          }
     """
         .trimIndent()
 
@@ -661,11 +771,17 @@ class EventGroupSyncFunctionTest() {
 
     val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
 
-    runBlocking {
+    val previousFreshnessToken = runBlocking {
       storageClient.writeBlob(
         "some/path/campaigns-blob-uri.json",
         flowOf(ByteString.copyFromUtf8(newCampaign)),
       )
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/other/path/event-groups-map-uri",
+          flowOf(previousMappedEventGroup.toByteString()),
+        )
+      checkNotNull(storageClient.getFreshnessToken("some/other/path/event-groups-map-uri"))
     }
 
     // In practice, the DataWatcher makes this HTTP call
@@ -676,12 +792,61 @@ class EventGroupSyncFunctionTest() {
         .header("X-DataWatcher-Path", "")
         .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
         .build()
-    val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
+    val failureMetricLogs = LinkedBlockingQueue<String>()
+    val metricLogHandler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          if (record.message.contains(FUNCTION_FAILURE_METRIC_NAME)) {
+            failureMetricLogs.offer(record.message)
+          }
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(metricLogHandler)
+    val (getResponse, failureMetricLog) =
+      try {
+        client.send(getRequest, HttpResponse.BodyHandlers.ofString()) to
+          failureMetricLogs.poll(5, TimeUnit.SECONDS)
+      } finally {
+        rootLogger.removeHandler(metricLogHandler)
+      }
     logger.info("Response status: ${getResponse.statusCode()}")
     logger.info("Response body: ${getResponse.body()}")
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
+    assertThat(checkNotNull(failureMetricLog)).contains("value=1")
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(previousMappedEventGroup)
+    assertThat(
+        runBlocking { storageClient.getFreshnessToken("some/other/path/event-groups-map-uri") }
+      )
+      .isEqualTo(previousFreshnessToken)
+  }
+
+  @Test
+  fun `sync does not overwrite a newer event group map generation`() {
+    val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "previous-resource-name"
+    }
+
+    assertStaleInvocationDoesNotOverwriteDestination(previousMappedEventGroup)
+  }
+
+  @Test
+  fun `sync does not overwrite a concurrent first event group map publication`() {
+    assertStaleInvocationDoesNotOverwriteDestination(previousMappedEventGroup = null)
   }
 
   @Test
@@ -854,6 +1019,8 @@ class EventGroupSyncFunctionTest() {
 
     assertThat(getResponse.statusCode()).isEqualTo(500)
     verifyBlocking(eventGroupsServiceMock, times(0)) { batchCreateEventGroups(any()) }
+    assertThat(runBlocking { storageClient.getBlob("some/other/path/event-groups-map-uri") })
+      .isNull()
   }
 
   @Test
@@ -1415,6 +1582,7 @@ class EventGroupSyncFunctionTest() {
       )
     private const val GCG_TARGET =
       "org.wfanet.measurement.edpaggregator.deploy.gcloud.eventgroups.EventGroupSyncFunction"
+    private const val FUNCTION_FAILURE_METRIC_NAME = "edpa.event_group.sync_function_failure"
 
     private val CAMPAIGNS =
       listOf(
