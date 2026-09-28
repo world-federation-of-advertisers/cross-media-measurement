@@ -18,6 +18,7 @@ by trusted workloads running in Confidential Space TEEs.
 | [Report Debugging Guide](report-debugging-guide.md) | Trace a report end-to-end across the stack and diagnose common failure modes. |
 | [Self-Serve Onboarding Guide](self-serve-onboarding.md) | Operator-side linking of Measurement Consumers to client accounts for automatic event-group registration. |
 | [High Overlap Data Shape](high-overlap-data-shape.md) | Why the high overlap synthetic data is sized and partitioned as it is: the reach noise floor, demographic striping, per-EDP overlap topology, and the date and frequency mix. |
+| [VID-labeled Impression Migration CLI](../../src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/migration/README.md) | Copy compatible historical labeled impressions into a new model-line namespace for cutover. |
 
 ### EDP integration (data provider)
 

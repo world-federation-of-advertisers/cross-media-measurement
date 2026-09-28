@@ -56,39 +56,45 @@ object EncryptedStorage {
     )
   }
 
-  /** Builds a envelope encryption storage client wrapped by Mesos Record IO Storage Client. */
+  /** Builds an envelope-encryption storage client for [encryptedDek]. */
+  fun buildEncryptedStorageClient(
+    storageClient: ConditionalOperationStorageClient,
+    kmsClient: KmsClient,
+    kekUri: String,
+    encryptedDek: EncryptedDek,
+  ): ConditionalOperationStorageClient =
+    when (encryptedDek.typeUrl to encryptedDek.protobufFormat) {
+      TYPE_URL_TINK_KEYSET to ProtobufFormat.BINARY -> {
+        storageClient.withEnvelopeEncryption(
+          kmsClient = kmsClient,
+          kekUri = kekUri,
+          encryptedDek = encryptedDek.ciphertext,
+        )
+      }
+      TYPE_URL_ENCRYPTION_KEY to ProtobufFormat.JSON -> {
+        storageClient.withEnvelopeEncryption(
+          kmsClient = kmsClient,
+          kekUri = kekUri,
+          encryptedDek = encryptedDek.ciphertext,
+          parseEncryptedKeyset = ::parseJsonEncryptedKey,
+        )
+      }
+      else ->
+        throw IllegalArgumentException(
+          "Unsupported type_url=${encryptedDek.typeUrl} with format=${encryptedDek.protobufFormat}"
+        )
+    }
+
+  /** Builds an envelope-encryption storage client wrapped by Mesos Record IO Storage Client. */
   fun buildEncryptedMesosStorageClient(
     storageClient: ConditionalOperationStorageClient,
     kmsClient: KmsClient,
     kekUri: String,
     encryptedDek: EncryptedDek,
-  ): MesosRecordIoStorageClient {
-
-    val aeadStorageClient =
-      when (encryptedDek.typeUrl to encryptedDek.protobufFormat) {
-        TYPE_URL_TINK_KEYSET to ProtobufFormat.BINARY -> {
-          storageClient.withEnvelopeEncryption(
-            kmsClient = kmsClient,
-            kekUri = kekUri,
-            encryptedDek = encryptedDek.ciphertext,
-          )
-        }
-        TYPE_URL_ENCRYPTION_KEY to ProtobufFormat.JSON -> {
-          storageClient.withEnvelopeEncryption(
-            kmsClient = kmsClient,
-            kekUri = kekUri,
-            encryptedDek = encryptedDek.ciphertext,
-            parseEncryptedKeyset = ::parseJsonEncryptedKey,
-          )
-        }
-        else ->
-          throw IllegalArgumentException(
-            "Unsupported type_url=${encryptedDek.typeUrl} with format=${encryptedDek.protobufFormat}"
-          )
-      }
-
-    return MesosRecordIoStorageClient(aeadStorageClient)
-  }
+  ): MesosRecordIoStorageClient =
+    MesosRecordIoStorageClient(
+      buildEncryptedStorageClient(storageClient, kmsClient, kekUri, encryptedDek)
+    )
 
   /** Writes a data encryption key to storage. */
   suspend fun writeDek(

@@ -379,6 +379,11 @@ SECURE_COMPUTATION_GKE_IMAGES = [
 
 SECURE_COMPUTATION_TEE_APP_IMAGES = [
     struct(
+        name = "gcloud_migrate_vid_labeled_impressions",
+        image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/migration:migrate_vid_labeled_impressions_image",
+        repository = _PREFIX + "/edp-aggregator/migrate-vid-labeled-impressions",
+    ),
+    struct(
         name = "gcloud_results_fulfiller_app",
         image = "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:results_fulfiller_image",
         repository = _PREFIX + "/edp-aggregator/results_fulfiller",

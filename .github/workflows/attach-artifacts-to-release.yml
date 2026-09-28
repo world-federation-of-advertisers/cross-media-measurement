@@ -66,6 +66,7 @@ jobs:
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:SyncEventGroupActivities_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:RecoverMissingImpressionMetadata_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:VidLabelingHeal_deploy.jar
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/migration:MigrateVidLabeledImpressions_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools:CreateResource_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:GenerateSyntheticData_deploy.jar
           //src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools:VerifySyntheticData_deploy.jar
@@ -115,6 +116,7 @@ jobs:
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/SyncEventGroupActivities_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/RecoverMissingImpressionMetadata_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/VidLabelingHeal_deploy.jar
+            ./bazel-bin/src/main/kotlin/org/wfanet/measurement/edpaggregator/tools/migration/MigrateVidLabeledImpressions_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/kingdom/deploy/tools/CreateResource_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/GenerateSyntheticData_deploy.jar
             ./bazel-bin/src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/tools/VerifySyntheticData_deploy.jar
