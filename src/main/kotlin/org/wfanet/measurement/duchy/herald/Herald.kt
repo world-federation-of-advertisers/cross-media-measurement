@@ -325,6 +325,8 @@ class Herald(
             blobStorageBucket,
           )
         }
+        Computation.MpcProtocolConfig.ProtocolCase.TRUS_TEE_V2 ->
+          error("TrusTEE v2 is not implemented")
         Computation.MpcProtocolConfig.ProtocolCase.PROTOCOL_NOT_SET ->
           error("Unknown or unsupported protocol for creation.")
       }
