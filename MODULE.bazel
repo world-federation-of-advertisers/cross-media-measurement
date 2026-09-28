@@ -39,7 +39,7 @@ bazel_dep(
 )
 bazel_dep(
     name = "common-jvm",
-    version = "0.155.0",
+    version = "0.156.0",
     repo_name = "wfa_common_jvm",
 )
 # DO_NOT_SUBMIT(world-federation-of-advertisers/common-jvm#421): use release version
