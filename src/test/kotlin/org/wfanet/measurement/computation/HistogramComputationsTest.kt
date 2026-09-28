@@ -61,4 +61,13 @@ class HistogramComputationsTest {
     val expected = longArrayOf(1, 1, 1, 3)
     assertThat(HistogramComputations.buildHistogram(vector, maxFrequency)).isEqualTo(expected)
   }
+
+  @Test
+  fun `buildHistogram reads unsigned byte frequencies and caps them`() {
+    val vector = byteArrayOf(1, 2, 3, 4, 5, 255.toByte())
+    val maxFrequency = 4
+    val expected = longArrayOf(1, 1, 1, 3)
+
+    assertThat(HistogramComputations.buildHistogram(vector, maxFrequency)).isEqualTo(expected)
+  }
 }

@@ -40,8 +40,9 @@ private const val CONTRIBUTION_COUNT = 1
  *
  * The count covers the whole population, so it carries no sampling error.
  * [TrusTeeV2Config.ImpressionCountMode.UNNOISED] reports the true uncapped total, which
- * [StripedByteFrequencyVector] accumulates before a cell saturates
- * at 127. [TrusTeeV2Config.ImpressionCountMode.NOISED] sums the saturated cells under a clip.
+ * [StripedByteFrequencyVector] accumulates before a cell saturates at 127.
+ * [TrusTeeV2Config.ImpressionCountMode.NOISED] reads [frequencyData] directly and sums its saturated
+ * cells under a clip without expanding the population-sized byte vector.
  *
  * @throws IllegalArgumentException if [mode] and [maxFrequencyPerUser] are a combination
  *   [requireTrusTeeV2ImpressionCountConfig] rejects
@@ -49,7 +50,8 @@ private const val CONTRIBUTION_COUNT = 1
 fun buildTrusTeeV2FulfillmentDetails(
   mode: TrusTeeV2Config.ImpressionCountMode,
   maxFrequencyPerUser: Int,
-  frequencyVector: StripedByteFrequencyVector,
+  frequencyData: ByteArray,
+  totalUncappedImpressions: Long,
 ): FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails {
   requireTrusTeeV2ImpressionCountConfig(mode, maxFrequencyPerUser)
 
@@ -58,13 +60,12 @@ fun buildTrusTeeV2FulfillmentDetails(
       when {
         mode == TrusTeeV2Config.ImpressionCountMode.UNNOISED ->
           impression {
-            value = frequencyVector.getTotalUncappedImpressions()
+            value = totalUncappedImpressions
             noiseMechanism = ProtocolConfig.NoiseMechanism.NONE
             // No per-user clip accompanies an uncapped count, so none is reported with it.
             deterministicCount = deterministicCount {}
           }
         maxFrequencyPerUser > 0 -> {
-          val frequencyData: IntArray = readFrequencyData(frequencyVector)
           val histogram: LongArray =
             HistogramComputations.buildHistogram(
               frequencyVector = frequencyData,
@@ -94,7 +95,7 @@ fun buildTrusTeeV2FulfillmentDetails(
         else -> {
           val clipped =
             computeDeterministicDynamicallyClippedImpressions(
-              frequencyData = readFrequencyData(frequencyVector),
+              frequencyData = frequencyData,
               // The count spans the whole population, so nothing scales it.
               vidSamplingIntervalWidth = 1.0,
               // This count is not thresholded here.
@@ -140,15 +141,4 @@ fun requireTrusTeeV2ImpressionCountConfig(
     TrusTeeV2Config.ImpressionCountMode.UNRECOGNIZED ->
       throw IllegalArgumentException("Unrecognized impression_count_mode")
   }
-}
-
-/**
- * Returns the per-VID frequencies of [frequencyVector] as an [IntArray].
- *
- * Called from the branches that read the array rather than once up front: the copy is the size of
- * the population, and the unnoised mode never reads it.
- */
-private fun readFrequencyData(frequencyVector: StripedByteFrequencyVector): IntArray {
-  val bytes: ByteArray = frequencyVector.getByteArray()
-  return IntArray(bytes.size) { bytes[it].toInt() }
 }

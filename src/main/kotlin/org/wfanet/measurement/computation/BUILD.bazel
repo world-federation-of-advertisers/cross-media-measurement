@@ -82,6 +82,7 @@ kt_jvm_library(
     name = "impression_computations",
     srcs = ["ImpressionComputations.kt"],
     deps = [
+        ":histogram_computations",
         ":result_minimum_thresholds",
         ":result_noiser",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/differentialprivacy:dynamic_clipping",

@@ -33,7 +33,8 @@ class TrusTeeV2ImpressionCountTest {
       buildTrusTeeV2FulfillmentDetails(
         ImpressionCountMode.UNNOISED,
         maxFrequencyPerUser = 0,
-        VECTOR,
+        frequencyData = VECTOR.getByteArray(),
+        totalUncappedImpressions = VECTOR.getTotalUncappedImpressions(),
       )
 
     // Every impression, including the ones past the cell's own ceiling of 127.
@@ -46,7 +47,12 @@ class TrusTeeV2ImpressionCountTest {
   @Test
   fun `a configured clip is applied, noised and reported`() {
     val details =
-      buildTrusTeeV2FulfillmentDetails(ImpressionCountMode.NOISED, maxFrequencyPerUser = 3, VECTOR)
+      buildTrusTeeV2FulfillmentDetails(
+        ImpressionCountMode.NOISED,
+        maxFrequencyPerUser = 3,
+        frequencyData = VECTOR.getByteArray(),
+        totalUncappedImpressions = VECTOR.getTotalUncappedImpressions(),
+      )
 
     assertThat(details.impression.noiseMechanism)
       .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
@@ -58,7 +64,8 @@ class TrusTeeV2ImpressionCountTest {
         buildTrusTeeV2FulfillmentDetails(
           ImpressionCountMode.NOISED,
           maxFrequencyPerUser = 3,
-          VECTOR,
+          frequencyData = VECTOR.getByteArray(),
+          totalUncappedImpressions = VECTOR.getTotalUncappedImpressions(),
         )
       )
       .isEqualTo(details)
@@ -67,7 +74,12 @@ class TrusTeeV2ImpressionCountTest {
   @Test
   fun `an unset clip is chosen from the data and reported as a variance`() {
     val details =
-      buildTrusTeeV2FulfillmentDetails(ImpressionCountMode.NOISED, maxFrequencyPerUser = 0, VECTOR)
+      buildTrusTeeV2FulfillmentDetails(
+        ImpressionCountMode.NOISED,
+        maxFrequencyPerUser = 0,
+        frequencyData = VECTOR.getByteArray(),
+        totalUncappedImpressions = VECTOR.getTotalUncappedImpressions(),
+      )
 
     assertThat(details.impression.noiseMechanism)
       .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
@@ -78,7 +90,8 @@ class TrusTeeV2ImpressionCountTest {
         buildTrusTeeV2FulfillmentDetails(
           ImpressionCountMode.NOISED,
           maxFrequencyPerUser = 0,
-          VECTOR,
+          frequencyData = VECTOR.getByteArray(),
+          totalUncappedImpressions = VECTOR.getTotalUncappedImpressions(),
         )
       )
       .isEqualTo(details)

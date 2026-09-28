@@ -44,6 +44,20 @@ class DirectDynamicClippingTest {
     assertThat(second).isEqualTo(first)
   }
 
+  @Test
+  fun `the byte-vector path matches the int-vector path`() {
+    val frequencyData = IntArray(200) { it % 40 }
+
+    assertThat(
+        computeDeterministicDynamicallyClippedImpressions(
+          frequencyData = frequencyData.map(Int::toByte).toByteArray(),
+          vidSamplingIntervalWidth = 1.0,
+          resultMinimumThresholds = null,
+        )
+      )
+      .isEqualTo(deterministicClip(frequencyData))
+  }
+
   private fun stochasticClip(frequencyData: IntArray) =
     computeDirectDynamicallyClippedImpressions(
       frequencyData = frequencyData,

@@ -110,8 +110,41 @@ object ImpressionComputations {
     noiseSource: DynamicClippingNoiseSource,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    computeDynamicallyClippedImpressionCount(
+      frequencyHistogram = HistogramComputations.buildHistogram(frequencyVector, maxFrequency),
+      queryRho = queryRho,
+      maxFrequency = maxFrequency,
+      noiseSource = noiseSource,
+      vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+      resultMinimumThresholds = resultMinimumThresholds,
+    )
+
+  /**
+   * Computes a dynamically clipped impression count from a precomputed [frequencyHistogram].
+   *
+   * This overload lets callers summarize a population-sized vector in its compact byte form rather
+   * than materializing a four-byte-per-VID [IntArray].
+   *
+   * @param frequencyHistogram Counts for frequencies 1 through [maxFrequency].
+   * @param queryRho The ACDP rho charged for the release.
+   * @param maxFrequency The highest per-user frequency represented by [frequencyHistogram].
+   * @param noiseSource The standard-normal draws added to the bars.
+   * @param vidSamplingIntervalWidth The width of the sampling interval for VIDs.
+   * @param resultMinimumThresholds Optional result minimum thresholds.
+   */
+  fun computeDynamicallyClippedImpressionCount(
+    frequencyHistogram: LongArray,
+    queryRho: Double,
+    maxFrequency: Int,
+    noiseSource: DynamicClippingNoiseSource,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
   ): DynamicallyClippedImpressions {
     require(maxFrequency > 0) { "maxFrequency must be positive, got $maxFrequency" }
+    require(frequencyHistogram.size == maxFrequency) {
+      "frequencyHistogram must have $maxFrequency buckets, got ${frequencyHistogram.size}"
+    }
     require(vidSamplingIntervalWidth > 0.0) {
       "vidSamplingIntervalWidth must be positive, got $vidSamplingIntervalWidth"
     }
@@ -123,7 +156,7 @@ object ImpressionComputations {
           maxThreshold = maxFrequency,
           noiseSource = noiseSource,
         )
-        .computeImpressionCappedHistogram(frequencyHistogram(frequencyVector))
+        .computeImpressionCappedHistogram(frequencyHistogram.toSparseHistogram())
     val clip: Int = searched.threshold
     val bars: List<Double> = searched.noisedCumulativeHistogramList
 
@@ -191,14 +224,16 @@ object ImpressionComputations {
    * single empty bar rather than skipping the search: releasing an exact zero here, beside a noised
    * value for a vector holding one impression, would leave the two distinguishable.
    */
-  private fun frequencyHistogram(frequencyVector: IntArray): Map<Long, Long> =
-    frequencyVector
-      .asSequence()
-      .filter { it > 0 }
-      .groupingBy { it.toLong() }
-      .eachCount()
-      .mapValues { it.value.toLong() }
-      .ifEmpty { mapOf(1L to 0L) }
+  private fun LongArray.toSparseHistogram(): Map<Long, Long> = buildMap {
+    forEachIndexed { index, count ->
+      if (count > 0L) {
+        put(index + 1L, count)
+      }
+    }
+    if (isEmpty()) {
+      put(1L, 0L)
+    }
+  }
 
   private fun scaleAndClamp(count: Double, vidSamplingIntervalWidth: Double): Long =
     if (count < 0) 0L else (count / vidSamplingIntervalWidth).toLong()

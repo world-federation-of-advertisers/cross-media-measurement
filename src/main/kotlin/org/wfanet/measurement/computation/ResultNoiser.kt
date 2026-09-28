@@ -100,12 +100,25 @@ class GaussianResultNoiser(
  * Each draw is a pure function of the seed and an output label. Reach uses [REACH_LABEL], the
  * impression threshold uses [IMPRESSION_LABEL], and frequency bucket `f` uses `f`.
  */
-class DeterministicTruncatedLaplaceResultNoiser(
-  combinedFrequencyVector: IntArray,
-  contributionCount: Int,
-  private val maxFrequencyPerUser: Int = 1,
+class DeterministicTruncatedLaplaceResultNoiser private constructor(
+  private val fingerprint: ByteArray,
+  private val maxFrequencyPerUser: Int,
 ) : ResultNoiser {
-  private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
+  constructor(
+    combinedFrequencyVector: IntArray,
+    contributionCount: Int,
+    maxFrequencyPerUser: Int = 1,
+  ) : this(fingerprint(combinedFrequencyVector, contributionCount), maxFrequencyPerUser)
+
+  /**
+   * Constructs a noiser directly from an unsigned byte frequency vector without expanding it into
+   * an [IntArray].
+   */
+  constructor(
+    combinedFrequencyVector: ByteArray,
+    contributionCount: Int,
+    maxFrequencyPerUser: Int = 1,
+  ) : this(fingerprint(combinedFrequencyVector, contributionCount), maxFrequencyPerUser)
 
   // One sampler per released quantity, each calibrated to that quantity's L1 sensitivity: reach and
   // each frequency bucket move by 1 per VID, the capped impression count by maxFrequencyPerUser.
@@ -146,11 +159,54 @@ class DeterministicTruncatedLaplaceResultNoiser(
      * the count after input suppression.
      */
     fun fingerprint(combinedFrequencyVector: IntArray, contributionCount: Int): ByteArray {
-      val buffer = ByteBuffer.allocate((combinedFrequencyVector.size + 1) * Int.SIZE_BYTES)
-      buffer.putInt(contributionCount)
-      buffer.asIntBuffer().put(combinedFrequencyVector)
-      return MessageDigest.getInstance("SHA-256").digest(buffer.array())
+      val writer = FingerprintWriter()
+      writer.writeInt(contributionCount)
+      for (frequency in combinedFrequencyVector) {
+        writer.writeInt(frequency)
+      }
+      return writer.digest()
     }
+
+    /**
+     * Returns the same canonical fingerprint as the [IntArray] overload without allocating an
+     * expanded vector or a vector-sized encoding buffer.
+     */
+    fun fingerprint(combinedFrequencyVector: ByteArray, contributionCount: Int): ByteArray {
+      val writer = FingerprintWriter()
+      writer.writeInt(contributionCount)
+      for (encodedFrequency in combinedFrequencyVector) {
+        writer.writeInt(encodedFrequency.toInt() and 0xFF)
+      }
+      return writer.digest()
+    }
+
+    /** Writes canonical big-endian integers into SHA-256 using bounded memory. */
+    private class FingerprintWriter {
+      private val digest = MessageDigest.getInstance("SHA-256")
+      private val buffer = ByteBuffer.allocate(FINGERPRINT_BUFFER_SIZE_BYTES)
+
+      fun writeInt(value: Int) {
+        if (buffer.remaining() < Int.SIZE_BYTES) {
+          flush()
+        }
+        buffer.putInt(value)
+      }
+
+      fun digest(): ByteArray {
+        flush()
+        return digest.digest()
+      }
+
+      private fun flush() {
+        if (buffer.position() == 0) {
+          return
+        }
+        digest.update(buffer.array(), 0, buffer.position())
+        buffer.clear()
+      }
+    }
+
+    private const val FINGERPRINT_BUFFER_SIZE_BYTES = 64 * 1024
   }
 }
 

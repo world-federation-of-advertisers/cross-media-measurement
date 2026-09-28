@@ -80,6 +80,17 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   }
 
   @Test
+  fun `byte vector fingerprint matches int vector fingerprint`() {
+    assertThat(
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+          COMBINED.map(Int::toByte).toByteArray(),
+          CONTRIBUTION_COUNT,
+        )
+      )
+      .isEqualTo(DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT))
+  }
+
+  @Test
   fun `fingerprint changes with vector contents`() {
     assertThat(
         DeterministicTruncatedLaplaceResultNoiser.fingerprint(

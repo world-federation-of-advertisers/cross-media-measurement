@@ -270,7 +270,8 @@ class DefaultFulfillerSelector(
           buildTrusTeeV2FulfillmentDetails(
             trusTeeV2ImpressionCountMode,
             trusTeeV2MaxFrequencyPerUser,
-            frequencyVector,
+            frequencyDataBytes,
+            frequencyVector.getTotalUncappedImpressions(),
           )
         },
       )

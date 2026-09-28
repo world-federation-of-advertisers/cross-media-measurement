@@ -18,6 +18,7 @@ import org.wfanet.measurement.computation.DeterministicDynamicClippingNoiseSourc
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.DynamicallyClippedImpressions
+import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.eventdataprovider.differentialprivacy.DynamicClippingNoiseSource
@@ -58,7 +59,11 @@ fun computeDirectDynamicallyClippedImpressions(
   resultMinimumThresholds: ResultMinimumThresholds?,
 ): DynamicallyClippedImpressions =
   clipDynamically(
-    frequencyData = frequencyData,
+    frequencyHistogram =
+      HistogramComputations.buildHistogram(
+        frequencyData,
+        MAX_REPRESENTABLE_FREQUENCY,
+      ),
     queryDpParams = dpParams,
     noiseSource = StochasticStandardNormalNoiseSource(),
     vidSamplingIntervalWidth = vidSamplingIntervalWidth,
@@ -81,8 +86,53 @@ fun computeDeterministicDynamicallyClippedImpressions(
   vidSamplingIntervalWidth: Double,
   resultMinimumThresholds: ResultMinimumThresholds?,
 ): DynamicallyClippedImpressions =
+  computeDeterministicDynamicallyClippedImpressions(
+    frequencyHistogram =
+      HistogramComputations.buildHistogram(
+        frequencyData,
+        MAX_REPRESENTABLE_FREQUENCY,
+      ),
+    fingerprint =
+      DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+        frequencyData,
+        DIRECT_CONTRIBUTION_COUNT,
+      ),
+    vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+    resultMinimumThresholds = resultMinimumThresholds,
+  )
+
+/**
+ * Byte-vector overload for population-sized inputs. The vector is reduced to a bounded histogram
+ * and fingerprint without allocating an [IntArray].
+ */
+fun computeDeterministicDynamicallyClippedImpressions(
+  frequencyData: ByteArray,
+  vidSamplingIntervalWidth: Double,
+  resultMinimumThresholds: ResultMinimumThresholds?,
+): DynamicallyClippedImpressions =
+  computeDeterministicDynamicallyClippedImpressions(
+    frequencyHistogram =
+      HistogramComputations.buildHistogram(
+        frequencyData,
+        MAX_REPRESENTABLE_FREQUENCY,
+      ),
+    fingerprint =
+      DeterministicTruncatedLaplaceResultNoiser.fingerprint(
+        frequencyData,
+        DIRECT_CONTRIBUTION_COUNT,
+      ),
+    vidSamplingIntervalWidth = vidSamplingIntervalWidth,
+    resultMinimumThresholds = resultMinimumThresholds,
+  )
+
+private fun computeDeterministicDynamicallyClippedImpressions(
+  frequencyHistogram: LongArray,
+  fingerprint: ByteArray,
+  vidSamplingIntervalWidth: Double,
+  resultMinimumThresholds: ResultMinimumThresholds?,
+): DynamicallyClippedImpressions =
   clipDynamically(
-    frequencyData = frequencyData,
+    frequencyHistogram = frequencyHistogram,
     queryDpParams =
       DpParams(
         DeterministicTruncatedLaplaceParams.EPSILON,
@@ -92,24 +142,21 @@ fun computeDeterministicDynamicallyClippedImpressions(
     // seed component once it exists.
     noiseSource =
       DeterministicDynamicClippingNoiseSource(
-        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-          frequencyData,
-          DIRECT_CONTRIBUTION_COUNT,
-        )
+        fingerprint
       ),
     vidSamplingIntervalWidth = vidSamplingIntervalWidth,
     resultMinimumThresholds = resultMinimumThresholds,
   )
 
 private fun clipDynamically(
-  frequencyData: IntArray,
+  frequencyHistogram: LongArray,
   queryDpParams: DpParams,
   noiseSource: DynamicClippingNoiseSource,
   vidSamplingIntervalWidth: Double,
   resultMinimumThresholds: ResultMinimumThresholds?,
 ): DynamicallyClippedImpressions =
   ImpressionComputations.computeDynamicallyClippedImpressionCount(
-    frequencyVector = frequencyData,
+    frequencyHistogram = frequencyHistogram,
     queryRho = AcdpParamsConverter.getDirectAcdpCharge(queryDpParams, BAR_SENSITIVITY).rho,
     maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
     noiseSource = noiseSource,

@@ -39,4 +39,28 @@ object HistogramComputations {
     }
     return histogram
   }
+
+  /**
+   * Builds a histogram directly from an unsigned byte frequency vector.
+   *
+   * Frequencies greater than [maxFrequency] are treated as [maxFrequency]. Reading the bytes in
+   * place avoids expanding a population-sized vector into an [IntArray].
+   *
+   * @param frequencyVector An array where each unsigned byte is a frequency.
+   * @param maxFrequency The maximum possible frequency value. The histogram will have
+   *   `maxFrequency` buckets.
+   * @return A [LongArray] representing the histogram, where index `k-1` is the count with frequency
+   *   `k`.
+   */
+  fun buildHistogram(frequencyVector: ByteArray, maxFrequency: Int): LongArray {
+    val histogram = LongArray(maxFrequency)
+    for (encodedFrequency in frequencyVector) {
+      val frequency = encodedFrequency.toInt() and 0xFF
+      if (frequency > 0) {
+        val cappedFrequency = min(frequency, maxFrequency)
+        histogram[cappedFrequency - 1]++
+      }
+    }
+    return histogram
+  }
 }
