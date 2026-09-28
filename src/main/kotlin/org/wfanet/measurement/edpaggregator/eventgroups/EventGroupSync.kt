@@ -618,8 +618,11 @@ class EventGroupSync(
         } else {
           // Transient / infra failure affects the whole batch, so fanning out per-item retries
           // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and let the run's retry handle it.
+          // single batched failure and fail the run so the input can be retried without publishing
+          // a partial mapping.
           recordBatchFailure(e, pendingCreates)
+          pendingCreates.clear()
+          throw e
         }
         pendingCreates.clear()
         return
@@ -724,8 +727,11 @@ class EventGroupSync(
         } else {
           // Transient / infra failure affects the whole batch, so fanning out per-item retries
           // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and let the run's retry handle it.
+          // single batched failure and fail the run so the input can be retried without publishing
+          // a partial mapping.
           recordBatchFailure(e, pendingUpdates)
+          pendingUpdates.clear()
+          throw e
         }
         pendingUpdates.clear()
         return
@@ -822,7 +828,7 @@ class EventGroupSync(
     )
     logger.log(Level.SEVERE, e) {
       "Batch of ${pending.size} Event Groups failed with a transient error (error_type=$errorType);" +
-        " leaving for retry"
+        " failing sync for retry"
     }
   }
 

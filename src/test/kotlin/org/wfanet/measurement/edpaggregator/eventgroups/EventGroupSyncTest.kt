@@ -3040,9 +3040,9 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `does not fan out per-item retries when a batch create fails transiently`() {
+  fun `fails sync without per-item retries when a batch create fails transiently`() {
     // A transient/infra failure affects the whole batch, so the fallback must NOT fire 50 doomed
-    // unary retries; it records one batched failure instead.
+    // unary retries; it records one batched failure and fails the run instead.
     wheneverBlocking {
         eventGroupsServiceMock.batchCreateEventGroups(any<BatchCreateEventGroupsRequest>())
       }
@@ -3083,9 +3083,11 @@ class EventGroupSyncTest {
         entityKeyTypes = emptyList(),
       )
 
-    val results = runBlocking { eventGroupSync.sync().toList() }
+    val exception =
+      assertFailsWith<StatusException> { runBlocking { eventGroupSync.sync().toList() } }
 
-    assertThat(results).isEmpty()
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(exception.status.description).isEqualTo("kingdom unavailable")
     verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
     // No per-item fan-out on a transient failure.
     verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }

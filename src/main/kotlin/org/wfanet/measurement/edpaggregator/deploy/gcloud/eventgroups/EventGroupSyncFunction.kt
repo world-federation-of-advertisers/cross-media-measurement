@@ -31,7 +31,6 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.io.InputStreamReader
 import java.nio.file.Files
-import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
@@ -51,7 +50,7 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
-import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
@@ -129,7 +128,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   clientAccountsStub = clientAccountsClient,
                   unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                   eventGroups = eventGroups,
-                  throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
+                  throttler = MaximumRateThrottler(kingdomRequestsPerSecond),
                   listEventGroupPageSize,
                   entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 )
@@ -293,7 +292,7 @@ class EventGroupSyncFunction() : HttpFunction {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private const val THROTTLER_DURATION_MILLIS = 1000L
+    private const val DEFAULT_KINGDOM_REQUESTS_PER_SECOND = 4.0
     private const val LIST_EVENT_GROUPS_PAGE_SIZE: Int = 100
 
     private val listEventGroupPageSize: Int =
@@ -301,8 +300,9 @@ class EventGroupSyncFunction() : HttpFunction {
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
-    private val throttlerDuration =
-      Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
+    private val kingdomRequestsPerSecond =
+      System.getenv("KINGDOM_REQUESTS_PER_SECOND")?.toDouble()
+        ?: DEFAULT_KINGDOM_REQUESTS_PER_SECOND
     private val channelShutdownDuration =
       Duration.ofSeconds(
         System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong()
