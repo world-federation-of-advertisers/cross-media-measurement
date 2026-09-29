@@ -1429,9 +1429,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups respects externalMeasurementConsumerId`(): Unit = runBlocking {
-    val externalDataProviderId =
-      population.createDataProvider(dataProvidersService).externalDataProviderId
+  fun `streamEventGroups paginates MeasurementConsumer across DataProviders`(): Unit = runBlocking {
     val externalMeasurementConsumerId =
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
@@ -1440,34 +1438,63 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
       population
         .createMeasurementConsumer(measurementConsumersService, accountsService)
         .externalMeasurementConsumerId
-    val expectedEventGroup =
-      eventGroupsService.createEventGroup(
-        createEventGroupRequest {
-          eventGroup = eventGroup {
-            this.externalDataProviderId = externalDataProviderId
-            this.externalMeasurementConsumerId = externalMeasurementConsumerId
-          }
-        }
+    val externalDataProviderIds =
+      listOf(
+        population.createDataProvider(dataProvidersService).externalDataProviderId,
+        population.createDataProvider(dataProvidersService).externalDataProviderId,
       )
+    val expectedEventGroups =
+      externalDataProviderIds
+        .map { externalDataProviderId ->
+          eventGroupsService.createEventGroup(
+            createEventGroupRequest {
+              eventGroup = eventGroup {
+                this.externalDataProviderId = externalDataProviderId
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              }
+            }
+          )
+        }
+        .sortedWith(
+          compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
+        )
     eventGroupsService.createEventGroup(
       createEventGroupRequest {
         eventGroup = eventGroup {
-          this.externalDataProviderId = externalDataProviderId
+          this.externalDataProviderId = externalDataProviderIds.first()
           this.externalMeasurementConsumerId = otherExternalMeasurementConsumerId
         }
       }
     )
 
-    val eventGroups: List<EventGroup> =
-      eventGroupsService
+    suspend fun streamPage(afterEventGroup: EventGroup?): List<EventGroup> {
+      return eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
-            filter = filter { this.externalMeasurementConsumerId = externalMeasurementConsumerId }
+            filter = filter {
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              if (afterEventGroup != null) {
+                after =
+                  StreamEventGroupsRequestKt.FilterKt.after {
+                    eventGroupKey = eventGroupKey {
+                      externalDataProviderId = afterEventGroup.externalDataProviderId
+                      externalEventGroupId = afterEventGroup.externalEventGroupId
+                    }
+                  }
+              }
+            }
+            limit = 1
           }
         )
         .toList()
+    }
 
-    assertThat(eventGroups).containsExactly(expectedEventGroup)
+    val firstPage: List<EventGroup> = streamPage(afterEventGroup = null)
+    val secondPage: List<EventGroup> = streamPage(firstPage.single())
+    val thirdPage: List<EventGroup> = streamPage(secondPage.single())
+
+    assertThat(firstPage + secondPage).containsExactlyElementsIn(expectedEventGroups).inOrder()
+    assertThat(thirdPage).isEmpty()
   }
 
   @Test
