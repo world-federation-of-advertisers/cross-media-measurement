@@ -4431,7 +4431,8 @@ class ReportTraceTest {
           attributes =
             mapOf(
               "xmm.lifecycle.stage" to "duchy_stage_attempt",
-              "xmm.outcome" to "retryable_failure",
+              "xmm.outcome" to "failed",
+              "xmm.error.type" to "ComputationDataClients.TransientErrorException",
             ) + attributes
         )
 
@@ -4474,6 +4475,13 @@ class ReportTraceTest {
           .status
       )
       .isEqualTo("SUCCEEDED")
+    assertThat(
+        acceptedCoverage.none {
+          it.name == "kingdom_participant_failure_acceptance" &&
+            it.resource == "$measurementName @ duchy $duchyId"
+        }
+      )
+      .isTrue()
   }
 
   @Test

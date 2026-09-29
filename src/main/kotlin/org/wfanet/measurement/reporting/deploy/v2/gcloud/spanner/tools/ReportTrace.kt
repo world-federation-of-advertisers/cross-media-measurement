@@ -2678,10 +2678,27 @@ internal object ReportTraceOutput {
                 requiredPresenceAttributes = setOf("xmm.computation.name"),
               )
               add("duchy_stage_attempt", resource, attributes, duchyRequirement)
-              val permanentFailureObserved =
-                hasOutcomeEvidence("duchy_stage_attempt", attributes, FAILURE_OUTCOMES)
+              val failedDuchyEvidence =
+                observed["duchy_stage_attempt"].orEmpty().filter { evidence ->
+                  attributes.all { (attribute, value) ->
+                    evidence.attributes[attribute] == value
+                  } && isFailureOutcome(evidence.outcome)
+                }
               val retryableFailureObserved =
-                hasOutcomeEvidence("duchy_stage_attempt", attributes, setOf("retryable_failure"))
+                failedDuchyEvidence.any { evidence ->
+                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]
+                    ?.endsWith("TransientErrorException") == true
+                } ||
+                  hasOutcomeEvidence(
+                    "duchy_stage_attempt",
+                    attributes,
+                    setOf("retryable_failure"),
+                  )
+              val permanentFailureObserved =
+                failedDuchyEvidence.any { evidence ->
+                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]
+                    ?.endsWith("TransientErrorException") != true
+                }
               for (stage in
                 listOf(
                   "kingdom_participant_requisition_params_acceptance",
