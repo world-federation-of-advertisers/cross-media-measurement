@@ -342,6 +342,40 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
+  fun `sync without generation omits VID provenance pair for recovery`() = runBlocking {
+    val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L),
+      rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
+    )
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchCreateImpressionMetadata(batchCaptor.capture())
+    }
+    val recoveredMetadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+    assertThat(recoveredMetadata.rawImpressionUpload).isEmpty()
+    assertThat(recoveredMetadata.outputDoneBlobGeneration).isEqualTo(0L)
+  }
+
+  @Test
   fun `sync updates availability for mapped model lines`() {
     runBlocking {
       val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
