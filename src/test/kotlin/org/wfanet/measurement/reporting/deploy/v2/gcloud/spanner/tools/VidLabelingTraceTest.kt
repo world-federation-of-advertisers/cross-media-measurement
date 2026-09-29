@@ -20,6 +20,10 @@ import java.io.StringWriter
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneOffset
+import java.util.logging.Handler
+import java.util.logging.Level
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.telemetry.CloudLogEntry
@@ -27,6 +31,7 @@ import org.wfanet.measurement.common.telemetry.CloudLogReader
 import org.wfanet.measurement.common.telemetry.CloudTraceReader
 import org.wfanet.measurement.common.telemetry.CloudTraceSpan
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 
@@ -115,6 +120,125 @@ class VidLabelingTraceTest {
       .containsAtLeast(ROOT_TRACE, MEMO_TRACE, DIRECT_TRACE)
     Unit
   }
+
+  @Test
+  fun `collect discovers a new trace by exact GCS object identity`() = runBlocking {
+    val identity =
+      VidLabelingTraceAttributes.gcsObjectIdentity(
+        "gs://output-bucket/model-line/direct/2026-09-01/done",
+        77L,
+      )
+    val producerEntry =
+      entry(
+        "label_finalize",
+        objectIdentityFields(identity),
+        rawImpressionUpload = RAW_UPLOAD,
+        traceId = ROOT_TRACE,
+      )
+    val traceQueries = mutableListOf<Set<String>>()
+    val spanReader = CloudTraceReader { project, correlationValues, _, _, _, _ ->
+      traceQueries += correlationValues.toSet()
+      if (identity.pathHash !in correlationValues) {
+        emptyList()
+      } else {
+        listOf(
+          span(project, MEMO_AVAILABILITY_TRACE, "data_watcher", identity, generation = 77L),
+          span(project, OTHER_TRACE, "data_watcher", identity, generation = 78L),
+        )
+      }
+    }
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(listOf(producerEntry)) },
+        spanReader = spanReader,
+        stateResolver = VidLabelingStateResolver { testGraph(emptyList()) },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(vidTraceAttributesFor(identity.pathHash)).containsExactly("xmm.gcs.object.path_hash")
+    assertThat(traceQueries.any { identity.pathHash in it }).isTrue()
+    assertThat(collection.evidence.mapNotNull { it.traceId }).contains(MEMO_AVAILABILITY_TRACE)
+    assertThat(collection.evidence.mapNotNull { it.traceId }).doesNotContain(OTHER_TRACE)
+    Unit
+  }
+
+  @Test
+  fun `collect matches the metadata sidecar lifecycle record emitted by the producer`() =
+    runBlocking {
+      val sidecarUri = "gs://output-bucket/model-line/direct/output.metadata.binpb"
+      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(sidecarUri)
+      val records = mutableListOf<LogRecord>()
+      val logger =
+        Logger.getAnonymousLogger().apply {
+          useParentHandlers = false
+          addHandler(
+            object : Handler() {
+              override fun publish(record: LogRecord) {
+                records += record
+              }
+
+              override fun flush() {}
+
+              override fun close() {}
+            }
+          )
+        }
+      VidLabelingTraceLogging.logLabelOutput(
+        logger,
+        Level.INFO,
+        "edpa.vid_labeling.label.metadata_sidecar",
+        "dataProviders/123",
+        RAW_UPLOAD,
+        RAW_UPLOAD + "/vidLabelingJobs/direct",
+        "non_memoized",
+        NON_MEMOIZED_MODEL_LINE,
+        "metadata_sidecar",
+        pathHash,
+        "written",
+      )
+      val graph =
+        testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+          .copy(
+            nodes =
+              listOf(
+                ExpectedTraceNode(
+                  "gcs:$pathHash",
+                  NON_MEMOIZED_MODEL_LINE,
+                  VidLabelingTraceLogging.LABEL_OUTPUT_STAGE,
+                  "PUBLISHED",
+                  mapOf(
+                    "xmm.model_line.name" to NON_MEMOIZED_MODEL_LINE,
+                    "xmm.gcs.object.path_hash" to pathHash,
+                  ),
+                )
+              )
+          )
+      val emittedEntry =
+        CloudLogEntry(
+          "project",
+          Instant.parse("2026-09-01T00:00:01Z"),
+          "vid-labeler",
+          "INFO",
+          ROOT_TRACE,
+          records.single().message,
+        )
+      val collector =
+        VidLabelingTraceCollector(
+          logReaderFactory = { FakeCloudLogReader(listOf(emittedEntry)) },
+          spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+          stateResolver = VidLabelingStateResolver { graph },
+          finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        )
+
+      val collection = collector.collect(request())
+
+      assertThat(collection.traceStatus).isEqualTo(VidLabelingTraceStatus.COMPLETE)
+      assertThat(collection.evidence.single().stage)
+        .isEqualTo(VidLabelingTraceLogging.LABEL_OUTPUT_STAGE)
+      Unit
+    }
 
   @Test
   fun `artifact file names cannot collide`() {
@@ -250,6 +374,57 @@ class VidLabelingTraceTest {
     assertThat(artifact).contains(MEMOIZED_MODEL_LINE)
     assertThat(artifact).contains(NON_MEMOIZED_MODEL_LINE)
     assertThat(artifact).doesNotContain("gs://private-bucket/raw-input")
+  }
+
+  @Test
+  fun `availability evidence matches model line and interval`() = runBlocking {
+    val intervalStart = "2026-09-01T00:00:00Z"
+    val intervalEnd = "2026-09-02T00:00:00Z"
+    val graph =
+      testGraph()
+        .copy(
+          nodes =
+            listOf(
+              availabilityNode(
+                "memoized-availability",
+                MEMOIZED_MODEL_LINE,
+                intervalStart,
+                intervalEnd,
+              ),
+              availabilityNode(
+                "non-memoized-availability",
+                NON_MEMOIZED_MODEL_LINE,
+                intervalStart,
+                intervalEnd,
+              ),
+            )
+        )
+    val entry =
+      entry(
+        "data_availability_publish",
+        modelLineFields(MEMOIZED_MODEL_LINE) +
+          " xmm.edpa.availability.interval_start=$intervalStart" +
+          " xmm.edpa.availability.interval_end=$intervalEnd",
+        rawImpressionUpload = RAW_UPLOAD,
+        traceId = ROOT_TRACE,
+      )
+    val collector =
+      VidLabelingTraceCollector(
+        logReaderFactory = { FakeCloudLogReader(listOf(entry)) },
+        spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+        stateResolver = VidLabelingStateResolver { graph },
+        finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+      )
+
+    val collection = collector.collect(request())
+
+    assertThat(collection.modelLines.single { it.modelLine == MEMOIZED_MODEL_LINE }.missingStages)
+      .isEmpty()
+    assertThat(
+        collection.modelLines.single { it.modelLine == NON_MEMOIZED_MODEL_LINE }.missingStages
+      )
+      .containsExactly("non-memoized-availability")
+    Unit
   }
 
   @Test
@@ -689,6 +864,48 @@ class VidLabelingTraceTest {
   }
 
   private fun modelLineFields(modelLine: String): String = "xmm.model_line.name=" + modelLine
+
+  private fun availabilityNode(
+    id: String,
+    modelLine: String,
+    intervalStart: String,
+    intervalEnd: String,
+  ) =
+    ExpectedTraceNode(
+      id,
+      modelLine,
+      "data_availability_publish",
+      "PUBLISHED",
+      mapOf(
+        "xmm.model_line.name" to modelLine,
+        "xmm.edpa.availability.interval_start" to intervalStart,
+        "xmm.edpa.availability.interval_end" to intervalEnd,
+      ),
+    )
+
+  private fun span(
+    project: String,
+    traceId: String,
+    stage: String,
+    identity: VidLabelingTraceAttributes.GcsObjectIdentity,
+    generation: Long,
+  ) =
+    CloudTraceSpan(
+      project,
+      traceId,
+      "span-$traceId",
+      null,
+      "edpa.vid_labeling.$stage",
+      "worker",
+      Instant.parse("2026-09-01T00:00:01Z"),
+      Instant.parse("2026-09-01T00:00:02Z"),
+      mapOf(
+        "xmm.lifecycle.stage" to stage,
+        "xmm.outcome" to "failed",
+        "xmm.gcs.object.path_hash" to identity.pathHash,
+        "xmm.gcs.object.generation" to generation.toString(),
+      ),
+    )
 
   private fun objectIdentityFields(identity: VidLabelingTraceAttributes.GcsObjectIdentity): String =
     "xmm.gcs.object.path_hash=" +

@@ -25,6 +25,7 @@ import org.wfanet.measurement.api.v2alpha.ListModelShardsRequest
 import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -235,7 +236,7 @@ internal class GcsKingdomFinalStateResolver(
             objectNode(
               sidecarUri,
               modelLine.cmmsModelLine,
-              "label_finalize",
+              VidLabelingTraceLogging.LABEL_OUTPUT_STAGE,
               readObjectMetadata(sidecarUri, null) != null,
             )
           )
