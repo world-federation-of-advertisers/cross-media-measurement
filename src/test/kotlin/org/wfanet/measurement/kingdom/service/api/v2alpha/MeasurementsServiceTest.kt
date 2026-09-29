@@ -3078,7 +3078,7 @@ class MeasurementsServiceTest {
         withMeasurementConsumerPrincipal(MEASUREMENT_CONSUMER_NAME) {
           runBlocking { service.getMeasurement(getMeasurementRequest { name = MEASUREMENT_NAME }) }
         }
-    }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
   }
@@ -3212,7 +3212,7 @@ class MeasurementsServiceTest {
             service.cancelMeasurement(cancelMeasurementRequest { name = MEASUREMENT_NAME })
           }
         }
-    }
+      }
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception.errorInfo?.metadataMap).containsEntry("measurement", MEASUREMENT_NAME)
     val span = spanExporter.finishedSpanItems.single()
