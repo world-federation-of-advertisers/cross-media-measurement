@@ -48,10 +48,10 @@ import org.wfanet.measurement.internal.kingdom.honestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryError as internalMeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
+import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
-import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
@@ -125,7 +125,9 @@ class ComputationParticipantsService(
       participantName = request.name,
     ) {
       try {
-        internalComputationParticipantsClient.failComputationParticipant(request.toInternalRequest())
+        internalComputationParticipantsClient.failComputationParticipant(
+          request.toInternalRequest()
+        )
       } catch (e: StatusException) {
         throw mapStatusException(e).asRuntimeException()
       }

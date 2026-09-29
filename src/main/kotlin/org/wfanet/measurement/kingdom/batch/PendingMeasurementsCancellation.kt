@@ -16,8 +16,8 @@
 
 package org.wfanet.measurement.kingdom.batch
 
-import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.LongCounter
 import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger

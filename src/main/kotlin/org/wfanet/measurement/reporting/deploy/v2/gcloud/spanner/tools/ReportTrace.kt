@@ -1699,17 +1699,15 @@ internal object ReportTraceOutput {
           keySelector = { (computationName) -> computationName },
           valueTransform = { (_, measurementName) -> measurementName },
         )
-    for (
-      stage in
-        listOf(
-          "duchy_stage_attempt",
-          "kingdom_participant_requisition_params_acceptance",
-          "kingdom_participant_confirmation",
-          "kingdom_participant_failure_acceptance",
-          "kingdom_computation_log_entry_acceptance",
-          "kingdom_computation_result_acceptance",
-        )
-    ) {
+    for (stage in
+      listOf(
+        "duchy_stage_attempt",
+        "kingdom_participant_requisition_params_acceptance",
+        "kingdom_participant_confirmation",
+        "kingdom_participant_failure_acceptance",
+        "kingdom_computation_log_entry_acceptance",
+        "kingdom_computation_result_acceptance",
+      )) {
       val stageEvidence: MutableList<LifecycleEvidence> = observed[stage] ?: continue
       observed[stage] =
         stageEvidence
@@ -2683,18 +2681,12 @@ internal object ReportTraceOutput {
               val permanentFailureObserved =
                 hasOutcomeEvidence("duchy_stage_attempt", attributes, FAILURE_OUTCOMES)
               val retryableFailureObserved =
-                hasOutcomeEvidence(
-                  "duchy_stage_attempt",
-                  attributes,
-                  setOf("retryable_failure"),
-                )
-              for (
-                stage in
-                  listOf(
-                    "kingdom_participant_requisition_params_acceptance",
-                    "kingdom_participant_confirmation",
-                  )
-              ) {
+                hasOutcomeEvidence("duchy_stage_attempt", attributes, setOf("retryable_failure"))
+              for (stage in
+                listOf(
+                  "kingdom_participant_requisition_params_acceptance",
+                  "kingdom_participant_confirmation",
+                )) {
                 if (hasOutcomeEvidence(stage, attributes)) {
                   add(stage, resource, attributes, ReportTraceStageRequirement.OPTIONAL)
                 }

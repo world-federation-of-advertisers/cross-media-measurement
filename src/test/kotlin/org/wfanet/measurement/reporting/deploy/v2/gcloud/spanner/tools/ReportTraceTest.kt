@@ -4330,13 +4330,7 @@ class ReportTraceTest {
       ReportTraceOutput.lifecycleCoverage(
         context,
         routeResolution,
-        listOf(
-          lifecycleSpan(
-            "measurement_cancellation",
-            "xmm.measurement.name",
-            measurementName,
-          )
-        ),
+        listOf(lifecycleSpan("measurement_cancellation", "xmm.measurement.name", measurementName)),
         emptyList(),
       )
 
@@ -4389,19 +4383,21 @@ class ReportTraceTest {
       )
 
     assertThat(
-        missingCoverage.single {
-          it.name == "kingdom_participant_failure_acceptance" &&
-            it.resource == "$measurementName @ duchy $duchyId"
-        }
-        .status
+        missingCoverage
+          .single {
+            it.name == "kingdom_participant_failure_acceptance" &&
+              it.resource == "$measurementName @ duchy $duchyId"
+          }
+          .status
       )
       .isEqualTo("MISSING")
     assertThat(
-        acceptedCoverage.single {
-          it.name == "kingdom_participant_failure_acceptance" &&
-            it.resource == "$measurementName @ duchy $duchyId"
-        }
-        .status
+        acceptedCoverage
+          .single {
+            it.name == "kingdom_participant_failure_acceptance" &&
+              it.resource == "$measurementName @ duchy $duchyId"
+          }
+          .status
       )
       .isEqualTo("SUCCEEDED")
   }
@@ -4426,11 +4422,14 @@ class ReportTraceTest {
         ReportTraceRequisitionRouteKind.DIRECT_EDP,
       )
     val retryableAttempt =
-      lifecycleSpan("duchy_stage_attempt", attributes).copy(
-        attributes =
-          mapOf("xmm.lifecycle.stage" to "duchy_stage_attempt", "xmm.outcome" to "retryable_failure") +
-            attributes
-      )
+      lifecycleSpan("duchy_stage_attempt", attributes)
+        .copy(
+          attributes =
+            mapOf(
+              "xmm.lifecycle.stage" to "duchy_stage_attempt",
+              "xmm.outcome" to "retryable_failure",
+            ) + attributes
+        )
 
     val missingCoverage =
       ReportTraceOutput.lifecycleCoverage(
@@ -4454,19 +4453,21 @@ class ReportTraceTest {
       )
 
     assertThat(
-        missingCoverage.single {
-          it.name == "kingdom_computation_log_entry_acceptance" &&
-            it.resource == "$measurementName @ duchy $duchyId"
-        }
-        .status
+        missingCoverage
+          .single {
+            it.name == "kingdom_computation_log_entry_acceptance" &&
+              it.resource == "$measurementName @ duchy $duchyId"
+          }
+          .status
       )
       .isEqualTo("MISSING")
     assertThat(
-        acceptedCoverage.single {
-          it.name == "kingdom_computation_log_entry_acceptance" &&
-            it.resource == "$measurementName @ duchy $duchyId"
-        }
-        .status
+        acceptedCoverage
+          .single {
+            it.name == "kingdom_computation_log_entry_acceptance" &&
+              it.resource == "$measurementName @ duchy $duchyId"
+          }
+          .status
       )
       .isEqualTo("SUCCEEDED")
   }

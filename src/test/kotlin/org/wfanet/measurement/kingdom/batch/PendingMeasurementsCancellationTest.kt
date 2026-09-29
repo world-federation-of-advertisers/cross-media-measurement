@@ -57,8 +57,7 @@ import org.wfanet.measurement.internal.kingdom.measurementDetails
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 1L
 private const val EXTERNAL_MEASUREMENT_ID = 2L
-private const val BASIC_REPORT_NAME =
-  "measurementConsumers/AAAAAAAAAAE/basicReports/basic-report"
+private const val BASIC_REPORT_NAME = "measurementConsumers/AAAAAAAAAAE/basicReports/basic-report"
 private const val REPORT_NAME = "measurementConsumers/AAAAAAAAAAE/reports/report"
 private const val METRIC_NAME = "measurementConsumers/AAAAAAAAAAE/metrics/metric"
 private val MEASUREMENT_NAME =
@@ -88,8 +87,7 @@ private val PENDING_MEASUREMENT = measurement {
 class PendingMeasurementsCancellationTest {
   private val measurementsServiceMock: MeasurementsCoroutineImplBase = mockService()
 
-  @get:Rule
-  val grpcTestServerRule = GrpcTestServerRule { addService(measurementsServiceMock) }
+  @get:Rule val grpcTestServerRule = GrpcTestServerRule { addService(measurementsServiceMock) }
 
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var spanExporter: InMemorySpanExporter
@@ -118,11 +116,12 @@ class PendingMeasurementsCancellationTest {
   fun `run emits accepted lifecycle span for each cancelled Measurement`() {
     whenever(measurementsServiceMock.streamMeasurements(any()))
       .thenReturn(flowOf(PENDING_MEASUREMENT), emptyFlow())
-    whenever(measurementsServiceMock.batchCancelMeasurements(any())).thenReturn(
-      batchCancelMeasurementsResponse {
-        measurements += PENDING_MEASUREMENT.copy { state = Measurement.State.CANCELLED }
-      }
-    )
+    whenever(measurementsServiceMock.batchCancelMeasurements(any()))
+      .thenReturn(
+        batchCancelMeasurementsResponse {
+          measurements += PENDING_MEASUREMENT.copy { state = Measurement.State.CANCELLED }
+        }
+      )
     val cancellation =
       PendingMeasurementsCancellation(
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
@@ -138,8 +137,7 @@ class PendingMeasurementsCancellationTest {
       .isEqualTo(BASIC_REPORT_NAME)
     assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
       .isEqualTo(MEASUREMENT_NAME)
-    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_STATE))
-      .isEqualTo("CANCELLED")
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_STATE)).isEqualTo("CANCELLED")
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("measurement_cancellation")
     assertThat(span.attributes.get(ReportTraceAttributes.CANCELLATION_ORIGIN))
@@ -170,7 +168,6 @@ class PendingMeasurementsCancellationTest {
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("measurement_cancellation")
     assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
-      .isEqualTo("grpc.UNAVAILABLE")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
   }
 }

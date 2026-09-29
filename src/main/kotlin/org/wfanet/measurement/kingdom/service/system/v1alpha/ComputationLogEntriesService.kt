@@ -32,10 +32,10 @@ import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub
+import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
-import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.CreateComputationLogEntryRequest
 
 class ComputationLogEntriesService(
@@ -110,10 +110,7 @@ class ComputationLogEntriesService(
   private fun logEntryTraceAttributes(parent: String): Attributes {
     val builder =
       Attributes.builder()
-        .put(
-          ReportTraceAttributes.LIFECYCLE_STAGE,
-          "kingdom_computation_log_entry_acceptance",
-        )
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_computation_log_entry_acceptance")
         .put(ReportTraceAttributes.OUTCOME, "started")
     val key = ComputationParticipantKey.fromName(parent)
     if (key != null) {
