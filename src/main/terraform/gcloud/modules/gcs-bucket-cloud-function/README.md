@@ -7,9 +7,11 @@ undeliverable notifications.
 ## Dead Letter Queue
 
 Eventarc creates a Pub/Sub push subscription to deliver GCS notifications to
-the Cloud Function. The `retry_on_failure` input defaults to `true`, so a failed
-invocation is redelivered with exponential backoff. Without a dead letter queue,
-messages that cannot be delivered within the retention period are silently dropped.
+the Cloud Function. Google Cloud does not retry failed invocations by default.
+This module defaults `retry_on_failure` to `true` and explicitly passes
+`--retry`, enabling redelivery with exponential backoff. Without a dead letter
+queue, messages that cannot be delivered within the retention period are silently
+dropped.
 
 This module creates a DLQ topic and subscription for each function, and
 attaches it to the Eventarc-managed subscription after deployment. Failed
