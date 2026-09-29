@@ -202,6 +202,8 @@ private data class PendingWrite<T>(
   val request: T,
 )
 
+private class BatchSyncException(cause: Exception) : RuntimeException(cause)
+
 /** The write a queued EventGroup needs: a batched create, a batched update, or nothing. */
 private sealed interface WriteAction {
   data class Create(val request: CreateEventGroupRequest) : WriteAction
@@ -432,6 +434,7 @@ class EventGroupSync(
               pendingUpdates,
             )
           } catch (e: Exception) {
+            if (e is BatchSyncException) throw e
             if (e is CancellationException) throw e
             logger.log(Level.SEVERE, e) {
               "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -622,7 +625,7 @@ class EventGroupSync(
           // a partial mapping.
           recordBatchFailure(e, pendingCreates)
           pendingCreates.clear()
-          throw e
+          throw BatchSyncException(e)
         }
         pendingCreates.clear()
         return
@@ -731,7 +734,7 @@ class EventGroupSync(
           // a partial mapping.
           recordBatchFailure(e, pendingUpdates)
           pendingUpdates.clear()
-          throw e
+          throw BatchSyncException(e)
         }
         pendingUpdates.clear()
         return

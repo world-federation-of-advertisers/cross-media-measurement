@@ -31,6 +31,7 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.io.InputStreamReader
 import java.nio.file.Files
+import java.time.Clock
 import java.time.Duration
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
@@ -51,6 +52,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
+import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
@@ -128,7 +131,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   clientAccountsStub = clientAccountsClient,
                   unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                   eventGroups = eventGroups,
-                  throttler = MaximumRateThrottler(kingdomRequestsPerSecond),
+                  throttler = kingdomThrottler,
                   listEventGroupPageSize,
                   entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 )
@@ -300,9 +303,16 @@ class EventGroupSyncFunction() : HttpFunction {
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
-    private val kingdomRequestsPerSecond =
-      System.getenv("KINGDOM_REQUESTS_PER_SECOND")?.toDouble()
-        ?: DEFAULT_KINGDOM_REQUESTS_PER_SECOND
+    private val kingdomThrottler: Throttler by lazy {
+      val requestsPerSecond = System.getenv("KINGDOM_REQUESTS_PER_SECOND")
+      val throttlerMillis = System.getenv("THROTTLER_MILLIS")
+      when {
+        requestsPerSecond != null -> MaximumRateThrottler(requestsPerSecond.toDouble())
+        throttlerMillis != null ->
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(throttlerMillis.toLong()))
+        else -> MaximumRateThrottler(DEFAULT_KINGDOM_REQUESTS_PER_SECOND)
+      }
+    }
     private val channelShutdownDuration =
       Duration.ofSeconds(
         System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong()
