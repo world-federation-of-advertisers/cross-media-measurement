@@ -38,6 +38,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.MeasurementSpecKt.reportingMetadata
 import org.wfanet.measurement.api.v2alpha.measurementSpec as apiMeasurementSpec
@@ -116,12 +117,14 @@ class PendingMeasurementsCancellationTest {
   fun `run emits accepted lifecycle span for each cancelled Measurement`() {
     whenever(measurementsServiceMock.streamMeasurements(any()))
       .thenReturn(flowOf(PENDING_MEASUREMENT), emptyFlow())
-    whenever(measurementsServiceMock.batchCancelMeasurements(any()))
-      .thenReturn(
-        batchCancelMeasurementsResponse {
-          measurements += PENDING_MEASUREMENT.copy { state = Measurement.State.CANCELLED }
-        }
-      )
+    measurementsServiceMock.stub {
+      onBlocking { batchCancelMeasurements(any()) }
+        .thenReturn(
+          batchCancelMeasurementsResponse {
+            measurements += PENDING_MEASUREMENT.copy { state = Measurement.State.CANCELLED }
+          }
+        )
+    }
     val cancellation =
       PendingMeasurementsCancellation(
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
@@ -149,8 +152,10 @@ class PendingMeasurementsCancellationTest {
   fun `run emits failed lifecycle span when cancellation RPC fails`() {
     whenever(measurementsServiceMock.streamMeasurements(any()))
       .thenReturn(flowOf(PENDING_MEASUREMENT))
-    whenever(measurementsServiceMock.batchCancelMeasurements(any()))
-      .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    measurementsServiceMock.stub {
+      onBlocking { batchCancelMeasurements(any()) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
     val cancellation =
       PendingMeasurementsCancellation(
         MeasurementsCoroutineStub(grpcTestServerRule.channel),
