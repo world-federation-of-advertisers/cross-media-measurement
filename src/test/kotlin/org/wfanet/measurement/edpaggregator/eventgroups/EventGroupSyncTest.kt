@@ -3040,7 +3040,7 @@ class EventGroupSyncTest {
   }
 
   @Test
-  fun `fails sync without per-item retries when a batch create fails transiently`() {
+  fun `sync fails when a full create batch fails transiently`() {
     // A transient/infra failure affects the whole batch, so the fallback must NOT fire 50 doomed
     // unary retries; it records one batched failure and fails the run instead.
     wheneverBlocking {
@@ -3051,15 +3051,15 @@ class EventGroupSyncTest {
       }
 
     val sourceEventGroups =
-      listOf("t-a", "t-b", "t-c").map { refId ->
+      (1..50).map { index ->
         eventGroup {
-          eventGroupReferenceId = refId
+          eventGroupReferenceId = "transient-create-$index"
           measurementConsumer = "measurementConsumers/measurement-consumer-1"
           this.eventGroupMetadata = eventGroupMetadata {
             this.adMetadata = adMetadata {
               this.campaignMetadata = campaignMetadata {
                 brand = "brand"
-                campaign = "campaign"
+                campaign = "campaign-$index"
               }
             }
           }
@@ -3084,10 +3084,11 @@ class EventGroupSyncTest {
       )
 
     val exception =
-      assertFailsWith<StatusException> { runBlocking { eventGroupSync.sync().toList() } }
+      assertFailsWith<RuntimeException> { runBlocking { eventGroupSync.sync().toList() } }
 
-    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
-    assertThat(exception.status.description).isEqualTo("kingdom unavailable")
+    assertThat(exception.cause).isInstanceOf(StatusException::class.java)
+    val statusException = exception.cause as StatusException
+    assertThat(statusException.status.code).isEqualTo(Status.Code.UNAVAILABLE)
     verifyBlocking(eventGroupsServiceMock, times(1)) { batchCreateEventGroups(any()) }
     // No per-item fan-out on a transient failure.
     verifyBlocking(eventGroupsServiceMock, times(0)) { createEventGroup(any()) }
@@ -3095,11 +3096,97 @@ class EventGroupSyncTest {
     val failureMetric = getMetrics().firstOrNull { it.name == "edpa.event_group.sync_failure" }
     assertThat(failureMetric).isNotNull()
     // One batched failure counting all affected items, recorded as a single batch-level point.
-    assertThat(failureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(3)
+    assertThat(failureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(50)
     assertThat(failureMetric.longSumData.points).hasSize(1)
     val point = failureMetric.longSumData.points.first()
     assertThat(point.attributes.get(AttributeKey.stringKey("error_type"))).isEqualTo("UNAVAILABLE")
     // Batch-level failure carries no per-item reference id.
+    assertThat(point.attributes.get(AttributeKey.stringKey("event_group_reference_id"))).isNull()
+  }
+
+  @Test
+  fun `sync fails when a full update batch fails transiently`() {
+    wheneverBlocking { eventGroupsServiceMock.listEventGroups(any<ListEventGroupsRequest>()) }
+      .thenAnswer {
+        listEventGroupsResponse {
+          eventGroups +=
+            (1..50).map { index ->
+              cmmsEventGroup {
+                name = "dataProviders/data-provider-1/eventGroups/resource-$index"
+                measurementConsumer = "measurementConsumers/measurement-consumer-1"
+                eventGroupReferenceId = "transient-update-$index"
+                mediaTypes += listOf(CmmsMediaType.OTHER)
+                eventGroupMetadata = cmmsEventGroupMetadata {
+                  this.adMetadata = cmmsAdMetadata {
+                    this.campaignMetadata = cmmsCampaignMetadata {
+                      brandName = "old-brand"
+                      campaignName = "campaign-$index"
+                    }
+                  }
+                }
+                dataAvailabilityInterval = interval {
+                  startTime = timestamp { seconds = 200 }
+                  endTime = timestamp { seconds = 300 }
+                }
+              }
+            }
+        }
+      }
+    wheneverBlocking {
+        eventGroupsServiceMock.batchUpdateEventGroups(any<BatchUpdateEventGroupsRequest>())
+      }
+      .thenAnswer {
+        throw StatusException(Status.UNAVAILABLE.withDescription("kingdom unavailable"))
+      }
+
+    val sourceEventGroups =
+      (1..50).map { index ->
+        eventGroup {
+          eventGroupReferenceId = "transient-update-$index"
+          measurementConsumer = "measurementConsumers/measurement-consumer-1"
+          this.eventGroupMetadata = eventGroupMetadata {
+            this.adMetadata = adMetadata {
+              this.campaignMetadata = campaignMetadata {
+                brand = "new-brand"
+                campaign = "campaign-$index"
+              }
+            }
+          }
+          dataAvailabilityInterval = interval {
+            startTime = timestamp { seconds = 200 }
+            endTime = timestamp { seconds = 300 }
+          }
+          mediaTypes += listOf(MediaType.OTHER)
+        }
+      }
+
+    val eventGroupSync =
+      EventGroupSync(
+        "edp-name",
+        eventGroupsStub,
+        clientAccountsStub,
+        unlinkedClientAccountsStub,
+        sourceEventGroups.asFlow(),
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        100,
+        entityKeyTypes = emptyList(),
+      )
+
+    val exception =
+      assertFailsWith<RuntimeException> { runBlocking { eventGroupSync.sync().toList() } }
+
+    assertThat(exception.cause).isInstanceOf(StatusException::class.java)
+    val statusException = exception.cause as StatusException
+    assertThat(statusException.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    verifyBlocking(eventGroupsServiceMock, times(1)) { batchUpdateEventGroups(any()) }
+    verifyBlocking(eventGroupsServiceMock, times(0)) { updateEventGroup(any()) }
+
+    val failureMetric = getMetrics().firstOrNull { it.name == "edpa.event_group.sync_failure" }
+    assertThat(failureMetric).isNotNull()
+    assertThat(failureMetric!!.longSumData.points.sumOf { it.value }).isEqualTo(50)
+    assertThat(failureMetric.longSumData.points).hasSize(1)
+    val point = failureMetric.longSumData.points.first()
+    assertThat(point.attributes.get(AttributeKey.stringKey("error_type"))).isEqualTo("UNAVAILABLE")
     assertThat(point.attributes.get(AttributeKey.stringKey("event_group_reference_id"))).isNull()
   }
 
