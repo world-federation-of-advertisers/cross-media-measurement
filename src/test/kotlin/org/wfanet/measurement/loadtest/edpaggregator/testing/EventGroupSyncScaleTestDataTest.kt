@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.integration.common
+package org.wfanet.measurement.loadtest.edpaggregator.testing
 
 import com.google.common.truth.Truth.assertThat
 import org.junit.Test

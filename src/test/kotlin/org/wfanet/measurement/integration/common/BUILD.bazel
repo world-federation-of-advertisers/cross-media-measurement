@@ -84,21 +84,3 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
     ],
 )
-
-kt_jvm_library(
-    name = "event_group_sync_scale_test_data",
-    testonly = True,
-    srcs = ["EventGroupSyncScaleTestData.kt"],
-    visibility = ["//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__"],
-)
-
-kt_jvm_test(
-    name = "EventGroupSyncScaleTestDataTest",
-    srcs = ["EventGroupSyncScaleTestDataTest.kt"],
-    test_class = "org.wfanet.measurement.integration.common.EventGroupSyncScaleTestDataTest",
-    deps = [
-        ":event_group_sync_scale_test_data",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-    ],
-)

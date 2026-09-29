@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.integration.common
+package org.wfanet.measurement.loadtest.edpaggregator.testing
 
 import kotlin.random.Random
 

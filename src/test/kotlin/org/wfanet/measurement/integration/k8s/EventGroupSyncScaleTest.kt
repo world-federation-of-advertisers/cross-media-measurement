@@ -53,7 +53,7 @@ import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroupKt.met
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.eventGroups as sourceEventGroups
-import org.wfanet.measurement.integration.common.EventGroupSyncScaleTestData
+import org.wfanet.measurement.loadtest.edpaggregator.testing.EventGroupSyncScaleTestData
 import org.wfanet.measurement.reporting.v2alpha.EventGroup as ReportingEventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub as ReportingEventGroupsCoroutineStub
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt as ReportingListEventGroupsRequestKt
