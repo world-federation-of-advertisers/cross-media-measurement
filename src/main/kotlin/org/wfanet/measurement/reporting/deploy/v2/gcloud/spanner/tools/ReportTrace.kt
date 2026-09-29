@@ -2686,18 +2686,16 @@ internal object ReportTraceOutput {
                 }
               val retryableFailureObserved =
                 failedDuchyEvidence.any { evidence ->
-                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]
-                    ?.endsWith("TransientErrorException") == true
+                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]?.endsWith(
+                    "TransientErrorException"
+                  ) == true
                 } ||
-                  hasOutcomeEvidence(
-                    "duchy_stage_attempt",
-                    attributes,
-                    setOf("retryable_failure"),
-                  )
+                  hasOutcomeEvidence("duchy_stage_attempt", attributes, setOf("retryable_failure"))
               val permanentFailureObserved =
                 failedDuchyEvidence.any { evidence ->
-                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]
-                    ?.endsWith("TransientErrorException") != true
+                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]?.endsWith(
+                    "TransientErrorException"
+                  ) != true
                 }
               for (stage in
                 listOf(
