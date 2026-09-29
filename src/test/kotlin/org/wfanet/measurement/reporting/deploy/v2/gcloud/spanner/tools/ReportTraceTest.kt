@@ -4330,16 +4330,25 @@ class ReportTraceTest {
 
     val missingCoverage =
       ReportTraceOutput.lifecycleCoverage(context, routeResolution, emptyList(), emptyList())
+    val acceptedCancellation =
+      lifecycleSpan("measurement_cancellation", "xmm.measurement.name", measurementName)
+        .copy(startTime = NOW)
+    val rejectedDuplicate =
+      failedLifecycleSpan(
+          "measurement_cancellation",
+          mapOf("xmm.measurement.name" to measurementName),
+        )
+        .copy(startTime = NOW.plusSeconds(1))
     val acceptedCoverage =
       ReportTraceOutput.lifecycleCoverage(
         context,
         routeResolution,
-        listOf(lifecycleSpan("measurement_cancellation", "xmm.measurement.name", measurementName)),
+        listOf(acceptedCancellation, rejectedDuplicate),
         emptyList(),
       )
 
     assertThat(missingCoverage.single { it.name == "measurement_cancellation" }.status)
-      .isEqualTo("MISSING")
+      .isEqualTo("UNKNOWN")
     assertThat(acceptedCoverage.single { it.name == "measurement_cancellation" }.status)
       .isEqualTo("SUCCEEDED")
   }

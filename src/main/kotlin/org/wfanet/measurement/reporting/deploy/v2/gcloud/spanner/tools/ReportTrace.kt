@@ -1855,12 +1855,17 @@ internal object ReportTraceOutput {
         "REFUSED" -> matchingEvidence.any { it.outcome?.lowercase() == "refused" }
         else -> false
       }
+    val acceptedEvidenceFound =
+      operation.stage in KINGDOM_ACCEPTANCE_LIFECYCLE_STAGES &&
+        matchingEvidence.any { it.outcome?.lowercase() in TERMINAL_SUCCESS_OUTCOMES }
     return ReportTraceLifecycleStage(
       name = operation.stage,
       resource = operation.resource,
       status =
         when {
           durableTerminalStatus != null && durableTerminalEvidenceFound -> durableTerminalStatus
+          requirement != ReportTraceStageRequirement.NOT_APPLICABLE && acceptedEvidenceFound ->
+            "SUCCEEDED"
           requirement == ReportTraceStageRequirement.NOT_APPLICABLE &&
             isFailureOutcome(latestOutcome) -> "FAILED"
           durableTerminalStatus != null -> "UNKNOWN"
@@ -1949,6 +1954,11 @@ internal object ReportTraceOutput {
       return null
     }
     return when (operation.stage) {
+      "measurement_cancellation" ->
+        routeResolution.measurementRoutes
+          .singleOrNull { it.name == operation.identifyingAttributes["xmm.measurement.name"] }
+          ?.takeIf { it.state.uppercase() == "CANCELLED" }
+          ?.let { "SUCCEEDED" }
       "kingdom_computation_result_acceptance" ->
         routeResolution.measurementRoutes
           .singleOrNull { it.name == operation.identifyingAttributes["xmm.measurement.name"] }
@@ -3437,6 +3447,14 @@ internal object ReportTraceOutput {
     setOf("started", "prepared", "in_progress", "pending", "retryable_failure", "stale_delivery")
   private val REPORT_TERMINAL_SUPERSEDED_SYNC_STAGES =
     setOf("metric_result_sync", "kingdom_measurement_sync")
+  private val KINGDOM_ACCEPTANCE_LIFECYCLE_STAGES =
+    setOf(
+      "measurement_cancellation",
+      "kingdom_participant_requisition_params_acceptance",
+      "kingdom_participant_confirmation",
+      "kingdom_participant_failure_acceptance",
+      "kingdom_computation_log_entry_acceptance",
+    )
   private val FINAL_DISPOSITION_LIFECYCLE_STAGES =
     setOf(
       "report_result_assembly",
