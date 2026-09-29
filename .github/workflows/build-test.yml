@@ -24,6 +24,12 @@ on:
       - main
       - 'releases/**'
   workflow_dispatch:
+    inputs:
+      run_event_group_sync_scale_test:
+        description: "Run only the EventGroupSync scale test in dev"
+        type: boolean
+        default: false
+        required: false
 
 permissions:
   contents: read
@@ -34,6 +40,7 @@ concurrency:
 
 jobs:
   build-test:
+    if: ${{ !inputs.run_event_group_sync_scale_test }}
     name: Build and test
     runs-on: ubuntu-24.04
     env:
@@ -169,3 +176,13 @@ jobs:
         continue-on-error: true
         uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
         if: failure() && (steps.run-tests.outcome == 'failure' || steps.run-correctness-test.outcome == 'failure' || steps.run-panelmatch-correctness-test.outcome == 'failure')
+
+  run-event-group-sync-scale-test:
+    if: ${{ inputs.run_event_group_sync_scale_test }}
+    uses: ./.github/workflows/event-group-sync-scale-test.yml
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+    with:
+      environment: dev
