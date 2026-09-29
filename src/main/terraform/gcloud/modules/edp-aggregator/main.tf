@@ -295,6 +295,7 @@ module "data_watcher_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "finalized"
+  retry_on_failure                            = true
   uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_config.generation
   # The DataWatcher waits synchronously for the dispatcher. Event-driven gen2 functions allow at
   # most 540 seconds, so give the caller that maximum and keep the dispatcher below it.
@@ -317,6 +318,7 @@ module "data_watcher_delete_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
+  retry_on_failure                            = true
 }
 
 module "requisition_fetcher_cloud_function" {

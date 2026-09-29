@@ -41,6 +41,7 @@ import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
+import java.io.IOException
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import kotlin.test.assertFailsWith
@@ -778,7 +779,7 @@ class DataWatcherTest() {
         sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
         this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
       }
-      val server = TestServer(statusCode = 500)
+      val server = TestServer(statusCode = 503)
       server.start(localPort)
       val dataWatcher =
         DataWatcher(
@@ -792,8 +793,53 @@ class DataWatcherTest() {
           dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
         }
 
-      assertThat(error).hasMessageThat().contains("returned 500")
+      assertThat(error).hasMessageThat().contains("returned 503")
       server.stop()
+    }
+  }
+
+  @Test
+  fun `does not surface non-retryable HTTP dispatch failure`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer(statusCode = 500)
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+
+      assertThat(server.getLastRequest()).isNotEmpty()
+      server.stop()
+    }
+  }
+
+  @Test
+  fun `surfaces HTTP transport failure so Eventarc can retry`() {
+    runBlocking {
+      val unusedPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$unusedPort" }
+      }
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      assertFailsWith<IOException> {
+        dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+      }
     }
   }
 
