@@ -300,7 +300,12 @@ class EventGroupSyncFunctionTest() {
     return functionProcess.start(defaultEnv + envOverrides)
   }
 
-  private fun invokeFunctionWithBatchCreateFailure(status: Status): Int {
+  private data class FailedInvocation(val statusCode: Int, val failureMetricLog: String?)
+
+  private fun invokeFunctionWithBatchCreateFailure(
+    status: Status,
+    previousMappedEventGroup: MappedEventGroup? = null,
+  ): FailedInvocation {
     eventGroupsServiceMock.stub {
       onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) } doThrow
         status.asRuntimeException()
@@ -331,6 +336,13 @@ class EventGroupSyncFunctionTest() {
           "some/path/campaigns-blob-uri.binpb",
           flowOf(buildConcurrentEventGroup("failure-reference-id").toByteString()),
         )
+      if (previousMappedEventGroup != null) {
+        MesosRecordIoStorageClient(storageClient)
+          .writeBlob(
+            "some/other/path/event-groups-map-uri",
+            flowOf(previousMappedEventGroup.toByteString()),
+          )
+      }
     }
     val port = runBlocking {
       startFunction(
@@ -346,19 +358,55 @@ class EventGroupSyncFunctionTest() {
         .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
         .build()
 
-    return HttpClient.newHttpClient()
-      .send(request, HttpResponse.BodyHandlers.ofString())
-      .statusCode()
+    val failureMetricLogs = LinkedBlockingQueue<String>()
+    val metricLogHandler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          if (record.message.contains(FUNCTION_FAILURE_METRIC_NAME)) {
+            failureMetricLogs.offer(record.message)
+          }
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(metricLogHandler)
+    return try {
+      val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+      FailedInvocation(response.statusCode(), failureMetricLogs.poll(5, TimeUnit.SECONDS))
+    } finally {
+      rootLogger.removeHandler(metricLogHandler)
+    }
   }
 
   @Test
-  fun `sync returns service unavailable for retryable Kingdom failure`() {
-    assertThat(invokeFunctionWithBatchCreateFailure(Status.DEADLINE_EXCEEDED)).isEqualTo(503)
+  fun `sync preserves map and records failure for retryable Kingdom failure`() {
+    val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "dataProviders/data-provider-1/eventGroups/previous-event-group"
+    }
+
+    val result =
+      invokeFunctionWithBatchCreateFailure(Status.DEADLINE_EXCEEDED, previousMappedEventGroup)
+
+    assertThat(result.statusCode).isEqualTo(503)
+    assertThat(checkNotNull(result.failureMetricLog)).contains("value=1")
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(previousMappedEventGroup)
   }
 
   @Test
   fun `sync returns internal server error for permanent Kingdom failure`() {
-    assertThat(invokeFunctionWithBatchCreateFailure(Status.PERMISSION_DENIED)).isEqualTo(500)
+    assertThat(invokeFunctionWithBatchCreateFailure(Status.PERMISSION_DENIED).statusCode)
+      .isEqualTo(500)
   }
 
   private fun assertStaleInvocationDoesNotOverwriteDestination(
