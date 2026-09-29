@@ -278,8 +278,7 @@ class ComputationLogEntriesServiceTest {
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("kingdom_computation_log_entry_acceptance")
     assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
-      .isEqualTo("grpc.UNAVAILABLE")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
   }
 
   @Test
