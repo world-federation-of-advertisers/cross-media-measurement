@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.date
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -24,6 +25,7 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.modelLineCutover
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 
 @RunWith(JUnit4::class)
@@ -248,8 +250,45 @@ class ResultsFulfillerParamsValidatorTest {
     assertThat(exception).hasMessageThat().contains("Invalid key name format")
   }
 
+  @Test
+  fun `valid model line cutover passes validation`() {
+    val params = VALID_PARAMS.copy { modelLineCutovers += VALID_CUTOVER }
+
+    ResultsFulfillerParamsValidator.validate(params)
+  }
+
+  @Test
+  fun `model line cannot use legacy map and cutover`() {
+    val params =
+      VALID_PARAMS.copy {
+        modelLineMap[EXTERNAL_MODEL_LINE] = BEFORE_MODEL_LINE
+        modelLineCutovers += VALID_CUTOVER
+      }
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> { ResultsFulfillerParamsValidator.validate(params) }
+
+    assertThat(exception).hasMessageThat().contains(EXTERNAL_MODEL_LINE)
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp1"
+    private const val EXTERNAL_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/external"
+    private const val BEFORE_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/before"
+    private const val ON_OR_AFTER_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/after"
+    private val VALID_CUTOVER = modelLineCutover {
+      externalModelLine = EXTERNAL_MODEL_LINE
+      beforeCutoverModelLine = BEFORE_MODEL_LINE
+      onOrAfterCutoverModelLine = ON_OR_AFTER_MODEL_LINE
+      cutoverDate = date {
+        year = 2026
+        month = 10
+        day = 1
+      }
+    }
     private val VALID_PARAMS: ResultsFulfillerParams = resultsFulfillerParams {
       dataProvider = DATA_PROVIDER
       storageParams =

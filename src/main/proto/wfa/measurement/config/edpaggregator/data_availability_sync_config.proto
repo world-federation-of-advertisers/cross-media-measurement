@@ -18,6 +18,7 @@ package wfa.measurement.config.edpaggregator;
 
 import "google/api/resource.proto";
 import "google/api/field_behavior.proto";
+import "google/type/date.proto";
 import "wfa/measurement/config/edpaggregator/storage_params.proto";
 import "wfa/measurement/config/edpaggregator/transport_layer_security_params.proto";
 
@@ -65,6 +66,36 @@ message DataAvailabilitySyncConfig {
   // warning but proceed with replacing data availability intervals normally.
   // Gap dates are always logged regardless of this setting.
   bool error_if_gaps_exist = 7;
+
+  // Routes one external model line between two internal model lines at a UTC
+  // date boundary.
+  message ModelLineCutover {
+    // Model line whose data availability is published.
+    string external_model_line = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+    ];
+
+    // Internal model line used for event times before `cutover_date`.
+    string before_cutover_model_line = 2 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+    ];
+
+    // Internal model line used for event times on or after `cutover_date`.
+    string on_or_after_cutover_model_line = 3 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+    ];
+
+    // First UTC date whose availability comes from
+    // `on_or_after_cutover_model_line`.
+    google.type.Date cutover_date = 4 [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Date-based model-line routing used when publishing availability during a
+  // model-line cutover.
+  repeated ModelLineCutover model_line_cutovers = 8;
 
   // List of model lines to use for a single mapping entry.
   message ModelLineList {

@@ -18,6 +18,8 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import org.wfanet.measurement.api.v2alpha.DataProviderCertificateKey
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
+import org.wfanet.measurement.edpaggregator.toModelLineCutoverConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.ImpressionCapMode
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.NoiseParams.NoiseType
@@ -112,6 +114,11 @@ object ResultsFulfillerParamsValidator {
         params.impressionMaxFrequencyPerUser
     }
     requireCapMatchesMode(params.impressionCapMode, params.impressionMaxFrequencyPerUser)
+
+    ModelLineCutoverValidator.validate(
+      params.modelLineCutoversList.map { it.toModelLineCutoverConfig() },
+      params.modelLineMapMap.keys,
+    )
 
     require(params.multiPartyConfig.supportedNoiseTypesList.all { it.isSupported() }) {
       "Unsupported multi-party noise type in results_fulfiller_params"

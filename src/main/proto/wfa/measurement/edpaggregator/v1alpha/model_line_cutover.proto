@@ -1,0 +1,51 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "ModelLineCutoverProto";
+
+// Routes one external model line between two internal model lines at a UTC
+// date boundary.
+message ModelLineCutover {
+  // Model line used in requisitions and published data availability.
+  string external_model_line = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Internal model line used for event times before `cutover_date`.
+  string before_cutover_model_line = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Internal model line used for event times on or after `cutover_date`.
+  string on_or_after_cutover_model_line = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // First UTC date whose impressions are read from
+  // `on_or_after_cutover_model_line`.
+  google.type.Date cutover_date = 4 [(google.api.field_behavior) = REQUIRED];
+}

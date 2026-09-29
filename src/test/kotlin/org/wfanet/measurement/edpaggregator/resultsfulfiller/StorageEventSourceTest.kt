@@ -29,6 +29,7 @@ import com.google.protobuf.Empty
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.protobuf.timestamp
+import com.google.type.date
 import com.google.type.interval
 import java.io.File
 import java.io.IOException
@@ -67,6 +68,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverConfig
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
@@ -1528,6 +1530,179 @@ class StorageEventSourceTest {
         }
       assertThat(exception.message).isEqualTo("Cannot mix entity-key and reference-id event groups")
     }
+
+  @Test
+  fun `generateEventBatches routes and filters events across model line cutover`(): Unit =
+    runBlocking {
+      val metadataTmpPath = tmp.newFolder("metadata-cutover")
+      val eventGroupRef = "event-group-cutover"
+      val beforeModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/before-cutover"
+      val onOrAfterModelLine =
+        "modelProviders/provider1/modelSuites/suite1/modelLines/on-or-after-cutover"
+      val startDate = LocalDate.of(2026, 9, 30)
+      val cutoverDate = LocalDate.of(2026, 10, 1)
+      val endDate = LocalDate.of(2026, 10, 2)
+      val start = startDate.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val boundary = cutoverDate.atStartOfDay(ZoneId.of("UTC")).toInstant()
+      val end = endDate.atStartOfDay(ZoneId.of("UTC")).toInstant()
+
+      writeMetadataWithKekUri(metadataTmpPath, startDate, "before-source", kekUri, beforeModelLine)
+      writeMetadataWithKekUri(
+        metadataTmpPath,
+        startDate,
+        "after-source",
+        kekUri,
+        onOrAfterModelLine,
+      )
+
+      val requests = mutableListOf<ListImpressionMetadataRequest>()
+      whenever(impressionMetadataServiceMock.listImpressionMetadata(any())).thenAnswer { invocation
+        ->
+        val request = invocation.getArgument<ListImpressionMetadataRequest>(0)
+        requests += request
+        val sourceReferenceId =
+          if (request.filter.modelLine == beforeModelLine) "before-source" else "after-source"
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri =
+              "file:///meta-bucket/ds/$startDate/model-line/${request.filter.modelLine}/" +
+                "event-group-reference-id/$sourceReferenceId/metadata"
+            this.interval = interval {
+              startTime = start.toProtoTime()
+              endTime = end.toProtoTime()
+            }
+          }
+        }
+      }
+
+      val eventSource =
+        StorageEventSource(
+          impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+          eventGroupDetailsList =
+            listOf(createEventGroupDetails(eventGroupRef, startDate, endDate, ZoneId.of("UTC"))),
+          modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external",
+          modelLineCutover =
+            ModelLineCutoverConfig.from(
+              externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external",
+              beforeCutoverModelLine = beforeModelLine,
+              onOrAfterCutoverModelLine = onOrAfterModelLine,
+              cutoverDate =
+                date {
+                  year = 2026
+                  month = 10
+                  day = 1
+                },
+            ),
+          kmsClient = null,
+          impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+          descriptor = TestEvent.getDescriptor(),
+          batchSize = 1000,
+          eventReaderFactory = { details ->
+            val events: List<LabeledEvent<Message>> =
+              if (details.modelLine == beforeModelLine) {
+                listOf(
+                  LabeledEvent(start.plusSeconds(1), 1L, TEST_EVENT, emptyList()),
+                  LabeledEvent(boundary, 2L, TEST_EVENT, emptyList()),
+                )
+              } else {
+                listOf(
+                  LabeledEvent(boundary.minusSeconds(1), 3L, TEST_EVENT, emptyList()),
+                  LabeledEvent(boundary, 4L, TEST_EVENT, emptyList()),
+                )
+              }
+            object : EventReader<Message> {
+              override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+                emit(events)
+              }
+            }
+          },
+        )
+
+      val events = eventSource.generateEventBatches().toList().flatMap { it.events }
+
+      assertThat(events.map { it.vid }).containsExactly(1L, 4L)
+      assertThat(requests.map { it.filter.modelLine })
+        .containsExactly(beforeModelLine, onOrAfterModelLine)
+        .inOrder()
+      assertThat(requests[0].filter.intervalOverlaps.endTime).isEqualTo(boundary.toProtoTime())
+      assertThat(requests[1].filter.intervalOverlaps.startTime).isEqualTo(boundary.toProtoTime())
+    }
+
+  @Test
+  fun `generateEventBatches reads shared cutover blob once`(): Unit = runBlocking {
+    val metadataTmpPath = tmp.newFolder("metadata-shared-cutover-blob")
+    val beforeModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/before-cutover"
+    val onOrAfterModelLine =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/on-or-after-cutover"
+    val startDate = LocalDate.of(2026, 9, 30)
+    val endDate = LocalDate.of(2026, 10, 2)
+    val start = startDate.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val boundary = LocalDate.of(2026, 10, 1).atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val end = endDate.atStartOfDay(ZoneId.of("UTC")).toInstant()
+    val sourceReferenceId = "shared-source"
+    val metadataUri =
+      "file:///meta-bucket/ds/$startDate/model-line/$beforeModelLine/" +
+        "event-group-reference-id/$sourceReferenceId/metadata"
+    writeMetadataWithKekUri(metadataTmpPath, startDate, sourceReferenceId, kekUri, beforeModelLine)
+    whenever(impressionMetadataServiceMock.listImpressionMetadata(any()))
+      .thenReturn(
+        listImpressionMetadataResponse {
+          impressionMetadata += impressionMetadata {
+            state = ImpressionMetadata.State.ACTIVE
+            blobUri = metadataUri
+            this.interval = interval {
+              startTime = start.toProtoTime()
+              endTime = end.toProtoTime()
+            }
+          }
+        }
+      )
+    val readerInvocations = AtomicInteger(0)
+    val eventSource =
+      StorageEventSource(
+        impressionDataSourceProvider = createImpressionDataSourceProvider(metadataTmpPath),
+        eventGroupDetailsList =
+          listOf(
+            createEventGroupDetails("event-group-cutover", startDate, endDate, ZoneId.of("UTC"))
+          ),
+        modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external",
+        modelLineCutover =
+          ModelLineCutoverConfig.from(
+            externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external",
+            beforeCutoverModelLine = beforeModelLine,
+            onOrAfterCutoverModelLine = onOrAfterModelLine,
+            cutoverDate =
+              date {
+                year = 2026
+                month = 10
+                day = 1
+              },
+          ),
+        kmsClient = null,
+        impressionsStorageConfig = StorageConfig(rootDirectory = tmp.root),
+        descriptor = TestEvent.getDescriptor(),
+        batchSize = 1000,
+        eventReaderFactory = {
+          readerInvocations.incrementAndGet()
+          object : EventReader<Message> {
+            override suspend fun readEvents(): Flow<List<LabeledEvent<Message>>> = flow {
+              emit(
+                listOf(
+                  LabeledEvent(start.plusSeconds(1), 1L, TEST_EVENT, emptyList()),
+                  LabeledEvent(boundary, 2L, TEST_EVENT, emptyList()),
+                )
+              )
+            }
+          }
+        },
+      )
+
+    val events = eventSource.generateEventBatches().toList().flatMap { it.events }
+
+    assertThat(readerInvocations.get()).isEqualTo(1)
+    assertThat(events.map { it.vid }).containsExactly(1L, 2L)
+  }
 
   /**
    * Seeds [refIds] as distinct impression data sources on [date]: mocks `listImpressionMetadata` to

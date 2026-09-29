@@ -43,6 +43,7 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverConfig
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -140,6 +141,15 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
           modelLineMap =
             dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+          modelLineCutovers =
+            dataAvailabilitySyncConfig.modelLineCutoversList.map { cutover ->
+              ModelLineCutoverConfig.from(
+                externalModelLine = cutover.externalModelLine,
+                beforeCutoverModelLine = cutover.beforeCutoverModelLine,
+                onOrAfterCutoverModelLine = cutover.onOrAfterCutoverModelLine,
+                cutoverDate = cutover.cutoverDate,
+              )
+            },
         )
 
       Tracing.withW3CTraceContext(request) {

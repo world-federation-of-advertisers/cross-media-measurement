@@ -326,6 +326,7 @@ class ResultsFulfiller(
     val modelLineKey = groupedRequisitions.modelLine
     val modelInfo = modelLineInfoMap.getValue(modelLineKey)
     val modelLine = modelInfo.localAlias ?: modelLineKey
+    val modelLineCutover = modelInfo.modelLineCutover
     val eventDescriptor = modelInfo.eventDescriptor
 
     val populationSpec = modelInfo.populationSpec
@@ -336,6 +337,7 @@ class ResultsFulfiller(
         impressionDataSourceProvider = impressionDataSourceProvider,
         eventGroupDetailsList = groupedRequisitions.eventGroupMapList.map { it.details },
         modelLine = modelLine,
+        modelLineCutover = modelLineCutover,
         kmsClient = kmsClient,
         impressionsStorageConfig = impressionsStorageConfig,
         descriptor = eventDescriptor,

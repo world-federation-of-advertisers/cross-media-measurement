@@ -21,10 +21,12 @@ import com.google.protobuf.Any as ProtoAny
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.util.JsonFormat
+import com.google.type.date
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigKt.modelLineCutover
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.eventGroupSyncConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
@@ -37,7 +39,19 @@ class ConfigLoaderTest {
 
   @Test
   fun `buildDataAvailabilitySyncConfig parses legacy format`() {
-    val config = dataAvailabilitySyncConfig { dataProvider = "dataProviders/edp1" }
+    val config = dataAvailabilitySyncConfig {
+      dataProvider = "dataProviders/edp1"
+      modelLineCutovers += modelLineCutover {
+        externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external"
+        beforeCutoverModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/before"
+        onOrAfterCutoverModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/after"
+        cutoverDate = date {
+          year = 2026
+          month = 10
+          day = 1
+        }
+      }
+    }
     val json = JsonFormat.printer().print(config)
 
     val result = ConfigLoader.buildDataAvailabilitySyncConfig(json, listOf(config))
