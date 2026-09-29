@@ -210,7 +210,7 @@ internal class VidLabelingTraceCollector(
           authoritativeGraph.correlationValues +
             evidence
               .flatMap { item ->
-                item.identifiers.filterKeys { it in UNIQUE_CORRELATION_FIELDS }.values
+                item.identifiers.filterKeys { it in DISCOVERY_CORRELATION_FIELDS }.values
               }
               .filter(::isCorrelationValue),
           request.correlationValueLimit,
@@ -486,8 +486,9 @@ internal class VidLabelingTraceCollector(
         primaryKey == AVAILABILITY_INTERVAL_START &&
           node.identifiers.containsKey(AVAILABILITY_INTERVAL_END)
       ) {
-        return evidence.identifiers[AVAILABILITY_INTERVAL_END] ==
-          node.identifiers[AVAILABILITY_INTERVAL_END]
+        return evidence.identifiers[MODEL_LINE] == node.identifiers[MODEL_LINE] &&
+          evidence.identifiers[AVAILABILITY_INTERVAL_END] ==
+            node.identifiers[AVAILABILITY_INTERVAL_END]
       }
       return true
     }
@@ -758,6 +759,7 @@ internal class VidLabelingTraceCollector(
         IMPRESSION_METADATA,
         "xmm.edpa.recovery_work_item.name",
       )
+    private val DISCOVERY_CORRELATION_FIELDS = UNIQUE_CORRELATION_FIELDS + GCS_PATH_HASH
     private val MODEL_LINE_PATTERN =
       Regex("^modelProviders/[^/]+/modelSuites/[^/]+/modelLines/[^/]+$")
     private val SAFE_TEXT =
@@ -1296,8 +1298,9 @@ private val VID_CORRELATION_FIELDS =
     "xmm.work_item_attempt.name",
   )
 
-private fun vidTraceAttributesFor(value: String): Collection<String> {
+internal fun vidTraceAttributesFor(value: String): Collection<String> {
   return when {
+    GCS_PATH_HASH_PATTERN.matches(value) -> listOf("xmm.gcs.object.path_hash")
     "/rawImpressionUploadModelLines/" in value ->
       listOf("xmm.edpa.raw_impression_upload_model_line.name")
     "/files/" in value -> listOf("xmm.edpa.raw_impression_upload_file.name")
@@ -1319,6 +1322,8 @@ private fun vidTraceAttributesFor(value: String): Collection<String> {
     else -> emptyList()
   }
 }
+
+private val GCS_PATH_HASH_PATTERN = Regex("(?i)^[0-9a-f]{64}$")
 
 internal fun runVidLabelingTrace(
   args: Array<String>,
