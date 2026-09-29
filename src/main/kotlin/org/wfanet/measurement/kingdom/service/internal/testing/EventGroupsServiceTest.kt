@@ -2471,6 +2471,17 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         )
         .single()
     assertThat(summaryResponse.aggregatedActivitiesList).isNotEmpty()
+
+    val indexedSummaryResponse =
+      eventGroupsService
+        .streamEventGroups(
+          streamEventGroupsRequest {
+            filter = filter { externalDataProviderId = dataProvider.externalDataProviderId }
+            view = EventGroup.View.WITH_ACTIVITY_SUMMARY
+          }
+        )
+        .single()
+    assertThat(indexedSummaryResponse).isEqualTo(summaryResponse)
   }
 
   @Test

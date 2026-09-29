@@ -31,10 +31,10 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupRe
 class StreamEventGroups(
   requestFilter: StreamEventGroupsRequest.Filter,
   private val orderBy: StreamEventGroupsRequest.OrderBy,
-  limit: Int = 0,
   view: EventGroup.View,
   private val internalDataProviderId: InternalId?,
   private val internalMeasurementConsumerId: InternalId?,
+  limit: Int = 0,
 ) : SimpleSpannerQuery<EventGroupReader.Result>() {
   override val reader =
     (if (internalDataProviderId == null) {
