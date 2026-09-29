@@ -40,16 +40,8 @@ import org.wfanet.measurement.internal.kingdom.MediaType
 import org.wfanet.measurement.internal.kingdom.dateInterval
 import org.wfanet.measurement.internal.kingdom.eventGroup
 
-class EventGroupReader
-private constructor(private val view: EventGroup.View, private val index: Index) :
+class EventGroupReader(private val view: EventGroup.View = EventGroup.View.BASIC) :
   BaseSpannerReader<EventGroupReader.Result>() {
-  constructor(view: EventGroup.View = EventGroup.View.BASIC) : this(view, Index.NONE)
-
-  private enum class Index(val sql: String) {
-    NONE(""),
-    EXTERNAL_ID("@{FORCE_INDEX=EventGroupsByExternalId}"),
-  }
-
   data class Result(
     val eventGroup: EventGroup,
     val internalEventGroupId: InternalId,
@@ -57,9 +49,9 @@ private constructor(private val view: EventGroup.View, private val index: Index)
     val createRequestId: String?,
   )
 
-  override val builder: Statement.Builder = Statement.newBuilder(getSql(view, index))
+  override val builder: Statement.Builder = Statement.newBuilder(getSql(view))
 
-  /** Fills [builder], returning this [EventGroupReader] for chaining. */
+  /** Fills [builder], returning this [RequisitionReader] for chaining. */
   fun fillStatementBuilder(fill: Statement.Builder.() -> Unit): EventGroupReader {
     builder.fill()
     return this
@@ -283,11 +275,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
   }
 
   companion object {
-    /** Returns a reader using the index ordered by DataProviderId and ExternalEventGroupId. */
-    fun usingExternalIdIndex(view: EventGroup.View): EventGroupReader =
-      EventGroupReader(view, Index.EXTERNAL_ID)
-
-    private fun baseSql(index: Index) =
+    private val BASE_SQL =
       """
       SELECT
         EventGroups.EventGroupId,
@@ -315,13 +303,13 @@ private constructor(private val view: EventGroup.View, private val index: Index)
             AND EventGroupMediaTypes.EventGroupId = EventGroups.EventGroupId
         ) AS MediaTypes
       FROM
-        EventGroups${index.sql}
+        EventGroups
         JOIN DataProviders USING (DataProviderId)
         JOIN MeasurementConsumers USING (MeasurementConsumerId)
       """
         .trimIndent()
 
-    private fun withActivitySummaryViewSql(index: Index) =
+    private val WITH_ACTIVITY_SUMMARY_VIEW_SQL =
       """
       SELECT
         EventGroups.EventGroupId,
@@ -356,17 +344,17 @@ private constructor(private val view: EventGroup.View, private val index: Index)
           ORDER BY ActivityDate
         ) AS EventGroupActivities
       FROM
-        EventGroups${index.sql}
+        EventGroups
         JOIN DataProviders USING (DataProviderId)
         JOIN MeasurementConsumers USING (MeasurementConsumerId)
       """
         .trimIndent()
 
-    private fun getSql(view: EventGroup.View, index: Index): String {
+    private fun getSql(view: EventGroup.View): String {
       return if (view == EventGroup.View.WITH_ACTIVITY_SUMMARY) {
-        withActivitySummaryViewSql(index)
+        WITH_ACTIVITY_SUMMARY_VIEW_SQL
       } else {
-        baseSql(index)
+        BASE_SQL
       }
     }
 
