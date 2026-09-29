@@ -789,10 +789,7 @@ class DataWatcherTest() {
 
       val error =
         assertFailsWith<IllegalStateException> {
-          dataWatcher.receivePath(
-            "test-schema://test-bucket/path-to-watch/some-data",
-            emptyMap(),
-          )
+          dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
         }
 
       assertThat(error).hasMessageThat().contains("returned 500")

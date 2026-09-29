@@ -427,20 +427,19 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
       // campaign-only default fetch, so the sync tries to CREATE it again and the Kingdom rejects
       // the duplicate on EventGroupsByEntityKey. EventGroupSync fails the run without publishing a
       // partial mapping. This is the misconfiguration signature.
-      val exception =
-        assertFails {
-          syncEventGroups(
-            edp,
-            listOf(
-              buildMigrationSourceEventGroup(
-                referenceId = null,
-                entityType = CREATIVE_ID_ENTITY_TYPE,
-                entityId = migEntityId,
-                campaign = "c1-final",
-              )
-            ),
-          )
-        }
+      val exception = assertFails {
+        syncEventGroups(
+          edp,
+          listOf(
+            buildMigrationSourceEventGroup(
+              referenceId = null,
+              entityType = CREATIVE_ID_ENTITY_TYPE,
+              entityId = migEntityId,
+              campaign = "c1-final",
+            )
+          ),
+        )
+      }
       assertThat(exception.cause).isInstanceOf(StatusException::class.java)
       assertThat((exception.cause as StatusException).status.code).isEqualTo(Status.Code.UNKNOWN)
       // No duplicate landed (the unique index blocked it), but the item never synced: the mutation
@@ -652,20 +651,19 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
       // default fetch misses it and the refId in the source can't rescue the match either. The sync
       // issues a CREATE that the unique index rejects. The sync fails without publishing a partial
       // mapping, and no duplicate row is created.
-      val exception =
-        assertFails {
-          syncEventGroups(
-            edp,
-            listOf(
-              buildMigrationSourceEventGroup(
-                referenceId = migRefId,
-                entityType = CREATIVE_ID_ENTITY_TYPE,
-                entityId = migEntityId,
-                campaign = "c1",
-              )
-            ),
-          )
-        }
+      val exception = assertFails {
+        syncEventGroups(
+          edp,
+          listOf(
+            buildMigrationSourceEventGroup(
+              referenceId = migRefId,
+              entityType = CREATIVE_ID_ENTITY_TYPE,
+              entityId = migEntityId,
+              campaign = "c1",
+            )
+          ),
+        )
+      }
       assertThat(exception.cause).isInstanceOf(StatusException::class.java)
       assertThat((exception.cause as StatusException).status.code).isEqualTo(Status.Code.UNKNOWN)
       assertThat(listCmmsEventGroups(edp, listTypes)).hasSize(baselineCount + 1)
