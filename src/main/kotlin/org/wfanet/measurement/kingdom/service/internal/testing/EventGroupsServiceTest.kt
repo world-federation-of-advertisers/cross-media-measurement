@@ -1262,52 +1262,31 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups can get one page at a time`(): Unit = runBlocking {
+  fun `streamEventGroups continues DataProvider page from legacy cursor`(): Unit = runBlocking {
     val externalDataProviderId =
       population.createDataProvider(dataProvidersService).externalDataProviderId
-
-    val eventGroup1 =
-      eventGroupsService.createEventGroup(
-        createEventGroupRequest {
-          eventGroup = eventGroup {
-            this.externalDataProviderId = externalDataProviderId
-            this.externalMeasurementConsumerId =
-              population
-                .createMeasurementConsumer(measurementConsumersService, accountsService)
-                .externalMeasurementConsumerId
-            providedEventGroupId = "eventGroup1"
-          }
+    val externalMeasurementConsumerId =
+      population
+        .createMeasurementConsumer(measurementConsumersService, accountsService)
+        .externalMeasurementConsumerId
+    val expectedEventGroups =
+      (1..3)
+        .map {
+          eventGroupsService.createEventGroup(
+            createEventGroupRequest {
+              eventGroup = eventGroup {
+                this.externalDataProviderId = externalDataProviderId
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId
+              }
+            }
+          )
         }
-      )
-
-    val eventGroup2 =
-      eventGroupsService.createEventGroup(
-        createEventGroupRequest {
-          eventGroup = eventGroup {
-            this.externalDataProviderId = externalDataProviderId
-            this.externalMeasurementConsumerId =
-              population
-                .createMeasurementConsumer(measurementConsumersService, accountsService)
-                .externalMeasurementConsumerId
-            providedEventGroupId = "eventGroup2"
-          }
-        }
-      )
-
-    val eventGroups: List<EventGroup> =
-      eventGroupsService
-        .streamEventGroups(
-          streamEventGroupsRequest {
-            filter = filter { externalDataProviderIdIn += externalDataProviderId }
-            limit = 1
-          }
+        .sortedWith(
+          compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
         )
-        .toList()
+    val legacyPageEnd: EventGroup = expectedEventGroups.first()
 
-    assertThat(eventGroups).containsAnyOf(eventGroup1, eventGroup2)
-    assertThat(eventGroups).hasSize(1)
-
-    val eventGroups2: List<EventGroup> =
+    val nextPage: List<EventGroup> =
       eventGroupsService
         .streamEventGroups(
           streamEventGroupsRequest {
@@ -1316,20 +1295,17 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
               after =
                 StreamEventGroupsRequestKt.FilterKt.after {
                   eventGroupKey = eventGroupKey {
-                    this.externalDataProviderId = eventGroups[0].externalDataProviderId
-                    externalEventGroupId = eventGroups[0].externalEventGroupId
+                    this.externalDataProviderId = legacyPageEnd.externalDataProviderId
+                    externalEventGroupId = legacyPageEnd.externalEventGroupId
                   }
                 }
             }
-            limit = 1
+            limit = 2
           }
         )
         .toList()
 
-    assertThat(eventGroups2).hasSize(1)
-    assertThat(eventGroups2).containsAnyOf(eventGroup1, eventGroup2)
-    assertThat(eventGroups2[0].externalEventGroupId)
-      .isGreaterThan(eventGroups[0].externalEventGroupId)
+    assertThat(nextPage).containsExactlyElementsIn(expectedEventGroups.drop(1)).inOrder()
   }
 
   @Test

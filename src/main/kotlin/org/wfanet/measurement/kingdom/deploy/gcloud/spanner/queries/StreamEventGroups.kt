@@ -51,6 +51,7 @@ class StreamEventGroups(
             if (internalDataProviderId == null) {
               appendClause("ORDER BY ExternalDataProviderId ASC, ExternalEventGroupId ASC")
             } else {
+              // The DataProvider is fixed, so this preserves the default two-field ordering.
               appendClause("ORDER BY ExternalEventGroupId ASC")
             }
           }
@@ -162,6 +163,7 @@ class StreamEventGroups(
             """
               .trimIndent()
           } else {
+            // The cursor's DataProvider is validated before this optimized path is selected.
             "ExternalEventGroupId > @${After.EXTERNAL_EVENT_GROUP_ID}"
           }
 
