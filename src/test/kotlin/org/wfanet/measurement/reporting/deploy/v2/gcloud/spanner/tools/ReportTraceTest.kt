@@ -3536,6 +3536,10 @@ class ReportTraceTest {
               "xmm.duchy.id" to duchyId,
             ),
           ),
+          lifecycleSpan(
+            "kingdom_participant_failure_acceptance",
+            mapOf("xmm.computation.name" to computationName, "xmm.duchy.id" to duchyId),
+          ),
         )
       }
     val spans =
