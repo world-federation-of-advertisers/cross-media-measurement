@@ -25,30 +25,45 @@ import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
 import org.wfanet.measurement.system.v1alpha.StageAttempt
 
-/** Adds Computation and Duchy attributes parsed from [participantName], when valid. */
-fun AttributesBuilder.putComputationParticipantName(participantName: String): AttributesBuilder {
-  val key = ComputationParticipantKey.fromName(participantName) ?: return this
-  return put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(key.computationId).toName())
-    .put(ReportTraceAttributes.DUCHY_ID, key.duchyId)
-}
-
-/** Adds the stage name and attempt number from [stageAttempt]. */
-fun AttributesBuilder.putComputationStageAttempt(stageAttempt: StageAttempt): AttributesBuilder {
-  return put(ReportTraceAttributes.COMPUTATION_STAGE, stageAttempt.stageName)
-    .put(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT, stageAttempt.attemptNumber)
-}
-
-/** Adds a public Measurement name when both external IDs are populated. */
-fun Span.setMeasurementName(externalMeasurementConsumerId: Long, externalMeasurementId: Long) {
-  if (externalMeasurementConsumerId == 0L || externalMeasurementId == 0L) {
-    return
+/** Builds report-correlation attributes shared by Kingdom system API services. */
+object KingdomSystemReportTracing {
+  /** Adds Computation and Duchy attributes parsed from [participantName], when valid. */
+  fun addComputationParticipantAttributes(
+    builder: AttributesBuilder,
+    participantName: String,
+  ): AttributesBuilder {
+    val key = ComputationParticipantKey.fromName(participantName) ?: return builder
+    return builder
+      .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(key.computationId).toName())
+      .put(ReportTraceAttributes.DUCHY_ID, key.duchyId)
   }
-  setAttribute(
-    ReportTraceAttributes.MEASUREMENT_NAME,
-    MeasurementKey(
-        externalIdToApiId(externalMeasurementConsumerId),
-        externalIdToApiId(externalMeasurementId),
-      )
-      .toName(),
-  )
+
+  /** Adds the stage name and attempt number from [stageAttempt]. */
+  fun addComputationStageAttemptAttributes(
+    builder: AttributesBuilder,
+    stageAttempt: StageAttempt,
+  ): AttributesBuilder {
+    return builder
+      .put(ReportTraceAttributes.COMPUTATION_STAGE, stageAttempt.stageName)
+      .put(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT, stageAttempt.attemptNumber)
+  }
+
+  /** Adds a public Measurement name when both external IDs are populated. */
+  fun addMeasurementName(
+    span: Span,
+    externalMeasurementConsumerId: Long,
+    externalMeasurementId: Long,
+  ) {
+    if (externalMeasurementConsumerId == 0L || externalMeasurementId == 0L) {
+      return
+    }
+    span.setAttribute(
+      ReportTraceAttributes.MEASUREMENT_NAME,
+      MeasurementKey(
+          externalIdToApiId(externalMeasurementConsumerId),
+          externalIdToApiId(externalMeasurementId),
+        )
+        .toName(),
+    )
+  }
 }

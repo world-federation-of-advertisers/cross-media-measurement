@@ -124,7 +124,10 @@ class ComputationParticipantsService(
         Attributes.builder()
           .also { builder ->
             if (request.hasFailure() && request.failure.hasStageAttempt()) {
-              builder.putComputationStageAttempt(request.failure.stageAttempt)
+              KingdomSystemReportTracing.addComputationStageAttemptAttributes(
+                builder,
+                request.failure.stageAttempt,
+              )
             }
           }
           .build(),
@@ -156,11 +159,11 @@ class ComputationParticipantsService(
           internalResponse.state.name,
         )
         .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
-      Span.current()
-        .setMeasurementName(
-          internalResponse.externalMeasurementConsumerId,
-          internalResponse.externalMeasurementId,
-        )
+      KingdomSystemReportTracing.addMeasurementName(
+        Span.current(),
+        internalResponse.externalMeasurementConsumerId,
+        internalResponse.externalMeasurementId,
+      )
       internalResponse.toSystemComputationParticipant()
     }
   }
@@ -170,11 +173,12 @@ class ComputationParticipantsService(
     stage: String,
     additionalAttributes: Attributes,
   ): Attributes {
-    return Attributes.builder()
-      .put(ReportTraceAttributes.LIFECYCLE_STAGE, stage)
-      .put(ReportTraceAttributes.OUTCOME, "started")
-      .putAll(additionalAttributes)
-      .putComputationParticipantName(participantName)
+    val builder =
+      Attributes.builder()
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, stage)
+        .put(ReportTraceAttributes.OUTCOME, "started")
+        .putAll(additionalAttributes)
+    return KingdomSystemReportTracing.addComputationParticipantAttributes(builder, participantName)
       .build()
   }
 

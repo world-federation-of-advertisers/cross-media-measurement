@@ -86,22 +86,19 @@ class ComputationLogEntriesService(
       val internalResponse: DuchyMeasurementLogEntry =
         measurementLogEntriesService.createDuchyMeasurementLogEntry(internalRequest)
       val measurementLogEntry = internalResponse.logEntry
-      Span.current()
-        .apply {
-          setMeasurementName(
-            measurementLogEntry.externalMeasurementConsumerId,
-            measurementLogEntry.externalMeasurementId,
-          )
-        }
-        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      val span = Span.current()
+      KingdomSystemReportTracing.addMeasurementName(
+        span,
+        measurementLogEntry.externalMeasurementConsumerId,
+        measurementLogEntry.externalMeasurementId,
+      )
+      span.setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
       internalResponse.toSystemComputationLogEntry(computationParticipantKey.computationId)
     }
 
   private fun logEntryTraceAttributes(request: CreateComputationLogEntryRequest): Attributes {
-    val builder =
-      Attributes.builder()
-        .put(ReportTraceAttributes.OUTCOME, "started")
-        .putComputationParticipantName(request.parent)
+    val builder = Attributes.builder().put(ReportTraceAttributes.OUTCOME, "started")
+    KingdomSystemReportTracing.addComputationParticipantAttributes(builder, request.parent)
     if (request.hasComputationLogEntry() && request.computationLogEntry.hasErrorDetails()) {
       builder
         .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_computation_log_entry_acceptance")
@@ -111,7 +108,10 @@ class ComputationLogEntriesService(
             ComputationLogEntry.ErrorDetails.Type.TRANSIENT,
         )
       if (request.computationLogEntry.hasStageAttempt()) {
-        builder.putComputationStageAttempt(request.computationLogEntry.stageAttempt)
+        KingdomSystemReportTracing.addComputationStageAttemptAttributes(
+          builder,
+          request.computationLogEntry.stageAttempt,
+        )
       }
     }
     return builder.build()
