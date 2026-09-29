@@ -16,9 +16,12 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 
 import io.grpc.Status
 import io.grpc.StatusException
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
+import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -26,6 +29,9 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
+import org.wfanet.measurement.common.identity.externalIdToApiId
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineStub as InternalComputationParticipantsCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ConfirmComputationParticipantRequest as InternalConfirmComputationParticipantRequest
@@ -45,6 +51,7 @@ import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRe
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
+import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ConfirmComputationParticipantRequest
 import org.wfanet.measurement.system.v1alpha.FailComputationParticipantRequest
@@ -77,8 +84,12 @@ class ComputationParticipantsService(
 
   override suspend fun setParticipantRequisitionParams(
     request: SetParticipantRequisitionParamsRequest
-  ): ComputationParticipant {
-    val internalResponse =
+  ): ComputationParticipant =
+    traceParticipantMutation(
+      spanName = "kingdom.computation_participant.set_requisition_params",
+      stage = "kingdom_participant_requisition_params_acceptance",
+      participantName = request.name,
+    ) {
       try {
         internalComputationParticipantsClient.setParticipantRequisitionParams(
           request.toInternalRequest()
@@ -86,14 +97,16 @@ class ComputationParticipantsService(
       } catch (e: StatusException) {
         throw mapStatusException(e).asRuntimeException()
       }
-
-    return internalResponse.toSystemComputationParticipant()
-  }
+    }
 
   override suspend fun confirmComputationParticipant(
     request: ConfirmComputationParticipantRequest
-  ): ComputationParticipant {
-    val internalResponse =
+  ): ComputationParticipant =
+    traceParticipantMutation(
+      spanName = "kingdom.computation_participant.confirm",
+      stage = "kingdom_participant_confirmation",
+      participantName = request.name,
+    ) {
       try {
         internalComputationParticipantsClient.confirmComputationParticipant(
           request.toInternalRequest()
@@ -101,23 +114,70 @@ class ComputationParticipantsService(
       } catch (e: StatusException) {
         throw mapStatusException(e).asRuntimeException()
       }
-
-    return internalResponse.toSystemComputationParticipant()
-  }
+    }
 
   override suspend fun failComputationParticipant(
     request: FailComputationParticipantRequest
-  ): ComputationParticipant {
-    val internalResponse =
+  ): ComputationParticipant =
+    traceParticipantMutation(
+      spanName = "kingdom.computation_participant.fail",
+      stage = "kingdom_participant_failure_acceptance",
+      participantName = request.name,
+    ) {
       try {
-        internalComputationParticipantsClient.failComputationParticipant(
-          request.toInternalRequest()
-        )
+        internalComputationParticipantsClient.failComputationParticipant(request.toInternalRequest())
       } catch (e: StatusException) {
         throw mapStatusException(e).asRuntimeException()
       }
+    }
 
-    return internalResponse.toSystemComputationParticipant()
+  private suspend fun traceParticipantMutation(
+    spanName: String,
+    stage: String,
+    participantName: String,
+    mutation: suspend () -> InternalComputationParticipant,
+  ): ComputationParticipant {
+    return ReportTracing.traceSuspending(
+      spanName = spanName,
+      attributes = participantTraceAttributes(participantName, stage),
+    ) {
+      val internalResponse = mutation()
+      Span.current()
+        .setAttribute(
+          ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE,
+          internalResponse.state.name,
+        )
+        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+      if (
+        internalResponse.externalMeasurementConsumerId != 0L &&
+          internalResponse.externalMeasurementId != 0L
+      ) {
+        Span.current()
+          .setAttribute(
+            ReportTraceAttributes.MEASUREMENT_NAME,
+            MeasurementKey(
+                externalIdToApiId(internalResponse.externalMeasurementConsumerId),
+                externalIdToApiId(internalResponse.externalMeasurementId),
+              )
+              .toName(),
+          )
+      }
+      internalResponse.toSystemComputationParticipant()
+    }
+  }
+
+  private fun participantTraceAttributes(participantName: String, stage: String): Attributes {
+    val builder =
+      Attributes.builder()
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, stage)
+        .put(ReportTraceAttributes.OUTCOME, "started")
+    val key = ComputationParticipantKey.fromName(participantName)
+    if (key != null) {
+      builder
+        .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(key.computationId).toName())
+        .put(ReportTraceAttributes.DUCHY_ID, key.duchyId)
+    }
+    return builder.build()
   }
 
   /**

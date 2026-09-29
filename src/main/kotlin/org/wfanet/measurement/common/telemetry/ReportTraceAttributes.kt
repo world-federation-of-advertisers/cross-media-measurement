@@ -45,6 +45,8 @@ object ReportTraceAttributes {
   const val OUTCOME_STRING = "xmm.outcome"
   const val ERROR_TYPE_STRING = "xmm.error.type"
   const val ERROR_CODE_STRING = "xmm.error.code"
+  const val CANCELLATION_ORIGIN_STRING = "xmm.cancellation.origin"
+  const val COMPUTATION_PARTICIPANT_STATE_STRING = "xmm.computation_participant.state"
   const val REFUSAL_ORIGIN_STRING = "xmm.refusal.origin"
   const val REQUISITION_FETCHER_REFUSAL_ORIGIN = "requisition_fetcher"
   const val RESULTS_FULFILLER_REFUSAL_ORIGIN = "results_fulfiller"
@@ -72,6 +74,9 @@ object ReportTraceAttributes {
   val OUTCOME: AttributeKey<String> = AttributeKey.stringKey(OUTCOME_STRING)
   val ERROR_TYPE: AttributeKey<String> = AttributeKey.stringKey(ERROR_TYPE_STRING)
   val ERROR_CODE: AttributeKey<String> = AttributeKey.stringKey(ERROR_CODE_STRING)
+  val CANCELLATION_ORIGIN: AttributeKey<String> = AttributeKey.stringKey(CANCELLATION_ORIGIN_STRING)
+  val COMPUTATION_PARTICIPANT_STATE: AttributeKey<String> =
+    AttributeKey.stringKey(COMPUTATION_PARTICIPANT_STATE_STRING)
   val REFUSAL_ORIGIN: AttributeKey<String> = AttributeKey.stringKey(REFUSAL_ORIGIN_STRING)
 
   /** Returns the reporting resource attributes embedded in [measurementSpec]. */

@@ -20,8 +20,15 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.GlobalOpenTelemetry
+import io.opentelemetry.sdk.OpenTelemetrySdk
+import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
+import io.opentelemetry.sdk.trace.SdkTracerProvider
+import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
+import org.junit.After
+import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -30,9 +37,11 @@ import org.mockito.kotlin.any
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.identity.testing.DuchyIdSetter
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.testing.verifyProtoArgument
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
 import org.wfanet.measurement.internal.kingdom.ComputationParticipantsGrpcKt.ComputationParticipantsCoroutineImplBase as InternalComputationParticipantsCoroutineService
@@ -73,9 +82,14 @@ private const val STAGE_ATTEMPT_ATTEMPT_NUMBER = 1L
 private const val DUCHY_ERROR_MESSAGE = "something is wrong."
 private const val PUBLIC_API_VERSION = "v2alpha"
 private const val EXTERNAL_COMPUTATION_ID = 1L
+private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 5L
+private const val EXTERNAL_MEASUREMENT_ID = 6L
 private const val EXTERNAL_DUCHY_CERTIFICATE_ID = 4L
 
 private val EXTERNAL_COMPUTATION_ID_STRING = externalIdToApiId(EXTERNAL_COMPUTATION_ID)
+private val PUBLIC_MEASUREMENT_NAME =
+  "measurementConsumers/${externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID)}/" +
+    "measurements/${externalIdToApiId(EXTERNAL_MEASUREMENT_ID)}"
 private val EXTERNAL_DUCHY_CERTIFICATE_ID_STRING = externalIdToApiId(EXTERNAL_DUCHY_CERTIFICATE_ID)
 private val DUCHY_CERTIFICATE_PUBLIC_API_NAME =
   "duchies/$DUCHY_ID/certificates/$EXTERNAL_DUCHY_CERTIFICATE_ID_STRING"
@@ -92,6 +106,8 @@ private const val DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID = "2.9999"
 private val INTERNAL_COMPUTATION_PARTICIPANT =
   InternalComputationParticipant.newBuilder()
     .apply {
+      externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
+      externalMeasurementId = EXTERNAL_MEASUREMENT_ID
       externalDuchyId = DUCHY_ID
       externalComputationId = EXTERNAL_COMPUTATION_ID
       state = InternalComputationParticipant.State.CREATED
@@ -192,6 +208,28 @@ class ComputationParticipantsServiceTest {
       InternalComputationParticipantsCoroutineStub(grpcTestServerRule.channel),
       duchyIdentityProvider = duchyIdProvider,
     )
+  private lateinit var openTelemetry: OpenTelemetrySdk
+  private lateinit var spanExporter: InMemorySpanExporter
+
+  @Before
+  fun initTelemetry() {
+    GlobalOpenTelemetry.resetForTest()
+    Instrumentation.resetForTest()
+    spanExporter = InMemorySpanExporter.create()
+    openTelemetry =
+      OpenTelemetrySdk.builder()
+        .setTracerProvider(
+          SdkTracerProvider.builder()
+            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
+            .build()
+        )
+        .buildAndRegisterGlobal()
+  }
+
+  @After
+  fun cleanupTelemetry() {
+    openTelemetry.close()
+  }
 
   @Test
   fun `getComputationParticipant calls internal service`() = runBlocking {
@@ -234,6 +272,16 @@ class ComputationParticipantsServiceTest {
     val response: ComputationParticipant = service.setParticipantRequisitionParams(request)
 
     assertThat(response).isEqualTo(COMPUTATION_PARTICIPANT_WITH_PARAMS)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_participant.set_requisition_params")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo("computations/$EXTERNAL_COMPUTATION_ID_STRING")
+    assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(PUBLIC_MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_participant_requisition_params_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
         InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
@@ -332,6 +380,11 @@ class ComputationParticipantsServiceTest {
         assertFailsWith<StatusRuntimeException> { service.setParticipantRequisitionParams(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+      val span = spanExporter.finishedSpanItems.single()
+      assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("kingdom_participant_requisition_params_acceptance")
+      assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.ABORTED")
     }
 
   @Test
@@ -368,6 +421,13 @@ class ComputationParticipantsServiceTest {
 
     assertThat(response.state).isEqualTo(ComputationParticipant.State.FAILED)
     assertThat(response.failure).isEqualTo(request.failure)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_participant.fail")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_participant_failure_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE))
+      .isEqualTo("FAILED")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
         InternalComputationParticipantsCoroutineService::failComputationParticipant,
@@ -403,6 +463,13 @@ class ComputationParticipantsServiceTest {
     val response: ComputationParticipant = service.confirmComputationParticipant(request)
 
     assertThat(response.state).isEqualTo(ComputationParticipant.State.READY)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_participant.confirm")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_participant_confirmation")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE))
+      .isEqualTo("READY")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
         InternalComputationParticipantsCoroutineService::confirmComputationParticipant,
