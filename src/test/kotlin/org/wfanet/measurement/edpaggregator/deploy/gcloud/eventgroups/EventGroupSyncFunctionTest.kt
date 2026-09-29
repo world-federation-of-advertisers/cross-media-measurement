@@ -312,7 +312,6 @@ class EventGroupSyncFunctionTest() {
     }
     val config = eventGroupSyncConfig {
       dataProvider = "some-data-provider"
-      eventGroupsBlobUri = "file:///some/path/campaigns-blob-uri.binpb"
       eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
       this.cmmsConnection = transportLayerSecurityParams {
         certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
@@ -355,6 +354,7 @@ class EventGroupSyncFunctionTest() {
     val request =
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", "file:///some/path/campaigns-blob-uri.binpb")
         .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
         .build()
 

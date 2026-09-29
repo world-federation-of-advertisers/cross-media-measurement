@@ -851,6 +851,37 @@ class DataWatcherTest() {
     }
   }
 
+  @Test
+  fun `surfaces HTTP interruption with interrupt status restored`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer()
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      try {
+        Thread.currentThread().interrupt()
+
+        assertFailsWith<InterruptedException> {
+          dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+        }
+        assertThat(Thread.currentThread().isInterrupted).isTrue()
+      } finally {
+        Thread.interrupted()
+        server.stop()
+      }
+    }
+  }
+
   companion object {
     private const val EVICTION_OPERATION_ID = "123e4567-e89b-42d3-a456-426614174000"
   }

@@ -112,6 +112,16 @@ class DataWatcher(
 
       val processingDurationSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
       onProcessingCompleted(config, path, processingDurationSeconds)
+    } catch (e: InterruptedException) {
+      Thread.currentThread().interrupt()
+      onProcessingFailed(
+        config,
+        path,
+        processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        e,
+        shouldLog = false,
+      )
+      throw e
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
       val isRetryable =
