@@ -619,10 +619,8 @@ class EventGroupSync(
           // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
           flushCreatesIndividually(pendingCreates, e)
         } else {
-          // Transient / infra failure affects the whole batch, so fanning out per-item retries
-          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and fail the run so the input can be retried without publishing
-          // a partial mapping.
+          // This failure cannot be attributed to one sub-request. Fail the run without publishing
+          // a partial mapping; the caller decides whether the status is retryable.
           recordBatchFailure(e, pendingCreates)
           pendingCreates.clear()
           throw BatchSyncException(e)
@@ -728,10 +726,8 @@ class EventGroupSync(
           // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
           flushUpdatesIndividually(pendingUpdates, e)
         } else {
-          // Transient / infra failure affects the whole batch, so fanning out per-item retries
-          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and fail the run so the input can be retried without publishing
-          // a partial mapping.
+          // This failure cannot be attributed to one sub-request. Fail the run without publishing
+          // a partial mapping; the caller decides whether the status is retryable.
           recordBatchFailure(e, pendingUpdates)
           pendingUpdates.clear()
           throw BatchSyncException(e)
@@ -830,8 +826,8 @@ class EventGroupSync(
         .build(),
     )
     logger.log(Level.SEVERE, e) {
-      "Batch of ${pending.size} Event Groups failed with a transient error (error_type=$errorType);" +
-        " failing sync for retry"
+      "Batch of ${pending.size} Event Groups failed with a batch-wide error" +
+        " (error_type=$errorType); failing sync without publishing a partial map"
     }
   }
 
@@ -1389,8 +1385,8 @@ class EventGroupSync(
 
     /**
      * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request
-     * (so retrying per item isolates the bad one). Anything else is treated as a transient/infra
-     * failure affecting the whole batch, which is recorded without a per-item retry fan-out.
+     * (so retrying per item isolates the bad one). Anything else aborts the run without a per-item
+     * retry fan-out.
      */
     private val PER_REQUEST_FAILURE_CODES =
       setOf(

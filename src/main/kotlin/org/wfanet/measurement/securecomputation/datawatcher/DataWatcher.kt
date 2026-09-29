@@ -25,6 +25,7 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.Meter
 import io.opentelemetry.api.trace.Span
+import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -114,7 +115,8 @@ class DataWatcher(
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
       val isRetryable =
-        e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
+        e is IOException ||
+          e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
           (e is HttpEndpointResponseException && isRetryableHttpStatusCode(e.statusCode))
       onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
       val isRecoveryOperation =
@@ -400,7 +402,9 @@ class DataWatcher(
       )
 
     private fun isRetryableHttpStatusCode(statusCode: Int): Boolean =
-      statusCode == 408 || statusCode == 429 || statusCode in 500..599
+      statusCode in RETRYABLE_HTTP_STATUS_CODES
+
+    private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 502, 503, 504)
 
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
