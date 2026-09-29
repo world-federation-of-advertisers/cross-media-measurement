@@ -55,6 +55,8 @@ Run the command with:
 * `--retention-days`: the bounded history in which the command may inspect and evict uploads.
 * `--reason`: the diagnosis recorded on each failed upload/model-line row.
 * `--labeled-impressions-blob-prefix`: the absolute URI prefix configured for VID-labeled output.
+* `--vid-labeling-config-file`: the deployed `VidLabelingConfigs` textproto; the selected output
+  prefix must exactly match the configured bucket and `edp_impression_path` for the DataProvider.
 * `--gcs-project`: optional Google Cloud project for access to labeled-output buckets.
 * the normal EDP Aggregator API and mutual-TLS flags.
 
@@ -115,6 +117,7 @@ next action has finished:
 ```shell
 vid-labeling-heal resume \
   dataProviders/DP/uploadHealingOperations/OPERATION_ID \
+  --vid-labeling-config-file=VID_LABELING_CONFIG_FILE \
   --edpa-public-api-target=EDPA_TARGET \
   --tls-cert-file=TLS_CERT \
   --tls-key-file=TLS_KEY \

@@ -30,6 +30,10 @@ import org.mockito.kotlin.argumentCaptor
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
+import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
+import org.wfanet.measurement.config.edpaggregator.storageParams
+import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
+import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import picocli.CommandLine
 
@@ -84,18 +88,93 @@ class VidLabelingHealTest {
   }
 
   @Test
+  fun `dataProviderOf accepts multiple uploads under the same DataProvider`() {
+    val dataProvider =
+      EvictUploadsCommand.dataProviderOf(
+        listOf(
+          "$DATA_PROVIDER/rawImpressionUploads/upload-A",
+          "$DATA_PROVIDER/rawImpressionUploads/upload-B",
+        )
+      )
+
+    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
+  }
+
+  @Test
   fun `labeled impressions prefix is validated before eviction`() {
     val parsed =
       EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-        "gs://output-bucket/reference-vid-labeled-impressions/"
+        "gs://output-bucket/edp/edp7/",
+        VID_LABELING_CONFIGS,
+        DATA_PROVIDER,
       )
 
     assertThat(parsed.scheme).isEqualTo("gs")
     assertThat(parsed.bucket).isEqualTo("output-bucket")
-    assertThat(parsed.key).isEqualTo("reference-vid-labeled-impressions")
+    assertThat(parsed.key).isEqualTo("edp/edp7")
     assertFailsWith<IllegalArgumentException> {
-      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix("https://output-bucket/path")
+      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
+        "https://output-bucket/edp/edp7",
+        VID_LABELING_CONFIGS,
+        DATA_PROVIDER,
+      )
     }
+  }
+
+  @Test
+  fun `labeled impressions prefix rejects a bucket root`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
+          "gs://output-bucket",
+          VID_LABELING_CONFIGS,
+          DATA_PROVIDER,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("must exactly match")
+  }
+
+  @Test
+  fun `labeled impressions prefix rejects the wrong bucket`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
+          "gs://other-bucket/edp/edp7",
+          VID_LABELING_CONFIGS,
+          DATA_PROVIDER,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("must exactly match")
+  }
+
+  @Test
+  fun `labeled impressions prefix rejects the wrong DataProvider root`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
+          "gs://output-bucket/edp/edp8",
+          VID_LABELING_CONFIGS,
+          DATA_PROVIDER,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("must exactly match")
+  }
+
+  @Test
+  fun `labeled impressions prefix rejects a path below the configured root`() {
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
+          "gs://output-bucket/edp/edp7/model-line",
+          VID_LABELING_CONFIGS,
+          DATA_PROVIDER,
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("must exactly match")
   }
 
   @Test
@@ -209,5 +288,18 @@ class VidLabelingHealTest {
       }
 
     assertThat(error).hasMessageThat().contains("does not carry the same recovery metadata")
+  }
+
+  companion object {
+    private const val DATA_PROVIDER = "dataProviders/dp1"
+    private val VID_LABELING_CONFIGS = vidLabelingConfigs {
+      configs += vidLabelingConfig {
+        dataProvider = DATA_PROVIDER
+        vidLabeledImpressionsStorageParams = storageParams {
+          gcs = gcsStorage { bucketName = "output-bucket" }
+        }
+        edpImpressionPath = "edp/edp7"
+      }
+    }
   }
 }

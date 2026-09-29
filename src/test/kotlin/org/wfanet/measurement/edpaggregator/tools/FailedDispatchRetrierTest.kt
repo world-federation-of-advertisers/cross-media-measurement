@@ -17,6 +17,8 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
+import com.google.protobuf.StringValue
 import com.google.protobuf.timestamp
 import io.grpc.Status
 import io.grpc.StatusException
@@ -131,6 +133,7 @@ class FailedDispatchRetrierTest {
         events += "get-original"
         workItem {
           queue = "q"
+          workItemParams = WORK_ITEM_PARAMS
           state = WorkItem.State.QUEUED
         }
       }
@@ -159,6 +162,9 @@ class FailedDispatchRetrierTest {
       markRawImpressionUploadModelLineLabeling(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    val createRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createRequestCaptor.capture()) }
+    assertThat(createRequestCaptor.firstValue.workItem.workItemParams).isEqualTo(WORK_ITEM_PARAMS)
   }
 
   @Test
@@ -259,6 +265,7 @@ class FailedDispatchRetrierTest {
         .thenReturn(
           workItem {
             queue = "q"
+            workItemParams = WORK_ITEM_PARAMS
             state = WorkItem.State.QUEUED
           }
         )
@@ -276,6 +283,9 @@ class FailedDispatchRetrierTest {
       markRawImpressionUploadModelLineRanking(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    val createRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createRequestCaptor.capture()) }
+    assertThat(createRequestCaptor.firstValue.workItem.workItemParams).isEqualTo(WORK_ITEM_PARAMS)
   }
 
   @Test
@@ -291,7 +301,13 @@ class FailedDispatchRetrierTest {
             poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
           }
         )
-      whenever(workItemsService.getWorkItem(any())).thenReturn(workItem { queue = "q" })
+      whenever(workItemsService.getWorkItem(any()))
+        .thenReturn(
+          workItem {
+            queue = "q"
+            workItemParams = WORK_ITEM_PARAMS
+          }
+        )
       whenever(workItemsService.createWorkItem(any())).thenReturn(workItem {})
       whenever(modelLineService.markRawImpressionUploadModelLinePoolAssigning(any()))
         .thenReturn(
@@ -308,6 +324,9 @@ class FailedDispatchRetrierTest {
       markRawImpressionUploadModelLinePoolAssigning(requestCaptor.capture())
     }
     assertThat(requestCaptor.firstValue.requestId).isNotEmpty()
+    val createRequestCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(createRequestCaptor.capture()) }
+    assertThat(createRequestCaptor.firstValue.workItem.workItemParams).isEqualTo(WORK_ITEM_PARAMS)
   }
 
   @Test
@@ -418,6 +437,59 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed finds completed retry among successful Phase 2 jobs`() {
+    val firstRetryId =
+      RequestIds.forRetriedWorkItem(WorkItemIds.forVidLabeler(VID_JOB_NAME), FAILURE_ATTEMPT_ID)
+    val secondRetryId =
+      RequestIds.forRetriedWorkItem(
+        WorkItemIds.forVidLabeler(SECOND_VID_JOB_NAME),
+        FAILURE_ATTEMPT_ID,
+      )
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.COMPLETED }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse {
+            vidLabelingJobs += vidLabelingJob {
+              name = VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+            vidLabelingJobs += vidLabelingJob {
+              name = SECOND_VID_JOB_NAME
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        when (invocation.getArgument<GetWorkItemRequest>(0).name) {
+          "workItems/$firstRetryId" -> throw Status.NOT_FOUND.asRuntimeException()
+          "workItems/$secondRetryId" -> workItem { state = WorkItem.State.SUCCEEDED }
+          else -> error("unexpected WorkItem")
+        }
+      }
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+    assertThat(result.workItemsRepublished).isEqualTo(0)
+    assertThat(result.wasAlreadyStarted).isTrue()
+    val requestCaptor = argumentCaptor<GetWorkItemRequest>()
+    verifyBlocking(workItemsService, times(2)) { getWorkItem(requestCaptor.capture()) }
+    assertThat(requestCaptor.allValues.map { it.name })
+      .containsExactly("workItems/$firstRetryId", "workItems/$secondRetryId")
+      .inOrder()
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+  }
+
+  @Test
   fun `retryFailed follows a failed retry WorkItem to its active successor`() {
     val result = runBlocking {
       whenever(modelLineService.listRawImpressionUploadModelLines(any()))
@@ -457,6 +529,54 @@ class FailedDispatchRetrierTest {
   }
 
   @Test
+  fun `retryFailed returns success when a failed retry already advanced the model line`() {
+    val poolWorkItemId = WorkItemIds.forSubpoolAssigner(UPLOAD_NAME, MODEL_LINE, 0)
+    val poolRetryId = RequestIds.forRetriedWorkItem(poolWorkItemId, FAILURE_ATTEMPT_ID)
+    val result = runBlocking {
+      whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+        .thenReturn(
+          listRawImpressionUploadModelLinesResponse {
+            rawImpressionUploadModelLines +=
+              failedModelLine().copy { state = RawImpressionUploadModelLine.State.LABELING }
+          }
+        )
+      whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+        .thenReturn(
+          listVidLabelingJobsResponse { vidLabelingJobs += vidLabelingJob { name = VID_JOB_NAME } }
+        )
+      whenever(rankerJobService.listRankerJobs(any()))
+        .thenReturn(listRankerJobsResponse { rankerJobs += rankerJob { name = RANKER_JOB_NAME } })
+      whenever(poolAssignmentJobService.listPoolAssignmentJobs(any()))
+        .thenReturn(
+          listPoolAssignmentJobsResponse {
+            poolAssignmentJobs += poolAssignmentJob { shardIndex = 0 }
+          }
+        )
+      whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
+        when (invocation.getArgument<GetWorkItemRequest>(0).name) {
+          "workItems/$poolRetryId" ->
+            workItem {
+              state = WorkItem.State.FAILED
+              updateTime = timestamp {
+                seconds = 123
+                nanos = 456
+              }
+            }
+          else -> throw Status.NOT_FOUND.asRuntimeException()
+        }
+      }
+
+      retrier.retryFailed(UPLOAD_NAME, MODEL_LINE)
+    }
+
+    assertThat(result.newState).isEqualTo(RawImpressionUploadModelLine.State.LABELING)
+    assertThat(result.workItemsRepublished).isEqualTo(0)
+    assertThat(result.wasAlreadyStarted).isTrue()
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineLabeling(any()) }
+  }
+
+  @Test
   fun `retryFailed creates successor while model line remains active after retry failure`() {
     val originalWorkItemId = WorkItemIds.forVidLabeler(VID_JOB_NAME)
     val firstRetryId = RequestIds.forRetriedWorkItem(originalWorkItemId, FAILURE_ATTEMPT_ID)
@@ -475,7 +595,11 @@ class FailedDispatchRetrierTest {
         )
       whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
         when (invocation.getArgument<GetWorkItemRequest>(0).name) {
-          "workItems/$originalWorkItemId" -> workItem { queue = "q" }
+          "workItems/$originalWorkItemId" ->
+            workItem {
+              queue = "q"
+              workItemParams = WORK_ITEM_PARAMS
+            }
           "workItems/$firstRetryId" ->
             workItem {
               queue = "q"
@@ -508,6 +632,9 @@ class FailedDispatchRetrierTest {
     verifyBlocking(workItemsService, times(2)) { createWorkItem(requestCaptor.capture()) }
     assertThat(requestCaptor.allValues.map { it.workItemId })
       .containsExactly(firstRetryId, successorId)
+      .inOrder()
+    assertThat(requestCaptor.allValues.map { it.workItem.workItemParams })
+      .containsExactly(WORK_ITEM_PARAMS, WORK_ITEM_PARAMS)
       .inOrder()
   }
 
@@ -768,5 +895,6 @@ class FailedDispatchRetrierTest {
     private const val RANKER_JOB_NAME = "$UPLOAD_NAME/rankerJobs/rj1"
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
+    private val WORK_ITEM_PARAMS = Any.pack(StringValue.of("params"))
   }
 }

@@ -178,7 +178,7 @@ class BaseFlags {
     private set
 }
 
-private fun getPopulationDataProviderEntry(
+private suspend fun getPopulationDataProviderEntry(
   dataProviderStub: DataProvidersCoroutineStub,
   dataProviderInput:
     CreateMeasurementFlags.MeasurementParams.PopulationMeasurementParams.PopulationDataProviderInput,
@@ -188,6 +188,10 @@ private fun getPopulationDataProviderEntry(
   secureRandom: SecureRandom,
   apiAuthenticationKey: String,
 ): Measurement.DataProviderEntry {
+  val dataProvider =
+    dataProviderStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
       population =
@@ -204,12 +208,6 @@ private fun getPopulationDataProviderEntry(
     }
 
     key = dataProviderInput.name
-    val dataProvider =
-      runBlocking(Dispatchers.IO) {
-        dataProviderStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
-      }
     value = dataProviderEntryValue {
       dataProviderCertificate = dataProvider.certificate
       dataProviderPublicKey = dataProvider.publicKey.message
@@ -223,7 +221,7 @@ private fun getPopulationDataProviderEntry(
   }
 }
 
-private fun getEventDataProviderEntry(
+private suspend fun getEventDataProviderEntry(
   dataProviderStub: DataProvidersCoroutineStub,
   dataProviderInput:
     CreateMeasurementFlags.MeasurementParams.EventMeasurementParams.EventDataProviderInput,
@@ -234,6 +232,10 @@ private fun getEventDataProviderEntry(
   cumulativeCollectionInterval: Interval?,
   eventFilter: String,
 ): Measurement.DataProviderEntry {
+  val dataProvider =
+    dataProviderStub
+      .withAuthenticationKey(apiAuthenticationKey)
+      .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
   return dataProviderEntry {
     val requisitionSpec = requisitionSpec {
       events =
@@ -263,12 +265,6 @@ private fun getEventDataProviderEntry(
     }
 
     key = dataProviderInput.name
-    val dataProvider =
-      runBlocking(Dispatchers.IO) {
-        dataProviderStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getDataProvider(getDataProviderRequest { name = dataProviderInput.name })
-      }
     value = dataProviderEntryValue {
       dataProviderCertificate = dataProvider.certificate
       dataProviderPublicKey = dataProvider.publicKey.message
@@ -344,19 +340,17 @@ class Benchmark(
   private val completedTasks: MutableList<MeasurementTask> = mutableListOf()
 
   /** Creates list of requests and sends them to the Kingdom for PDPs. */
-  private fun generatePopulationRequests(
+  private suspend fun generatePopulationRequests(
     measurementConsumerStub: MeasurementConsumersCoroutineStub,
     measurementStub: MeasurementsCoroutineStub,
     dataProviderStub: DataProvidersCoroutineStub,
   ) {
     val measurementConsumer =
-      runBlocking(Dispatchers.IO) {
-        measurementConsumerStub
-          .withAuthenticationKey(apiAuthenticationKey)
-          .getMeasurementConsumer(
-            getMeasurementConsumerRequest { name = createMeasurementFlags.measurementConsumer }
-          )
-      }
+      measurementConsumerStub
+        .withAuthenticationKey(apiAuthenticationKey)
+        .getMeasurementConsumer(
+          getMeasurementConsumerRequest { name = createMeasurementFlags.measurementConsumer }
+        )
     val measurementConsumerCertificate = readCertificate(measurementConsumer.certificateDer)
     val measurementConsumerPrivateKey =
       readPrivateKey(
@@ -375,19 +369,20 @@ class Benchmark(
 
     for (replica in 1..flags.repetitionCount) {
       val referenceId = "$referenceIdBase-$replica-${UUID.randomUUID()}"
+      val populationDataProviderEntry =
+        getPopulationDataProviderEntry(
+          dataProviderStub,
+          createMeasurementFlags.measurementParams.populationMeasurementParams
+            .populationDataProviderInput,
+          createMeasurementFlags.measurementParams.populationMeasurementParams,
+          measurementConsumerSigningKey,
+          packedMeasurementEncryptionPublicKey,
+          secureRandom,
+          apiAuthenticationKey,
+        )
       val measurement = measurement {
         this.measurementConsumerCertificate = measurementConsumer.certificate
-        dataProviders +=
-          getPopulationDataProviderEntry(
-            dataProviderStub,
-            createMeasurementFlags.measurementParams.populationMeasurementParams
-              .populationDataProviderInput,
-            createMeasurementFlags.measurementParams.populationMeasurementParams,
-            measurementConsumerSigningKey,
-            packedMeasurementEncryptionPublicKey,
-            secureRandom,
-            apiAuthenticationKey,
-          )
+        dataProviders += populationDataProviderEntry
 
         val unsignedMeasurementSpec = measurementSpec {
           measurementPublicKey = packedMeasurementEncryptionPublicKey
@@ -405,16 +400,14 @@ class Benchmark(
       task.referenceId = referenceId
 
       val response =
-        runBlocking(Dispatchers.IO) {
-          measurementStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .createMeasurement(
-              createMeasurementRequest {
-                parent = measurementConsumer.name
-                this.measurement = measurement
-              }
-            )
-        }
+        measurementStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .createMeasurement(
+            createMeasurementRequest {
+              parent = measurementConsumer.name
+              this.measurement = measurement
+            }
+          )
       println("Measurement Name: ${response.name}")
 
       task.ackTime = Instant.now(clock)
@@ -531,21 +524,23 @@ class Benchmark(
                   kotlin.random.Random.nextInt(0, flags.vidBucketCount).toFloat() *
                     eventMeasurementParams.vidSamplingWidth
               }
+            val dataProviderEntries = mutableListOf<Measurement.DataProviderEntry>()
+            for (eventDataProviderInput in eventDataProviderInputs) {
+              dataProviderEntries +=
+                getEventDataProviderEntry(
+                  dataProviderStub,
+                  eventDataProviderInput,
+                  measurementConsumerSigningKey,
+                  packedMeasurementEncryptionPublicKey,
+                  secureRandom,
+                  apiAuthenticationKey,
+                  cumulativeCollectionInterval,
+                  eventFilter,
+                )
+            }
             val measurement = measurement {
               this.measurementConsumerCertificate = measurementConsumer.certificate
-              dataProviders +=
-                eventDataProviderInputs.map {
-                  getEventDataProviderEntry(
-                    dataProviderStub,
-                    it,
-                    measurementConsumerSigningKey,
-                    packedMeasurementEncryptionPublicKey,
-                    secureRandom,
-                    apiAuthenticationKey,
-                    cumulativeCollectionInterval,
-                    eventFilter,
-                  )
-                }
+              dataProviders += dataProviderEntries
               val unsignedMeasurementSpec = measurementSpec {
                 measurementPublicKey = packedMeasurementEncryptionPublicKey
                 nonceHashes += this@measurement.dataProviders.map { it.value.nonceHash }
@@ -619,7 +614,7 @@ class Benchmark(
   }
 
   /** Collects responses from tasks that have completed. */
-  private fun collectCompletedTasks(
+  private suspend fun collectCompletedTasks(
     measurementStub: MeasurementsCoroutineStub,
     firstInstant: Instant,
   ) {
@@ -630,11 +625,9 @@ class Benchmark(
       print("${(Instant.now(clock).toEpochMilli() - firstInstant.toEpochMilli()) / 1000.0} ")
       print("Trying to retrieve ${task.referenceId} ${task.measurementName}...")
       val measurement =
-        runBlocking(Dispatchers.IO) {
-          measurementStub
-            .withAuthenticationKey(apiAuthenticationKey)
-            .getMeasurement(getMeasurementRequest { name = task.measurementName })
-        }
+        measurementStub
+          .withAuthenticationKey(apiAuthenticationKey)
+          .getMeasurement(getMeasurementRequest { name = task.measurementName })
 
       val timeoutOccurred = task.requestTime.plusSeconds(flags.timeout).isBefore(Instant.now(clock))
       println("${measurement.state}")
@@ -737,7 +730,7 @@ class Benchmark(
     }
   }
 
-  fun generateBenchmarkReport() {
+  suspend fun generateBenchmarkReport(): Unit = coroutineScope {
     val measurementConsumerStub = MeasurementConsumersCoroutineStub(channel)
     val measurementStub = MeasurementsCoroutineStub(channel)
     val dataProviderStub = DataProvidersCoroutineStub(channel)
@@ -745,23 +738,21 @@ class Benchmark(
     val programStartTime = Instant.now(clock)
 
     var allRequestsSent = false
-    runBlocking {
-      launch {
-        if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
-          generatePopulationRequests(measurementConsumerStub, measurementStub, dataProviderStub)
-        } else {
-          generateEventRequests(measurementConsumerStub, measurementStub, dataProviderStub)
-        }
-        allRequestsSent = true
+    launch {
+      if (createMeasurementFlags.measurementParams.populationMeasurementParams.selected) {
+        generatePopulationRequests(measurementConsumerStub, measurementStub, dataProviderStub)
+      } else {
+        generateEventRequests(measurementConsumerStub, measurementStub, dataProviderStub)
       }
+      allRequestsSent = true
+    }
 
-      launch {
-        while (taskList.size > 0 || !allRequestsSent) {
-          collectCompletedTasks(measurementStub, programStartTime)
-          delay(1000L)
-        }
-        generateOutput(programStartTime)
+    launch {
+      while (taskList.size > 0 || !allRequestsSent) {
+        collectCompletedTasks(measurementStub, programStartTime)
+        delay(1000L)
       }
+      generateOutput(programStartTime)
     }
   }
 }
@@ -796,10 +787,9 @@ class BenchmarkReport private constructor(val clock: Clock = Clock.systemUTC()) 
       .withShutdownTimeout(JavaDuration.ofSeconds(1))
   }
 
-  override fun run() {
-    val benchmark =
-      Benchmark(baseFlags, createMeasurementFlags, channel, apiAuthenticationKey, clock)
-    benchmark.generateBenchmarkReport()
+  override fun run() = runBlocking {
+    Benchmark(baseFlags, createMeasurementFlags, channel, apiAuthenticationKey, clock)
+      .generateBenchmarkReport()
   }
 
   companion object {

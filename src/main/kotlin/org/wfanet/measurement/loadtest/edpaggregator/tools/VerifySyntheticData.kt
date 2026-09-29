@@ -22,6 +22,7 @@ import com.google.protobuf.Message
 import com.google.protobuf.util.JsonFormat
 import java.io.File
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
@@ -284,6 +285,10 @@ class VerifySyntheticData : Runnable {
   }
 
   override fun run() {
+    runBlocking { runSuspending() }
+  }
+
+  private suspend fun runSuspending() {
     require(kmsType == KmsType.FAKE || fakeKekKeysetFile == null) {
       "--fake-kek-keyset-file is only valid when --kms-type=FAKE"
     }
@@ -471,7 +476,7 @@ class VerifySyntheticData : Runnable {
      * Constructs the base URI as [scheme][outputBucket]/[basePath] and lists all blobs whose keys
      * begin with [metadataPrefix] and end in a supported extension. Returns fully qualified URIs.
      */
-    private fun scanForMetadata(
+    private suspend fun scanForMetadata(
       scheme: String,
       outputBucket: String,
       basePath: String,
@@ -508,7 +513,7 @@ class VerifySyntheticData : Runnable {
       val storageClient = SelectedStorageClient(blobUri)
 
       logger.info("Scanning for metadata files under: $baseUri/$prefix")
-      val uris = runBlocking {
+      val uris =
         storageClient
           .listBlobs(prefix)
           .toList()
@@ -518,7 +523,6 @@ class VerifySyntheticData : Runnable {
           }
           .map { "$baseUri/${it.blobKey}" }
           .sorted()
-      }
       check(uris.isNotEmpty()) {
         "No metadata files found under: $baseUri/$prefix (looking for files starting with " +
           "\"$metadataPrefix\" and ending in .binpb or .json)"
@@ -533,7 +537,7 @@ class VerifySyntheticData : Runnable {
      * Supports both binary protobuf and JSON metadata formats, detected by file extension (`.json`
      * for JSON, anything else for binary protobuf).
      */
-    private fun verifyMetadata(
+    private suspend fun verifyMetadata(
       kmsClient: KmsClient,
       kekUri: String,
       metadataUris: List<String>,
@@ -553,12 +557,10 @@ class VerifySyntheticData : Runnable {
           val metadataBlobUri = SelectedStorageClient.parseBlobUri(metadataUri)
           val metadataStorageClient = SelectedStorageClient(metadataBlobUri, storagePath)
 
-          val metadataBytes = runBlocking {
-            val blob =
-              metadataStorageClient.getBlob(metadataBlobUri.key)
-                ?: throw IllegalStateException("Metadata not found: ${metadataBlobUri.key}")
-            blob.read().flatten()
-          }
+          val metadataBlob =
+            metadataStorageClient.getBlob(metadataBlobUri.key)
+              ?: throw IllegalStateException("Metadata not found: ${metadataBlobUri.key}")
+          val metadataBytes = metadataBlob.read().flatten()
 
           val isJson = metadataUri.endsWith(".json")
           val blobDetails: BlobDetails
@@ -598,12 +600,10 @@ class VerifySyntheticData : Runnable {
           val blobKey = impressionsBlobUri.key
           logger.info("  Decrypting from blob key: $blobKey")
 
-          val records = runBlocking {
-            val blob =
-              mesosClient.getBlob(blobKey)
-                ?: throw IllegalStateException("Impression blob not found: $blobKey")
-            blob.read().toList()
-          }
+          val impressionsBlob =
+            mesosClient.getBlob(blobKey)
+              ?: throw IllegalStateException("Impression blob not found: $blobKey")
+          val records = impressionsBlob.read().toList()
           logger.info("  Decrypted ${records.size} impression records")
 
           for ((index, record) in records.withIndex()) {
@@ -645,6 +645,8 @@ class VerifySyntheticData : Runnable {
             old + new
           }
           logger.info("  PASS: $metadataUri - ${records.size} impressions verified")
+        } catch (e: CancellationException) {
+          throw e
         } catch (e: Exception) {
           errors++
           logger.severe("  FAIL: $metadataUri - ${e.message}")
