@@ -125,7 +125,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
             listEventGroupsRequest {
               parent = measurementSystem.measurementConsumerName
               pageSize = 100
-              filter = ListEventGroupsRequestKt.filter { entityTypeIn += "creative-id" }
+              filter =
+                ListEventGroupsRequestKt.filter {
+                  entityTypeIn += "campaign"
+                  entityTypeIn += "creative-id"
+                }
             }
           )
 

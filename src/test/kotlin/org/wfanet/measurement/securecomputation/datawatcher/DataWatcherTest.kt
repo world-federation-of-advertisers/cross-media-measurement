@@ -770,6 +770,36 @@ class DataWatcherTest() {
     }
   }
 
+  @Test
+  fun `surfaces transient HTTP dispatch failure so Eventarc can retry`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer(statusCode = 500)
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      val error =
+        assertFailsWith<IllegalStateException> {
+          dataWatcher.receivePath(
+            "test-schema://test-bucket/path-to-watch/some-data",
+            emptyMap(),
+          )
+        }
+
+      assertThat(error).hasMessageThat().contains("returned 500")
+      server.stop()
+    }
+  }
+
   companion object {
     private const val EVICTION_OPERATION_ID = "123e4567-e89b-42d3-a456-426614174000"
   }
