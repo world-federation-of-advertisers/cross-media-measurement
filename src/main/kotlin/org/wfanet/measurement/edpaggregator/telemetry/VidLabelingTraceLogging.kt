@@ -18,16 +18,51 @@ package org.wfanet.measurement.edpaggregator.telemetry
 
 import java.util.logging.Level
 import java.util.logging.Logger
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.telemetry.XmmTraceLogging
 
 /** Writes payload-free VID-labeling lifecycle evidence. */
 object VidLabelingTraceLogging {
+  const val LABEL_OUTPUT_STAGE = "label"
+
   fun log(logger: Logger, event: String, vararg fields: Pair<String, String?>) {
     log(logger, Level.INFO, event, *fields)
   }
 
   fun log(logger: Logger, level: Level, event: String, vararg fields: Pair<String, String?>) {
     XmmTraceLogging.log(logger, level, null, event, SAFE_FIELD_NAMES, *fields)
+  }
+
+  fun logLabelOutput(
+    logger: Logger,
+    level: Level,
+    event: String,
+    dataProvider: String,
+    rawImpressionUpload: String,
+    vidLabelingJob: String,
+    route: String,
+    modelLine: String,
+    outputType: String,
+    pathHash: String,
+    outcome: String,
+    error: Throwable? = null,
+  ) {
+    log(
+      logger,
+      level,
+      event,
+      VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProvider,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload,
+      VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to vidLabelingJob,
+      VidLabelingTraceAttributes.LABEL_ROUTE_STRING to route,
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to LABEL_OUTPUT_STAGE,
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+      VidLabelingTraceAttributes.LABEL_OUTPUT_TYPE_STRING to outputType,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
+    )
   }
 
   private val SAFE_FIELD_NAMES =

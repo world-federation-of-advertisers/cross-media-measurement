@@ -417,7 +417,8 @@ fun AsyncDatabaseClient.ReadContext.readImpressionMetadata(
   val tableIndexDirective =
     when {
       filter.rawImpressionUploadResourceId.isNotEmpty() ->
-        "@{FORCE_INDEX=${ImpressionMetadataEntity.RAW_IMPRESSION_UPLOAD_INDEX}}"
+        "@{FORCE_INDEX=${ImpressionMetadataEntity.RAW_IMPRESSION_UPLOAD_INDEX}, " +
+          "spanner_emulator.disable_query_null_filtered_index_check=true}"
       paginateByBlobUri -> "@{FORCE_INDEX=${ImpressionMetadataEntity.BLOB_URI_PREFIX_INDEX}}"
       filter.cmmsModelLine.isNotEmpty() && filter.eventGroupReferenceIdsList.isNotEmpty() ->
         "@{FORCE_INDEX=${ImpressionMetadataEntity.LIST_FILTER_INDEX}}"
@@ -627,6 +628,22 @@ private fun AsyncDatabaseClient.TransactionContext.updateImpressionMetadataField
     set("ImpressionMetadataId").to(impressionMetadataId)
     set("EventGroupReferenceId").to(impressionMetadata.eventGroupReferenceId)
     set("CmmsModelLine").to(impressionMetadata.cmmsModelLine)
+    set("RawImpressionUploadResourceId")
+      .to(
+        if (impressionMetadata.rawImpressionUploadResourceId.isEmpty()) {
+          Value.string(null)
+        } else {
+          Value.string(impressionMetadata.rawImpressionUploadResourceId)
+        }
+      )
+    set("OutputDoneBlobGeneration")
+      .to(
+        if (impressionMetadata.outputDoneBlobGeneration == 0L) {
+          Value.int64(null)
+        } else {
+          Value.int64(impressionMetadata.outputDoneBlobGeneration)
+        }
+      )
     set("IntervalStartTime").to(impressionMetadata.interval.startTime.toGcloudTimestamp())
     set("IntervalEndTime").to(impressionMetadata.interval.endTime.toGcloudTimestamp())
     if (updateRequestId.isNotEmpty()) {
@@ -695,8 +712,6 @@ suspend fun AsyncDatabaseClient.TransactionContext.batchUpdateImpressionMetadata
     )
     request.impressionMetadata.copy {
       impressionMetadataResourceId = existing.impressionMetadata.impressionMetadataResourceId
-      rawImpressionUploadResourceId = existing.impressionMetadata.rawImpressionUploadResourceId
-      outputDoneBlobGeneration = existing.impressionMetadata.outputDoneBlobGeneration
       state = existing.impressionMetadata.state
       createTime = existing.impressionMetadata.createTime
     }

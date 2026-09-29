@@ -45,6 +45,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingTraceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/telemetry:cloud_telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
@@ -59,6 +60,7 @@ kt_jvm_test(
     associates = ["//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:vid_labeling_trace"],
     test_class = "org.wfanet.measurement.edpaggregator.tools.VidLabelingTraceStateTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
         "//src/main/proto/wfa/measurement/api/v2alpha:data_provider_kt_jvm_proto",

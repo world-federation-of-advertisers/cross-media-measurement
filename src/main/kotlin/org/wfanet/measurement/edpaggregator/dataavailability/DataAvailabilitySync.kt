@@ -822,8 +822,8 @@ class DataAvailabilitySync(
           blobTypeUrl = BLOB_TYPE_URL
           eventGroupReferenceId = blobDetails.eventGroupReferenceId
           modelLine = blobDetails.modelLine
-          rawImpressionUpload = blobDetails.rawImpressionUpload
-          if (doneBlobGeneration != null) {
+          if (doneBlobGeneration != null && blobDetails.rawImpressionUpload.isNotEmpty()) {
+            rawImpressionUpload = blobDetails.rawImpressionUpload
             outputDoneBlobGeneration = doneBlobGeneration
           }
           interval = blobDetails.interval

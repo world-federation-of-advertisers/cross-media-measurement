@@ -36,6 +36,7 @@ import org.wfanet.measurement.api.v2alpha.listModelShardsResponse
 import org.wfanet.measurement.api.v2alpha.modelLine as kingdomModelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
@@ -177,11 +178,11 @@ class VidLabelingTraceStateTest {
     assertThat(nodes.map { it.stage })
       .containsAtLeast(
         "label",
-        "label_finalize",
         "data_watcher",
         "data_availability_metadata",
         "data_availability_publish",
       )
+    assertThat(nodes.count { it.stage == VidLabelingTraceLogging.LABEL_OUTPUT_STAGE }).isEqualTo(2)
     assertThat(nodes.none { it.authoritativeState == "MISSING" }).isTrue()
     assertThat(objectReads).contains("gs://raw/input/done" to 7L)
     assertThat(objectReads).doesNotContain("gs://raw/input/done" to null)
