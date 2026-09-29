@@ -1333,51 +1333,112 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
   }
 
   @Test
-  fun `streamEventGroups continues DataProvider page from legacy cursor`(): Unit = runBlocking {
-    val externalDataProviderId =
-      population.createDataProvider(dataProvidersService).externalDataProviderId
-    val externalMeasurementConsumerId =
-      population
-        .createMeasurementConsumer(measurementConsumersService, accountsService)
-        .externalMeasurementConsumerId
-    val expectedEventGroups =
-      (1..3)
-        .map {
-          eventGroupsService.createEventGroup(
-            createEventGroupRequest {
-              eventGroup = eventGroup {
-                this.externalDataProviderId = externalDataProviderId
-                this.externalMeasurementConsumerId = externalMeasurementConsumerId
+  fun `streamEventGroups continues DataProvider page from legacy token cursor`(): Unit =
+    runBlocking {
+      val externalDataProviderId =
+        population.createDataProvider(dataProvidersService).externalDataProviderId
+      val externalMeasurementConsumerId =
+        population
+          .createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val expectedEventGroups =
+        (1..3)
+          .map {
+            eventGroupsService.createEventGroup(
+              createEventGroupRequest {
+                eventGroup = eventGroup {
+                  this.externalDataProviderId = externalDataProviderId
+                  this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                }
               }
+            )
+          }
+          .sortedWith(
+            compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
+          )
+      // Legacy page tokens are converted to this two-field cursor by the public API.
+      val legacyPageEnd: EventGroup = expectedEventGroups.first()
+
+      val nextPage: List<EventGroup> =
+        eventGroupsService
+          .streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                this.externalDataProviderId = externalDataProviderId
+                after =
+                  StreamEventGroupsRequestKt.FilterKt.after {
+                    eventGroupKey = eventGroupKey {
+                      this.externalDataProviderId = legacyPageEnd.externalDataProviderId
+                      externalEventGroupId = legacyPageEnd.externalEventGroupId
+                    }
+                  }
+              }
+              limit = 2
             }
           )
-        }
-        .sortedWith(
-          compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
-        )
-    val legacyPageEnd: EventGroup = expectedEventGroups.first()
+          .toList()
 
-    val nextPage: List<EventGroup> =
-      eventGroupsService
-        .streamEventGroups(
-          streamEventGroupsRequest {
-            filter = filter {
+      assertThat(nextPage).containsExactlyElementsIn(expectedEventGroups.drop(1)).inOrder()
+    }
+
+  @Test
+  fun `streamEventGroups continues MeasurementConsumer page from legacy token cursor`(): Unit =
+    runBlocking {
+      val externalMeasurementConsumerId =
+        population
+          .createMeasurementConsumer(measurementConsumersService, accountsService)
+          .externalMeasurementConsumerId
+      val externalDataProviderIds =
+        listOf(
+            population.createDataProvider(dataProvidersService).externalDataProviderId,
+            population.createDataProvider(dataProvidersService).externalDataProviderId,
+          )
+          .sorted()
+
+      suspend fun createEventGroup(externalDataProviderId: Long): EventGroup {
+        return eventGroupsService.createEventGroup(
+          createEventGroupRequest {
+            eventGroup = eventGroup {
               this.externalDataProviderId = externalDataProviderId
-              after =
-                StreamEventGroupsRequestKt.FilterKt.after {
-                  eventGroupKey = eventGroupKey {
-                    this.externalDataProviderId = legacyPageEnd.externalDataProviderId
-                    externalEventGroupId = legacyPageEnd.externalEventGroupId
-                  }
-                }
+              this.externalMeasurementConsumerId = externalMeasurementConsumerId
             }
-            limit = 2
           }
         )
-        .toList()
+      }
 
-    assertThat(nextPage).containsExactlyElementsIn(expectedEventGroups.drop(1)).inOrder()
-  }
+      val expectedEventGroups =
+        listOf(
+            createEventGroup(externalDataProviderIds[0]),
+            createEventGroup(externalDataProviderIds[0]),
+            createEventGroup(externalDataProviderIds[1]),
+          )
+          .sortedWith(
+            compareBy<EventGroup> { it.externalDataProviderId }.thenBy { it.externalEventGroupId }
+          )
+      // Legacy page tokens are converted to this two-field cursor by the public API.
+      val legacyPageEnd: EventGroup = expectedEventGroups.first()
+
+      val nextPage: List<EventGroup> =
+        eventGroupsService
+          .streamEventGroups(
+            streamEventGroupsRequest {
+              filter = filter {
+                this.externalMeasurementConsumerId = externalMeasurementConsumerId
+                after =
+                  StreamEventGroupsRequestKt.FilterKt.after {
+                    eventGroupKey = eventGroupKey {
+                      externalDataProviderId = legacyPageEnd.externalDataProviderId
+                      externalEventGroupId = legacyPageEnd.externalEventGroupId
+                    }
+                  }
+              }
+              limit = 2
+            }
+          )
+          .toList()
+
+      assertThat(nextPage).containsExactlyElementsIn(expectedEventGroups.drop(1)).inOrder()
+    }
 
   @Test
   fun `streamEventGroups respects limit`(): Unit = runBlocking {
