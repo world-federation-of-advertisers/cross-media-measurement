@@ -29,6 +29,7 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
+import com.google.type.date
 import com.google.type.interval
 import java.io.File
 import java.nio.file.Files
@@ -131,6 +132,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledImpression
+import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ModelLineCutover
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
@@ -142,6 +145,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.encryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRequisitionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.modelLineCutover
 import org.wfanet.measurement.edpaggregator.v1alpha.requisitionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.resultsFulfillerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.transportLayerSecurityParams
@@ -294,6 +298,17 @@ class ResultsFulfillerAppTest {
       createWorkItemParams(
         ResultsFulfillerParams.NoiseParams.NoiseType.NONE,
         resultMinimumThresholds = null,
+        modelLineCutover =
+          modelLineCutover {
+            externalModelLine = EXTERNAL_MODEL_LINE
+            historicalModelLine = HISTORICAL_MODEL_LINE
+            replacementModelLine = REPLACEMENT_MODEL_LINE
+            cutoverDate = date {
+              year = FIRST_EVENT_DATE.year
+              month = FIRST_EVENT_DATE.monthValue
+              day = FIRST_EVENT_DATE.dayOfMonth
+            }
+          },
       )
     val workItem = createWorkItem(workItemParams)
     workItemAttemptsServiceMock.stub {
@@ -319,6 +334,7 @@ class ResultsFulfillerAppTest {
           throttler = throttler,
         )
         .groupRequisitions(listOf(REQUISITION))
+        .map { it.copy { modelLine = EXTERNAL_MODEL_LINE } }
     // Add requisitions to storage
     requisitionsStorageClient.writeBlob(
       REQUISITIONS_BLOB_KEY,
@@ -391,12 +407,19 @@ class ResultsFulfillerAppTest {
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
         getStorageConfig(tmpPath),
-        mapOf("some-model-line" to MODEL_LINE_INFO),
+        mapOf(EXTERNAL_MODEL_LINE to MODEL_LINE_INFO),
         metrics = ResultsFulfillerMetrics.create(),
         requisitionsThrottler = FakeThrottler(),
         kingdomThrottler = FakeThrottler(),
       )
     app.runWork(Any.pack(workItemParams))
+
+    val metadataRequest: ListImpressionMetadataRequest =
+      verifyAndCapture(
+        impressionMetadataServiceMock,
+        ImpressionMetadataServiceCoroutineImplBase::listImpressionMetadata,
+      )
+    assertThat(metadataRequest.filter.modelLine).isEqualTo(REPLACEMENT_MODEL_LINE)
 
     verifyBlocking(requisitionsServiceMock, times(1)) { fulfillDirectRequisition(any()) }
     val request: FulfillDirectRequisitionRequest =
@@ -1639,6 +1662,7 @@ class ResultsFulfillerAppTest {
   private fun createWorkItemParams(
     noiseType: ResultsFulfillerParams.NoiseParams.NoiseType,
     resultMinimumThresholds: ResultMinimumThresholds?,
+    modelLineCutover: ModelLineCutover? = null,
   ): WorkItemParams {
     return workItemParams {
       appParams =
@@ -1670,6 +1694,9 @@ class ResultsFulfillerAppTest {
                   this.minUsers = resultMinimumThresholds.minUsers
                   this.reachMaxFrequencyPerUser = resultMinimumThresholds.reachMaxFrequencyPerUser
                 }
+            }
+            if (modelLineCutover != null) {
+              modelLineCutovers += modelLineCutover
             }
           }
           .pack()
@@ -1879,6 +1906,11 @@ class ResultsFulfillerAppTest {
     private const val IMPRESSIONS_FILE_URI = "file:///$IMPRESSIONS_BUCKET/$IMPRESSIONS_BLOB_KEY"
 
     private const val IMPRESSIONS_METADATA_BUCKET = "impression-metadata-bucket"
+    private const val EXTERNAL_MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/external"
+    private const val HISTORICAL_MODEL_LINE =
+      "modelProviders/mp1/modelSuites/ms1/modelLines/historical"
+    private const val REPLACEMENT_MODEL_LINE =
+      "modelProviders/mp1/modelSuites/ms1/modelLines/replacement"
     private val IMPRESSION_METADATA_BLOB_KEY =
       "ds/${FIRST_EVENT_DATE}/model-line/some-model-line/event-group-reference-id/$EVENT_GROUP_NAME/metadata"
 

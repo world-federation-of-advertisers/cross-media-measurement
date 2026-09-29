@@ -42,6 +42,7 @@ kt_jvm_library(
     srcs = ["RecoverMissingImpressionMetadata.kt"],
     deps = [
         "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_blobs",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:missing_impression_metadata_recovery",

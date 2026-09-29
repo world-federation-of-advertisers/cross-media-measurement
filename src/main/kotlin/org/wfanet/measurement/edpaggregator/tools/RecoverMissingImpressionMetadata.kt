@@ -44,6 +44,7 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverConfig
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
@@ -267,6 +268,15 @@ class RecoverMissingImpressionMetadata : Runnable {
               throttler = throttler,
               impressionMetadataBatchSize = impressionMetadataBatchSize,
               modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
+              modelLineCutovers =
+                config.modelLineCutoversList.map { cutover ->
+                  ModelLineCutoverConfig.from(
+                    externalModelLine = cutover.externalModelLine,
+                    historicalModelLine = cutover.historicalModelLine,
+                    replacementModelLine = cutover.replacementModelLine,
+                    cutoverDate = cutover.cutoverDate,
+                  )
+                },
               errorIfGapsExist = config.errorIfGapsExist,
             )
             .sync(doneBlobUri)
