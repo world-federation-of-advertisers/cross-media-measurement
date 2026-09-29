@@ -54,6 +54,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * @param dataWatcherConfigs - a list of [DataWatcherConfig]
  * @param meter - OpenTelemetry meter for instrumentation
  */
+private class HttpEndpointResponseException(val statusCode: Int, message: String) :
+  IllegalStateException(message)
+
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
@@ -110,15 +113,18 @@ class DataWatcher(
       onProcessingCompleted(config, path, processingDurationSeconds)
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
-      val isRetryable = e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES
+      val isRetryable =
+        e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
+          (e is HttpEndpointResponseException && isRetryableHttpStatusCode(e.statusCode))
       onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
           WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
       if (isRetryable || isRecoveryOperation) {
-        // Recovery must be at-least-once: surfacing the failure keeps the Eventarc delivery
-        // unacknowledged so it is retried and, after exhaustion, retained in the configured DLQ.
+        // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
+        // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
+        // retained in the configured DLQ.
         throw e
       }
     }
@@ -280,8 +286,11 @@ class DataWatcher(
         .build()
     val response = client.send(request, BodyHandlers.ofString())
     val statusCode = response.statusCode()
-    check(statusCode == 200) {
-      "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode"
+    if (statusCode != 200) {
+      throw HttpEndpointResponseException(
+        statusCode,
+        "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode",
+      )
     }
     onHttpDispatch(config, path, statusCode)
   }
@@ -389,6 +398,10 @@ class DataWatcher(
         Status.Code.UNKNOWN,
         Status.Code.UNAVAILABLE,
       )
+
+    private fun isRetryableHttpStatusCode(statusCode: Int): Boolean =
+      statusCode == 408 || statusCode == 429 || statusCode in 500..599
+
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"

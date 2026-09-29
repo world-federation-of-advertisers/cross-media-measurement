@@ -376,9 +376,10 @@ module "event_group_sync_cloud_function" {
   uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
   secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
 
-  # The Kingdom rate limit is shared across concurrent syncs for the same DataProvider. Serialize
-  # invocations so their independently throttled request streams cannot exceed that shared limit.
+  # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
+  # Keep one single-request instance so syncs cannot overlap.
   max_instances = 1
+  concurrency   = 1
 }
 
 module "data_availability_sync_cloud_function" {
