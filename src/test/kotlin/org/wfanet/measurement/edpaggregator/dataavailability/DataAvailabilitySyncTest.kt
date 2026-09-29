@@ -118,8 +118,8 @@ class DataAvailabilitySyncTest {
     private val MODEL_LINE_CUTOVER =
       ModelLineCutoverConfig.from(
         externalModelLine = EXTERNAL_MODEL_LINE,
-        beforeCutoverModelLine = EXTERNAL_MODEL_LINE,
-        onOrAfterCutoverModelLine = ON_OR_AFTER_MODEL_LINE,
+        historicalModelLine = EXTERNAL_MODEL_LINE,
+        replacementModelLine = ON_OR_AFTER_MODEL_LINE,
         cutoverDate =
           date {
             year = 2026

@@ -40,24 +40,23 @@ data class ModelLineRoute(val modelLine: String, val interval: Interval)
  * Validated model-line cutover configuration shared by runtime and static configuration consumers.
  *
  * @property externalModelLine Model line used in requisitions and published data availability.
- * @property beforeCutoverModelLine Internal model line used before [cutoverInstant].
- * @property onOrAfterCutoverModelLine Internal model line used on or after [cutoverInstant].
+ * @property historicalModelLine Internal model line used before [cutoverInstant].
+ * @property replacementModelLine Internal model line used on or after [cutoverInstant].
  * @property cutoverInstant Midnight UTC at which routing switches internal model lines.
  */
 class ModelLineCutoverConfig
 private constructor(
   val externalModelLine: String,
-  val beforeCutoverModelLine: String,
-  val onOrAfterCutoverModelLine: String,
+  val historicalModelLine: String,
+  val replacementModelLine: String,
   val cutoverInstant: Instant,
 ) {
   init {
     validateModelLineName("external_model_line", externalModelLine)
-    validateModelLineName("before_cutover_model_line", beforeCutoverModelLine)
-    validateModelLineName("on_or_after_cutover_model_line", onOrAfterCutoverModelLine)
-    require(beforeCutoverModelLine != onOrAfterCutoverModelLine) {
-      "before_cutover_model_line and on_or_after_cutover_model_line must differ for " +
-        externalModelLine
+    validateModelLineName("historical_model_line", historicalModelLine)
+    validateModelLineName("replacement_model_line", replacementModelLine)
+    require(historicalModelLine != replacementModelLine) {
+      "historical_model_line and replacement_model_line must differ for " + externalModelLine
     }
   }
 
@@ -78,7 +77,7 @@ private constructor(
       if (start < cutoverInstant) {
         add(
           ModelLineRoute(
-            beforeCutoverModelLine,
+            historicalModelLine,
             interval {
               startTime = start.toProtoTime()
               endTime = minOf(end, cutoverInstant).toProtoTime()
@@ -89,7 +88,7 @@ private constructor(
       if (end > cutoverInstant) {
         add(
           ModelLineRoute(
-            onOrAfterCutoverModelLine,
+            replacementModelLine,
             interval {
               startTime = maxOf(start, cutoverInstant).toProtoTime()
               endTime = end.toProtoTime()
@@ -108,8 +107,8 @@ private constructor(
       }
       return from(
         externalModelLine = modelLineCutover.externalModelLine,
-        beforeCutoverModelLine = modelLineCutover.beforeCutoverModelLine,
-        onOrAfterCutoverModelLine = modelLineCutover.onOrAfterCutoverModelLine,
+        historicalModelLine = modelLineCutover.historicalModelLine,
+        replacementModelLine = modelLineCutover.replacementModelLine,
         cutoverDate = modelLineCutover.cutoverDate,
       )
     }
@@ -117,8 +116,8 @@ private constructor(
     /** Creates validated configuration from a static-config representation. */
     fun from(
       externalModelLine: String,
-      beforeCutoverModelLine: String,
-      onOrAfterCutoverModelLine: String,
+      historicalModelLine: String,
+      replacementModelLine: String,
       cutoverDate: Date,
     ): ModelLineCutoverConfig {
       require(cutoverDate.year in 1..9999) {
@@ -135,8 +134,8 @@ private constructor(
         }
       return ModelLineCutoverConfig(
         externalModelLine,
-        beforeCutoverModelLine,
-        onOrAfterCutoverModelLine,
+        historicalModelLine,
+        replacementModelLine,
         cutoverInstant,
       )
     }

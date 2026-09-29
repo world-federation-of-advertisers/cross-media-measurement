@@ -1585,8 +1585,8 @@ class StorageEventSourceTest {
           modelLineCutover =
             ModelLineCutoverConfig.from(
               externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external",
-              beforeCutoverModelLine = beforeModelLine,
-              onOrAfterCutoverModelLine = onOrAfterModelLine,
+              historicalModelLine = beforeModelLine,
+              replacementModelLine = onOrAfterModelLine,
               cutoverDate =
                 date {
                   year = 2026
@@ -1670,8 +1670,8 @@ class StorageEventSourceTest {
         modelLineCutover =
           ModelLineCutoverConfig.from(
             externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external",
-            beforeCutoverModelLine = beforeModelLine,
-            onOrAfterCutoverModelLine = onOrAfterModelLine,
+            historicalModelLine = beforeModelLine,
+            replacementModelLine = onOrAfterModelLine,
             cutoverDate =
               date {
                 year = 2026

@@ -281,8 +281,8 @@ class ResultsFulfillerParamsValidatorTest {
       "modelProviders/provider1/modelSuites/suite1/modelLines/after"
     private val VALID_CUTOVER = modelLineCutover {
       externalModelLine = EXTERNAL_MODEL_LINE
-      beforeCutoverModelLine = BEFORE_MODEL_LINE
-      onOrAfterCutoverModelLine = ON_OR_AFTER_MODEL_LINE
+      historicalModelLine = BEFORE_MODEL_LINE
+      replacementModelLine = ON_OR_AFTER_MODEL_LINE
       cutoverDate = date {
         year = 2026
         month = 10

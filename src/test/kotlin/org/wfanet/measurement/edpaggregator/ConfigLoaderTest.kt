@@ -43,8 +43,8 @@ class ConfigLoaderTest {
       dataProvider = "dataProviders/edp1"
       modelLineCutovers += modelLineCutover {
         externalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/external"
-        beforeCutoverModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/before"
-        onOrAfterCutoverModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/after"
+        historicalModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/before"
+        replacementModelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/after"
         cutoverDate = date {
           year = 2026
           month = 10

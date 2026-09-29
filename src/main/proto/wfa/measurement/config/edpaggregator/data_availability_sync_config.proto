@@ -77,19 +77,19 @@ message DataAvailabilitySyncConfig {
     ];
 
     // Internal model line used for event times before `cutover_date`.
-    string before_cutover_model_line = 2 [
+    string historical_model_line = 2 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
     ];
 
     // Internal model line used for event times on or after `cutover_date`.
-    string on_or_after_cutover_model_line = 3 [
+    string replacement_model_line = 3 [
       (google.api.field_behavior) = REQUIRED,
       (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
     ];
 
     // First UTC date whose availability comes from
-    // `on_or_after_cutover_model_line`.
+    // `replacement_model_line`.
     google.type.Date cutover_date = 4 [(google.api.field_behavior) = REQUIRED];
   }
 

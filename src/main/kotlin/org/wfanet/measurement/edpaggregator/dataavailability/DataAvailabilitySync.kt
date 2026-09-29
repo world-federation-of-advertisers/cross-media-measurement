@@ -401,7 +401,7 @@ class DataAvailabilitySync(
   ): Interval? {
     val boundary = cutover.cutoverInstant
     val beforeInterval =
-      boundsByModelLine[cutover.beforeCutoverModelLine]?.let { bound ->
+      boundsByModelLine[cutover.historicalModelLine]?.let { bound ->
         val start = bound.startTime.toInstant()
         val end = minOf(bound.endTime.toInstant(), boundary)
         if (start < end) {
@@ -414,7 +414,7 @@ class DataAvailabilitySync(
         }
       }
     val onOrAfterInterval =
-      boundsByModelLine[cutover.onOrAfterCutoverModelLine]?.let { bound ->
+      boundsByModelLine[cutover.replacementModelLine]?.let { bound ->
         val start = maxOf(bound.startTime.toInstant(), boundary)
         val end = bound.endTime.toInstant()
         if (start < end) {

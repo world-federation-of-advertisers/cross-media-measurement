@@ -145,8 +145,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             dataAvailabilitySyncConfig.modelLineCutoversList.map { cutover ->
               ModelLineCutoverConfig.from(
                 externalModelLine = cutover.externalModelLine,
-                beforeCutoverModelLine = cutover.beforeCutoverModelLine,
-                onOrAfterCutoverModelLine = cutover.onOrAfterCutoverModelLine,
+                historicalModelLine = cutover.historicalModelLine,
+                replacementModelLine = cutover.replacementModelLine,
                 cutoverDate = cutover.cutoverDate,
               )
             },

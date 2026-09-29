@@ -103,8 +103,7 @@ class ModelLineCutoverTest {
   fun `rejects identical internal model lines`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        CUTOVER.copy { onOrAfterCutoverModelLine = beforeCutoverModelLine }
-          .toModelLineCutoverConfig()
+        CUTOVER.copy { replacementModelLine = historicalModelLine }.toModelLineCutoverConfig()
       }
 
     assertThat(exception).hasMessageThat().contains("must differ")
@@ -114,10 +113,10 @@ class ModelLineCutoverTest {
   fun `rejects invalid model line resource name`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        CUTOVER.copy { beforeCutoverModelLine = "invalid" }.toModelLineCutoverConfig()
+        CUTOVER.copy { historicalModelLine = "invalid" }.toModelLineCutoverConfig()
       }
 
-    assertThat(exception).hasMessageThat().contains("before_cutover_model_line")
+    assertThat(exception).hasMessageThat().contains("historical_model_line")
   }
 
   @Test
@@ -177,8 +176,8 @@ class ModelLineCutoverTest {
       "modelProviders/provider1/modelSuites/suite1/modelLines/after"
     private val CUTOVER: ModelLineCutover = modelLineCutover {
       externalModelLine = EXTERNAL_MODEL_LINE
-      beforeCutoverModelLine = BEFORE_MODEL_LINE
-      onOrAfterCutoverModelLine = ON_OR_AFTER_MODEL_LINE
+      historicalModelLine = BEFORE_MODEL_LINE
+      replacementModelLine = ON_OR_AFTER_MODEL_LINE
       cutoverDate = date {
         year = 2026
         month = 10
