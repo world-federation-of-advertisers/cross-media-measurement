@@ -331,11 +331,11 @@ module "requisition_fetcher_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars   = var.cloud_function_configs.requisition_fetcher.extra_env_vars
-  secret_mappings   = var.cloud_function_configs.requisition_fetcher.secret_mappings
-  uber_jar_path     = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  secrets_to_access = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
-  config_path       = var.requisition_fetcher_config.local_path
+  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.requisition_fetcher_config.local_path
 
   # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
   # run longer than that for incremental draining to happen at all — the gen2 default of 60s would
@@ -375,6 +375,10 @@ module "event_group_sync_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
   secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
+
+  # The Kingdom rate limit is shared across concurrent syncs for the same DataProvider. Serialize
+  # invocations so their independently throttled request streams cannot exceed that shared limit.
+  max_instances = 1
 }
 
 module "data_availability_sync_cloud_function" {
