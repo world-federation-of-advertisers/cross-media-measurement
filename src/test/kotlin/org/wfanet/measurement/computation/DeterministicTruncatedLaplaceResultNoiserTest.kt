@@ -80,6 +80,28 @@ class DeterministicTruncatedLaplaceResultNoiserTest {
   }
 
   @Test
+  fun `fingerprint from bytes matches fingerprint from ints`() {
+    // The byte overload hashes in fixed-size chunks. It must reseed nothing: a caller holding one
+    // byte per VID gets the same draws as one that expanded the population into an IntArray.
+    val bytes = ByteArray(COMBINED.size) { COMBINED[it].toByte() }
+
+    assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(bytes, CONTRIBUTION_COUNT))
+      .isEqualTo(
+        DeterministicTruncatedLaplaceResultNoiser.fingerprint(COMBINED, CONTRIBUTION_COUNT)
+      )
+  }
+
+  @Test
+  fun `fingerprint from bytes matches fingerprint from ints across a chunk boundary`() {
+    // 8192 bytes of staging holds 2047 cells after the contribution count, so this spans flushes.
+    val ints = IntArray(5000) { it % 128 }
+    val bytes = ByteArray(ints.size) { ints[it].toByte() }
+
+    assertThat(DeterministicTruncatedLaplaceResultNoiser.fingerprint(bytes, CONTRIBUTION_COUNT))
+      .isEqualTo(DeterministicTruncatedLaplaceResultNoiser.fingerprint(ints, CONTRIBUTION_COUNT))
+  }
+
+  @Test
   fun `fingerprint changes with vector contents`() {
     assertThat(
         DeterministicTruncatedLaplaceResultNoiser.fingerprint(

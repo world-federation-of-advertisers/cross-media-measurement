@@ -100,12 +100,15 @@ class GaussianResultNoiser(
  * Each draw is a pure function of the seed and an output label. Reach uses [REACH_LABEL], the
  * impression threshold uses [IMPRESSION_LABEL], and frequency bucket `f` uses `f`.
  */
-class DeterministicTruncatedLaplaceResultNoiser(
-  combinedFrequencyVector: IntArray,
-  contributionCount: Int,
-  private val maxFrequencyPerUser: Int = 1,
-) : ResultNoiser {
-  private val fingerprint: ByteArray = fingerprint(combinedFrequencyVector, contributionCount)
+class DeterministicTruncatedLaplaceResultNoiser
+private constructor(private val seed: ByteArray, private val maxFrequencyPerUser: Int) :
+  ResultNoiser {
+
+  constructor(
+    combinedFrequencyVector: IntArray,
+    contributionCount: Int,
+    maxFrequencyPerUser: Int = 1,
+  ) : this(fingerprint(combinedFrequencyVector, contributionCount), maxFrequencyPerUser)
 
   // One sampler per released quantity, each calibrated to that quantity's L1 sensitivity: reach and
   // each frequency bucket move by 1 per VID, the capped impression count by maxFrequencyPerUser.
@@ -121,17 +124,17 @@ class DeterministicTruncatedLaplaceResultNoiser(
     )
 
   override fun noiseReach(reachInSample: Long): Long =
-    reachInSample + reachSampler.sampleRounded(fingerprint, label(REACH_LABEL))
+    reachInSample + reachSampler.sampleRounded(seed, label(REACH_LABEL))
 
   override fun noiseImpressionsFromFrequencyHistogram(frequencyHistogram: LongArray): Long =
     // One draw calibrated to the capped count's sensitivity, mirroring the Gaussian mechanism.
     // Deriving this from the bucket draws instead would weight each by its frequency, giving the
     // threshold a noise magnitude that is not calibrated to any sensitivity.
     frequencyHistogram.weightedSum(cap = maxFrequencyPerUser) +
-      impressionSampler.sampleRounded(fingerprint, label(IMPRESSION_LABEL))
+      impressionSampler.sampleRounded(seed, label(IMPRESSION_LABEL))
 
   override fun noiseFrequencyBucket(index: Int, count: Long): Long =
-    (count + frequencySampler.sampleRounded(fingerprint, label(index + 1))).coerceAtLeast(0L)
+    (count + frequencySampler.sampleRounded(seed, label(index + 1))).coerceAtLeast(0L)
 
   private fun label(value: Int): ByteArray =
     ByteBuffer.allocate(Int.SIZE_BYTES).putInt(value).array()
@@ -140,6 +143,9 @@ class DeterministicTruncatedLaplaceResultNoiser(
     private const val REACH_LABEL = 0
     private const val IMPRESSION_LABEL = -1
     private const val UNIT_SENSITIVITY = 1.0
+
+    /** Staging size for the chunked seed, a multiple of [Int.SIZE_BYTES]. */
+    private const val FINGERPRINT_CHUNK_BYTES = 8192
 
     /**
      * The noise seed: SHA-256 over the combined frequency vector and [contributionCount], which is
@@ -151,6 +157,38 @@ class DeterministicTruncatedLaplaceResultNoiser(
       buffer.asIntBuffer().put(combinedFrequencyVector)
       return MessageDigest.getInstance("SHA-256").digest(buffer.array())
     }
+
+    /**
+     * The same seed as [fingerprint] over the same frequencies, from one byte per VID.
+     *
+     * Hashes in fixed-size chunks, so a caller holding a byte-per-VID vector never materializes a
+     * population-sized [IntArray] to be seeded from it.
+     */
+    fun fingerprint(combinedFrequencyVector: ByteArray, contributionCount: Int): ByteArray {
+      val digest = MessageDigest.getInstance("SHA-256")
+      val chunk = ByteBuffer.allocate(FINGERPRINT_CHUNK_BYTES)
+      chunk.putInt(contributionCount)
+      for (frequency in combinedFrequencyVector) {
+        if (chunk.remaining() < Int.SIZE_BYTES) {
+          digest.update(chunk.array(), 0, chunk.position())
+          chunk.clear()
+        }
+        chunk.putInt(frequency.toInt())
+      }
+      digest.update(chunk.array(), 0, chunk.position())
+      return digest.digest()
+    }
+
+    /** A noiser seeded from a byte-per-VID frequency vector. */
+    fun fromByteVector(
+      combinedFrequencyVector: ByteArray,
+      contributionCount: Int,
+      maxFrequencyPerUser: Int = 1,
+    ): DeterministicTruncatedLaplaceResultNoiser =
+      DeterministicTruncatedLaplaceResultNoiser(
+        fingerprint(combinedFrequencyVector, contributionCount),
+        maxFrequencyPerUser,
+      )
   }
 }
 

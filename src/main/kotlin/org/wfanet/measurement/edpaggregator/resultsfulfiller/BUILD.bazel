@@ -212,7 +212,6 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_noiser",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller/compute/protocols/direct:direct_dynamic_clipping",
-        "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/noiser",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:protocol_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:requisition_fulfillment_service_kt_jvm_grpc_proto",

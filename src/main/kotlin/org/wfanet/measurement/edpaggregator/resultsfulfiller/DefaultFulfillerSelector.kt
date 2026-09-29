@@ -267,7 +267,7 @@ class DefaultFulfillerSelector(
         if (trusTeeV2ImpressionCountMode == TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED) {
           null
         } else {
-          buildTrusTeeV2FulfillmentDetails(
+          TrusTeeV2ImpressionCount.buildFulfillmentDetails(
             trusTeeV2ImpressionCountMode,
             trusTeeV2MaxFrequencyPerUser,
             frequencyVector,

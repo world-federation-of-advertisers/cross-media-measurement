@@ -110,6 +110,46 @@ object ImpressionComputations {
     noiseSource: DynamicClippingNoiseSource,
     vidSamplingIntervalWidth: Double,
     resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    computeDynamicallyClippedImpressionCount(
+      frequencyHistogram(frequencyVector),
+      queryRho,
+      maxFrequency,
+      noiseSource,
+      vidSamplingIntervalWidth,
+      resultMinimumThresholds,
+    )
+
+  /**
+   * As [computeDynamicallyClippedImpressionCount], from one byte per VID.
+   *
+   * For a caller whose frequencies already fit in a byte, this reads them in place rather than
+   * expanding the population into an [IntArray] first.
+   */
+  fun computeDynamicallyClippedImpressionCount(
+    frequencyVector: ByteArray,
+    queryRho: Double,
+    maxFrequency: Int,
+    noiseSource: DynamicClippingNoiseSource,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
+  ): DynamicallyClippedImpressions =
+    computeDynamicallyClippedImpressionCount(
+      frequencyHistogram(frequencyVector),
+      queryRho,
+      maxFrequency,
+      noiseSource,
+      vidSamplingIntervalWidth,
+      resultMinimumThresholds,
+    )
+
+  private fun computeDynamicallyClippedImpressionCount(
+    histogram: Map<Long, Long>,
+    queryRho: Double,
+    maxFrequency: Int,
+    noiseSource: DynamicClippingNoiseSource,
+    vidSamplingIntervalWidth: Double,
+    resultMinimumThresholds: ResultMinimumThresholds?,
   ): DynamicallyClippedImpressions {
     require(maxFrequency > 0) { "maxFrequency must be positive, got $maxFrequency" }
     require(vidSamplingIntervalWidth > 0.0) {
@@ -123,7 +163,7 @@ object ImpressionComputations {
           maxThreshold = maxFrequency,
           noiseSource = noiseSource,
         )
-        .computeImpressionCappedHistogram(frequencyHistogram(frequencyVector))
+        .computeImpressionCappedHistogram(histogram)
     val clip: Int = searched.threshold
     val bars: List<Double> = searched.noisedCumulativeHistogramList
 
@@ -192,6 +232,16 @@ object ImpressionComputations {
    * value for a vector holding one impression, would leave the two distinguishable.
    */
   private fun frequencyHistogram(frequencyVector: IntArray): Map<Long, Long> =
+    frequencyVector
+      .asSequence()
+      .filter { it > 0 }
+      .groupingBy { it.toLong() }
+      .eachCount()
+      .mapValues { it.value.toLong() }
+      .ifEmpty { mapOf(1L to 0L) }
+
+  /** As [frequencyHistogram], from one byte per VID. */
+  private fun frequencyHistogram(frequencyVector: ByteArray): Map<Long, Long> =
     frequencyVector
       .asSequence()
       .filter { it > 0 }

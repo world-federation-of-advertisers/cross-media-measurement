@@ -22,6 +22,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
+import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode
 
 @RunWith(JUnit4::class)
@@ -30,7 +31,7 @@ class TrusTeeV2ImpressionCountTest {
   @Test
   fun `the unnoised mode reports every impression and no clip`() {
     val details =
-      buildTrusTeeV2FulfillmentDetails(
+      TrusTeeV2ImpressionCount.buildFulfillmentDetails(
         ImpressionCountMode.UNNOISED,
         maxFrequencyPerUser = 0,
         VECTOR,
@@ -46,16 +47,25 @@ class TrusTeeV2ImpressionCountTest {
   @Test
   fun `a configured clip is applied, noised and reported`() {
     val details =
-      buildTrusTeeV2FulfillmentDetails(ImpressionCountMode.NOISED, maxFrequencyPerUser = 3, VECTOR)
+      TrusTeeV2ImpressionCount.buildFulfillmentDetails(
+        ImpressionCountMode.NOISED,
+        maxFrequencyPerUser = 3,
+        VECTOR,
+      )
 
     assertThat(details.impression.noiseMechanism)
       .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    // Clipped sum of 3 + 1 + 3 + 3 over the fixture, plus one bounded draw at sensitivity 3. The
+    // uncapped total of 213, or a count taken at the cell ceiling, falls outside this window.
+    assertThat(details.impression.value.toDouble())
+      .isWithin(DeterministicTruncatedLaplaceParams.truncationBound(3.0) + 1.0)
+      .of(10.0)
     // The clip is the sensitivity the TEE needs to reason about the value it was given.
     assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(3)
     assertThat(details.impression.hasCustomDirectMethodology()).isFalse()
     // The draw is seeded from the vector, so the same population repeats the same count.
     assertThat(
-        buildTrusTeeV2FulfillmentDetails(
+        TrusTeeV2ImpressionCount.buildFulfillmentDetails(
           ImpressionCountMode.NOISED,
           maxFrequencyPerUser = 3,
           VECTOR,
@@ -67,7 +77,11 @@ class TrusTeeV2ImpressionCountTest {
   @Test
   fun `an unset clip is chosen from the data and reported as a variance`() {
     val details =
-      buildTrusTeeV2FulfillmentDetails(ImpressionCountMode.NOISED, maxFrequencyPerUser = 0, VECTOR)
+      TrusTeeV2ImpressionCount.buildFulfillmentDetails(
+        ImpressionCountMode.NOISED,
+        maxFrequencyPerUser = 0,
+        VECTOR,
+      )
 
     assertThat(details.impression.noiseMechanism)
       .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
@@ -75,7 +89,7 @@ class TrusTeeV2ImpressionCountTest {
     assertThat(details.impression.customDirectMethodology.variance.scalar).isGreaterThan(0.0)
     assertThat(details.impression.hasDeterministicCount()).isFalse()
     assertThat(
-        buildTrusTeeV2FulfillmentDetails(
+        TrusTeeV2ImpressionCount.buildFulfillmentDetails(
           ImpressionCountMode.NOISED,
           maxFrequencyPerUser = 0,
           VECTOR,
@@ -88,7 +102,10 @@ class TrusTeeV2ImpressionCountTest {
   fun `a clip is read only under the noised mode`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        requireTrusTeeV2ImpressionCountConfig(ImpressionCountMode.UNNOISED, maxFrequencyPerUser = 3)
+        TrusTeeV2ImpressionCount.validateConfig(
+          ImpressionCountMode.UNNOISED,
+          maxFrequencyPerUser = 3,
+        )
       }
 
     assertThat(exception).hasMessageThat().contains("read only under NOISED")
@@ -98,7 +115,10 @@ class TrusTeeV2ImpressionCountTest {
   fun `a clip beyond what a cell holds is refused`() {
     val exception =
       assertFailsWith<IllegalArgumentException> {
-        requireTrusTeeV2ImpressionCountConfig(ImpressionCountMode.NOISED, maxFrequencyPerUser = 128)
+        TrusTeeV2ImpressionCount.validateConfig(
+          ImpressionCountMode.NOISED,
+          maxFrequencyPerUser = 128,
+        )
       }
 
     assertThat(exception).hasMessageThat().contains("saturates at the largest signed byte")

@@ -124,7 +124,7 @@ object ResultsFulfillerParamsValidator {
       }
     }
 
-    requireTrusTeeV2ImpressionCountConfig(
+    TrusTeeV2ImpressionCount.validateConfig(
       params.trusTeeV2Config.impressionCountMode,
       params.trusTeeV2Config.maxFrequencyPerUser,
     )

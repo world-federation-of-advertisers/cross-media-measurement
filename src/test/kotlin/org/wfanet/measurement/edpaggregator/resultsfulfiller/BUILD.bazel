@@ -252,6 +252,7 @@ kt_jvm_test(
     srcs = ["TrusTeeV2ImpressionCountTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeV2ImpressionCountTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/computation:deterministic_truncated_laplace_params",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:frequency_vector",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/resultsfulfiller:trus_tee_v2_impression_count",
         "//src/main/proto/wfa/measurement/api/v2alpha:measurement_kt_jvm_proto",

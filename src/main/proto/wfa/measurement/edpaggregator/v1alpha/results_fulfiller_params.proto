@@ -229,7 +229,12 @@ message ResultsFulfillerParams {
       // The raw uncapped total, with no per-user clip.
       UNNOISED = 1;
 
-      // Clipped, then noised with DETERMINISTIC_TRUNCATED_LAPLACE.
+      // The count is clipped per user, then noised.
+      //
+      // When max_frequency_per_user is set, that value is the clip. When it
+      // is unset, the clip is chosen from the frequency distribution of the
+      // data. The variance is then reported alongside the count in place of
+      // the clip, since the clip depends on the data it was chosen from.
       NOISED = 2;
     }
 
