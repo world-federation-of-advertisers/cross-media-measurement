@@ -49,15 +49,15 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
+private class HttpEndpointResponseException(val statusCode: Int, message: String) :
+  IllegalStateException(message)
+
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
  * @param workItemsStub - the Google Pub Sub Sink to call
  * @param dataWatcherConfigs - a list of [DataWatcherConfig]
  * @param meter - OpenTelemetry meter for instrumentation
  */
-private class HttpEndpointResponseException(val statusCode: Int, message: String) :
-  IllegalStateException(message)
-
 class DataWatcher(
   private val workItemsStub: WorkItemsCoroutineStub,
   private val dataWatcherConfigs: List<WatchedPath>,
