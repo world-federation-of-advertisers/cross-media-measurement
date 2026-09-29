@@ -43,7 +43,7 @@ concurrency:
 jobs:
   run-test:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment: ${{ inputs.environment }}
     permissions:
       contents: read
@@ -55,10 +55,12 @@ jobs:
         uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
 
       - name: Authenticate to Google Cloud
+        id: auth
         uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
         with:
           workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
           service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          token_format: access_token
 
       - name: Write auth.bazelrc
         env:
@@ -67,6 +69,10 @@ jobs:
           cat << EOF > auth.bazelrc
           build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
           EOF
+
+      - name: Record metrics window
+        run: |
+          echo "METRICS_START_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Run scale test
         id: run-test
@@ -100,6 +106,49 @@ jobs:
             --test_env=EVENT_GROUP_SCALE_DATA_PROVIDER \
             --test_env=EVENT_GROUP_SCALE_SEED \
             //src/test/kotlin/org/wfanet/measurement/integration/k8s:EventGroupSyncScaleTest
+
+      - name: Verify exported EventGroupSync metrics
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          GOOGLE_CLOUD_PROJECT: halo-cmm-${{ inputs.environment }}
+          EVENT_GROUP_SCALE_DATA_PROVIDER: ${{ vars.EVENT_GROUP_SCALE_DATA_PROVIDER }}
+        run: |
+          metric_total() {
+            local metric_type="$1"
+            local end_time response
+            end_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            response="$(
+              curl --fail-with-body --silent --show-error --get \
+                --header "Authorization: Bearer $ACCESS_TOKEN" \
+                --data-urlencode "filter=metric.type=\"$metric_type\" AND metric.labels.data_provider_name=\"$EVENT_GROUP_SCALE_DATA_PROVIDER\"" \
+                --data-urlencode "interval.startTime=$METRICS_START_TIME" \
+                --data-urlencode "interval.endTime=$end_time" \
+                --data-urlencode "view=FULL" \
+                "https://monitoring.googleapis.com/v3/projects/$GOOGLE_CLOUD_PROJECT/timeSeries"
+            )"
+            jq -r \
+              '[.timeSeries[]? | ([.points[]?.value | ((.int64Value // .doubleValue // 0) | tonumber)] | max // 0)] | add // 0' \
+              <<< "$response"
+          }
+
+          for poll_attempt in {1..12}; do
+            sync_attempts="$(metric_total 'workload.googleapis.com/edpa.event_group.sync_attempts')"
+            sync_success="$(metric_total 'workload.googleapis.com/edpa.event_group.sync_success')"
+            sync_deleted="$(metric_total 'workload.googleapis.com/edpa.event_group.sync_deleted')"
+
+            echo "Cloud Monitoring poll $poll_attempt/12: attempts=$sync_attempts, success=$sync_success, deleted=$sync_deleted"
+            if (( sync_attempts >= 9950 && sync_success >= 9950 && sync_deleted >= 50 )); then
+              echo "EventGroupSync metrics were exported to Cloud Monitoring."
+              exit 0
+            fi
+
+            if (( poll_attempt < 12 )); then
+              sleep 30
+            fi
+          done
+
+          echo "Expected at least 9950 attempts, 9950 successes, and 50 deletions in Cloud Monitoring." >&2
+          exit 1
 
       - name: Upload Bazel testlogs
         if: failure() && steps.run-test.outcome == 'failure'
