@@ -21,7 +21,7 @@ import com.google.protobuf.timestamp
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlin.test.assertFailsWith
+import kotlin.test.assertFails
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.testing.ProviderRule
@@ -428,7 +428,7 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
       // the duplicate on EventGroupsByEntityKey. EventGroupSync fails the run without publishing a
       // partial mapping. This is the misconfiguration signature.
       val exception =
-        assertFailsWith<StatusException> {
+        assertFails {
           syncEventGroups(
             edp,
             listOf(
@@ -441,7 +441,8 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
             ),
           )
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+      assertThat(exception.cause).isInstanceOf(StatusException::class.java)
+      assertThat((exception.cause as StatusException).status.code).isEqualTo(Status.Code.UNKNOWN)
       // No duplicate landed (the unique index blocked it), but the item never synced: the mutation
       // (campaign renamed to "c1-final") did not apply.
       assertThat(listCmmsEventGroups(edp, presentEntityTypes)).hasSize(baselineCount + 1)
@@ -652,7 +653,7 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
       // issues a CREATE that the unique index rejects. The sync fails without publishing a partial
       // mapping, and no duplicate row is created.
       val exception =
-        assertFailsWith<StatusException> {
+        assertFails {
           syncEventGroups(
             edp,
             listOf(
@@ -665,7 +666,8 @@ abstract class InProcessEdpAggregatorLifeOfAnEventGroupTest(
             ),
           )
         }
-      assertThat(exception.status.code).isEqualTo(Status.Code.UNKNOWN)
+      assertThat(exception.cause).isInstanceOf(StatusException::class.java)
+      assertThat((exception.cause as StatusException).status.code).isEqualTo(Status.Code.UNKNOWN)
       assertThat(listCmmsEventGroups(edp, listTypes)).hasSize(baselineCount + 1)
     }
 }
