@@ -443,32 +443,10 @@ java_test(
 )
 
 kt_jvm_library(
-    name = "event_group_sync_scale_test_data",
-    srcs = ["EventGroupSyncScaleTestData.kt"],
-)
-
-kt_jvm_library(
-    name = "event_group_sync_scale_test_data_test_lib",
-    srcs = ["EventGroupSyncScaleTestDataTest.kt"],
-    deps = [
-        ":event_group_sync_scale_test_data",
-        "@wfa_common_jvm//imports/java/com/google/common/truth",
-        "@wfa_common_jvm//imports/java/org/junit",
-    ],
-)
-
-java_test(
-    name = "EventGroupSyncScaleTestDataTest",
-    test_class = "org.wfanet.measurement.integration.k8s.EventGroupSyncScaleTestDataTest",
-    runtime_deps = [":event_group_sync_scale_test_data_test_lib"],
-)
-
-kt_jvm_library(
     name = "event_group_sync_scale_test",
     srcs = ["EventGroupSyncScaleTest.kt"],
     deps = [
         ":abstract_edp_aggregator_correctness_test",
-        ":event_group_sync_scale_test_data",
         "//src/main/kotlin/org/wfanet/measurement/api:api_key_constants",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
@@ -476,6 +454,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_map_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",
+        "//src/test/kotlin/org/wfanet/measurement/integration/common:event_group_sync_scale_test_data",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",

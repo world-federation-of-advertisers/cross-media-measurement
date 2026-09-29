@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.integration.k8s
+package org.wfanet.measurement.integration.common
 
 import kotlin.random.Random
 
