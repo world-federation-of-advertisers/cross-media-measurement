@@ -19,20 +19,17 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.CreateDuchyMeasurementLogEntryRequest
 import org.wfanet.measurement.internal.kingdom.DuchyMeasurementLogEntry
 import org.wfanet.measurement.internal.kingdom.MeasurementLogEntriesGrpcKt.MeasurementLogEntriesCoroutineStub
-import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntriesGrpcKt.ComputationLogEntriesCoroutineImplBase
 import org.wfanet.measurement.system.v1alpha.ComputationLogEntry
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -48,7 +45,7 @@ class ComputationLogEntriesService(
   ): ComputationLogEntry =
     ReportTracing.traceSuspending(
       spanName = "kingdom.computation_log_entry.create",
-      attributes = logEntryTraceAttributes(request.parent),
+      attributes = logEntryTraceAttributes(request),
     ) {
       val computationParticipantKey =
         grpcRequireNotNull(ComputationParticipantKey.fromName(request.parent)) {
@@ -89,34 +86,33 @@ class ComputationLogEntriesService(
       val internalResponse: DuchyMeasurementLogEntry =
         measurementLogEntriesService.createDuchyMeasurementLogEntry(internalRequest)
       val measurementLogEntry = internalResponse.logEntry
-      if (
-        measurementLogEntry.externalMeasurementConsumerId != 0L &&
-          measurementLogEntry.externalMeasurementId != 0L
-      ) {
-        Span.current()
-          .setAttribute(
-            ReportTraceAttributes.MEASUREMENT_NAME,
-            MeasurementKey(
-                externalIdToApiId(measurementLogEntry.externalMeasurementConsumerId),
-                externalIdToApiId(measurementLogEntry.externalMeasurementId),
-              )
-              .toName(),
+      Span.current()
+        .apply {
+          setMeasurementName(
+            measurementLogEntry.externalMeasurementConsumerId,
+            measurementLogEntry.externalMeasurementId,
           )
-      }
-      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
+        }
+        .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
       internalResponse.toSystemComputationLogEntry(computationParticipantKey.computationId)
     }
 
-  private fun logEntryTraceAttributes(parent: String): Attributes {
+  private fun logEntryTraceAttributes(request: CreateComputationLogEntryRequest): Attributes {
     val builder =
       Attributes.builder()
-        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_computation_log_entry_acceptance")
         .put(ReportTraceAttributes.OUTCOME, "started")
-    val key = ComputationParticipantKey.fromName(parent)
-    if (key != null) {
+        .putComputationParticipantName(request.parent)
+    if (request.hasComputationLogEntry() && request.computationLogEntry.hasErrorDetails()) {
       builder
-        .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(key.computationId).toName())
-        .put(ReportTraceAttributes.DUCHY_ID, key.duchyId)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, "kingdom_computation_log_entry_acceptance")
+        .put(
+          ReportTraceAttributes.ERROR_RETRYABLE,
+          request.computationLogEntry.errorDetails.type ==
+            ComputationLogEntry.ErrorDetails.Type.TRANSIENT,
+        )
+      if (request.computationLogEntry.hasStageAttempt()) {
+        builder.putComputationStageAttempt(request.computationLogEntry.stageAttempt)
+      }
     }
     return builder.build()
   }

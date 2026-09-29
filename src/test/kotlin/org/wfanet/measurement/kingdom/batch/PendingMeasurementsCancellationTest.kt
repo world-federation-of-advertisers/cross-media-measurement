@@ -58,12 +58,16 @@ import org.wfanet.measurement.internal.kingdom.measurementDetails
 
 private const val EXTERNAL_MEASUREMENT_CONSUMER_ID = 1L
 private const val EXTERNAL_MEASUREMENT_ID = 2L
+private const val EXTERNAL_MEASUREMENT_ID_2 = 3L
 private const val BASIC_REPORT_NAME = "measurementConsumers/AAAAAAAAAAE/basicReports/basic-report"
 private const val REPORT_NAME = "measurementConsumers/AAAAAAAAAAE/reports/report"
 private const val METRIC_NAME = "measurementConsumers/AAAAAAAAAAE/metrics/metric"
 private val MEASUREMENT_NAME =
   "measurementConsumers/${externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID)}/" +
     "measurements/${externalIdToApiId(EXTERNAL_MEASUREMENT_ID)}"
+private val MEASUREMENT_NAME_2 =
+  "measurementConsumers/${externalIdToApiId(EXTERNAL_MEASUREMENT_CONSUMER_ID)}/" +
+    "measurements/${externalIdToApiId(EXTERNAL_MEASUREMENT_ID_2)}"
 private val NOW = Instant.parse("2026-09-29T12:00:00Z")
 private val PENDING_MEASUREMENT = measurement {
   externalMeasurementConsumerId = EXTERNAL_MEASUREMENT_CONSUMER_ID
@@ -83,6 +87,8 @@ private val PENDING_MEASUREMENT = measurement {
         .toByteString()
   }
 }
+private val PENDING_MEASUREMENT_2 =
+  PENDING_MEASUREMENT.copy { externalMeasurementId = EXTERNAL_MEASUREMENT_ID_2 }
 
 @RunWith(JUnit4::class)
 class PendingMeasurementsCancellationTest {
@@ -116,12 +122,13 @@ class PendingMeasurementsCancellationTest {
   @Test
   fun `run emits accepted lifecycle span for each cancelled Measurement`() {
     whenever(measurementsServiceMock.streamMeasurements(any()))
-      .thenReturn(flowOf(PENDING_MEASUREMENT), emptyFlow())
+      .thenReturn(flowOf(PENDING_MEASUREMENT, PENDING_MEASUREMENT_2), emptyFlow())
     measurementsServiceMock.stub {
       onBlocking { batchCancelMeasurements(any()) }
         .thenReturn(
           batchCancelMeasurementsResponse {
             measurements += PENDING_MEASUREMENT.copy { state = Measurement.State.CANCELLED }
+            measurements += PENDING_MEASUREMENT_2.copy { state = Measurement.State.CANCELLED }
           }
         )
     }
@@ -134,12 +141,17 @@ class PendingMeasurementsCancellationTest {
 
     cancellation.run()
 
-    val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.name).isEqualTo("kingdom.measurement.retention_cancel")
+    val spans = spanExporter.finishedSpanItems
+    assertThat(spans.map { it.name })
+      .containsExactly(
+        "kingdom.measurement.retention_cancel",
+        "kingdom.measurement.retention_cancel",
+      )
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) })
+      .containsExactly(MEASUREMENT_NAME, MEASUREMENT_NAME_2)
+    val span = spans.first()
     assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
       .isEqualTo(BASIC_REPORT_NAME)
-    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
-      .isEqualTo(MEASUREMENT_NAME)
     assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_STATE)).isEqualTo("CANCELLED")
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("measurement_cancellation")
@@ -151,7 +163,7 @@ class PendingMeasurementsCancellationTest {
   @Test
   fun `run emits failed lifecycle span when cancellation RPC fails`() {
     whenever(measurementsServiceMock.streamMeasurements(any()))
-      .thenReturn(flowOf(PENDING_MEASUREMENT))
+      .thenReturn(flowOf(PENDING_MEASUREMENT, PENDING_MEASUREMENT_2))
     measurementsServiceMock.stub {
       onBlocking { batchCancelMeasurements(any()) }
         .thenThrow(Status.UNAVAILABLE.asRuntimeException())
@@ -165,14 +177,17 @@ class PendingMeasurementsCancellationTest {
 
     assertFailsWith<StatusException> { cancellation.run() }
 
-    val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
-      .isEqualTo(BASIC_REPORT_NAME)
-    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
-      .isEqualTo(MEASUREMENT_NAME)
-    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
-      .isEqualTo("measurement_cancellation")
-    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
-    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
+    val spans = spanExporter.finishedSpanItems
+    assertThat(spans.map { it.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME) })
+      .containsExactly(MEASUREMENT_NAME, MEASUREMENT_NAME_2)
+    for (span in spans) {
+      assertThat(span.attributes.get(ReportTraceAttributes.BASIC_REPORT_NAME))
+        .isEqualTo(BASIC_REPORT_NAME)
+      assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+        .isEqualTo("measurement_cancellation")
+      assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+        .isEqualTo("grpc.UNAVAILABLE")
+    }
   }
 }

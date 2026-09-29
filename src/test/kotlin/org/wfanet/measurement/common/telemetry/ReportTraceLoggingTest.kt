@@ -40,6 +40,9 @@ class ReportTraceLoggingTest {
       ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "metric_result_sync",
       ReportTraceAttributes.METRIC_NAME_STRING to "measurementConsumers/mc/metrics/metric-1",
       ReportTraceAttributes.OUTCOME_STRING to "failed with newline\nand spaces",
+      ReportTraceAttributes.COMPUTATION_STAGE_STRING to "EXECUTION_PHASE",
+      ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to "2",
+      ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
       ReportTraceAttributes.ERROR_CODE_STRING to null,
     )
 
@@ -50,7 +53,9 @@ class ReportTraceLoggingTest {
         "event=reporting.metric.result_synchronized " +
           "xmm.lifecycle.stage=metric_result_sync " +
           "xmm.metric.name=measurementConsumers/mc/metrics/metric-1 " +
-          "xmm.outcome=failed_with_newline_and_spaces"
+          "xmm.outcome=failed_with_newline_and_spaces " +
+          "xmm.computation.stage=EXECUTION_PHASE xmm.computation.stage_attempt=2 " +
+          "xmm.error.retryable=true"
       )
   }
 

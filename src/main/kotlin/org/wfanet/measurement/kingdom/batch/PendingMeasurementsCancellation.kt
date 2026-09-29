@@ -111,10 +111,10 @@ class PendingMeasurementsCancellation(
               throw e
             }
           for (measurement in response.measurementsList) {
-            ReportTracing.traceSuspending(
+            ReportTracing.recordSuccess(
               spanName = "kingdom.measurement.retention_cancel",
               attributes = cancellationTraceAttributes(measurement, "accepted"),
-            ) {}
+            )
           }
           pendingMeasurementCancellationCounter.add(cancelRequests.size.toLong())
 

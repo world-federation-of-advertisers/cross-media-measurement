@@ -213,6 +213,11 @@ class ComputationLogEntriesServiceTest {
       .isEqualTo(PUBLIC_MEASUREMENT_NAME)
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("kingdom_computation_log_entry_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isTrue()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(STAGE_ATTEMPT_STAGE_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(STAGE_ATTEMPT_ATTEMPT_NUMBER)
     assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
 
     verifyProtoArgument(
@@ -252,6 +257,32 @@ class ComputationLogEntriesServiceTest {
   }
 
   @Test
+  fun `createComputationLogEntry omits lifecycle stage for routine status entry`() = runBlocking {
+    whenever(measurementLogEntriesServiceMock.createDuchyMeasurementLogEntry(any()))
+      .thenReturn(
+        DUCHY_MEASUREMENT_LOG_ENTRY.toBuilder()
+          .apply { logEntryBuilder.detailsBuilder.clearError() }
+          .build()
+      )
+    val request =
+      CreateComputationLogEntryRequest.newBuilder()
+        .apply {
+          parent = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+          computationLogEntry =
+            COMPUTATION_LOG_ENTRY.toBuilder().apply { clearName().clearErrorDetails() }.build()
+        }
+        .build()
+
+    service.createComputationLogEntry(request)
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_log_entry.create")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
+  }
+
+  @Test
   fun `createComputationLogEntry emits failed lifecycle span when internal RPC fails`() {
     measurementLogEntriesServiceMock.stub {
       onBlocking { createDuchyMeasurementLogEntry(any()) }
@@ -277,6 +308,11 @@ class ComputationLogEntriesServiceTest {
     assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
     assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("kingdom_computation_log_entry_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isTrue()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(STAGE_ATTEMPT_STAGE_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(STAGE_ATTEMPT_ATTEMPT_NUMBER)
     assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.UNAVAILABLE")
   }
@@ -292,8 +328,7 @@ class ComputationLogEntriesServiceTest {
     assertThat(e.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     assertThat(e.localizedMessage).contains("Resource name unspecified or invalid.")
     val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
-      .isEqualTo("kingdom_computation_log_entry_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE)).isNull()
     assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
     assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
       .isEqualTo("grpc.INVALID_ARGUMENT")

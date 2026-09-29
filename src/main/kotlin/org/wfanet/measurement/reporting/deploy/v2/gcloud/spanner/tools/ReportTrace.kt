@@ -90,7 +90,8 @@ import picocli.CommandLine
 
 private const val REPORT_NOT_CREATED = "(not created)"
 private const val LOGGING_READ_SCOPE = "https://www.googleapis.com/auth/logging.read"
-private val FAILURE_OUTCOMES = setOf("failed", "failure", "error", "refused", "report_failed")
+private val FAILURE_OUTCOMES =
+  setOf("failed", "failure", "error", "refused", "report_failed", "permanent_failure")
 
 internal fun buildReportTraceLoggingOptions(
   project: String,
@@ -2458,6 +2459,40 @@ internal object ReportTraceOutput {
       }
     }
 
+    fun kingdomAcceptanceAttributes(
+      baseAttributes: Map<String, String>,
+      duchyEvidence: LifecycleEvidence,
+      retryable: Boolean? = null,
+    ): Map<String, String> {
+      return buildMap {
+        putAll(baseAttributes)
+        for (attribute in
+          listOf(
+            ReportTraceAttributes.COMPUTATION_NAME_STRING,
+            ReportTraceAttributes.COMPUTATION_STAGE_STRING,
+            ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING,
+          )) {
+          duchyEvidence.attributes[attribute]?.let { put(attribute, it) }
+        }
+        if (retryable != null) {
+          put(ReportTraceAttributes.ERROR_RETRYABLE_STRING, retryable.toString())
+        }
+      }
+    }
+
+    fun kingdomAcceptanceResource(
+      resource: String,
+      identifyingAttributes: Map<String, String>,
+    ): String {
+      val stage = identifyingAttributes[ReportTraceAttributes.COMPUTATION_STAGE_STRING]
+      val attempt = identifyingAttributes[ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING]
+      return if (stage == null && attempt == null) {
+        resource
+      } else {
+        "$resource @ stage ${stage ?: "unknown"} attempt ${attempt ?: "unknown"}"
+      }
+    }
+
     fun refusalOrigin(requisitionName: String): RequisitionRefusalOrigin {
       val origins =
         observed.values
@@ -2688,24 +2723,18 @@ internal object ReportTraceOutput {
                 requiredPresenceAttributes = setOf("xmm.computation.name"),
               )
               add("duchy_stage_attempt", resource, attributes, duchyRequirement)
-              val failedDuchyEvidence =
+              val duchyAttemptEvidence =
                 observed["duchy_stage_attempt"].orEmpty().filter { evidence ->
-                  attributes.all { (attribute, value) ->
-                    evidence.attributes[attribute] == value
-                  } && isFailureOutcome(evidence.outcome)
+                  attributes.all { (attribute, value) -> evidence.attributes[attribute] == value }
                 }
-              val retryableFailureObserved =
-                failedDuchyEvidence.any { evidence ->
-                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]?.endsWith(
-                    "TransientErrorException"
-                  ) == true
-                } ||
-                  hasOutcomeEvidence("duchy_stage_attempt", attributes, setOf("retryable_failure"))
-              val permanentFailureObserved =
-                failedDuchyEvidence.any { evidence ->
-                  evidence.attributes[ReportTraceAttributes.ERROR_TYPE_STRING]?.endsWith(
-                    "TransientErrorException"
-                  ) != true
+              val retryableFailures =
+                duchyAttemptEvidence.filter { evidence ->
+                  evidence.outcome?.lowercase() == "retryable_failure" ||
+                    evidence.attributes[ReportTraceAttributes.ERROR_RETRYABLE_STRING] == "true"
+                }
+              val permanentFailures =
+                duchyAttemptEvidence.filter { evidence ->
+                  evidence.outcome?.lowercase() == "permanent_failure"
                 }
               for (stage in
                 listOf(
@@ -2716,35 +2745,54 @@ internal object ReportTraceOutput {
                   add(stage, resource, attributes, ReportTraceStageRequirement.OPTIONAL)
                 }
               }
-              if (
-                permanentFailureObserved ||
-                  hasOutcomeEvidence("kingdom_participant_failure_acceptance", attributes)
-              ) {
-                add(
-                  "kingdom_participant_failure_acceptance",
-                  resource,
-                  attributes,
-                  if (permanentFailureObserved) {
-                    ReportTraceStageRequirement.REQUIRED
-                  } else {
-                    ReportTraceStageRequirement.OPTIONAL
-                  },
-                )
+              if (permanentFailures.isEmpty()) {
+                if (hasOutcomeEvidence("kingdom_participant_failure_acceptance", attributes)) {
+                  add(
+                    "kingdom_participant_failure_acceptance",
+                    resource,
+                    attributes,
+                    ReportTraceStageRequirement.OPTIONAL,
+                  )
+                }
+              } else {
+                for (failure in
+                  permanentFailures.distinctBy { evidence ->
+                    evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_STRING] to
+                      evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING]
+                  }) {
+                  val acceptanceAttributes = kingdomAcceptanceAttributes(attributes, failure)
+                  add(
+                    "kingdom_participant_failure_acceptance",
+                    kingdomAcceptanceResource(resource, acceptanceAttributes),
+                    acceptanceAttributes,
+                    ReportTraceStageRequirement.REQUIRED,
+                  )
+                }
               }
-              if (
-                retryableFailureObserved ||
-                  hasOutcomeEvidence("kingdom_computation_log_entry_acceptance", attributes)
-              ) {
-                add(
-                  "kingdom_computation_log_entry_acceptance",
-                  resource,
-                  attributes,
-                  if (retryableFailureObserved) {
-                    ReportTraceStageRequirement.REQUIRED
-                  } else {
-                    ReportTraceStageRequirement.OPTIONAL
-                  },
-                )
+              if (retryableFailures.isEmpty()) {
+                if (hasOutcomeEvidence("kingdom_computation_log_entry_acceptance", attributes)) {
+                  add(
+                    "kingdom_computation_log_entry_acceptance",
+                    resource,
+                    attributes,
+                    ReportTraceStageRequirement.OPTIONAL,
+                  )
+                }
+              } else {
+                for (failure in
+                  retryableFailures.distinctBy { evidence ->
+                    evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_STRING] to
+                      evidence.attributes[ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING]
+                  }) {
+                  val acceptanceAttributes =
+                    kingdomAcceptanceAttributes(attributes, failure, retryable = true)
+                  add(
+                    "kingdom_computation_log_entry_acceptance",
+                    kingdomAcceptanceResource(resource, acceptanceAttributes),
+                    acceptanceAttributes,
+                    ReportTraceStageRequirement.REQUIRED,
+                  )
+                }
               }
             }
           } else {
@@ -3311,6 +3359,8 @@ internal object ReportTraceOutput {
       "xmm.work_item_attempt.name",
       "xmm.work_item.name",
       "xmm.computation.name",
+      "xmm.computation.stage",
+      "xmm.computation.stage_attempt",
       "xmm.report.name",
       "xmm.basic_report.name",
     )
@@ -3390,7 +3440,7 @@ internal object ReportTraceOutput {
       "xmm.cancellation.origin",
       "xmm.computation_participant.state",
       "xmm.refusal.origin",
-      "xmm.error.retryable",
+      ReportTraceAttributes.ERROR_RETRYABLE_STRING,
       "xmm.operation.result",
     )
   private val DISCOVERABLE_IDENTIFIER_ATTRIBUTES =

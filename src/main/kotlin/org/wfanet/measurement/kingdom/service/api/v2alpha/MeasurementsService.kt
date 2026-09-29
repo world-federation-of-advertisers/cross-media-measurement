@@ -486,7 +486,7 @@ class MeasurementsService(
     return batchCreateMeasurementsResponse {
       for ((index, internalMeasurement) in internalMeasurements.withIndex()) {
         measurements +=
-          traceMeasurementCreation(
+          recordMeasurementCreation(
             internalMeasurement.toMeasurement(),
             request.requestsList.getOrNull(index)?.requestId.orEmpty(),
           )
@@ -822,10 +822,7 @@ class MeasurementsService(
       .build()
   }
 
-  private suspend fun traceMeasurementCreation(
-    measurement: Measurement,
-    requestId: String,
-  ): Measurement {
+  private fun recordMeasurementCreation(measurement: Measurement, requestId: String): Measurement {
     val measurementSpec: MeasurementSpec = measurement.measurementSpec.unpack()
     val attributes =
       Attributes.builder()
@@ -839,7 +836,8 @@ class MeasurementsService(
           }
         }
         .build()
-    return ReportTracing.traceSuspending("kingdom.measurement.created", attributes) { measurement }
+    ReportTracing.recordSuccess("kingdom.measurement.created", attributes)
+    return measurement
   }
 }
 

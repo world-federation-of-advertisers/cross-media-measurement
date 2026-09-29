@@ -272,16 +272,6 @@ class ComputationParticipantsServiceTest {
     val response: ComputationParticipant = service.setParticipantRequisitionParams(request)
 
     assertThat(response).isEqualTo(COMPUTATION_PARTICIPANT_WITH_PARAMS)
-    val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.name).isEqualTo("kingdom.computation_participant.set_requisition_params")
-    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
-      .isEqualTo("computations/$EXTERNAL_COMPUTATION_ID_STRING")
-    assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
-    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
-      .isEqualTo(PUBLIC_MEASUREMENT_NAME)
-    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
-      .isEqualTo("kingdom_participant_requisition_params_acceptance")
-    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
         InternalComputationParticipantsCoroutineService::setParticipantRequisitionParams,
@@ -380,12 +370,62 @@ class ComputationParticipantsServiceTest {
         assertFailsWith<StatusRuntimeException> { service.setParticipantRequisitionParams(request) }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
-      val span = spanExporter.finishedSpanItems.single()
-      assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
-        .isEqualTo("kingdom_participant_requisition_params_acceptance")
-      assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
-      assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.ABORTED")
     }
+
+  @Test
+  fun `setParticipantRequisitionParams emits accepted lifecycle span`() = runBlocking {
+    whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
+      .thenReturn(INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS)
+    val request = setParticipantRequisitionParamsRequest {
+      name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+      requisitionParams = requisitionParams {
+        duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+        liquidLegionsV2 = liquidLegionsV2 {
+          elGamalPublicKey = DUCHY_ELGAMAL_KEY
+          elGamalPublicKeySignature = DUCHY_ELGAMAL_KEY_SIGNATURE
+        }
+      }
+    }
+
+    service.setParticipantRequisitionParams(request)
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_participant.set_requisition_params")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo("computations/$EXTERNAL_COMPUTATION_ID_STRING")
+    assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
+    assertThat(span.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
+      .isEqualTo(PUBLIC_MEASUREMENT_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_participant_requisition_params_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
+  }
+
+  @Test
+  fun `setParticipantRequisitionParams emits failed lifecycle span`() = runBlocking {
+    whenever(internalComputationParticipantsServiceMock.setParticipantRequisitionParams(any()))
+      .thenThrow(Status.ABORTED.asRuntimeException())
+    val request = setParticipantRequisitionParamsRequest {
+      name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+      requisitionParams = requisitionParams {
+        duchyCertificate = DUCHY_CERTIFICATE_PUBLIC_API_NAME
+        honestMajorityShareShuffle = honestMajorityShareShuffle {
+          tinkPublicKey = DUCHY_TINK_KEY
+          tinkPublicKeySignature = DUCHY_TINK_KEY_SIGNATURE
+          tinkPublicKeySignatureAlgorithmOid = DUCHY_TINK_KEY_SIGNATURE_ALGORITHEM_OID
+        }
+      }
+      etag = "initial ETag"
+    }
+
+    assertFailsWith<StatusRuntimeException> { service.setParticipantRequisitionParams(request) }
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_participant_requisition_params_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE)).isEqualTo("grpc.ABORTED")
+  }
 
   @Test
   fun `failComputationParticipant calls internal service`() = runBlocking {
@@ -421,13 +461,6 @@ class ComputationParticipantsServiceTest {
 
     assertThat(response.state).isEqualTo(ComputationParticipant.State.FAILED)
     assertThat(response.failure).isEqualTo(request.failure)
-    val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.name).isEqualTo("kingdom.computation_participant.fail")
-    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
-      .isEqualTo("kingdom_participant_failure_acceptance")
-    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE))
-      .isEqualTo("FAILED")
-    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
         InternalComputationParticipantsCoroutineService::failComputationParticipant,
@@ -448,6 +481,41 @@ class ComputationParticipantsServiceTest {
   }
 
   @Test
+  fun `failComputationParticipant emits accepted lifecycle span`() = runBlocking {
+    whenever(internalComputationParticipantsServiceMock.failComputationParticipant(any()))
+      .thenReturn(INTERNAL_COMPUTATION_PARTICIPANT_WITH_FAILURE)
+    val request =
+      FailComputationParticipantRequest.newBuilder()
+        .apply {
+          name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+          failureBuilder.apply {
+            participantChildReferenceId = MILL_ID
+            errorMessage = DUCHY_ERROR_MESSAGE
+            stageAttemptBuilder.apply {
+              stage = STAGE_ATTEMPT_STAGE
+              stageName = STAGE_ATTEMPT_STAGE_NAME
+              attemptNumber = STAGE_ATTEMPT_ATTEMPT_NUMBER
+            }
+          }
+        }
+        .build()
+
+    service.failComputationParticipant(request)
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_participant.fail")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_participant_failure_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE))
+      .isEqualTo("FAILED")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(STAGE_ATTEMPT_STAGE_NAME)
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(STAGE_ATTEMPT_ATTEMPT_NUMBER)
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
+  }
+
+  @Test
   fun `confirmComputationParticipant calls internal service`() = runBlocking {
     whenever(internalComputationParticipantsServiceMock.confirmComputationParticipant(any()))
       .thenReturn(
@@ -463,13 +531,6 @@ class ComputationParticipantsServiceTest {
     val response: ComputationParticipant = service.confirmComputationParticipant(request)
 
     assertThat(response.state).isEqualTo(ComputationParticipant.State.READY)
-    val span = spanExporter.finishedSpanItems.single()
-    assertThat(span.name).isEqualTo("kingdom.computation_participant.confirm")
-    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
-      .isEqualTo("kingdom_participant_confirmation")
-    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE))
-      .isEqualTo("READY")
-    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
     verifyProtoArgument(
         internalComputationParticipantsServiceMock,
         InternalComputationParticipantsCoroutineService::confirmComputationParticipant,
@@ -483,6 +544,30 @@ class ComputationParticipantsServiceTest {
           }
           .build()
       )
+  }
+
+  @Test
+  fun `confirmComputationParticipant emits accepted lifecycle span`() = runBlocking {
+    whenever(internalComputationParticipantsServiceMock.confirmComputationParticipant(any()))
+      .thenReturn(
+        INTERNAL_COMPUTATION_PARTICIPANT_WITH_PARAMS.copy {
+          state = InternalComputationParticipant.State.READY
+        }
+      )
+    val request = confirmComputationParticipantRequest {
+      name = SYSTEM_COMPUTATION_PARTICIPANT_NAME
+      etag = "initial ETag"
+    }
+
+    service.confirmComputationParticipant(request)
+
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.name).isEqualTo("kingdom.computation_participant.confirm")
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_participant_confirmation")
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_PARTICIPANT_STATE))
+      .isEqualTo("READY")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("accepted")
   }
 
   @Test

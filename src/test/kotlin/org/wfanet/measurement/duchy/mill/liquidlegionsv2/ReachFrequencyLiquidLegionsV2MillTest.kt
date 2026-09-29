@@ -853,18 +853,25 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
       .isEqualTo("duchy_stage_attempt")
-    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+      .isEqualTo("permanent_failure")
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("AttemptsExhausted")
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isFalse()
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+      .isEqualTo(INITIALIZATION_PHASE.name)
+    assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+      .isEqualTo(3L)
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.MEASUREMENT_NAME))
       .isEqualTo(measurementName)
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
       .isEqualTo(ComputationKey(GLOBAL_ID).toName())
     assertThat(failureSpan.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ONE_NAME)
     assertThat(lifecycleFields.map { it.getValue(ReportTraceAttributes.OUTCOME_STRING) })
-      .containsExactly("started", "failed")
+      .containsExactly("started", "permanent_failure")
       .inOrder()
-    val failureLog = lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "failed" }
+    val failureLog =
+      lifecycleFields.single { it[ReportTraceAttributes.OUTCOME_STRING] == "permanent_failure" }
     assertThat(failureLog[ReportTraceAttributes.ERROR_TYPE_STRING]).isEqualTo("AttemptsExhausted")
     assertThat(failureLog[ReportTraceAttributes.MEASUREMENT_NAME_STRING]).isEqualTo(measurementName)
     assertThat(failureLog[ReportTraceAttributes.COMPUTATION_NAME_STRING])
@@ -3165,6 +3172,16 @@ class ReachFrequencyLiquidLegionsV2MillTest {
       }
 
       nonAggregatorMill.claimAndProcessWork()
+
+      val failureSpan =
+        spanExporter.finishedSpanItems.single { it.name == "duchy.mill.process_computation" }
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.OUTCOME))
+        .isEqualTo("retryable_failure")
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.ERROR_RETRYABLE)).isTrue()
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE))
+        .isEqualTo(SETUP_PHASE.name)
+      assertThat(failureSpan.attributes.get(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT))
+        .isEqualTo(1L)
 
       val blobKey = calculatedBlobContext.blobKey
       assertThat(fakeComputationDb[LOCAL_ID])

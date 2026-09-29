@@ -377,9 +377,12 @@ For a cancelled Measurement, `measurement_cancellation` records whether the
 Kingdom accepted an API-requested or retention-policy cancellation. When a
 Duchy stage reports a permanent failure, the artifact also requires
 `kingdom_participant_failure_acceptance`; a transient failure requires
-`kingdom_computation_log_entry_acceptance`. Participant requisition-parameter
-and confirmation updates are shown when observed but are not required for
-protocols that do not perform those operations.
+`kingdom_computation_log_entry_acceptance` for the same stage attempt. Routine
+computation status entries do not satisfy this requirement. Participant
+requisition-parameter and confirmation updates are shown when observed but are
+not required for protocols that do not perform those operations. Failures which
+occur after the local computation is already terminal, or while determining how
+to handle an error, do not require a second Kingdom mutation.
 For a refused Requisition, the separate
 `kingdom_requisition_refusal_acceptance` stage records whether the Kingdom
 accepted or rejected that refusal; direct result acceptance is then

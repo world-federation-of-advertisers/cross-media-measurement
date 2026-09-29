@@ -21,7 +21,6 @@ import io.opentelemetry.api.trace.Span
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DuchyCertificateKey
-import org.wfanet.measurement.api.v2alpha.MeasurementKey
 import org.wfanet.measurement.common.grpc.failGrpc
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.grpc.grpcRequireNotNull
@@ -29,7 +28,6 @@ import org.wfanet.measurement.common.identity.ApiId
 import org.wfanet.measurement.common.identity.DuchyIdentity
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.identity.duchyIdentityFromContext
-import org.wfanet.measurement.common.identity.externalIdToApiId
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.internal.kingdom.ComputationParticipant as InternalComputationParticipant
@@ -48,7 +46,6 @@ import org.wfanet.measurement.internal.kingdom.honestMajorityShareShuffleParams
 import org.wfanet.measurement.internal.kingdom.liquidLegionsV2Params
 import org.wfanet.measurement.internal.kingdom.measurementLogEntryError as internalMeasurementLogEntryError
 import org.wfanet.measurement.internal.kingdom.setParticipantRequisitionParamsRequest as internalSetParticipantRequisitionParamsRequest
-import org.wfanet.measurement.system.v1alpha.ComputationKey
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant
 import org.wfanet.measurement.system.v1alpha.ComputationParticipant.RequisitionParams.ProtocolCase
 import org.wfanet.measurement.system.v1alpha.ComputationParticipantKey
@@ -123,6 +120,14 @@ class ComputationParticipantsService(
       spanName = "kingdom.computation_participant.fail",
       stage = "kingdom_participant_failure_acceptance",
       participantName = request.name,
+      additionalAttributes =
+        Attributes.builder()
+          .also { builder ->
+            if (request.hasFailure() && request.failure.hasStageAttempt()) {
+              builder.putComputationStageAttempt(request.failure.stageAttempt)
+            }
+          }
+          .build(),
     ) {
       try {
         internalComputationParticipantsClient.failComputationParticipant(
@@ -137,11 +142,12 @@ class ComputationParticipantsService(
     spanName: String,
     stage: String,
     participantName: String,
+    additionalAttributes: Attributes = Attributes.empty(),
     mutation: suspend () -> InternalComputationParticipant,
   ): ComputationParticipant {
     return ReportTracing.traceSuspending(
       spanName = spanName,
-      attributes = participantTraceAttributes(participantName, stage),
+      attributes = participantTraceAttributes(participantName, stage, additionalAttributes),
     ) {
       val internalResponse = mutation()
       Span.current()
@@ -150,36 +156,26 @@ class ComputationParticipantsService(
           internalResponse.state.name,
         )
         .setAttribute(ReportTraceAttributes.OUTCOME, "accepted")
-      if (
-        internalResponse.externalMeasurementConsumerId != 0L &&
-          internalResponse.externalMeasurementId != 0L
-      ) {
-        Span.current()
-          .setAttribute(
-            ReportTraceAttributes.MEASUREMENT_NAME,
-            MeasurementKey(
-                externalIdToApiId(internalResponse.externalMeasurementConsumerId),
-                externalIdToApiId(internalResponse.externalMeasurementId),
-              )
-              .toName(),
-          )
-      }
+      Span.current()
+        .setMeasurementName(
+          internalResponse.externalMeasurementConsumerId,
+          internalResponse.externalMeasurementId,
+        )
       internalResponse.toSystemComputationParticipant()
     }
   }
 
-  private fun participantTraceAttributes(participantName: String, stage: String): Attributes {
-    val builder =
-      Attributes.builder()
-        .put(ReportTraceAttributes.LIFECYCLE_STAGE, stage)
-        .put(ReportTraceAttributes.OUTCOME, "started")
-    val key = ComputationParticipantKey.fromName(participantName)
-    if (key != null) {
-      builder
-        .put(ReportTraceAttributes.COMPUTATION_NAME, ComputationKey(key.computationId).toName())
-        .put(ReportTraceAttributes.DUCHY_ID, key.duchyId)
-    }
-    return builder.build()
+  private fun participantTraceAttributes(
+    participantName: String,
+    stage: String,
+    additionalAttributes: Attributes,
+  ): Attributes {
+    return Attributes.builder()
+      .put(ReportTraceAttributes.LIFECYCLE_STAGE, stage)
+      .put(ReportTraceAttributes.OUTCOME, "started")
+      .putAll(additionalAttributes)
+      .putComputationParticipantName(participantName)
+      .build()
   }
 
   /**

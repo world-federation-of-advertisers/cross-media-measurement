@@ -33,6 +33,8 @@ object ReportTraceAttributes {
   const val REQUISITION_NAME_STRING = "xmm.requisition.name"
   const val GROUP_ID_STRING = "xmm.edpa.group_id"
   const val COMPUTATION_NAME_STRING = "xmm.computation.name"
+  const val COMPUTATION_STAGE_STRING = "xmm.computation.stage"
+  const val COMPUTATION_STAGE_ATTEMPT_STRING = "xmm.computation.stage_attempt"
   const val WORK_ITEM_NAME_STRING = "xmm.work_item.name"
   const val WORK_ITEM_ATTEMPT_NAME_STRING = "xmm.work_item_attempt.name"
   const val DUCHY_ID_STRING = "xmm.duchy.id"
@@ -45,6 +47,7 @@ object ReportTraceAttributes {
   const val OUTCOME_STRING = "xmm.outcome"
   const val ERROR_TYPE_STRING = "xmm.error.type"
   const val ERROR_CODE_STRING = "xmm.error.code"
+  const val ERROR_RETRYABLE_STRING = "xmm.error.retryable"
   const val CANCELLATION_ORIGIN_STRING = "xmm.cancellation.origin"
   const val COMPUTATION_PARTICIPANT_STATE_STRING = "xmm.computation_participant.state"
   const val REFUSAL_ORIGIN_STRING = "xmm.refusal.origin"
@@ -63,6 +66,9 @@ object ReportTraceAttributes {
   val REQUISITION_NAME: AttributeKey<String> = AttributeKey.stringKey(REQUISITION_NAME_STRING)
   val GROUP_ID: AttributeKey<String> = AttributeKey.stringKey(GROUP_ID_STRING)
   val COMPUTATION_NAME: AttributeKey<String> = AttributeKey.stringKey(COMPUTATION_NAME_STRING)
+  val COMPUTATION_STAGE: AttributeKey<String> = AttributeKey.stringKey(COMPUTATION_STAGE_STRING)
+  val COMPUTATION_STAGE_ATTEMPT: AttributeKey<Long> =
+    AttributeKey.longKey(COMPUTATION_STAGE_ATTEMPT_STRING)
   val WORK_ITEM_NAME: AttributeKey<String> = AttributeKey.stringKey(WORK_ITEM_NAME_STRING)
   val WORK_ITEM_ATTEMPT_NAME: AttributeKey<String> =
     AttributeKey.stringKey(WORK_ITEM_ATTEMPT_NAME_STRING)
@@ -76,6 +82,7 @@ object ReportTraceAttributes {
   val OUTCOME: AttributeKey<String> = AttributeKey.stringKey(OUTCOME_STRING)
   val ERROR_TYPE: AttributeKey<String> = AttributeKey.stringKey(ERROR_TYPE_STRING)
   val ERROR_CODE: AttributeKey<String> = AttributeKey.stringKey(ERROR_CODE_STRING)
+  val ERROR_RETRYABLE: AttributeKey<Boolean> = AttributeKey.booleanKey(ERROR_RETRYABLE_STRING)
   val CANCELLATION_ORIGIN: AttributeKey<String> = AttributeKey.stringKey(CANCELLATION_ORIGIN_STRING)
   val COMPUTATION_PARTICIPANT_STATE: AttributeKey<String> =
     AttributeKey.stringKey(COMPUTATION_PARTICIPANT_STATE_STRING)

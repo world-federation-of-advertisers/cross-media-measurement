@@ -62,6 +62,8 @@ object ReportTraceLogging {
       ReportTraceAttributes.REQUISITION_NAME_STRING,
       ReportTraceAttributes.GROUP_ID_STRING,
       ReportTraceAttributes.COMPUTATION_NAME_STRING,
+      ReportTraceAttributes.COMPUTATION_STAGE_STRING,
+      ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING,
       ReportTraceAttributes.WORK_ITEM_NAME_STRING,
       ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME_STRING,
       ReportTraceAttributes.DUCHY_ID_STRING,
@@ -74,6 +76,7 @@ object ReportTraceLogging {
       ReportTraceAttributes.OUTCOME_STRING,
       ReportTraceAttributes.ERROR_TYPE_STRING,
       ReportTraceAttributes.ERROR_CODE_STRING,
+      ReportTraceAttributes.ERROR_RETRYABLE_STRING,
       ReportTraceAttributes.REFUSAL_ORIGIN_STRING,
     )
   private val EVENT_PATTERN = Regex("[a-zA-Z0-9._-]+")
