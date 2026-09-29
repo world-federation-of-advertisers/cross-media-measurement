@@ -86,7 +86,7 @@ class EventGroupSyncScaleTest {
     )
 
   @Test
-  fun `large JSON sync applies mixed mutations`() = runBlocking {
+  fun `large JSON sync applies mixed mutations`(): Unit = runBlocking {
     val kingdomChannel =
       buildMutualTlsChannel(
         kingdomTarget,
