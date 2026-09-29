@@ -294,7 +294,10 @@ class MeasurementsService(
         Attributes.builder()
           .put(ReportTraceAttributes.MEASUREMENT_NAME, request.name)
           .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_cancellation")
-          .put(ReportTraceAttributes.CANCELLATION_ORIGIN, "api")
+          .put(
+            ReportTraceAttributes.CANCELLATION_ORIGIN,
+            ReportTraceAttributes.API_CANCELLATION_ORIGIN,
+          )
           .put(ReportTraceAttributes.OUTCOME, "started")
           .build(),
     ) {

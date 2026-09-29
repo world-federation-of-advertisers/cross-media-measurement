@@ -150,7 +150,10 @@ class PendingMeasurementsCancellation(
       .put(ReportTraceAttributes.MEASUREMENT_NAME, measurementName)
       .put(ReportTraceAttributes.MEASUREMENT_STATE, measurement.state.name)
       .put(ReportTraceAttributes.LIFECYCLE_STAGE, "measurement_cancellation")
-      .put(ReportTraceAttributes.CANCELLATION_ORIGIN, "retention_policy")
+      .put(
+        ReportTraceAttributes.CANCELLATION_ORIGIN,
+        ReportTraceAttributes.RETENTION_POLICY_CANCELLATION_ORIGIN,
+      )
       .put(ReportTraceAttributes.OUTCOME, outcome)
       .also { builder ->
         runCatching { MeasurementSpec.parseFrom(measurement.details.measurementSpec) }

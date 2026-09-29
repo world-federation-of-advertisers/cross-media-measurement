@@ -17,6 +17,7 @@ package org.wfanet.measurement.kingdom.service.system.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import io.grpc.Status
+import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.GlobalOpenTelemetry
 import io.opentelemetry.sdk.OpenTelemetrySdk
@@ -32,6 +33,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
@@ -247,6 +249,37 @@ class ComputationLogEntriesServiceTest {
           }
           .build()
       )
+  }
+
+  @Test
+  fun `createComputationLogEntry emits failed lifecycle span when internal RPC fails`() {
+    measurementLogEntriesServiceMock.stub {
+      onBlocking { createDuchyMeasurementLogEntry(any()) }
+        .thenThrow(Status.UNAVAILABLE.asRuntimeException())
+    }
+    val request =
+      CreateComputationLogEntryRequest.newBuilder()
+        .apply {
+          parent = SYSTEM_COMPUTATION_PARTICIPATE_NAME
+          computationLogEntry = COMPUTATION_LOG_ENTRY.toBuilder().clearName().build()
+        }
+        .build()
+
+    val exception =
+      assertFailsWith<StatusException> {
+        runBlocking { service.createComputationLogEntry(request) }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    val span = spanExporter.finishedSpanItems.single()
+    assertThat(span.attributes.get(ReportTraceAttributes.COMPUTATION_NAME))
+      .isEqualTo("computations/$EXTERNAL_COMPUTATION_ID_STRING")
+    assertThat(span.attributes.get(ReportTraceAttributes.DUCHY_ID)).isEqualTo(DUCHY_ID)
+    assertThat(span.attributes.get(ReportTraceAttributes.LIFECYCLE_STAGE))
+      .isEqualTo("kingdom_computation_log_entry_acceptance")
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_CODE))
+      .isEqualTo("grpc.UNAVAILABLE")
   }
 
   @Test

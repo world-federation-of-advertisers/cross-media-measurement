@@ -48,6 +48,8 @@ object ReportTraceAttributes {
   const val CANCELLATION_ORIGIN_STRING = "xmm.cancellation.origin"
   const val COMPUTATION_PARTICIPANT_STATE_STRING = "xmm.computation_participant.state"
   const val REFUSAL_ORIGIN_STRING = "xmm.refusal.origin"
+  const val API_CANCELLATION_ORIGIN = "api"
+  const val RETENTION_POLICY_CANCELLATION_ORIGIN = "retention_policy"
   const val REQUISITION_FETCHER_REFUSAL_ORIGIN = "requisition_fetcher"
   const val RESULTS_FULFILLER_REFUSAL_ORIGIN = "results_fulfiller"
 
