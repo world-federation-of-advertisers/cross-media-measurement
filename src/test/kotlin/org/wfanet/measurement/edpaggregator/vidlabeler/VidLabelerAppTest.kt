@@ -389,9 +389,8 @@ class VidLabelerAppTest {
     return workItemParams { appParams = params.pack() }.pack()
   }
 
-  private fun taskEnabledParams(): VidLabelerParams =
+  private fun taskParams(): VidLabelerParams =
     memoizedParams().copy {
-      createDataAvailabilitySyncTask = true
       vidLabeledImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = "output-project"
@@ -649,7 +648,7 @@ class VidLabelerAppTest {
     val capturedBlobInfo = AtomicReference<BlobInfo>()
     val capturedContent = AtomicReference<ByteArray>()
     val taskCreated = AtomicBoolean(false)
-    val params = taskEnabledParams()
+    val params = taskParams()
     dataAvailabilitySyncTasksService.stub {
       onBlocking {
         createDataAvailabilitySyncTask(any<CreateDataAvailabilitySyncTaskRequest>())
@@ -761,7 +760,7 @@ class VidLabelerAppTest {
         }
     }
 
-    createApp().runWork(buildMessage(taskEnabledParams()))
+    createApp().runWork(buildMessage(taskParams()))
 
     val taskRequest = argumentCaptor<CreateDataAvailabilitySyncTaskRequest>()
     verifyBlocking(dataAvailabilitySyncTasksService) {
@@ -769,23 +768,6 @@ class VidLabelerAppTest {
     }
     assertThat(taskRequest.firstValue.dataAvailabilitySyncTask.doneBlobGeneration).isEqualTo(321L)
     assertThat(taskCreated.get()).isTrue()
-  }
-
-  @Test
-  fun `runWork keeps legacy done write when task handoff is disabled`() = runBlocking {
-    stubLastOutWithEventDate()
-    val writes = AtomicInteger()
-
-    createApp(writeGcsObject = { _, _, _ -> writes.incrementAndGet().toLong() })
-      .runWork(buildMessage(taskEnabledParams().copy { createDataAvailabilitySyncTask = false }))
-
-    assertThat(writes.get()).isEqualTo(1)
-    verifyBlocking(dataAvailabilitySyncTasksService, never()) {
-      listDataAvailabilitySyncTasks(any())
-    }
-    verifyBlocking(dataAvailabilitySyncTasksService, never()) {
-      createDataAvailabilitySyncTask(any<CreateDataAvailabilitySyncTaskRequest>())
-    }
   }
 
   @Test
