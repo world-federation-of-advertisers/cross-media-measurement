@@ -270,6 +270,7 @@ class VidRankBuilderApp(
           gcsProjectId = params.modelStorageParams.gcsProjectId
           impressionsBlobPrefix = params.modelStorageParams.blobPrefix
         }
+      createDataAvailabilitySyncTask = params.createDataAvailabilitySyncTask
       // MemoizedParams carries only the memoized-specific rank-index storage; its presence selects
       // the memoized path.
       memoizedParams =

@@ -22,8 +22,10 @@ import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigKt
+import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ScalarColumn
@@ -137,6 +139,31 @@ class VidLabelingConfigValidationTest {
         requireValidMaxFileBatchSizeBytes(configWithMaxFileBatchSizeBytes(-1))
       }
     assertThat(exception).hasMessageThat().contains("max_file_batch_size_bytes must be set")
+  }
+
+  @Test
+  fun `parameter templates preserve task handoff setting`() {
+    val config = vidLabelingConfig {
+      dataProvider = DATA_PROVIDER
+      edpImpressionPath = "edp/edp7/labeled"
+      dataAvailabilitySyncTasksEnabled = true
+      maxFileBatchSizeBytes = 1L
+      rawImpressionsStorageParams = storageParams { gcs = gcsStorage { bucketName = "raw-bucket" } }
+      vidLabeledImpressionsStorageParams = storageParams {
+        gcs = gcsStorage { bucketName = "output-bucket" }
+      }
+    }
+
+    assertThat(
+        VidLabelingFunctionHelpers.buildVidLabelerParamsTemplate(config)
+          .createDataAvailabilitySyncTask
+      )
+      .isTrue()
+    assertThat(
+        VidLabelingFunctionHelpers.buildSubpoolAssignerParamsTemplate(config)
+          .createDataAvailabilitySyncTask
+      )
+      .isTrue()
   }
 
   private fun configWithMaxFileBatchSizeBytes(sizeBytes: Long): VidLabelingConfig =

@@ -68,6 +68,7 @@ class SubpoolAssignerAppTest {
     optionalEntityKeyFieldMapping.put("creative", "cr_col")
     totalShards = 4
     maxFileBatchSizeBytes = 777
+    createDataAvailabilitySyncTask = true
     activeStartTime = timestamp { seconds = 1000 }
     activeEndTime = timestamp { seconds = 2000 }
   }
@@ -77,6 +78,7 @@ class SubpoolAssignerAppTest {
     val template = SubpoolAssignerApp.buildVidRankBuilderParamsTemplate(validParams())
 
     assertThat(template.maxFileBatchSizeBytes).isEqualTo(777)
+    assertThat(template.createDataAvailabilitySyncTask).isTrue()
   }
 
   @Test
