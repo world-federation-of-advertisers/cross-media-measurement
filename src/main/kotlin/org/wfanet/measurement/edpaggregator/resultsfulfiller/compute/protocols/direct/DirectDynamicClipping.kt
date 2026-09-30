@@ -45,10 +45,6 @@ private const val MAX_REPRESENTABLE_FREQUENCY = Byte.MAX_VALUE.toInt()
  */
 private const val BAR_SENSITIVITY = 1.0
 
-/** The params compiled into this image, which a measurement consumer cannot widen. */
-private val DETERMINISTIC_DP_PARAMS =
-  DpParams(DeterministicTruncatedLaplaceParams.EPSILON, DeterministicTruncatedLaplaceParams.DELTA)
-
 /**
  * Counts the impressions in [frequencyData] with a clip derived from its own distribution, charging
  * the measurement's own [dpParams] and drawing fresh randomness.
@@ -87,36 +83,13 @@ fun computeDeterministicDynamicallyClippedImpressions(
 ): DynamicallyClippedImpressions =
   clipDynamically(
     frequencyData = frequencyData,
-    queryDpParams = DETERMINISTIC_DP_PARAMS,
+    queryDpParams =
+      DpParams(
+        DeterministicTruncatedLaplaceParams.EPSILON,
+        DeterministicTruncatedLaplaceParams.DELTA,
+      ),
     // TODO(world-federation-of-advertisers/cross-media-measurement#4387): Mix in the EDP-supplied
     // seed component once it exists.
-    noiseSource =
-      DeterministicDynamicClippingNoiseSource(
-        DeterministicTruncatedLaplaceResultNoiser.fingerprint(
-          frequencyData,
-          DIRECT_CONTRIBUTION_COUNT,
-        )
-      ),
-    vidSamplingIntervalWidth = vidSamplingIntervalWidth,
-    resultMinimumThresholds = resultMinimumThresholds,
-  )
-
-/**
- * As [computeDeterministicDynamicallyClippedImpressions], from one byte per VID.
- *
- * For a caller whose frequencies already fit in a byte, neither the search nor the seed expands the
- * population into an [IntArray].
- */
-fun computeDeterministicDynamicallyClippedImpressions(
-  frequencyData: ByteArray,
-  vidSamplingIntervalWidth: Double,
-  resultMinimumThresholds: ResultMinimumThresholds?,
-): DynamicallyClippedImpressions =
-  ImpressionComputations.computeDynamicallyClippedImpressionCount(
-    frequencyVector = frequencyData,
-    queryRho =
-      AcdpParamsConverter.getDirectAcdpCharge(DETERMINISTIC_DP_PARAMS, BAR_SENSITIVITY).rho,
-    maxFrequency = MAX_REPRESENTABLE_FREQUENCY,
     noiseSource =
       DeterministicDynamicClippingNoiseSource(
         DeterministicTruncatedLaplaceResultNoiser.fingerprint(

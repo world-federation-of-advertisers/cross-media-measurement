@@ -39,21 +39,4 @@ object HistogramComputations {
     }
     return histogram
   }
-
-  /**
-   * Builds a histogram from one byte per VID, as [buildHistogram] does from one int per VID.
-   *
-   * For a caller whose frequencies already fit in a byte, this reads them in place rather than
-   * expanding the population into an [IntArray] first.
-   */
-  fun buildHistogram(frequencyVector: ByteArray, maxFrequency: Int): LongArray {
-    val histogram = LongArray(maxFrequency)
-    for (frequency in frequencyVector) {
-      if (frequency > 0) {
-        val cappedFrequency = min(frequency.toInt(), maxFrequency)
-        histogram[cappedFrequency - 1]++
-      }
-    }
-    return histogram
-  }
 }
