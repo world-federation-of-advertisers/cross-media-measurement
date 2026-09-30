@@ -21,8 +21,13 @@ option java_multiple_files = true;
 option java_outer_classname = "VidLabelingEvictionFenceStateProto";
 
 enum VidLabelingEvictionFenceState {
+  // No fence state has been assigned.
   VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED = 0;
+  // A correction plan is waiting for operator approval while new work remains
+  // fenced.
   VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING = 1;
+  // New work is fenced while previously started VID-labeling work finishes.
   VID_LABELING_EVICTION_FENCE_STATE_DRAINING = 2;
+  // The approved correction plan is removing affected derived state and output.
   VID_LABELING_EVICTION_FENCE_STATE_EVICTING = 3;
 }
