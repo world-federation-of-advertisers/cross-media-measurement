@@ -375,6 +375,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     override val measurementConsumerName: String = TEST_CONFIG.measurementConsumer
     override val apiAuthenticationKey: String = TEST_CONFIG.apiAuthenticationKey
+    override val dataProviderNames: List<String> = EDPA_DATA_PROVIDERS
 
     override fun apply(base: Statement, description: Description): Statement {
       return object : Statement() {
@@ -462,6 +463,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         reportName,
         provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
+        listEventGroupsDataProviders = EDPA_DATA_PROVIDERS,
         kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
         // Compute the expected reach/frequency from the VIDs and population attributes the deployed
@@ -516,6 +518,12 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
       val configFile = getRuntimePath(CONFIG_PATH.resolve(TEST_CONFIG_NAME)).toFile()
       parseTextProto(configFile, EdpaCorrectnessTestConfig.getDefaultInstance())
     }
+    private val EDPA_DATA_PROVIDERS: List<String> =
+      checkNotNull(System.getenv("EDPA_DATA_PROVIDERS")) {
+          "EDPA_DATA_PROVIDERS environment variable is not set"
+        }
+        .split(',')
+        .filter(String::isNotBlank)
 
     private val POPULATION_SPEC_TYPE_REGISTRY: TypeRegistry =
       TypeRegistry.newBuilder().add(Common.getDescriptor()).build()

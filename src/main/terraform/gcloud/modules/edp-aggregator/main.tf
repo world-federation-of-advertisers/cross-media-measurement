@@ -376,7 +376,10 @@ module "event_group_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.event_group_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
-  secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
+  secrets_to_access = concat(
+    [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id],
+    var.event_group_sync_additional_secret_ids,
+  )
 
   # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
   # Keep one single-request instance so syncs cannot overlap, and finish before the DataWatcher's

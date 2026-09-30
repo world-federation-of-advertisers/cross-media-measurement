@@ -71,6 +71,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   initialResultPollingDelay: Duration = Duration.ofSeconds(1),
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
   listEventGroupsEntityTypes: List<String>,
+  listEventGroupsDataProviders: List<String> = emptyList(),
   kingdomApiThrottler: Throttler,
   onMeasurementsCreated: (() -> Unit)? = null,
   /**
@@ -103,6 +104,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
     reportName = reportName,
     modelLineName = modelLineName,
     listEventGroupsEntityTypes = listEventGroupsEntityTypes,
+    listEventGroupsDataProviders = listEventGroupsDataProviders,
   ) {
 
   override fun Flow<EventGroup>.filterEventGroups(): Flow<EventGroup> {

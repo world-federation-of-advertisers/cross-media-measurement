@@ -164,6 +164,7 @@ abstract class MeasurementConsumerSimulator(
       .toName(),
   private val modelLineName: String = "some-model-line",
   private val listEventGroupsEntityTypes: List<String> = emptyList(),
+  private val listEventGroupsDataProviders: List<String> = emptyList(),
   private val onMeasurementsCreated: (() -> Unit)? = null,
 ) {
   /** Cache of resource name to [Certificate]. */
@@ -1355,9 +1356,15 @@ abstract class MeasurementConsumerSimulator(
                   parent = measurementConsumer
                   this.pageToken = pageToken
                   pageSize = EVENT_GROUP_PAGE_SIZE
-                  if (listEventGroupsEntityTypes.isNotEmpty()) {
+                  if (
+                    listEventGroupsEntityTypes.isNotEmpty() ||
+                      listEventGroupsDataProviders.isNotEmpty()
+                  ) {
                     filter =
-                      ListEventGroupsRequestKt.filter { entityTypeIn += listEventGroupsEntityTypes }
+                      ListEventGroupsRequestKt.filter {
+                        entityTypeIn += listEventGroupsEntityTypes
+                        dataProviderIn += listEventGroupsDataProviders
+                      }
                   }
                 }
               )
