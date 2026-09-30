@@ -37,6 +37,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.retryDataAv
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskState
 
 /** Publishes pending availability tasks from the Spanner transactional outbox. */
 class DataAvailabilitySyncTaskPublicationRunner(
@@ -114,32 +115,55 @@ class DataAvailabilitySyncTaskPublicationRunner(
   }
 
   private suspend fun publish(publication: DataAvailabilitySyncTaskPublication): Boolean {
-    log(publication.taskName, "started")
+    log(publication, "started")
     try {
       publisher.publish(publication.taskName)
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {
-      log(publication.taskName, "retryable_failure", e)
+      log(publication, "retryable_failure", e, failureCategory = "PUBLICATION")
       val failureResult =
-        databaseClient.readWriteTransaction().run { transaction ->
-          transaction.retryDataAvailabilitySyncTaskPublication(
+        try {
+          databaseClient.readWriteTransaction().run { transaction ->
+            transaction.retryDataAvailabilitySyncTaskPublication(
+              publication,
+              clock.instant().plus(retryDelay(publication.attemptCount)),
+            )
+          }
+        } catch (writebackError: CancellationException) {
+          throw writebackError
+        } catch (writebackError: Exception) {
+          log(
             publication,
-            clock.instant().plus(retryDelay(publication.attemptCount)),
+            "retry_writeback_failed",
+            writebackError,
+            failureCategory = "PUBLICATION",
           )
+          e.addSuppressed(writebackError)
+          throw e
         }
       return when (failureResult) {
-        DataAvailabilitySyncTaskPublicationFailureResult.RETRY_SCHEDULED -> false
+        DataAvailabilitySyncTaskPublicationFailureResult.RETRY_SCHEDULED -> {
+          log(publication, "retry_scheduled", taskState = "FAILED", failureCategory = "PUBLICATION")
+          false
+        }
         DataAvailabilitySyncTaskPublicationFailureResult.DELIVERY_OBSERVED -> {
-          log(publication.taskName, "delivery_observed")
+          log(publication, "delivery_observed")
           true
         }
       }
     }
-    databaseClient.readWriteTransaction().run { transaction ->
-      transaction.completeDataAvailabilitySyncTaskPublication(publication)
+    try {
+      databaseClient.readWriteTransaction().run { transaction ->
+        transaction.completeDataAvailabilitySyncTaskPublication(publication)
+      }
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      log(publication, "completion_writeback_failed", e)
+      throw e
     }
-    log(publication.taskName, "succeeded")
+    log(publication, "succeeded")
     return true
   }
 
@@ -148,18 +172,38 @@ class DataAvailabilitySyncTaskPublicationRunner(
     return minOf(initialRetryDelay.multipliedBy(1L shl exponent), maxRetryDelay)
   }
 
-  private fun log(taskName: String, outcome: String, error: Throwable? = null) {
+  private fun log(
+    publication: DataAvailabilitySyncTaskPublication,
+    outcome: String,
+    error: Throwable? = null,
+    taskState: String = publication.taskState.telemetryValue,
+    failureCategory: String? = null,
+  ) {
     VidLabelingTraceLogging.log(
       logger,
       if (error == null) Level.INFO else Level.WARNING,
       "edpa.data_availability_sync_task.publication",
-      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_NAME_STRING to taskName,
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_NAME_STRING to publication.taskName,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to
+        publication.rawImpressionUploadName,
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to publication.modelLine,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to publication.doneBlobPathHash,
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to
+        publication.doneBlobGeneration.toString(),
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_PUBLICATION_ATTEMPT_STRING to
+        publication.attemptCount.toString(),
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE_STRING to taskState,
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_STRING to
+        failureCategory,
       XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "availability_task_publication",
       XmmTraceAttributes.OUTCOME_STRING to outcome,
       XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
       XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
     )
   }
+
+  private val DataAvailabilitySyncTaskState.telemetryValue: String
+    get() = name.removePrefix("DATA_AVAILABILITY_SYNC_TASK_STATE_")
 
   companion object {
     val DEFAULT_POLL_INTERVAL: Duration = Duration.ofSeconds(1)

@@ -67,6 +67,13 @@ object VidLabelingTraceAttributes {
   const val RANK_INDEX_BLOB_TYPE_STRING = "xmm.edpa.rank_index_blob.type"
   const val IMPRESSION_METADATA_NAME_STRING = "xmm.edpa.impression_metadata.name"
   const val DATA_AVAILABILITY_SYNC_TASK_NAME_STRING = "xmm.edpa.data_availability_sync_task.name"
+  const val DATA_AVAILABILITY_SYNC_TASK_STATE_STRING = "xmm.edpa.data_availability_sync_task.state"
+  const val DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT_STRING =
+    "xmm.edpa.data_availability_sync_task.attempt_count"
+  const val DATA_AVAILABILITY_SYNC_TASK_PUBLICATION_ATTEMPT_STRING =
+    "xmm.edpa.data_availability_sync_task.publication_attempt"
+  const val DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_STRING =
+    "xmm.edpa.data_availability_sync_task.failure_category"
   const val RECOVERY_WORK_ITEM_NAME_STRING = "xmm.edpa.recovery_work_item.name"
   const val PIPELINE_PHASE_STRING = "xmm.edpa.pipeline.phase"
   const val GCS_OBJECT_GENERATION_STRING = "xmm.gcs.object.generation"
@@ -111,6 +118,14 @@ object VidLabelingTraceAttributes {
     AttributeKey.stringKey(IMPRESSION_METADATA_NAME_STRING)
   val DATA_AVAILABILITY_SYNC_TASK_NAME: AttributeKey<String> =
     AttributeKey.stringKey(DATA_AVAILABILITY_SYNC_TASK_NAME_STRING)
+  val DATA_AVAILABILITY_SYNC_TASK_STATE: AttributeKey<String> =
+    AttributeKey.stringKey(DATA_AVAILABILITY_SYNC_TASK_STATE_STRING)
+  val DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT: AttributeKey<Long> =
+    AttributeKey.longKey(DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT_STRING)
+  val DATA_AVAILABILITY_SYNC_TASK_PUBLICATION_ATTEMPT: AttributeKey<Long> =
+    AttributeKey.longKey(DATA_AVAILABILITY_SYNC_TASK_PUBLICATION_ATTEMPT_STRING)
+  val DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY: AttributeKey<String> =
+    AttributeKey.stringKey(DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_STRING)
   val RECOVERY_WORK_ITEM_NAME: AttributeKey<String> =
     AttributeKey.stringKey(RECOVERY_WORK_ITEM_NAME_STRING)
   val PIPELINE_PHASE: AttributeKey<String> = AttributeKey.stringKey(PIPELINE_PHASE_STRING)
@@ -144,6 +159,10 @@ object VidLabelingTraceAttributes {
       RANK_INDEX_BLOB_TYPE_STRING,
       IMPRESSION_METADATA_NAME_STRING,
       DATA_AVAILABILITY_SYNC_TASK_NAME_STRING,
+      DATA_AVAILABILITY_SYNC_TASK_STATE_STRING,
+      DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT_STRING,
+      DATA_AVAILABILITY_SYNC_TASK_PUBLICATION_ATTEMPT_STRING,
+      DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_STRING,
       RECOVERY_WORK_ITEM_NAME_STRING,
       PIPELINE_PHASE_STRING,
       GCS_OBJECT_GENERATION_STRING,
