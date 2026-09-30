@@ -29,6 +29,7 @@ import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
 import com.google.protobuf.value
 import com.google.type.interval
+import io.grpc.Status
 import io.netty.handler.ssl.ClientAuth
 import java.io.File
 import java.net.URI
@@ -57,6 +58,8 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.doThrow
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.BatchCreateEventGroupsRequest
@@ -295,6 +298,115 @@ class EventGroupSyncFunctionTest() {
         "OTEL_LOGS_EXPORTER" to "logging",
       )
     return functionProcess.start(defaultEnv + envOverrides)
+  }
+
+  private data class FailedInvocation(val statusCode: Int, val failureMetricLog: String?)
+
+  private fun invokeFunctionWithBatchCreateFailure(
+    status: Status,
+    previousMappedEventGroup: MappedEventGroup? = null,
+  ): FailedInvocation {
+    eventGroupsServiceMock.stub {
+      onBlocking { batchCreateEventGroups(any<BatchCreateEventGroupsRequest>()) } doThrow
+        status.asRuntimeException()
+    }
+    val config = eventGroupSyncConfig {
+      dataProvider = "some-data-provider"
+      eventGroupMapBlobUri = "file:///some/other/path/event-groups-map-uri"
+      this.cmmsConnection = transportLayerSecurityParams {
+        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+      }
+      eventGroupStorage = storageParams { fileSystem = fileSystemStorage {} }
+      eventGroupMapStorage = storageParams { fileSystem = fileSystemStorage {} }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val runtimeConfig = eventGroupSyncConfigs { configs += config }
+    File(configBucketDir, "config.textproto")
+      .writeText(TextFormat.printer().printToString(runtimeConfig))
+    File("${tempFolder.root}/some/path").mkdirs()
+    File("${tempFolder.root}/some/other/path").mkdirs()
+    val storageClient = FileSystemStorageClient(File(tempFolder.root.toString()))
+    runBlocking {
+      MesosRecordIoStorageClient(storageClient)
+        .writeBlob(
+          "some/path/campaigns-blob-uri.binpb",
+          flowOf(buildConcurrentEventGroup("failure-reference-id").toByteString()),
+        )
+      if (previousMappedEventGroup != null) {
+        MesosRecordIoStorageClient(storageClient)
+          .writeBlob(
+            "some/other/path/event-groups-map-uri",
+            flowOf(previousMappedEventGroup.toByteString()),
+          )
+      }
+    }
+    val port = runBlocking {
+      startFunction(
+        mapOf(
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+        )
+      )
+    }
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("X-DataWatcher-Path", "file:///some/path/campaigns-blob-uri.binpb")
+        .POST(HttpRequest.BodyPublishers.ofString(config.toJson()))
+        .build()
+
+    val failureMetricLogs = LinkedBlockingQueue<String>()
+    val metricLogHandler =
+      object : Handler() {
+        override fun publish(record: LogRecord) {
+          if (record.message.contains(FUNCTION_FAILURE_METRIC_NAME)) {
+            failureMetricLogs.offer(record.message)
+          }
+        }
+
+        override fun flush() {}
+
+        override fun close() {}
+      }
+    val rootLogger = Logger.getLogger("")
+    rootLogger.addHandler(metricLogHandler)
+    return try {
+      val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+      FailedInvocation(response.statusCode(), failureMetricLogs.poll(5, TimeUnit.SECONDS))
+    } finally {
+      rootLogger.removeHandler(metricLogHandler)
+    }
+  }
+
+  @Test
+  fun `sync preserves map and records failure for retryable Kingdom failure`() {
+    val previousMappedEventGroup: MappedEventGroup = mappedEventGroup {
+      eventGroupReferenceId = "previous-reference-id"
+      eventGroupResource = "dataProviders/data-provider-1/eventGroups/previous-event-group"
+    }
+
+    val result =
+      invokeFunctionWithBatchCreateFailure(Status.DEADLINE_EXCEEDED, previousMappedEventGroup)
+
+    assertThat(result.statusCode).isEqualTo(503)
+    assertThat(checkNotNull(result.failureMetricLog)).contains("value=1")
+    val mappedData = runBlocking {
+      MesosRecordIoStorageClient(FileSystemStorageClient(tempFolder.root))
+        .getBlob("some/other/path/event-groups-map-uri")!!
+        .read()
+        .map { MappedEventGroup.parseFrom(it) }
+        .toList()
+    }
+    assertThat(mappedData).containsExactly(previousMappedEventGroup)
+  }
+
+  @Test
+  fun `sync returns internal server error for permanent Kingdom failure`() {
+    assertThat(invokeFunctionWithBatchCreateFailure(Status.PERMISSION_DENIED).statusCode)
+      .isEqualTo(500)
   }
 
   private fun assertStaleInvocationDoesNotOverwriteDestination(
