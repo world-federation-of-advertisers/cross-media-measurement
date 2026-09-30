@@ -500,6 +500,7 @@ module "edp_aggregator" {
   results_fulfiller_event_descriptor               = local.results_fulfiller_event_descriptor
   results_fulfiller_population_spec                = local.results_fulfiller_population_spec
   vid_labeler_population_spec                      = local.vid_labeler_population_spec
+  event_group_sync_additional_secret_ids           = ["event_group_scale-tls-key", "event_group_scale-tls-pem"]
   event_group_sync_service_account_name            = "edpa-event-group-sync"
   event_group_sync_function_name                   = "event-group-sync"
   data_availability_sync_function_name             = "data-availability-sync"
