@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRes
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest
@@ -1059,6 +1060,7 @@ abstract class RawImpressionUploadServiceTest {
       val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         evictionOperationId = operationId
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
       }
 
       val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
@@ -1073,6 +1075,7 @@ abstract class RawImpressionUploadServiceTest {
             acquireRawImpressionUploadEvictionFenceRequest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               evictionOperationId = UUID.randomUUID().toString()
+              state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
             }
           )
         }
@@ -1106,6 +1109,37 @@ abstract class RawImpressionUploadServiceTest {
     }
 
   @Test
+  fun `eviction fence acquisition requires explicit state`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            evictionOperationId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `eviction fence rejects noncanonical operation ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            evictionOperationId = "1-1-4111-8111-1"
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
   fun `eviction fence authorizes a replacement from its healing operation`(): Unit = runBlocking {
     val operationId = UUID.randomUUID().toString()
     createEvictedUpload(DATA_PROVIDER_RESOURCE_ID, "evicted-upload", DONE_BLOB_URI, operationId)
@@ -1113,6 +1147,7 @@ abstract class RawImpressionUploadServiceTest {
       acquireRawImpressionUploadEvictionFenceRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         evictionOperationId = operationId
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
       }
     )
 
@@ -1162,6 +1197,7 @@ abstract class RawImpressionUploadServiceTest {
           acquireRawImpressionUploadEvictionFenceRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = UUID.randomUUID().toString()
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
           }
         )
       }
@@ -1180,6 +1216,7 @@ abstract class RawImpressionUploadServiceTest {
           acquireRawImpressionUploadEvictionFenceRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = UUID.randomUUID().toString()
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
           }
         )
       }

@@ -83,6 +83,7 @@ class MissingImpressionMetadataRecovery(
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
   private val dateSelection: DataDateSelection,
+  private val ensureLeaseActive: suspend () -> Unit,
   private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Set<String>,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
 ) {
@@ -155,6 +156,8 @@ class MissingImpressionMetadataRecovery(
     var incompleteFullSyncFolders = 0
     val errors = mutableListOf<RecoveryError>()
 
+    ensureLeaseActive()
+
     val dateFolderPrefixes =
       try {
         listDateFolderPrefixes()
@@ -172,6 +175,27 @@ class MissingImpressionMetadataRecovery(
           recoverDateFolder(dateFolderPrefix)
         } catch (e: CancellationException) {
           throw e
+        } catch (e: StatusException) {
+          if (
+            e.status.code == Status.Code.UNAVAILABLE ||
+              e.status.code == Status.Code.ABORTED ||
+              e.status.code == Status.Code.FAILED_PRECONDITION
+          ) {
+            throw e
+          }
+          logger.log(Level.SEVERE, "Failed to reconcile date folder $dateFolderPrefix", e)
+          FolderRecoveryResult(
+            finalizedMetadataBlobs = 0,
+            missingBlobs = 0,
+            deletedRecordsWithBlobs = 0,
+            undeletedRecords = 0,
+            failedUndeletes = 0,
+            recoveredBlobs = 0,
+            failedBlobs = 0,
+            dateFoldersResynced = 0,
+            incompleteFullSyncFolders = 0,
+            errors = listOf(RecoveryError(dateFolderPrefix, e.message ?: e::class.java.simpleName)),
+          )
         } catch (e: Exception) {
           logger.log(Level.SEVERE, "Failed to reconcile date folder $dateFolderPrefix", e)
           FolderRecoveryResult(
@@ -261,6 +285,7 @@ class MissingImpressionMetadataRecovery(
     val undeletedBlobUris = mutableSetOf<String>()
     val errors = mutableListOf<RecoveryError>()
     for (metadata in deletedMetadataWithBlobs) {
+      ensureLeaseActive()
       try {
         throttler.onReady {
           impressionMetadataStub.undeleteImpressionMetadata(
