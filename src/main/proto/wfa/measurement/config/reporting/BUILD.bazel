@@ -54,6 +54,28 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "dimension_slicing_config_proto",
+    srcs = ["dimension_slicing_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "dimension_slicing_config_kt_jvm_proto",
+    deps = [":dimension_slicing_config_proto"],
+)
+
+proto_library(
+    name = "virtual_dimension_config_proto",
+    srcs = ["virtual_dimension_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "virtual_dimension_config_kt_jvm_proto",
+    deps = [":virtual_dimension_config_proto"],
+)
+
+proto_library(
     name = "report_trace_topology_config_proto",
     srcs = ["report_trace_topology_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,
