@@ -375,10 +375,9 @@ class SpannerRawImpressionUploadModelLineService(
    *
    * Adding a model line to a COMPLETED upload (operator backfill) flips the denormalized parent
    * state back to ACTIVE in the same transaction so the dispatcher re-processes it. Adding a model
-   * line to a FAILED upload is rejected: reviving it would strand the new child (the dispatcher
-   * skips FAILED parents) and, once the child completed, leave the parent stuck ACTIVE because its
-   * FAILED siblings block the COMPLETED roll-up, mis-classifying it as stale. CREATED and ACTIVE
-   * parents need no change — the normal state cascade in [transitionState] handles them.
+   * line to a FAILED or CORRECTION_REQUIRED upload is rejected: reviving it would strand the new
+   * child and make the parent lifecycle inconsistent. CREATED and ACTIVE parents need no change —
+   * the normal state cascade in [transitionState] handles them.
    */
   private suspend fun reactivateParentForBackfill(
     txn: AsyncDatabaseClient.TransactionContext,
@@ -396,11 +395,12 @@ class SpannerRawImpressionUploadModelLineService(
           rawImpressionUploadId,
           RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
         )
-      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ->
         throw RawImpressionUploadStateInvalidException(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+            parentState,
           )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       // CREATED/ACTIVE need no reactivation — the normal child-Mark cascade handles them.

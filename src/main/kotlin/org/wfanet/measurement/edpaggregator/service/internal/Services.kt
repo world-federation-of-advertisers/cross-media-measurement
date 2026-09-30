@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.service.internal
 
 import io.grpc.BindableService
+import org.wfanet.measurement.internal.edpaggregator.CorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
@@ -36,6 +37,8 @@ data class Services(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionUpload:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
+  val correctionCandidate:
+    CorrectionCandidateServiceGrpcKt.CorrectionCandidateServiceCoroutineImplBase,
   val uploadHealingOperation:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase,
   val rawImpressionUploadFile:
@@ -52,6 +55,7 @@ data class Services(
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,
+      correctionCandidate,
       uploadHealingOperation,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,

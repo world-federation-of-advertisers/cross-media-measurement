@@ -10,6 +10,7 @@ package(
 kt_jvm_library(
     name = "db",
     srcs = [
+        "CorrectionCandidate.kt",
         "ImpressionMetadata.kt",
         "PoolAssignmentJob.kt",
         "RankIndexBlob.kt",
@@ -29,6 +30,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:blob_type_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:correction_candidate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:correction_candidate_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:encrypted_dek_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_proto",
@@ -53,6 +56,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:requisition_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_eviction_fence_state_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:vid_labeling_state_kt_jvm_proto",
