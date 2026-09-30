@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -24,6 +25,32 @@ option java_outer_classname = "RawImpressionUploadCorrectionCandidateProto";
 
 // A quarantined non-additive raw-upload revision.
 message RawImpressionUploadCorrectionCandidate {
+  message ManifestEntry {
+    string blob_uri = 1;
+    int64 blob_generation = 2;
+    google.type.Date event_date = 3;
+    string owner_raw_impression_upload_resource_id = 4;
+  }
+
+  message ManifestDifference {
+    enum Type {
+      TYPE_UNSPECIFIED = 0;
+      TYPE_ADDED = 1;
+      TYPE_EDITED = 2;
+      TYPE_REMOVED = 3;
+    }
+
+    Type type = 1;
+    ManifestEntry prior = 2;
+    ManifestEntry current = 3;
+  }
+
+  message ManifestComparison {
+    repeated ManifestEntry prior_manifest = 1;
+    repeated ManifestEntry current_manifest = 2;
+    repeated ManifestDifference differences = 3;
+  }
+
   enum Classification {
     CLASSIFICATION_UNSPECIFIED = 0;
     CLASSIFICATION_EDITED = 1;
@@ -64,4 +91,5 @@ message RawImpressionUploadCorrectionCandidate {
   google.protobuf.Timestamp create_time = 12;
   google.protobuf.Timestamp update_time = 13;
   string etag = 14;
+  ManifestComparison manifest_comparison = 15;
 }

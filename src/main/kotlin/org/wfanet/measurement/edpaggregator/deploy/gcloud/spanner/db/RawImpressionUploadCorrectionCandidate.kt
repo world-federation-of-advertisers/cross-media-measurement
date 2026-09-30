@@ -59,6 +59,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadCorrectionCan
       Classification,
       PriorManifestDigest,
       CurrentManifestDigest,
+      ManifestComparison,
       State,
       Decision,
       SupersedingRawImpressionUploadCorrectionCandidateId,
@@ -101,6 +102,7 @@ suspend fun AsyncDatabaseClient.ReadContext
       Classification,
       PriorManifestDigest,
       CurrentManifestDigest,
+      ManifestComparison,
       State,
       Decision,
       SupersedingRawImpressionUploadCorrectionCandidateId,
@@ -145,6 +147,7 @@ suspend fun AsyncDatabaseClient.ReadContext
       Classification,
       PriorManifestDigest,
       CurrentManifestDigest,
+      ManifestComparison,
       State,
       Decision,
       SupersedingRawImpressionUploadCorrectionCandidateId,
@@ -189,6 +192,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadCorrectionCandidates(
         Classification,
         PriorManifestDigest,
         CurrentManifestDigest,
+        ManifestComparison,
         State,
         Decision,
         SupersedingRawImpressionUploadCorrectionCandidateId,
@@ -255,6 +259,10 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadCorrectionCa
       .to(rawImpressionUploadCorrectionCandidate.priorManifestDigest.toGcloudByteArray())
     set("CurrentManifestDigest")
       .to(rawImpressionUploadCorrectionCandidate.currentManifestDigest.toGcloudByteArray())
+    set("ManifestComparison")
+      .to(
+        rawImpressionUploadCorrectionCandidate.manifestComparison.toByteArray().toGcloudByteArray()
+      )
     set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
     set("Decision").to(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
     set("AdvanceRequestIds").toStringArray(emptyList())
@@ -314,6 +322,10 @@ private fun buildRawImpressionUploadCorrectionCandidateResult(
         )
       priorManifestDigest = row.getBytes("PriorManifestDigest").toByteArray().toByteString()
       currentManifestDigest = row.getBytes("CurrentManifestDigest").toByteArray().toByteString()
+      manifestComparison =
+        RawImpressionUploadCorrectionCandidate.ManifestComparison.parseFrom(
+          row.getBytes("ManifestComparison").toByteArray()
+        )
       state = row.getProtoEnum("State", RawImpressionUploadCorrectionCandidate.State::forNumber)
       decision =
         row.getProtoEnum("Decision", RawImpressionUploadCorrectionCandidate.Decision::forNumber)
