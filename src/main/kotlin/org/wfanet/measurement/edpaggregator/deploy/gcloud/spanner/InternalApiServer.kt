@@ -79,12 +79,6 @@ class InternalApiServer : Runnable {
   private lateinit var dataAvailabilitySyncTaskTopicId: String
 
   @CommandLine.Option(
-    names = ["--data-availability-sync-task-publication-enabled"],
-    defaultValue = "true",
-  )
-  private var dataAvailabilitySyncTaskPublicationEnabled: Boolean = true
-
-  @CommandLine.Option(
     names = ["--data-availability-sync-task-publication-poll-interval"],
     defaultValue = "1s",
     converter = [VidLabelingRpcDurationConverter::class],
@@ -146,7 +140,6 @@ class InternalApiServer : Runnable {
             publisher,
             pollInterval = dataAvailabilitySyncTaskPublicationPollInterval,
             leaseDuration = dataAvailabilitySyncTaskPublicationLeaseDuration,
-            enabled = dataAvailabilitySyncTaskPublicationEnabled,
           )
         runInternalApiServerJobs(
           blockingServer = { server.start().blockUntilShutdown() },

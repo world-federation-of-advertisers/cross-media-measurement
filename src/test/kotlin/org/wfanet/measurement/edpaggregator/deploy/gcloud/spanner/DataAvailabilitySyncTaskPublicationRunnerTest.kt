@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
-import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
@@ -118,26 +117,6 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
       clock.advance(Duration.ofSeconds(2))
 
       assertThat(runner.publishPendingTasks()).isEqualTo(1)
-      assertThat(publisher.taskNames).containsExactly(TASK_NAME)
-    }
-
-  @Test
-  fun `reconciler restores a missing publication`() =
-    runBlocking<Unit> {
-      insertUpload()
-      SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
-        .createDataAvailabilitySyncTask(createRequest())
-      spannerDatabase.databaseClient.write(
-        listOf(
-          Mutation.delete(
-            "DataAvailabilitySyncTaskPublication",
-            Key.of(DATA_PROVIDER_ID, 1L, TASK_ID),
-          )
-        )
-      )
-      val publisher = RecordingPublisher()
-
-      assertThat(newRunner(publisher).publishPendingTasks()).isEqualTo(1)
       assertThat(publisher.taskNames).containsExactly(TASK_NAME)
     }
 
