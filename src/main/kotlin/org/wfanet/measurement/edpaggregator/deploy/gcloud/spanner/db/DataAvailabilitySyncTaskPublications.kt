@@ -37,6 +37,11 @@ data class DataAvailabilitySyncTaskPublication(
   val rawImpressionUploadId: Long,
   val taskResourceId: String,
   val taskName: String,
+  val rawImpressionUploadName: String,
+  val modelLine: String,
+  val doneBlobPathHash: String,
+  val doneBlobGeneration: Long,
+  val taskState: DataAvailabilitySyncTaskState,
   val attemptCount: Long,
   val leaseToken: String,
 )
@@ -81,6 +86,10 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimDataAvailabilitySyncTask
             Publication.RawImpressionUploadId,
             Publication.DataAvailabilitySyncTaskResourceId,
             RawImpressionUpload.RawImpressionUploadResourceId,
+            Task.CmmsModelLine,
+            Task.DoneBlobPathHash,
+            Task.DoneBlobGeneration,
+            Task.State,
             Publication.AttemptCount
           FROM DataAvailabilitySyncTaskPublication@{FORCE_INDEX=DataAvailabilitySyncTaskPublicationByClaimPriority} AS Publication
           JOIN DataAvailabilitySyncTask AS Task USING (
@@ -135,16 +144,22 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimDataAvailabilitySyncTask
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
   val taskResourceId = row.getString("DataAvailabilitySyncTaskResourceId")
+  val taskKey =
+    DataAvailabilitySyncTaskKey(
+      row.getString("DataProviderResourceId"),
+      row.getString("RawImpressionUploadResourceId"),
+      taskResourceId,
+    )
   return DataAvailabilitySyncTaskPublication(
     row.getString("DataProviderResourceId"),
     row.getLong("RawImpressionUploadId"),
     taskResourceId,
-    DataAvailabilitySyncTaskKey(
-        row.getString("DataProviderResourceId"),
-        row.getString("RawImpressionUploadResourceId"),
-        taskResourceId,
-      )
-      .toName(),
+    taskKey.toName(),
+    taskKey.parentKey.toName(),
+    row.getString("CmmsModelLine"),
+    row.getString("DoneBlobPathHash"),
+    row.getLong("DoneBlobGeneration"),
+    row.getProtoEnum("State", DataAvailabilitySyncTaskState::forNumber),
     attemptCount,
     leaseToken,
   )
