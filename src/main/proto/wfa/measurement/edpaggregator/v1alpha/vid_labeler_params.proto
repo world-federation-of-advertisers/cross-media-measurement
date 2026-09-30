@@ -167,6 +167,10 @@ message VidLabelerParams {
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
 
+  // Whether the finalizer creates a durable DataAvailabilitySync task after
+  // writing each done object.
+  bool create_data_availability_sync_task = 13;
+
   // Parameters for the memoized rank-index Phase-2 path.
   //
   // Its presence selects the memoized path: the TEE resolves the per-subpool
