@@ -32,14 +32,15 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTaskIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerDataAvailabilitySyncTaskService
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncTaskKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.createDataAvailabilitySyncTaskRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
@@ -78,7 +79,8 @@ class DataAvailabilitySyncTaskServiceTest {
       assertThat(task.name)
         .isEqualTo(DataAvailabilitySyncTaskKey(DATA_PROVIDER_ID, UPLOAD_ID, TASK_ID).toName())
       assertThat(task.state).isEqualTo(DataAvailabilitySyncTask.State.PENDING)
-      assertThat(task.doneBlobPathHash).isEqualTo(DataAvailabilitySyncTaskIds.pathHash(DONE_URI))
+      assertThat(task.doneBlobPathHash)
+        .isEqualTo(VidLabelingTraceAttributes.gcsObjectPathHash(DONE_URI))
       assertThat(task.createTime).isEqualTo(task.updateTime)
       assertThat(task.etag).isNotEmpty()
     }
@@ -99,6 +101,47 @@ class DataAvailabilitySyncTaskServiceTest {
         assertFailsWith<StatusRuntimeException> { service.createDataAvailabilitySyncTask(request) }
 
       assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `create rejects malformed done blob URI`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val request =
+        createRequest()
+          .toBuilder()
+          .setDataAvailabilitySyncTask(
+            createRequest()
+              .dataAvailabilitySyncTask
+              .toBuilder()
+              .setDoneBlobUri("https://bucket/path/done")
+          )
+          .build()
+
+      val error =
+        assertFailsWith<StatusRuntimeException> { service.createDataAvailabilitySyncTask(request) }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
+  fun `create canonicalizes the GCS scheme before deriving the task ID`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val uppercaseUri = "GS://bucket/labeled/2026-09-30/done"
+      val request =
+        createRequest()
+          .toBuilder()
+          .setDataAvailabilitySyncTask(
+            createRequest().dataAvailabilitySyncTask.toBuilder().setDoneBlobUri(uppercaseUri)
+          )
+          .build()
+
+      val task = service.createDataAvailabilitySyncTask(request)
+
+      assertThat(task.name)
+        .isEqualTo(DataAvailabilitySyncTaskKey(DATA_PROVIDER_ID, UPLOAD_ID, TASK_ID).toName())
+      assertThat(task.doneBlobUri).isEqualTo(DONE_URI)
     }
 
   private fun createRequest() = createDataAvailabilitySyncTaskRequest {
@@ -176,7 +219,11 @@ class DataAvailabilitySyncTaskServiceTest {
     private const val DONE_URI = "gs://bucket/labeled/2026-09-30/done"
     private const val GENERATION = 123L
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
-    private val TASK_ID = DataAvailabilitySyncTaskIds.resourceId(DONE_URI, GENERATION)
-    private val REQUEST_ID = DataAvailabilitySyncTaskIds.requestId(DONE_URI, GENERATION)
+    private val TASK_ID =
+      RequestIds.forDataAvailabilitySyncTask(
+        VidLabelingTraceAttributes.gcsObjectPathHash(DONE_URI),
+        GENERATION,
+      )
+    private val REQUEST_ID = TASK_ID
   }
 }
