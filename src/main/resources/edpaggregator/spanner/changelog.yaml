@@ -94,3 +94,6 @@ databaseChangeLog:
   - include:
       file: create-data-availability-sync-task-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: create-data-availability-sync-task-publication-schema.sql
+      relativeToChangeLogFile: true
