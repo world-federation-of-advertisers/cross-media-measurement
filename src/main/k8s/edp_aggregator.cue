@@ -20,6 +20,8 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 
 	_verboseGrpcServerLogging: bool | *false
 	_verboseGrpcClientLogging: bool | *false
+	_dataAvailabilitySyncTaskPublicationEnabled: string | *"true"
+	_dataAvailabilitySyncTaskTopicId:             string | *"data-availability-sync-tasks"
 
 	_spannerConfig: #SpannerConfig
 
@@ -108,6 +110,9 @@ let MountRoot = "/etc/\(#AppName)/edp-aggregator"
 	deployments: {
 		"edp-aggregator-internal-api-server": {
 			_container: args: [
+						"--google-project-id=" + #GCloudProject,
+						"--data-availability-sync-task-topic-id=" + _dataAvailabilitySyncTaskTopicId,
+						"--data-availability-sync-task-publication-enabled=" + _dataAvailabilitySyncTaskPublicationEnabled,
 						_debugVerboseGrpcServerLoggingFlag,
 						"--cert-collection-file=\(MountRoot)/config/trusted_certs.pem",
 						"--tls-cert-file=\(MountRoot)/tls/tls.crt",
