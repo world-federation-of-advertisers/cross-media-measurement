@@ -7,6 +7,11 @@ package(default_visibility = [
 ])
 
 kt_jvm_library(
+    name = "data_availability_sync_task_ids",
+    srcs = ["DataAvailabilitySyncTaskIds.kt"],
+)
+
+kt_jvm_library(
     name = "data_availability_blobs",
     srcs = ["DataAvailabilityBlobs.kt"],
     deps = [
