@@ -296,6 +296,56 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
+  fun `list filters by classification`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_IDS[0],
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      insertRawUpload(
+        2L,
+        UPLOAD_IDS[1],
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      service.createRawImpressionUploadCorrectionCandidate(
+        createRequest(
+          CANDIDATE_IDS[0],
+          UPLOAD_IDS[0],
+          CREATE_REQUEST_IDS[0],
+          RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED,
+        )
+      )
+      service.createRawImpressionUploadCorrectionCandidate(
+        createRequest(
+          CANDIDATE_IDS[1],
+          UPLOAD_IDS[1],
+          CREATE_REQUEST_IDS[1],
+          RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_REMOVED,
+        )
+      )
+
+      val response =
+        service.listRawImpressionUploadCorrectionCandidates(
+          listRawImpressionUploadCorrectionCandidatesRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            filter =
+              ListRawImpressionUploadCorrectionCandidatesRequestKt.filter {
+                classificationIn +=
+                  RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED
+              }
+          }
+        )
+
+      assertThat(
+          response.rawImpressionUploadCorrectionCandidatesList.map {
+            it.rawImpressionUploadCorrectionCandidateId
+          }
+        )
+        .containsExactly(CANDIDATE_IDS[0])
+    }
+
+  @Test
   fun `list rejects negative page size`() =
     runBlocking<Unit> {
       val error =
@@ -756,12 +806,14 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     candidateId: String = CANDIDATE_ID,
     uploadId: String = UPLOAD_ID,
     requestId: String = CREATE_REQUEST_ID,
+    classification: RawImpressionUploadCorrectionCandidate.Classification =
+      RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED,
   ) = createRawImpressionUploadCorrectionCandidateRequest {
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadCorrectionCandidateId = candidateId
     rawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
       rawImpressionUploadResourceId = uploadId
-      classification = RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED
+      this.classification = classification
       priorManifestDigest = PRIOR_DIGEST
       currentManifestDigest = CURRENT_DIGEST
       expireTime = EXPIRY_TIME

@@ -206,6 +206,9 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadCorrectionCandidates(
     if (filter.stateInList.isNotEmpty()) {
       conjuncts += "CAST(State AS INT64) IN UNNEST(@stateIn)"
     }
+    if (filter.classificationInList.isNotEmpty()) {
+      conjuncts += "CAST(Classification AS INT64) IN UNNEST(@classificationIn)"
+    }
     if (after != null) {
       conjuncts +=
         "((CreateTime > @afterCreateTime) OR " +
@@ -221,6 +224,10 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadCorrectionCandidates(
       bind("limit").to(limit.toLong())
       if (filter.stateInList.isNotEmpty()) {
         bind("stateIn").toInt64Array(filter.stateInList.map { it.number.toLong() })
+      }
+      if (filter.classificationInList.isNotEmpty()) {
+        bind("classificationIn")
+          .toInt64Array(filter.classificationInList.map { it.number.toLong() })
       }
       if (after != null) {
         bind("afterCreateTime").to(after.createTime.toGcloudTimestamp())

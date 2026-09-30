@@ -58,6 +58,8 @@ message ListRawImpressionUploadCorrectionCandidatesRequest {
 
   message Filter {
     repeated RawImpressionUploadCorrectionCandidate.State state_in = 1;
+    repeated RawImpressionUploadCorrectionCandidate.Classification
+        classification_in = 2;
   }
   Filter filter = 4;
 }

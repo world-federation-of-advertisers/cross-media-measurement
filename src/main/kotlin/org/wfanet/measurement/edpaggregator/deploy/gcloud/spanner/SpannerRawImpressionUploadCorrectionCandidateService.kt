@@ -175,6 +175,15 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
         invalid("filter.state_in contains an unspecified state")
       }
     }
+    request.filter.classificationInList.forEach { classification ->
+      if (
+        classification ==
+          RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_UNSPECIFIED ||
+          classification == RawImpressionUploadCorrectionCandidate.Classification.UNRECOGNIZED
+      ) {
+        invalid("filter.classification_in contains an unspecified classification")
+      }
+    }
     val pageSize =
       if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
     val after = if (request.hasPageToken()) request.pageToken.after else null
