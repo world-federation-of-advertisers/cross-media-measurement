@@ -143,6 +143,7 @@ object VidLabelingFunctionHelpers {
           gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
           impressionsBlobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
         }
+      createDataAvailabilitySyncTask = config.dataAvailabilitySyncTasksEnabled
       // The compiled model lives in its own Cloud Storage project. Optional on VidLabelingConfig
       // (only EDPs that actually label need it); when set, thread it onto every WorkItem so the
       // TEE reads the model from its own project on both the memoized and non-memoized paths.
@@ -197,6 +198,7 @@ object VidLabelingFunctionHelpers {
           gcsProjectId = config.rawImpressionsStorageParams.gcs.projectId
           blobPrefix = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}"
         }
+      createDataAvailabilitySyncTask = config.dataAvailabilitySyncTasksEnabled
       vidLabeledImpressionsStorageParams =
         SubpoolAssignerParamsKt.storageParams {
           gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId

@@ -187,6 +187,9 @@ message VidLabelingConfig {
   // `edp_impression_path` in this EDP's `DataAvailabilitySyncConfig` so the
   // writer and the registrar agree on the location.
   string edp_impression_path = 18 [(google.api.field_behavior) = REQUIRED];
+
+  // Whether newly dispatched work creates durable DataAvailabilitySync tasks.
+  bool data_availability_sync_tasks_enabled = 19;
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.
