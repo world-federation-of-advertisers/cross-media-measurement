@@ -27,8 +27,9 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTaskIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskState
@@ -64,7 +65,8 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
 
     assertThat(created.state)
       .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_PENDING)
-    assertThat(created.doneBlobPathHash).isEqualTo(DataAvailabilitySyncTaskIds.pathHash(DONE_URI))
+    assertThat(created.doneBlobPathHash)
+      .isEqualTo(VidLabelingTraceAttributes.gcsObjectPathHash(DONE_URI))
     assertThat(created.attemptCount).isEqualTo(0)
     assertThat(replayed).isEqualTo(created)
     assertThat(read).isEqualTo(created)
@@ -130,9 +132,7 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
         service.createDataAvailabilitySyncTask(
           createRequest()
             .toBuilder()
-            .setDataAvailabilitySyncTaskResourceId(
-              DataAvailabilitySyncTaskIds.resourceId(otherUri, GENERATION)
-            )
+            .setDataAvailabilitySyncTaskResourceId(taskId(otherUri, GENERATION))
             .setDataAvailabilitySyncTask(
               createRequest().dataAvailabilitySyncTask.toBuilder().setDoneBlobUri(otherUri)
             )
@@ -210,9 +210,8 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
     createDataAvailabilitySyncTaskRequest {
       dataProviderResourceId = DATA_PROVIDER_ID
       rawImpressionUploadResourceId = UPLOAD_ID
-      dataAvailabilitySyncTaskResourceId =
-        DataAvailabilitySyncTaskIds.resourceId(doneUri, generation)
-      requestId = DataAvailabilitySyncTaskIds.requestId(doneUri, generation)
+      dataAvailabilitySyncTaskResourceId = taskId(doneUri, generation)
+      requestId = taskId(doneUri, generation)
       dataAvailabilitySyncTask = dataAvailabilitySyncTask {
         doneBlobUri = doneUri
         doneBlobGeneration = generation
@@ -290,6 +289,12 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
     private const val DONE_URI = "gs://bucket/labeled/2026-09-30/done"
     private const val GENERATION = 123L
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
-    private val TASK_ID = DataAvailabilitySyncTaskIds.resourceId(DONE_URI, GENERATION)
+    private val TASK_ID = taskId(DONE_URI, GENERATION)
+
+    private fun taskId(doneUri: String, generation: Long): String =
+      RequestIds.forDataAvailabilitySyncTask(
+        VidLabelingTraceAttributes.gcsObjectPathHash(doneUri),
+        generation,
+      )
   }
 }

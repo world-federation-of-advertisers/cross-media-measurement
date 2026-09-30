@@ -27,9 +27,10 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTaskIds
+import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncTaskKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateDataAvailabilitySyncTaskRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineImplBase
@@ -38,6 +39,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListDataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.ListDataAvailabilitySyncTasksResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.listDataAvailabilitySyncTasksResponse
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTask as InternalTask
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskFailureCategory as InternalFailureCategory
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub as InternalTaskServiceStub
@@ -73,16 +75,16 @@ class DataAvailabilitySyncTaskService(
       invalidArgument("data_availability_sync_task_id is required")
     }
     val expectedId =
-      DataAvailabilitySyncTaskIds.resourceId(task.doneBlobUri, task.doneBlobGeneration)
+      RequestIds.forDataAvailabilitySyncTask(
+        VidLabelingTraceAttributes.gcsObjectPathHash(BlobUris.canonicalGcsUri(task.doneBlobUri)),
+        task.doneBlobGeneration,
+      )
     if (request.dataAvailabilitySyncTaskId != expectedId) {
       invalidArgument("data_availability_sync_task_id must match the done object")
     }
     if (request.requestId.isNotEmpty()) {
       validateUuid(request.requestId, "request_id")
-      if (
-        request.requestId !=
-          DataAvailabilitySyncTaskIds.requestId(task.doneBlobUri, task.doneBlobGeneration)
-      ) {
+      if (request.requestId != expectedId) {
         invalidArgument("request_id must match the done object")
       }
     }
@@ -195,7 +197,7 @@ class DataAvailabilitySyncTaskService(
       invalidArgument("cmms_model_line must be a ModelLine resource name")
     }
     try {
-      DataAvailabilitySyncTaskIds.canonicalDoneBlobUri(task.doneBlobUri)
+      BlobUris.canonicalGcsUri(task.doneBlobUri)
       LocalDate.of(task.eventDate.year, task.eventDate.month, task.eventDate.day)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()

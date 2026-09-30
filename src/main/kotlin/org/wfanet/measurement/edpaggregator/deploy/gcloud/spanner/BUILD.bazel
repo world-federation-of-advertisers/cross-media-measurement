@@ -16,9 +16,11 @@ kt_jvm_library(
     srcs = ["SpannerDataAvailabilitySyncTaskService.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/api:etags",
-        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_task_ids",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:blob_uris",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_failure_category_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_service_kt_jvm_grpc_proto",

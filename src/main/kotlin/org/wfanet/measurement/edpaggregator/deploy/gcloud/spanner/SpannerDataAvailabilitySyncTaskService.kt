@@ -29,7 +29,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.api.ETags
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTaskIds
+import org.wfanet.measurement.edpaggregator.BlobUris
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findDataAvailabilitySyncTaskByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findDataAvailabilitySyncTaskByDoneObject
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getDataAvailabilitySyncTaskByResourceId
@@ -37,6 +37,8 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineStateByCmmsModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertDataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readDataAvailabilitySyncTasks
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.CreateDataAvailabilitySyncTaskRequest
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTask
@@ -63,10 +65,10 @@ class SpannerDataAvailabilitySyncTaskService(
   ): DataAvailabilitySyncTask {
     validateCreateRequest(request)
     val input = request.dataAvailabilitySyncTask
-    val canonicalUri = DataAvailabilitySyncTaskIds.canonicalDoneBlobUri(input.doneBlobUri)
-    val pathHash = DataAvailabilitySyncTaskIds.pathHash(canonicalUri)
+    val canonicalUri = BlobUris.canonicalGcsUri(input.doneBlobUri)
+    val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(canonicalUri)
     val expectedResourceId =
-      DataAvailabilitySyncTaskIds.resourceId(canonicalUri, input.doneBlobGeneration)
+      RequestIds.forDataAvailabilitySyncTask(pathHash, input.doneBlobGeneration)
     if (request.dataAvailabilitySyncTaskResourceId != expectedResourceId) {
       invalidArgument("data_availability_sync_task_resource_id must match the done object")
     }
@@ -255,19 +257,22 @@ class SpannerDataAvailabilitySyncTaskService(
       invalidArgument("done object, model line, and event date are required")
     }
     try {
+      val canonicalDoneBlobUri = BlobUris.canonicalGcsUri(task.doneBlobUri)
       if (request.requestId.isNotEmpty()) {
         if (UUID.fromString(request.requestId).version() != 4) {
           invalidArgument("request_id must be a UUID4")
         }
         if (
           request.requestId !=
-            DataAvailabilitySyncTaskIds.requestId(task.doneBlobUri, task.doneBlobGeneration)
+            RequestIds.forDataAvailabilitySyncTask(
+              VidLabelingTraceAttributes.gcsObjectPathHash(canonicalDoneBlobUri),
+              task.doneBlobGeneration,
+            )
         ) {
           invalidArgument("request_id must match the done object")
         }
       }
       LocalDate.of(task.eventDate.year, task.eventDate.month, task.eventDate.day)
-      DataAvailabilitySyncTaskIds.canonicalDoneBlobUri(task.doneBlobUri)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()
     } catch (e: DateTimeException) {
