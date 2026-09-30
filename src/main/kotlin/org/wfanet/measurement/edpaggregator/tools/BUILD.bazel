@@ -80,6 +80,7 @@ java_image(
 kt_jvm_library(
     name = "vid_labeling_heal",
     srcs = [
+        "CorrectionCandidateCommands.kt",
         "DispatchFailer.kt",
         "DlqRedeliverer.kt",
         "FailedDispatchRetrier.kt",
@@ -104,6 +105,8 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:ranker_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_kt_jvm_proto",
