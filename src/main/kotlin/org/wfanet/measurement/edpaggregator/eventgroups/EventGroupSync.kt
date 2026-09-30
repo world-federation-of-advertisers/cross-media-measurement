@@ -202,6 +202,8 @@ private data class PendingWrite<T>(
   val request: T,
 )
 
+private class BatchSyncException(cause: Exception) : RuntimeException(cause)
+
 /** The write a queued EventGroup needs: a batched create, a batched update, or nothing. */
 private sealed interface WriteAction {
   data class Create(val request: CreateEventGroupRequest) : WriteAction
@@ -285,8 +287,11 @@ class EventGroupSync(
    * EventGroups with [EventGroup.State.DELETED] are deleted from CMMS if they exist. EventGroups
    * absent from the input flow are left unchanged.
    *
-   * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Failed syncs are
-   *   skipped and logged. Deleted EventGroups are not included.
+   * Failures attributable to individual EventGroups are skipped and logged. A batch-wide failure
+   * aborts synchronization by throwing an exception.
+   *
+   * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Deleted EventGroups
+   *   are not included.
    */
   suspend fun sync(): Flow<MappedEventGroup> = flow {
     withSpan(
@@ -432,6 +437,7 @@ class EventGroupSync(
               pendingUpdates,
             )
           } catch (e: Exception) {
+            if (e is BatchSyncException) throw e
             if (e is CancellationException) throw e
             logger.log(Level.SEVERE, e) {
               "Skipping Event Group ${eventGroup.eventGroupReferenceId}" +
@@ -616,10 +622,11 @@ class EventGroupSync(
           // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
           flushCreatesIndividually(pendingCreates, e)
         } else {
-          // Transient / infra failure affects the whole batch, so fanning out per-item retries
-          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and let the run's retry handle it.
+          // This failure cannot be attributed to one sub-request. Fail the run without publishing
+          // a partial mapping; the caller decides whether the status is retryable.
           recordBatchFailure(e, pendingCreates)
+          pendingCreates.clear()
+          throw BatchSyncException(e)
         }
         pendingCreates.clear()
         return
@@ -722,10 +729,11 @@ class EventGroupSync(
           // one bad EventGroup doesn't block the rest, matching the pre-batching resilience.
           flushUpdatesIndividually(pendingUpdates, e)
         } else {
-          // Transient / infra failure affects the whole batch, so fanning out per-item retries
-          // would fire N doomed RPCs and inflate the failure metric N-fold for one blip. Record a
-          // single batched failure and let the run's retry handle it.
+          // This failure cannot be attributed to one sub-request. Fail the run without publishing
+          // a partial mapping; the caller decides whether the status is retryable.
           recordBatchFailure(e, pendingUpdates)
+          pendingUpdates.clear()
+          throw BatchSyncException(e)
         }
         pendingUpdates.clear()
         return
@@ -821,8 +829,8 @@ class EventGroupSync(
         .build(),
     )
     logger.log(Level.SEVERE, e) {
-      "Batch of ${pending.size} Event Groups failed with a transient error (error_type=$errorType);" +
-        " leaving for retry"
+      "Batch of ${pending.size} Event Groups failed with a batch-wide error" +
+        " (error_type=$errorType); failing sync without publishing a partial map"
     }
   }
 
@@ -1380,8 +1388,8 @@ class EventGroupSync(
 
     /**
      * gRPC status codes for a failed batch RPC that are attributable to an individual sub-request
-     * (so retrying per item isolates the bad one). Anything else is treated as a transient/infra
-     * failure affecting the whole batch, which is recorded without a per-item retry fan-out.
+     * (so retrying per item isolates the bad one). Anything else aborts the run without a per-item
+     * retry fan-out.
      */
     private val PER_REQUEST_FAILURE_CODES =
       setOf(

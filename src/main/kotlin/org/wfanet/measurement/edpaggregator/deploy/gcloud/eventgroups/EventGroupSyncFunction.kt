@@ -24,15 +24,20 @@ import com.google.gson.stream.JsonReader
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
+import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.io.InputStreamReader
+import java.net.HttpURLConnection
 import java.nio.file.Files
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
@@ -51,7 +56,9 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
@@ -129,7 +136,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   clientAccountsStub = clientAccountsClient,
                   unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                   eventGroups = eventGroups,
-                  throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
+                  throttler = kingdomThrottler,
                   listEventGroupPageSize,
                   entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 )
@@ -140,6 +147,12 @@ class EventGroupSyncFunction() : HttpFunction {
       }
     } catch (e: Exception) {
       functionFailureCounter.add(1, failureAttributes)
+      if (isRetryableKingdomFailure(e)) {
+        logger.log(Level.WARNING, "Transient Kingdom failure; requesting redelivery", e)
+        response.setStatusCode(HttpURLConnection.HTTP_UNAVAILABLE)
+        response.writer.write("EventGroup sync failed due to a transient Kingdom error")
+        return
+      }
       throw e
     } finally {
       // Critical: flush metrics and traces before function terminates
@@ -293,16 +306,33 @@ class EventGroupSyncFunction() : HttpFunction {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private const val THROTTLER_DURATION_MILLIS = 1000L
+    private const val DEFAULT_KINGDOM_REQUESTS_PER_SECOND = 4.0
     private const val LIST_EVENT_GROUPS_PAGE_SIZE: Int = 100
+
+    private val RETRYABLE_KINGDOM_STATUS_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.CANCELLED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNAVAILABLE,
+      )
 
     private val listEventGroupPageSize: Int =
       System.getenv("LIST_EVENT_GROUPS_PAGE_SIZE")?.toInt() ?: LIST_EVENT_GROUPS_PAGE_SIZE
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
-    private val throttlerDuration =
-      Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
+    private val kingdomThrottler: Throttler by lazy {
+      val requestsPerSecond = System.getenv("KINGDOM_REQUESTS_PER_SECOND")
+      val throttlerMillis = System.getenv("THROTTLER_MILLIS")
+      when {
+        requestsPerSecond != null -> MaximumRateThrottler(requestsPerSecond.toDouble())
+        throttlerMillis != null ->
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(throttlerMillis.toLong()))
+        else -> MaximumRateThrottler(DEFAULT_KINGDOM_REQUESTS_PER_SECOND)
+      }
+    }
     private val channelShutdownDuration =
       Duration.ofSeconds(
         System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -318,6 +348,23 @@ class EventGroupSyncFunction() : HttpFunction {
         .counterBuilder("edpa.event_group.sync_function_failure")
         .setDescription("Number of failed EventGroupSyncFunction executions")
         .build()
+    }
+
+    private fun isRetryableKingdomFailure(throwable: Throwable): Boolean {
+      var cause: Throwable? = throwable
+      while (cause != null) {
+        val statusCode =
+          when (cause) {
+            is StatusException -> cause.status.code
+            is StatusRuntimeException -> cause.status.code
+            else -> null
+          }
+        if (statusCode != null) {
+          return statusCode in RETRYABLE_KINGDOM_STATUS_CODES
+        }
+        cause = cause.cause
+      }
+      return false
     }
 
     // Name of the repeated field in the EventGroups message, in both its proto (snake_case) and

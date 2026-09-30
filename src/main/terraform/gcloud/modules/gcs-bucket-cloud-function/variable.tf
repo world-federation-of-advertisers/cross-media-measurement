@@ -95,6 +95,12 @@ variable "message_retention_duration" {
   default     = "604800s" # 7 days
 }
 
+variable "retry_on_failure" {
+  description = "Whether Eventarc retries failed Cloud Function invocations."
+  type        = bool
+  default     = true
+}
+
 variable "alert_notification_channels" {
   description = "List of Cloud Monitoring notification channel IDs for DLQ alerts. If empty, the alert fires but no notification is sent."
   type        = list(string)

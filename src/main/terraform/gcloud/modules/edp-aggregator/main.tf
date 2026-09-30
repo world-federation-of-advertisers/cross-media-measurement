@@ -295,6 +295,7 @@ module "data_watcher_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "finalized"
+  retry_on_failure                            = true
   uploaded_config_generation                  = google_storage_bucket_object.upload_data_watcher_config.generation
   # The DataWatcher waits synchronously for the dispatcher. Event-driven gen2 functions allow at
   # most 540 seconds, so give the caller that maximum and keep the dispatcher below it.
@@ -317,6 +318,7 @@ module "data_watcher_delete_cloud_function" {
   uber_jar_path                               = var.cloud_function_configs.data_watcher_delete.uber_jar_path
   secrets_to_access                           = [for key in local.data_watcher_delete_secrets_access : local.all_secrets[key].secret_id]
   trigger_event_type                          = "deleted"
+  retry_on_failure                            = true
 }
 
 module "requisition_fetcher_cloud_function" {
@@ -331,11 +333,11 @@ module "requisition_fetcher_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.requisition_fetcher.function_name
   entry_point                              = var.cloud_function_configs.requisition_fetcher.entry_point
-  extra_env_vars   = var.cloud_function_configs.requisition_fetcher.extra_env_vars
-  secret_mappings   = var.cloud_function_configs.requisition_fetcher.secret_mappings
-  uber_jar_path     = var.cloud_function_configs.requisition_fetcher.uber_jar_path
-  secrets_to_access = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
-  config_path       = var.requisition_fetcher_config.local_path
+  extra_env_vars                           = var.cloud_function_configs.requisition_fetcher.extra_env_vars
+  secret_mappings                          = var.cloud_function_configs.requisition_fetcher.secret_mappings
+  uber_jar_path                            = var.cloud_function_configs.requisition_fetcher.uber_jar_path
+  secrets_to_access                        = [for key in local.requisition_fetcher_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.requisition_fetcher_config.local_path
 
   # The periodic drain ticker fires every FLUSH_INTERVAL (default 5m), so a single invocation must
   # run longer than that for incremental draining to happen at all — the gen2 default of 60s would
@@ -375,6 +377,13 @@ module "event_group_sync_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.event_group_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.event_group_sync.uber_jar_path
   secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
+
+  # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
+  # Keep one single-request instance so syncs cannot overlap, and finish before the DataWatcher's
+  # 540-second timeout so it can handle or retry failures.
+  timeout_seconds = 480
+  max_instances   = 1
+  concurrency     = 1
 }
 
 module "data_availability_sync_cloud_function" {
