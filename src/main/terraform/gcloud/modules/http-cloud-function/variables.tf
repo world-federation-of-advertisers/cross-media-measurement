@@ -75,7 +75,14 @@ variable "timeout_seconds" {
 }
 
 variable "max_instances" {
-  description = "Maximum number of concurrent function instances. Set to 1 to prevent overlapping invocations. Null uses the gcloud default."
+  description = "Maximum number of function instances. Null uses the gcloud default."
+  type        = number
+  nullable    = true
+  default     = null
+}
+
+variable "concurrency" {
+  description = "Maximum number of concurrent requests per function instance. Null uses the gcloud default."
   type        = number
   nullable    = true
   default     = null
