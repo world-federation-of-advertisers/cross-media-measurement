@@ -219,8 +219,4 @@ message SubpoolAssignerParams {
   // siblings: Phase-2 rejects a WorkItem without it, so an omission here is a
   // dispatch bug that would otherwise only surface as a crash-looping TEE.
   string population_spec_blob_uri = 23 [(google.api.field_behavior) = REQUIRED];
-
-  // Whether Phase 2 creates a durable DataAvailabilitySync task after writing
-  // each done object.
-  bool create_data_availability_sync_task = 24;
 }
