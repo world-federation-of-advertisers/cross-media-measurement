@@ -76,6 +76,18 @@ object RequestIds {
     return fromKey("dataAvailabilitySyncTask:$doneBlobPathHash:$generation")
   }
 
+  /** `request_id` for starting one availability-sync task attempt. */
+  fun forMarkDataAvailabilitySyncTaskRunning(taskName: String, attemptCount: Int): String =
+    fromKey("markDataAvailabilitySyncTaskRunning:$taskName:$attemptCount")
+
+  /** `request_id` for marking an availability-sync task as succeeded. */
+  fun forMarkDataAvailabilitySyncTaskSucceeded(taskName: String): String =
+    fromKey("markDataAvailabilitySyncTaskSucceeded:$taskName")
+
+  /** `request_id` for marking an availability-sync task as failed. */
+  fun forMarkDataAvailabilitySyncTaskFailed(taskName: String, attemptCount: Int): String =
+    fromKey("markDataAvailabilitySyncTaskFailed:$taskName:$attemptCount")
+
   /**
    * `request_id` for marking a `VidLabelingJob` SUCCEEDED.
    *

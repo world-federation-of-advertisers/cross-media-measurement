@@ -19,6 +19,7 @@ package wfa.measurement.internal.edpaggregator;
 import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/data_availability_sync_task.proto";
+import "wfa/measurement/internal/edpaggregator/data_availability_sync_task_failure_category.proto";
 import "wfa/measurement/internal/edpaggregator/data_availability_sync_task_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -32,6 +33,15 @@ service DataAvailabilitySyncTaskService {
       returns (DataAvailabilitySyncTask);
   rpc ListDataAvailabilitySyncTasks(ListDataAvailabilitySyncTasksRequest)
       returns (ListDataAvailabilitySyncTasksResponse);
+  rpc MarkDataAvailabilitySyncTaskRunning(
+      MarkDataAvailabilitySyncTaskRunningRequest)
+      returns (DataAvailabilitySyncTask);
+  rpc MarkDataAvailabilitySyncTaskSucceeded(
+      MarkDataAvailabilitySyncTaskSucceededRequest)
+      returns (DataAvailabilitySyncTask);
+  rpc MarkDataAvailabilitySyncTaskFailed(
+      MarkDataAvailabilitySyncTaskFailedRequest)
+      returns (DataAvailabilitySyncTask);
 }
 
 message CreateDataAvailabilitySyncTaskRequest {
@@ -76,4 +86,29 @@ message ListDataAvailabilitySyncTasksPageToken {
   string data_provider_resource_id = 2;
   string raw_impression_upload_resource_id = 3;
   ListDataAvailabilitySyncTasksRequest.Filter filter = 4;
+}
+
+message MarkDataAvailabilitySyncTaskRunningRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+  string etag = 4;
+  string request_id = 5;
+}
+
+message MarkDataAvailabilitySyncTaskSucceededRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+  string etag = 4;
+  string request_id = 5;
+}
+
+message MarkDataAvailabilitySyncTaskFailedRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+  DataAvailabilitySyncTaskFailureCategory failure_category = 4;
+  string etag = 5;
+  string request_id = 6;
 }

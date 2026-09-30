@@ -40,6 +40,9 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.createDataAvailabilitySyncTaskRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
+import org.wfanet.measurement.edpaggregator.v1alpha.markDataAvailabilitySyncTaskFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markDataAvailabilitySyncTaskRunningRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markDataAvailabilitySyncTaskSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -125,6 +128,32 @@ class DataAvailabilitySyncTaskServiceTest {
     }
 
   @Test
+  fun `create rejects a GCS object that is not a done marker`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val objectUri = "gs://bucket/labeled/2026-09-30/metadata.binpb"
+      val taskId =
+        RequestIds.forDataAvailabilitySyncTask(
+          VidLabelingTraceAttributes.gcsObjectPathHash(objectUri),
+          GENERATION,
+        )
+      val request =
+        createRequest()
+          .toBuilder()
+          .setDataAvailabilitySyncTask(
+            createRequest().dataAvailabilitySyncTask.toBuilder().setDoneBlobUri(objectUri)
+          )
+          .setDataAvailabilitySyncTaskId(taskId)
+          .setRequestId(taskId)
+          .build()
+
+      val error =
+        assertFailsWith<StatusRuntimeException> { service.createDataAvailabilitySyncTask(request) }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
   fun `create canonicalizes the GCS scheme before deriving the task ID`() =
     runBlocking<Unit> {
       insertUpload()
@@ -142,6 +171,51 @@ class DataAvailabilitySyncTaskServiceTest {
       assertThat(task.name)
         .isEqualTo(DataAvailabilitySyncTaskKey(DATA_PROVIDER_ID, UPLOAD_ID, TASK_ID).toName())
       assertThat(task.doneBlobUri).isEqualTo(DONE_URI)
+    }
+
+  @Test
+  fun `task can fail and then succeed on retry`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val created = service.createDataAvailabilitySyncTask(createRequest())
+      val running =
+        service.markDataAvailabilitySyncTaskRunning(
+          markDataAvailabilitySyncTaskRunningRequest {
+            name = created.name
+            etag = created.etag
+            requestId = RequestIds.forMarkDataAvailabilitySyncTaskRunning(created.name, 1)
+          }
+        )
+      val failed =
+        service.markDataAvailabilitySyncTaskFailed(
+          markDataAvailabilitySyncTaskFailedRequest {
+            name = running.name
+            failureCategory = DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION
+            etag = running.etag
+            requestId = RequestIds.forMarkDataAvailabilitySyncTaskFailed(running.name, 1)
+          }
+        )
+      val runningAgain =
+        service.markDataAvailabilitySyncTaskRunning(
+          markDataAvailabilitySyncTaskRunningRequest {
+            name = failed.name
+            etag = failed.etag
+            requestId = RequestIds.forMarkDataAvailabilitySyncTaskRunning(failed.name, 2)
+          }
+        )
+      val succeeded =
+        service.markDataAvailabilitySyncTaskSucceeded(
+          markDataAvailabilitySyncTaskSucceededRequest {
+            name = runningAgain.name
+            etag = runningAgain.etag
+            requestId = RequestIds.forMarkDataAvailabilitySyncTaskSucceeded(runningAgain.name)
+          }
+        )
+
+      assertThat(running.attemptCount).isEqualTo(1)
+      assertThat(failed.state).isEqualTo(DataAvailabilitySyncTask.State.FAILED)
+      assertThat(runningAgain.attemptCount).isEqualTo(2)
+      assertThat(succeeded.state).isEqualTo(DataAvailabilitySyncTask.State.SUCCEEDED)
     }
 
   private fun createRequest() = createDataAvailabilitySyncTaskRequest {

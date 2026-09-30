@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.common.toGcloudTimestamp
 import org.wfanet.measurement.gcloud.common.toProtoDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
+import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTask
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskFailureCategory
@@ -41,6 +42,9 @@ data class DataAvailabilitySyncTaskResult(
   val task: DataAvailabilitySyncTask,
   val rawImpressionUploadId: Long,
   val createRequestId: String,
+  val markRunningRequestId: String,
+  val markSucceededRequestId: String,
+  val markFailedRequestId: String,
 )
 
 suspend fun AsyncDatabaseClient.ReadContext.getDataAvailabilitySyncTaskByResourceId(
@@ -226,6 +230,26 @@ fun AsyncDatabaseClient.TransactionContext.insertDataAvailabilitySyncTask(
   )
 }
 
+fun AsyncDatabaseClient.TransactionContext.updateDataAvailabilitySyncTask(
+  result: DataAvailabilitySyncTaskResult,
+  state: DataAvailabilitySyncTaskState,
+  attemptCount: Int = result.task.attemptCount,
+  failureCategory: DataAvailabilitySyncTaskFailureCategory = result.task.failureCategory,
+  requestIdColumn: String,
+  requestId: String,
+) {
+  bufferUpdateMutation("DataAvailabilitySyncTask") {
+    set("DataProviderResourceId").to(result.task.dataProviderResourceId)
+    set("RawImpressionUploadId").to(result.rawImpressionUploadId)
+    set("DataAvailabilitySyncTaskResourceId").to(result.task.dataAvailabilitySyncTaskResourceId)
+    set("State").to(state)
+    set("AttemptCount").to(attemptCount.toLong())
+    set("FailureCategory").to(failureCategory)
+    set(requestIdColumn).to(requestId)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
 private suspend fun AsyncDatabaseClient.ReadContext.querySingle(
   sql: String,
   dataProviderResourceId: String,
@@ -253,6 +277,9 @@ private object DataAvailabilitySyncTaskEntity {
       DataAvailabilitySyncTask.RawImpressionUploadId,
       DataAvailabilitySyncTask.DataAvailabilitySyncTaskResourceId,
       DataAvailabilitySyncTask.CreateRequestId,
+      DataAvailabilitySyncTask.MarkRunningRequestId,
+      DataAvailabilitySyncTask.MarkSucceededRequestId,
+      DataAvailabilitySyncTask.MarkFailedRequestId,
       DataAvailabilitySyncTask.State,
       DataAvailabilitySyncTask.DoneBlobUri,
       DataAvailabilitySyncTask.DoneBlobPathHash,
@@ -293,6 +320,9 @@ private object DataAvailabilitySyncTaskEntity {
       task,
       row.getLong("RawImpressionUploadId"),
       if (row.isNull("CreateRequestId")) "" else row.getString("CreateRequestId"),
+      if (row.isNull("MarkRunningRequestId")) "" else row.getString("MarkRunningRequestId"),
+      if (row.isNull("MarkSucceededRequestId")) "" else row.getString("MarkSucceededRequestId"),
+      if (row.isNull("MarkFailedRequestId")) "" else row.getString("MarkFailedRequestId"),
     )
   }
 }
