@@ -39,6 +39,9 @@ import org.wfanet.measurement.internal.edpaggregator.createDataAvailabilitySyncT
 import org.wfanet.measurement.internal.edpaggregator.dataAvailabilitySyncTask
 import org.wfanet.measurement.internal.edpaggregator.getDataAvailabilitySyncTaskRequest
 import org.wfanet.measurement.internal.edpaggregator.listDataAvailabilitySyncTasksRequest
+import org.wfanet.measurement.internal.edpaggregator.markDataAvailabilitySyncTaskFailedRequest
+import org.wfanet.measurement.internal.edpaggregator.markDataAvailabilitySyncTaskRunningRequest
+import org.wfanet.measurement.internal.edpaggregator.markDataAvailabilitySyncTaskSucceededRequest
 
 @RunWith(JUnit4::class)
 class SpannerDataAvailabilitySyncTaskServiceTest {
@@ -204,6 +207,91 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
 
     assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     Unit
+  }
+
+  @Test
+  fun `task transitions are retry safe`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      val created = service.createDataAvailabilitySyncTask(createRequest())
+      val runningRequest = markDataAvailabilitySyncTaskRunningRequest {
+        setTaskKey()
+        etag = created.etag
+        requestId = "123e4567-e89b-42d3-a456-426614174001"
+      }
+
+      val running = service.markDataAvailabilitySyncTaskRunning(runningRequest)
+      val replayed = service.markDataAvailabilitySyncTaskRunning(runningRequest)
+
+      assertThat(running.state)
+        .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING)
+      assertThat(running.attemptCount).isEqualTo(1)
+      assertThat(replayed).isEqualTo(running)
+      val competingAttempt =
+        assertFailsWith<StatusRuntimeException> {
+          service.markDataAvailabilitySyncTaskRunning(
+            markDataAvailabilitySyncTaskRunningRequest {
+              setTaskKey()
+              etag = running.etag
+              requestId = "123e4567-e89b-42d3-a456-426614174005"
+            }
+          )
+        }
+      assertThat(competingAttempt.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+      val failed =
+        service.markDataAvailabilitySyncTaskFailed(
+          markDataAvailabilitySyncTaskFailedRequest {
+            setTaskKey()
+            failureCategory =
+              org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskFailureCategory
+                .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_SYNCHRONIZATION
+            etag = running.etag
+            requestId = "123e4567-e89b-42d3-a456-426614174002"
+          }
+        )
+      val runningAgain =
+        service.markDataAvailabilitySyncTaskRunning(
+          markDataAvailabilitySyncTaskRunningRequest {
+            setTaskKey()
+            etag = failed.etag
+            requestId = "123e4567-e89b-42d3-a456-426614174003"
+          }
+        )
+      val succeeded =
+        service.markDataAvailabilitySyncTaskSucceeded(
+          markDataAvailabilitySyncTaskSucceededRequest {
+            setTaskKey()
+            etag = runningAgain.etag
+            requestId = "123e4567-e89b-42d3-a456-426614174004"
+          }
+        )
+
+      assertThat(runningAgain.attemptCount).isEqualTo(2)
+      assertThat(succeeded.state)
+        .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUCCEEDED)
+    }
+
+  private fun org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskRunningRequestKt.Dsl
+    .setTaskKey() {
+    dataProviderResourceId = DATA_PROVIDER_ID
+    rawImpressionUploadResourceId = UPLOAD_ID
+    dataAvailabilitySyncTaskResourceId = TASK_ID
+  }
+
+  private fun org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskFailedRequestKt.Dsl
+    .setTaskKey() {
+    dataProviderResourceId = DATA_PROVIDER_ID
+    rawImpressionUploadResourceId = UPLOAD_ID
+    dataAvailabilitySyncTaskResourceId = TASK_ID
+  }
+
+  private fun org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskSucceededRequestKt.Dsl
+    .setTaskKey() {
+    dataProviderResourceId = DATA_PROVIDER_ID
+    rawImpressionUploadResourceId = UPLOAD_ID
+    dataAvailabilitySyncTaskResourceId = TASK_ID
   }
 
   private fun createRequest(doneUri: String = DONE_URI, generation: Long = GENERATION) =

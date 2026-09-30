@@ -37,6 +37,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServ
 import org.wfanet.measurement.edpaggregator.v1alpha.GetDataAvailabilitySyncTaskRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListDataAvailabilitySyncTasksRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListDataAvailabilitySyncTasksResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkDataAvailabilitySyncTaskFailedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkDataAvailabilitySyncTaskRunningRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkDataAvailabilitySyncTaskSucceededRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.listDataAvailabilitySyncTasksResponse
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -50,6 +53,9 @@ import org.wfanet.measurement.internal.edpaggregator.createDataAvailabilitySyncT
 import org.wfanet.measurement.internal.edpaggregator.dataAvailabilitySyncTask as internalTask
 import org.wfanet.measurement.internal.edpaggregator.getDataAvailabilitySyncTaskRequest as internalGetRequest
 import org.wfanet.measurement.internal.edpaggregator.listDataAvailabilitySyncTasksRequest as internalListRequest
+import org.wfanet.measurement.internal.edpaggregator.markDataAvailabilitySyncTaskFailedRequest as internalMarkFailedRequest
+import org.wfanet.measurement.internal.edpaggregator.markDataAvailabilitySyncTaskRunningRequest as internalMarkRunningRequest
+import org.wfanet.measurement.internal.edpaggregator.markDataAvailabilitySyncTaskSucceededRequest as internalMarkSucceededRequest
 
 /** Public API service for durable data availability synchronization tasks. */
 class DataAvailabilitySyncTaskService(
@@ -184,6 +190,81 @@ class DataAvailabilitySyncTaskService(
     }
   }
 
+  override suspend fun markDataAvailabilitySyncTaskRunning(
+    request: MarkDataAvailabilitySyncTaskRunningRequest
+  ): DataAvailabilitySyncTask {
+    val key = validateTransitionRequest(request.name, request.etag, request.requestId)
+    return callInternal {
+        internalStub.markDataAvailabilitySyncTaskRunning(
+          internalMarkRunningRequest {
+            dataProviderResourceId = key.dataProviderId
+            rawImpressionUploadResourceId = key.rawImpressionUploadId
+            dataAvailabilitySyncTaskResourceId = key.dataAvailabilitySyncTaskId
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+      }
+      .toPublic()
+  }
+
+  override suspend fun markDataAvailabilitySyncTaskSucceeded(
+    request: MarkDataAvailabilitySyncTaskSucceededRequest
+  ): DataAvailabilitySyncTask {
+    val key = validateTransitionRequest(request.name, request.etag, request.requestId)
+    return callInternal {
+        internalStub.markDataAvailabilitySyncTaskSucceeded(
+          internalMarkSucceededRequest {
+            dataProviderResourceId = key.dataProviderId
+            rawImpressionUploadResourceId = key.rawImpressionUploadId
+            dataAvailabilitySyncTaskResourceId = key.dataAvailabilitySyncTaskId
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+      }
+      .toPublic()
+  }
+
+  override suspend fun markDataAvailabilitySyncTaskFailed(
+    request: MarkDataAvailabilitySyncTaskFailedRequest
+  ): DataAvailabilitySyncTask {
+    val key = validateTransitionRequest(request.name, request.etag, request.requestId)
+    if (
+      request.failureCategory ==
+        DataAvailabilitySyncTask.FailureCategory.FAILURE_CATEGORY_UNSPECIFIED ||
+        request.failureCategory == DataAvailabilitySyncTask.FailureCategory.UNRECOGNIZED
+    ) {
+      invalidArgument("failure_category is required")
+    }
+    return callInternal {
+        internalStub.markDataAvailabilitySyncTaskFailed(
+          internalMarkFailedRequest {
+            dataProviderResourceId = key.dataProviderId
+            rawImpressionUploadResourceId = key.rawImpressionUploadId
+            dataAvailabilitySyncTaskResourceId = key.dataAvailabilitySyncTaskId
+            failureCategory = request.failureCategory.toInternal()
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+      }
+      .toPublic()
+  }
+
+  private fun validateTransitionRequest(
+    name: String,
+    etag: String,
+    requestId: String,
+  ): DataAvailabilitySyncTaskKey {
+    val key =
+      DataAvailabilitySyncTaskKey.fromName(name)
+        ?: invalidArgument("name must be a DataAvailabilitySyncTask resource name")
+    if (etag.isEmpty()) invalidArgument("etag is required")
+    validateUuid(requestId, "request_id")
+    return key
+  }
+
   private fun validateTask(task: DataAvailabilitySyncTask) {
     if (
       task.doneBlobUri.isEmpty() ||
@@ -197,7 +278,9 @@ class DataAvailabilitySyncTaskService(
       invalidArgument("cmms_model_line must be a ModelLine resource name")
     }
     try {
-      BlobUris.canonicalGcsUri(task.doneBlobUri)
+      if (!BlobUris.canonicalGcsUri(task.doneBlobUri).endsWith("/done")) {
+        invalidArgument("done_blob_uri must identify a done object")
+      }
       LocalDate.of(task.eventDate.year, task.eventDate.month, task.eventDate.day)
     } catch (e: IllegalArgumentException) {
       throw Status.INVALID_ARGUMENT.withDescription(e.message).withCause(e).asRuntimeException()
@@ -318,4 +401,23 @@ private fun InternalFailureCategory.toPublic(): DataAvailabilitySyncTask.Failure
     InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_UNSPECIFIED,
     InternalFailureCategory.UNRECOGNIZED ->
       DataAvailabilitySyncTask.FailureCategory.FAILURE_CATEGORY_UNSPECIFIED
+  }
+
+private fun DataAvailabilitySyncTask.FailureCategory.toInternal(): InternalFailureCategory =
+  when (this) {
+    DataAvailabilitySyncTask.FailureCategory.PUBLICATION ->
+      InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_PUBLICATION
+    DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION ->
+      InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_SYNCHRONIZATION
+    DataAvailabilitySyncTask.FailureCategory.METADATA_PERSISTENCE ->
+      InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_METADATA_PERSISTENCE
+    DataAvailabilitySyncTask.FailureCategory.GAP_POLICY ->
+      InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_GAP_POLICY
+    DataAvailabilitySyncTask.FailureCategory.KINGDOM_PUBLICATION ->
+      InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_KINGDOM_PUBLICATION
+    DataAvailabilitySyncTask.FailureCategory.INTERNAL ->
+      InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_INTERNAL
+    DataAvailabilitySyncTask.FailureCategory.FAILURE_CATEGORY_UNSPECIFIED,
+    DataAvailabilitySyncTask.FailureCategory.UNRECOGNIZED ->
+      InternalFailureCategory.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_UNSPECIFIED
   }
