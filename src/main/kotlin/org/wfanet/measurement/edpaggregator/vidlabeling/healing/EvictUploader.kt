@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.type.interval
 import java.time.Instant
@@ -61,29 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEv
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
-/**
- * Evicts uploads that carry bad data across both VID-labeling paths. Non-memoized model lines are
- * isolated to the requested uploads. Memoized model lines are cascaded forward and have their
- * cumulative `SNAPSHOT` rank-index blobs soft-deleted, so Phase-1 falls back to the last good
- * snapshot when the data provider re-triggers corrected uploads.
- *
- * For a memoized line, each subsequent cumulative snapshot was built on the corrupted one, so
- * eviction cascades from the earliest bad upload to the most recent (`Up_k … Up_n`). A non-memoized
- * line has no cumulative state and is evicted in isolation. Eviction is confined to the retention
- * window; uploads older than the window are rejected.
- *
- * @param uploadsStub stub for `RawImpressionUploadService` (create-time ordering + retention
- *   check).
- * @param rawImpressionModelLinesStub stub for `RawImpressionUploadModelLineService` (mark FAILED).
- * @param rankIndexBlobsStub stub for `RankIndexBlobService` (soft-delete SNAPSHOT rows).
- * @param rawImpressionFilesStub stub used to resolve the raw files whose generated outputs must be
- *   removed. Raw objects and their metadata rows are deliberately retained for replacement-delta
- *   registration.
- * @param impressionMetadataStub stub used to soft-delete invalid labeled-output metadata.
- * @param labeledImpressionsBlobPrefix absolute URI prefix under which the VID labeler writes
- *   generated output.
- * @param deleteBlob deletes a labeled output or sidecar by URI and returns whether it existed.
- */
+/** Evicts invalid upload output and dependent memoized state. */
 class EvictUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionModelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
