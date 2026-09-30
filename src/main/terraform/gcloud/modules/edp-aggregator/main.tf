@@ -677,18 +677,36 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
 module "data_availability_sync_task_queue" {
   source = "../pubsub"
 
+  depends_on = [google_service_account_iam_member.data_availability_sync_task_token_creator]
+
   topic_name            = var.data_availability_sync_task_queue.topic_name
   subscription_name     = var.data_availability_sync_task_queue.subscription_name
   ack_deadline_seconds  = var.data_availability_sync_task_queue.ack_deadline_seconds
   max_delivery_attempts = var.data_availability_sync_task_queue.max_delivery_attempts
   minimum_backoff       = var.data_availability_sync_task_queue.minimum_backoff
   maximum_backoff       = var.data_availability_sync_task_queue.maximum_backoff
+  push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
+  push_service_account_email = module.data_availability_sync_cloud_function.cloud_function_service_account.email
+  push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
 }
 
 resource "google_pubsub_topic_iam_member" "data_availability_sync_task_publisher" {
   topic  = module.data_availability_sync_task_queue.pubsub_topic.id
   role   = "roles/pubsub.publisher"
   member = module.edp_aggregator_internal.iam_service_account.member
+}
+
+resource "google_service_account_iam_member" "data_availability_sync_task_token_creator" {
+  service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
+}
+
+resource "google_cloud_run_service_iam_member" "data_availability_sync_task_invoker" {
+  depends_on = [module.data_availability_sync_cloud_function]
+  service    = var.data_availability_sync_function_name
+  role       = "roles/run.invoker"
+  member     = "serviceAccount:${module.data_availability_sync_cloud_function.cloud_function_service_account.email}"
 }
 
 resource "google_compute_address" "edp_aggregator_api_server" {

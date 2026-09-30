@@ -488,6 +488,7 @@ proto_library(
     srcs = ["data_availability_sync_task_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
+        ":data_availability_sync_task_failure_category_proto",
         ":data_availability_sync_task_proto",
         ":data_availability_sync_task_state_proto",
         "@com_google_googleapis//google/type:interval_proto",

@@ -66,8 +66,7 @@ object VidLabelingTraceAttributes {
   const val RANK_INDEX_BLOB_NAME_STRING = "xmm.edpa.rank_index_blob.name"
   const val RANK_INDEX_BLOB_TYPE_STRING = "xmm.edpa.rank_index_blob.type"
   const val IMPRESSION_METADATA_NAME_STRING = "xmm.edpa.impression_metadata.name"
-  const val DATA_AVAILABILITY_SYNC_TASK_NAME_STRING =
-    "xmm.edpa.data_availability_sync_task.name"
+  const val DATA_AVAILABILITY_SYNC_TASK_NAME_STRING = "xmm.edpa.data_availability_sync_task.name"
   const val RECOVERY_WORK_ITEM_NAME_STRING = "xmm.edpa.recovery_work_item.name"
   const val PIPELINE_PHASE_STRING = "xmm.edpa.pipeline.phase"
   const val GCS_OBJECT_GENERATION_STRING = "xmm.gcs.object.generation"
@@ -110,6 +109,8 @@ object VidLabelingTraceAttributes {
     AttributeKey.stringKey(RANK_INDEX_BLOB_TYPE_STRING)
   val IMPRESSION_METADATA_NAME: AttributeKey<String> =
     AttributeKey.stringKey(IMPRESSION_METADATA_NAME_STRING)
+  val DATA_AVAILABILITY_SYNC_TASK_NAME: AttributeKey<String> =
+    AttributeKey.stringKey(DATA_AVAILABILITY_SYNC_TASK_NAME_STRING)
   val RECOVERY_WORK_ITEM_NAME: AttributeKey<String> =
     AttributeKey.stringKey(RECOVERY_WORK_ITEM_NAME_STRING)
   val PIPELINE_PHASE: AttributeKey<String> = AttributeKey.stringKey(PIPELINE_PHASE_STRING)
