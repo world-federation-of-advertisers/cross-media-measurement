@@ -46,9 +46,12 @@ import org.wfanet.measurement.config.edpaggregator.StorageParams.StorageCase
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.DataDateSelection
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecovery
 import org.wfanet.measurement.edpaggregator.dataavailability.MissingImpressionMetadataRecoveryMetrics
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -244,40 +247,56 @@ class RecoverMissingImpressionMetadata : Runnable {
           grpcTelemetry.newClientInterceptor(),
         )
       )
-    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
-    val recovery =
-      MissingImpressionMetadataRecovery(
-        storageClient = storageClient,
-        storageRootUri = BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
-        edpImpressionPath = config.edpImpressionPath,
-        impressionMetadataStub = impressionMetadataStub,
-        dataProviderName = config.dataProvider,
-        throttler = throttler,
-        impressionMetadataBatchSize = impressionMetadataBatchSize,
-        dateSelection = recoveryDateSelection,
-        sync = { doneBlobUri, metadataBlobKeys ->
-          val filteringStorageClient =
-            FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
-          DataAvailabilitySync(
-              edpImpressionPath = config.edpImpressionPath,
-              storageClient = filteringStorageClient,
-              dataProvidersStub = dataProvidersStub,
-              impressionMetadataServiceStub = impressionMetadataStub,
-              dataProviderName = config.dataProvider,
-              throttler = throttler,
-              impressionMetadataBatchSize = impressionMetadataBatchSize,
-              modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
-              errorIfGapsExist = config.errorIfGapsExist,
+    val dataAvailabilitySyncLeaseRunner =
+      DataAvailabilitySyncLeaseRunner(
+        GrpcDataAvailabilitySyncLeaseClient(
+          DataAvailabilitySyncLeaseServiceCoroutineStub(
+            ClientInterceptors.intercept(
+              impressionMetadataChannel,
+              grpcTelemetry.newClientInterceptor(),
             )
-            .sync(doneBlobUri)
-          filteringStorageClient.processedMetadataBlobKeys
-        },
-        metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
+          )
+        )
       )
-
+    val throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerMinimumInterval)
     val result =
       try {
-        runBlocking { recovery.recover() }
+        runBlocking {
+          dataAvailabilitySyncLeaseRunner.run(config.dataProvider) { ensureLeaseActive ->
+            MissingImpressionMetadataRecovery(
+                storageClient = storageClient,
+                storageRootUri =
+                  BlobUri(scheme = "gs", bucket = storageConfig.bucketName, key = ""),
+                edpImpressionPath = config.edpImpressionPath,
+                impressionMetadataStub = impressionMetadataStub,
+                dataProviderName = config.dataProvider,
+                throttler = throttler,
+                impressionMetadataBatchSize = impressionMetadataBatchSize,
+                dateSelection = recoveryDateSelection,
+                ensureLeaseActive = ensureLeaseActive,
+                sync = { doneBlobUri, metadataBlobKeys ->
+                  val filteringStorageClient =
+                    FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
+                  DataAvailabilitySync(
+                      edpImpressionPath = config.edpImpressionPath,
+                      storageClient = filteringStorageClient,
+                      dataProvidersStub = dataProvidersStub,
+                      impressionMetadataServiceStub = impressionMetadataStub,
+                      dataProviderName = config.dataProvider,
+                      throttler = throttler,
+                      impressionMetadataBatchSize = impressionMetadataBatchSize,
+                      modelLineMap =
+                        config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                      errorIfGapsExist = config.errorIfGapsExist,
+                    )
+                    .sync(doneBlobUri, ensureLeaseActive)
+                  filteringStorageClient.processedMetadataBlobKeys
+                },
+                metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),
+              )
+              .recover()
+          }
+        }
       } finally {
         shutdownChannel(kingdomChannel)
         shutdownChannel(impressionMetadataChannel)

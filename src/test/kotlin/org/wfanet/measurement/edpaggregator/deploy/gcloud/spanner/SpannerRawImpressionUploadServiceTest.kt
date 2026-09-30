@@ -15,7 +15,11 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Value
+import com.google.common.truth.Truth.assertThat
+import io.grpc.Status
+import io.grpc.StatusRuntimeException
 import java.util.UUID
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
@@ -27,11 +31,16 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
 
 class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   @get:Rule
@@ -119,8 +128,187 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
         acquireRawImpressionUploadEvictionFenceRequest {
           this.dataProviderResourceId = dataProviderResourceId
           evictionOperationId = UUID.randomUUID().toString()
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
         }
       )
+  }
+
+  @Test
+  fun `approval-pending fence does not wait for active labeling`() = runBlocking {
+    createActiveModelLine(TEST_DATA_PROVIDER_ID)
+
+    val response =
+      newService()
+        .acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+          }
+        )
+
+    assertThat(response.newlyAcquired).isTrue()
+  }
+
+  @Test
+  fun `approval-pending fence cannot be reacquired for direct eviction`() = runBlocking {
+    val service = newService()
+    service.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = TEST_DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state =
+          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `evicting fence waits for active data-availability lease`(): Unit = runBlocking {
+    insertActiveDataAvailabilitySyncLease()
+    val service = newService()
+    service.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = TEST_DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      }
+    )
+    service.advanceRawImpressionUploadEvictionFence(
+      advanceRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = TEST_DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceRawImpressionUploadEvictionFence(
+          advanceRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          }
+        )
+      }
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    releaseDataAvailabilitySyncLease()
+    service.advanceRawImpressionUploadEvictionFence(
+      advanceRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = TEST_DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      }
+    )
+  }
+
+  @Test
+  fun `direct evicting fence rejects active data-availability lease`() = runBlocking {
+    insertActiveDataAvailabilitySyncLease()
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .acquireRawImpressionUploadEvictionFence(
+            acquireRawImpressionUploadEvictionFenceRequest {
+              dataProviderResourceId = TEST_DATA_PROVIDER_ID
+              evictionOperationId = EVICTION_OPERATION_ID
+              state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `approval-pending fence rejects replacement replay`() = runBlocking {
+    val doneBlobUri = "gs://bucket/corrected/done"
+    createEvictedUpload(TEST_DATA_PROVIDER_ID, "evicted-upload", doneBlobUri, EVICTION_OPERATION_ID)
+    val service = newService()
+    service.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = TEST_DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            rawImpressionUpload = rawImpressionUpload {
+              this.doneBlobUri = doneBlobUri
+              doneBlobGeneration = 2L
+              doneBlobCreateTime = com.google.protobuf.timestamp { seconds = 2L }
+            }
+            requestId = UUID.randomUUID().toString()
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  private suspend fun insertActiveDataAvailabilitySyncLease() {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        insertMutation("DataAvailabilitySyncLease") {
+          set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
+          set("SynchronizationAttemptId").to(SYNCHRONIZATION_ATTEMPT_ID)
+          set("State")
+            .to(
+              Value.protoEnum(
+                DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_ACTIVE
+              )
+            )
+          set("ExpireTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(4_102_444_800L, 0))
+          set("MutationRequestIds").toStringArray(emptyList())
+          set("MutationRequestFingerprints").toBytesArray(emptyList())
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      )
+    )
+  }
+
+  private suspend fun releaseDataAvailabilitySyncLease() {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        com.google.cloud.spanner.Mutation.newUpdateBuilder("DataAvailabilitySyncLease")
+          .set("DataProviderResourceId")
+          .to(TEST_DATA_PROVIDER_ID)
+          .set("SynchronizationAttemptId")
+          .to(SYNCHRONIZATION_ATTEMPT_ID)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_RELEASED
+            )
+          )
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
   }
 
   override suspend fun createEvictedUpload(
@@ -174,5 +362,9 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
 
   companion object {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
+
+    private const val EVICTION_OPERATION_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+    private const val SYNCHRONIZATION_ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private const val TEST_DATA_PROVIDER_ID = "data-provider"
   }
 }
