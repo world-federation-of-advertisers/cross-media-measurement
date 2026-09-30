@@ -33,7 +33,8 @@ class TrusTeeV2ImpressionCountTest {
       TrusTeeV2ImpressionCount.buildFulfillmentDetails(
         ImpressionCountMode.UNNOISED,
         maxFrequencyPerUser = 0,
-        VECTOR,
+        VECTOR.getByteArray(),
+        VECTOR.getTotalUncappedImpressions(),
       )
 
     // Every impression, including the ones past the cell's own ceiling of 127.
@@ -49,7 +50,8 @@ class TrusTeeV2ImpressionCountTest {
       TrusTeeV2ImpressionCount.buildFulfillmentDetails(
         ImpressionCountMode.NOISED,
         maxFrequencyPerUser = 3,
-        VECTOR,
+        VECTOR.getByteArray(),
+        VECTOR.getTotalUncappedImpressions(),
       )
 
     assertThat(details.impression.noiseMechanism)
@@ -65,7 +67,8 @@ class TrusTeeV2ImpressionCountTest {
         TrusTeeV2ImpressionCount.buildFulfillmentDetails(
           ImpressionCountMode.NOISED,
           maxFrequencyPerUser = 3,
-          VECTOR,
+          VECTOR.getByteArray(),
+          VECTOR.getTotalUncappedImpressions(),
         )
       )
       .isEqualTo(details)
@@ -77,7 +80,8 @@ class TrusTeeV2ImpressionCountTest {
       TrusTeeV2ImpressionCount.buildFulfillmentDetails(
         ImpressionCountMode.NOISED,
         maxFrequencyPerUser = 0,
-        VECTOR,
+        VECTOR.getByteArray(),
+        VECTOR.getTotalUncappedImpressions(),
       )
 
     assertThat(details.impression.noiseMechanism)
@@ -89,7 +93,8 @@ class TrusTeeV2ImpressionCountTest {
         TrusTeeV2ImpressionCount.buildFulfillmentDetails(
           ImpressionCountMode.NOISED,
           maxFrequencyPerUser = 0,
-          VECTOR,
+          VECTOR.getByteArray(),
+          VECTOR.getTotalUncappedImpressions(),
         )
       )
       .isEqualTo(details)

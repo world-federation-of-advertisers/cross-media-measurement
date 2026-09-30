@@ -206,7 +206,6 @@ kt_jvm_library(
     name = "trus_tee_v2_impression_count",
     srcs = ["TrusTeeV2ImpressionCount.kt"],
     deps = [
-        ":frequency_vector",
         "//src/main/kotlin/org/wfanet/measurement/computation:histogram_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:impression_computations",
         "//src/main/kotlin/org/wfanet/measurement/computation:result_minimum_thresholds",
