@@ -55,17 +55,18 @@ message CreateDataAvailabilitySyncTaskRequest {
   DataAvailabilitySyncTask data_availability_sync_task = 2
       [(google.api.field_behavior) = REQUIRED];
 
-  // Client-assigned deterministic task resource ID. This is `das-` followed
-  // by the first 32 lowercase hexadecimal characters of SHA-256 applied to
-  // `<path_hash>:<generation>`, where `path_hash` is the lowercase hexadecimal
-  // SHA-256 of the full `gs://bucket/object` URI after lowercasing its scheme.
-  string data_availability_sync_task_id = 3
-      [(google.api.field_behavior) = REQUIRED];
+  // Client-assigned deterministic task resource ID. This is the UUID4-layout
+  // value formed from the first 16 bytes of SHA-256 of
+  // `dataAvailabilitySyncTask:<path_hash>:<generation>`, with RFC 4122 version
+  // and variant bits applied. `path_hash` is the lowercase hexadecimal SHA-256
+  // of the full `gs://bucket/object` URI after lowercasing its scheme.
+  string data_availability_sync_task_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 
-  // Optional UUID4 used to make retries idempotent. When set, use the first 16
-  // bytes of SHA-256 of
-  // `dataAvailabilitySyncTask:<path_hash>:<generation>`, then set the RFC 4122
-  // version and variant bits to version 4 and IETF respectively.
+  // Optional UUID4 used to make retries idempotent. When set, it must equal
+  // `data_availability_sync_task_id`.
   string request_id = 4 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.field_info).format = UUID4
