@@ -32,28 +32,28 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
-import org.wfanet.measurement.internal.edpaggregator.CorrectionCandidate
-import org.wfanet.measurement.internal.edpaggregator.ListCorrectionCandidatesPageToken
-import org.wfanet.measurement.internal.edpaggregator.ListCorrectionCandidatesRequest
-import org.wfanet.measurement.internal.edpaggregator.correctionCandidate
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesPageToken
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequest
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate
 
-data class CorrectionCandidateResult(
-  val correctionCandidate: CorrectionCandidate,
+data class RawImpressionUploadCorrectionCandidateResult(
+  val rawImpressionUploadCorrectionCandidate: RawImpressionUploadCorrectionCandidate,
   val createRequestId: String,
   val advanceRequestIds: List<String>,
   val advanceRequestFingerprints: List<ByteString>,
 )
 
-/** Reads a correction candidate by resource ID. */
-suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidate(
+/** Reads a raw-impression upload correction candidate by resource ID. */
+suspend fun AsyncDatabaseClient.ReadContext.findRawImpressionUploadCorrectionCandidate(
   dataProviderResourceId: String,
-  correctionCandidateId: String,
-): CorrectionCandidateResult? {
+  rawImpressionUploadCorrectionCandidateId: String,
+): RawImpressionUploadCorrectionCandidateResult? {
   val sql =
     """
     SELECT
       DataProviderResourceId,
-      CorrectionCandidateId,
+      RawImpressionUploadCorrectionCandidateId,
       RawImpressionUploadResourceId,
       CreateRequestId,
       Classification,
@@ -61,39 +61,41 @@ suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidate(
       CurrentManifestDigest,
       State,
       Decision,
-      SupersedingCorrectionCandidateId,
+      SupersedingRawImpressionUploadCorrectionCandidateId,
       UploadHealingOperationId,
       ExpireTime,
       AdvanceRequestIds,
       AdvanceRequestFingerprints,
       CreateTime,
       UpdateTime,
-    FROM CorrectionCandidate
+    FROM RawImpressionUploadCorrectionCandidate
     WHERE DataProviderResourceId = @dataProviderResourceId
-      AND CorrectionCandidateId = @correctionCandidateId
+      AND RawImpressionUploadCorrectionCandidateId = @rawImpressionUploadCorrectionCandidateId
     """
       .trimIndent()
   return executeQuery(
       statement(sql) {
         bind("dataProviderResourceId").to(dataProviderResourceId)
-        bind("correctionCandidateId").to(correctionCandidateId)
+        bind("rawImpressionUploadCorrectionCandidateId")
+          .to(rawImpressionUploadCorrectionCandidateId)
       },
-      Options.tag("action=findCorrectionCandidate"),
+      Options.tag("action=findRawImpressionUploadCorrectionCandidate"),
     )
     .singleOrNullIfEmpty()
-    ?.let(::buildCorrectionCandidateResult)
+    ?.let(::buildRawImpressionUploadCorrectionCandidateResult)
 }
 
-/** Finds a correction candidate by create request ID. */
-suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidateByCreateRequestId(
+/** Finds a raw-impression upload correction candidate by create request ID. */
+suspend fun AsyncDatabaseClient.ReadContext
+  .findRawImpressionUploadCorrectionCandidateByCreateRequestId(
   dataProviderResourceId: String,
   createRequestId: String,
-): CorrectionCandidateResult? {
+): RawImpressionUploadCorrectionCandidateResult? {
   val sql =
     """
     SELECT
       DataProviderResourceId,
-      CorrectionCandidateId,
+      RawImpressionUploadCorrectionCandidateId,
       RawImpressionUploadResourceId,
       CreateRequestId,
       Classification,
@@ -101,15 +103,15 @@ suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidateByCreateReque
       CurrentManifestDigest,
       State,
       Decision,
-      SupersedingCorrectionCandidateId,
+      SupersedingRawImpressionUploadCorrectionCandidateId,
       UploadHealingOperationId,
       ExpireTime,
       AdvanceRequestIds,
       AdvanceRequestFingerprints,
       CreateTime,
       UpdateTime,
-    FROM CorrectionCandidate@{
-      FORCE_INDEX=CorrectionCandidateByCreateRequestId,
+    FROM RawImpressionUploadCorrectionCandidate@{
+      FORCE_INDEX=RawImpressionUploadCorrectionCandidateByCreateRequestId,
       spanner_emulator.disable_query_null_filtered_index_check=true
     }
     WHERE DataProviderResourceId = @dataProviderResourceId
@@ -121,22 +123,23 @@ suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidateByCreateReque
         bind("dataProviderResourceId").to(dataProviderResourceId)
         bind("createRequestId").to(createRequestId)
       },
-      Options.tag("action=findCorrectionCandidateByCreateRequestId"),
+      Options.tag("action=findRawImpressionUploadCorrectionCandidateByCreateRequestId"),
     )
     .singleOrNullIfEmpty()
-    ?.let(::buildCorrectionCandidateResult)
+    ?.let(::buildRawImpressionUploadCorrectionCandidateResult)
 }
 
-/** Finds a correction candidate by lifecycle request ID. */
-suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidateByAdvanceRequestId(
+/** Finds a raw-impression upload correction candidate by lifecycle request ID. */
+suspend fun AsyncDatabaseClient.ReadContext
+  .findRawImpressionUploadCorrectionCandidateByAdvanceRequestId(
   dataProviderResourceId: String,
   requestId: String,
-): CorrectionCandidateResult? {
+): RawImpressionUploadCorrectionCandidateResult? {
   val sql =
     """
     SELECT
       DataProviderResourceId,
-      CorrectionCandidateId,
+      RawImpressionUploadCorrectionCandidateId,
       RawImpressionUploadResourceId,
       CreateRequestId,
       Classification,
@@ -144,14 +147,14 @@ suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidateByAdvanceRequ
       CurrentManifestDigest,
       State,
       Decision,
-      SupersedingCorrectionCandidateId,
+      SupersedingRawImpressionUploadCorrectionCandidateId,
       UploadHealingOperationId,
       ExpireTime,
       AdvanceRequestIds,
       AdvanceRequestFingerprints,
       CreateTime,
       UpdateTime,
-    FROM CorrectionCandidate
+    FROM RawImpressionUploadCorrectionCandidate
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND @requestId IN UNNEST(AdvanceRequestIds)
     LIMIT 1
@@ -162,25 +165,25 @@ suspend fun AsyncDatabaseClient.ReadContext.findCorrectionCandidateByAdvanceRequ
         bind("dataProviderResourceId").to(dataProviderResourceId)
         bind("requestId").to(requestId)
       },
-      Options.tag("action=findCorrectionCandidateByAdvanceRequestId"),
+      Options.tag("action=findRawImpressionUploadCorrectionCandidateByAdvanceRequestId"),
     )
     .singleOrNullIfEmpty()
-    ?.let(::buildCorrectionCandidateResult)
+    ?.let(::buildRawImpressionUploadCorrectionCandidateResult)
 }
 
-/** Reads correction candidates in creation order. */
-fun AsyncDatabaseClient.ReadContext.readCorrectionCandidates(
+/** Reads raw-impression upload correction candidates in creation order. */
+fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadCorrectionCandidates(
   dataProviderResourceId: String,
-  filter: ListCorrectionCandidatesRequest.Filter,
+  filter: ListRawImpressionUploadCorrectionCandidatesRequest.Filter,
   limit: Int,
-  after: ListCorrectionCandidatesPageToken.After? = null,
-): Flow<CorrectionCandidateResult> {
+  after: ListRawImpressionUploadCorrectionCandidatesPageToken.After? = null,
+): Flow<RawImpressionUploadCorrectionCandidateResult> {
   val sql = buildString {
     appendLine(
       """
       SELECT
         DataProviderResourceId,
-        CorrectionCandidateId,
+        RawImpressionUploadCorrectionCandidateId,
         RawImpressionUploadResourceId,
         CreateRequestId,
         Classification,
@@ -188,14 +191,14 @@ fun AsyncDatabaseClient.ReadContext.readCorrectionCandidates(
         CurrentManifestDigest,
         State,
         Decision,
-        SupersedingCorrectionCandidateId,
+        SupersedingRawImpressionUploadCorrectionCandidateId,
         UploadHealingOperationId,
         ExpireTime,
         AdvanceRequestIds,
         AdvanceRequestFingerprints,
         CreateTime,
         UpdateTime,
-      FROM CorrectionCandidate
+      FROM RawImpressionUploadCorrectionCandidate
       """
         .trimIndent()
     )
@@ -206,10 +209,10 @@ fun AsyncDatabaseClient.ReadContext.readCorrectionCandidates(
     if (after != null) {
       conjuncts +=
         "((CreateTime > @afterCreateTime) OR " +
-          "(CreateTime = @afterCreateTime AND CorrectionCandidateId > @afterCandidateId))"
+          "(CreateTime = @afterCreateTime AND RawImpressionUploadCorrectionCandidateId > @afterCandidateId))"
     }
     appendLine("WHERE " + conjuncts.joinToString(" AND "))
-    appendLine("ORDER BY CreateTime, CorrectionCandidateId")
+    appendLine("ORDER BY CreateTime, RawImpressionUploadCorrectionCandidateId")
     appendLine("LIMIT @limit")
   }
   val query =
@@ -221,54 +224,64 @@ fun AsyncDatabaseClient.ReadContext.readCorrectionCandidates(
       }
       if (after != null) {
         bind("afterCreateTime").to(after.createTime.toGcloudTimestamp())
-        bind("afterCandidateId").to(after.correctionCandidateId)
+        bind("afterCandidateId").to(after.rawImpressionUploadCorrectionCandidateId)
       }
     }
-  return executeQuery(query, Options.tag("action=readCorrectionCandidates")).map {
-    buildCorrectionCandidateResult(it)
-  }
+  return executeQuery(query, Options.tag("action=readRawImpressionUploadCorrectionCandidates"))
+    .map { buildRawImpressionUploadCorrectionCandidateResult(it) }
 }
 
-/** Buffers a correction candidate insert. */
-fun AsyncDatabaseClient.TransactionContext.insertCorrectionCandidate(
-  correctionCandidate: CorrectionCandidate,
+/** Buffers a raw-impression upload correction candidate insert. */
+fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUploadCorrectionCandidate(
+  rawImpressionUploadCorrectionCandidate: RawImpressionUploadCorrectionCandidate,
   createRequestId: String,
 ) {
-  bufferInsertMutation("CorrectionCandidate") {
-    set("DataProviderResourceId").to(correctionCandidate.dataProviderResourceId)
-    set("CorrectionCandidateId").to(correctionCandidate.correctionCandidateId)
-    set("RawImpressionUploadResourceId").to(correctionCandidate.rawImpressionUploadResourceId)
+  bufferInsertMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(rawImpressionUploadCorrectionCandidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(rawImpressionUploadCorrectionCandidate.rawImpressionUploadCorrectionCandidateId)
+    set("RawImpressionUploadResourceId")
+      .to(rawImpressionUploadCorrectionCandidate.rawImpressionUploadResourceId)
     set("CreateRequestId").to(createRequestId)
-    set("Classification").to(correctionCandidate.classification)
-    set("PriorManifestDigest").to(correctionCandidate.priorManifestDigest.toGcloudByteArray())
-    set("CurrentManifestDigest").to(correctionCandidate.currentManifestDigest.toGcloudByteArray())
-    set("State").to(CorrectionCandidate.State.STATE_PENDING)
-    set("Decision").to(CorrectionCandidate.Decision.DECISION_UNSPECIFIED)
+    set("Classification").to(rawImpressionUploadCorrectionCandidate.classification)
+    set("PriorManifestDigest")
+      .to(rawImpressionUploadCorrectionCandidate.priorManifestDigest.toGcloudByteArray())
+    set("CurrentManifestDigest")
+      .to(rawImpressionUploadCorrectionCandidate.currentManifestDigest.toGcloudByteArray())
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
+    set("Decision").to(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
     set("AdvanceRequestIds").toStringArray(emptyList())
     set("AdvanceRequestFingerprints").toBytesArray(emptyList())
-    set("ExpireTime").to(correctionCandidate.expireTime.toGcloudTimestamp())
+    set("ExpireTime").to(rawImpressionUploadCorrectionCandidate.expireTime.toGcloudTimestamp())
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
 
-/** Buffers a correction candidate lifecycle update. */
-fun AsyncDatabaseClient.TransactionContext.updateCorrectionCandidate(
-  correctionCandidate: CorrectionCandidate,
+/** Buffers a raw-impression upload correction candidate lifecycle update. */
+fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadCorrectionCandidate(
+  rawImpressionUploadCorrectionCandidate: RawImpressionUploadCorrectionCandidate,
   advanceRequestIds: List<String>,
   advanceRequestFingerprints: List<ByteString>,
 ) {
-  bufferUpdateMutation("CorrectionCandidate") {
-    set("DataProviderResourceId").to(correctionCandidate.dataProviderResourceId)
-    set("CorrectionCandidateId").to(correctionCandidate.correctionCandidateId)
-    set("State").to(correctionCandidate.state)
-    set("Decision").to(correctionCandidate.decision)
-    if (correctionCandidate.supersedingCorrectionCandidateId.isNotEmpty()) {
-      set("SupersedingCorrectionCandidateId")
-        .to(correctionCandidate.supersedingCorrectionCandidateId)
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(rawImpressionUploadCorrectionCandidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(rawImpressionUploadCorrectionCandidate.rawImpressionUploadCorrectionCandidateId)
+    set("State").to(rawImpressionUploadCorrectionCandidate.state)
+    set("Decision").to(rawImpressionUploadCorrectionCandidate.decision)
+    if (
+      rawImpressionUploadCorrectionCandidate.supersedingRawImpressionUploadCorrectionCandidateId
+        .isNotEmpty()
+    ) {
+      set("SupersedingRawImpressionUploadCorrectionCandidateId")
+        .to(
+          rawImpressionUploadCorrectionCandidate.supersedingRawImpressionUploadCorrectionCandidateId
+        )
     }
-    if (correctionCandidate.uploadHealingOperationId.isNotEmpty()) {
-      set("UploadHealingOperationId").to(correctionCandidate.uploadHealingOperationId)
+    if (rawImpressionUploadCorrectionCandidate.uploadHealingOperationId.isNotEmpty()) {
+      set("UploadHealingOperationId")
+        .to(rawImpressionUploadCorrectionCandidate.uploadHealingOperationId)
     }
     set("AdvanceRequestIds").toStringArray(advanceRequestIds)
     set("AdvanceRequestFingerprints")
@@ -277,21 +290,29 @@ fun AsyncDatabaseClient.TransactionContext.updateCorrectionCandidate(
   }
 }
 
-private fun buildCorrectionCandidateResult(row: Struct): CorrectionCandidateResult {
+private fun buildRawImpressionUploadCorrectionCandidateResult(
+  row: Struct
+): RawImpressionUploadCorrectionCandidateResult {
   val updateTime = row.getTimestamp("UpdateTime").toProto()
-  return CorrectionCandidateResult(
-    correctionCandidate {
+  return RawImpressionUploadCorrectionCandidateResult(
+    rawImpressionUploadCorrectionCandidate {
       dataProviderResourceId = row.getString("DataProviderResourceId")
-      correctionCandidateId = row.getString("CorrectionCandidateId")
+      rawImpressionUploadCorrectionCandidateId =
+        row.getString("RawImpressionUploadCorrectionCandidateId")
       rawImpressionUploadResourceId = row.getString("RawImpressionUploadResourceId")
       classification =
-        row.getProtoEnum("Classification", CorrectionCandidate.Classification::forNumber)
+        row.getProtoEnum(
+          "Classification",
+          RawImpressionUploadCorrectionCandidate.Classification::forNumber,
+        )
       priorManifestDigest = row.getBytes("PriorManifestDigest").toByteArray().toByteString()
       currentManifestDigest = row.getBytes("CurrentManifestDigest").toByteArray().toByteString()
-      state = row.getProtoEnum("State", CorrectionCandidate.State::forNumber)
-      decision = row.getProtoEnum("Decision", CorrectionCandidate.Decision::forNumber)
-      if (!row.isNull("SupersedingCorrectionCandidateId")) {
-        supersedingCorrectionCandidateId = row.getString("SupersedingCorrectionCandidateId")
+      state = row.getProtoEnum("State", RawImpressionUploadCorrectionCandidate.State::forNumber)
+      decision =
+        row.getProtoEnum("Decision", RawImpressionUploadCorrectionCandidate.Decision::forNumber)
+      if (!row.isNull("SupersedingRawImpressionUploadCorrectionCandidateId")) {
+        supersedingRawImpressionUploadCorrectionCandidateId =
+          row.getString("SupersedingRawImpressionUploadCorrectionCandidateId")
       }
       if (!row.isNull("UploadHealingOperationId")) {
         uploadHealingOperationId = row.getString("UploadHealingOperationId")

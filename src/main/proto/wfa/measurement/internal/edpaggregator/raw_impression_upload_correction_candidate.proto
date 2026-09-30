@@ -20,10 +20,10 @@ import "google/protobuf/timestamp.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "CorrectionCandidateProto";
+option java_outer_classname = "RawImpressionUploadCorrectionCandidateProto";
 
 // A quarantined non-additive raw-upload revision.
-message CorrectionCandidate {
+message RawImpressionUploadCorrectionCandidate {
   enum Classification {
     CLASSIFICATION_UNSPECIFIED = 0;
     CLASSIFICATION_EDITED = 1;
@@ -51,14 +51,14 @@ message CorrectionCandidate {
   }
 
   string data_provider_resource_id = 1;
-  string correction_candidate_id = 2;
+  string raw_impression_upload_correction_candidate_id = 2;
   string raw_impression_upload_resource_id = 3;
   Classification classification = 4;
   bytes prior_manifest_digest = 5;
   bytes current_manifest_digest = 6;
   State state = 7;
   Decision decision = 8;
-  string superseding_correction_candidate_id = 9;
+  string superseding_raw_impression_upload_correction_candidate_id = 9;
   string upload_healing_operation_id = 10;
   google.protobuf.Timestamp expire_time = 11;
   google.protobuf.Timestamp create_time = 12;

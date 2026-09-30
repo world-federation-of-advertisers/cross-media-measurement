@@ -89,5 +89,5 @@ databaseChangeLog:
       file: create-upload-healing-operation-schema.sql
       relativeToChangeLogFile: true
   - include:
-      file: create-correction-candidate-schema.sql
+      file: create-raw-impression-upload-correction-candidate-schema.sql
       relativeToChangeLogFile: true

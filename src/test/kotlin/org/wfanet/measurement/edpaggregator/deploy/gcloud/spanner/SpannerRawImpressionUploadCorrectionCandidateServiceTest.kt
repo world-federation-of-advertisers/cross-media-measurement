@@ -34,24 +34,26 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
-import org.wfanet.measurement.internal.edpaggregator.AdvanceCorrectionCandidateRequest
-import org.wfanet.measurement.internal.edpaggregator.CorrectionCandidate
-import org.wfanet.measurement.internal.edpaggregator.ListCorrectionCandidatesRequestKt
+import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
-import org.wfanet.measurement.internal.edpaggregator.advanceCorrectionCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
-import org.wfanet.measurement.internal.edpaggregator.correctionCandidate
-import org.wfanet.measurement.internal.edpaggregator.createCorrectionCandidateRequest
-import org.wfanet.measurement.internal.edpaggregator.getCorrectionCandidateRequest
-import org.wfanet.measurement.internal.edpaggregator.listCorrectionCandidatesRequest
+import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadCorrectionCandidateRequest
+import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadCorrectionCandidatesRequest
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate
 
 @RunWith(JUnit4::class)
-class SpannerCorrectionCandidateServiceTest {
+class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   @get:Rule
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
-  private val service by lazy { SpannerCorrectionCandidateService(spannerDatabase.databaseClient) }
+  private val service by lazy {
+    SpannerRawImpressionUploadCorrectionCandidateService(spannerDatabase.databaseClient)
+  }
 
   @Test
   fun `create persists candidate`() =
@@ -62,25 +64,27 @@ class SpannerCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
 
-      val created = service.createCorrectionCandidate(createRequest())
+      val created = service.createRawImpressionUploadCorrectionCandidate(createRequest())
       val fetched =
-        service.getCorrectionCandidate(
-          getCorrectionCandidateRequest {
+        service.getRawImpressionUploadCorrectionCandidate(
+          getRawImpressionUploadCorrectionCandidateRequest {
             dataProviderResourceId = DATA_PROVIDER_ID
-            correctionCandidateId = CANDIDATE_ID
+            rawImpressionUploadCorrectionCandidateId = CANDIDATE_ID
           }
         )
 
       assertThat(created).isEqualTo(fetched)
       assertThat(created.dataProviderResourceId).isEqualTo(DATA_PROVIDER_ID)
-      assertThat(created.correctionCandidateId).isEqualTo(CANDIDATE_ID)
+      assertThat(created.rawImpressionUploadCorrectionCandidateId).isEqualTo(CANDIDATE_ID)
       assertThat(created.rawImpressionUploadResourceId).isEqualTo(UPLOAD_ID)
       assertThat(created.classification)
-        .isEqualTo(CorrectionCandidate.Classification.CLASSIFICATION_MIXED)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED)
       assertThat(created.priorManifestDigest).isEqualTo(PRIOR_DIGEST)
       assertThat(created.currentManifestDigest).isEqualTo(CURRENT_DIGEST)
-      assertThat(created.state).isEqualTo(CorrectionCandidate.State.STATE_PENDING)
-      assertThat(created.decision).isEqualTo(CorrectionCandidate.Decision.DECISION_UNSPECIFIED)
+      assertThat(created.state)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
+      assertThat(created.decision)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
       assertThat(created.hasCreateTime()).isTrue()
       assertThat(created.hasUpdateTime()).isTrue()
       assertThat(created.etag).isNotEmpty()
@@ -96,8 +100,8 @@ class SpannerCorrectionCandidateServiceTest {
       )
       val request = createRequest()
 
-      val first = service.createCorrectionCandidate(request)
-      val second = service.createCorrectionCandidate(request)
+      val first = service.createRawImpressionUploadCorrectionCandidate(request)
+      val second = service.createRawImpressionUploadCorrectionCandidate(request)
 
       assertThat(second).isEqualTo(first)
     }
@@ -115,11 +119,11 @@ class SpannerCorrectionCandidateServiceTest {
         UPLOAD_ID_2,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createCorrectionCandidate(createRequest())
+      service.createRawImpressionUploadCorrectionCandidate(createRequest())
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createCorrectionCandidate(
+          service.createRawImpressionUploadCorrectionCandidate(
             createRequest(CANDIDATE_ID_2, UPLOAD_ID_2).copy { requestId = CREATE_REQUEST_ID }
           )
         }
@@ -134,7 +138,7 @@ class SpannerCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createCorrectionCandidate(createRequest())
+          service.createRawImpressionUploadCorrectionCandidate(createRequest())
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -152,7 +156,7 @@ class SpannerCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createCorrectionCandidate(createRequest())
+          service.createRawImpressionUploadCorrectionCandidate(createRequest())
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -170,7 +174,7 @@ class SpannerCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createCorrectionCandidate(createRequest())
+          service.createRawImpressionUploadCorrectionCandidate(createRequest())
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
@@ -186,12 +190,16 @@ class SpannerCorrectionCandidateServiceTest {
       )
       val request =
         createRequest().copy {
-          correctionCandidate =
-            correctionCandidate.copy { priorManifestDigest = ByteString.copyFromUtf8("not-sha256") }
+          rawImpressionUploadCorrectionCandidate =
+            rawImpressionUploadCorrectionCandidate.copy {
+              priorManifestDigest = ByteString.copyFromUtf8("not-sha256")
+            }
         }
 
       val error =
-        assertFailsWith<StatusRuntimeException> { service.createCorrectionCandidate(request) }
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadCorrectionCandidate(request)
+        }
 
       assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     }
@@ -204,11 +212,13 @@ class SpannerCorrectionCandidateServiceTest {
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createCorrectionCandidate(createRequest())
+      service.createRawImpressionUploadCorrectionCandidate(createRequest())
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.createCorrectionCandidate(createRequest(CANDIDATE_ID_2, UPLOAD_ID))
+          service.createRawImpressionUploadCorrectionCandidate(
+            createRequest(CANDIDATE_ID_2, UPLOAD_ID)
+          )
         }
 
       assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
@@ -220,26 +230,34 @@ class SpannerCorrectionCandidateServiceTest {
       createCandidates(3)
 
       val first =
-        service.listCorrectionCandidates(
-          listCorrectionCandidatesRequest {
+        service.listRawImpressionUploadCorrectionCandidates(
+          listRawImpressionUploadCorrectionCandidatesRequest {
             dataProviderResourceId = DATA_PROVIDER_ID
             pageSize = 2
           }
         )
       val second =
-        service.listCorrectionCandidates(
-          listCorrectionCandidatesRequest {
+        service.listRawImpressionUploadCorrectionCandidates(
+          listRawImpressionUploadCorrectionCandidatesRequest {
             dataProviderResourceId = DATA_PROVIDER_ID
             pageSize = 2
             pageToken = first.nextPageToken
           }
         )
 
-      assertThat(first.correctionCandidatesList.map { it.correctionCandidateId })
+      assertThat(
+          first.rawImpressionUploadCorrectionCandidatesList.map {
+            it.rawImpressionUploadCorrectionCandidateId
+          }
+        )
         .containsExactly(CANDIDATE_IDS[0], CANDIDATE_IDS[1])
         .inOrder()
       assertThat(first.hasNextPageToken()).isTrue()
-      assertThat(second.correctionCandidatesList.map { it.correctionCandidateId })
+      assertThat(
+          second.rawImpressionUploadCorrectionCandidatesList.map {
+            it.rawImpressionUploadCorrectionCandidateId
+          }
+        )
         .containsExactly(CANDIDATE_IDS[2])
       assertThat(second.hasNextPageToken()).isFalse()
     }
@@ -249,26 +267,31 @@ class SpannerCorrectionCandidateServiceTest {
     runBlocking<Unit> {
       createCandidates(2)
       val pending = getCandidate(CANDIDATE_IDS[0])
-      service.advanceCorrectionCandidate(
+      service.advanceRawImpressionUploadCorrectionCandidate(
         advanceRequest(
           CANDIDATE_IDS[0],
           pending.etag,
-          AdvanceCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
+          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
         )
       )
 
       val response =
-        service.listCorrectionCandidates(
-          listCorrectionCandidatesRequest {
+        service.listRawImpressionUploadCorrectionCandidates(
+          listRawImpressionUploadCorrectionCandidatesRequest {
             dataProviderResourceId = DATA_PROVIDER_ID
             filter =
-              ListCorrectionCandidatesRequestKt.filter {
-                stateIn += CorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED
+              ListRawImpressionUploadCorrectionCandidatesRequestKt.filter {
+                stateIn +=
+                  RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED
               }
           }
         )
 
-      assertThat(response.correctionCandidatesList.map { it.correctionCandidateId })
+      assertThat(
+          response.rawImpressionUploadCorrectionCandidatesList.map {
+            it.rawImpressionUploadCorrectionCandidateId
+          }
+        )
         .containsExactly(CANDIDATE_IDS[0])
     }
 
@@ -277,8 +300,8 @@ class SpannerCorrectionCandidateServiceTest {
     runBlocking<Unit> {
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.listCorrectionCandidates(
-            listCorrectionCandidatesRequest {
+          service.listRawImpressionUploadCorrectionCandidates(
+            listRawImpressionUploadCorrectionCandidatesRequest {
               dataProviderResourceId = DATA_PROVIDER_ID
               pageSize = -1
             }
@@ -297,46 +320,48 @@ class SpannerCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       insertHealingOperation()
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
 
       val planned =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             pending.etag,
-            AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
             operationId = OPERATION_ID,
           )
         )
       val approved =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             planned.etag,
-            AdvanceCorrectionCandidateRequest.Action.APPROVE_CORRECT,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
           )
         )
       val healing =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             approved.etag,
-            AdvanceCorrectionCandidateRequest.Action.START_HEALING,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
           )
         )
       completeHealingOperation()
       val complete =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             healing.etag,
-            AdvanceCorrectionCandidateRequest.Action.COMPLETE,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
           )
         )
 
       assertThat(planned.uploadHealingOperationId).isEqualTo(OPERATION_ID)
-      assertThat(approved.decision).isEqualTo(CorrectionCandidate.Decision.DECISION_CORRECT)
-      assertThat(complete.state).isEqualTo(CorrectionCandidate.State.STATE_COMPLETE)
+      assertThat(approved.decision)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+      assertThat(complete.state)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
     }
 
   @Test
@@ -348,45 +373,47 @@ class SpannerCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       insertHealingOperation()
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
       val planned =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             pending.etag,
-            AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
             operationId = OPERATION_ID,
           )
         )
       val approved =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             planned.etag,
-            AdvanceCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT,
           )
         )
       val healing =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             approved.etag,
-            AdvanceCorrectionCandidateRequest.Action.START_HEALING,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
           )
         )
 
       completeHealingOperation()
       val complete =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             healing.etag,
-            AdvanceCorrectionCandidateRequest.Action.COMPLETE,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
           )
         )
 
-      assertThat(complete.state).isEqualTo(CorrectionCandidate.State.STATE_NO_REPLACEMENT)
-      assertThat(complete.decision).isEqualTo(CorrectionCandidate.Decision.DECISION_NO_REPLACEMENT)
+      assertThat(complete.state)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_NO_REPLACEMENT)
+      assertThat(complete.decision)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT)
     }
 
   @Test
@@ -398,26 +425,26 @@ class SpannerCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       insertHealingOperation()
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
       val request =
         advanceRequest(
           CANDIDATE_ID,
           pending.etag,
-          AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
           operationId = OPERATION_ID,
         )
 
-      val first = service.advanceCorrectionCandidate(request)
-      val second = service.advanceCorrectionCandidate(request)
+      val first = service.advanceRawImpressionUploadCorrectionCandidate(request)
+      val second = service.advanceRawImpressionUploadCorrectionCandidate(request)
       val approved =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             first.etag,
-            AdvanceCorrectionCandidateRequest.Action.APPROVE_CORRECT,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
           )
         )
-      val delayedRetry = service.advanceCorrectionCandidate(request)
+      val delayedRetry = service.advanceRawImpressionUploadCorrectionCandidate(request)
 
       assertThat(second).isEqualTo(first)
       assertThat(delayedRetry).isEqualTo(approved)
@@ -432,22 +459,22 @@ class SpannerCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       insertHealingOperation()
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
       val assignRequest =
         advanceRequest(
           CANDIDATE_ID,
           pending.etag,
-          AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
           operationId = OPERATION_ID,
         )
-      val planned = service.advanceCorrectionCandidate(assignRequest)
+      val planned = service.advanceRawImpressionUploadCorrectionCandidate(assignRequest)
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             assignRequest.copy {
               etag = planned.etag
-              action = AdvanceCorrectionCandidateRequest.Action.REJECT
+              action = AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT
               uploadHealingOperationId = ""
             }
           )
@@ -463,22 +490,22 @@ class SpannerCorrectionCandidateServiceTest {
       insertHealingOperation()
       val first = getCandidate(CANDIDATE_IDS[0])
       val second = getCandidate(CANDIDATE_IDS[1])
-      service.advanceCorrectionCandidate(
+      service.advanceRawImpressionUploadCorrectionCandidate(
         advanceRequest(
           CANDIDATE_IDS[0],
           first.etag,
-          AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
           operationId = OPERATION_ID,
         )
       )
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             advanceRequest(
               CANDIDATE_IDS[1],
               second.etag,
-              AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
               operationId = OPERATION_ID,
             )
           )
@@ -495,15 +522,15 @@ class SpannerCorrectionCandidateServiceTest {
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             advanceRequest(
               CANDIDATE_ID,
               pending.etag,
-              AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
               operationId = OPERATION_ID,
             )
           )
@@ -521,40 +548,40 @@ class SpannerCorrectionCandidateServiceTest {
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
       insertHealingOperation()
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
       val planned =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             pending.etag,
-            AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
             operationId = OPERATION_ID,
           )
         )
       val approved =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             planned.etag,
-            AdvanceCorrectionCandidateRequest.Action.APPROVE_CORRECT,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
           )
         )
       val healing =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             approved.etag,
-            AdvanceCorrectionCandidateRequest.Action.START_HEALING,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
           )
         )
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             advanceRequest(
               CANDIDATE_ID,
               healing.etag,
-              AdvanceCorrectionCandidateRequest.Action.COMPLETE,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
             )
           )
         }
@@ -570,15 +597,15 @@ class SpannerCorrectionCandidateServiceTest {
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createCorrectionCandidate(createRequest())
+      service.createRawImpressionUploadCorrectionCandidate(createRequest())
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             advanceRequest(
               CANDIDATE_ID,
               "stale",
-              AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
               operationId = OPERATION_ID,
             )
           )
@@ -595,15 +622,15 @@ class SpannerCorrectionCandidateServiceTest {
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             advanceRequest(
               CANDIDATE_ID,
               pending.etag,
-              AdvanceCorrectionCandidateRequest.Action.START_HEALING,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
             )
           )
         }
@@ -627,25 +654,27 @@ class SpannerCorrectionCandidateServiceTest {
         doneBlobUri = SHARED_DONE_BLOB_URI,
       )
       val current =
-        service.createCorrectionCandidate(
+        service.createRawImpressionUploadCorrectionCandidate(
           createRequest(CANDIDATE_IDS[0], UPLOAD_IDS[0], CREATE_REQUEST_IDS[0])
         )
-      service.createCorrectionCandidate(
+      service.createRawImpressionUploadCorrectionCandidate(
         createRequest(CANDIDATE_IDS[1], UPLOAD_IDS[1], CREATE_REQUEST_IDS[1])
       )
 
       val superseded =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_IDS[0],
             current.etag,
-            AdvanceCorrectionCandidateRequest.Action.SUPERSEDE,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
             supersedingCandidateId = CANDIDATE_IDS[1],
           )
         )
 
-      assertThat(superseded.state).isEqualTo(CorrectionCandidate.State.STATE_SUPERSEDED)
-      assertThat(superseded.supersedingCorrectionCandidateId).isEqualTo(CANDIDATE_IDS[1])
+      assertThat(superseded.state)
+        .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED)
+      assertThat(superseded.supersedingRawImpressionUploadCorrectionCandidateId)
+        .isEqualTo(CANDIDATE_IDS[1])
     }
 
   @Test
@@ -656,11 +685,11 @@ class SpannerCorrectionCandidateServiceTest {
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             advanceRequest(
               CANDIDATE_IDS[0],
               current.etag,
-              AdvanceCorrectionCandidateRequest.Action.SUPERSEDE,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
               supersedingCandidateId = CANDIDATE_IDS[1],
             )
           )
@@ -677,23 +706,24 @@ class SpannerCorrectionCandidateServiceTest {
         UPLOAD_ID,
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      val pending = service.createCorrectionCandidate(createRequest())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
       val rejected =
-        service.advanceCorrectionCandidate(
+        service.advanceRawImpressionUploadCorrectionCandidate(
           advanceRequest(
             CANDIDATE_ID,
             pending.etag,
-            AdvanceCorrectionCandidateRequest.Action.REJECT,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT,
           )
         )
 
       val error =
         assertFailsWith<StatusRuntimeException> {
-          service.advanceCorrectionCandidate(
+          service.advanceRawImpressionUploadCorrectionCandidate(
             advanceRequest(
               CANDIDATE_ID,
               rejected.etag,
-              AdvanceCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
+                .REQUIRE_MANUAL_INTERVENTION,
             )
           )
         }
@@ -708,17 +738,17 @@ class SpannerCorrectionCandidateServiceTest {
         UPLOAD_IDS[index],
         RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
       )
-      service.createCorrectionCandidate(
+      service.createRawImpressionUploadCorrectionCandidate(
         createRequest(CANDIDATE_IDS[index], UPLOAD_IDS[index], CREATE_REQUEST_IDS[index])
       )
     }
   }
 
-  private suspend fun getCandidate(candidateId: String): CorrectionCandidate =
-    service.getCorrectionCandidate(
-      getCorrectionCandidateRequest {
+  private suspend fun getCandidate(candidateId: String): RawImpressionUploadCorrectionCandidate =
+    service.getRawImpressionUploadCorrectionCandidate(
+      getRawImpressionUploadCorrectionCandidateRequest {
         dataProviderResourceId = DATA_PROVIDER_ID
-        correctionCandidateId = candidateId
+        rawImpressionUploadCorrectionCandidateId = candidateId
       }
     )
 
@@ -726,12 +756,12 @@ class SpannerCorrectionCandidateServiceTest {
     candidateId: String = CANDIDATE_ID,
     uploadId: String = UPLOAD_ID,
     requestId: String = CREATE_REQUEST_ID,
-  ) = createCorrectionCandidateRequest {
+  ) = createRawImpressionUploadCorrectionCandidateRequest {
     dataProviderResourceId = DATA_PROVIDER_ID
-    correctionCandidateId = candidateId
-    correctionCandidate = correctionCandidate {
+    rawImpressionUploadCorrectionCandidateId = candidateId
+    rawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
       rawImpressionUploadResourceId = uploadId
-      classification = CorrectionCandidate.Classification.CLASSIFICATION_MIXED
+      classification = RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED
       priorManifestDigest = PRIOR_DIGEST
       currentManifestDigest = CURRENT_DIGEST
       expireTime = EXPIRY_TIME
@@ -742,16 +772,16 @@ class SpannerCorrectionCandidateServiceTest {
   private fun advanceRequest(
     candidateId: String,
     etag: String,
-    action: AdvanceCorrectionCandidateRequest.Action,
+    action: AdvanceRawImpressionUploadCorrectionCandidateRequest.Action,
     operationId: String = "",
     supersedingCandidateId: String = "",
-  ) = advanceCorrectionCandidateRequest {
+  ) = advanceRawImpressionUploadCorrectionCandidateRequest {
     dataProviderResourceId = DATA_PROVIDER_ID
-    correctionCandidateId = candidateId
+    rawImpressionUploadCorrectionCandidateId = candidateId
     this.etag = etag
     this.action = action
     uploadHealingOperationId = operationId
-    supersedingCorrectionCandidateId = supersedingCandidateId
+    supersedingRawImpressionUploadCorrectionCandidateId = supersedingCandidateId
     requestId = REQUEST_IDS.getValue(action)
   }
 
@@ -856,19 +886,21 @@ class SpannerCorrectionCandidateServiceTest {
       )
     private val REQUEST_IDS =
       mapOf(
-        AdvanceCorrectionCandidateRequest.Action.ASSIGN_PLAN to
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN to
           "00000000-0000-4000-8000-000000000001",
-        AdvanceCorrectionCandidateRequest.Action.APPROVE_CORRECT to
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT to
           "00000000-0000-4000-8000-000000000002",
-        AdvanceCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT to
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT to
           "00000000-0000-4000-8000-000000000003",
-        AdvanceCorrectionCandidateRequest.Action.START_HEALING to
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING to
           "00000000-0000-4000-8000-000000000004",
-        AdvanceCorrectionCandidateRequest.Action.COMPLETE to "00000000-0000-4000-8000-000000000005",
-        AdvanceCorrectionCandidateRequest.Action.REJECT to "00000000-0000-4000-8000-000000000006",
-        AdvanceCorrectionCandidateRequest.Action.SUPERSEDE to
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE to
+          "00000000-0000-4000-8000-000000000005",
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT to
+          "00000000-0000-4000-8000-000000000006",
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE to
           "00000000-0000-4000-8000-000000000007",
-        AdvanceCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION to
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION to
           "00000000-0000-4000-8000-000000000008",
       )
     private val PRIOR_DIGEST = ByteString.copyFrom(ByteArray(32) { 1 })
