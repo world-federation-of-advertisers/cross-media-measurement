@@ -491,11 +491,14 @@ abstract class MillBase(
   ) {
     val errorType = ReportTraceAttributes.errorType(error)
     val errorCode = ReportTraceAttributes.errorCode(error)
-    Span.current().setAttribute(ReportTraceAttributes.OUTCOME, outcome).also { span ->
-      if (retryable != null) {
-        span.setAttribute(ReportTraceAttributes.ERROR_RETRYABLE, retryable)
+    Span.current()
+      .setAllAttributes(reportTraceAttributes())
+      .setAttribute(ReportTraceAttributes.OUTCOME, outcome)
+      .also { span ->
+        if (retryable != null) {
+          span.setAttribute(ReportTraceAttributes.ERROR_RETRYABLE, retryable)
+        }
       }
-    }
     logReportTraceLifecycle(outcome, errorType, errorCode, retryable)
   }
 

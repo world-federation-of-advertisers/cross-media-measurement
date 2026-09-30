@@ -4553,6 +4553,72 @@ class ReportTraceTest {
   }
 
   @Test
+  fun `log-only retryable failure retains exact stage attempt`() {
+    val context = reportTraceContext()
+    val measurementName = context.measurementNames.single()
+    val computationName = "computations/computation-1"
+    val duchyId = "worker1"
+    val stageName = "EXECUTION_PHASE"
+    val stageAttempt = "3"
+    val routeResolution =
+      routeResolution(
+        context,
+        ReportTraceMeasurementRouteKind.MPC,
+        "dataProviders/direct/requisitions/requisition-1",
+        ReportTraceRequisitionRouteKind.DIRECT_EDP,
+      )
+    val failureLog =
+      ReportTraceLogEntry(
+        sourceProject = "test",
+        timestamp = NOW,
+        service = "duchy-mill",
+        severity = "WARNING",
+        trace = null,
+        message =
+          mapOf(
+              "event" to "duchy.mill.process_computation",
+              "xmm.lifecycle.stage" to "duchy_stage_attempt",
+              "xmm.outcome" to "retryable_failure",
+              "xmm.measurement.name" to measurementName,
+              "xmm.computation.name" to computationName,
+              "xmm.duchy.id" to duchyId,
+              ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+              ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+              ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
+            )
+            .entries
+            .joinToString(" ") { (name, value) -> "$name=$value" },
+      )
+    val acceptanceSpan =
+      lifecycleSpan(
+        "kingdom_computation_log_entry_acceptance",
+        mapOf(
+          "xmm.computation.name" to computationName,
+          "xmm.duchy.id" to duchyId,
+          ReportTraceAttributes.COMPUTATION_STAGE_STRING to stageName,
+          ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING to stageAttempt,
+          ReportTraceAttributes.ERROR_RETRYABLE_STRING to "true",
+        ),
+      )
+
+    val coverage =
+      ReportTraceOutput.lifecycleCoverage(
+        context,
+        routeResolution,
+        listOf(acceptanceSpan),
+        listOf(failureLog),
+      )
+
+    val exactAcceptance =
+      coverage.single {
+        it.name == "kingdom_computation_log_entry_acceptance" &&
+          it.resource ==
+            "$measurementName @ duchy $duchyId @ stage $stageName attempt $stageAttempt"
+      }
+    assertThat(exactAcceptance.status).isEqualTo("SUCCEEDED")
+  }
+
+  @Test
   fun `failed Duchy attempt without a planned Kingdom mutation does not require acceptance`() {
     val context = reportTraceContext()
     val measurementName = context.measurementNames.single()

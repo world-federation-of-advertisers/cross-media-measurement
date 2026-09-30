@@ -3427,6 +3427,8 @@ internal object ReportTraceOutput {
       "xmm.work_item.name",
       "xmm.work_item_attempt.name",
       "xmm.computation.name",
+      ReportTraceAttributes.COMPUTATION_STAGE_STRING,
+      ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING,
       "xmm.duchy.id",
       "xmm.basic_report.state",
       "xmm.report.state",
