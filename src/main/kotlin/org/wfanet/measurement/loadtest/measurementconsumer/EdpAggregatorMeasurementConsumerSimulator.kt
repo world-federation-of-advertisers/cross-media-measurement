@@ -42,6 +42,7 @@ import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.api.v2alpha.requisitionSpec
 import org.wfanet.measurement.common.OpenEndTimeRange
 import org.wfanet.measurement.common.crypto.Hashing
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.signRequisitionSpec
@@ -71,6 +72,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
   maximumResultPollingDelay: Duration = Duration.ofMinutes(1),
   listEventGroupsEntityTypes: List<String>,
   listEventGroupsDataProviders: List<String> = emptyList(),
+  kingdomApiThrottler: Throttler,
   onMeasurementsCreated: (() -> Unit)? = null,
   /**
    * Optional override that relabels each generated event before it is filtered and counted, when
@@ -95,6 +97,7 @@ class EdpAggregatorMeasurementConsumerSimulator(
     certificatesClient,
     trustedCertificates,
     expectedDirectNoiseMechanism,
+    kingdomApiThrottler,
     initialResultPollingDelay,
     maximumResultPollingDelay,
     onMeasurementsCreated = onMeasurementsCreated,

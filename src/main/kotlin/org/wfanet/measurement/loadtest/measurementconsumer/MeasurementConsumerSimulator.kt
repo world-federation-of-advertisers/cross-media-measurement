@@ -100,6 +100,7 @@ import org.wfanet.measurement.common.crypto.SigningKeyHandle
 import org.wfanet.measurement.common.crypto.authorityKeyIdentifier
 import org.wfanet.measurement.common.crypto.readCertificate
 import org.wfanet.measurement.common.identity.apiIdToExternalId
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.consent.client.measurementconsumer.decryptResult
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
@@ -152,6 +153,7 @@ abstract class MeasurementConsumerSimulator(
   private val certificatesClient: CertificatesCoroutineStub,
   private val trustedCertificates: Map<ByteString, X509Certificate>,
   private val expectedDirectNoiseMechanism: NoiseMechanism,
+  private val kingdomApiThrottler: Throttler,
   private val initialResultPollingDelay: Duration,
   private val maximumResultPollingDelay: Duration,
   private val reportName: String =
@@ -985,9 +987,11 @@ abstract class MeasurementConsumerSimulator(
     }
     val measurement: Measurement =
       try {
-        measurementsClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .createMeasurement(request)
+        kingdomApiThrottler.onReady {
+          measurementsClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .createMeasurement(request)
+        }
       } catch (e: StatusException) {
         throw Exception("Error creating Measurement", e)
       }
@@ -1055,9 +1059,11 @@ abstract class MeasurementConsumerSimulator(
   private suspend fun getMeasurement(measurementName: String): Measurement {
     val measurement: Measurement =
       try {
-        measurementsClient
-          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-          .getMeasurement(getMeasurementRequest { name = measurementName })
+        kingdomApiThrottler.onReady {
+          measurementsClient
+            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+            .getMeasurement(getMeasurementRequest { name = measurementName })
+        }
       } catch (e: StatusException) {
         throw Exception("Error fetching measurement $measurementName", e)
       }
@@ -1097,9 +1103,11 @@ abstract class MeasurementConsumerSimulator(
     val certificate =
       certificateCache.getOrPut(resultOutput.certificate) {
         try {
-          certificatesClient
-            .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-            .getCertificate(getCertificateRequest { name = resultOutput.certificate })
+          kingdomApiThrottler.onReady {
+            certificatesClient
+              .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+              .getCertificate(getCertificateRequest { name = resultOutput.certificate })
+          }
         } catch (e: StatusException) {
           throw Exception("Error fetching certificate ${resultOutput.certificate}", e)
         }
@@ -1205,9 +1213,11 @@ abstract class MeasurementConsumerSimulator(
   protected suspend fun getMeasurementConsumer(name: String): MeasurementConsumer {
     val request = getMeasurementConsumerRequest { this.name = name }
     try {
-      return measurementConsumersClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getMeasurementConsumer(request)
+      return kingdomApiThrottler.onReady {
+        measurementConsumersClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getMeasurementConsumer(request)
+      }
     } catch (e: StatusException) {
       throw Exception("Error getting MC $name", e)
     }
@@ -1334,28 +1344,31 @@ abstract class MeasurementConsumerSimulator(
 
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private fun listEventGroups(measurementConsumer: String): Flow<EventGroup> {
-    return eventGroupsClient
-      .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+    val client =
+      eventGroupsClient.withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+    return client
       .listResources { pageToken: String ->
         val response =
           try {
-            listEventGroups(
-              listEventGroupsRequest {
-                parent = measurementConsumer
-                this.pageToken = pageToken
-                pageSize = EVENT_GROUP_PAGE_SIZE
-                if (
-                  listEventGroupsEntityTypes.isNotEmpty() ||
-                    listEventGroupsDataProviders.isNotEmpty()
-                ) {
-                  filter =
-                    ListEventGroupsRequestKt.filter {
-                      entityTypeIn += listEventGroupsEntityTypes
-                      dataProviderIn += listEventGroupsDataProviders
-                    }
+            kingdomApiThrottler.onReady {
+              client.listEventGroups(
+                listEventGroupsRequest {
+                  parent = measurementConsumer
+                  this.pageToken = pageToken
+                  pageSize = EVENT_GROUP_PAGE_SIZE
+                  if (
+                    listEventGroupsEntityTypes.isNotEmpty() ||
+                      listEventGroupsDataProviders.isNotEmpty()
+                  ) {
+                    filter =
+                      ListEventGroupsRequestKt.filter {
+                        entityTypeIn += listEventGroupsEntityTypes
+                        dataProviderIn += listEventGroupsDataProviders
+                      }
+                  }
                 }
-              }
-            )
+              )
+            }
           } catch (e: StatusException) {
             throw Exception("Error listing event groups for MC $measurementConsumer", e)
           }
@@ -1372,9 +1385,11 @@ abstract class MeasurementConsumerSimulator(
   private suspend fun getDataProvider(name: String): DataProvider {
     val request = GetDataProviderRequest.newBuilder().also { it.name = name }.build()
     try {
-      return dataProvidersClient
-        .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
-        .getDataProvider(request)
+      return kingdomApiThrottler.onReady {
+        dataProvidersClient
+          .withAuthenticationKey(measurementConsumerData.apiAuthenticationKey)
+          .getDataProvider(request)
+      }
     } catch (e: StatusException) {
       throw Exception("Error fetching DataProvider $name", e)
     }

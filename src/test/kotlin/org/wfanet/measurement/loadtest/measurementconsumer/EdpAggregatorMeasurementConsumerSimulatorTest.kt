@@ -58,6 +58,7 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
       modelLineName = "modelLines/line1",
       listEventGroupsEntityTypes = emptyList(),
       listEventGroupsDataProviders = listOf(DATA_PROVIDER_NAME),
+      kingdomApiThrottler = kingdomApiThrottler,
       onMeasurementsCreated = { throw ShortCircuitException() },
     )
   }

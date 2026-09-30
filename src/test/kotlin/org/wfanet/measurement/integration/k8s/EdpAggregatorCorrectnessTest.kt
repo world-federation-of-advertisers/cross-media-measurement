@@ -64,6 +64,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withDefaultDeadline
 import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.common.testing.chainRulesSequentially
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.EventGroup.MediaType
@@ -463,6 +464,7 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
         provisionModelResources.nonMemoizedModelLine ?: TEST_CONFIG.modelLine,
         listEventGroupsEntityTypes = listOf("campaign", "creative-id"),
         listEventGroupsDataProviders = EDPA_DATA_PROVIDERS,
+        kingdomApiThrottler = MaximumRateThrottler(maxPerSecond = 5.0),
         onMeasurementsCreated = ::triggerRequisitionFetcher,
         // Compute the expected reach/frequency from the VIDs and population attributes the deployed
         // non-memoized model assigns (not the raw synthetic ones), matching the pre-staged and
