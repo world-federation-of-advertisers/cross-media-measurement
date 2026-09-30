@@ -28,6 +28,7 @@ object InternalApiServices {
     idGenerator: IdGenerator = IdGenerator.Default,
   ): Services {
     return Services(
+      SpannerDataAvailabilitySyncTaskService(databaseClient, coroutineContext),
       SpannerRequisitionMetadataService(databaseClient, coroutineContext, idGenerator),
       SpannerImpressionMetadataService(databaseClient, coroutineContext),
       SpannerRawImpressionUploadService(databaseClient, coroutineContext, idGenerator),
