@@ -127,6 +127,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
               pageSize = 100
               filter =
                 ListEventGroupsRequestKt.filter {
+                  dataProviderIn += measurementSystem.dataProviderNames
                   entityTypeIn += "campaign"
                   entityTypeIn += "creative-id"
                 }
@@ -160,7 +161,11 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
             listEventGroupsRequest {
               parent = measurementSystem.measurementConsumerName
               pageSize = 100
-              filter = ListEventGroupsRequestKt.filter { entityTypeIn += "creative-id" }
+              filter =
+                ListEventGroupsRequestKt.filter {
+                  dataProviderIn += measurementSystem.dataProviderNames
+                  entityTypeIn += "creative-id"
+                }
             }
           )
       val refIds = response.eventGroupsList.map { it.eventGroupReferenceId }.toSet()
@@ -182,6 +187,7 @@ abstract class AbstractEdpAggregatorCorrectnessTest(
     val publicEventGroupsStub: EventGroupsCoroutineStub
     val measurementConsumerName: String
     val apiAuthenticationKey: String
+    val dataProviderNames: List<String>
   }
 
   companion object {

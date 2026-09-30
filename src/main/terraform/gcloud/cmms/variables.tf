@@ -381,6 +381,12 @@ variable "data_availability_monitor_uber_jar_path" {
   type        = string
 }
 
+variable "event_group_scale_data_provider" {
+  type        = string
+  nullable    = false
+  description = "DataProvider resource name for the EventGroupSync scale test"
+}
+
 variable "data_provider_resource_ids" {
   type        = map(string)
   nullable    = false
