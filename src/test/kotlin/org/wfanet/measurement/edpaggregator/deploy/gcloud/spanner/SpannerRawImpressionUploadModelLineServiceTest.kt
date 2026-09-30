@@ -102,6 +102,27 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
     )
   }
 
+  override suspend fun setParentUploadState(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    state: RawImpressionUploadState,
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(dataProviderResourceId)
+          .set("RawImpressionUploadId")
+          .to(uploadIdsByResourceId.getValue(rawImpressionUploadResourceId))
+          .set("State")
+          .to(Value.protoEnum(state))
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+  }
+
   override suspend fun getParentUploadState(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,

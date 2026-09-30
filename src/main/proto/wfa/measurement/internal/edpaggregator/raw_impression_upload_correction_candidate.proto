@@ -1,0 +1,67 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadCorrectionCandidateProto";
+
+// A quarantined non-additive raw-upload revision.
+message RawImpressionUploadCorrectionCandidate {
+  enum Classification {
+    CLASSIFICATION_UNSPECIFIED = 0;
+    CLASSIFICATION_EDITED = 1;
+    CLASSIFICATION_REMOVED = 2;
+    CLASSIFICATION_MIXED = 3;
+  }
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_PENDING = 1;
+    STATE_PLANNED = 2;
+    STATE_APPROVED = 3;
+    STATE_HEALING = 4;
+    STATE_COMPLETE = 5;
+    STATE_NO_REPLACEMENT = 6;
+    STATE_REJECTED = 7;
+    STATE_SUPERSEDED = 8;
+    STATE_MANUAL_INTERVENTION_REQUIRED = 9;
+  }
+
+  enum Decision {
+    DECISION_UNSPECIFIED = 0;
+    DECISION_CORRECT = 1;
+    DECISION_NO_REPLACEMENT = 2;
+  }
+
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_correction_candidate_id = 2;
+  string raw_impression_upload_resource_id = 3;
+  Classification classification = 4;
+  bytes prior_manifest_digest = 5;
+  bytes current_manifest_digest = 6;
+  State state = 7;
+  Decision decision = 8;
+  string superseding_raw_impression_upload_correction_candidate_id = 9;
+  string upload_healing_operation_id = 10;
+  google.protobuf.Timestamp expire_time = 11;
+  google.protobuf.Timestamp create_time = 12;
+  google.protobuf.Timestamp update_time = 13;
+  string etag = 14;
+}

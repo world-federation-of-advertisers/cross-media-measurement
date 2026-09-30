@@ -18,21 +18,16 @@ package wfa.measurement.internal.edpaggregator;
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
-option java_outer_classname = "RawImpressionUploadStateProto";
+option java_outer_classname = "VidLabelingEvictionFenceStateProto";
 
-// Denormalized pipeline state for a RawImpressionUpload, rolled up from
-// child model line states.
-enum RawImpressionUploadState {
-  // Default, unspecified state. Should not be used.
-  RAW_IMPRESSION_UPLOAD_STATE_UNSPECIFIED = 0;
-  // The upload was created but model lines are not processing yet.
-  RAW_IMPRESSION_UPLOAD_STATE_CREATED = 1;
-  // At least one model line is still processing.
-  RAW_IMPRESSION_UPLOAD_STATE_ACTIVE = 2;
-  // All model lines completed successfully.
-  RAW_IMPRESSION_UPLOAD_STATE_COMPLETED = 3;
-  // At least one model line failed.
-  RAW_IMPRESSION_UPLOAD_STATE_FAILED = 4;
-  // The upload is quarantined pending correction approval.
-  RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED = 5;
+enum VidLabelingEvictionFenceState {
+  // No fence state has been assigned.
+  VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED = 0;
+  // A correction plan is waiting for operator approval while new work remains
+  // fenced.
+  VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING = 1;
+  // New work is fenced while previously started VID-labeling work finishes.
+  VID_LABELING_EVICTION_FENCE_STATE_DRAINING = 2;
+  // The approved correction plan is removing affected derived state and output.
+  VID_LABELING_EVICTION_FENCE_STATE_EVICTING = 3;
 }

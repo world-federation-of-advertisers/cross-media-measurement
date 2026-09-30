@@ -87,6 +87,12 @@ abstract class RawImpressionUploadModelLineServiceTest {
     processingDeferred: Boolean,
   )
 
+  protected abstract suspend fun setParentUploadState(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    state: RawImpressionUploadState,
+  )
+
   @Before
   fun initService() {
     service = newService()
@@ -1991,6 +1997,32 @@ abstract class RawImpressionUploadModelLineServiceTest {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
+
+  @Test
+  fun `createRawImpressionUploadModelLine rejects quarantined parent`() =
+    runBlocking<Unit> {
+      setParentUploadState(
+        DATA_PROVIDER_RESOURCE_ID,
+        RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+
+      val exception =
+        assertFailsWith<StatusRuntimeException> {
+          service.createRawImpressionUploadModelLine(
+            createRawImpressionUploadModelLineRequest {
+              requestId = UUID.randomUUID().toString()
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+              rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+                cmmsModelLine = CMMS_MODEL_LINE
+              }
+            }
+          )
+        }
+
+      assertThat(exception.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
 
   @Test
   fun `createRawImpressionUploadModelLine leaves a CREATED parent unchanged`() = runBlocking {
