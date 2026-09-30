@@ -674,6 +674,23 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   }
 }
 
+module "data_availability_sync_task_queue" {
+  source = "../pubsub"
+
+  topic_name            = var.data_availability_sync_task_queue.topic_name
+  subscription_name     = var.data_availability_sync_task_queue.subscription_name
+  ack_deadline_seconds  = var.data_availability_sync_task_queue.ack_deadline_seconds
+  max_delivery_attempts = var.data_availability_sync_task_queue.max_delivery_attempts
+  minimum_backoff       = var.data_availability_sync_task_queue.minimum_backoff
+  maximum_backoff       = var.data_availability_sync_task_queue.maximum_backoff
+}
+
+resource "google_pubsub_topic_iam_member" "data_availability_sync_task_publisher" {
+  topic  = module.data_availability_sync_task_queue.pubsub_topic.id
+  role   = "roles/pubsub.publisher"
+  member = module.edp_aggregator_internal.iam_service_account.member
+}
+
 resource "google_compute_address" "edp_aggregator_api_server" {
   name    = "edp-aggregator-system"
   address = var.edp_aggregator_api_server_ip_address
