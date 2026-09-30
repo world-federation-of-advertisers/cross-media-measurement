@@ -1,7 +1,7 @@
 spanner_processing_units                          = 1000
 secure_computation_storage_bucket_name            = "secure-computation-storage-qa-bucket"
 edpa_config_files_bucket_name                     = "edpa-configs-storage-qa-bucket"
-event_group_scale_data_provider                   = ""
+event_group_scale_data_provider                   = "dataProviders/d97ekA2iWks"
 vid_models_storage_bucket_name                    = "vid-models-storage-qa-bucket"
 key_ring_name                                     = "halo"
 results_fulfiller_event_proto_descriptor_blob_uri = "gs://edpa-configs-storage-qa-bucket/results_fulfiller_event_proto_descriptor.pb"
