@@ -1,0 +1,162 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadCorrectionCandidateProto";
+
+// A quarantined non-additive raw-impression upload revision.
+message RawImpressionUploadCorrectionCandidate {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploadCorrectionCandidates/{raw_impression_upload_correction_candidate}"
+    singular: "rawImpressionUploadCorrectionCandidate"
+    plural: "rawImpressionUploadCorrectionCandidates"
+  };
+
+  enum Classification {
+    CLASSIFICATION_UNSPECIFIED = 0;
+    EDITED = 1;
+    REMOVED = 2;
+    MIXED = 3;
+  }
+
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    PENDING = 1;
+    PLANNED = 2;
+    APPROVED = 3;
+    HEALING = 4;
+    COMPLETE = 5;
+    NO_REPLACEMENT = 6;
+    REJECTED = 7;
+    SUPERSEDED = 8;
+    MANUAL_INTERVENTION_REQUIRED = 9;
+  }
+
+  enum Decision {
+    DECISION_UNSPECIFIED = 0;
+    DECISION_CORRECT = 1;
+    DECISION_NO_REPLACEMENT = 2;
+  }
+
+  // One changed raw object in the candidate manifest.
+  message ManifestDifference {
+    enum Type {
+      TYPE_UNSPECIFIED = 0;
+      ADDED = 1;
+      EDITED = 2;
+      REMOVED = 3;
+    }
+
+    // Type of manifest difference.
+    Type type = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Cloud Storage URI of the raw impression object.
+    string blob_uri = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Generation in the effective prior manifest, or zero for an addition.
+    int64 prior_blob_generation = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Generation in the candidate manifest, or zero for a removal.
+    int64 current_blob_generation = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Event date in the effective prior manifest, if present.
+    google.type.Date prior_event_date = 5
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Event date in the candidate manifest, if present.
+    google.type.Date current_event_date = 6
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // RawImpressionUpload that owns the prior visible object, if present.
+    string historical_owner_raw_impression_upload = 7 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+      }
+    ];
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Quarantined RawImpressionUpload containing the complete candidate manifest.
+  string raw_impression_upload = 2 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Classification of the non-additive revision.
+  Classification classification = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // SHA-256 digest of the effective prior manifest.
+  bytes prior_manifest_digest = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // SHA-256 digest of the candidate manifest.
+  bytes current_manifest_digest = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Current candidate lifecycle state.
+  State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Operator decision, when one has been recorded.
+  Decision decision = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Newer candidate that superseded this candidate, if any.
+  string superseding_raw_impression_upload_correction_candidate = 8 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+
+  // Healing operation assigned to this candidate, if any.
+  string upload_healing_operation = 9 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+
+  // Time after which an unresolved candidate requires manual intervention.
+  google.protobuf.Timestamp expire_time = 10
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when the candidate was created.
+  google.protobuf.Timestamp create_time = 11
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when the candidate was last updated.
+  google.protobuf.Timestamp update_time = 12
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Changed objects and their historical owners; populated only by Get.
+  repeated ManifestDifference manifest_differences = 14
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}
