@@ -307,10 +307,13 @@ class TrusTeeMillTest {
     outcome: String,
     errorType: String?,
     errorCode: String?,
+    errorRetryable: Boolean?,
   ): Map<String, String> = buildMap {
     put("event", "duchy.mill.process_computation")
     put(ReportTraceAttributes.BASIC_REPORT_NAME_STRING, BASIC_REPORT_NAME)
     put(ReportTraceAttributes.COMPUTATION_NAME_STRING, "computations/$GLOBAL_ID")
+    put(ReportTraceAttributes.COMPUTATION_STAGE_STRING, Stage.COMPUTING.name)
+    put(ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING, "1")
     put(ReportTraceAttributes.DUCHY_ID_STRING, DUCHY_ID)
     put(ReportTraceAttributes.LIFECYCLE_STAGE_STRING, "duchy_stage_attempt")
     put(ReportTraceAttributes.MEASUREMENT_NAME_STRING, MEASUREMENT_NAME)
@@ -322,6 +325,9 @@ class TrusTeeMillTest {
     }
     if (errorCode != null) {
       put(ReportTraceAttributes.ERROR_CODE_STRING, errorCode)
+    }
+    if (errorRetryable != null) {
+      put(ReportTraceAttributes.ERROR_RETRYABLE_STRING, errorRetryable.toString())
     }
   }
 
@@ -494,11 +500,13 @@ class TrusTeeMillTest {
             outcome = "started",
             errorType = null,
             errorCode = null,
+            errorRetryable = null,
           ),
           expectedReportTraceLifecycleFields(
             outcome = "succeeded",
             errorType = null,
             errorCode = null,
+            errorRetryable = null,
           ),
         )
         .inOrder()
@@ -816,11 +824,19 @@ class TrusTeeMillTest {
             outcome = "started",
             errorType = null,
             errorCode = null,
+            errorRetryable = null,
           ),
           expectedReportTraceLifecycleFields(
             outcome = "failed",
             errorType = "IllegalArgumentException",
             errorCode = "grpc.UNAVAILABLE",
+            errorRetryable = null,
+          ),
+          expectedReportTraceLifecycleFields(
+            outcome = "permanent_failure",
+            errorType = "IllegalArgumentException",
+            errorCode = "grpc.UNAVAILABLE",
+            errorRetryable = false,
           ),
         )
         .inOrder()
@@ -877,6 +893,7 @@ class TrusTeeMillTest {
               outcome = "started",
               errorType = null,
               errorCode = null,
+              errorRetryable = null,
             )
           )
       } finally {

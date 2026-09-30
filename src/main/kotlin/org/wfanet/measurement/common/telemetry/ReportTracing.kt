@@ -28,6 +28,17 @@ import org.wfanet.measurement.common.Instrumentation
 
 /** Creates report-correlated spans in services outside the EDPA-specific telemetry package. */
 object ReportTracing {
+  /** Records a successful operation that is represented by a point-in-time semantic span. */
+  fun recordSuccess(spanName: String, attributes: Attributes) {
+    Instrumentation.openTelemetry
+      .getTracer("xmm-report-tracing")
+      .spanBuilder(spanName)
+      .setSpanKind(SpanKind.INTERNAL)
+      .setAllAttributes(attributes)
+      .startSpan()
+      .end()
+  }
+
   /** Records a failed operation that cannot be represented by wrapping one suspending block. */
   fun recordFailure(spanName: String, attributes: Attributes, error: Throwable) {
     val span =
