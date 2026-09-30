@@ -124,10 +124,12 @@ jobs:
                 --data-urlencode "interval.startTime=$METRICS_START_TIME" \
                 --data-urlencode "interval.endTime=$end_time" \
                 --data-urlencode "view=FULL" \
+                --data-urlencode "aggregation.alignmentPeriod=60s" \
+                --data-urlencode "aggregation.perSeriesAligner=ALIGN_DELTA" \
                 "https://monitoring.googleapis.com/v3/projects/$GOOGLE_CLOUD_PROJECT/timeSeries"
             )"
             jq -r \
-              '[.timeSeries[]? | ([.points[]?.value | ((.int64Value // .doubleValue // 0) | tonumber)] | max // 0)] | add // 0' \
+              '[.timeSeries[]?.points[]?.value | ((.int64Value // .doubleValue // 0) | tonumber)] | add // 0' \
               <<< "$response"
           }
 

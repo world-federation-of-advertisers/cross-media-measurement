@@ -103,9 +103,12 @@ class EventGroupSyncScaleTest {
         ReportingEventGroupsCoroutineStub(reportingChannel.withDefaultDeadline(RPC_DEADLINE))
       val current = listKingdomEventGroups(kingdomEventGroupsStub).map(::toStableSourceEventGroup)
       val bootstrap = buildBootstrap(current)
-      uploadAndAwaitMap(bootstrap.input, bootstrap.expectedMappedReferenceIds)
+      val bootstrapMappings =
+        uploadAndAwaitMap(bootstrap.input, bootstrap.expectedMappedReferenceIds)
       val stable = listKingdomEventGroups(kingdomEventGroupsStub)
       assertThat(stable).hasSize(TARGET_EVENT_GROUP_COUNT)
+      val stableByReferenceId = stable.associateBy(CmmsEventGroup::getEventGroupReferenceId)
+      assertMappedEventGroupResources(bootstrapMappings, stableByReferenceId)
 
       val stableSource = stable.map(::toStableSourceEventGroup)
       val selection =
@@ -115,11 +118,12 @@ class EventGroupSyncScaleTest {
           mutationCount = MUTATION_COUNT,
         )
       val mutation = buildMutation(stableSource, selection)
-      uploadAndAwaitMap(mutation.input, mutation.expectedMappedReferenceIds)
+      val mutationMappings = uploadAndAwaitMap(mutation.input, mutation.expectedMappedReferenceIds)
 
       val after = listKingdomEventGroups(kingdomEventGroupsStub)
       assertThat(after).hasSize(TARGET_EVENT_GROUP_COUNT)
       val afterByReferenceId = after.associateBy(CmmsEventGroup::getEventGroupReferenceId)
+      assertMappedEventGroupResources(mutationMappings, afterByReferenceId)
       assertThat(afterByReferenceId.keys)
         .containsExactlyElementsIn(mutation.expectedActiveReferenceIds)
       assertThat(afterByReferenceId.keys).containsNoneIn(selection.deletedReferenceIds)
@@ -134,7 +138,6 @@ class EventGroupSyncScaleTest {
             .campaignName != mutationCampaignName(seed)
         }
       assertThat(incorrectlyUpdatedReferenceIds).isEmpty()
-      val stableByReferenceId = stable.associateBy(CmmsEventGroup::getEventGroupReferenceId)
       val changedOmittedReferenceIds =
         selection.omittedReferenceIds.filter { referenceId ->
           val after = afterByReferenceId.getValue(referenceId)
@@ -342,7 +345,7 @@ class EventGroupSyncScaleTest {
   private suspend fun uploadAndAwaitMap(
     input: List<SourceEventGroup>,
     expectedMappedReferenceIds: Set<String>,
-  ) {
+  ): List<MappedEventGroup> {
     val previousGeneration = storage.get(bucket, mapBlobKey)?.generation
     val json = JsonFormat.printer().print(sourceEventGroups { eventGroups += input })
     storage.create(
@@ -355,10 +358,11 @@ class EventGroupSyncScaleTest {
       "Uploaded ${input.size} EventGroups to gs://$bucket/$inputBlobKey; waiting for sync"
     )
 
-    withTimeout(SYNC_TIMEOUT) {
+    return withTimeout(SYNC_TIMEOUT) {
       var lastObservedGeneration: Long? = null
       var lastObservedCount: Int? = null
-      while (true) {
+      var completedMappings: List<MappedEventGroup>? = null
+      while (completedMappings == null) {
         val blob = storage.get(bucket, mapBlobKey)
         if (blob != null && blob.size > 0 && blob.generation != previousGeneration) {
           val mapped = readMappedEventGroups()
@@ -371,7 +375,8 @@ class EventGroupSyncScaleTest {
             logger.info(
               "EventGroupSync produced ${mapped.size} mappings in generation ${blob.generation}"
             )
-            break
+            completedMappings = mapped
+            continue
           }
           if (blob.generation != lastObservedGeneration || mapped.size != lastObservedCount) {
             logger.info(
@@ -384,6 +389,17 @@ class EventGroupSyncScaleTest {
         }
         delay(SYNC_POLL_INTERVAL)
       }
+      checkNotNull(completedMappings)
+    }
+  }
+
+  private fun assertMappedEventGroupResources(
+    mappings: List<MappedEventGroup>,
+    eventGroupsByReferenceId: Map<String, CmmsEventGroup>,
+  ) {
+    for (mapping in mappings) {
+      assertThat(mapping.eventGroupResource)
+        .isEqualTo(eventGroupsByReferenceId.getValue(mapping.eventGroupReferenceId).name)
     }
   }
 
