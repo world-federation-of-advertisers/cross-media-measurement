@@ -356,23 +356,24 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
                 .asRuntimeException()
           if (
             operation.state !=
-              UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS
+              UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
           ) {
             throw Status.FAILED_PRECONDITION.withDescription(
                 "The assigned upload-healing operation is not active"
               )
               .asRuntimeException()
           }
+          if (
+            current.rawImpressionUploadCorrectionCandidateId !in
+              operation.rawImpressionUploadCorrectionCandidateIdsList
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "The upload-healing operation does not contain this correction candidate"
+              )
+              .asRuntimeException()
+          }
           state = RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED
           uploadHealingOperationId = request.uploadHealingOperationId
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT -> {
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT -> {
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
         }
         AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING -> {
           state = RawImpressionUploadCorrectionCandidate.State.STATE_HEALING
@@ -521,8 +522,6 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
         if (request.uploadHealingOperationId.isNotEmpty())
           invalid("upload_healing_operation_id must be empty")
       }
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT,
       AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
       AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
       AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT,
@@ -549,14 +548,7 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
           AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
           AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
         )
-      RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED ->
-        setOf(
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-        )
+      RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED -> emptySet()
       RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED ->
         setOf(
           AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,

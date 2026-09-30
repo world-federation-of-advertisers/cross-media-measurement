@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.edpaggregator.AdvanceRawImpressionUploadC
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadCorrectionCandidateRequest
@@ -381,22 +382,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
             operationId = OPERATION_ID,
           )
         )
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            planned.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
-          )
-        )
-      val healing =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            approved.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
-          )
-        )
+      setCandidateHealing(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+      val healing = getCandidate(CANDIDATE_ID)
       completeHealingOperation()
       val complete =
         service.advanceRawImpressionUploadCorrectionCandidate(
@@ -408,8 +395,6 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         )
 
       assertThat(planned.uploadHealingOperationId).isEqualTo(OPERATION_ID)
-      assertThat(approved.decision)
-        .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
       assertThat(complete.state)
         .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
     }
@@ -433,22 +418,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
             operationId = OPERATION_ID,
           )
         )
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            planned.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT,
-          )
-        )
-      val healing =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            approved.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
-          )
-        )
+      setCandidateHealing(RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT)
+      val healing = getCandidate(CANDIDATE_ID)
 
       completeHealingOperation()
       val complete =
@@ -486,18 +457,12 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
 
       val first = service.advanceRawImpressionUploadCorrectionCandidate(request)
       val second = service.advanceRawImpressionUploadCorrectionCandidate(request)
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            first.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
-          )
-        )
+      setCandidateHealing(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+      val healing = getCandidate(CANDIDATE_ID)
       val delayedRetry = service.advanceRawImpressionUploadCorrectionCandidate(request)
 
       assertThat(second).isEqualTo(first)
-      assertThat(delayedRetry).isEqualTo(approved)
+      assertThat(delayedRetry).isEqualTo(healing)
     }
 
   @Test
@@ -590,6 +555,66 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
+  fun `planned candidate cannot be mutated outside its plan`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      insertHealingOperation()
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
+      val planned =
+        service.advanceRawImpressionUploadCorrectionCandidate(
+          advanceRequest(
+            CANDIDATE_ID,
+            pending.etag,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+            operationId = OPERATION_ID,
+          )
+        )
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.advanceRawImpressionUploadCorrectionCandidate(
+            advanceRequest(
+              CANDIDATE_ID,
+              planned.etag,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT,
+            )
+          )
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
+  fun `assign plan rejects operation without candidate membership`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      insertHealingOperation(candidateIds = emptyList())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.advanceRawImpressionUploadCorrectionCandidate(
+            advanceRequest(
+              CANDIDATE_ID,
+              pending.etag,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+              operationId = OPERATION_ID,
+            )
+          )
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
   fun `complete rejects active healing operation`() =
     runBlocking<Unit> {
       insertRawUpload(
@@ -608,22 +633,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
             operationId = OPERATION_ID,
           )
         )
-      val approved =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            planned.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
-          )
-        )
-      val healing =
-        service.advanceRawImpressionUploadCorrectionCandidate(
-          advanceRequest(
-            CANDIDATE_ID,
-            approved.etag,
-            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
-          )
-        )
+      setCandidateHealing(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+      val healing = getCandidate(CANDIDATE_ID)
 
       val error =
         assertFailsWith<StatusRuntimeException> {
@@ -802,6 +813,27 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       }
     )
 
+  private suspend fun setCandidateHealing(
+    decision: RawImpressionUploadCorrectionCandidate.Decision
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_ID)
+          .set("State")
+          .to(Value.protoEnum(RawImpressionUploadCorrectionCandidate.State.STATE_HEALING))
+          .set("Decision")
+          .to(Value.protoEnum(decision))
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+  }
+
   private fun createRequest(
     candidateId: String = CANDIDATE_ID,
     uploadId: String = UPLOAD_ID,
@@ -871,7 +903,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     spannerDatabase.databaseClient.write(listOf(mutation.build()))
   }
 
-  private suspend fun insertHealingOperation() {
+  private suspend fun insertHealingOperation(candidateIds: List<String> = CANDIDATE_IDS) {
     spannerDatabase.databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("UploadHealingOperation")
@@ -881,12 +913,23 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           .to(OPERATION_ID)
           .set("CreateRequestId")
           .to(HEALING_CREATE_REQUEST_ID)
+          .set("State")
+          .to(
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED.number
+              .toLong()
+          )
           .set("Reason")
           .to("correction")
           .set("LabeledImpressionsBlobPrefix")
           .to("gs://bucket/labeled")
           .set("BadRawImpressionUploadResourceIds")
           .toStringArray(listOf(UPLOAD_ID))
+          .set("RawImpressionUploadCorrectionCandidateIds")
+          .toStringArray(candidateIds)
+          .set("MutationRequestIds")
+          .toStringArray(emptyList())
+          .set("MutationRequestFingerprints")
+          .toBytesArray(emptyList())
           .set("CutoffTime")
           .to(Timestamp.ofTimeSecondsAndNanos(1L, 0))
           .set("CreateTime")
@@ -906,6 +949,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           .to(DATA_PROVIDER_ID)
           .set("UploadHealingOperationId")
           .to(OPERATION_ID)
+          .set("State")
+          .to(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE.number.toLong())
           .set("CompleteTime")
           .to(Value.COMMIT_TIMESTAMP)
           .set("UpdateTime")
@@ -940,10 +985,6 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
       mapOf(
         AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN to
           "00000000-0000-4000-8000-000000000001",
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT to
-          "00000000-0000-4000-8000-000000000002",
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT to
-          "00000000-0000-4000-8000-000000000003",
         AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING to
           "00000000-0000-4000-8000-000000000004",
         AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE to

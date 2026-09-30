@@ -28,6 +28,7 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
@@ -39,6 +40,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep as InternalStep
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
 
@@ -85,6 +87,8 @@ class UploadHealingOperationServiceTest {
                 RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
               recoveryPredecessorRawImpressionUpload = PREDECESSOR
               recoveryTarget = true
+              rawImpressionUploadCorrectionCandidate =
+                "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/$CANDIDATE_ID"
             }
           }
         }
@@ -98,6 +102,14 @@ class UploadHealingOperationServiceTest {
         captured!!.uploadHealingOperation.stepsList.single().sourceRawImpressionUploadResourceId
       )
       .isEqualTo("upload")
+    assertThat(
+        captured!!
+          .uploadHealingOperation
+          .stepsList
+          .single()
+          .rawImpressionUploadCorrectionCandidateId
+      )
+      .isEqualTo(CANDIDATE_ID)
     assertThat(result.name).isEqualTo("$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID")
     assertThat(result.stepsList.single().rawImpressionUploadModelLine).isEqualTo(MODEL_LINE_ROW)
     Unit
@@ -153,6 +165,67 @@ class UploadHealingOperationServiceTest {
       )
     assertThat(result.stepsList.single().recoveryAction)
       .isEqualTo(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+  }
+
+  @Test
+  fun `get exposes every operation state and associated candidates`() = runBlocking {
+    val expectedStates =
+      mapOf(
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED to
+          UploadHealingOperation.State.APPROVAL_REQUIRED,
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED to
+          UploadHealingOperation.State.APPROVED,
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING to
+          UploadHealingOperation.State.DRAINING,
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING to
+          UploadHealingOperation.State.EVICTING,
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING to
+          UploadHealingOperation.State.REPLAYING,
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING to
+          UploadHealingOperation.State.RECOVERING,
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION to
+          UploadHealingOperation.State.NEEDS_ATTENTION,
+        InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE to
+          UploadHealingOperation.State.COMPLETE,
+      )
+    org.mockito.kotlin
+      .whenever(internalService.getUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        val state =
+          invocation
+            .getArgument<
+              org.wfanet.measurement.internal.edpaggregator.GetUploadHealingOperationRequest
+            >(
+              0
+            )
+            .uploadHealingOperationId
+        INTERNAL_OPERATION.copy {
+          this.state = InternalOperation.State.valueOf(state)
+          if (
+            this.state == InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+          ) {
+            resumeState = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING
+          }
+          rawImpressionUploadCorrectionCandidateIds += CANDIDATE_ID
+        }
+      }
+    val service = newService()
+
+    for ((internalState, publicState) in expectedStates) {
+      val operation =
+        service.getUploadHealingOperation(
+          getUploadHealingOperationRequest {
+            name = "$DATA_PROVIDER/uploadHealingOperations/${internalState.name}"
+          }
+        )
+
+      assertThat(operation.state).isEqualTo(publicState)
+      assertThat(operation.rawImpressionUploadCorrectionCandidatesList)
+        .containsExactly("$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/$CANDIDATE_ID")
+      if (publicState == UploadHealingOperation.State.NEEDS_ATTENTION) {
+        assertThat(operation.resumeState).isEqualTo(UploadHealingOperation.State.RECOVERING)
+      }
+    }
   }
 
   @Test
@@ -305,10 +378,11 @@ class UploadHealingOperationServiceTest {
     private const val CMMS_MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private const val OPERATION_ID = "11111111-1111-4111-8111-111111111111"
     private const val REQUEST_ID = "22222222-2222-4222-8222-222222222222"
+    private const val CANDIDATE_ID = "33333333-3333-4333-8333-333333333333"
     private val INTERNAL_OPERATION: InternalOperation = internalOperation {
       dataProviderResourceId = "dp"
       uploadHealingOperationId = OPERATION_ID
-      state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS
+      state = InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
       reason = "bad data"
       labeledImpressionsBlobPrefix = "gs://output/vid"
       badRawImpressionUploadResourceIds += "upload"

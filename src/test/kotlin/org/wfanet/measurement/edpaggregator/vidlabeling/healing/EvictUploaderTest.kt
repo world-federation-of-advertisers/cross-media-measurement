@@ -46,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -833,6 +834,13 @@ class EvictUploaderTest {
             createTime = T2.toProtoTime()
             doneBlobUri = "gs://raw/done"
             replacesRawImpressionUpload = uploadName("up1")
+          }
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up3")
+            createTime = T3.toProtoTime()
+            doneBlobUri = "gs://raw/done"
+            replacesRawImpressionUpload = uploadName("up2")
+            state = RawImpressionUpload.State.CORRECTION_REQUIRED
           }
         }
       )

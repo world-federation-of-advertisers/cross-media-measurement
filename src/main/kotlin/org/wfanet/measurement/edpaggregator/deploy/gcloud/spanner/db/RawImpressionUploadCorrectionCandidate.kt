@@ -297,6 +297,51 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadCorrectionCa
   }
 }
 
+/** Associates a correction candidate with a persisted healing plan. */
+fun AsyncDatabaseClient.TransactionContext.assignRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate,
+  uploadHealingOperationId: String,
+  state: RawImpressionUploadCorrectionCandidate.State,
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("UploadHealingOperationId").to(uploadHealingOperationId)
+    set("State").to(state)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Records the operator decision for a correction candidate. */
+fun AsyncDatabaseClient.TransactionContext.approveRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate,
+  decision: RawImpressionUploadCorrectionCandidate.Decision,
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED)
+    set("Decision").to(decision)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Removes a correction candidate from a mutable healing plan. */
+fun AsyncDatabaseClient.TransactionContext.unassignRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("UploadHealingOperationId").to(null as String?)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
 private fun buildRawImpressionUploadCorrectionCandidateResult(
   row: Struct
 ): RawImpressionUploadCorrectionCandidateResult {

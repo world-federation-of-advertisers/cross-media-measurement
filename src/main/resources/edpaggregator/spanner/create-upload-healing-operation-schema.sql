@@ -23,9 +23,14 @@ CREATE TABLE UploadHealingOperation (
   DataProviderResourceId STRING(63) NOT NULL,
   UploadHealingOperationId STRING(36) NOT NULL,
   CreateRequestId STRING(36) NOT NULL,
+  State INT64 NOT NULL,
+  ResumeState INT64,
   Reason STRING(MAX) NOT NULL,
   LabeledImpressionsBlobPrefix STRING(MAX) NOT NULL,
   BadRawImpressionUploadResourceIds ARRAY<STRING(63)> NOT NULL,
+  RawImpressionUploadCorrectionCandidateIds ARRAY<STRING(36)> NOT NULL,
+  MutationRequestIds ARRAY<STRING(36)> NOT NULL,
+  MutationRequestFingerprints ARRAY<BYTES(MAX)> NOT NULL,
   CutoffTime TIMESTAMP NOT NULL,
   CompleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
@@ -34,6 +39,14 @@ CREATE TABLE UploadHealingOperation (
 
 CREATE UNIQUE INDEX UploadHealingOperationByCreateRequestId
   ON UploadHealingOperation(DataProviderResourceId, CreateRequestId);
+
+CREATE INDEX UploadHealingOperationByStateAndCreateTime
+  ON UploadHealingOperation(
+    DataProviderResourceId,
+    State,
+    CreateTime,
+    UploadHealingOperationId
+  );
 
 CREATE TABLE UploadHealingStep (
   DataProviderResourceId STRING(63) NOT NULL,
@@ -47,6 +60,7 @@ CREATE TABLE UploadHealingStep (
   RecoveryAction `wfa.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction` NOT NULL,
   RecoveryPredecessorRawImpressionUploadResourceId STRING(63),
   RecoveryTarget BOOL NOT NULL,
+  RawImpressionUploadCorrectionCandidateId STRING(36),
   EvictionCompleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
   RecoveryStartTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
   RecoveryDoneBlobGeneration INT64,

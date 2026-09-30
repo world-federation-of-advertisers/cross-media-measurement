@@ -466,7 +466,7 @@ class UploadHealingWorkflowTest {
       operation =
         request.uploadHealingOperation.copy {
           name = operationName
-          state = UploadHealingOperation.State.IN_PROGRESS
+          state = UploadHealingOperation.State.EVICTING
           steps.clear()
           steps +=
             request.uploadHealingOperation.stepsList.mapIndexed { index, step ->
