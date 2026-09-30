@@ -26,9 +26,18 @@ option java_outer_classname = "UploadHealingOperationProto";
 // Internal representation of a durable upload-healing workflow.
 message UploadHealingOperation {
   enum State {
+    reserved 1;
+    reserved "UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS";
+
     UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED = 0;
-    UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS = 1;
     UPLOAD_HEALING_OPERATION_STATE_COMPLETE = 2;
+    UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED = 3;
+    UPLOAD_HEALING_OPERATION_STATE_APPROVED = 4;
+    UPLOAD_HEALING_OPERATION_STATE_DRAINING = 5;
+    UPLOAD_HEALING_OPERATION_STATE_EVICTING = 6;
+    UPLOAD_HEALING_OPERATION_STATE_REPLAYING = 7;
+    UPLOAD_HEALING_OPERATION_STATE_RECOVERING = 8;
+    UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION = 9;
   }
 
   string data_provider_resource_id = 1;
@@ -42,6 +51,8 @@ message UploadHealingOperation {
   google.protobuf.Timestamp create_time = 9;
   google.protobuf.Timestamp update_time = 10;
   string etag = 11;
+  repeated string raw_impression_upload_correction_candidate_ids = 12;
+  State resume_state = 13;
 }
 
 // Internal representation of one ordered workflow checkpoint.
@@ -71,4 +82,5 @@ message UploadHealingStep {
   google.protobuf.Timestamp update_time = 15;
   string etag = 16;
   int64 recovery_done_blob_generation = 17;
+  string raw_impression_upload_correction_candidate_id = 18;
 }
