@@ -74,6 +74,20 @@ jobs:
         run: |
           echo "METRICS_START_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
+      - name: Load scale test configuration
+        run: |
+          TFVARS="src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars"
+          event_group_scale_data_provider="$(
+            grep -E '^event_group_scale_data_provider ' "$TFVARS" |
+              head -1 |
+              cut -d'"' -f2
+          )"
+          if [[ -z "$event_group_scale_data_provider" ]]; then
+            echo "event_group_scale_data_provider is not configured in $TFVARS" >&2
+            exit 1
+          fi
+          echo "EVENT_GROUP_SCALE_DATA_PROVIDER=$event_group_scale_data_provider" >> "$GITHUB_ENV"
+
       - name: Run scale test
         id: run-test
         env:
@@ -84,13 +98,8 @@ jobs:
           MC_NAME: ${{ vars.MC_NAME }}
           MC_API_KEY: ${{ secrets.MC_API_KEY }}
           STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          EVENT_GROUP_SCALE_DATA_PROVIDER: ${{ vars.EVENT_GROUP_SCALE_DATA_PROVIDER }}
           EVENT_GROUP_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
         run: |
-          if [[ -z "$EVENT_GROUP_SCALE_DATA_PROVIDER" ]]; then
-            echo "EVENT_GROUP_SCALE_DATA_PROVIDER is not configured for ${{ inputs.environment }}" >&2
-            exit 1
-          fi
           bazel test \
             --config=ci \
             --test_output=streamed \
@@ -111,7 +120,6 @@ jobs:
         env:
           ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
           GOOGLE_CLOUD_PROJECT: halo-cmm-${{ inputs.environment }}
-          EVENT_GROUP_SCALE_DATA_PROVIDER: ${{ vars.EVENT_GROUP_SCALE_DATA_PROVIDER }}
         run: |
           metric_total() {
             local metric_type="$1"
