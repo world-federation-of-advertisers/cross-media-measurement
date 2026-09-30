@@ -180,6 +180,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       }
     val dataProviderName = DataProviderKey(taskKey.dataProviderId).toName()
     val config = runtimeConfigs.configsList.single { it.dataProvider == dataProviderName }
+    require(config.vidLabelingOutputPath.isNotEmpty()) {
+      "vid_labeling_output_path is required for task notifications"
+    }
     val grpcChannels = getOrCreateSharedChannels(config)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedCmmsChannel =
@@ -237,7 +240,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           verifyTaskDoneObject(running, config)
           val outcome =
             runBlocking(Context.current().asContextElement()) {
-              buildDataAvailabilitySync(config)
+              buildDataAvailabilitySync(config, config.vidLabelingOutputPath)
                 .sync(
                   task.doneBlobUri,
                   task.doneBlobGeneration,
@@ -333,13 +336,14 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   }
 
   private fun buildDataAvailabilitySync(
-    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig,
+    edpImpressionPath: String = dataAvailabilitySyncConfig.edpImpressionPath,
   ): DataAvailabilitySync {
     val storageClient = createStorageClient(dataAvailabilitySyncConfig)
     val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     return DataAvailabilitySync(
-      dataAvailabilitySyncConfig.edpImpressionPath,
+      edpImpressionPath,
       storageClient,
       DataProvidersCoroutineStub(
         ClientInterceptors.intercept(grpcChannels.cmmsChannel, grpcTelemetry.newClientInterceptor())
@@ -354,6 +358,13 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       globalThrottler,
       impressionMetadataBatchSize = impressionMetadataBatchSize,
       errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
+      availabilityInputPaths =
+        listOf(
+            dataAvailabilitySyncConfig.edpImpressionPath,
+            dataAvailabilitySyncConfig.vidLabelingOutputPath,
+          )
+          .filter(String::isNotEmpty)
+          .distinct(),
       modelLineMap =
         dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
     )

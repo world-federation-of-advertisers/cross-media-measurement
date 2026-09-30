@@ -214,7 +214,7 @@ class VidLabelingDispatcherFunctionTest {
     grpcServer.shutdown()
   }
 
-  private fun startFunction(): Int {
+  private fun startFunction(dispatchEnabled: Boolean = true): Int {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     val runtimeConfig = vidLabelingConfigs { configs += fileSystemVidLabelingConfig() }
@@ -242,6 +242,7 @@ class VidLabelingDispatcherFunctionTest {
           "VID_LABELING_METADATA_WRITE_RPC_MIN_INTERVAL" to "1ms",
           "VID_LABELING_CONTROL_PLANE_RPC_MIN_INTERVAL" to "1ms",
           "VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "VID_LABELING_DISPATCH_ENABLED" to dispatchEnabled.toString(),
           "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
           "CONFIG_BLOB_KEY" to "config.textproto",
           "OTEL_METRICS_EXPORTER" to "none",
@@ -251,6 +252,21 @@ class VidLabelingDispatcherFunctionTest {
         )
       )
     }
+  }
+
+  @Test
+  fun `upload is unavailable when dispatch is disabled`() {
+    val port = startFunction(dispatchEnabled = false)
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .POST(HttpRequest.BodyPublishers.noBody())
+        .build()
+
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(503)
+    verifyBlocking(rawImpressionUploadServiceMock, never()) { createRawImpressionUpload(any()) }
   }
 
   @Test

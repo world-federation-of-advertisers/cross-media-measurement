@@ -241,9 +241,10 @@ resource "google_storage_bucket_object" "upload_event_group_sync_config" {
 }
 
 resource "google_storage_bucket_object" "upload_data_availability_sync_config" {
-  name   = var.data_availability_sync_config.destination
-  bucket = module.config_files_bucket.storage_bucket.name
-  source = var.data_availability_sync_config.local_path
+  name           = var.data_availability_sync_config.destination
+  bucket         = module.config_files_bucket.storage_bucket.name
+  source         = var.data_availability_sync_config.local_path
+  source_md5hash = filemd5(var.data_availability_sync_config.local_path)
 }
 
 resource "google_storage_bucket_object" "upload_results_fulfiller_proto_descriptors" {
@@ -386,7 +387,10 @@ module "event_group_sync_cloud_function" {
 module "data_availability_sync_cloud_function" {
   source = "../http-cloud-function"
 
-  depends_on = [module.secrets]
+  depends_on = [
+    module.secrets,
+    google_storage_bucket_object.upload_data_availability_sync_config,
+  ]
 
   http_cloud_function_service_account_name = var.data_availability_sync_service_account_name
   terraform_service_account                = var.terraform_service_account
@@ -396,6 +400,7 @@ module "data_availability_sync_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
   secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.data_availability_sync_config.local_path
 }
 
 module "data_availability_cleanup_cloud_function" {
@@ -929,10 +934,17 @@ module "vid_labeling_dispatcher_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.vid_labeling_dispatcher.function_name
   entry_point                              = var.cloud_function_configs.vid_labeling_dispatcher.entry_point
-  extra_env_vars                           = var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars
+  extra_env_vars = join(
+    ",",
+    compact([
+      var.cloud_function_configs.vid_labeling_dispatcher.extra_env_vars,
+      "VID_LABELING_DISPATCH_ENABLED=${var.vid_labeling_dispatch_enabled}",
+    ]),
+  )
   secret_mappings                          = var.cloud_function_configs.vid_labeling_dispatcher.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_dispatcher.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.vid_labeling_dispatcher_config.local_path
 
   # The dispatcher and monitor authenticate to Kingdom as the same EDP. One instance of each
   # limits their combined worst-case rate to 4 QPS, below the dedicated 5-QPS VID Repository method
@@ -982,10 +994,17 @@ module "vid_labeling_monitor_cloud_function" {
   terraform_service_account                = var.terraform_service_account
   function_name                            = var.cloud_function_configs.vid_labeling_monitor.function_name
   entry_point                              = var.cloud_function_configs.vid_labeling_monitor.entry_point
-  extra_env_vars                           = var.cloud_function_configs.vid_labeling_monitor.extra_env_vars
+  extra_env_vars = join(
+    ",",
+    compact([
+      var.cloud_function_configs.vid_labeling_monitor.extra_env_vars,
+      "VID_LABELING_DISPATCH_ENABLED=${var.vid_labeling_dispatch_enabled}",
+    ]),
+  )
   secret_mappings                          = var.cloud_function_configs.vid_labeling_monitor.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
+  config_path                              = var.vid_labeling_monitor_config.local_path
 
   # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
   # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
@@ -1010,7 +1029,7 @@ module "vid_labeling_dispatch_cloud_scheduler" {
   # This job invokes the same function in dispatch mode and needs the same response headroom.
   scheduler_config = merge(
     var.vid_labeling_dispatch_scheduler_config,
-    { attempt_deadline = "660s" },
+    { attempt_deadline = "660s", paused = !var.vid_labeling_dispatch_enabled },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }

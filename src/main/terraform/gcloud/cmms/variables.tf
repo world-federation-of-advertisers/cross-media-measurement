@@ -188,6 +188,12 @@ variable "requisition_fetcher_enabled" {
   default     = true
 }
 
+variable "vid_labeling_dispatch_enabled" {
+  description = "Whether VID labeling dispatch entry points may create WorkItems."
+  type        = bool
+  default     = true
+}
+
 variable "data_watcher_env_var" {
   description = "DataWatcher extra env variables"
   type        = string

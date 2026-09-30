@@ -85,6 +85,19 @@ class DataWatcher(
     path: String,
     objectMetadata: Map<String, String>,
   ) {
+    val sourcePathPrefix = config.sourcePathPrefix.trimEnd('/')
+    if (
+      sourcePathPrefix.isNotEmpty() &&
+        path != sourcePathPrefix &&
+        !path.startsWith("$sourcePathPrefix/")
+    ) {
+      logger.log(
+        Level.FINE,
+        "Configuration ${config.identifier} did not match path namespace: path=$path, " +
+          "prefix=${config.sourcePathPrefix}",
+      )
+      return
+    }
     val regex = config.sourcePathRegex.toRegex()
     if (!regex.matches(path)) {
       logger.log(
@@ -111,7 +124,9 @@ class DataWatcher(
       onProcessingCompleted(config, path, processingDurationSeconds)
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
-      val isRetryable = e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES
+      val isRetryable =
+        e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
+          (e is HttpEndpointException && (e.statusCode == 429 || e.statusCode >= 500))
       onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
@@ -284,8 +299,11 @@ class DataWatcher(
         .build()
     val response = client.send(request, BodyHandlers.ofString())
     val statusCode = response.statusCode()
-    check(statusCode == 200) {
-      "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode"
+    if (statusCode != 200) {
+      throw HttpEndpointException(
+        statusCode,
+        "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode",
+      )
     }
     onHttpDispatch(config, path, statusCode)
   }
@@ -439,4 +457,7 @@ class DataWatcher(
     private const val EVENT_QUEUE_WRITE = "edpa.data_watcher.queue_write"
     private const val EVENT_HTTP_ENDPOINT_DISPATCH = "edpa.data_watcher.http_dispatch_completed"
   }
+
+  private class HttpEndpointException(val statusCode: Int, message: String) :
+    IllegalStateException(message)
 }

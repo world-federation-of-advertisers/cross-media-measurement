@@ -18,6 +18,12 @@ variable "tee_consumers_enabled" {
   default     = true
 }
 
+variable "vid_labeling_dispatch_enabled" {
+  description = "Whether VID labeling dispatch entry points may create WorkItems."
+  type        = bool
+  default     = true
+}
+
 variable "vid_labeling_trace_operator_member" {
   description = "IAM member for the read-only VID-labeling trace operator."
   type        = string

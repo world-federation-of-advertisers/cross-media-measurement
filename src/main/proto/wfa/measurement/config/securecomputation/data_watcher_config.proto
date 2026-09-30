@@ -53,6 +53,9 @@ message WatchedPath {
     // The sink used to send events to a web hook.
     HttpEndpointSink http_endpoint_sink = 4;
   }
+
+  // Optional storage namespace boundary applied before source_path_regex.
+  string source_path_prefix = 5 [(google.api.field_behavior) = OPTIONAL];
 }
 
 // The DataWatcher configuration

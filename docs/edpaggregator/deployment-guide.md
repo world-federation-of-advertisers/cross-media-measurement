@@ -743,9 +743,9 @@ as a `.textproto`.
 ### DataWatcher config (`DataWatcherConfig`)
 
 Proto: `wfa/measurement/config/securecomputation/data_watcher_config.proto`.
-A list of `watched_paths`; each has an `identifier`, a `source_path_regex`, and
-exactly one sink — either an `http_endpoint_sink` (JSON `app_params`) or a
-`control_plane_queue_sink` (typed `Any` `app_params`).
+A list of `watched_paths`; each has an `identifier`, a `source_path_regex`, an optional
+`source_path_prefix` namespace guard, and exactly one sink — either an `http_endpoint_sink` (JSON
+`app_params`) or a `control_plane_queue_sink` (typed `Any` `app_params`).
 
 ```textproto
 # proto-file: wfa/measurement/config/securecomputation/data_watcher_config.proto
@@ -774,7 +774,8 @@ watched_paths {
 # 2) Data availability -> DataAvailabilitySync (HTTP), fires on the `done` marker
 watched_paths {
   identifier: "data-availability"
-  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/.+/done$"
+  source_path_prefix: "gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/vid-labeled-impressions"
+  source_path_regex: "^gs://EDPA_STORAGE_BUCKET/edp/<edp-id>/vid-labeled-impressions/.+/done$"
   http_endpoint_sink {
     endpoint_uri: "https://REGION-PROJECT_ID.cloudfunctions.net/data-availability-sync"
     app_params {
@@ -996,11 +997,29 @@ configs {
   data_availability_storage { gcs { project_id: "PROJECT_ID" bucket_name: "EDPA_STORAGE_BUCKET" } }
   cmms_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   impression_metadata_storage_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
-  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
+  edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"
+  vid_labeling_output_path: "edp/<edp-id>/internal-vid-labeled-impressions"
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
   # error_if_gaps_exist: false   # optional
 }
 ```
+
+Set the matching `VidLabelingConfig.vid_labeling_output_path` and enable
+`data_availability_sync_tasks_enabled` to route newly dispatched labeling work through durable
+tasks. Keep `VidLabelingConfig.edp_impression_path` and the DataWatcher rule on the external path so
+pre-cutover WorkItems and external EDP uploads continue through DataWatcher. The update workflow
+rejects overlapping paths, mismatched internal paths or buckets, and a DataWatcher rule that can
+match the internal path.
+
+For the cutover, first deploy the task-capable binaries with
+`data_availability_sync_tasks_enabled` unset. Then configure matching internal paths in the
+VidLabeling and DataAvailabilitySync configs, narrow DataWatcher to the external path, and enable
+task creation in both VidLabeling dispatcher and monitor configs in one Update CMMS run. WorkItems
+created before the cutover retain the disabled flag and finish under the external path; newly
+created WorkItems use the internal path and durable tasks. Keep health monitoring configured for
+both paths until all pre-cutover WorkItems have completed. The workflow pauses both dispatch entry
+points and the TEE consumers, waits for active dispatch calls to finish, installs the coordinated
+configuration, and then resumes dispatch and consumption.
 
 ### DataAvailabilityMonitor config (`DataAvailabilityMonitorConfigs`)
 
@@ -1410,7 +1429,8 @@ data-availability → ResultsFulfiller → result returned to the CMMS.
    `ImpressionTestDataConfig` textproto passed via `--config-file`
    (`eventGroupReferenceId`, `populationSpecResourcePath`, `dataSpecResourcePath`).
    `--create-done-blobs` writes the `done` marker in each date directory so the
-   pipeline picks up the data.
+   pipeline picks up the data. Configure each synthetic event group's output base path under the
+   external labeled-output prefix so DataWatcher continues to deliver these markers.
 
 ### Cloud test steps
 

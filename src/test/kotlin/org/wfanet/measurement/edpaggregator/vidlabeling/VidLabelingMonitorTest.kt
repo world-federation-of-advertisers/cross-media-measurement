@@ -274,13 +274,15 @@ class VidLabelingMonitorTest {
     )
 
   private fun createMonitor(
-    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    vidLabeledImpressionsPaths: List<String> = listOf(""),
   ): VidLabelingMonitor =
     VidLabelingMonitor(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
       dispatchSequencer = createSequencer(rpcThrottlers),
       dataProviderName = DATA_PROVIDER,
+      vidLabeledImpressionsPaths = vidLabeledImpressionsPaths,
       stalenessThreshold = STALENESS_THRESHOLD,
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       rawImpressionsStorageClientProvider = { rawImpressionsStorageClient },
@@ -832,9 +834,9 @@ class VidLabelingMonitorTest {
         }
       }
     )
-    seedLabeled("model-line/ml1/2026-06-01/done")
+    seedLabeled("internal/model-line/ml1/2026-06-01/done")
 
-    createMonitor().runHealth()
+    createMonitor(vidLabeledImpressionsPaths = listOf("legacy", "internal")).runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_labeled_outputs"))
       .isEqualTo(0)

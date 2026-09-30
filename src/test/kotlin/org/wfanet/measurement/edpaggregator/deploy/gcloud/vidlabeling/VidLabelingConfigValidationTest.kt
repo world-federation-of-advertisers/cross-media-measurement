@@ -147,6 +147,7 @@ class VidLabelingConfigValidationTest {
       dataProvider = DATA_PROVIDER
       edpImpressionPath = "edp/edp7/labeled"
       dataAvailabilitySyncTasksEnabled = true
+      vidLabelingOutputPath = "edp/edp7/internal-labeled"
       maxFileBatchSizeBytes = 1L
       rawImpressionsStorageParams = storageParams { gcs = gcsStorage { bucketName = "raw-bucket" } }
       vidLabeledImpressionsStorageParams = storageParams {
@@ -154,16 +155,34 @@ class VidLabelingConfigValidationTest {
       }
     }
 
-    assertThat(
-        VidLabelingFunctionHelpers.buildVidLabelerParamsTemplate(config)
-          .createDataAvailabilitySyncTask
-      )
-      .isTrue()
-    assertThat(
-        VidLabelingFunctionHelpers.buildSubpoolAssignerParamsTemplate(config)
-          .createDataAvailabilitySyncTask
-      )
-      .isTrue()
+    val labelerParams = VidLabelingFunctionHelpers.buildVidLabelerParamsTemplate(config)
+    val subpoolParams = VidLabelingFunctionHelpers.buildSubpoolAssignerParamsTemplate(config)
+
+    assertThat(labelerParams.createDataAvailabilitySyncTask).isTrue()
+    assertThat(labelerParams.vidLabeledImpressionsStorageParams.impressionsBlobPrefix)
+      .isEqualTo("gs://output-bucket/edp/edp7/internal-labeled")
+    assertThat(subpoolParams.createDataAvailabilitySyncTask).isTrue()
+    assertThat(subpoolParams.vidLabeledImpressionsStorageParams.blobPrefix)
+      .isEqualTo("gs://output-bucket/edp/edp7/internal-labeled")
+  }
+
+  @Test
+  fun `disabled task handoff keeps the legacy output path`() {
+    val config = vidLabelingConfig {
+      dataProvider = DATA_PROVIDER
+      edpImpressionPath = "edp/edp7/legacy"
+      vidLabelingOutputPath = "edp/edp7/internal"
+      rawImpressionsStorageParams = storageParams { gcs = gcsStorage { bucketName = "raw-bucket" } }
+      vidLabeledImpressionsStorageParams = storageParams {
+        gcs = gcsStorage { bucketName = "output-bucket" }
+      }
+    }
+
+    val params = VidLabelingFunctionHelpers.buildVidLabelerParamsTemplate(config)
+
+    assertThat(params.createDataAvailabilitySyncTask).isFalse()
+    assertThat(params.vidLabeledImpressionsStorageParams.impressionsBlobPrefix)
+      .isEqualTo("gs://output-bucket/edp/edp7/legacy")
   }
 
   private fun configWithMaxFileBatchSizeBytes(sizeBytes: Long): VidLabelingConfig =

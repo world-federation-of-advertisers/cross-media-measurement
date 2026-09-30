@@ -451,6 +451,25 @@ class DataWatcherTest() {
   }
 
   @Test
+  fun `source path prefix excludes paths matched by a broad regex`() = runBlocking {
+    val config = watchedPath {
+      sourcePathPrefix = "gs://test-bucket/external"
+      sourcePathRegex = "gs://test-bucket/(.*)"
+      controlPlaneQueueSink = controlPlaneQueueSink {
+        queue = "test-topic-id"
+        appParams = Any.pack(Int32Value.newBuilder().setValue(5).build())
+      }
+    }
+    val dataWatcher =
+      DataWatcher(workItemsStub, listOf(config), idTokenProvider = mockIdTokenProvider)
+
+    dataWatcher.receivePath("gs://test-bucket/internal/path/done", emptyMap())
+
+    verifyBlocking(workItemsServiceMock, times(0)) { ensureWorkItem(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { createWorkItem(any()) }
+  }
+
+  @Test
   fun `records processing_duration metric for control plane sink`() {
     runBlocking {
       val topicId = "test-topic-id"
@@ -784,6 +803,31 @@ class DataWatcherTest() {
       assertThat(error).hasMessageThat().contains("returned 500")
       server.stop()
     }
+  }
+
+  @Test
+  fun `surfaces retryable HTTP failure for an ordinary event`() = runBlocking {
+    val localPort = ServerSocket(0).use { it.localPort }
+    val config = watchedPath {
+      sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+      this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+    }
+    val server = TestServer(statusCode = 503)
+    server.start(localPort)
+    val dataWatcher =
+      DataWatcher(
+        workItemsStub = workItemsStub,
+        dataWatcherConfigs = listOf(config),
+        idTokenProvider = mockIdTokenProvider,
+      )
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+      }
+
+    assertThat(error).hasMessageThat().contains("returned 503")
+    server.stop()
   }
 
   companion object {

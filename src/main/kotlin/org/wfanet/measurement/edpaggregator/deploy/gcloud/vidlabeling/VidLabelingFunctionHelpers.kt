@@ -61,6 +61,11 @@ object VidLabelingFunctionHelpers {
 
   private val channelCache = ConcurrentHashMap<ChannelKey, ManagedChannel>()
 
+  /** Returns the output path selected for newly dispatched work. */
+  fun outputPath(config: VidLabelingConfig): String =
+    if (config.dataAvailabilitySyncTasksEnabled) config.vidLabelingOutputPath
+    else config.edpImpressionPath
+
   private fun createPublicChannel(
     connectionParams: ConfigTransportLayerSecurityParams,
     target: String,
@@ -115,28 +120,23 @@ object VidLabelingFunctionHelpers {
   }
 
   fun buildVidLabelerParamsTemplate(config: VidLabelingConfig): VidLabelerParams {
+    requireValidStoragePaths(config)
     require(config.rawImpressionsStorageParams.hasGcs()) {
       "VidLabelingConfig raw_impressions_storage_params must use GCS"
     }
     require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
       "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
     }
-    require(config.edpImpressionPath.isNotEmpty()) {
-      "VidLabelingConfig.edp_impression_path is required"
-    }
+    val outputPath = outputPath(config)
 
     return vidLabelerParams {
       dataProvider = config.dataProvider
       vidLabeledImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
           gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-          // Per-EDP folder segment so each EDP's labeled output lives under its own
-          // folder: gs://<bucket>/<edp_impression_path>/model-line/<id>/<date>/. Required,
-          // and must match this EDP's DataAvailabilitySyncConfig edp_impression_path so the
-          // writer and the registrar agree on the location.
+          // Per-EDP path selected for the configured delivery route.
           impressionsBlobPrefix =
-            "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" +
-              "/${config.edpImpressionPath}"
+            "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" + "/$outputPath"
         }
       rawImpressionsStorageParams =
         VidLabelerParamsKt.storageParams {
@@ -163,15 +163,14 @@ object VidLabelingFunctionHelpers {
    * pool assignment job) are filled in by the sequencer.
    */
   fun buildSubpoolAssignerParamsTemplate(config: VidLabelingConfig): SubpoolAssignerParams {
+    requireValidStoragePaths(config)
     require(config.rawImpressionsStorageParams.hasGcs()) {
       "VidLabelingConfig raw_impressions_storage_params must use GCS"
     }
     require(config.vidLabeledImpressionsStorageParams.hasGcs()) {
       "VidLabelingConfig vid_labeled_impressions_storage_params must use GCS"
     }
-    require(config.edpImpressionPath.isNotEmpty()) {
-      "VidLabelingConfig.edp_impression_path is required"
-    }
+    val outputPath = outputPath(config)
     // vid_rank_map/subpool_map storage are consumed only by the memoized Phase-0 path and are
     // therefore optional in VidLabelingConfig; validate them only when set. An EDP whose model
     // lines are all non-memoized may omit them, and this template is then never consumed.
@@ -202,13 +201,9 @@ object VidLabelingFunctionHelpers {
       vidLabeledImpressionsStorageParams =
         SubpoolAssignerParamsKt.storageParams {
           gcsProjectId = config.vidLabeledImpressionsStorageParams.gcs.projectId
-          // Per-EDP labeled-output folder segment: gs://<bucket>/<edp_impression_path>/
-          // model-line/<id>/<date>/. Must match buildVidLabelerParamsTemplate and this EDP's
-          // DataAvailabilitySyncConfig edp_impression_path so the memoized Phase-2 output lands
-          // where the registrar looks (the non-memoized path composes the same prefix).
+          // Per-EDP path selected for the configured delivery route.
           blobPrefix =
-            "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" +
-              "/${config.edpImpressionPath}"
+            "gs://${config.vidLabeledImpressionsStorageParams.gcs.bucketName}" + "/$outputPath"
         }
       if (config.hasVidRankMapStorageParams()) {
         vidRankMapStorageParams =

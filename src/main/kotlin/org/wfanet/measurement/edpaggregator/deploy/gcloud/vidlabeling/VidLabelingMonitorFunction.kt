@@ -90,6 +90,7 @@ import org.wfanet.measurement.storage.StorageClient
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
  * - `VID_LABELING_*_RPC_MIN_INTERVAL`: Optional. Minimum intervals for the four outbound RPC
  *   throttlers.
+ * - `VID_LABELING_DISPATCH_ENABLED`: Optional. Whether dispatch-mode invocations may run.
  *
  * The staleness threshold (after which a non-terminal upload is flagged as stuck) is set per
  * `DataProvider` via the `staleness_threshold` field on each [VidLabelingConfig].
@@ -126,6 +127,11 @@ class VidLabelingMonitorFunction : HttpFunction {
         logger.warning("Rejecting request with missing or invalid 'mode' query parameter")
         response.setStatusCode(400)
         response.writer.write("Query parameter 'mode' must be 'dispatch' or 'health'.")
+        return
+      }
+      if (mode == MonitorMode.DISPATCH && !dispatchEnabled) {
+        response.setStatusCode(503)
+        response.writer.write("VID labeling dispatch is temporarily disabled.")
         return
       }
       logger.info("Starting VidLabelingMonitorFunction in $mode mode")
@@ -176,6 +182,7 @@ class VidLabelingMonitorFunction : HttpFunction {
     require(config.numberOfShards > 0) {
       "number_of_shards must be positive for data provider: ${config.dataProvider}"
     }
+    requireValidStoragePaths(config)
     requireValidStalenessThreshold(config)
     // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
     requireValidModelLineConfigs(config)
@@ -284,6 +291,9 @@ class VidLabelingMonitorFunction : HttpFunction {
         rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
         dispatchSequencer = dispatchSequencer,
         dataProviderName = config.dataProvider,
+        vidLabeledImpressionsPaths =
+          listOf(config.edpImpressionPath, VidLabelingFunctionHelpers.outputPath(config))
+            .distinct(),
         stalenessThreshold = config.stalenessThreshold.toDuration(),
         rawImpressionUploadFileStub = rawImpressionUploadFileStub,
         rawImpressionsStorageClientProvider = {
@@ -332,6 +342,8 @@ class VidLabelingMonitorFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET")
     private val rawImpressionUploadCertHost: String? =
       System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST")
+    private val dispatchEnabled: Boolean =
+      System.getenv("VID_LABELING_DISPATCH_ENABLED")?.toBooleanStrictOrNull() ?: true
     // TODO(world-federation-of-advertisers/cross-media-measurement#4108): Support per-EDP queue
     //   routing by sourcing the queue name from the per-DataProvider VidLabelingConfig instead of
     //   this single process-wide env var.

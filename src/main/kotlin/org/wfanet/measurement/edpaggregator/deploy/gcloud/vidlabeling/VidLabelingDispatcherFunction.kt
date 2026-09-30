@@ -104,6 +104,7 @@ import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
  *   throttlers.
  * - `VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH`: Optional. Enables [FileSystemStorageClient] instead
  *   of GCS. Used only in testing.
+ * - `VID_LABELING_DISPATCH_ENABLED`: Optional. Whether new uploads may be dispatched.
  *
  * ## Request Headers
  * - `X-DataWatcher-Path`: Required. Full storage URI of the "done" blob.
@@ -124,6 +125,11 @@ class VidLabelingDispatcherFunction : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
       logger.fine("Starting VidLabelingDispatcherFunction")
+      if (!dispatchEnabled) {
+        response.setStatusCode(503)
+        response.writer.write("VID labeling dispatch is temporarily disabled.")
+        return
+      }
 
       val dispatcherParams =
         VidLabelingDispatcherParams.newBuilder()
@@ -235,6 +241,7 @@ class VidLabelingDispatcherFunction : HttpFunction {
       require(config.numberOfShards > 0) {
         "number_of_shards must be positive for data provider: ${config.dataProvider}"
       }
+      requireValidStoragePaths(config)
       // Fail fast on per-model-line config the TEE would otherwise only reject at Phase-2.
       requireValidModelLineConfigs(config)
       // Fail fast on the bin-packing cap the memoized path only rejects inside the TEE.
@@ -347,6 +354,8 @@ class VidLabelingDispatcherFunction : HttpFunction {
       EnvVars.checkNotNullOrEmpty("POOL_ASSIGNER_QUEUE_NAME")
 
     private val fileSystemPath: String? = System.getenv("VID_LABELING_DISPATCHER_FILE_SYSTEM_PATH")
+    private val dispatchEnabled: Boolean =
+      System.getenv("VID_LABELING_DISPATCH_ENABLED")?.toBooleanStrictOrNull() ?: true
 
     private val configBlobKey: String = EnvVars.checkNotNullOrEmpty("CONFIG_BLOB_KEY")
 

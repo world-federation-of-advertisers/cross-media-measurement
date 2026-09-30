@@ -45,6 +45,10 @@ on:
         description: Whether the RequisitionFetcher scheduler may start new invocations
         type: boolean
         default: true
+      vid-labeling-dispatch-enabled:
+        description: Whether VID labeling dispatch entry points may create WorkItems
+        type: boolean
+        default: true
     outputs:
       work_item_tee_mig_names:
         description: WorkItem-consuming Managed Instance Group names as JSON
@@ -399,6 +403,7 @@ jobs:
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
         -var="requisition_fetcher_enabled=${{ inputs.requisition-fetcher-enabled }}"
+        -var="vid_labeling_dispatch_enabled=${{ inputs.vid-labeling-dispatch-enabled }}"
         -var="results_fulfiller_event_proto_descriptor_path=${{ steps.build-test-event-descriptors.outputs.event_proto_descriptors_path }}"
         -var="results_fulfiller_population_spec_file_path=$CONFIG_DIR/results-fulfiller-population-spec.textproto"
         -var="duchy_worker1_id=$DUCHY_WORKER1_ID"

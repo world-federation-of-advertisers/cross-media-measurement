@@ -255,7 +255,10 @@ class DataAvailabilitySyncFunctionTest {
       .writeText(
         TextFormat.printer()
           .printToString(
-            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig(vidLabelingOutputPath = "edp/edp_name")
+            }
           )
       )
     val outputDirectory = "edp/edp_name/model-line/some-model-line/2025-01-05"
@@ -351,7 +354,10 @@ class DataAvailabilitySyncFunctionTest {
       .writeText(
         TextFormat.printer()
           .printToString(
-            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+            dataAvailabilitySyncConfigs {
+              configs +=
+                fileSystemDataAvailabilitySyncConfig(vidLabelingOutputPath = "edp/edp_name")
+            }
           )
       )
     val port = runBlocking {
@@ -865,27 +871,28 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
   }
 
-  private fun fileSystemDataAvailabilitySyncConfig(): DataAvailabilitySyncConfig =
-    dataAvailabilitySyncConfig {
-      dataProvider = "dataProviders/edp123"
-      cmmsConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      impressionMetadataStorageConnection = transportLayerSecurityParams {
-        certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
-        privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
-        // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
-        certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
-      }
-      dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
-      edpImpressionPath = "edp/edp_name"
-      modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] =
-        modelLineList {
-          modelLines += "some-model-line-mapped"
-        }
+  private fun fileSystemDataAvailabilitySyncConfig(
+    vidLabelingOutputPath: String = ""
+  ): DataAvailabilitySyncConfig = dataAvailabilitySyncConfig {
+    dataProvider = "dataProviders/edp123"
+    cmmsConnection = transportLayerSecurityParams {
+      certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+      privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+      certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
     }
+    impressionMetadataStorageConnection = transportLayerSecurityParams {
+      certFilePath = SECRETS_DIR.resolve("edp7_tls.pem").toString()
+      privateKeyFilePath = SECRETS_DIR.resolve("edp7_tls.key").toString()
+      // TODO(@marcopremier): Replace with ImpressionMetadata cert when available
+      certCollectionFilePath = SECRETS_DIR.resolve("kingdom_root.pem").toString()
+    }
+    dataAvailabilityStorage = storageParams { fileSystem = fileSystemStorage {} }
+    edpImpressionPath = "edp/edp_name"
+    this.vidLabelingOutputPath = vidLabelingOutputPath
+    modelLineMap["modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"] = modelLineList {
+      modelLines += "some-model-line-mapped"
+    }
+  }
 
   private fun parseTraceparentTraceId(header: String?): String? {
     header ?: return null

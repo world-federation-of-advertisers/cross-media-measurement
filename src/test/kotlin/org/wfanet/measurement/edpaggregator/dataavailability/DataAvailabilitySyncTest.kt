@@ -1500,6 +1500,33 @@ class DataAvailabilitySyncTest {
       .isTrue()
   }
 
+  @Test
+  fun `sync evaluates gaps across external and internal paths`() = runBlocking {
+    val storageClient = FakeBlobMetadataStorageClient(FileSystemStorageClient(tempFolder.root))
+    val externalPath = "edp/edpa_edp"
+    val internalPath = "edp/edpa_edp-internal"
+    writeModelLineDate(storageClient, externalPath, "2026-03-13", finalized = true)
+    writeModelLineDate(storageClient, internalPath, "2026-03-14", finalized = true)
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        externalPath,
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        availabilityInputPaths = listOf(externalPath, internalPath),
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
+  }
+
   /**
    * Writes a `done` blob (and, when [withData], a data file) under the model-line path so the gap
    * monitor sees [date] as either finalized (with a "done" blob) or unfinalized (data but no "done"

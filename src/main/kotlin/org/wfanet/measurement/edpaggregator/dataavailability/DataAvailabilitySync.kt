@@ -113,6 +113,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @property errorIfGapsExist If true, skip replacing data availability intervals when date gaps are
  *   detected and log a warning. If false (default), log a warning but proceed with replacing data
  *   availability intervals normally. Gap dates are always logged regardless of this setting.
+ * @property availabilityInputPaths paths whose finalized dates jointly determine gap completeness.
  * @property metrics Metrics recorder for telemetry.
  */
 class DataAvailabilitySync(
@@ -126,6 +127,7 @@ class DataAvailabilitySync(
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
+  private val availabilityInputPaths: List<String> = listOf(edpImpressionPath),
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
   enum class Outcome {
@@ -152,6 +154,10 @@ class DataAvailabilitySync(
   init {
     require(!edpImpressionPath.startsWith("/")) { "edpImpressionPath cannot start with a slash" }
     require(!edpImpressionPath.endsWith("/")) { "edpImpressionPath cannot end with a slash" }
+    require(availabilityInputPaths.isNotEmpty()) { "availabilityInputPaths cannot be empty" }
+    require(availabilityInputPaths.all { !it.startsWith("/") && !it.endsWith("/") }) {
+      "availabilityInputPaths cannot start or end with a slash"
+    }
     require(impressionMetadataBatchSize > 0) {
       "impressionMetadataBatchSize must be greater than zero"
     }
@@ -169,8 +175,7 @@ class DataAvailabilitySync(
    * collecting and processing metadata for that day.
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
-   * @param doneBlobGeneration the immutable generation of that object, when supplied by
-   *   DataWatcher.
+   * @param doneBlobGeneration the immutable generation supplied by the trigger.
    * @param expectedRawImpressionUpload required raw upload on task-triggered sidecars.
    * @param expectedModelLine required model line on task-triggered sidecars.
    * @param expectedEventDate required event date on task-triggered sidecars.
@@ -313,12 +318,15 @@ class DataAvailabilitySync(
       onStage(Stage.GAP_POLICY)
       val blockedDetails = mutableListOf<String>()
       for (modelLineKey in impressionMetadataMap.keys) {
-        val modelLinePrefix =
-          if (edpImpressionPath.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
-          else "$edpImpressionPath/model-line/${modelLineKey.modelLineId}/"
-        val enumerated = DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
-        val finalized = enumerated.datesWithDoneBlob.keys
-        val unfinalized = enumerated.datesWithoutDoneBlob
+        val enumerated =
+          availabilityInputPaths.distinct().map { path ->
+            val modelLinePrefix =
+              if (path.isEmpty()) "model-line/${modelLineKey.modelLineId}/"
+              else "$path/model-line/${modelLineKey.modelLineId}/"
+            DataAvailabilityBlobs.enumerateDateInfo(storageClient, modelLinePrefix)
+          }
+        val finalized = enumerated.flatMap { it.datesWithDoneBlob.keys }.toSet()
+        val unfinalized = enumerated.flatMap { it.datesWithoutDoneBlob }.toSet().minus(finalized)
         val gaps = DataAvailabilityBlobs.findGaps(finalized + unfinalized)
         val earliest = finalized.minOrNull()
         val latest = finalized.maxOrNull()

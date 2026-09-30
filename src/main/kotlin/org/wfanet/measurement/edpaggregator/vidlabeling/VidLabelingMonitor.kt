@@ -92,6 +92,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param poolAssignmentJobStub stub for `PoolAssignmentJobService`.
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
+ * @param vidLabeledImpressionsPaths paths containing this provider's labeled output.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
  * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock used for staleness evaluation.
@@ -104,6 +105,7 @@ class VidLabelingMonitor(
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
+  private val vidLabeledImpressionsPaths: List<String>,
   private val stalenessThreshold: Duration,
   rawImpressionsStorageClientProvider: () -> StorageClient,
   private val rawImpressionUploadFileStub:
@@ -556,8 +558,13 @@ class VidLabelingMonitor(
       for (modelLine in completedModelLines) {
         val modelLineId = ModelLineKey.fromName(modelLine.cmmsModelLine)?.modelLineId ?: continue
         for (eventDate in eventDates) {
-          val doneKey = "model-line/$modelLineId/$eventDate/done"
-          if (vidLabeledImpressionsStorageClient.getBlob(doneKey) == null) {
+          val doneSuffix = "model-line/$modelLineId/$eventDate/done"
+          val hasDoneBlob =
+            vidLabeledImpressionsPaths.any { path ->
+              val doneKey = if (path.isEmpty()) doneSuffix else "$path/$doneSuffix"
+              vidLabeledImpressionsStorageClient.getBlob(doneKey) != null
+            }
+          if (!hasDoneBlob) {
             missing++
           }
         }
