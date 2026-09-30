@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.securecomputation.datawatcher.testing
 
+import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.kotlin.toByteStringUtf8
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -25,10 +26,13 @@ import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verify
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 import org.wfanet.measurement.storage.testing.AbstractStorageClientTest
 
@@ -50,6 +54,69 @@ class DataWatcherSubscribingStorageClientTest :
     val dataWatcher: DataWatcher = mock {}
     subscribingStorageClient.subscribe(dataWatcher)
     subscribingStorageClient.writeBlob("some-blob-key", flowOf("some-contents".toByteStringUtf8()))
-    verify(dataWatcher, times(1)).receivePath("file:///some-bucket/some-blob-key", emptyMap())
+    val metadata = argumentCaptor<Map<String, String>>()
+    verify(dataWatcher, times(1))
+      .receivePath(eq("file:///some-bucket/some-blob-key"), metadata.capture())
+    assertThat(metadata.firstValue)
+      .containsEntry(
+        DataWatcher.GENERATION_METADATA_KEY,
+        checkNotNull(storageClient.getFreshnessToken("some-blob-key")),
+      )
   }
+
+  @Test
+  fun `writeBlob publishes custom metadata with generation`() =
+    runBlocking<Unit> {
+      val subscribingStorageClient =
+        DataWatcherSubscribingStorageClient(storageClient, "file:///some-bucket/")
+      val dataWatcher: DataWatcher = mock {}
+      subscribingStorageClient.subscribe(dataWatcher)
+
+      subscribingStorageClient.writeBlob(
+        "some-blob-key",
+        flowOf("some-contents".toByteStringUtf8()),
+        mapOf("recovery-source" to "upload-1"),
+      )
+
+      val metadata = argumentCaptor<Map<String, String>>()
+      verify(dataWatcher).receivePath(eq("file:///some-bucket/some-blob-key"), metadata.capture())
+      assertThat(metadata.firstValue)
+        .containsAtLeast(
+          "recovery-source",
+          "upload-1",
+          DataWatcher.GENERATION_METADATA_KEY,
+          checkNotNull(storageClient.getFreshnessToken("some-blob-key")),
+        )
+    }
+
+  @Test
+  fun `writeBlobIfUnchanged atomically rewrites and publishes new generation`() =
+    runBlocking<Unit> {
+      val original =
+        storageClient.writeBlob("some-blob-key", flowOf("old-contents".toByteStringUtf8()))
+          as ConditionalOperationStorageClient.Blob
+      val subscribingStorageClient =
+        DataWatcherSubscribingStorageClient(storageClient, "file:///some-bucket/")
+      val dataWatcher: DataWatcher = mock {}
+      subscribingStorageClient.subscribe(dataWatcher)
+
+      val rewritten =
+        subscribingStorageClient.writeBlobIfUnchanged(
+          "some-blob-key",
+          original.freshnessToken,
+          flowOf("new-contents".toByteStringUtf8()),
+          mapOf("recovery-source" to "upload-1"),
+        ) as ConditionalOperationStorageClient.Blob
+
+      assertThat(rewritten.freshnessToken).isNotEqualTo(original.freshnessToken)
+      val metadata = argumentCaptor<Map<String, String>>()
+      verify(dataWatcher).receivePath(eq("file:///some-bucket/some-blob-key"), metadata.capture())
+      assertThat(metadata.firstValue)
+        .containsAtLeast(
+          "recovery-source",
+          "upload-1",
+          DataWatcher.GENERATION_METADATA_KEY,
+          rewritten.freshnessToken,
+        )
+    }
 }

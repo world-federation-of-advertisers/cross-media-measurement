@@ -257,6 +257,7 @@ class SpannerDataAvailabilitySyncTaskService(
       DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING,
       setOf(
         DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_PENDING,
+        DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING,
         DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_FAILED,
       ),
       incrementAttempt = true,
@@ -370,7 +371,11 @@ class SpannerDataAvailabilitySyncTaskService(
           current,
           nextState,
           attemptCount =
-            if (incrementAttempt) current.task.attemptCount + 1 else current.task.attemptCount,
+            if (incrementAttempt && current.task.state != nextState) {
+              current.task.attemptCount + 1
+            } else {
+              current.task.attemptCount
+            },
           failureCategory = failureCategory,
           requestIdColumn = requestIdColumn,
           requestId = requestId,
@@ -388,7 +393,11 @@ class SpannerDataAvailabilitySyncTaskService(
         current.task.copy {
           state = nextState
           attemptCount =
-            if (incrementAttempt) current.task.attemptCount + 1 else current.task.attemptCount
+            if (incrementAttempt && current.task.state != nextState) {
+              current.task.attemptCount + 1
+            } else {
+              current.task.attemptCount
+            }
           this.failureCategory = failureCategory
           clearUpdateTime()
           clearEtag()

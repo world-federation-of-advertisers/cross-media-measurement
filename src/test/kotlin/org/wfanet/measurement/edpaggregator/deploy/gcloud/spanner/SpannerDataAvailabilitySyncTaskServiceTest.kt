@@ -24,6 +24,8 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 import kotlin.test.assertFailsWith
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
 import org.junit.Rule
@@ -237,17 +239,30 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
         .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING)
       assertThat(running.attemptCount).isEqualTo(1)
       assertThat(replayed).isEqualTo(running)
-      val competingAttempt =
-        assertFailsWith<StatusRuntimeException> {
-          service.markDataAvailabilitySyncTaskRunning(
-            markDataAvailabilitySyncTaskRunningRequest {
-              setTaskKey()
-              etag = running.etag
-              requestId = "123e4567-e89b-42d3-a456-426614174005"
+      val leaseClaims =
+        listOf("123e4567-e89b-42d3-a456-426614174005", "123e4567-e89b-42d3-a456-426614174006")
+          .map { requestId ->
+            async {
+              runCatching {
+                service.markDataAvailabilitySyncTaskRunning(
+                  markDataAvailabilitySyncTaskRunningRequest {
+                    setTaskKey()
+                    etag = running.etag
+                    this.requestId = requestId
+                  }
+                )
+              }
             }
-          )
-        }
-      assertThat(competingAttempt.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+          }
+          .awaitAll()
+      val reclaimed = leaseClaims.single { it.isSuccess }.getOrThrow()
+      val competingAttempt =
+        leaseClaims.single { it.isFailure }.exceptionOrNull() as StatusRuntimeException
+      assertThat(reclaimed.state)
+        .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING)
+      assertThat(reclaimed.attemptCount).isEqualTo(1)
+      assertThat(reclaimed.etag).isNotEqualTo(running.etag)
+      assertThat(competingAttempt.status.code).isEqualTo(Status.Code.ABORTED)
 
       val failed =
         service.markDataAvailabilitySyncTaskFailed(
@@ -256,7 +271,7 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
             failureCategory =
               org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskFailureCategory
                 .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_SYNCHRONIZATION
-            etag = running.etag
+            etag = reclaimed.etag
             requestId = "123e4567-e89b-42d3-a456-426614174002"
           }
         )

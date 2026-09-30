@@ -128,6 +128,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * @param buildVidRankMapStorageClient builds a [ConditionalOperationStorageClient] for the
  *   vid-rank-map storage read by [RankIndexStore].
  * @param writeGcsObject atomically creates a GCS object with its [BlobInfo] metadata.
+ * @param writeDoneBlobToStorage writes a done object through an alternate storage implementation.
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
  * @param buildImpressionConverter builds the per-(WorkItem, model line) [ImpressionConverter],
@@ -168,6 +169,9 @@ class VidLabelerApp(
           .generation
       }
     },
+  private val writeDoneBlobToStorage:
+    (suspend (storageConfig: StorageConfig, doneUri: String) -> Pair<String, Long?>)? =
+    null,
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
   // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
   // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
@@ -1168,18 +1172,25 @@ class VidLabelerApp(
         eventDate,
       )
     val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
-    val generation =
+    val doneObject =
       try {
-        if (doneBlobUri.scheme == "gs") {
-          writeGcsObject(
-            storageConfig.projectId,
-            BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key).build(),
-            ByteArray(0),
+        if (writeDoneBlobToStorage != null) {
+          writeDoneBlobToStorage.invoke(storageConfig, doneUri).let { (uri, generation) ->
+            DoneObject(uri, generation)
+          }
+        } else if (doneBlobUri.scheme == "gs") {
+          DoneObject(
+            doneUri,
+            writeGcsObject(
+              storageConfig.projectId,
+              BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key).build(),
+              ByteArray(0),
+            ),
           )
         } else {
           SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
             .writeBlob(doneBlobUri.key, ByteString.EMPTY)
-          null
+          DoneObject(doneUri, null)
         }
       } catch (e: CancellationException) {
         throw e
@@ -1199,10 +1210,11 @@ class VidLabelerApp(
         )
         throw e
       }
+    val generation = doneObject.generation
     val doneObjectIdentity =
-      generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, it) }
+      generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneObject.uri, it) }
     val doneObjectPathHash =
-      doneObjectIdentity?.pathHash ?: VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
+      doneObjectIdentity?.pathHash ?: VidLabelingTraceAttributes.gcsObjectPathHash(doneObject.uri)
     metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
     logger.info("Wrote done marker $doneUri")
     Span.current()
@@ -1235,7 +1247,7 @@ class VidLabelerApp(
       VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to doneObjectPathHash,
       VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation?.toString(),
     )
-    return DoneObject(doneUri, generation)
+    return doneObject
   }
 
   private suspend fun findExistingDoneObject(

@@ -171,7 +171,7 @@ class DataAvailabilitySync(
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    * @param doneBlobGeneration the immutable generation of that object, when supplied by
    *   DataWatcher.
-   * @param expectedRawImpressionUpload required raw upload on task-triggered sidecars.
+   * @param expectedRawImpressionUpload raw upload used to select task-triggered sidecars.
    * @param expectedModelLine required model line on task-triggered sidecars.
    * @param expectedEventDate required event date on task-triggered sidecars.
    * @param onStage called before synchronization enters a new stage.
@@ -811,14 +811,15 @@ class DataAvailabilitySync(
           throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
         }
 
+      if (
+        expectedRawImpressionUpload != null &&
+          blobDetails.rawImpressionUpload != expectedRawImpressionUpload
+      ) {
+        return@collect
+      }
       // Validate intervals
       require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
         "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
-      }
-      if (expectedRawImpressionUpload != null) {
-        require(blobDetails.rawImpressionUpload == expectedRawImpressionUpload) {
-          "BlobDetails raw_impression_upload does not match the task"
-        }
       }
       if (expectedModelLine != null) {
         require(blobDetails.modelLine == expectedModelLine) {
