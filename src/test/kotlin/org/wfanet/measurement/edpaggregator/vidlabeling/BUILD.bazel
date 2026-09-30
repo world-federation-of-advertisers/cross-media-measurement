@@ -1,6 +1,18 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "RawImpressionUploadManifestClassifierTest",
+    srcs = ["RawImpressionUploadManifestClassifierTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifierTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelingDispatcherTest",
     srcs = ["VidLabelingDispatcherTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcherTest",

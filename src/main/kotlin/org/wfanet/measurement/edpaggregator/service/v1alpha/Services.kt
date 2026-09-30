@@ -24,6 +24,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrp
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
@@ -34,6 +35,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGr
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt as InternalPoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt as InternalRankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt as InternalRankerJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt as InternalRawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt as InternalRawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt as InternalRawImpressionUploadServiceGrpcKt
@@ -45,6 +47,8 @@ data class Services(
   val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionUpload: RawImpressionUploadServiceCoroutineImplBase,
+  val rawImpressionUploadCorrectionCandidate:
+    RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase,
   val uploadHealingOperation: UploadHealingOperationServiceCoroutineImplBase,
   val rawImpressionUploadFile: RawImpressionUploadFileServiceCoroutineImplBase,
   val rawImpressionUploadModelLine: RawImpressionUploadModelLineServiceCoroutineImplBase,
@@ -58,6 +62,7 @@ data class Services(
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,
+      rawImpressionUploadCorrectionCandidate,
       uploadHealingOperation,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,
@@ -84,6 +89,9 @@ data class Services(
         InternalRawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
           internalApiChannel
         )
+      val internalCandidateStub =
+        InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
+          .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalApiChannel)
       val internalUploadHealingOperationStub =
         InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
           internalApiChannel
@@ -110,6 +118,12 @@ data class Services(
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
         ImpressionMetadataService(internalImpressionMetadataStub, coroutineContext),
         RawImpressionUploadService(internalUploadStub, coroutineContext),
+        RawImpressionUploadCorrectionCandidateService(
+          internalCandidateStub,
+          internalUploadStub,
+          internalUploadFileStub,
+          coroutineContext,
+        ),
         UploadHealingOperationService(internalUploadHealingOperationStub, coroutineContext),
         RawImpressionUploadFileService(internalUploadFileStub, coroutineContext),
         RawImpressionUploadModelLineService(internalModelLineStub, coroutineContext),

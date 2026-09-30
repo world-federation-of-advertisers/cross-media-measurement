@@ -1,0 +1,219 @@
+/*
+ * Copyright 2026 The Cross-Media Measurement Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package org.wfanet.measurement.edpaggregator.vidlabeling
+
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
+import com.google.type.Date
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.time.Instant
+
+/** Reconstructs effective raw-upload manifests and classifies complete revisions. */
+class RawImpressionUploadManifestClassifier {
+  /** Classification of a complete raw-upload revision. */
+  enum class Classification {
+    NEW,
+    NO_OP,
+    APPEND,
+    EDITED,
+    REMOVED,
+    MIXED,
+  }
+
+  /** One immutable object version in a raw-upload manifest. */
+  data class File(
+    val blobUri: String,
+    val blobGeneration: Long,
+    val eventDate: Date = Date.getDefaultInstance(),
+  )
+
+  /** One persisted raw-upload revision and its registered files. */
+  data class Revision(
+    val rawImpressionUpload: String,
+    val doneBlobUri: String,
+    val doneBlobGeneration: Long,
+    val doneBlobCreateTime: Instant?,
+    val createTime: Instant,
+    val replacesRawImpressionUpload: String = "",
+    val uploadHealingOperation: String = "",
+    val registrationComplete: Boolean = true,
+    val failed: Boolean = false,
+    val files: List<File>,
+  )
+
+  /** One effective manifest entry and the revision that owns it. */
+  data class ManifestEntry(val file: File, val ownerRawImpressionUpload: String)
+
+  /** One difference between the effective prior and complete current manifests. */
+  data class Difference(
+    val blobUri: String,
+    val prior: ManifestEntry?,
+    val current: ManifestEntry?,
+  )
+
+  /** Classification result with stable digests and ordered differences. */
+  data class Result(
+    val classification: Classification,
+    val priorManifest: Map<String, ManifestEntry>,
+    val currentManifest: Map<String, ManifestEntry>,
+    val differences: List<Difference>,
+    val priorManifestDigest: ByteString,
+    val currentManifestDigest: ByteString,
+  )
+
+  /** Classifies [currentRawImpressionUpload] against its effective prior manifest. */
+  fun classify(currentRawImpressionUpload: String, revisions: Collection<Revision>): Result {
+    val revisionsByName = revisions.associateByUniqueName()
+    val current =
+      requireNotNull(revisionsByName[currentRawImpressionUpload]) {
+        "Current RawImpressionUpload $currentRawImpressionUpload is missing"
+      }
+    val currentManifest = current.toManifest()
+    val hasPriorRevision = predecessorOf(current, revisionsByName) != null
+    val priorManifest = reconstructPriorManifest(current, revisionsByName)
+    val differences =
+      (priorManifest.keys + currentManifest.keys).sorted().mapNotNull { blobUri ->
+        val prior = priorManifest[blobUri]
+        val currentEntry = currentManifest[blobUri]
+        if (prior?.file?.blobGeneration == currentEntry?.file?.blobGeneration) {
+          null
+        } else {
+          Difference(blobUri, prior, currentEntry)
+        }
+      }
+    return Result(
+      classification = classify(hasPriorRevision, differences),
+      priorManifest = priorManifest,
+      currentManifest = currentManifest,
+      differences = differences,
+      priorManifestDigest = digest(priorManifest),
+      currentManifestDigest = digest(currentManifest),
+    )
+  }
+
+  /** Reconstructs the effective manifest immediately before [revision]. */
+  fun reconstructPriorManifest(
+    revision: Revision,
+    revisions: Collection<Revision>,
+  ): Map<String, ManifestEntry> =
+    reconstructPriorManifest(revision, revisions.associateByUniqueName())
+
+  private fun reconstructPriorManifest(
+    revision: Revision,
+    revisionsByName: Map<String, Revision>,
+  ): Map<String, ManifestEntry> {
+    val result = linkedMapOf<String, ManifestEntry>()
+    val visited = mutableSetOf<String>()
+    var current = predecessorOf(revision, revisionsByName)
+    while (current != null) {
+      check(visited.add(current.rawImpressionUpload)) {
+        "RawImpressionUpload revision cycle detected at ${current.rawImpressionUpload}"
+      }
+      if (current.registrationComplete) {
+        val revisionUris = mutableSetOf<String>()
+        for (file in current.files.sortedBy { it.blobUri }) {
+          require(revisionUris.add(file.blobUri)) {
+            "Duplicate blob URI ${file.blobUri} in ${current.rawImpressionUpload}"
+          }
+          result.putIfAbsent(file.blobUri, ManifestEntry(file, current.rawImpressionUpload))
+        }
+      }
+      val predecessor = predecessorOf(current, revisionsByName)
+      if (
+        current.uploadHealingOperation.isNotEmpty() || predecessor == null || predecessor.failed
+      ) {
+        break
+      }
+      current = predecessor
+    }
+    return result.toSortedMap()
+  }
+
+  private fun predecessorOf(revision: Revision, revisionsByName: Map<String, Revision>): Revision? {
+    if (revision.replacesRawImpressionUpload.isNotEmpty()) {
+      val predecessor =
+        requireNotNull(revisionsByName[revision.replacesRawImpressionUpload]) {
+          "RawImpressionUpload ${revision.replacesRawImpressionUpload} is missing"
+        }
+      require(predecessor.doneBlobUri == revision.doneBlobUri) {
+        "RawImpressionUpload revisions use different done objects"
+      }
+      return predecessor
+    }
+    return revisionsByName.values
+      .asSequence()
+      .filter {
+        it.rawImpressionUpload != revision.rawImpressionUpload &&
+          it.doneBlobUri == revision.doneBlobUri &&
+          REVISION_COMPARATOR.compare(it, revision) < 0
+      }
+      .maxWithOrNull(REVISION_COMPARATOR)
+  }
+
+  private fun Revision.toManifest(): Map<String, ManifestEntry> =
+    buildMap {
+        for (file in files.sortedBy { it.blobUri }) {
+          require(put(file.blobUri, ManifestEntry(file, rawImpressionUpload)) == null) {
+            "Duplicate blob URI ${file.blobUri} in $rawImpressionUpload"
+          }
+        }
+      }
+      .toSortedMap()
+
+  private fun classify(hasPriorRevision: Boolean, differences: List<Difference>): Classification {
+    if (!hasPriorRevision) return Classification.NEW
+    if (differences.isEmpty()) return Classification.NO_OP
+    val hasAdditions = differences.any { it.prior == null }
+    val hasEdits = differences.any { it.prior != null && it.current != null }
+    val hasRemovals = differences.any { it.current == null }
+    return when {
+      hasAdditions && !hasEdits && !hasRemovals -> Classification.APPEND
+      hasEdits && !hasAdditions && !hasRemovals -> Classification.EDITED
+      hasRemovals && !hasAdditions && !hasEdits -> Classification.REMOVED
+      else -> Classification.MIXED
+    }
+  }
+
+  private fun digest(manifest: Map<String, ManifestEntry>): ByteString {
+    val digest = MessageDigest.getInstance("SHA-256")
+    for ((blobUri, entry) in manifest.toSortedMap()) {
+      val uriBytes = blobUri.toByteArray(StandardCharsets.UTF_8)
+      digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(uriBytes.size).array())
+      digest.update(uriBytes)
+      digest.update(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(entry.file.blobGeneration).array())
+    }
+    return digest.digest().toByteString()
+  }
+
+  private fun Collection<Revision>.associateByUniqueName(): Map<String, Revision> = buildMap {
+    for (revision in this@associateByUniqueName) {
+      require(put(revision.rawImpressionUpload, revision) == null) {
+        "Duplicate RawImpressionUpload ${revision.rawImpressionUpload}"
+      }
+    }
+  }
+
+  companion object {
+    private val REVISION_COMPARATOR =
+      compareBy<Revision> { it.doneBlobCreateTime ?: it.createTime }
+        .thenBy { it.createTime }
+        .thenBy { it.doneBlobGeneration }
+        .thenBy { it.rawImpressionUpload }
+  }
+}
