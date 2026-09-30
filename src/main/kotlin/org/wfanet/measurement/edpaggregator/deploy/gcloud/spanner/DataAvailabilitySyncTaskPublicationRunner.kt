@@ -23,7 +23,6 @@ import java.util.UUID
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -48,7 +47,6 @@ class DataAvailabilitySyncTaskPublicationRunner(
   private val initialRetryDelay: Duration = DEFAULT_INITIAL_RETRY_DELAY,
   private val maxRetryDelay: Duration = DEFAULT_MAX_RETRY_DELAY,
   private val staleTaskDuration: Duration = DEFAULT_STALE_TASK_DURATION,
-  private val enabled: Boolean = true,
 ) {
   init {
     require(pollInterval > Duration.ZERO)
@@ -60,7 +58,6 @@ class DataAvailabilitySyncTaskPublicationRunner(
 
   suspend fun publishPendingTasks(limit: Int = DEFAULT_BATCH_SIZE): Int {
     require(limit > 0)
-    if (!enabled) return 0
     reconcile(limit)
     var publishedCount = 0
     repeat(limit) {
@@ -71,7 +68,6 @@ class DataAvailabilitySyncTaskPublicationRunner(
   }
 
   suspend fun run() {
-    if (!enabled) awaitCancellation()
     while (currentCoroutineContext().isActive) {
       try {
         publishPendingTasks()

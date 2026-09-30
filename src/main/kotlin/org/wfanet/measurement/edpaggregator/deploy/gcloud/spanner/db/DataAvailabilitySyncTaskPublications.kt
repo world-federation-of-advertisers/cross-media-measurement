@@ -210,23 +210,17 @@ suspend fun AsyncDatabaseClient.TransactionContext.reconcileDataAvailabilitySync
           """
           SELECT Task.DataProviderResourceId, Task.RawImpressionUploadId,
             Task.DataAvailabilitySyncTaskResourceId,
-            CAST(Task.State AS INT64) AS TaskState,
-            Publication.DataAvailabilitySyncTaskResourceId AS PublicationTaskResourceId
+            CAST(Task.State AS INT64) AS TaskState
           FROM DataAvailabilitySyncTask AS Task
-          LEFT JOIN DataAvailabilitySyncTaskPublication AS Publication USING (
+          JOIN DataAvailabilitySyncTaskPublication AS Publication USING (
             DataProviderResourceId,
             RawImpressionUploadId,
             DataAvailabilitySyncTaskResourceId
           )
           WHERE CAST(Task.State AS INT64) != @succeededState
-            AND (
-              Publication.DataAvailabilitySyncTaskResourceId IS NULL
-              OR (
-                Publication.PublishedTime IS NOT NULL
-                AND Publication.UpdateTime <= @staleBefore
-                AND Task.UpdateTime <= @staleBefore
-              )
-            )
+            AND Publication.PublishedTime IS NOT NULL
+            AND Publication.UpdateTime <= @staleBefore
+            AND Task.UpdateTime <= @staleBefore
           ORDER BY Task.DataProviderResourceId, Task.RawImpressionUploadId,
             Task.DataAvailabilitySyncTaskResourceId
           LIMIT @limit
@@ -263,25 +257,16 @@ suspend fun AsyncDatabaseClient.TransactionContext.reconcileDataAvailabilitySync
         set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
       }
     }
-    if (row.isNull("PublicationTaskResourceId")) {
-      insertDataAvailabilitySyncTaskPublication(
-        row.getString("DataProviderResourceId"),
-        row.getLong("RawImpressionUploadId"),
-        row.getString("DataAvailabilitySyncTaskResourceId"),
-        now,
-      )
-    } else {
-      bufferUpdateMutation("DataAvailabilitySyncTaskPublication") {
-        set("DataProviderResourceId").to(row.getString("DataProviderResourceId"))
-        set("RawImpressionUploadId").to(row.getLong("RawImpressionUploadId"))
-        set("DataAvailabilitySyncTaskResourceId")
-          .to(row.getString("DataAvailabilitySyncTaskResourceId"))
-        set("PublishedTime").to(null as com.google.cloud.Timestamp?)
-        set("LeaseOwner").to(null as String?)
-        set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
-        set("NextAttemptTime").to(now.toGcloudTimestamp())
-        set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
-      }
+    bufferUpdateMutation("DataAvailabilitySyncTaskPublication") {
+      set("DataProviderResourceId").to(row.getString("DataProviderResourceId"))
+      set("RawImpressionUploadId").to(row.getLong("RawImpressionUploadId"))
+      set("DataAvailabilitySyncTaskResourceId")
+        .to(row.getString("DataAvailabilitySyncTaskResourceId"))
+      set("PublishedTime").to(null as com.google.cloud.Timestamp?)
+      set("LeaseOwner").to(null as String?)
+      set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
+      set("NextAttemptTime").to(now.toGcloudTimestamp())
+      set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
     }
   }
   return rows.size
