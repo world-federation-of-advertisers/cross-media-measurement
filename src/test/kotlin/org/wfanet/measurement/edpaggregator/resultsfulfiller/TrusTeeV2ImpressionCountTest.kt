@@ -22,7 +22,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.api.v2alpha.ProtocolConfig
-import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TrusTeeV2Config.ImpressionCountMode
 
 @RunWith(JUnit4::class)
@@ -55,11 +54,9 @@ class TrusTeeV2ImpressionCountTest {
 
     assertThat(details.impression.noiseMechanism)
       .isEqualTo(ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
-    // Clipped sum of 3 + 1 + 3 + 3 over the fixture, plus one bounded draw at sensitivity 3. The
-    // uncapped total of 213, or a count taken at the cell ceiling, falls outside this window.
-    assertThat(details.impression.value.toDouble())
-      .isWithin(DeterministicTruncatedLaplaceParams.truncationBound(3.0) + 1.0)
-      .of(10.0)
+    // Clipped sum of 3 + 1 + 3 + 3 = 10, plus a seeded draw of -5 at sensitivity 3. Pins the whole
+    // chain: the clip, the seed encoding and the sampler. An unnoised count would read 10.
+    assertThat(details.impression.value).isEqualTo(5L)
     // The clip is the sensitivity the TEE needs to reason about the value it was given.
     assertThat(details.impression.deterministicCount.customMaximumFrequencyPerUser).isEqualTo(3)
     assertThat(details.impression.hasCustomDirectMethodology()).isFalse()
