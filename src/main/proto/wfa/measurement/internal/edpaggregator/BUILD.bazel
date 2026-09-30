@@ -13,6 +13,48 @@ package(default_visibility = [
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
+    name = "data_availability_sync_lease_state_proto",
+    srcs = ["data_availability_sync_lease_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_lease_state_kt_jvm_proto",
+    deps = [":data_availability_sync_lease_state_proto"],
+)
+
+proto_library(
+    name = "data_availability_sync_lease_proto",
+    srcs = ["data_availability_sync_lease.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_availability_sync_lease_state_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_lease_kt_jvm_proto",
+    deps = [":data_availability_sync_lease_proto"],
+)
+
+proto_library(
+    name = "data_availability_sync_lease_service_proto",
+    srcs = ["data_availability_sync_lease_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_availability_sync_lease_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_protobuf//:empty_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "data_availability_sync_lease_service_kt_jvm_grpc_proto",
+    deps = [":data_availability_sync_lease_service_proto"],
+)
+
+proto_library(
     name = "raw_impression_upload_correction_candidate_proto",
     srcs = ["raw_impression_upload_correction_candidate.proto"],
     strip_import_prefix = IMPORT_PREFIX,
@@ -133,6 +175,7 @@ proto_descriptor_set(
     name = "descriptor_set",
     deps = [
         ":blob_type_proto",
+        ":data_availability_sync_lease_state_proto",
         ":encrypted_dek_proto",
         ":impression_metadata_state_proto",
         ":pool_assignment_state_proto",
