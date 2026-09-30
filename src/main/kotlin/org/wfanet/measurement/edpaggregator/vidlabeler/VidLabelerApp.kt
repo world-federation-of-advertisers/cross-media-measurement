@@ -96,7 +96,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * / unseen fingerprint), writes the encrypted labeled output, marks the `VidLabelingJob`
  * `SUCCEEDED`, and — when this call was the last job out for a model line — transitions the parent
  * `RawImpressionUploadModelLine` to `COMPLETED`, writes its `done` marker, and creates the
- * configured downstream availability task.
+ * downstream availability task.
  *
  * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
  * out of [runWork] so the TEE framework retains the delivery while another attempt owns the
@@ -943,11 +943,7 @@ class VidLabelerApp(
       // Persist the done marker and durable handoff before the parent completion transition.
       if (eventDate != null) {
         val doneObject =
-          if (params.createDataAvailabilitySyncTask) {
-            findExistingDoneObject(upload, completedModelLine, eventDate)
-          } else {
-            null
-          }
+          findExistingDoneObject(upload, completedModelLine, eventDate)
             ?: writeDoneBlob(
               params.vidLabeledImpressionsStorageParams,
               completedModelLine,
@@ -955,9 +951,7 @@ class VidLabelerApp(
               dataProvider,
               params,
             )
-        if (params.createDataAvailabilitySyncTask) {
-          createDataAvailabilitySyncTask(upload, completedModelLine, eventDate, doneObject)
-        }
+        createDataAvailabilitySyncTask(upload, completedModelLine, eventDate, doneObject)
         doneObjectsWritten++
       }
       val completed =

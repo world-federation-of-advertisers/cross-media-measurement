@@ -272,7 +272,6 @@ class SubpoolAssignerApp(
         // Phase-2 bin-packing cap (REQUIRED), forwarded verbatim so the Phase-1 last-out can batch
         // the upload's files without round-tripping to the dispatcher.
         maxFileBatchSizeBytes = params.maxFileBatchSizeBytes
-        createDataAvailabilitySyncTask = params.createDataAvailabilitySyncTask
         // Active-window pass-through (OPTIONAL): forwarded verbatim so the Phase-1 last-out can
         // stamp it on the Phase-2 VidLabeler ModelLineConfig, which drops out-of-window rows.
         if (params.hasActiveStartTime()) {

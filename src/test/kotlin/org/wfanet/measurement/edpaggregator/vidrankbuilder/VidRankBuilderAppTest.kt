@@ -213,7 +213,6 @@ class VidRankBuilderAppTest {
     eventTemplateFieldMapping.put("banner_ad.viewable", "raw_viewable")
     populationSpecBlobUri = POPULATION_SPEC_BLOB_URI
     maxFileBatchSizeBytes = 1_000_000_000
-    createDataAvailabilitySyncTask = true
     activeStartTime = timestamp { seconds = 1000 }
     activeEndTime = timestamp { seconds = 2000 }
     // subpool_map_blob_uris intentionally empty -> runWork skips ranking.
@@ -377,7 +376,6 @@ class VidRankBuilderAppTest {
       assertThat(labelerParams.modelBlobPathsMap.getValue(MODEL_LINE)).isEqualTo("model/blob")
       assertThat(labelerParams.modelStorageParams.gcsProjectId).isEqualTo("test-project")
       assertThat(labelerParams.vidLabelingJob).isNotEmpty()
-      assertThat(labelerParams.createDataAvailabilitySyncTask).isTrue()
       val modelLineConfig = labelerParams.modelLineConfigsMap.getValue(MODEL_LINE)
       assertThat(modelLineConfig.labelerInputFieldMappingList)
         .containsExactly(
