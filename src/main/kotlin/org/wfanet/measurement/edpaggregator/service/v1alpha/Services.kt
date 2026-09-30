@@ -20,6 +20,7 @@ import io.grpc.BindableService
 import io.grpc.Channel
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineImplBase
@@ -30,6 +31,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskServiceGrpcKt as InternalDataAvailabilitySyncTaskServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt as InternalImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt as InternalPoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt as InternalRankIndexBlobServiceGrpcKt
@@ -42,6 +44,7 @@ import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServi
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingJobServiceGrpcKt as InternalVidLabelingJobServiceGrpcKt
 
 data class Services(
+  val dataAvailabilitySyncTask: DataAvailabilitySyncTaskServiceCoroutineImplBase,
   val requisitionMetadata: RequisitionMetadataServiceCoroutineImplBase,
   val impressionMetadata: ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionUpload: RawImpressionUploadServiceCoroutineImplBase,
@@ -55,6 +58,7 @@ data class Services(
 ) {
   fun toList(): List<BindableService> =
     listOf(
+      dataAvailabilitySyncTask,
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,
@@ -72,6 +76,10 @@ data class Services(
       internalApiChannel: Channel,
       coroutineContext: CoroutineContext = EmptyCoroutineContext,
     ): Services {
+      val internalDataAvailabilitySyncTaskStub =
+        InternalDataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
+          internalApiChannel
+        )
       val internalRequisitionMetadataStub =
         InternalRequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub(
           internalApiChannel
@@ -107,6 +115,7 @@ data class Services(
         )
 
       return Services(
+        DataAvailabilitySyncTaskService(internalDataAvailabilitySyncTaskStub, coroutineContext),
         RequisitionMetadataService(internalRequisitionMetadataStub, coroutineContext),
         ImpressionMetadataService(internalImpressionMetadataStub, coroutineContext),
         RawImpressionUploadService(internalUploadStub, coroutineContext),
