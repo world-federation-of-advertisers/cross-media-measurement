@@ -90,10 +90,15 @@ message UpdateUploadHealingOperationPlanRequest {
 }
 
 message ApproveUploadHealingOperationRequest {
+  message CandidateDecision {
+    string raw_impression_upload_correction_candidate_id = 1;
+    RawImpressionUploadCorrectionCandidate.Decision decision = 2;
+  }
+
   string data_provider_resource_id = 1;
   string upload_healing_operation_id = 2;
   string etag = 3;
-  RawImpressionUploadCorrectionCandidate.Decision decision = 4;
+  repeated CandidateDecision candidate_decisions = 4;
   string request_id = 5;
 }
 
