@@ -269,11 +269,25 @@ class SpannerUploadHealingOperationService(
     requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
     requireNotBlank(request.etag, "etag")
     requireUuid(request.requestId, "request_id")
-    require(
-      request.decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT ||
-        request.decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
-    ) {
-      "decision is required"
+    require(request.candidateDecisionsCount > 0) { "candidate_decisions is required" }
+    val decisions =
+      request.candidateDecisionsList.associate { candidateDecision ->
+        requireNotBlank(
+          candidateDecision.rawImpressionUploadCorrectionCandidateId,
+          "candidate_decisions.raw_impression_upload_correction_candidate_id",
+        )
+        require(
+          candidateDecision.decision ==
+            RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT ||
+            candidateDecision.decision ==
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+        ) {
+          "candidate_decisions.decision is required"
+        }
+        candidateDecision.rawImpressionUploadCorrectionCandidateId to candidateDecision.decision
+      }
+    require(decisions.size == request.candidateDecisionsCount) {
+      "candidate_decisions must identify unique candidates"
     }
     val requestFingerprint = request.fingerprint()
     databaseClient.readWriteTransaction(Options.tag("action=approveUploadHealingOperation")).run {
@@ -312,8 +326,13 @@ class SpannerUploadHealingOperationService(
         throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
           .asRuntimeException()
       }
-      val approvedPlan = finalizeDecisionPlan(operation, request.decision)
-      validateDecisionPlan(approvedPlan, request.decision)
+      precondition(
+        decisions.keys == operation.rawImpressionUploadCorrectionCandidateIdsList.toSet()
+      ) {
+        "candidate_decisions must contain every plan candidate exactly once"
+      }
+      val approvedPlan = finalizeDecisionPlan(operation, decisions)
+      validateDecisionPlan(approvedPlan, decisions)
       val candidates = readPlanCandidates(txn, operation)
       precondition(
         candidates.all {
@@ -324,7 +343,10 @@ class SpannerUploadHealingOperationService(
         "every correction candidate must still belong to the draft plan"
       }
       for (candidate in candidates) {
-        txn.approveRawImpressionUploadCorrectionCandidate(candidate, request.decision)
+        txn.approveRawImpressionUploadCorrectionCandidate(
+          candidate,
+          decisions.getValue(candidate.rawImpressionUploadCorrectionCandidateId),
+        )
       }
       txn.replaceUploadHealingOperationPlan(
         approvedPlan,
@@ -831,21 +853,26 @@ class SpannerUploadHealingOperationService(
 
   private fun finalizeDecisionPlan(
     operation: UploadHealingOperation,
-    decision: RawImpressionUploadCorrectionCandidate.Decision,
+    decisions: Map<String, RawImpressionUploadCorrectionCandidate.Decision>,
   ): UploadHealingOperation {
-    if (decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT) {
+    val noReplacementCandidateIds =
+      decisions
+        .filterValues {
+          it == RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+        }
+        .keys
+    if (noReplacementCandidateIds.isEmpty()) {
       return operation.copy {
         state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
       }
     }
-    val removedUploadIds = operation.badRawImpressionUploadResourceIdsList.toSet()
     val rewiredSteps = mutableMapOf<Long, UploadHealingStep>()
     for (modelLineSteps in
       operation.stepsList.filter { it.memoized }.groupBy { it.cmmsModelLine }.values) {
       val orderedSteps = modelLineSteps.sortedBy { it.sequenceNumber }
       var predecessor = orderedSteps.first().recoveryPredecessorRawImpressionUploadResourceId
       for (step in orderedSteps) {
-        val removed = step.sourceRawImpressionUploadResourceId in removedUploadIds
+        val removed = step.rawImpressionUploadCorrectionCandidateId in noReplacementCandidateIds
         rewiredSteps[step.uploadHealingStepId] =
           step.copy {
             recoveryPredecessorRawImpressionUploadResourceId = predecessor
@@ -867,7 +894,7 @@ class SpannerUploadHealingOperationService(
       steps +=
         operation.stepsList.map { step ->
           rewiredSteps[step.uploadHealingStepId]
-            ?: if (step.sourceRawImpressionUploadResourceId in removedUploadIds) {
+            ?: if (step.rawImpressionUploadCorrectionCandidateId in noReplacementCandidateIds) {
               step.copy {
                 recoveryAction =
                   RawImpressionUploadModelLineRecoveryAction
@@ -884,29 +911,30 @@ class SpannerUploadHealingOperationService(
 
   private fun validateDecisionPlan(
     operation: UploadHealingOperation,
-    decision: RawImpressionUploadCorrectionCandidate.Decision,
+    decisions: Map<String, RawImpressionUploadCorrectionCandidate.Decision>,
   ) {
-    val noReplacement =
-      decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
-    val expectedAction =
-      if (noReplacement) {
-        RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
-      } else {
-        RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
+    for ((candidateId, decision) in decisions) {
+      val noReplacement =
+        decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+      val expectedAction =
+        if (noReplacement) {
+          RawImpressionUploadModelLineRecoveryAction
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+        } else {
+          RawImpressionUploadModelLineRecoveryAction
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
+        }
+      val ownerSteps =
+        operation.stepsList.filter { it.rawImpressionUploadCorrectionCandidateId == candidateId }
+      precondition(
+        ownerSteps.isNotEmpty() &&
+          ownerSteps.all { step ->
+            step.recoveryAction == expectedAction && (!noReplacement || !step.recoveryTarget)
+          } &&
+          (noReplacement || ownerSteps.any { it.recoveryTarget })
+      ) {
+        "the healing plan does not match the decision for candidate $candidateId"
       }
-    val ownerIds = operation.badRawImpressionUploadResourceIdsList.toSet()
-    val ownerSteps =
-      operation.stepsList.filter { it.sourceRawImpressionUploadResourceId in ownerIds }
-    precondition(
-      ownerSteps.isNotEmpty() &&
-        ownerSteps.all { step ->
-          step.recoveryAction == expectedAction && (!noReplacement || !step.recoveryTarget)
-        } &&
-        (noReplacement || ownerSteps.any { it.recoveryTarget })
-    ) {
-      "the healing plan does not match the operator decision"
     }
   }
 
