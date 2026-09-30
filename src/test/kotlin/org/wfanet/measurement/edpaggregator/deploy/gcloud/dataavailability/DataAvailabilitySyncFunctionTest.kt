@@ -343,6 +343,51 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
+  fun `DataWatcher request rejects missing or invalid generation`() {
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    val dataAvailabilitySyncConfig = fileSystemDataAvailabilitySyncConfig()
+    File(configBucketDir, "config.textproto")
+      .writeText(
+        TextFormat.printer()
+          .printToString(dataAvailabilitySyncConfigs { configs += dataAvailabilitySyncConfig })
+      )
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+    val client = HttpClient.newHttpClient()
+
+    for (generation in listOf(null, "invalid", "0", "-1")) {
+      val requestBuilder =
+        HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:$port"))
+          .header("X-DataWatcher-Path", "file:////edp/edp_name/timestamp/done")
+          .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
+      if (generation != null) {
+        requestBuilder.header("X-DataWatcher-Generation", generation)
+      }
+
+      val response = client.send(requestBuilder.build(), HttpResponse.BodyHandlers.ofString())
+
+      assertThat(response.statusCode()).isEqualTo(500)
+    }
+  }
+
+  @Test
   fun `task validation failure marks task failed before metadata persistence`() {
     taskDoneBlobUri = "file:////edp/edp_name/model-line/other-model-line/2025-01-05/done"
     val configBucketDir = File(tempFolder.root, "configbucket")
@@ -462,6 +507,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", "123")
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -547,6 +593,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", "123")
         .header("traceparent", traceParentHeader)
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
@@ -655,6 +702,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create(url))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", "123")
         .POST(HttpRequest.BodyPublishers.ofString(anyJson))
         .build()
     val getResponse = client.send(getRequest, HttpResponse.BodyHandlers.ofString())
@@ -855,6 +903,7 @@ class DataAvailabilitySyncFunctionTest {
       HttpRequest.newBuilder()
         .uri(URI.create("http://localhost:$port"))
         .header("X-DataWatcher-Path", localDoneBlobUri)
+        .header("X-DataWatcher-Generation", "123")
         .POST(HttpRequest.BodyPublishers.ofString(dataAvailabilitySyncConfig.toJson()))
         .build()
     val response = client.send(request, HttpResponse.BodyHandlers.ofString())

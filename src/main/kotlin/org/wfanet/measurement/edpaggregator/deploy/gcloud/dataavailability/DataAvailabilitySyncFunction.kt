@@ -124,13 +124,21 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val dataAvailabilitySync = buildDataAvailabilitySync(dataAvailabilitySyncConfig)
 
       Tracing.withW3CTraceContext(request) {
-        val generation =
+        val generationHeader =
           request
             .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
-            .map(String::toLongOrNull)
-            .orElse(null)
-        val objectIdentity =
-          generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, it) }
+            .orElseThrow {
+              IllegalArgumentException(
+                "Missing required header: " +
+                  VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER
+              )
+            }
+        val generation =
+          generationHeader.toLongOrNull()?.takeIf { it > 0 }
+            ?: throw IllegalArgumentException(
+              "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must be a positive integer"
+            )
+        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, generation)
         val attributes =
           Attributes.builder()
             .put(
@@ -151,11 +159,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
                 builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
               }
-              if (objectIdentity != null) {
-                builder
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
-              }
+              builder
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
             }
             .build()
         Tracing.trace("edpa.data_availability.sync", attributes) {
