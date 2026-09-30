@@ -379,9 +379,11 @@ module "event_group_sync_cloud_function" {
   secrets_to_access                        = [for key in local.event_group_sync_secrets_access : local.all_secrets[key].secret_id]
 
   # The Kingdom rate limit and mapped output are shared across syncs for the same DataProvider.
-  # Keep one single-request instance so syncs cannot overlap.
-  max_instances = 1
-  concurrency   = 1
+  # Keep one single-request instance so syncs cannot overlap, and finish before the DataWatcher's
+  # 540-second timeout so it can handle or retry failures.
+  timeout_seconds = 480
+  max_instances   = 1
+  concurrency     = 1
 }
 
 module "data_availability_sync_cloud_function" {

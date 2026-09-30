@@ -772,29 +772,37 @@ class DataWatcherTest() {
   }
 
   @Test
-  fun `surfaces transient HTTP dispatch failure so Eventarc can retry`() {
+  fun `surfaces retryable HTTP dispatch failures so Eventarc can retry`() {
     runBlocking {
-      val localPort = ServerSocket(0).use { it.localPort }
-      val config = watchedPath {
-        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
-        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
-      }
-      val server = TestServer(statusCode = 503)
-      server.start(localPort)
-      val dataWatcher =
-        DataWatcher(
-          workItemsStub = workItemsStub,
-          dataWatcherConfigs = listOf(config),
-          idTokenProvider = mockIdTokenProvider,
-        )
-
-      val error =
-        assertFailsWith<IllegalStateException> {
-          dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+      for (statusCode in listOf(408, 429, 502, 503, 504)) {
+        val localPort = ServerSocket(0).use { it.localPort }
+        val config = watchedPath {
+          sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+          this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
         }
+        val server = TestServer(statusCode = statusCode)
+        server.start(localPort)
+        try {
+          val dataWatcher =
+            DataWatcher(
+              workItemsStub = workItemsStub,
+              dataWatcherConfigs = listOf(config),
+              idTokenProvider = mockIdTokenProvider,
+            )
 
-      assertThat(error).hasMessageThat().contains("returned 503")
-      server.stop()
+          val error =
+            assertFailsWith<IllegalStateException> {
+              dataWatcher.receivePath(
+                "test-schema://test-bucket/path-to-watch/some-data",
+                emptyMap(),
+              )
+            }
+
+          assertThat(error).hasMessageThat().contains("returned $statusCode")
+        } finally {
+          server.stop()
+        }
+      }
     }
   }
 
@@ -839,6 +847,37 @@ class DataWatcherTest() {
 
       assertFailsWith<IOException> {
         dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+      }
+    }
+  }
+
+  @Test
+  fun `surfaces HTTP interruption with interrupt status restored`() {
+    runBlocking {
+      val localPort = ServerSocket(0).use { it.localPort }
+      val config = watchedPath {
+        sourcePathRegex = "test-schema://test-bucket/path-to-watch/(.*)"
+        this.httpEndpointSink = httpEndpointSink { endpointUri = "http://localhost:$localPort" }
+      }
+      val server = TestServer()
+      server.start(localPort)
+      val dataWatcher =
+        DataWatcher(
+          workItemsStub = workItemsStub,
+          dataWatcherConfigs = listOf(config),
+          idTokenProvider = mockIdTokenProvider,
+        )
+
+      try {
+        Thread.currentThread().interrupt()
+
+        assertFailsWith<InterruptedException> {
+          dataWatcher.receivePath("test-schema://test-bucket/path-to-watch/some-data", emptyMap())
+        }
+        assertThat(Thread.currentThread().isInterrupted).isTrue()
+      } finally {
+        Thread.interrupted()
+        server.stop()
       }
     }
   }

@@ -287,8 +287,11 @@ class EventGroupSync(
    * EventGroups with [EventGroup.State.DELETED] are deleted from CMMS if they exist. EventGroups
    * absent from the input flow are left unchanged.
    *
-   * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Failed syncs are
-   *   skipped and logged. Deleted EventGroups are not included.
+   * Failures attributable to individual EventGroups are skipped and logged. A batch-wide failure
+   * aborts synchronization by throwing an exception.
+   *
+   * @return Flow of [MappedEventGroup] for each successfully synced EventGroup. Deleted EventGroups
+   *   are not included.
    */
   suspend fun sync(): Flow<MappedEventGroup> = flow {
     withSpan(
