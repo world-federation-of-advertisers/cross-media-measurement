@@ -518,8 +518,8 @@ class EdpAggregatorCorrectnessTest : AbstractEdpAggregatorCorrectnessTest(measur
     }
     private val EDPA_DATA_PROVIDERS: List<String> =
       checkNotNull(System.getenv("EDPA_DATA_PROVIDERS")) {
-        "EDPA_DATA_PROVIDERS environment variable is not set"
-      }
+          "EDPA_DATA_PROVIDERS environment variable is not set"
+        }
         .split(',')
         .filter(String::isNotBlank)
 

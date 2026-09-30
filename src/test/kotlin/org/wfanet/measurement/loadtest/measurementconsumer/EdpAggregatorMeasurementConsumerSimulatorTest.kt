@@ -73,8 +73,7 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
 
     val captor = argumentCaptor<ListEventGroupsRequest>()
     verifyBlocking(eventGroupsServiceMock) { listEventGroups(captor.capture()) }
-    assertThat(captor.firstValue.filter.dataProviderInList)
-      .containsExactly(DATA_PROVIDER_NAME)
+    assertThat(captor.firstValue.filter.dataProviderInList).containsExactly(DATA_PROVIDER_NAME)
   }
 
   @Test
