@@ -56,6 +56,7 @@ class EdpAggregatorMeasurementConsumerSimulatorTest : AbstractMeasurementConsume
       reportName = "$MC_NAME/reports/report1",
       modelLineName = "modelLines/line1",
       listEventGroupsEntityTypes = emptyList(),
+      kingdomApiThrottler = kingdomApiThrottler,
       onMeasurementsCreated = { throw ShortCircuitException() },
     )
   }
