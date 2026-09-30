@@ -39,6 +39,21 @@ service DataAvailabilitySyncTaskService {
   // Lists tasks for a raw impression upload.
   rpc ListDataAvailabilitySyncTasks(ListDataAvailabilitySyncTasksRequest)
       returns (ListDataAvailabilitySyncTasksResponse) {}
+
+  // Marks a task as running and increments its attempt count.
+  rpc MarkDataAvailabilitySyncTaskRunning(
+      MarkDataAvailabilitySyncTaskRunningRequest)
+      returns (DataAvailabilitySyncTask) {}
+
+  // Marks a task as succeeded.
+  rpc MarkDataAvailabilitySyncTaskSucceeded(
+      MarkDataAvailabilitySyncTaskSucceededRequest)
+      returns (DataAvailabilitySyncTask) {}
+
+  // Marks a task as failed.
+  rpc MarkDataAvailabilitySyncTaskFailed(
+      MarkDataAvailabilitySyncTaskFailedRequest)
+      returns (DataAvailabilitySyncTask) {}
 }
 
 // Request message for `CreateDataAvailabilitySyncTask`.
@@ -137,4 +152,61 @@ message ListDataAvailabilitySyncTasksResponse {
 
   // Token for the next page.
   string next_page_token = 2;
+}
+
+// Request message for `MarkDataAvailabilitySyncTaskRunning`.
+message MarkDataAvailabilitySyncTaskRunningRequest {
+  // Resource name of the task.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncTask"
+    }
+  ];
+  // Etag for optimistic concurrency control.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+  // UUID4 used to make retries idempotent.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `MarkDataAvailabilitySyncTaskSucceeded`.
+message MarkDataAvailabilitySyncTaskSucceededRequest {
+  // Resource name of the task.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncTask"
+    }
+  ];
+  // Etag for optimistic concurrency control.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+  // UUID4 used to make retries idempotent.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `MarkDataAvailabilitySyncTaskFailed`.
+message MarkDataAvailabilitySyncTaskFailedRequest {
+  // Resource name of the task.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncTask"
+    }
+  ];
+  // Category of the task failure.
+  DataAvailabilitySyncTask.FailureCategory failure_category = 2
+      [(google.api.field_behavior) = REQUIRED];
+  // Etag for optimistic concurrency control.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  // UUID4 used to make retries idempotent.
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }
