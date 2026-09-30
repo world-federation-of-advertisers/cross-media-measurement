@@ -708,6 +708,18 @@ class VidLabelerAppTest {
     assertThat(taskRequest.firstValue.requestId)
       .isEqualTo(taskRequest.firstValue.dataAvailabilitySyncTaskId)
     assertThat(taskCreated.get()).isTrue()
+    val taskLog =
+      logRecords.single { it.message.contains("event=edpa.data_availability_sync_task.create ") }
+    assertThat(taskLog.message).contains("xmm.lifecycle.stage=availability_task_create")
+    assertThat(taskLog.message).contains("xmm.outcome=resolved")
+    assertThat(taskLog.message)
+      .contains(
+        "xmm.edpa.data_availability_sync_task.name=$UPLOAD/dataAvailabilitySyncTasks/" +
+          taskRequest.firstValue.dataAvailabilitySyncTaskId
+      )
+    assertThat(taskLog.message).contains("xmm.edpa.data_availability_sync_task.state=PENDING")
+    assertThat(taskLog.message).contains("xmm.gcs.object.generation=321")
+    assertThat(taskLog.message).doesNotContain("gs://output-bucket")
     val finalizeSpan =
       spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
     val doneEvent = finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.done_object" }
@@ -719,6 +731,32 @@ class VidLabelerAppTest {
           "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
         )
       )
+  }
+
+  @Test
+  fun `runWork logs task creation failure before parent completion`() = runBlocking {
+    stubLastOutWithEventDate()
+    dataAvailabilitySyncTasksService.stub {
+      onBlocking {
+        createDataAvailabilitySyncTask(any<CreateDataAvailabilitySyncTaskRequest>())
+      } doThrow StatusRuntimeException(Status.UNAVAILABLE)
+    }
+
+    assertFailsWith<StatusException> {
+      createApp(writeGcsObject = { _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+    }
+
+    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+    val failureLog =
+      logRecords.single {
+        it.message.contains("event=edpa.data_availability_sync_task.create ") &&
+          it.message.contains("xmm.outcome=failed")
+      }
+    assertThat(failureLog.message).contains("xmm.lifecycle.stage=availability_task_create")
+    assertThat(failureLog.message).contains("xmm.error.code=grpc.UNAVAILABLE")
+    assertThat(failureLog.message).doesNotContain("gs://output-bucket")
   }
 
   @Test
