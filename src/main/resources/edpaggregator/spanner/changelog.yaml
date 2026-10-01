@@ -94,3 +94,9 @@ databaseChangeLog:
   - include:
       file: create-data-availability-sync-lease-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-correction-candidate-id.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: drop-raw-impression-upload-generation-uniqueness.sql
+      relativeToChangeLogFile: true

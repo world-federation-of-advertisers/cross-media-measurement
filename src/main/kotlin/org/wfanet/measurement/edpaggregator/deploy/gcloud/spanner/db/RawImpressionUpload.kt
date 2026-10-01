@@ -34,6 +34,7 @@ import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
 
@@ -61,6 +62,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getRawImpressionUploadByResourceId(
       RegistrationComplete,
       EvictionOperationId,
       ProcessingDeferred,
+      CorrectionCandidateId,
       MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
@@ -109,6 +111,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByCreateRequestId(
       RegistrationComplete,
       EvictionOperationId,
       ProcessingDeferred,
+      CorrectionCandidateId,
       MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
@@ -151,6 +154,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findUploadByMarkRegistrationComplete
       RegistrationComplete,
       EvictionOperationId,
       ProcessingDeferred,
+      CorrectionCandidateId,
       MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
@@ -193,6 +197,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       RegistrationComplete,
       EvictionOperationId,
       ProcessingDeferred,
+      CorrectionCandidateId,
       MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
@@ -204,7 +209,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
     WHERE DataProviderResourceId = @dataProviderResourceId
       AND DoneBlobUri = @doneBlobUri
       AND DoneBlobCreateTime IS NOT NULL
-    ORDER BY DoneBlobCreateTime DESC
+    ORDER BY DoneBlobCreateTime DESC, CreateTime DESC, RawImpressionUploadResourceId DESC
     LIMIT 1
     """
       .trimIndent()
@@ -232,6 +237,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findLatestUploadByDoneBlobUri(
       RegistrationComplete,
       EvictionOperationId,
       ProcessingDeferred,
+      CorrectionCandidateId,
       MarkRegistrationCompleteRequestId,
       State,
       CreateTime,
@@ -280,6 +286,7 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
   replacesRawImpressionUploadResourceId: String?,
   evictionOperationId: String? = null,
   processingDeferred: Boolean = false,
+  correctionCandidateId: String? = null,
 ) {
   bufferInsertMutation("RawImpressionUpload") {
     set("DataProviderResourceId").to(dataProviderResourceId)
@@ -300,6 +307,9 @@ fun AsyncDatabaseClient.TransactionContext.insertRawImpressionUpload(
       set("EvictionOperationId").to(evictionOperationId)
     }
     set("ProcessingDeferred").to(processingDeferred)
+    if (correctionCandidateId != null) {
+      set("CorrectionCandidateId").to(correctionCandidateId)
+    }
     set("RegistrationComplete").to(false)
     set("State").to(state)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
@@ -328,6 +338,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploads(
         RegistrationComplete,
         EvictionOperationId,
         ProcessingDeferred,
+        CorrectionCandidateId,
         MarkRegistrationCompleteRequestId,
         State,
         CreateTime,
@@ -423,6 +434,9 @@ private fun buildRawImpressionUploadResult(struct: Struct): RawImpressionUploadR
         evictionOperationId = struct.getString("EvictionOperationId")
       }
       processingDeferred = struct.getBoolean("ProcessingDeferred")
+      if (!struct.isNull("CorrectionCandidateId")) {
+        correctionCandidateId = struct.getString("CorrectionCandidateId")
+      }
       state = struct.getProtoEnum("State", RawImpressionUploadState::forNumber)
       createTime = struct.getTimestamp("CreateTime").toProto()
       updateTime = struct.getTimestamp("UpdateTime").toProto()
@@ -456,6 +470,40 @@ fun AsyncDatabaseClient.ReadContext.readProcessingDeferredRawImpressionUploadIds
     .map { it.getLong("RawImpressionUploadId") }
 }
 
+/** Reads queued uploads that must be held when a correction fence is acquired. */
+fun AsyncDatabaseClient.ReadContext.readDispatchableRawImpressionUploadIds(
+  dataProviderResourceId: String
+): Flow<Long> {
+  val sql =
+    """
+    SELECT upload.RawImpressionUploadId
+    FROM RawImpressionUpload AS upload
+    WHERE upload.DataProviderResourceId = @dataProviderResourceId
+      AND upload.ProcessingDeferred = FALSE
+      AND (
+        upload.State = @createdUploadState
+        OR EXISTS (
+          SELECT 1
+          FROM RawImpressionUploadModelLine AS modelLine
+          WHERE modelLine.DataProviderResourceId = upload.DataProviderResourceId
+            AND modelLine.RawImpressionUploadId = upload.RawImpressionUploadId
+            AND modelLine.State = @createdModelLineState
+        )
+      )
+    """
+      .trimIndent()
+  return executeQuery(
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("createdUploadState").to(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
+        bind("createdModelLineState")
+          .to(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED)
+      },
+      Options.tag("action=readDispatchableRawImpressionUploadIds"),
+    )
+    .map { it.getLong("RawImpressionUploadId") }
+}
+
 /** Makes a previously deferred upload eligible for ordered dispatch. */
 fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadProcessingDeferred(
   dataProviderResourceId: String,
@@ -466,6 +514,23 @@ fun AsyncDatabaseClient.TransactionContext.updateRawImpressionUploadProcessingDe
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("RawImpressionUploadId").to(rawImpressionUploadId)
     set("ProcessingDeferred").to(processingDeferred)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Makes an approved quarantined upload resumable without replacing its persisted files. */
+fun AsyncDatabaseClient.TransactionContext.activateQuarantinedRawImpressionUpload(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  evictionOperationId: String,
+) {
+  bufferUpdateMutation("RawImpressionUpload") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("State").to(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED)
+    set("RegistrationComplete").to(false)
+    set("EvictionOperationId").to(evictionOperationId)
+    set("ProcessingDeferred").to(false)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }

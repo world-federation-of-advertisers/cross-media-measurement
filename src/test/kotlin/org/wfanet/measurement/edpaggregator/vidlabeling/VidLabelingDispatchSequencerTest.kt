@@ -521,7 +521,7 @@ class VidLabelingDispatchSequencerTest {
 
       // MODEL_LINE_2 differs from the running MODEL_LINE, so it dispatches in parallel.
       assertThat(result.dispatchedUpload).isEqualTo(created.name)
-      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS)) { createWorkItem(any()) }
+      verifyBlocking(workItemsService, times(NUMBER_OF_SHARDS * 2)) { createWorkItem(any()) }
       verifyBlocking(rawImpressionUploadModelLineService) {
         markRawImpressionUploadModelLineLabeling(any())
       }
@@ -718,11 +718,11 @@ class VidLabelingDispatchSequencerTest {
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
     }
 
   @Test
-  fun `dispatchNext does not retry a memoized claim rejected with FAILED_PRECONDITION`() =
+  fun `dispatchNext publishes no memoized work when a correction fence rejects the claim`() =
     runBlocking<Unit> {
       stubUploads(
         created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
@@ -743,13 +743,15 @@ class VidLabelingDispatchSequencerTest {
 
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
       verifyBlocking(rawImpressionUploadModelLineService, times(1)) {
         markRawImpressionUploadModelLinePoolAssigning(any())
       }
       verifyBlocking(rawImpressionUploadModelLineService, never()) {
         getRawImpressionUploadModelLine(any())
       }
+      verifyBlocking(poolAssignmentJobService, never()) { batchCreatePoolAssignmentJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     }
 
   @Test
@@ -1157,11 +1159,13 @@ class VidLabelingDispatchSequencerTest {
       // dispatchNext must not propagate the lost-race error.
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     }
 
   @Test
-  fun `dispatchNext skips a model line that already advanced with FAILED_PRECONDITION`() =
+  fun `dispatchNext publishes no work when a correction fence rejects the claim`() =
     runBlocking<Unit> {
       stubUploads(
         created = listOf(upload("upload-1", RawImpressionUpload.State.CREATED, FIXED_NOW))
@@ -1178,7 +1182,9 @@ class VidLabelingDispatchSequencerTest {
 
       val result = createSequencer().dispatchNext()
 
-      assertThat(result.dispatchedUpload).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/upload-1")
+      assertThat(result.dispatchedUpload).isNull()
+      verifyBlocking(vidLabelingJobService, never()) { batchCreateVidLabelingJobs(any()) }
+      verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
     }
 
   @Test

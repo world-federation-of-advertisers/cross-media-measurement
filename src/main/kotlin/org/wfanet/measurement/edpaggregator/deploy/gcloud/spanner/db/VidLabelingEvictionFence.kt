@@ -98,10 +98,17 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveRawImpressionUploadModelLin
     )
   val sql =
     """
-    SELECT RawImpressionUploadModelLineId
-    FROM RawImpressionUploadModelLine@{FORCE_INDEX=RawImpressionUploadModelLineByState}
-    WHERE DataProviderResourceId = @dataProviderResourceId
-      AND CAST(State AS INT64) IN UNNEST(@activeStates)
+    SELECT modelLine.RawImpressionUploadModelLineId
+    FROM RawImpressionUploadModelLine@{FORCE_INDEX=RawImpressionUploadModelLineByState} AS modelLine
+    JOIN RawImpressionUpload AS upload
+      ON upload.DataProviderResourceId = modelLine.DataProviderResourceId
+      AND upload.RawImpressionUploadId = modelLine.RawImpressionUploadId
+    WHERE modelLine.DataProviderResourceId = @dataProviderResourceId
+      AND CAST(modelLine.State AS INT64) IN UNNEST(@activeStates)
+      AND NOT (
+        modelLine.State = @createdState
+        AND upload.ProcessingDeferred = TRUE
+      )
     LIMIT 1
     """
       .trimIndent()
@@ -109,6 +116,8 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveRawImpressionUploadModelLin
       statement(sql) {
         bind("dataProviderResourceId").to(dataProviderResourceId)
         bind("activeStates").toInt64Array(activeStates.map { it.number.toLong() })
+        bind("createdState")
+          .to(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_CREATED)
       },
       Options.tag("action=hasActiveRawImpressionUploadModelLine"),
     )

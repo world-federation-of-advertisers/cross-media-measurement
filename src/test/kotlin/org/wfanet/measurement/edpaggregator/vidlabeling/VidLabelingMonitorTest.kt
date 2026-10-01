@@ -400,14 +400,19 @@ class VidLabelingMonitorTest {
     }
   }
 
-  private fun upload(id: String, state: RawImpressionUpload.State, createdAt: Instant) =
-    rawImpressionUpload {
-      name = "$DATA_PROVIDER/rawImpressionUploads/$id"
-      this.state = state
-      registrationComplete = true
-      createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
-      doneBlobUri = "gs://raw-bucket/edp7/2026-06-01/done"
-    }
+  private fun upload(
+    id: String,
+    state: RawImpressionUpload.State,
+    createdAt: Instant,
+    processingDeferred: Boolean = false,
+  ) = rawImpressionUpload {
+    name = "$DATA_PROVIDER/rawImpressionUploads/$id"
+    this.state = state
+    registrationComplete = true
+    createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
+    doneBlobUri = "gs://raw-bucket/edp7/2026-06-01/done"
+    this.processingDeferred = processingDeferred
+  }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
     name = "$DATA_PROVIDER/rawImpressionUploads/upload-1/modelLines/$id"
@@ -495,6 +500,35 @@ class VidLabelingMonitorTest {
       .containsExactly("$DATA_PROVIDER/rawImpressionUploads/active-stuck")
     assertThat(result.hasIssues).isTrue()
     assertThat(collectMetrics().gaugeValue(UPLOADS_STUCK_METRIC)).isEqualTo(1)
+  }
+
+  @Test
+  fun `health ignores quarantined and deferred uploads`() = runBlocking {
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads +=
+            upload(
+              "correction",
+              RawImpressionUpload.State.CORRECTION_REQUIRED,
+              FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(60),
+            )
+          rawImpressionUploads +=
+            upload(
+              "deferred",
+              RawImpressionUpload.State.CREATED,
+              FIXED_NOW.minus(STALENESS_THRESHOLD).minusSeconds(60),
+              processingDeferred = true,
+            )
+        }
+      )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.hasIssues).isFalse()
+    verifyBlocking(rawImpressionUploadModelLineService, never()) {
+      listRawImpressionUploadModelLines(any())
+    }
   }
 
   @Test

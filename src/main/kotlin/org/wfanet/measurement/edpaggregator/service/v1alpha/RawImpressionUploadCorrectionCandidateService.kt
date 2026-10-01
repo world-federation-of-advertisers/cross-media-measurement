@@ -182,6 +182,8 @@ class RawImpressionUploadCorrectionCandidateService(
           uploadHealingOperation = upload.evictionOperationId,
           registrationComplete = upload.registrationComplete,
           failed = upload.state == InternalUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+          quarantined =
+            upload.state == InternalUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
           files =
             listFiles(dataProviderId, upload.rawImpressionUploadResourceId).map { file ->
               RawImpressionUploadManifestClassifier.File(
@@ -329,6 +331,7 @@ class RawImpressionUploadCorrectionCandidateService(
           .withCause(e)
           .asRuntimeException()
       Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
+      Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
       Status.Code.FAILED_PRECONDITION ->
         Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
       Status.Code.ABORTED -> Status.ABORTED.withCause(e).asRuntimeException()

@@ -72,6 +72,7 @@ proto_library(
     strip_import_prefix = IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_correction_candidate_proto",
+        ":raw_impression_upload_proto",
         "@com_google_protobuf//:timestamp_proto",
     ],
 )

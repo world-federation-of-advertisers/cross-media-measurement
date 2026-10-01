@@ -171,6 +171,33 @@ suspend fun AsyncDatabaseClient.ReadContext
     ?.let(::buildRawImpressionUploadCorrectionCandidateResult)
 }
 
+/** Returns whether a quarantined upload is assigned to a healing operation. */
+suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadCorrectionCandidateHasOperation(
+  dataProviderResourceId: String,
+  rawImpressionUploadResourceId: String,
+  uploadHealingOperationId: String,
+): Boolean {
+  val sql =
+    """
+    SELECT RawImpressionUploadCorrectionCandidateId
+    FROM RawImpressionUploadCorrectionCandidate
+    WHERE DataProviderResourceId = @dataProviderResourceId
+      AND RawImpressionUploadResourceId = @rawImpressionUploadResourceId
+      AND UploadHealingOperationId = @uploadHealingOperationId
+    LIMIT 1
+    """
+      .trimIndent()
+  return executeQuery(
+      statement(sql) {
+        bind("dataProviderResourceId").to(dataProviderResourceId)
+        bind("rawImpressionUploadResourceId").to(rawImpressionUploadResourceId)
+        bind("uploadHealingOperationId").to(uploadHealingOperationId)
+      },
+      Options.tag("action=rawImpressionUploadCorrectionCandidateHasOperation"),
+    )
+    .singleOrNullIfEmpty() != null
+}
+
 /** Reads raw-impression upload correction candidates in creation order. */
 fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadCorrectionCandidates(
   dataProviderResourceId: String,

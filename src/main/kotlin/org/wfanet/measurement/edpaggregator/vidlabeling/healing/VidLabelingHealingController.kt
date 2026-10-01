@@ -444,10 +444,7 @@ class VidLabelingHealingController(
     advanceToNextRecoveryPhase(operation)
   }
 
-  private suspend fun advanceRecovery(
-    config: DataProviderConfig,
-    initial: UploadHealingOperation,
-  ) {
+  private suspend fun advanceRecovery(config: DataProviderConfig, initial: UploadHealingOperation) {
     var operation = initial
     var group = nextRecoveryGroup(operation) ?: return
     val replacement = findReadyReplacement(group)
@@ -617,6 +614,7 @@ class VidLabelingHealingController(
           uploadHealingOperation = revision.uploadHealingOperation,
           registrationComplete = revision.registrationComplete,
           failed = revision.state == RawImpressionUpload.State.FAILED,
+          quarantined = revision.state == RawImpressionUpload.State.CORRECTION_REQUIRED,
           files = listPersistedFiles(revision.name),
         )
       }
@@ -886,7 +884,13 @@ class VidLabelingHealingController(
     val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
-        Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        if (doneTime != 0) {
+          doneTime
+        } else {
+          val createTime = Timestamps.compare(left.createTime, right.createTime)
+          if (createTime != 0) createTime else left.name.compareTo(right.name)
+        }
       }
     } else {
       uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }

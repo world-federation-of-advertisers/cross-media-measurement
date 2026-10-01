@@ -33,6 +33,31 @@ object RequestIds {
   fun forRawImpressionUpload(doneBlobPath: String, generation: Long): String =
     fromKey("rawImpressionUpload:$doneBlobPath:$generation")
 
+  /** `request_id` for replaying an exact upload generation during healing. */
+  fun forRawImpressionUploadRecovery(
+    doneBlobPath: String,
+    generation: Long,
+    operationId: String,
+  ): String = fromKey("rawImpressionUploadRecovery:$doneBlobPath:$generation:$operationId")
+
+  /** Resource ID for a correction candidate detected from one done-object generation. */
+  fun forRawImpressionUploadCorrectionCandidate(doneBlobPath: String, generation: Long): String =
+    fromKey("rawImpressionUploadCorrectionCandidate:$doneBlobPath:$generation")
+
+  /** `request_id` for registering one correction candidate. */
+  fun forRegisterRawImpressionUploadCorrectionCandidate(
+    doneBlobPath: String,
+    generation: Long,
+  ): String = fromKey("registerRawImpressionUploadCorrectionCandidate:$doneBlobPath:$generation")
+
+  /** `request_id` for resolving a correction superseded by a healthy revision. */
+  fun forResolveRawImpressionUploadCorrectionCandidate(candidateId: String): String =
+    fromKey("resolveRawImpressionUploadCorrectionCandidate:$candidateId")
+
+  /** `request_id` for activating one approved quarantined upload. */
+  fun forActivateQuarantinedRawImpressionUpload(uploadName: String, operationId: String): String =
+    fromKey("activateQuarantinedRawImpressionUpload:$uploadName:$operationId")
+
   /** `request_id` for completing one observed version of a `RawImpressionUpload`. */
   fun forRawImpressionUploadRegistrationComplete(uploadName: String, etag: String): String =
     fromKey("rawImpressionUploadRegistrationComplete:$uploadName:$etag")
