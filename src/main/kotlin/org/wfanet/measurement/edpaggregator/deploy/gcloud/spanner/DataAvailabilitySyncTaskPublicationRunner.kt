@@ -29,6 +29,7 @@ import kotlinx.coroutines.isActive
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTaskPublisher
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.DataAvailabilitySyncTaskPublication
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.DataAvailabilitySyncTaskPublicationFailureResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.claimDataAvailabilitySyncTaskPublication
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.completeDataAvailabilitySyncTaskPublication
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reconcileDataAvailabilitySyncTaskPublications
@@ -120,13 +121,20 @@ class DataAvailabilitySyncTaskPublicationRunner(
       throw e
     } catch (e: Exception) {
       log(publication.taskName, "retryable_failure", e)
-      databaseClient.readWriteTransaction().run { transaction ->
-        transaction.retryDataAvailabilitySyncTaskPublication(
-          publication,
-          clock.instant().plus(retryDelay(publication.attemptCount)),
-        )
+      val failureResult =
+        databaseClient.readWriteTransaction().run { transaction ->
+          transaction.retryDataAvailabilitySyncTaskPublication(
+            publication,
+            clock.instant().plus(retryDelay(publication.attemptCount)),
+          )
+        }
+      return when (failureResult) {
+        DataAvailabilitySyncTaskPublicationFailureResult.RETRY_SCHEDULED -> false
+        DataAvailabilitySyncTaskPublicationFailureResult.DELIVERY_OBSERVED -> {
+          log(publication.taskName, "delivery_observed")
+          true
+        }
       }
-      return false
     }
     databaseClient.readWriteTransaction().run { transaction ->
       transaction.completeDataAvailabilitySyncTaskPublication(publication)

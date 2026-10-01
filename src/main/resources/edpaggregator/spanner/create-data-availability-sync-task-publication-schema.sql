@@ -25,6 +25,7 @@ CREATE TABLE DataAvailabilitySyncTaskPublication (
   DataAvailabilitySyncTaskResourceId STRING(63) NOT NULL,
   LeaseOwner STRING(36),
   LeaseExpirationTime TIMESTAMP,
+  ProviderSlot BOOL,
   NextAttemptTime TIMESTAMP NOT NULL,
   AttemptCount INT64 NOT NULL,
   PublishedTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
@@ -45,5 +46,8 @@ CREATE INDEX DataAvailabilitySyncTaskPublicationByClaimPriority
     RawImpressionUploadId,
     DataAvailabilitySyncTaskResourceId
   );
+
+CREATE UNIQUE NULL_FILTERED INDEX DataAvailabilitySyncTaskPublicationByProviderSlot
+  ON DataAvailabilitySyncTaskPublication(DataProviderResourceId, ProviderSlot);
 
 RUN BATCH;

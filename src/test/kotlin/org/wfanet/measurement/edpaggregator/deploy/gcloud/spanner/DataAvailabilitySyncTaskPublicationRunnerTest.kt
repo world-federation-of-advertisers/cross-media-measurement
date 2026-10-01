@@ -24,6 +24,9 @@ import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
+import java.util.Collections
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
@@ -32,6 +35,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTaskPublisher
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.claimDataAvailabilitySyncTaskPublication
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -51,6 +55,112 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
   @get:Rule
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
+
+  @Test
+  fun `only one task per data provider is published`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      repeat(5) { index -> service.createDataAvailabilitySyncTask(createRequest(index = index)) }
+      val publisher = RecordingPublisher()
+      val runner = newRunner(publisher)
+
+      assertThat(runner.publishPendingTasks()).isEqualTo(1)
+
+      assertThat(publisher.taskNames).hasSize(1)
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(1)
+      assertThat(unpublishedCount(DATA_PROVIDER_ID)).isEqualTo(4)
+    }
+
+  @Test
+  fun `tasks for different data providers are published concurrently`() =
+    runBlocking<Unit> {
+      insertUpload()
+      insertUpload(
+        OTHER_DATA_PROVIDER_ID,
+        rawImpressionUploadId = 2L,
+        rawImpressionUploadResourceId = OTHER_UPLOAD_ID,
+      )
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      repeat(2) { index -> service.createDataAvailabilitySyncTask(createRequest(index = index)) }
+      service.createDataAvailabilitySyncTask(
+        createRequest(
+          dataProviderResourceId = OTHER_DATA_PROVIDER_ID,
+          rawImpressionUploadId = 2L,
+          rawImpressionUploadResourceId = OTHER_UPLOAD_ID,
+        )
+      )
+      val publisher = RecordingPublisher()
+      val runner = newRunner(publisher)
+
+      assertThat(runner.publishPendingTasks()).isEqualTo(2)
+
+      assertThat(publisher.taskNames.count { it.startsWith("dataProviders/$DATA_PROVIDER_ID/") })
+        .isEqualTo(1)
+      assertThat(
+          publisher.taskNames.count { it.startsWith("dataProviders/$OTHER_DATA_PROVIDER_ID/") }
+        )
+        .isEqualTo(1)
+    }
+
+  @Test
+  fun `racing runners publish only one task for a data provider`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      repeat(5) { index -> service.createDataAvailabilitySyncTask(createRequest(index = index)) }
+      val publisher = RecordingPublisher()
+      val runners = listOf(newRunner(publisher), newRunner(publisher))
+
+      val publishedCounts =
+        runners.map { runner -> async { runner.publishPendingTasks(1) } }.awaitAll()
+
+      assertThat(publishedCounts.sum()).isEqualTo(1)
+      assertThat(publisher.taskNames).hasSize(1)
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(1)
+    }
+
+  @Test
+  fun `expired publication lease reacquires its data provider slot`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      service.createDataAvailabilitySyncTask(createRequest())
+      val publisher = RecordingPublisher()
+      val clock = MutableClock(Instant.now().plusSeconds(10))
+      spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+        transaction.claimDataAvailabilitySyncTaskPublication(
+          "abandoned-lease",
+          clock.instant(),
+          clock.instant().plusSeconds(1),
+        )
+      }
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(1)
+      clock.advance(Duration.ofSeconds(2))
+
+      assertThat(newRunner(publisher, clock).publishPendingTasks()).isEqualTo(1)
+
+      assertThat(publisher.taskNames).containsExactly(TASK_NAME)
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(1)
+    }
+
+  @Test
+  fun `stale pending task releases and reacquires its data provider slot`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      service.createDataAvailabilitySyncTask(createRequest())
+      val publisher = RecordingPublisher()
+      val clock = MutableClock(Instant.now().plusSeconds(10))
+      val runner = newRunner(publisher, clock)
+
+      assertThat(runner.publishPendingTasks()).isEqualTo(1)
+      clock.advance(Duration.ofHours(2))
+
+      assertThat(runner.publishPendingTasks()).isEqualTo(1)
+      assertThat(publisher.taskNames).containsExactly(TASK_NAME, TASK_NAME).inOrder()
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(1)
+    }
 
   @Test
   fun `published task is reconciled only after becoming stale`() =
@@ -120,6 +230,91 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
       assertThat(publisher.taskNames).containsExactly(TASK_NAME)
     }
 
+  @Test
+  fun `repeated failed publication remains retryable`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      service.createDataAvailabilitySyncTask(createRequest())
+      val publisher = RecordingPublisher(fail = true)
+      val clock = MutableClock(Instant.now().plusSeconds(10))
+      val runner = newRunner(publisher, clock)
+
+      assertThat(runner.publishPendingTasks(limit = 1)).isEqualTo(0)
+      clock.advance(Duration.ofSeconds(2))
+      assertThat(runner.publishPendingTasks(limit = 1)).isEqualTo(0)
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(0)
+      assertThat(publisher.attemptedTaskNames).containsExactly(TASK_NAME, TASK_NAME).inOrder()
+
+      publisher.fail = false
+      clock.advance(Duration.ofSeconds(2))
+
+      assertThat(runner.publishPendingTasks(limit = 1)).isEqualTo(1)
+      assertThat(publisher.taskNames).containsExactly(TASK_NAME)
+    }
+
+  @Test
+  fun `failed publication releases the data provider slot`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      service.createDataAvailabilitySyncTask(createRequest())
+      val publisher = RecordingPublisher(fail = true)
+      val clock = MutableClock(Instant.now().plusSeconds(10))
+      val runner = newRunner(publisher, clock)
+
+      assertThat(runner.publishPendingTasks(limit = 1)).isEqualTo(0)
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(0)
+
+      service.createDataAvailabilitySyncTask(createRequest(index = 1))
+      publisher.fail = false
+
+      assertThat(runner.publishPendingTasks(limit = 1)).isEqualTo(1)
+      assertThat(publisher.taskNames).hasSize(1)
+    }
+
+  @Test
+  fun `lost publication response preserves slot after delivery starts`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      repeat(2) { index -> service.createDataAvailabilitySyncTask(createRequest(index = index)) }
+      val publisher =
+        RecordingPublisher(
+          fail = true,
+          beforeFailure = { taskName ->
+            spannerDatabase.databaseClient.write(
+              listOf(
+                Mutation.newUpdateBuilder("DataAvailabilitySyncTask")
+                  .set("DataProviderResourceId")
+                  .to(DATA_PROVIDER_ID)
+                  .set("RawImpressionUploadId")
+                  .to(1L)
+                  .set("DataAvailabilitySyncTaskResourceId")
+                  .to(taskName.substringAfterLast('/'))
+                  .set("State")
+                  .to(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING)
+                  .set("UpdateTime")
+                  .to(Value.COMMIT_TIMESTAMP)
+                  .build()
+              )
+            )
+          },
+        )
+      val runner = newRunner(publisher)
+
+      assertThat(runner.publishPendingTasks()).isEqualTo(1)
+
+      val deliveredTaskId = publisher.attemptedTaskNames.single().substringAfterLast('/')
+      assertThat(taskState(deliveredTaskId))
+        .isEqualTo(
+          DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING.number.toLong()
+        )
+      assertThat(publicationPublished(deliveredTaskId)).isTrue()
+      assertThat(providerSlotCount(DATA_PROVIDER_ID)).isEqualTo(1)
+      assertThat(runner.publishPendingTasks()).isEqualTo(0)
+    }
+
   private fun newRunner(
     publisher: DataAvailabilitySyncTaskPublisher,
     clock: Clock = Clock.systemUTC(),
@@ -133,14 +328,26 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
       maxRetryDelay = Duration.ofMinutes(1),
     )
 
-  private fun createRequest() = createDataAvailabilitySyncTaskRequest {
-    dataProviderResourceId = DATA_PROVIDER_ID
-    rawImpressionUploadResourceId = UPLOAD_ID
-    dataAvailabilitySyncTaskResourceId = TASK_ID
-    requestId = TASK_ID
+  private fun createRequest(
+    dataProviderResourceId: String = DATA_PROVIDER_ID,
+    rawImpressionUploadId: Long = 1L,
+    rawImpressionUploadResourceId: String = UPLOAD_ID,
+    index: Int = 0,
+  ) = createDataAvailabilitySyncTaskRequest {
+    val generation = GENERATION + index
+    val doneUri = "$DONE_URI_PREFIX/output-$index/done"
+    val taskId =
+      RequestIds.forDataAvailabilitySyncTask(
+        VidLabelingTraceAttributes.gcsObjectPathHash(doneUri),
+        generation,
+      )
+    this.dataProviderResourceId = dataProviderResourceId
+    this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
+    dataAvailabilitySyncTaskResourceId = taskId
+    requestId = taskId
     dataAvailabilitySyncTask = dataAvailabilitySyncTask {
-      doneBlobUri = DONE_URI
-      doneBlobGeneration = GENERATION
+      doneBlobUri = doneUri
+      doneBlobGeneration = generation
       cmmsModelLine = MODEL_LINE
       eventDate = date {
         year = 2026
@@ -150,7 +357,50 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
     }
   }
 
-  private suspend fun publicationPublished(): Boolean {
+  private suspend fun providerSlotCount(dataProviderResourceId: String): Int =
+    spannerDatabase.databaseClient
+      .singleUse()
+      .executeQuery(
+        statement(
+          """
+          SELECT COUNT(*) AS SlotCount
+          FROM DataAvailabilitySyncTaskPublication
+          WHERE DataProviderResourceId = @dataProviderResourceId
+            AND ProviderSlot = TRUE
+          """
+            .trimIndent()
+        ) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+        }
+      )
+      .toList()
+      .single()
+      .getLong("SlotCount")
+      .toInt()
+
+  private suspend fun unpublishedCount(dataProviderResourceId: String): Int =
+    spannerDatabase.databaseClient
+      .singleUse()
+      .executeQuery(
+        statement(
+          """
+          SELECT COUNT(*) AS UnpublishedCount
+          FROM DataAvailabilitySyncTaskPublication
+          WHERE DataProviderResourceId = @dataProviderResourceId
+            AND PublishedTime IS NULL
+            AND ProviderSlot IS NULL
+          """
+            .trimIndent()
+        ) {
+          bind("dataProviderResourceId").to(dataProviderResourceId)
+        }
+      )
+      .toList()
+      .single()
+      .getLong("UnpublishedCount")
+      .toInt()
+
+  private suspend fun publicationPublished(taskResourceId: String = TASK_ID): Boolean {
     val row =
       spannerDatabase.databaseClient
         .singleUse()
@@ -166,7 +416,7 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
               .trimIndent()
           ) {
             bind("dataProviderResourceId").to(DATA_PROVIDER_ID)
-            bind("taskResourceId").to(TASK_ID)
+            bind("taskResourceId").to(taskResourceId)
           }
         )
         .toList()
@@ -174,16 +424,42 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
     return !row.isNull("PublishedTime")
   }
 
-  private suspend fun insertUpload() {
+  private suspend fun taskState(taskResourceId: String): Long =
+    spannerDatabase.databaseClient
+      .singleUse()
+      .executeQuery(
+        statement(
+          """
+          SELECT CAST(State AS INT64) AS State
+          FROM DataAvailabilitySyncTask
+          WHERE DataProviderResourceId = @dataProviderResourceId
+            AND RawImpressionUploadId = 1
+            AND DataAvailabilitySyncTaskResourceId = @taskResourceId
+          """
+            .trimIndent()
+        ) {
+          bind("dataProviderResourceId").to(DATA_PROVIDER_ID)
+          bind("taskResourceId").to(taskResourceId)
+        }
+      )
+      .toList()
+      .single()
+      .getLong("State")
+
+  private suspend fun insertUpload(
+    dataProviderResourceId: String = DATA_PROVIDER_ID,
+    rawImpressionUploadId: Long = 1L,
+    rawImpressionUploadResourceId: String = UPLOAD_ID,
+  ) {
     spannerDatabase.databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("RawImpressionUpload")
           .set("DataProviderResourceId")
-          .to(DATA_PROVIDER_ID)
+          .to(dataProviderResourceId)
           .set("RawImpressionUploadId")
-          .to(1L)
+          .to(rawImpressionUploadId)
           .set("RawImpressionUploadResourceId")
-          .to(UPLOAD_ID)
+          .to(rawImpressionUploadResourceId)
           .set("DoneBlobUri")
           .to("gs://bucket/raw/done")
           .set("DoneBlobGeneration")
@@ -201,9 +477,9 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
           .build(),
         Mutation.newInsertBuilder("RawImpressionUploadModelLine")
           .set("DataProviderResourceId")
-          .to(DATA_PROVIDER_ID)
+          .to(dataProviderResourceId)
           .set("RawImpressionUploadId")
-          .to(1L)
+          .to(rawImpressionUploadId)
           .set("RawImpressionUploadModelLineId")
           .to(1L)
           .set("RawImpressionUploadModelLineResourceId")
@@ -225,11 +501,20 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
     )
   }
 
-  private class RecordingPublisher(var fail: Boolean = false) : DataAvailabilitySyncTaskPublisher {
-    val taskNames = mutableListOf<String>()
+  private class RecordingPublisher(
+    var fail: Boolean = false,
+    private val beforeFailure: suspend (String) -> Unit = {},
+  ) : DataAvailabilitySyncTaskPublisher {
+    val taskNames: MutableList<String> = Collections.synchronizedList(mutableListOf<String>())
+    val attemptedTaskNames: MutableList<String> =
+      Collections.synchronizedList(mutableListOf<String>())
 
     override suspend fun publish(taskName: String) {
-      if (fail) error("publish failed")
+      attemptedTaskNames += taskName
+      if (fail) {
+        beforeFailure(taskName)
+        error("publish failed")
+      }
       taskNames += taskName
     }
   }
@@ -249,13 +534,15 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
   companion object {
     @ClassRule @JvmField val spannerEmulator = SpannerEmulatorRule()
     private const val DATA_PROVIDER_ID = "data-provider"
+    private const val OTHER_DATA_PROVIDER_ID = "other-data-provider"
     private const val UPLOAD_ID = "upload"
-    private const val DONE_URI = "gs://bucket/labeled/2026-09-30/done"
+    private const val OTHER_UPLOAD_ID = "other-upload"
+    private const val DONE_URI_PREFIX = "gs://bucket/labeled/2026-09-30"
     private const val GENERATION = 123L
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private val TASK_ID =
       RequestIds.forDataAvailabilitySyncTask(
-        VidLabelingTraceAttributes.gcsObjectPathHash(DONE_URI),
+        VidLabelingTraceAttributes.gcsObjectPathHash("$DONE_URI_PREFIX/output-0/done"),
         GENERATION,
       )
     private val TASK_NAME =
