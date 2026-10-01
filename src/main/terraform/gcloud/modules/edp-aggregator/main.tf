@@ -396,6 +396,7 @@ module "data_availability_sync_cloud_function" {
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
   secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
+  timeout_seconds                          = 540
 }
 
 module "data_availability_cleanup_cloud_function" {

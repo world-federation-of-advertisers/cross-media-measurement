@@ -34,6 +34,7 @@ import java.time.Duration
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
@@ -256,7 +257,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             }
           if (outcome == DataAvailabilitySync.Outcome.BLOCKED_GAPS) {
             markTaskFailed(taskStub, running, DataAvailabilitySyncTask.FailureCategory.GAP_POLICY)
-            throw IncompleteTaskException(outcome)
+            Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
+            return@trace
           }
           runBlocking(Context.current().asContextElement()) {
             taskStub.markDataAvailabilitySyncTaskSucceeded(
@@ -268,15 +270,16 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             )
           }
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
-        } catch (e: Exception) {
-          if (e !is IncompleteTaskException) {
-            try {
-              markTaskFailed(taskStub, running, failureCategory)
-            } catch (markFailedException: Exception) {
-              e.addSuppressed(markFailedException)
-            }
-          }
+        } catch (e: CancellationException) {
           throw e
+        } catch (e: Exception) {
+          try {
+            markTaskFailed(taskStub, running, failureCategory)
+          } catch (markFailedException: Exception) {
+            e.addSuppressed(markFailedException)
+            throw e
+          }
+          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "failed")
         }
       }
     }
@@ -298,9 +301,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       )
     }
   }
-
-  private class IncompleteTaskException(outcome: DataAvailabilitySync.Outcome) :
-    IllegalStateException("Data availability synchronization finished with outcome $outcome")
 
   private fun DataAvailabilitySync.Stage.toFailureCategory():
     DataAvailabilitySyncTask.FailureCategory =

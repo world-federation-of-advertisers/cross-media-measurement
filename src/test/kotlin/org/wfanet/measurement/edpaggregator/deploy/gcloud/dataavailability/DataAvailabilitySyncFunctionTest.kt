@@ -388,7 +388,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `task validation failure marks task failed before metadata persistence`() {
+  fun `task validation failure is acknowledged after failure writeback`() {
     taskDoneBlobUri = "file:////edp/edp_name/model-line/other-model-line/2025-01-05/done"
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
@@ -426,7 +426,7 @@ class DataAvailabilitySyncFunctionTest {
 
     val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
 
-    assertThat(response.statusCode()).isEqualTo(500)
+    assertThat(response.statusCode()).isEqualTo(200)
     val failedRequest = argumentCaptor<MarkDataAvailabilitySyncTaskFailedRequest>()
     verifyBlocking(dataAvailabilitySyncTaskServiceMock) {
       markDataAvailabilitySyncTaskFailed(failedRequest.capture())
@@ -435,6 +435,9 @@ class DataAvailabilitySyncFunctionTest {
       .isEqualTo(DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION)
     verifyBlocking(impressionMetadataServiceMock, times(0)) {
       batchCreateImpressionMetadata(any<BatchCreateImpressionMetadataRequest>())
+    }
+    verifyBlocking(dataAvailabilitySyncTaskServiceMock, times(0)) {
+      markDataAvailabilitySyncTaskSucceeded(any<MarkDataAvailabilitySyncTaskSucceededRequest>())
     }
   }
 
