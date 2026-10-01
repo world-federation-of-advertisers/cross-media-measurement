@@ -103,6 +103,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoveryExecutor
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
@@ -152,6 +153,8 @@ class VidLabelingHealingControllerIntegrationTest {
     RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
   private lateinit var impressionMetadataStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+  private lateinit var correctionDetectionStub:
+    InternalCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -174,6 +177,9 @@ class VidLabelingHealingControllerIntegrationTest {
     rankIndexBlobsStub = RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel)
     impressionMetadataStub =
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel)
+    correctionDetectionStub =
+      InternalCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalServer.channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn
@@ -395,6 +401,7 @@ class VidLabelingHealingControllerIntegrationTest {
         storageClient = rawStorage,
         rawImpressionUploadStub = uploadsStub,
         rawImpressionUploadFilesStub = filesStub,
+        correctionDetectionStub = correctionDetectionStub,
         rawImpressionUploadModelLineStub = modelLinesStub,
         rankIndexBlobStub = rankIndexBlobsStub,
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(publicServer.channel),

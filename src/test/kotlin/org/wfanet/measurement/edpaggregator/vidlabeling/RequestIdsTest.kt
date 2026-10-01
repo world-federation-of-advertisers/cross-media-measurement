@@ -29,6 +29,16 @@ class RequestIdsTest {
   fun `request ids are stable across calls`() {
     assertThat(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
       .isEqualTo(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
+    assertThat(RequestIds.forRawImpressionUploadRecovery(DONE_BLOB, 1L, "operation"))
+      .isEqualTo(RequestIds.forRawImpressionUploadRecovery(DONE_BLOB, 1L, "operation"))
+    assertThat(RequestIds.forRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+      .isEqualTo(RequestIds.forRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+    assertThat(RequestIds.forRegisterRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+      .isEqualTo(RequestIds.forRegisterRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L))
+    assertThat(RequestIds.forResolveRawImpressionUploadCorrectionCandidate("candidate"))
+      .isEqualTo(RequestIds.forResolveRawImpressionUploadCorrectionCandidate("candidate"))
+    assertThat(RequestIds.forActivateQuarantinedRawImpressionUpload(UPLOAD, "operation"))
+      .isEqualTo(RequestIds.forActivateQuarantinedRawImpressionUpload(UPLOAD, "operation"))
     assertThat(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG))
       .isEqualTo(RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG))
     assertThat(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
@@ -77,6 +87,11 @@ class RequestIdsTest {
     val ids =
       listOf(
         RequestIds.forRawImpressionUpload(DONE_BLOB, 1L),
+        RequestIds.forRawImpressionUploadRecovery(DONE_BLOB, 1L, "operation"),
+        RequestIds.forRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L),
+        RequestIds.forRegisterRawImpressionUploadCorrectionCandidate(DONE_BLOB, 1L),
+        RequestIds.forResolveRawImpressionUploadCorrectionCandidate("candidate"),
+        RequestIds.forActivateQuarantinedRawImpressionUpload(UPLOAD, "operation"),
         RequestIds.forRawImpressionUploadRegistrationComplete(UPLOAD, ETAG),
         RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI),
         RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE),

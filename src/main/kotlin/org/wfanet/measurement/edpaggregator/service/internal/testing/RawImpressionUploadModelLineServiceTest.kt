@@ -39,6 +39,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
@@ -77,6 +78,8 @@ abstract class RawImpressionUploadModelLineServiceTest {
   protected abstract suspend fun setEvictionFence(
     dataProviderResourceId: String,
     evictionOperationId: String,
+    state: VidLabelingEvictionFenceState =
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING,
   )
 
   /** Sets how the parent upload participates in an active eviction operation. */
@@ -2626,6 +2629,49 @@ abstract class RawImpressionUploadModelLineServiceTest {
       }
 
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `approval fence allows in-flight processing to advance`() = runBlocking {
+    val created =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+    service.markRawImpressionUploadModelLinePoolAssigning(
+      markRawImpressionUploadModelLinePoolAssigningRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+        etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+      }
+    )
+    setEvictionFence(
+      DATA_PROVIDER_RESOURCE_ID,
+      UUID.randomUUID().toString(),
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+    )
+
+    val ranking =
+      service.markRawImpressionUploadModelLineRanking(
+        markRawImpressionUploadModelLineRankingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = currentEtag(created.rawImpressionUploadModelLineResourceId)
+        }
+      )
+
+    assertThat(ranking.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING)
   }
 
   @Test

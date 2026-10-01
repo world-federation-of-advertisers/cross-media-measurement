@@ -55,4 +55,11 @@ class VidLabelingDispatcherMetrics(meter: Meter = Instrumentation.meter) {
       .counterBuilder("edpa.vid_labeling_dispatcher.uploads_dispatched")
       .setDescription("Number of uploads dispatched via the fast path")
       .build()
+
+  /** Counter for quarantined non-additive upload revisions. */
+  val correctionCandidatesCounter: LongCounter =
+    meter
+      .counterBuilder("edpa.vid_labeling_dispatcher.correction_candidates")
+      .setDescription("Number of quarantined raw-upload correction candidates")
+      .build()
 }

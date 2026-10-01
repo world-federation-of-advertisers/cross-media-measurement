@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_correction_candidate.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -24,6 +25,18 @@ option java_multiple_files = true;
 option java_outer_classname = "RawImpressionUploadCorrectionCandidateServiceProto";
 
 service RawImpressionUploadCorrectionCandidateService {
+  rpc CreateQuarantinedRawImpressionUpload(
+      CreateQuarantinedRawImpressionUploadRequest)
+      returns (RawImpressionUpload);
+  rpc ActivateQuarantinedRawImpressionUpload(
+      ActivateQuarantinedRawImpressionUploadRequest)
+      returns (RawImpressionUpload);
+  rpc RegisterDetectedRawImpressionUploadCorrectionCandidate(
+      RegisterDetectedRawImpressionUploadCorrectionCandidateRequest)
+      returns (RegisterDetectedRawImpressionUploadCorrectionCandidateResponse);
+  rpc ResolveDetectedRawImpressionUploadCorrectionCandidate(
+      ResolveDetectedRawImpressionUploadCorrectionCandidateRequest)
+      returns (ResolveDetectedRawImpressionUploadCorrectionCandidateResponse);
   rpc CreateRawImpressionUploadCorrectionCandidate(
       CreateRawImpressionUploadCorrectionCandidateRequest)
       returns (RawImpressionUploadCorrectionCandidate);
@@ -36,6 +49,46 @@ service RawImpressionUploadCorrectionCandidateService {
   rpc AdvanceRawImpressionUploadCorrectionCandidate(
       AdvanceRawImpressionUploadCorrectionCandidateRequest)
       returns (RawImpressionUploadCorrectionCandidate);
+}
+
+message CreateQuarantinedRawImpressionUploadRequest {
+  string data_provider_resource_id = 1;
+  RawImpressionUpload raw_impression_upload = 2;
+  string raw_impression_upload_correction_candidate_id = 3;
+  string request_id = 4;
+}
+
+message ActivateQuarantinedRawImpressionUploadRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string source_raw_impression_upload_resource_id = 3;
+  string eviction_operation_id = 4;
+  string request_id = 5;
+}
+
+message RegisterDetectedRawImpressionUploadCorrectionCandidateRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_correction_candidate_id = 2;
+  RawImpressionUploadCorrectionCandidate
+      raw_impression_upload_correction_candidate = 3;
+  string superseded_raw_impression_upload_correction_candidate_id = 4;
+  string request_id = 5;
+}
+
+message RegisterDetectedRawImpressionUploadCorrectionCandidateResponse {
+  RawImpressionUploadCorrectionCandidate
+      raw_impression_upload_correction_candidate = 1;
+  bool newly_created = 2;
+}
+
+message ResolveDetectedRawImpressionUploadCorrectionCandidateRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_correction_candidate_id = 2;
+  string request_id = 3;
+}
+
+message ResolveDetectedRawImpressionUploadCorrectionCandidateResponse {
+  bool newly_resolved = 1;
 }
 
 message CreateRawImpressionUploadCorrectionCandidateRequest {

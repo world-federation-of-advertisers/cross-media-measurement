@@ -153,6 +153,36 @@ class RawImpressionUploadManifestClassifierTest {
   }
 
   @Test
+  fun `superseding correction compares with the last healthy manifest`() {
+    val revisions =
+      listOf(
+        revision("healthy", 1, files = files("a", "removed")),
+        revision("quarantined", 2, replaces = "healthy", quarantined = true, files = files("a")),
+        revision("current", 3, replaces = "quarantined", files = files("a", "added")),
+      )
+
+    val result = classifier.classify("current", revisions)
+
+    assertThat(result.classification).isEqualTo(Classification.MIXED)
+    assertThat(result.priorManifest.keys).containsExactly("gs://raw/a", "gs://raw/removed")
+    assertThat(result.priorManifest.getValue("gs://raw/removed").ownerRawImpressionUpload)
+      .isEqualTo("healthy")
+  }
+
+  @Test
+  fun `quarantined revision is a complete effective snapshot`() {
+    val revisions =
+      listOf(
+        revision("healthy", 1, files = files("a", "removed")),
+        revision("quarantined", 2, replaces = "healthy", quarantined = true, files = files("a")),
+      )
+
+    val manifest = classifier.reconstructEffectiveManifest(revisions.last(), revisions)
+
+    assertThat(manifest.keys).containsExactly("gs://raw/a")
+  }
+
+  @Test
   fun `reconstructPriorManifest treats a revision after failure as a full snapshot`() {
     val revisions =
       listOf(
@@ -268,6 +298,7 @@ class RawImpressionUploadManifestClassifierTest {
     replaces: String = "",
     uploadHealingOperation: String = "",
     failed: Boolean = false,
+    quarantined: Boolean = false,
     doneBlobCreateTime: Instant? = Instant.ofEpochSecond(order),
     files: List<File>,
   ) =
@@ -280,6 +311,7 @@ class RawImpressionUploadManifestClassifierTest {
       replacesRawImpressionUpload = replaces,
       uploadHealingOperation = uploadHealingOperation,
       failed = failed,
+      quarantined = quarantined,
       files = files,
     )
 

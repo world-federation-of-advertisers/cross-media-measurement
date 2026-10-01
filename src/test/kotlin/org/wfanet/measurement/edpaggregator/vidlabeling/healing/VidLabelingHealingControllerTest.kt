@@ -414,6 +414,94 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
+  fun `completed recovery wins a done-object timestamp tie with its candidate`() = runBlocking {
+    val sharedDoneTime = timestamp { seconds = 150L }
+    val candidateUpload =
+      CANDIDATE_UPLOAD.copy {
+        doneBlobCreateTime = sharedDoneTime
+        createTime = timestamp { seconds = 200L }
+        registrationComplete = true
+      }
+    val recoveryName = "$DATA_PROVIDER/rawImpressionUploads/recovery"
+    val recoveryUpload =
+      candidateUpload.copy {
+        name = recoveryName
+        createTime = timestamp { seconds = 201L }
+        state = RawImpressionUpload.State.COMPLETED
+        uploadHealingOperation = OPERATION_NAME
+      }
+    val recoveryStartedStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.RECOVERY_STARTED
+        recoveryDoneBlobGeneration = recoveryUpload.doneBlobGeneration
+      }
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.REPLAYING
+        steps[0] = recoveryStartedStep
+      }
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+        >(
+          0
+        )
+      val completedStep =
+        operation.stepsList.single().copy {
+          state = UploadHealingStep.State.COMPLETE
+          replacementRawImpressionUpload = request.replacementRawImpressionUpload
+        }
+      operation =
+        operation.copy {
+          state = UploadHealingOperation.State.COMPLETE
+          steps[0] = completedStep
+          etag = "complete"
+        }
+      completedStep
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.HEALING })
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(SOURCE_UPLOAD)
+    whenever(uploadsService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += listOf(candidateUpload, recoveryUpload)
+        }
+      )
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = "$recoveryName/rawImpressionUploadModelLines/ml"
+            cmmsModelLine = CMMS_MODEL_LINE
+            state = RawImpressionUploadModelLine.State.COMPLETED
+          }
+        }
+      )
+
+    newController().run()
+
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(operation.stepsList.single().replacementRawImpressionUpload).isEqualTo(recoveryName)
+  }
+
+  @Test
   fun `no-replacement completes eviction without replay`() = runBlocking {
     var operation =
       EVICTING_OPERATION.copy {
@@ -757,7 +845,7 @@ class VidLabelingHealingControllerTest {
 
   @Test
   fun `failed replacement moves the operation to needs attention`() = runBlocking {
-    val recoveryStep =
+    val recoveryStartedStep =
       EVICTING_OPERATION.stepsList.single().copy {
         state = UploadHealingStep.State.RECOVERY_STARTED
         recoveryDoneBlobGeneration = CANDIDATE_UPLOAD.doneBlobGeneration
@@ -765,7 +853,7 @@ class VidLabelingHealingControllerTest {
     var operation =
       EVICTING_OPERATION.copy {
         state = UploadHealingOperation.State.REPLAYING
-        steps[0] = recoveryStep
+        steps[0] = recoveryStartedStep
       }
     whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =

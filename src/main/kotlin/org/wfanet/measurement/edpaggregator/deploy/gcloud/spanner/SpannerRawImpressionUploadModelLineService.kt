@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
@@ -73,6 +74,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadModelLinesPageToken
@@ -813,6 +815,7 @@ class SpannerRawImpressionUploadModelLineService(
           txn.requireProcessingAllowedDuringEviction(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
+            currentState,
           )
         }
 
@@ -938,15 +941,22 @@ class SpannerRawImpressionUploadModelLineService(
   private suspend fun AsyncDatabaseClient.ReadContext.requireProcessingAllowedDuringEviction(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
+    currentState: State,
   ) {
-    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val fence = getVidLabelingEvictionFence(dataProviderResourceId) ?: return
     val upload =
       getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
         .rawImpressionUpload
-    if (upload.evictionOperationId == operationId) return
+    if (
+      upload.evictionOperationId == fence.evictionOperationId ||
+        (fence.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING &&
+          currentState in PROCESSING_STATES)
+    ) {
+      return
+    }
     throw Status.FAILED_PRECONDITION.withDescription(
         "RawImpressionUpload $rawImpressionUploadResourceId is waiting for VID-labeling " +
-          "eviction $operationId to complete"
+          "eviction ${fence.evictionOperationId} to complete"
       )
       .asRuntimeException()
   }
