@@ -103,6 +103,34 @@ class RawImpressionUploadManifestClassifierTest {
   }
 
   @Test
+  fun `reconstructEffectiveManifest includes prior additive revisions`() {
+    val revisions =
+      listOf(
+        revision("base", 1, files = files("a", "b")),
+        revision("append", 2, replaces = "base", files = files("c")),
+      )
+
+    val manifest = classifier.reconstructEffectiveManifest(revisions.last(), revisions)
+
+    assertThat(manifest.keys).containsExactly("gs://raw/a", "gs://raw/b", "gs://raw/c")
+  }
+
+  @Test
+  fun `reconstructEffectiveManifest ignores mutable failure state`() {
+    val revisions =
+      listOf(
+        revision("base", 1, failed = true, files = files("a", "b")),
+        revision("append", 2, replaces = "base", failed = true, files = files("c")),
+        revision("latest", 3, replaces = "append", failed = true, files = files("d")),
+      )
+
+    val manifest = classifier.reconstructEffectiveManifest(revisions.last(), revisions)
+
+    assertThat(manifest.keys)
+      .containsExactly("gs://raw/a", "gs://raw/b", "gs://raw/c", "gs://raw/d")
+  }
+
+  @Test
   fun `reconstructPriorManifest stops at post-eviction full snapshot`() {
     val revisions =
       listOf(
