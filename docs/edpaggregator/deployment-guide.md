@@ -504,7 +504,7 @@ edps_certs = {
 
 ### Cloud Functions
 
-All nine functions are configured through a single `cloud_function_configs` map.
+All ten functions are configured through a single `cloud_function_configs` map.
 Each entry provides:
 
 | Field | Meaning |
@@ -527,10 +527,12 @@ cloud_function_configs = {
   # Required even for a baseline R&F deployment (deploy unconditionally):
   vid_labeling_dispatcher   = { ... }
   vid_labeling_monitor      = { ... }
+  vid_labeling_healing_controller = { ... }
 }
 ```
 
-> The last two entries (`vid_labeling_dispatcher`, `vid_labeling_monitor`) are
+> The last three entries (`vid_labeling_dispatcher`, `vid_labeling_monitor`, and
+> `vid_labeling_healing_controller`) are
 > **mandatory** — those functions deploy unconditionally regardless of
 > `vid_labeling_workers`. See
 > [Optional: VID Labeling pipeline](#optional-vid-labeling-pipeline).
@@ -547,6 +549,7 @@ the standard OpenTelemetry variables `OTEL_SERVICE_NAME`, `OTEL_METRICS_EXPORTER
 | `data_availability_sync` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_cleanup` | `KINGDOM_TARGET`, `IMPRESSION_METADATA_TARGET` |
 | `data_availability_monitor` | `IMPRESSION_METADATA_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `GOOGLE_PROJECT_ID`, `CONFIG_BLOB_KEY` |
+| `vid_labeling_healing_controller` | `RAW_IMPRESSION_UPLOAD_TARGET`, `CONTROL_PLANE_TARGET`, `EDPA_CONFIG_STORAGE_BUCKET`, `CONFIG_BLOB_KEY`, `DATA_WATCHER_CONFIG_BLOB_KEY`, `HEALING_RETENTION_DAYS`, `HEALING_STALL_MINUTES` |
 
 **`secret_mappings` — path/secret consistency is critical.** Each mounted path must
 match, character for character, the path referenced in the corresponding config
@@ -583,6 +586,7 @@ by the module:
 | `event_group_sync_config` | `EventGroupSyncConfigs` | EventGroupSync |
 | `data_availability_sync_config` | `DataAvailabilitySyncConfigs` | DataAvailabilitySync |
 | `data_availability_monitor_config` | `DataAvailabilityMonitorConfigs` | DataAvailabilityMonitor |
+| `vid_labeling_dispatcher_config` | `VidLabelingConfigs` | VidLabelingDispatcher, VidLabelingHealingController |
 | `edps_config` | `EventDataProviderConfigs` | ResultsFulfiller (TEE) |
 | `results_fulfiller_event_descriptor` | (serialized event descriptor set) | ResultsFulfiller (TEE) |
 | `results_fulfiller_population_spec` | (population spec) | ResultsFulfiller (TEE) |
@@ -626,7 +630,7 @@ private DNS zone for `*.googleapis.com` (all configurable, see
 
 ### Schedulers
 
-Four schedulers are configured, each with a `{ schedule, time_zone, name,
+Five schedulers are configured, each with a `{ schedule, time_zone, name,
 function_url, scheduler_sa_display_name, scheduler_sa_description,
 scheduler_job_description }` object:
 
@@ -638,6 +642,8 @@ scheduler_job_description }` object:
   cadence. Required (deploys unconditionally).
 * `vid_labeling_dispatch_scheduler_config` — triggers the VidLabelingMonitor dispatch
   cadence. Required (deploys unconditionally).
+* `vid_labeling_healing_controller_scheduler_config` — advances approved correction
+  plans every five minutes with a 660-second attempt deadline.
 
 ### Networking
 
@@ -666,7 +672,8 @@ One variable per function/worker service account:
 `requisition_fetcher_service_account_name`, `event_group_sync_service_account_name`,
 `data_availability_sync_service_account_name`,
 `data_availability_cleanup_service_account_name`,
-`data_availability_monitor_service_account_name`, plus `terraform_service_account`
+`data_availability_monitor_service_account_name`,
+`vid_labeling_healing_controller_service_account_name`, plus `terraform_service_account`
 (used to attach MIG service accounts to VMs) and `pubsub_iam_service_account_member`
 (the Secure Computation control-plane SA granted publisher on the queues).
 
@@ -680,25 +687,38 @@ DataWatcher / DataWatcherDelete invoke over HTTP (used to grant `run.invoker`):
 
 The module can additionally deploy the memoized VID Labeling pipeline (Phase 0
 SubpoolAssigner, Phase 1 VidRankBuilder, Phase 2 VidLabeler) as Confidential Space
-TEE apps, plus a VidLabelingDispatcher and VidLabelingMonitor. VID labeling within
+TEE apps, plus a VidLabelingDispatcher, VidLabelingMonitor, and
+VidLabelingHealingController. VID labeling within
 the aggregator is out of scope for the baseline (Phase 1) R&F deployment.
 
 **Important:** only the **Phase 0/1/2 TEE MIGs and their Pub/Sub queues** are gated by
 the `vid_labeling_workers` map (which defaults to `{}`). Setting an empty map does
 **not** fully disable the pipeline — the **VidLabelingDispatcher** and
-**VidLabelingMonitor** Cloud Functions, their **two schedulers** (dispatch and
-health cadence), and the **`VID_MODELS_BUCKET`** deploy **unconditionally**, and
+**VidLabelingMonitor** and **VidLabelingHealingController** Cloud Functions, their
+**three schedulers**, and the **`VID_MODELS_BUCKET`** deploy **unconditionally**, and
 their inputs are **required**. Even for a baseline R&F deployment you must therefore
 supply:
 
 * `vid_models_bucket_name`;
-* the `vid_labeling_dispatcher_*` and `vid_labeling_monitor_*` service-account,
-  config, and scheduler variables; and
-* `vid_labeling_dispatcher` / `vid_labeling_monitor` entries in
+* the `vid_labeling_dispatcher_*`, `vid_labeling_monitor_*`, and
+  `vid_labeling_healing_controller_*` service-account, config, and scheduler variables; and
+* `vid_labeling_dispatcher`, `vid_labeling_monitor`, and
+  `vid_labeling_healing_controller` entries in
   `cloud_function_configs`.
 
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
+
+Set `vid_labeling_healing_labeled_output_object_prefixes` to the bucket-relative
+`edp_impression_path` values from `VidLabelingConfigs`, each ending in `/`. The controller can read
+the shared EDPA bucket but can delete objects only below these prefixes; its dedicated environment
+and secret mapping variables should mount only the metadata and control-plane mTLS identities and
+roots.
+
+The module creates alerts for approval pending, stalled controllers, manifest mismatches,
+out-of-retention candidates, and plans in `NEEDS_ATTENTION`. Configure
+`vid_labeling_healing_alert_notification_channels`; each incident links its condition to the plan
+inspection or retry action, while approval remains a separate operator decision.
 
 #### VID Labeling outbound RPC rate limits
 

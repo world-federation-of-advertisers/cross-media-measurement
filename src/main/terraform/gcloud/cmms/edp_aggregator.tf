@@ -322,6 +322,18 @@ locals {
       secret_mappings = var.vid_labeling_monitor_secret_mapping
       uber_jar_path   = var.vid_labeling_monitor_uber_jar_path
     }
+    vid_labeling_healing_controller = {
+      function_name = "vid-labeling-healing-controller"
+      entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingHealingControllerFunction"
+      extra_env_vars = join(",", compact([
+        var.vid_labeling_healing_controller_env_var,
+        "CONFIG_BLOB_KEY=${local.vid_labeling_dispatcher_config.destination}",
+        "DATA_WATCHER_CONFIG_BLOB_KEY=${local.data_watcher_config.destination}",
+        "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
+      ]))
+      secret_mappings = var.vid_labeling_healing_controller_secret_mapping
+      uber_jar_path   = var.vid_labeling_healing_controller_uber_jar_path
+    }
   }
 
   vid_labeling_dispatcher_config = {
@@ -364,6 +376,18 @@ locals {
     scheduler_sa_description  = "Service account for Cloud Scheduler to trigger VID labeling dispatch"
     scheduler_job_description = "Six-hourly job dispatching VID labeling WorkItems for newly-registered uploads"
     scheduler_job_name        = "vid-labeling-dispatcher"
+  }
+
+  vid_labeling_healing_controller_scheduler_config = {
+    schedule                  = "*/5 * * * *"
+    time_zone                 = "UTC"
+    name                      = "vid-labeling-healing-sched"
+    function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/vid-labeling-healing-controller"
+    scheduler_sa_display_name = "VID Labeling Healing Controller Scheduler"
+    scheduler_sa_description  = "Triggers automatic VID-labeling healing progression"
+    scheduler_job_description = "Runs the VID-labeling healing controller every five minutes"
+    scheduler_job_name        = "vid-labeling-healing-controller"
+    attempt_deadline          = "660s"
   }
 
   # Shared TEE-app flags (from BaseTeeAppRunner) reused by the three VID Labeling
@@ -476,6 +500,8 @@ locals {
 module "edp_aggregator" {
   source = "../modules/edp-aggregator"
 
+  depends_on = [google_project_iam_member.terraform_metric_writer]
+
   tee_consumers_enabled                            = var.tee_consumers_enabled
   requisition_fulfiller_config                     = local.requisition_fulfiller_config
   pubsub_iam_service_account_member                = module.secure_computation.secure_computation_internal_iam_service_account_member
@@ -532,4 +558,9 @@ module "edp_aggregator" {
   vid_labeling_monitor_scheduler_config            = local.vid_labeling_monitor_scheduler_config
   vid_labeling_dispatch_scheduler_config           = local.vid_labeling_dispatch_scheduler_config
   spanner_instance                                 = google_spanner_instance.spanner_instance
+
+  vid_labeling_healing_controller_service_account_name = "edpa-vid-healing-controller"
+  vid_labeling_healing_controller_scheduler_config     = local.vid_labeling_healing_controller_scheduler_config
+  vid_labeling_healing_labeled_output_object_prefixes  = var.vid_labeling_healing_labeled_output_object_prefixes
+  vid_labeling_healing_alert_notification_channels     = var.vid_labeling_healing_alert_notification_channels
 }
