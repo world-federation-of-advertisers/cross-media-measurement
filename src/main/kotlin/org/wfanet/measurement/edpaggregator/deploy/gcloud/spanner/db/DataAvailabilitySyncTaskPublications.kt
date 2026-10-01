@@ -41,6 +41,11 @@ data class DataAvailabilitySyncTaskPublication(
   val leaseToken: String,
 )
 
+enum class DataAvailabilitySyncTaskPublicationFailureResult {
+  RETRY_SCHEDULED,
+  DELIVERY_OBSERVED,
+}
+
 fun AsyncDatabaseClient.TransactionContext.insertDataAvailabilitySyncTaskPublication(
   dataProviderResourceId: String,
   rawImpressionUploadId: Long,
@@ -53,6 +58,7 @@ fun AsyncDatabaseClient.TransactionContext.insertDataAvailabilitySyncTaskPublica
     set("DataAvailabilitySyncTaskResourceId").to(taskResourceId)
     set("LeaseOwner").to(null as String?)
     set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
+    set("ProviderSlot").to(null as Boolean?)
     set("NextAttemptTime").to(nextAttemptTime.toGcloudTimestamp())
     set("AttemptCount").to(0L)
     set("PublishedTime").to(null as com.google.cloud.Timestamp?)
@@ -87,6 +93,17 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimDataAvailabilitySyncTask
             AND Publication.NextAttemptTime <= @now
             AND (Publication.LeaseExpirationTime IS NULL OR Publication.LeaseExpirationTime <= @now)
             AND CAST(Task.State AS INT64) != @succeededState
+            AND NOT EXISTS (
+              SELECT 1
+              FROM DataAvailabilitySyncTaskPublication AS ActivePublication
+              WHERE ActivePublication.DataProviderResourceId = Publication.DataProviderResourceId
+                AND ActivePublication.ProviderSlot = TRUE
+                AND (
+                  ActivePublication.RawImpressionUploadId != Publication.RawImpressionUploadId
+                  OR ActivePublication.DataAvailabilitySyncTaskResourceId !=
+                    Publication.DataAvailabilitySyncTaskResourceId
+                )
+            )
           ORDER BY Publication.NextAttemptTime, Publication.LeaseExpirationTime,
             Publication.DataProviderResourceId, Publication.RawImpressionUploadId,
             Publication.DataAvailabilitySyncTaskResourceId
@@ -113,6 +130,7 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimDataAvailabilitySyncTask
       .to(row.getString("DataAvailabilitySyncTaskResourceId"))
     set("LeaseOwner").to(leaseToken)
     set("LeaseExpirationTime").to(leaseExpirationTime.toGcloudTimestamp())
+    set("ProviderSlot").to(true)
     set("AttemptCount").to(attemptCount)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -150,8 +168,10 @@ suspend fun AsyncDatabaseClient.TransactionContext.completeDataAvailabilitySyncT
 suspend fun AsyncDatabaseClient.TransactionContext.retryDataAvailabilitySyncTaskPublication(
   publication: DataAvailabilitySyncTaskPublication,
   nextAttemptTime: Instant,
-) {
-  if (!hasLease(publication)) return
+): DataAvailabilitySyncTaskPublicationFailureResult {
+  if (!hasLease(publication)) {
+    return DataAvailabilitySyncTaskPublicationFailureResult.DELIVERY_OBSERVED
+  }
   val taskState =
     executeQuery(
         statement(
@@ -171,9 +191,18 @@ suspend fun AsyncDatabaseClient.TransactionContext.retryDataAvailabilitySyncTask
       )
       .singleOrNull()
       ?.getLong("State")
+  val persistedTaskState =
+    checkNotNull(DataAvailabilitySyncTaskState.forNumber(checkNotNull(taskState).toInt()))
   if (
-    taskState ==
-      DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_PENDING.number.toLong()
+    persistedTaskState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING ||
+      persistedTaskState ==
+        DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUCCEEDED
+  ) {
+    completeDataAvailabilitySyncTaskPublication(publication)
+    return DataAvailabilitySyncTaskPublicationFailureResult.DELIVERY_OBSERVED
+  }
+  if (
+    persistedTaskState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_PENDING
   ) {
     bufferUpdateMutation("DataAvailabilitySyncTask") {
       set("DataProviderResourceId").to(publication.dataProviderResourceId)
@@ -194,9 +223,11 @@ suspend fun AsyncDatabaseClient.TransactionContext.retryDataAvailabilitySyncTask
     set("DataAvailabilitySyncTaskResourceId").to(publication.taskResourceId)
     set("LeaseOwner").to(null as String?)
     set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
+    set("ProviderSlot").to(null as Boolean?)
     set("NextAttemptTime").to(nextAttemptTime.toGcloudTimestamp())
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  return DataAvailabilitySyncTaskPublicationFailureResult.RETRY_SCHEDULED
 }
 
 suspend fun AsyncDatabaseClient.TransactionContext.reconcileDataAvailabilitySyncTaskPublications(
@@ -265,11 +296,40 @@ suspend fun AsyncDatabaseClient.TransactionContext.reconcileDataAvailabilitySync
       set("PublishedTime").to(null as com.google.cloud.Timestamp?)
       set("LeaseOwner").to(null as String?)
       set("LeaseExpirationTime").to(null as com.google.cloud.Timestamp?)
+      set("ProviderSlot").to(null as Boolean?)
       set("NextAttemptTime").to(now.toGcloudTimestamp())
       set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
     }
   }
   return rows.size
+}
+
+fun AsyncDatabaseClient.TransactionContext.releaseDataAvailabilitySyncTaskPublicationSlot(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  taskResourceId: String,
+) {
+  bufferUpdateMutation("DataAvailabilitySyncTaskPublication") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RawImpressionUploadId").to(rawImpressionUploadId)
+    set("DataAvailabilitySyncTaskResourceId").to(taskResourceId)
+    set("ProviderSlot").to(null as Boolean?)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+suspend fun AsyncDatabaseClient.ReadContext.hasDataAvailabilitySyncTaskPublicationSlot(
+  dataProviderResourceId: String,
+  rawImpressionUploadId: Long,
+  taskResourceId: String,
+): Boolean {
+  val row =
+    readRow(
+      "DataAvailabilitySyncTaskPublication",
+      Key.of(dataProviderResourceId, rawImpressionUploadId, taskResourceId),
+      listOf("ProviderSlot"),
+    ) ?: return false
+  return !row.isNull("ProviderSlot") && row.getBoolean("ProviderSlot")
 }
 
 private suspend fun AsyncDatabaseClient.ReadContext.hasLease(

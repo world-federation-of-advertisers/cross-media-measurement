@@ -12,6 +12,7 @@ spanner_emulator_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_task_publisher",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:data_availability_sync_task_publication_runner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_data_availability_sync_task_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
