@@ -221,7 +221,7 @@ message UploadHealingStep {
   // Entity tag for optimistic concurrency control.
   string etag = 16 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-  // Done-object generation written for an operator recovery.
+  // Done-object generation replayed for recovery.
   int64 recovery_done_blob_generation = 17
       [(google.api.field_behavior) = OUTPUT_ONLY];
 

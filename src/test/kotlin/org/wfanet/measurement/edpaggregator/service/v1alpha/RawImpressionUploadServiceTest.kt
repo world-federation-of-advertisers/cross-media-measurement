@@ -916,6 +916,9 @@ class RawImpressionUploadServiceTest {
 
     assertThat(initialAcquire.newlyAcquired).isTrue()
     assertThat(resumedAcquire.newlyAcquired).isFalse()
+    assertThat(initialAcquire.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING)
+    assertThat(resumedAcquire.state).isEqualTo(initialAcquire.state)
 
     val upload =
       service.createRawImpressionUpload(

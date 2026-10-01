@@ -204,8 +204,7 @@ class RawImpressionUploadService(
     if (
       request.state !=
         VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
-        request.state !=
-          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
     ) {
       throw InvalidFieldValueException("state")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -229,6 +228,7 @@ class RawImpressionUploadService(
 
     return acquireRawImpressionUploadEvictionFenceResponse {
       newlyAcquired = internalResponse.newlyAcquired
+      state = internalResponse.state.toPublic()
     }
   }
 
@@ -332,6 +332,24 @@ class RawImpressionUploadService(
       VidLabelingEvictionFenceState.UNRECOGNIZED ->
         throw InvalidFieldValueException("state")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+  private fun org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+    .toPublic(): VidLabelingEvictionFenceState =
+    when (this) {
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_DRAINING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_EVICTING ->
+        VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+        .VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED,
+      org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState.UNRECOGNIZED ->
+        error("Unrecognized fence state")
     }
 
   override suspend fun getRawImpressionUpload(

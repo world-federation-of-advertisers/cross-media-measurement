@@ -168,6 +168,19 @@ fun AsyncDatabaseClient.TransactionContext.updateVidLabelingEvictionFenceState(
   }
 }
 
+/** Transfers the fence to the next pending correction plan. */
+fun AsyncDatabaseClient.TransactionContext.transferVidLabelingEvictionFence(
+  dataProviderResourceId: String,
+  evictionOperationId: String,
+) {
+  bufferUpdateMutation("VidLabelingEvictionFence") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("EvictionOperationId").to(evictionOperationId)
+    set("State")
+      .to(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
+  }
+}
+
 /** Buffers deletion of the VID-labeling eviction fence. */
 fun AsyncDatabaseClient.TransactionContext.deleteVidLabelingEvictionFence(
   dataProviderResourceId: String

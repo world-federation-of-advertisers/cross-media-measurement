@@ -29,6 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -48,6 +49,7 @@ import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.getUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsRequest
+import org.wfanet.measurement.internal.edpaggregator.reconcileUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.retryUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.updateUploadHealingOperationPlanRequest
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation
@@ -133,6 +135,56 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `completion transfers the fence to a pending candidate`() = runBlocking {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    insertUploadGraph()
+    val operation =
+      service.createUploadHealingOperation(createRequest(memoized = false, recoveryTarget = false))
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newInsertBuilder("VidLabelingEvictionFence")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("EvictionOperationId")
+          .to(OPERATION_ID)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+                .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            )
+          )
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+    insertCorrectionCandidate(CANDIDATE_IDS[1])
+
+    service.advanceUploadHealingStep(
+      advanceUploadHealingStepRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingStepId = 1L
+        etag = operation.stepsList.single().etag
+        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+        requestId = WAITING_REQUEST_ID
+      }
+    )
+
+    val fence =
+      spannerDatabase.databaseClient.singleUse().use {
+        it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
+      }
+    assertThat(fence!!.evictionOperationId).isEqualTo(CANDIDATE_IDS[1])
+    assertThat(fence.state)
+      .isEqualTo(
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      )
+  }
+
+  @Test
   fun `create draft associates multiple correction candidates`() = runBlocking {
     insertCorrectionCandidate(CANDIDATE_IDS[0])
     insertCorrectionCandidate(CANDIDATE_IDS[1])
@@ -142,7 +194,10 @@ class SpannerUploadHealingOperationServiceTest {
       service.createUploadHealingOperation(
         draftRequest(
           CANDIDATE_IDS.take(2),
-          listOf(planStep(1L, SOURCE_UPLOAD_ID, candidateId = CANDIDATE_IDS[0])),
+          listOf(
+            planStep(1L, SOURCE_UPLOAD_ID),
+            planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[1]),
+          ),
         )
       )
 
@@ -151,14 +206,256 @@ class SpannerUploadHealingOperationServiceTest {
     assertThat(operation.rawImpressionUploadCorrectionCandidateIdsList)
       .containsExactlyElementsIn(CANDIDATE_IDS.take(2))
       .inOrder()
-    assertThat(operation.stepsList.single().rawImpressionUploadCorrectionCandidateId)
-      .isEqualTo(CANDIDATE_IDS[0])
     for (candidateId in CANDIDATE_IDS.take(2)) {
       val candidate = readCorrectionCandidate(candidateId)
       assertThat(candidate.state)
         .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED)
       assertThat(candidate.uploadHealingOperationId).isEqualTo(OPERATION_ID)
     }
+  }
+
+  @Test
+  fun `reconcile creates and refreshes one draft idempotently`() = runBlocking {
+    CANDIDATE_IDS.take(2).forEach { insertCorrectionCandidate(it) }
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val initial = draftRequest(CANDIDATE_IDS.take(1), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+    val created =
+      service.reconcileUploadHealingOperation(
+        reconcileUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingOperation = initial.uploadHealingOperation
+          requestId = CREATE_REQUEST_ID
+        }
+      )
+    val refreshRequest = reconcileUploadHealingOperationRequest {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      uploadHealingOperationId = OPERATION_ID
+      uploadHealingOperation =
+        initial.uploadHealingOperation.copy {
+          rawImpressionUploadCorrectionCandidateIds.clear()
+          rawImpressionUploadCorrectionCandidateIds += CANDIDATE_IDS.take(2)
+        }
+      etag = created.etag
+      requestId = RECONCILE_REQUEST_ID
+    }
+
+    val refreshed = service.reconcileUploadHealingOperation(refreshRequest)
+    val replayed = service.reconcileUploadHealingOperation(refreshRequest)
+
+    assertThat(refreshed.rawImpressionUploadCorrectionCandidateIdsList)
+      .containsExactlyElementsIn(CANDIDATE_IDS.take(2))
+      .inOrder()
+    assertThat(replayed).isEqualTo(refreshed)
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[1]).uploadHealingOperationId)
+      .isEqualTo(OPERATION_ID)
+    Unit
+  }
+
+  @Test
+  fun `reconcile rejects a stale draft etag`() = runBlocking {
+    CANDIDATE_IDS.take(2).forEach { insertCorrectionCandidate(it) }
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val initial = draftRequest(CANDIDATE_IDS.take(1), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+    service.reconcileUploadHealingOperation(
+      reconcileUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingOperation = initial.uploadHealingOperation
+        requestId = CREATE_REQUEST_ID
+      }
+    )
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        service.reconcileUploadHealingOperation(
+          reconcileUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            uploadHealingOperation =
+              initial.uploadHealingOperation.copy {
+                rawImpressionUploadCorrectionCandidateIds.clear()
+                rawImpressionUploadCorrectionCandidateIds += CANDIDATE_IDS.take(2)
+              }
+            etag = "stale"
+            requestId = RECONCILE_REQUEST_ID
+          }
+        )
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.ABORTED)
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[1]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_PENDING)
+    Unit
+  }
+
+  @Test
+  fun `reconcile request ID cannot be reused for a different plan`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val request = draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+    service.reconcileUploadHealingOperation(
+      reconcileUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingOperation = request.uploadHealingOperation
+        requestId = CREATE_REQUEST_ID
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.reconcileUploadHealingOperation(
+          reconcileUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            uploadHealingOperation = request.uploadHealingOperation.copy { reason = "different" }
+            requestId = CREATE_REQUEST_ID
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `no-op reconcile reserves its request ID`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val request = draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+    val created =
+      service.reconcileUploadHealingOperation(
+        reconcileUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingOperation = request.uploadHealingOperation
+          requestId = CREATE_REQUEST_ID
+        }
+      )
+    service.reconcileUploadHealingOperation(
+      reconcileUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingOperation = request.uploadHealingOperation
+        etag = created.etag
+        requestId = RECONCILE_REQUEST_ID
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.reconcileUploadHealingOperation(
+          reconcileUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            uploadHealingOperation = request.uploadHealingOperation.copy { reason = "different" }
+            etag = created.etag
+            requestId = RECONCILE_REQUEST_ID
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `second controller cannot claim with a stale approved etag`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val created =
+      service.createUploadHealingOperation(
+        draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+      )
+    val approved =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = created.etag
+          candidateDecisions +=
+            approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    service.advanceUploadHealingOperation(
+      advanceUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        etag = approved.etag
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceUploadHealingOperation(
+          advanceUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            etag = approved.etag
+            state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.ABORTED)
+  }
+
+  @Test
+  fun `reconcile replaces a superseded draft candidate`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val initial =
+      service.reconcileUploadHealingOperation(
+        reconcileUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingOperation =
+            draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+              .uploadHealingOperation
+          requestId = CREATE_REQUEST_ID
+        }
+      )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[0])
+          .set("State")
+          .to(Value.protoEnum(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED))
+          .set("SupersedingRawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[1])
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+    insertCorrectionCandidate(CANDIDATE_IDS[1])
+
+    val refreshed =
+      service.reconcileUploadHealingOperation(
+        reconcileUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingOperation =
+            draftRequest(
+                listOf(CANDIDATE_IDS[1]),
+                listOf(planStep(1L, SOURCE_UPLOAD_ID, candidateId = CANDIDATE_IDS[1])),
+              )
+              .uploadHealingOperation
+          etag = initial.etag
+          requestId = RECONCILE_REQUEST_ID
+        }
+      )
+
+    assertThat(refreshed.rawImpressionUploadCorrectionCandidateIdsList)
+      .containsExactly(CANDIDATE_IDS[1])
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED)
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[1]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED)
   }
 
   @Test
@@ -271,7 +568,13 @@ class SpannerUploadHealingOperationServiceTest {
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     val created =
       service.createUploadHealingOperation(
-        draftRequest(CANDIDATE_IDS.take(2), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+        draftRequest(
+          CANDIDATE_IDS.take(2),
+          listOf(
+            planStep(1L, SOURCE_UPLOAD_ID),
+            planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[1]),
+          ),
+        )
       )
     val candidateUpdatedPlan =
       created.copy {
@@ -505,7 +808,7 @@ class SpannerUploadHealingOperationServiceTest {
       .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING)
     assertThat(replayedRetry).isEqualTo(progressed)
     assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).state)
-      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_HEALING)
   }
 
   @Test
@@ -939,6 +1242,99 @@ class SpannerUploadHealingOperationServiceTest {
       .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
     assertThat(readCorrectionCandidate(CANDIDATE_IDS[1]).decision)
       .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT)
+  }
+
+  @Test
+  fun `superseded active plan requeues unaffected candidates for replanning`() = runBlocking {
+    CANDIDATE_IDS.take(2).forEach { insertCorrectionCandidate(it) }
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    var operation =
+      service.createUploadHealingOperation(
+        draftRequest(
+          CANDIDATE_IDS.take(2),
+          listOf(
+            planStep(1L, SOURCE_UPLOAD_ID),
+            planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[1]),
+          ),
+        )
+      )
+    operation =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          candidateDecisions +=
+            CANDIDATE_IDS.take(2).map {
+              approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT, it)
+            }
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newInsertBuilder("VidLabelingEvictionFence")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("EvictionOperationId")
+          .to(OPERATION_ID)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+                .VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            )
+          )
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUploadCorrectionCandidate")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[0])
+          .set("State")
+          .to(Value.protoEnum(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED))
+          .set("SupersedingRawImpressionUploadCorrectionCandidateId")
+          .to(CANDIDATE_IDS[2])
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+
+    val reopened =
+      service.advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+        }
+      )
+
+    assertThat(reopened.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED)
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED)
+    val unaffected = readCorrectionCandidate(CANDIDATE_IDS[1])
+    assertThat(unaffected.state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED)
+    assertThat(unaffected.decision)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
+    val fence =
+      spannerDatabase.databaseClient.singleUse().use {
+        it.getVidLabelingEvictionFence(DATA_PROVIDER_ID)
+      }
+    assertThat(fence!!.state)
+      .isEqualTo(
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      )
   }
 
   @Test
@@ -1679,6 +2075,7 @@ class SpannerUploadHealingOperationServiceTest {
     private const val STARTED_REQUEST_ID = "55555555-5555-4555-8555-555555555555"
     private const val APPROVE_REQUEST_ID = "66666666-6666-4666-8666-666666666666"
     private const val RETRY_REQUEST_ID = "77777777-7777-4777-8777-777777777777"
+    private const val RECONCILE_REQUEST_ID = "14141414-1414-4414-8414-141414141414"
     private const val RECOVERY_GENERATION = 987L
     private val OPERATION_IDS =
       listOf(

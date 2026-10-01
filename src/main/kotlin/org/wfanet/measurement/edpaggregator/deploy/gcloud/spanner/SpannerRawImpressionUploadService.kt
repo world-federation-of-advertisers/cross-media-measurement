@@ -330,7 +330,7 @@ class SpannerRawImpressionUploadService(
   ): AcquireRawImpressionUploadEvictionFenceResponse {
     validateEvictionFenceRequest(request.dataProviderResourceId, request.evictionOperationId)
     val requestedState = request.initialFenceState()
-    val newlyAcquired =
+    val result =
       databaseClient
         .readWriteTransaction(Options.tag("action=acquireRawImpressionUploadEvictionFence"))
         .run { txn ->
@@ -346,7 +346,7 @@ class SpannerRawImpressionUploadService(
                 )
                 .asRuntimeException()
             }
-            return@run false
+            return@run false to currentFence.state
           }
           if (currentFence != null) {
             throw Status.FAILED_PRECONDITION.withDescription(
@@ -366,9 +366,12 @@ class SpannerRawImpressionUploadService(
             request.evictionOperationId,
             requestedState,
           )
-          true
+          true to requestedState
         }
-    return acquireRawImpressionUploadEvictionFenceResponse { this.newlyAcquired = newlyAcquired }
+    return acquireRawImpressionUploadEvictionFenceResponse {
+      newlyAcquired = result.first
+      state = result.second
+    }
   }
 
   override suspend fun advanceRawImpressionUploadEvictionFence(

@@ -102,9 +102,21 @@ class RawImpressionUploadManifestClassifier {
       priorManifest = priorManifest,
       currentManifest = currentManifest,
       differences = differences,
-      priorManifestDigest = digest(priorManifest),
-      currentManifestDigest = digest(currentManifest),
+      priorManifestDigest = digestManifest(priorManifest),
+      currentManifestDigest = digestManifest(currentManifest),
     )
+  }
+
+  /** Computes the stable digest used to identify an exact raw-object manifest. */
+  fun digest(files: Collection<File>): ByteString {
+    val manifest = buildMap {
+      for (file in files) {
+        require(put(file.blobUri, ManifestEntry(file, "")) == null) {
+          "Duplicate blob URI ${file.blobUri}"
+        }
+      }
+    }
+    return digestManifest(manifest)
   }
 
   /** Reconstructs the effective manifest immediately before [revision]. */
@@ -114,9 +126,26 @@ class RawImpressionUploadManifestClassifier {
   ): Map<String, ManifestEntry> =
     reconstructPriorManifest(revision, revisions.associateByUniqueName())
 
+  /** Reconstructs the effective manifest represented by a persisted revision. */
+  fun reconstructEffectiveManifest(
+    revision: Revision,
+    revisions: Collection<Revision>,
+  ): Map<String, ManifestEntry> {
+    val revisionsByName = revisions.associateByUniqueName()
+    val current = revision.toManifest()
+    val predecessor = predecessorOf(revision, revisionsByName)
+    if (revision.uploadHealingOperation.isNotEmpty() || predecessor == null) {
+      return current
+    }
+    return (reconstructPriorManifest(revision, revisionsByName, stopAtFailedPredecessor = false) +
+        current)
+      .toSortedMap()
+  }
+
   private fun reconstructPriorManifest(
     revision: Revision,
     revisionsByName: Map<String, Revision>,
+    stopAtFailedPredecessor: Boolean = true,
   ): Map<String, ManifestEntry> {
     val result = linkedMapOf<String, ManifestEntry>()
     val visited = mutableSetOf<String>()
@@ -136,7 +165,9 @@ class RawImpressionUploadManifestClassifier {
       }
       val predecessor = predecessorOf(current, revisionsByName)
       if (
-        current.uploadHealingOperation.isNotEmpty() || predecessor == null || predecessor.failed
+        current.uploadHealingOperation.isNotEmpty() ||
+          predecessor == null ||
+          stopAtFailedPredecessor && predecessor.failed
       ) {
         break
       }
@@ -190,7 +221,7 @@ class RawImpressionUploadManifestClassifier {
     }
   }
 
-  private fun digest(manifest: Map<String, ManifestEntry>): ByteString {
+  private fun digestManifest(manifest: Map<String, ManifestEntry>): ByteString {
     val digest = MessageDigest.getInstance("SHA-256")
     for ((blobUri, entry) in manifest.toSortedMap()) {
       val uriBytes = blobUri.toByteArray(StandardCharsets.UTF_8)

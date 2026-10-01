@@ -148,6 +148,8 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
         )
 
     assertThat(response.newlyAcquired).isTrue()
+    assertThat(response.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
   }
 
   @Test
@@ -157,8 +159,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
       acquireRawImpressionUploadEvictionFenceRequest {
         dataProviderResourceId = TEST_DATA_PROVIDER_ID
         evictionOperationId = EVICTION_OPERATION_ID
-        state =
-          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
       }
     )
 

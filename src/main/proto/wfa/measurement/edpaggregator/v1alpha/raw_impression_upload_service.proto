@@ -91,6 +91,10 @@ message AcquireRawImpressionUploadEvictionFenceResponse {
   // Whether this request created the fence instead of reacquiring it for the
   // same eviction operation.
   bool newly_acquired = 1;
+
+  // Current fence state.
+  VidLabelingEvictionFenceState state = 2
+      [(google.api.field_behavior) = OUTPUT_ONLY];
 }
 
 // Request message for `AdvanceRawImpressionUploadEvictionFence`.

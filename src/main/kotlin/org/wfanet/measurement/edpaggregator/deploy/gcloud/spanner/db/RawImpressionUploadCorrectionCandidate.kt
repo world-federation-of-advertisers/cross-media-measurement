@@ -328,6 +328,20 @@ fun AsyncDatabaseClient.TransactionContext.approveRawImpressionUploadCorrectionC
   }
 }
 
+/** Returns an approved correction candidate to a mutable plan. */
+fun AsyncDatabaseClient.TransactionContext.reopenRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED)
+    set("Decision").to(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
 /** Removes a correction candidate from a mutable healing plan. */
 fun AsyncDatabaseClient.TransactionContext.unassignRawImpressionUploadCorrectionCandidate(
   candidate: RawImpressionUploadCorrectionCandidate
