@@ -88,8 +88,6 @@ fun computeDeterministicDynamicallyClippedImpressions(
         DeterministicTruncatedLaplaceParams.EPSILON,
         DeterministicTruncatedLaplaceParams.DELTA,
       ),
-    // TODO(world-federation-of-advertisers/cross-media-measurement#4387): Mix in the EDP-supplied
-    // seed component once it exists.
     noiseSource =
       DeterministicDynamicClippingNoiseSource(
         DeterministicTruncatedLaplaceResultNoiser.fingerprint(
