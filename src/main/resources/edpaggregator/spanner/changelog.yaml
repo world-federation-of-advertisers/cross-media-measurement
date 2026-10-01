@@ -109,3 +109,6 @@ databaseChangeLog:
   - include:
       file: drop-raw-impression-upload-generation-uniqueness.sql
       relativeToChangeLogFile: true
+  - include:
+      file: remove-obsolete-upload-healing-fields.sql
+      relativeToChangeLogFile: true
