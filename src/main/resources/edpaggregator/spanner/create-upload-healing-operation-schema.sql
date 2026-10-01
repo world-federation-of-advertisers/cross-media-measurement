@@ -22,23 +22,20 @@ START BATCH DDL;
 CREATE TABLE UploadHealingOperation (
   DataProviderResourceId STRING(63) NOT NULL,
   UploadHealingOperationId STRING(36) NOT NULL,
-  CreateRequestId STRING(36) NOT NULL,
+  ReconcileRequestId STRING(36) NOT NULL,
   State INT64 NOT NULL,
   ResumeState INT64,
   Reason STRING(MAX) NOT NULL,
-  LabeledImpressionsBlobPrefix STRING(MAX) NOT NULL,
-  BadRawImpressionUploadResourceIds ARRAY<STRING(63)> NOT NULL,
   RawImpressionUploadCorrectionCandidateIds ARRAY<STRING(36)> NOT NULL,
   MutationRequestIds ARRAY<STRING(36)> NOT NULL,
   MutationRequestFingerprints ARRAY<BYTES(MAX)> NOT NULL,
-  CutoffTime TIMESTAMP NOT NULL,
   CompleteTime TIMESTAMP OPTIONS (allow_commit_timestamp = true),
   CreateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
   UpdateTime TIMESTAMP NOT NULL OPTIONS (allow_commit_timestamp = true),
 ) PRIMARY KEY (DataProviderResourceId, UploadHealingOperationId);
 
-CREATE UNIQUE INDEX UploadHealingOperationByCreateRequestId
-  ON UploadHealingOperation(DataProviderResourceId, CreateRequestId);
+CREATE UNIQUE INDEX UploadHealingOperationByReconcileRequestId
+  ON UploadHealingOperation(DataProviderResourceId, ReconcileRequestId);
 
 CREATE INDEX UploadHealingOperationByStateAndCreateTime
   ON UploadHealingOperation(

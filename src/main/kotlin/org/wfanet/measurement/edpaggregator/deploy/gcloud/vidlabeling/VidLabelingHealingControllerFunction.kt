@@ -47,14 +47,21 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManif
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
-/** Scheduled Cloud Function for automatic VID-labeling correction progression. */
+/**
+ * Scheduled Cloud Function for automatic VID-labeling correction progression.
+ *
+ * `HEALING_INTERNAL_API_TARGET` selects the controller-only persistence endpoint, and
+ * `HEALING_INTERNAL_API_CERT_HOST` optionally overrides its TLS authority.
+ */
 class VidLabelingHealingControllerFunction(
   private val runController: suspend () -> Unit = { controller.run() }
 ) : HttpFunction {
@@ -76,6 +83,12 @@ class VidLabelingHealingControllerFunction(
     private val grpcTelemetry by lazy { GrpcTelemetry.create(Instrumentation.openTelemetry) }
     private val rawApiTarget by lazy { EnvVars.checkNotNullOrEmpty("RAW_IMPRESSION_UPLOAD_TARGET") }
     private val rawApiCertHost by lazy { System.getenv("RAW_IMPRESSION_UPLOAD_CERT_HOST") }
+    private val healingInternalApiTarget by lazy {
+      EnvVars.checkNotNullOrEmpty("HEALING_INTERNAL_API_TARGET")
+    }
+    private val healingInternalApiCertHost by lazy {
+      System.getenv("HEALING_INTERNAL_API_CERT_HOST")
+    }
     private val controlPlaneTarget by lazy { EnvVars.checkNotNullOrEmpty("CONTROL_PLANE_TARGET") }
     private val controlPlaneCertHost by lazy { System.getenv("CONTROL_PLANE_CERT_HOST") }
     private val retention by lazy {
@@ -121,6 +134,13 @@ class VidLabelingHealingControllerFunction(
           rawApiCertHost,
           grpcTelemetry,
         )
+      val internalChannel =
+        VidLabelingFunctionHelpers.createInstrumentedChannel(
+          firstConfig.rawImpressionMetadataStorageConnection,
+          healingInternalApiTarget,
+          healingInternalApiCertHost,
+          grpcTelemetry,
+        )
       val uploads = RawImpressionUploadServiceCoroutineStub(rawChannel)
       val files = RawImpressionUploadFileServiceCoroutineStub(rawChannel)
       val modelLines = RawImpressionUploadModelLineServiceCoroutineStub(rawChannel)
@@ -128,6 +148,13 @@ class VidLabelingHealingControllerFunction(
       val impressionMetadata = ImpressionMetadataServiceCoroutineStub(rawChannel)
       val candidates = RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawChannel)
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
+      val operationStore =
+        GrpcHealingOperationStore(
+          operations,
+          InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+            internalChannel
+          ),
+        )
       val watchers =
         vidLabelingConfigs.associate { config ->
           val controlPlaneChannel =
@@ -166,7 +193,7 @@ class VidLabelingHealingControllerFunction(
           )
         },
         candidates,
-        operations,
+        operationStore,
         uploads,
         files,
         modelLines,

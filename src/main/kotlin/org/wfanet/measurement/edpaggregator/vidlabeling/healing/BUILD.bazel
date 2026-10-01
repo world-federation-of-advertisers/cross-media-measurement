@@ -51,10 +51,14 @@ kt_jvm_library(
 
 kt_jvm_library(
     name = "vid_labeling_healing_controller",
-    srcs = ["VidLabelingHealingController.kt"],
+    srcs = [
+        "HealingOperationStore.kt",
+        "VidLabelingHealingController.kt",
+    ],
     deps = [
         ":healing",
         ":raw_impression_upload_correction_planner",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
@@ -72,6 +76,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_eviction_fence_state_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_recovery_action_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/java/io/grpc:api",

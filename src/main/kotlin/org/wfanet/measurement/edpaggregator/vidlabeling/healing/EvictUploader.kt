@@ -498,15 +498,14 @@ class EvictUploader(
   }
 
   /** Acquires the eviction fence and rejects a plan that changed after operator confirmation. */
-  override suspend fun prepare(plan: EvictionPlan): EvictionPlan {
+  suspend fun prepare(plan: EvictionPlan): EvictionPlan {
     val dataProvider = dataProviderOf(plan.badUploads.first())
     val acquireResponse =
       uploadsStub.acquireRawImpressionUploadEvictionFence(
         acquireRawImpressionUploadEvictionFenceRequest {
           parent = dataProvider
           evictionOperationId = plan.evictionOperationId
-          state =
-            VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
         }
       )
     try {

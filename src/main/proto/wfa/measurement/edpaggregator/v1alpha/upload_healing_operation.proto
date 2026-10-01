@@ -28,6 +28,9 @@ option java_outer_classname = "UploadHealingOperationProto";
 // A durable, resumable workflow for evicting and replacing invalid VID-labeling
 // uploads.
 message UploadHealingOperation {
+  reserved 4, 5, 6;
+  reserved "labeled_impressions_blob_prefix", "bad_raw_impression_uploads", "cutoff_time";
+
   option (google.api.resource) = {
     type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
     pattern: "dataProviders/{data_provider}/uploadHealingOperations/{upload_healing_operation}"
@@ -68,22 +71,6 @@ message UploadHealingOperation {
 
   // Operator diagnosis recorded on evicted model lines.
   string reason = 3 [(google.api.field_behavior) = REQUIRED];
-
-  // Absolute URI prefix containing generated VID-labeled outputs.
-  string labeled_impressions_blob_prefix = 4
-      [(google.api.field_behavior) = REQUIRED];
-
-  // Uploads whose derived output is invalidated by this plan.
-  repeated string bad_raw_impression_uploads = 5 [
-    (google.api.field_behavior) = REQUIRED,
-    (google.api.resource_reference) = {
-      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
-    }
-  ];
-
-  // Earliest upload creation time included by the retention policy.
-  google.protobuf.Timestamp cutoff_time = 6
-      [(google.api.field_behavior) = REQUIRED];
 
   // Ordered checkpoints in the eviction and replacement graph.
   // (-- api-linter: core::0122::embedded-resource=disabled
