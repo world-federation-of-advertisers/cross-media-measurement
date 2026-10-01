@@ -35,8 +35,10 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findDataAva
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getDataAvailabilitySyncTaskByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineStateByCmmsModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasDataAvailabilitySyncTaskPublicationSlot
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertDataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readDataAvailabilitySyncTasks
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.releaseDataAvailabilitySyncTaskPublicationSlot
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateDataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -353,6 +355,17 @@ class SpannerDataAvailabilitySyncTaskService(
             )
             .asRuntimeException()
         }
+        if (
+          nextState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING &&
+            !transaction.hasDataAvailabilitySyncTaskPublicationSlot(
+              dataProviderResourceId,
+              current.rawImpressionUploadId,
+              taskResourceId,
+            )
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription("task publication slot is not held")
+            .asRuntimeException()
+        }
         transaction.updateDataAvailabilitySyncTask(
           current,
           nextState,
@@ -362,6 +375,16 @@ class SpannerDataAvailabilitySyncTaskService(
           requestIdColumn = requestIdColumn,
           requestId = requestId,
         )
+        if (
+          nextState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUCCEEDED ||
+            nextState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_FAILED
+        ) {
+          transaction.releaseDataAvailabilitySyncTaskPublicationSlot(
+            dataProviderResourceId,
+            current.rawImpressionUploadId,
+            taskResourceId,
+          )
+        }
         current.task.copy {
           state = nextState
           attemptCount =

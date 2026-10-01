@@ -20,6 +20,9 @@ import com.google.common.truth.Truth.assertThat
 import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
+import java.time.Duration
+import java.time.Instant
+import java.util.UUID
 import kotlin.test.assertFailsWith
 import kotlinx.coroutines.runBlocking
 import org.junit.ClassRule
@@ -27,6 +30,10 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.DataAvailabilitySyncTaskPublication
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.claimDataAvailabilitySyncTaskPublication
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.completeDataAvailabilitySyncTaskPublication
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reconcileDataAvailabilitySyncTaskPublications
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -215,6 +222,8 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
       insertUpload()
       val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
       val created = service.createDataAvailabilitySyncTask(createRequest())
+      val firstAttemptTime = Instant.now().plusSeconds(10)
+      completePublication(claimPublication(firstAttemptTime))
       val runningRequest = markDataAvailabilitySyncTaskRunningRequest {
         setTaskKey()
         etag = created.etag
@@ -251,6 +260,16 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
             requestId = "123e4567-e89b-42d3-a456-426614174002"
           }
         )
+      spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+        transaction.reconcileDataAvailabilitySyncTaskPublications(
+          limit = 10,
+          now = firstAttemptTime.plus(Duration.ofHours(2)),
+          staleBefore = firstAttemptTime.plus(Duration.ofHours(1)),
+        )
+      }
+      completePublication(
+        claimPublication(firstAttemptTime.plus(Duration.ofHours(2)).plusSeconds(1))
+      )
       val runningAgain =
         service.markDataAvailabilitySyncTaskRunning(
           markDataAvailabilitySyncTaskRunningRequest {
@@ -273,25 +292,152 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
         .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUCCEEDED)
     }
 
+  @Test
+  fun `succeeded task releases provider slot for next task`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      service.createDataAvailabilitySyncTask(createRequest())
+      service.createDataAvailabilitySyncTask(
+        createRequest("gs://bucket/labeled/2026-10-01/done", GENERATION + 1)
+      )
+      val now = Instant.now().plusSeconds(10)
+      val firstPublication = claimPublication(now)
+      completePublication(firstPublication)
+      val firstTask = getTask(service, firstPublication.taskResourceId)
+      val running =
+        markRunning(service, firstTask.dataAvailabilitySyncTaskResourceId, firstTask.etag)
+
+      service.markDataAvailabilitySyncTaskSucceeded(
+        markDataAvailabilitySyncTaskSucceededRequest {
+          setTaskKey(running.dataAvailabilitySyncTaskResourceId)
+          etag = running.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+      val nextPublication = claimPublication(now.plusSeconds(1))
+      assertThat(nextPublication.taskResourceId).isNotEqualTo(firstPublication.taskResourceId)
+    }
+
+  @Test
+  fun `failed task releases provider slot and retry reacquires it`() =
+    runBlocking<Unit> {
+      insertUpload()
+      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+      service.createDataAvailabilitySyncTask(createRequest())
+      service.createDataAvailabilitySyncTask(
+        createRequest("gs://bucket/labeled/2026-10-01/done", GENERATION + 1)
+      )
+      val now = Instant.now().plusSeconds(10)
+      val failedPublication = claimPublication(now)
+      completePublication(failedPublication)
+      val failedTask = getTask(service, failedPublication.taskResourceId)
+      val runningFailed =
+        markRunning(service, failedTask.dataAvailabilitySyncTaskResourceId, failedTask.etag)
+      val failed =
+        service.markDataAvailabilitySyncTaskFailed(
+          markDataAvailabilitySyncTaskFailedRequest {
+            setTaskKey(runningFailed.dataAvailabilitySyncTaskResourceId)
+            failureCategory =
+              org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskFailureCategory
+                .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_SYNCHRONIZATION
+            etag = runningFailed.etag
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      val immediateRetry =
+        assertFailsWith<StatusRuntimeException> {
+          markRunning(service, failed.dataAvailabilitySyncTaskResourceId, failed.etag)
+        }
+      assertThat(immediateRetry.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+      val nextPublication = claimPublication(now.plusSeconds(1))
+      assertThat(nextPublication.taskResourceId).isNotEqualTo(failedPublication.taskResourceId)
+      completePublication(nextPublication)
+      val nextTask = getTask(service, nextPublication.taskResourceId)
+      val runningNext =
+        markRunning(service, nextTask.dataAvailabilitySyncTaskResourceId, nextTask.etag)
+      service.markDataAvailabilitySyncTaskSucceeded(
+        markDataAvailabilitySyncTaskSucceededRequest {
+          setTaskKey(runningNext.dataAvailabilitySyncTaskResourceId)
+          etag = runningNext.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+      spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+        transaction.reconcileDataAvailabilitySyncTaskPublications(
+          limit = 10,
+          now = now.plus(Duration.ofHours(2)),
+          staleBefore = now.plus(Duration.ofHours(1)),
+        )
+      }
+
+      val retriedPublication = claimPublication(now.plus(Duration.ofHours(2)).plusSeconds(1))
+      assertThat(retriedPublication.taskResourceId).isEqualTo(failedPublication.taskResourceId)
+    }
+
+  private suspend fun claimPublication(now: Instant): DataAvailabilitySyncTaskPublication =
+    checkNotNull(
+      spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+        transaction.claimDataAvailabilitySyncTaskPublication(
+          UUID.randomUUID().toString(),
+          now,
+          now.plusSeconds(60),
+        )
+      }
+    )
+
+  private suspend fun completePublication(publication: DataAvailabilitySyncTaskPublication) {
+    spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
+      transaction.completeDataAvailabilitySyncTaskPublication(publication)
+    }
+  }
+
+  private suspend fun getTask(
+    service: SpannerDataAvailabilitySyncTaskService,
+    taskResourceId: String,
+  ) =
+    service.getDataAvailabilitySyncTask(
+      getDataAvailabilitySyncTaskRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        rawImpressionUploadResourceId = UPLOAD_ID
+        dataAvailabilitySyncTaskResourceId = taskResourceId
+      }
+    )
+
+  private suspend fun markRunning(
+    service: SpannerDataAvailabilitySyncTaskService,
+    taskResourceId: String,
+    etag: String,
+  ) =
+    service.markDataAvailabilitySyncTaskRunning(
+      markDataAvailabilitySyncTaskRunningRequest {
+        setTaskKey(taskResourceId)
+        this.etag = etag
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
   private fun org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskRunningRequestKt.Dsl
-    .setTaskKey() {
+    .setTaskKey(taskResourceId: String = TASK_ID) {
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadResourceId = UPLOAD_ID
-    dataAvailabilitySyncTaskResourceId = TASK_ID
+    dataAvailabilitySyncTaskResourceId = taskResourceId
   }
 
   private fun org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskFailedRequestKt.Dsl
-    .setTaskKey() {
+    .setTaskKey(taskResourceId: String = TASK_ID) {
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadResourceId = UPLOAD_ID
-    dataAvailabilitySyncTaskResourceId = TASK_ID
+    dataAvailabilitySyncTaskResourceId = taskResourceId
   }
 
   private fun org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskSucceededRequestKt.Dsl
-    .setTaskKey() {
+    .setTaskKey(taskResourceId: String = TASK_ID) {
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadResourceId = UPLOAD_ID
-    dataAvailabilitySyncTaskResourceId = TASK_ID
+    dataAvailabilitySyncTaskResourceId = taskResourceId
   }
 
   private fun createRequest(doneUri: String = DONE_URI, generation: Long = GENERATION) =
