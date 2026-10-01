@@ -145,6 +145,9 @@ object TrusTeeV2ImpressionCount {
     }
   }
 
+  // TODO(world-federation-of-advertisers/cross-media-measurement#4596): Drop this conversion once
+  // the TrusTee fulfillment path carries bytes. The histogram, the clip search and the seed take an
+  // IntArray only because TrusTee v1 and HMSS do, and this copy is four times the population.
   /**
    * Returns [frequencyData] as an [IntArray].
    *
