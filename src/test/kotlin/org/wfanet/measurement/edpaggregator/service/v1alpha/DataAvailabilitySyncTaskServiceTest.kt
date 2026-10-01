@@ -193,6 +193,7 @@ class DataAvailabilitySyncTaskServiceTest {
     runBlocking<Unit> {
       insertUpload()
       val created = service.createDataAvailabilitySyncTask(createRequest())
+      acquirePublicationSlot()
       val running =
         service.markDataAvailabilitySyncTaskRunning(
           markDataAvailabilitySyncTaskRunningRequest {
@@ -210,6 +211,7 @@ class DataAvailabilitySyncTaskServiceTest {
             requestId = RequestIds.forMarkDataAvailabilitySyncTaskFailed(running.name, 1)
           }
         )
+      acquirePublicationSlot()
       val runningAgain =
         service.markDataAvailabilitySyncTaskRunning(
           markDataAvailabilitySyncTaskRunningRequest {
@@ -232,6 +234,23 @@ class DataAvailabilitySyncTaskServiceTest {
       assertThat(runningAgain.attemptCount).isEqualTo(2)
       assertThat(succeeded.state).isEqualTo(DataAvailabilitySyncTask.State.SUCCEEDED)
     }
+
+  private suspend fun acquirePublicationSlot() {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("DataAvailabilitySyncTaskPublication")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(1L)
+          .set("DataAvailabilitySyncTaskResourceId")
+          .to(TASK_ID)
+          .set("ProviderSlot")
+          .to(true)
+          .build()
+      )
+    )
+  }
 
   private fun createRequest() = createDataAvailabilitySyncTaskRequest {
     parent = RawImpressionUploadKey(DATA_PROVIDER_ID, UPLOAD_ID).toName()
