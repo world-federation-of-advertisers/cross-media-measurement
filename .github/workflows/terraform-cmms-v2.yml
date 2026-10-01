@@ -195,6 +195,7 @@ jobs:
         # (vid-labeling-dispatcher is on main; vid-labeling-monitor needs PR #4020 merged).
         coords[vid-labeling-dispatcher]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-dispatcher:$ARTIFACT_VERSION:jar"
         coords[vid-labeling-monitor]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-monitor:$ARTIFACT_VERSION:jar"
+        coords[vid-labeling-healing-controller]="org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling:vid-labeling-healing-controller:$ARTIFACT_VERSION:jar"
         coords[dashboard-compliance-check]="org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools:dashboard-compliance-check:$ARTIFACT_VERSION:jar"
         
         LOCAL_REPO=$(mvn help:evaluate -Dexpression=settings.localRepository -q -DforceStdout)
@@ -333,6 +334,9 @@ jobs:
         VID_LABELING_DISPATCHER_SECRET_MAPPING: ${{ vars.VID_LABELING_DISPATCHER_SECRET_MAPPING }}
         VID_LABELING_MONITOR_ENV_VAR: ${{ vars.VID_LABELING_MONITOR_ENV_VAR }}
         VID_LABELING_MONITOR_SECRET_MAPPING: ${{ vars.VID_LABELING_MONITOR_SECRET_MAPPING }}
+        VID_LABELING_HEALING_CONTROLLER_ENV_VAR: ${{ vars.VID_LABELING_HEALING_CONTROLLER_ENV_VAR }}
+        VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING: ${{ vars.VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING }}
+        VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES: ${{ vars.VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES }}
         DUCHY_WORKER1_ID: ${{ vars.WORKER1_DUCHY_ID }}
         DUCHY_WORKER1_TARGET: ${{ vars.WORKER1_PUBLIC_API_TARGET }}
         DUCHY_WORKER2_ID: ${{ vars.WORKER2_DUCHY_ID }}
@@ -393,6 +397,10 @@ jobs:
         -var="vid_labeling_monitor_env_var=$VID_LABELING_MONITOR_ENV_VAR"
         -var="vid_labeling_monitor_secret_mapping=$VID_LABELING_MONITOR_SECRET_MAPPING"
         -var="vid_labeling_monitor_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_monitor_source_path }}"
+        -var="vid_labeling_healing_controller_uber_jar_path=${{ steps.download-uber-jars.outputs.vid_labeling_healing_controller_source_path }}"
+        -var="vid_labeling_healing_controller_env_var=$VID_LABELING_HEALING_CONTROLLER_ENV_VAR"
+        -var="vid_labeling_healing_controller_secret_mapping=$VID_LABELING_HEALING_CONTROLLER_SECRET_MAPPING"
+        -var="vid_labeling_healing_labeled_output_object_prefixes=$VID_LABELING_HEALING_LABELED_OUTPUT_OBJECT_PREFIXES"
         -var="dashboard_compliance_uber_jar_path=${{ steps.download-uber-jars.outputs.dashboard_compliance_check_source_path }}"
         -var="image_tag=$IMAGE_TAG"
         -var="tee_consumers_enabled=${{ inputs.tee-consumers-enabled }}"
