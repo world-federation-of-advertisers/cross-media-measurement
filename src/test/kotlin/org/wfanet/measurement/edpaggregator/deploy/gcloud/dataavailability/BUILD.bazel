@@ -11,7 +11,6 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunctionTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:data_availability_sync_function",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:event_group_sync_params_kt_jvm_proto",
@@ -24,6 +23,7 @@ kt_jvm_test(
         "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/testing:functions_framework_invoker_process",
     ],
 )
 
@@ -36,11 +36,11 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilityMonitorFunctionTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:data_availability_monitor_function",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_monitor_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/testing:functions_framework_invoker_process",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
 )
