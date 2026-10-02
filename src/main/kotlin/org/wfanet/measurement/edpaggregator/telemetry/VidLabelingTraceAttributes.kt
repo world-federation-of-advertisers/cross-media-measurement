@@ -34,6 +34,7 @@ object VidLabelingTraceAttributes {
   const val PIPELINE_PHASE_STRING = "xmm.edpa.pipeline.phase"
   const val GCS_OBJECT_PATH_HASH_STRING = "xmm.gcs.object.path_hash"
   const val GCS_OBJECT_GENERATION_STRING = "xmm.gcs.object.generation"
+  const val POOL_OFFSET_STRING = "xmm.edpa.pool_offset"
   const val SHARD_INDEX_STRING = "xmm.edpa.shard_index"
 
   val DATA_PROVIDER_NAME: AttributeKey<String> = AttributeKey.stringKey(DATA_PROVIDER_NAME_STRING)
@@ -57,6 +58,7 @@ object VidLabelingTraceAttributes {
   val GCS_OBJECT_PATH_HASH: AttributeKey<String> =
     AttributeKey.stringKey(GCS_OBJECT_PATH_HASH_STRING)
   val GCS_OBJECT_GENERATION: AttributeKey<Long> = AttributeKey.longKey(GCS_OBJECT_GENERATION_STRING)
+  val POOL_OFFSET: AttributeKey<Long> = AttributeKey.longKey(POOL_OFFSET_STRING)
   val SHARD_INDEX: AttributeKey<Long> = AttributeKey.longKey(SHARD_INDEX_STRING)
 
   val SAFE_LOG_FIELD_NAMES: Set<String> =
@@ -74,6 +76,7 @@ object VidLabelingTraceAttributes {
       PIPELINE_PHASE_STRING,
       GCS_OBJECT_PATH_HASH_STRING,
       GCS_OBJECT_GENERATION_STRING,
+      POOL_OFFSET_STRING,
       SHARD_INDEX_STRING,
     )
 }
