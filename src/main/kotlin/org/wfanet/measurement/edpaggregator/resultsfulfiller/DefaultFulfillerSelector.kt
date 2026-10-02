@@ -185,9 +185,8 @@ class DefaultFulfillerSelector(
   private val supportedMultiPartyNoiseMechanisms: Set<NoiseMechanism>,
   private val trusTeeConfig: TrusTeeConfig? = null,
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
-  private val trusTeeV2ImpressionCountMode: TrusTeeV2Config.ImpressionCountMode =
-    TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED,
-  private val trusTeeV2MaxFrequencyPerUser: Int? = null,
+  private val trusTeeV2ImpressionCountMode: TrusTeeV2Config.ImpressionCountMode,
+  private val trusTeeV2MaxFrequencyPerUser: Int?,
 ) : FulfillerSelector {
 
   init {
