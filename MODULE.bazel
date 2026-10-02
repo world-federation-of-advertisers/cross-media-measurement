@@ -42,6 +42,14 @@ bazel_dep(
     version = "0.157.0",
     repo_name = "wfa_common_jvm",
 )
+
+# DO_NOT_SUBMIT: Remove after common-jvm#416 is released and registered.
+git_override(
+    module_name = "common-jvm",
+    commit = "275fd02bafb49b7f35af4c8cfb1c9a731e892ffc",
+    remote = "https://github.com/world-federation-of-advertisers/common-jvm.git",
+)
+
 bazel_dep(
     name = "common-cpp",
     version = "0.14.0",

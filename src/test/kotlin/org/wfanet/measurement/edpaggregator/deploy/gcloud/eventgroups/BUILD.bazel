@@ -12,7 +12,6 @@ kt_jvm_test(
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/common/api/grpc:list_resources",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/eventgroups:event_group_sync_function",
-        "//src/main/kotlin/org/wfanet/measurement/gcloud/testing",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_group_metadata_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/api/v2alpha:event_groups_service_kt_jvm_grpc_proto",
@@ -36,6 +35,7 @@ kt_jvm_test(
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc/testing",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/gcs/testing",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/testing:functions_framework_invoker_process",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage/filesystem:client",
     ],
