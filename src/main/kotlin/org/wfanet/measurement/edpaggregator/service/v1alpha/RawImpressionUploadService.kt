@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
 import java.io.IOException
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
@@ -46,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEv
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsPageToken as InternalListUploadsPageToken
@@ -201,11 +203,11 @@ class RawImpressionUploadService(
     request: AcquireRawImpressionUploadEvictionFenceRequest
   ): AcquireRawImpressionUploadEvictionFenceResponse {
     val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    validateUuid(request.requestId, "request_id")
     if (
       request.state !=
         VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
-        request.state !=
-          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
     ) {
       throw InvalidFieldValueException("state")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -217,18 +219,16 @@ class RawImpressionUploadService(
             dataProviderResourceId = dataProviderKey.dataProviderId
             evictionOperationId = request.evictionOperationId
             state = request.state.toInternal()
+            requestId = request.requestId
           }
         )
       } catch (e: StatusException) {
-        throw if (e.status.code == Status.Code.FAILED_PRECONDITION) {
-          e.status.withCause(e).asRuntimeException()
-        } else {
-          Status.INTERNAL.withCause(e).asRuntimeException()
-        }
+        throw translateFenceError(e)
       }
 
     return acquireRawImpressionUploadEvictionFenceResponse {
       newlyAcquired = internalResponse.newlyAcquired
+      etag = internalResponse.etag
     }
   }
 
@@ -236,6 +236,8 @@ class RawImpressionUploadService(
     request: AdvanceRawImpressionUploadEvictionFenceRequest
   ): AdvanceRawImpressionUploadEvictionFenceResponse {
     val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    requireField(request.etag, "etag")
+    validateUuid(request.requestId, "request_id")
     if (
       request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING &&
         request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
@@ -243,41 +245,40 @@ class RawImpressionUploadService(
       throw InvalidFieldValueException("state")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    try {
-      internalUploadStub.advanceRawImpressionUploadEvictionFence(
-        internalAdvanceEvictionFenceRequest {
-          dataProviderResourceId = dataProviderKey.dataProviderId
-          evictionOperationId = request.evictionOperationId
-          state = request.state.toInternal()
-        }
-      )
-    } catch (e: StatusException) {
-      throw if (e.status.code == Status.Code.FAILED_PRECONDITION) {
-        e.status.withCause(e).asRuntimeException()
-      } else {
-        Status.INTERNAL.withCause(e).asRuntimeException()
+    val internalResponse =
+      try {
+        internalUploadStub.advanceRawImpressionUploadEvictionFence(
+          internalAdvanceEvictionFenceRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            evictionOperationId = request.evictionOperationId
+            state = request.state.toInternal()
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+      } catch (e: StatusException) {
+        throw translateFenceError(e)
       }
-    }
-    return AdvanceRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+    return advanceRawImpressionUploadEvictionFenceResponse { etag = internalResponse.etag }
   }
 
   override suspend fun releaseRawImpressionUploadEvictionFence(
     request: ReleaseRawImpressionUploadEvictionFenceRequest
   ): ReleaseRawImpressionUploadEvictionFenceResponse {
     val dataProviderKey = validateEvictionFenceRequest(request.parent, request.evictionOperationId)
+    requireField(request.etag, "etag")
+    validateUuid(request.requestId, "request_id")
     try {
       internalUploadStub.releaseRawImpressionUploadEvictionFence(
         internalReleaseEvictionFenceRequest {
           dataProviderResourceId = dataProviderKey.dataProviderId
           evictionOperationId = request.evictionOperationId
+          etag = request.etag
+          requestId = request.requestId
         }
       )
     } catch (e: StatusException) {
-      throw if (e.status.code == Status.Code.FAILED_PRECONDITION) {
-        e.status.withCause(e).asRuntimeException()
-      } else {
-        Status.INTERNAL.withCause(e).asRuntimeException()
-      }
+      throw translateFenceError(e)
     }
     return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
   }
@@ -294,24 +295,42 @@ class RawImpressionUploadService(
       DataProviderKey.fromName(parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    if (evictionOperationId.isEmpty()) {
-      throw RequiredFieldNotSetException("eviction_operation_id")
+    validateUuid(evictionOperationId, "eviction_operation_id")
+    return dataProviderKey
+  }
+
+  private fun translateFenceError(e: StatusException): StatusRuntimeException =
+    when (e.status.code) {
+      Status.Code.INVALID_ARGUMENT,
+      Status.Code.FAILED_PRECONDITION,
+      Status.Code.ABORTED,
+      Status.Code.ALREADY_EXISTS,
+      Status.Code.UNAVAILABLE -> e.status.withCause(e).asRuntimeException()
+      else -> Status.INTERNAL.withCause(e).asRuntimeException()
+    }
+
+  private fun requireField(value: String, field: String) {
+    if (value.isEmpty()) {
+      throw RequiredFieldNotSetException(field)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+  }
+
+  private fun validateUuid(value: String, field: String) {
+    requireField(value, field)
     try {
-      val uuid = UUID.fromString(evictionOperationId)
+      val uuid = UUID.fromString(value)
       if (
         uuid.version() != 4 ||
           uuid.variant() != 2 ||
-          !uuid.toString().equals(evictionOperationId, ignoreCase = true)
+          !uuid.toString().equals(value, ignoreCase = true)
       ) {
-        throw IllegalArgumentException("eviction_operation_id must be a UUID4")
+        throw IllegalArgumentException("$field must be a UUID4")
       }
     } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("eviction_operation_id", e)
+      throw InvalidFieldValueException(field, e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    return dataProviderKey
   }
 
   private fun VidLabelingEvictionFenceState.toInternal():

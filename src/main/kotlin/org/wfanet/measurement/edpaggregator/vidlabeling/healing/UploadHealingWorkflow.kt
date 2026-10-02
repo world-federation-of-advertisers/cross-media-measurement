@@ -34,6 +34,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
@@ -248,10 +250,31 @@ class UploadHealingWorkflow(
       requireNotNull(UploadHealingOperationKey.fromName(operation.name)) {
         "Malformed UploadHealingOperation resource name: ${operation.name}"
       }
+    val dataProvider = dataProviderOf(operation.badRawImpressionUploadsList.first())
+    val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+    val fence =
+      uploadsStub.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          parent = dataProvider
+          evictionOperationId = operationKey.uploadHealingOperationId
+          state = fenceState
+          requestId =
+            RequestIds.forAcquireUploadEvictionFence(
+              operationKey.uploadHealingOperationId,
+              fenceState.name,
+            )
+        }
+      )
     uploadsStub.releaseRawImpressionUploadEvictionFence(
       releaseRawImpressionUploadEvictionFenceRequest {
-        parent = dataProviderOf(operation.badRawImpressionUploadsList.first())
+        parent = dataProvider
         evictionOperationId = operationKey.uploadHealingOperationId
+        etag = fence.etag
+        requestId =
+          RequestIds.forReleaseUploadEvictionFence(
+            operationKey.uploadHealingOperationId,
+            fence.etag,
+          )
       }
     )
   }

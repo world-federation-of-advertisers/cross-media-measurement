@@ -66,6 +66,15 @@ suspend fun AsyncDatabaseClient.ReadContext.requireActiveDataAvailabilitySyncLea
   synchronizationAttemptId: String,
   now: Instant,
 ) {
+  if (
+    getVidLabelingEvictionFence(dataProviderResourceId)?.state ==
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+  ) {
+    throw Status.UNAVAILABLE.withDescription(
+        "Data availability synchronization is fenced for DataProvider $dataProviderResourceId"
+      )
+      .asRuntimeException()
+  }
   if (synchronizationAttemptId.isEmpty()) return
   val lease =
     findDataAvailabilitySyncLease(dataProviderResourceId, synchronizationAttemptId)
@@ -80,15 +89,6 @@ suspend fun AsyncDatabaseClient.ReadContext.requireActiveDataAvailabilitySyncLea
   ) {
     throw Status.FAILED_PRECONDITION.withDescription(
         "DataAvailabilitySyncLease $synchronizationAttemptId is not active"
-      )
-      .asRuntimeException()
-  }
-  if (
-    getVidLabelingEvictionFence(dataProviderResourceId)?.state ==
-      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-  ) {
-    throw Status.UNAVAILABLE.withDescription(
-        "Data availability synchronization is fenced for DataProvider $dataProviderResourceId"
       )
       .asRuntimeException()
   }

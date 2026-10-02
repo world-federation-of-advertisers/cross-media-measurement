@@ -189,41 +189,42 @@ class DataAvailabilitySyncEvictionInterlockTest {
         }
       }
       readStarted.await()
-      uploadService.acquireRawImpressionUploadEvictionFence(
-        acquireRawImpressionUploadEvictionFenceRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          evictionOperationId = EVICTION_OPERATION_ID
-          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
-        }
-      )
-      uploadService.advanceRawImpressionUploadEvictionFence(
-        advanceRawImpressionUploadEvictionFenceRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          evictionOperationId = EVICTION_OPERATION_ID
-          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
-        }
-      )
+      val acquiredFence =
+        uploadService.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+            requestId = FENCE_ACQUIRE_REQUEST_ID
+          }
+        )
+      val drainingFence =
+        uploadService.advanceRawImpressionUploadEvictionFence(
+          advanceRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            evictionOperationId = EVICTION_OPERATION_ID
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+            etag = acquiredFence.etag
+            requestId = FENCE_DRAIN_REQUEST_ID
+          }
+        )
+
+      val evictionRequest = advanceRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        etag = drainingFence.etag
+        requestId = FENCE_EVICT_REQUEST_ID
+      }
 
       val blocked =
         assertFailsWith<StatusRuntimeException> {
-          uploadService.advanceRawImpressionUploadEvictionFence(
-            advanceRawImpressionUploadEvictionFenceRequest {
-              dataProviderResourceId = DATA_PROVIDER_ID
-              evictionOperationId = EVICTION_OPERATION_ID
-              state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-            }
-          )
+          uploadService.advanceRawImpressionUploadEvictionFence(evictionRequest)
         }
       assertThat(blocked.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
 
       clock.advance(Duration.ofMinutes(11))
-      uploadService.advanceRawImpressionUploadEvictionFence(
-        advanceRawImpressionUploadEvictionFenceRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          evictionOperationId = EVICTION_OPERATION_ID
-          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-        }
-      )
+      uploadService.advanceRawImpressionUploadEvictionFence(evictionRequest)
       finishRead.complete(Unit)
       val syncError = assertFailsWith<StatusRuntimeException> { syncResult.await() }
       assertThat(syncError.status.code).isEqualTo(Status.Code.UNAVAILABLE)
@@ -251,20 +252,25 @@ class DataAvailabilitySyncEvictionInterlockTest {
           requestId = LEASE_REQUEST_ID
         }
       )
-    uploadService.acquireRawImpressionUploadEvictionFence(
-      acquireRawImpressionUploadEvictionFenceRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        evictionOperationId = EVICTION_OPERATION_ID
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
-      }
-    )
-    uploadService.advanceRawImpressionUploadEvictionFence(
-      advanceRawImpressionUploadEvictionFenceRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        evictionOperationId = EVICTION_OPERATION_ID
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
-      }
-    )
+    val acquiredFence =
+      uploadService.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          evictionOperationId = EVICTION_OPERATION_ID
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+          requestId = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
+        }
+      )
+    val drainingFence =
+      uploadService.advanceRawImpressionUploadEvictionFence(
+        advanceRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          evictionOperationId = EVICTION_OPERATION_ID
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+          etag = acquiredFence.etag
+          requestId = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+        }
+      )
     val leaseValidated = CompletableDeferred<Unit>()
     val continueMutation = CompletableDeferred<Unit>()
     val completionOrder = AtomicInteger()
@@ -313,6 +319,8 @@ class DataAvailabilitySyncEvictionInterlockTest {
                 dataProviderResourceId = DATA_PROVIDER_ID
                 evictionOperationId = EVICTION_OPERATION_ID
                 state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+                etag = drainingFence.etag
+                requestId = "ffffffff-ffff-4fff-8fff-ffffffffffff"
               }
             )
           }
@@ -328,6 +336,45 @@ class DataAvailabilitySyncEvictionInterlockTest {
         assertThat(metadata.getOrThrow()).isLessThan(eviction.getOrThrow())
       }
     }
+  }
+
+  @Test
+  fun `lease-less metadata mutation is rejected during eviction`(): Unit = runBlocking {
+    val uploadService = SpannerRawImpressionUploadService(spannerDatabase.databaseClient)
+    uploadService.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        requestId = FENCE_ACQUIRE_REQUEST_ID
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        SpannerImpressionMetadataService(spannerDatabase.databaseClient)
+          .batchCreateImpressionMetadata(
+            internalBatchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_ID
+              requests += internalCreateImpressionMetadataRequest {
+                requestId = METADATA_REQUEST_ID
+                impressionMetadata = internalImpressionMetadata {
+                  dataProviderResourceId = DATA_PROVIDER_ID
+                  blobUri = "gs://bucket/date/impressions"
+                  blobTypeUrl = "type.googleapis.com/test.Impression"
+                  eventGroupReferenceId = "event-group"
+                  cmmsModelLine = MODEL_LINE
+                  interval = interval {
+                    startTime = timestamp { seconds = 1L }
+                    endTime = timestamp { seconds = 2L }
+                  }
+                }
+              }
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
   }
 
   private class PausingBlobMetadataStorageClient(
@@ -463,6 +510,9 @@ class DataAvailabilitySyncEvictionInterlockTest {
     private const val SYNCHRONIZATION_ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     private const val LEASE_REQUEST_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
     private const val METADATA_REQUEST_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
+    private const val FENCE_ACQUIRE_REQUEST_ID = "12111111-1111-4111-8111-111111111111"
+    private const val FENCE_DRAIN_REQUEST_ID = "12222222-2222-4222-8222-222222222222"
+    private const val FENCE_EVICT_REQUEST_ID = "12333333-3333-4333-8333-333333333333"
     private val REQUEST_IDS =
       listOf(
         "11111111-1111-4111-8111-111111111111",

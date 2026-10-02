@@ -66,23 +66,31 @@ message AcquireRawImpressionUploadEvictionFenceRequest {
   string data_provider_resource_id = 1;
   string eviction_operation_id = 2;
   VidLabelingEvictionFenceState state = 3;
+  string request_id = 4;
 }
 
 message AcquireRawImpressionUploadEvictionFenceResponse {
   bool newly_acquired = 1;
+  string etag = 3;
 }
 
 message AdvanceRawImpressionUploadEvictionFenceRequest {
   string data_provider_resource_id = 1;
   string eviction_operation_id = 2;
   VidLabelingEvictionFenceState state = 3;
+  string etag = 4;
+  string request_id = 5;
 }
 
-message AdvanceRawImpressionUploadEvictionFenceResponse {}
+message AdvanceRawImpressionUploadEvictionFenceResponse {
+  string etag = 1;
+}
 
 message ReleaseRawImpressionUploadEvictionFenceRequest {
   string data_provider_resource_id = 1;
   string eviction_operation_id = 2;
+  string etag = 3;
+  string request_id = 4;
 }
 
 message ReleaseRawImpressionUploadEvictionFenceResponse {}

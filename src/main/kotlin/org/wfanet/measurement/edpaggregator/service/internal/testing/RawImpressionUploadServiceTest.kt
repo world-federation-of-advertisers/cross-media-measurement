@@ -1061,13 +1061,15 @@ abstract class RawImpressionUploadServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         evictionOperationId = operationId
         state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        requestId = UUID.randomUUID().toString()
       }
 
       val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
       val resumedAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
 
       assertThat(initialAcquire.newlyAcquired).isTrue()
-      assertThat(resumedAcquire.newlyAcquired).isFalse()
+      assertThat(initialAcquire.etag).isNotEmpty()
+      assertThat(resumedAcquire).isEqualTo(initialAcquire)
 
       val competingOperation =
         assertFailsWith<StatusRuntimeException> {
@@ -1076,6 +1078,7 @@ abstract class RawImpressionUploadServiceTest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               evictionOperationId = UUID.randomUUID().toString()
               state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
@@ -1088,6 +1091,8 @@ abstract class RawImpressionUploadServiceTest {
         releaseRawImpressionUploadEvictionFenceRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           evictionOperationId = operationId
+          etag = initialAcquire.etag
+          requestId = RELEASE_REQUEST_ID
         }
       )
       val releasedUpload =
@@ -1104,6 +1109,8 @@ abstract class RawImpressionUploadServiceTest {
         releaseRawImpressionUploadEvictionFenceRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           evictionOperationId = operationId
+          etag = initialAcquire.etag
+          requestId = RELEASE_REQUEST_ID
         }
       )
     }
@@ -1116,6 +1123,7 @@ abstract class RawImpressionUploadServiceTest {
           acquireRawImpressionUploadEvictionFenceRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = UUID.randomUUID().toString()
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1132,6 +1140,7 @@ abstract class RawImpressionUploadServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = "1-1-4111-8111-1"
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1148,6 +1157,7 @@ abstract class RawImpressionUploadServiceTest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         evictionOperationId = operationId
         state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        requestId = UUID.randomUUID().toString()
       }
     )
 
@@ -1198,6 +1208,7 @@ abstract class RawImpressionUploadServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = UUID.randomUUID().toString()
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1217,6 +1228,7 @@ abstract class RawImpressionUploadServiceTest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = UUID.randomUUID().toString()
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1242,6 +1254,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   companion object {
+    private const val RELEASE_REQUEST_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val DONE_BLOB_URI = "gs://test-bucket/2026-06-16/done"
     private const val DONE_BLOB_GENERATION = 1234L

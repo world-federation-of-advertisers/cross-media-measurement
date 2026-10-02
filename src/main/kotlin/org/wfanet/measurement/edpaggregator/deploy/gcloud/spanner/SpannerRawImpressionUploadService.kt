@@ -17,9 +17,12 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import com.google.cloud.spanner.ErrorCode
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
+import com.google.protobuf.ByteString
 import com.google.protobuf.Timestamp
+import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import java.security.MessageDigest
 import java.time.Clock
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
@@ -37,14 +40,15 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteVidLa
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByCreateRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadByMarkRegistrationCompleteRequestId
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findVidLabelingEvictionFenceMutation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasActiveRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasIncompleteRawImpressionUploadRegistration
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFence
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFenceMutation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasEvictionOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
@@ -329,11 +333,36 @@ class SpannerRawImpressionUploadService(
     request: AcquireRawImpressionUploadEvictionFenceRequest
   ): AcquireRawImpressionUploadEvictionFenceResponse {
     validateEvictionFenceRequest(request.dataProviderResourceId, request.evictionOperationId)
+    validateUuid(request.requestId, "request_id")
     val requestedState = request.initialFenceState()
-    val newlyAcquired =
+    val requestFingerprint = request.fingerprint()
+    val requestedEtag = requestFingerprint.toEtag()
+    val result =
       databaseClient
         .readWriteTransaction(Options.tag("action=acquireRawImpressionUploadEvictionFence"))
         .run { txn ->
+          txn
+            .findVidLabelingEvictionFenceMutation(request.dataProviderResourceId, request.requestId)
+            ?.let { replay ->
+              requireMatchingFingerprint(replay.requestFingerprint, requestFingerprint)
+              val liveFence =
+                requireFenceOwnership(
+                  txn.getVidLabelingEvictionFence(request.dataProviderResourceId),
+                  request.dataProviderResourceId,
+                  request.evictionOperationId,
+                )
+              if (
+                requestedState ==
+                  VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING &&
+                  liveFence.state != requestedState
+              ) {
+                throw Status.FAILED_PRECONDITION.withDescription(
+                    "Advance the VID-labeling eviction fence before eviction"
+                  )
+                  .asRuntimeException()
+              }
+              return@run FenceMutationResult(replay.newlyAcquired, liveFence.etag)
+            }
           val currentFence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
           if (currentFence?.evictionOperationId == request.evictionOperationId) {
             if (
@@ -346,7 +375,13 @@ class SpannerRawImpressionUploadService(
                 )
                 .asRuntimeException()
             }
-            return@run false
+            txn.insertVidLabelingEvictionFenceMutation(
+              request.dataProviderResourceId,
+              request.requestId,
+              requestFingerprint,
+              currentFence.etag,
+            )
+            return@run FenceMutationResult(false, currentFence.etag)
           }
           if (currentFence != null) {
             throw Status.FAILED_PRECONDITION.withDescription(
@@ -364,17 +399,30 @@ class SpannerRawImpressionUploadService(
           txn.insertVidLabelingEvictionFence(
             request.dataProviderResourceId,
             request.evictionOperationId,
+            requestedEtag,
             requestedState,
           )
-          true
+          txn.insertVidLabelingEvictionFenceMutation(
+            request.dataProviderResourceId,
+            request.requestId,
+            requestFingerprint,
+            requestedEtag,
+            newlyAcquired = true,
+          )
+          FenceMutationResult(true, requestedEtag)
         }
-    return acquireRawImpressionUploadEvictionFenceResponse { this.newlyAcquired = newlyAcquired }
+    return acquireRawImpressionUploadEvictionFenceResponse {
+      newlyAcquired = result.newlyAcquired
+      etag = result.etag
+    }
   }
 
   override suspend fun advanceRawImpressionUploadEvictionFence(
     request: AdvanceRawImpressionUploadEvictionFenceRequest
   ): AdvanceRawImpressionUploadEvictionFenceResponse {
     validateEvictionFenceRequest(request.dataProviderResourceId, request.evictionOperationId)
+    requireField(request.etag, "etag")
+    validateUuid(request.requestId, "request_id")
     if (
       request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING &&
         request.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
@@ -382,65 +430,126 @@ class SpannerRawImpressionUploadService(
       throw InvalidFieldValueException("state")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
-    databaseClient
-      .readWriteTransaction(Options.tag("action=advanceRawImpressionUploadEvictionFence"))
-      .run { txn ->
-        val current =
-          txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
-            ?: throw Status.FAILED_PRECONDITION.withDescription(
-                "No VID-labeling eviction fence exists for DataProvider " +
-                  request.dataProviderResourceId
+    val requestFingerprint = request.fingerprint()
+    val requestedEtag = requestFingerprint.toEtag()
+    val resultEtag =
+      databaseClient
+        .readWriteTransaction(Options.tag("action=advanceRawImpressionUploadEvictionFence"))
+        .run { txn ->
+          txn
+            .findVidLabelingEvictionFenceMutation(request.dataProviderResourceId, request.requestId)
+            ?.let { replay ->
+              requireMatchingFingerprint(replay.requestFingerprint, requestFingerprint)
+              val liveFence =
+                requireFenceOwnership(
+                  txn.getVidLabelingEvictionFence(request.dataProviderResourceId),
+                  request.dataProviderResourceId,
+                  request.evictionOperationId,
+                )
+              if (liveFence.state.number < request.state.number) {
+                throw Status.FAILED_PRECONDITION.withDescription(
+                    "VID-labeling eviction fence has not reached ${request.state}"
+                  )
+                  .asRuntimeException()
+              }
+              return@run liveFence.etag
+            }
+          val current =
+            txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+              ?: throw Status.FAILED_PRECONDITION.withDescription(
+                  "No VID-labeling eviction fence exists for DataProvider " +
+                    request.dataProviderResourceId
+                )
+                .asRuntimeException()
+          if (current.evictionOperationId != request.evictionOperationId) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "VID-labeling eviction ${current.evictionOperationId} owns the fence for " +
+                  "DataProvider ${request.dataProviderResourceId}"
               )
               .asRuntimeException()
-        if (current.evictionOperationId != request.evictionOperationId) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "VID-labeling eviction ${current.evictionOperationId} owns the fence for " +
-                "DataProvider ${request.dataProviderResourceId}"
+          }
+          checkFenceEtag(request.etag, current.etag)
+          if (current.state == request.state) {
+            txn.insertVidLabelingEvictionFenceMutation(
+              request.dataProviderResourceId,
+              request.requestId,
+              requestFingerprint,
+              current.etag,
             )
-            .asRuntimeException()
-        }
-        if (current.state == request.state) return@run
-        val validTransition =
-          current.state ==
-            VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
-            request.state ==
-              VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING ||
+            return@run current.etag
+          }
+          val validTransition =
             current.state ==
-              VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING &&
+              VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING &&
               request.state ==
-                VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-        if (!validTransition) {
-          throw Status.FAILED_PRECONDITION.withDescription(
-              "Cannot advance VID-labeling eviction fence from ${current.state} to ${request.state}"
-            )
-            .asRuntimeException()
+                VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING ||
+              current.state ==
+                VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING &&
+                request.state ==
+                  VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          if (!validTransition) {
+            throw Status.FAILED_PRECONDITION.withDescription(
+                "Cannot advance VID-labeling eviction fence from ${current.state} to ${request.state}"
+              )
+              .asRuntimeException()
+          }
+          if (
+            request.state ==
+              VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          ) {
+            requireDrained(txn, request.dataProviderResourceId)
+          }
+          txn.updateVidLabelingEvictionFenceState(
+            request.dataProviderResourceId,
+            request.state,
+            requestedEtag,
+          )
+          txn.insertVidLabelingEvictionFenceMutation(
+            request.dataProviderResourceId,
+            request.requestId,
+            requestFingerprint,
+            requestedEtag,
+          )
+          requestedEtag
         }
-        if (
-          request.state == VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-        ) {
-          requireDrained(txn, request.dataProviderResourceId)
-        }
-        txn.updateVidLabelingEvictionFenceState(request.dataProviderResourceId, request.state)
-      }
-    return AdvanceRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
+    return org.wfanet.measurement.internal.edpaggregator
+      .advanceRawImpressionUploadEvictionFenceResponse { etag = resultEtag }
   }
 
   override suspend fun releaseRawImpressionUploadEvictionFence(
     request: ReleaseRawImpressionUploadEvictionFenceRequest
   ): ReleaseRawImpressionUploadEvictionFenceResponse {
     validateEvictionFenceRequest(request.dataProviderResourceId, request.evictionOperationId)
+    requireField(request.etag, "etag")
+    validateUuid(request.requestId, "request_id")
+    val requestFingerprint = request.fingerprint()
     databaseClient
       .readWriteTransaction(Options.tag("action=releaseRawImpressionUploadEvictionFence"))
       .run { txn ->
-        val currentOperationId =
-          txn.getVidLabelingEvictionOperationId(request.dataProviderResourceId) ?: return@run
-        if (currentOperationId != request.evictionOperationId) {
+        txn
+          .findVidLabelingEvictionFenceMutation(request.dataProviderResourceId, request.requestId)
+          ?.let { replay ->
+            requireMatchingFingerprint(replay.requestFingerprint, requestFingerprint)
+            return@run
+          }
+        val current = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
+        if (current == null) {
+          txn.insertVidLabelingEvictionFenceMutation(
+            request.dataProviderResourceId,
+            request.requestId,
+            requestFingerprint,
+            "",
+          )
+          return@run
+        }
+        if (current.evictionOperationId != request.evictionOperationId) {
           throw Status.FAILED_PRECONDITION.withDescription(
-              "VID-labeling eviction $currentOperationId owns the fence for DataProvider " +
+              "VID-labeling eviction ${current.evictionOperationId} owns the fence for DataProvider " +
                 request.dataProviderResourceId
             )
             .asRuntimeException()
         }
+        checkFenceEtag(request.etag, current.etag)
         txn.readProcessingDeferredRawImpressionUploadIds(request.dataProviderResourceId).collect {
           rawImpressionUploadId ->
           txn.updateRawImpressionUploadProcessingDeferred(
@@ -450,6 +559,12 @@ class SpannerRawImpressionUploadService(
           )
         }
         txn.deleteVidLabelingEvictionFence(request.dataProviderResourceId)
+        txn.insertVidLabelingEvictionFenceMutation(
+          request.dataProviderResourceId,
+          request.requestId,
+          requestFingerprint,
+          "",
+        )
       }
     return ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance()
   }
@@ -458,28 +573,92 @@ class SpannerRawImpressionUploadService(
     dataProviderResourceId: String,
     evictionOperationId: String,
   ) {
-    if (dataProviderResourceId.isEmpty()) {
-      throw RequiredFieldNotSetException("data_provider_resource_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    if (evictionOperationId.isEmpty()) {
-      throw RequiredFieldNotSetException("eviction_operation_id")
-        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-    }
-    try {
-      val uuid = UUID.fromString(evictionOperationId)
-      if (
-        uuid.version() != 4 ||
-          uuid.variant() != 2 ||
-          !uuid.toString().equals(evictionOperationId, ignoreCase = true)
-      ) {
-        throw IllegalArgumentException("eviction_operation_id must be a UUID4")
-      }
-    } catch (e: IllegalArgumentException) {
-      throw InvalidFieldValueException("eviction_operation_id", e)
+    requireField(dataProviderResourceId, "data_provider_resource_id")
+    validateUuid(evictionOperationId, "eviction_operation_id")
+  }
+
+  private fun requireField(value: String, field: String) {
+    if (value.isEmpty()) {
+      throw RequiredFieldNotSetException(field)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
+
+  private fun validateUuid(value: String, field: String) {
+    requireField(value, field)
+    try {
+      val uuid = UUID.fromString(value)
+      if (
+        uuid.version() != 4 ||
+          uuid.variant() != 2 ||
+          !uuid.toString().equals(value, ignoreCase = true)
+      ) {
+        throw IllegalArgumentException("$field must be a UUID4")
+      }
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException(field, e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun checkFenceEtag(requestEtag: String, currentEtag: String) {
+    try {
+      EtagMismatchException.check(requestEtag, currentEtag)
+    } catch (e: EtagMismatchException) {
+      throw e.asStatusRuntimeException(Status.Code.ABORTED)
+    }
+  }
+
+  private fun requireMatchingFingerprint(existing: ByteString, requested: ByteString) {
+    if (existing != requested) {
+      throw Status.ALREADY_EXISTS.withDescription("request_id has already been used")
+        .asRuntimeException()
+    }
+  }
+
+  private fun requireFenceOwnership(
+    fence: org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.VidLabelingEvictionFence?,
+    dataProviderResourceId: String,
+    evictionOperationId: String,
+  ): org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.VidLabelingEvictionFence {
+    if (fence == null) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "No VID-labeling eviction fence exists for DataProvider $dataProviderResourceId"
+        )
+        .asRuntimeException()
+    }
+    if (fence.evictionOperationId != evictionOperationId) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "VID-labeling eviction ${fence.evictionOperationId} owns the fence for DataProvider " +
+            dataProviderResourceId
+        )
+        .asRuntimeException()
+    }
+    return fence
+  }
+
+  private fun AcquireRawImpressionUploadEvictionFenceRequest.fingerprint(): ByteString =
+    fingerprint(this)
+
+  private fun AdvanceRawImpressionUploadEvictionFenceRequest.fingerprint(): ByteString =
+    fingerprint(this)
+
+  private fun ReleaseRawImpressionUploadEvictionFenceRequest.fingerprint(): ByteString =
+    fingerprint(this)
+
+  private fun fingerprint(message: com.google.protobuf.Message): ByteString =
+    MessageDigest.getInstance("SHA-256")
+      .apply {
+        update(message.descriptorForType.fullName.toByteArray(Charsets.UTF_8))
+        update(byteArrayOf(0))
+      }
+      .digest(message.toByteArray())
+      .toByteString()
+
+  private fun ByteString.toEtag(): String =
+    toByteArray().joinToString(separator = "") { byte -> "%02x".format(byte) }
+
+  private data class FenceMutationResult(val newlyAcquired: Boolean, val etag: String)
 
   private fun AcquireRawImpressionUploadEvictionFenceRequest.initialFenceState():
     VidLabelingEvictionFenceState =

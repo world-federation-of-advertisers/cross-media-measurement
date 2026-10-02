@@ -39,8 +39,10 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.releaseRawImpressionUploadEvictionFenceRequest
 
 class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   @get:Rule
@@ -129,6 +131,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
           this.dataProviderResourceId = dataProviderResourceId
           evictionOperationId = UUID.randomUUID().toString()
           state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          requestId = UUID.randomUUID().toString()
         }
       )
   }
@@ -144,10 +147,12 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
             dataProviderResourceId = TEST_DATA_PROVIDER_ID
             evictionOperationId = EVICTION_OPERATION_ID
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+            requestId = UUID.randomUUID().toString()
           }
         )
 
     assertThat(response.newlyAcquired).isTrue()
+    assertThat(response.etag).isNotEmpty()
   }
 
   @Test
@@ -157,8 +162,8 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
       acquireRawImpressionUploadEvictionFenceRequest {
         dataProviderResourceId = TEST_DATA_PROVIDER_ID
         evictionOperationId = EVICTION_OPERATION_ID
-        state =
-          VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+        requestId = UUID.randomUUID().toString()
       }
     )
 
@@ -169,6 +174,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
             dataProviderResourceId = TEST_DATA_PROVIDER_ID
             evictionOperationId = EVICTION_OPERATION_ID
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -177,44 +183,134 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
   }
 
   @Test
-  fun `evicting fence waits for active data-availability lease`(): Unit = runBlocking {
-    insertActiveDataAvailabilitySyncLease()
+  fun `fence mutations are idempotent and reject stale etags`() = runBlocking {
     val service = newService()
-    service.acquireRawImpressionUploadEvictionFence(
-      acquireRawImpressionUploadEvictionFenceRequest {
-        dataProviderResourceId = TEST_DATA_PROVIDER_ID
-        evictionOperationId = EVICTION_OPERATION_ID
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
-      }
-    )
-    service.advanceRawImpressionUploadEvictionFence(
-      advanceRawImpressionUploadEvictionFenceRequest {
-        dataProviderResourceId = TEST_DATA_PROVIDER_ID
-        evictionOperationId = EVICTION_OPERATION_ID
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
-      }
-    )
+    val acquired =
+      service.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          evictionOperationId = EVICTION_OPERATION_ID
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+          requestId = "11111111-1111-4111-8111-111111111111"
+        }
+      )
+    val advanceRequest = advanceRawImpressionUploadEvictionFenceRequest {
+      dataProviderResourceId = TEST_DATA_PROVIDER_ID
+      evictionOperationId = EVICTION_OPERATION_ID
+      state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      etag = acquired.etag
+      requestId = "22222222-2222-4222-8222-222222222222"
+    }
 
-    val error =
+    val draining = service.advanceRawImpressionUploadEvictionFence(advanceRequest)
+    val replay = service.advanceRawImpressionUploadEvictionFence(advanceRequest)
+
+    assertThat(replay).isEqualTo(draining)
+    val stale =
       assertFailsWith<StatusRuntimeException> {
         service.advanceRawImpressionUploadEvictionFence(
           advanceRawImpressionUploadEvictionFenceRequest {
             dataProviderResourceId = TEST_DATA_PROVIDER_ID
             evictionOperationId = EVICTION_OPERATION_ID
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            etag = acquired.etag
+            requestId = "33333333-3333-4333-8333-333333333333"
           }
         )
+      }
+    assertThat(stale.status.code).isEqualTo(Status.Code.ABORTED)
+    val reusedRequestId =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceRawImpressionUploadEvictionFence(
+          advanceRequest.copy {
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            etag = draining.etag
+          }
+        )
+      }
+    assertThat(reusedRequestId.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
+  }
+
+  @Test
+  fun `acquire replay rejects released or transferred fence`() = runBlocking {
+    val service = newService()
+    val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
+      dataProviderResourceId = TEST_DATA_PROVIDER_ID
+      evictionOperationId = EVICTION_OPERATION_ID
+      state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      requestId = "41111111-1111-4111-8111-111111111111"
+    }
+    val acquired = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+    service.releaseRawImpressionUploadEvictionFence(
+      releaseRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = TEST_DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        etag = acquired.etag
+        requestId = "42222222-2222-4222-8222-222222222222"
+      }
+    )
+
+    val releasedReplay =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+      }
+    assertThat(releasedReplay.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+
+    service.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = TEST_DATA_PROVIDER_ID
+        evictionOperationId = "43333333-3333-4333-8333-333333333333"
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+        requestId = "44444444-4444-4444-8444-444444444444"
+      }
+    )
+    val transferredReplay =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(acquireRequest)
+      }
+    assertThat(transferredReplay.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+  }
+
+  @Test
+  fun `evicting fence waits for active data-availability lease`(): Unit = runBlocking {
+    insertActiveDataAvailabilitySyncLease()
+    val service = newService()
+    val acquired =
+      service.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          evictionOperationId = EVICTION_OPERATION_ID
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val draining =
+      service.advanceRawImpressionUploadEvictionFence(
+        advanceRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          evictionOperationId = EVICTION_OPERATION_ID
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+          etag = acquired.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+
+    val evictionRequest = advanceRawImpressionUploadEvictionFenceRequest {
+      dataProviderResourceId = TEST_DATA_PROVIDER_ID
+      evictionOperationId = EVICTION_OPERATION_ID
+      state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      etag = draining.etag
+      requestId = UUID.randomUUID().toString()
+    }
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceRawImpressionUploadEvictionFence(evictionRequest)
       }
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
 
     releaseDataAvailabilitySyncLease()
-    service.advanceRawImpressionUploadEvictionFence(
-      advanceRawImpressionUploadEvictionFenceRequest {
-        dataProviderResourceId = TEST_DATA_PROVIDER_ID
-        evictionOperationId = EVICTION_OPERATION_ID
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-      }
-    )
+    service.advanceRawImpressionUploadEvictionFence(evictionRequest)
   }
 
   @Test
@@ -229,6 +325,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
               dataProviderResourceId = TEST_DATA_PROVIDER_ID
               evictionOperationId = EVICTION_OPERATION_ID
               state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+              requestId = UUID.randomUUID().toString()
             }
           )
       }
@@ -246,6 +343,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
         dataProviderResourceId = TEST_DATA_PROVIDER_ID
         evictionOperationId = EVICTION_OPERATION_ID
         state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+        requestId = UUID.randomUUID().toString()
       }
     )
 

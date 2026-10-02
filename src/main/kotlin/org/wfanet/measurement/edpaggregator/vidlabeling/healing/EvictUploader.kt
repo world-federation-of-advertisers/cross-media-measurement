@@ -505,8 +505,8 @@ class EvictUploader(
         acquireRawImpressionUploadEvictionFenceRequest {
           parent = dataProvider
           evictionOperationId = plan.evictionOperationId
-          state =
-            VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          requestId = RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, state.name)
         }
       )
     try {
@@ -529,6 +529,12 @@ class EvictUploader(
               releaseRawImpressionUploadEvictionFenceRequest {
                 parent = dataProvider
                 evictionOperationId = plan.evictionOperationId
+                etag = acquireResponse.etag
+                requestId =
+                  RequestIds.forReleaseUploadEvictionFence(
+                    plan.evictionOperationId,
+                    acquireResponse.etag,
+                  )
               }
             )
           }
@@ -546,11 +552,14 @@ class EvictUploader(
     onEntryEvicted: suspend (CascadeEntry) -> Unit,
   ): EvictionResult {
     val dataProvider = dataProviderOf(plan.badUploads.first())
+    val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
     uploadsStub.acquireRawImpressionUploadEvictionFence(
       acquireRawImpressionUploadEvictionFenceRequest {
         parent = dataProvider
         evictionOperationId = plan.evictionOperationId
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        state = fenceState
+        requestId =
+          RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, fenceState.name)
       }
     )
     val result = executeEviction(plan, reason, onEntryEvicted)

@@ -154,9 +154,12 @@ class DataAvailabilitySync(
    */
   suspend fun sync(
     doneBlobPath: String,
-    dataAvailabilitySyncLease: String = "",
-    ensureLeaseActive: suspend () -> Unit = {},
+    dataAvailabilitySyncLease: String,
+    ensureLeaseActive: suspend () -> Unit,
   ) {
+    require(dataAvailabilitySyncLease.isNotEmpty()) {
+      "dataAvailabilitySyncLease must not be empty"
+    }
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 

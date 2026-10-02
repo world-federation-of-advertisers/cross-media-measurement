@@ -910,12 +910,14 @@ class RawImpressionUploadServiceTest {
       parent = DATA_PROVIDER_KEY.toName()
       evictionOperationId = operationId
       state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+      requestId = UUID.randomUUID().toString()
     }
     val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
     val resumedAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
 
     assertThat(initialAcquire.newlyAcquired).isTrue()
-    assertThat(resumedAcquire.newlyAcquired).isFalse()
+    assertThat(initialAcquire.etag).isNotEmpty()
+    assertThat(resumedAcquire).isEqualTo(initialAcquire)
 
     val upload =
       service.createRawImpressionUpload(
@@ -934,6 +936,8 @@ class RawImpressionUploadServiceTest {
       releaseRawImpressionUploadEvictionFenceRequest {
         parent = DATA_PROVIDER_KEY.toName()
         evictionOperationId = operationId
+        etag = initialAcquire.etag
+        requestId = UUID.randomUUID().toString()
       }
     )
     val released =
@@ -944,26 +948,33 @@ class RawImpressionUploadServiceTest {
   @Test
   fun `eviction fence forwards staged state transitions`(): Unit = runBlocking {
     val operationId = UUID.randomUUID().toString()
-    service.acquireRawImpressionUploadEvictionFence(
-      acquireRawImpressionUploadEvictionFenceRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        evictionOperationId = operationId
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
-      }
-    )
+    val acquired =
+      service.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          evictionOperationId = operationId
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+          requestId = UUID.randomUUID().toString()
+        }
+      )
 
-    service.advanceRawImpressionUploadEvictionFence(
-      advanceRawImpressionUploadEvictionFenceRequest {
-        parent = DATA_PROVIDER_KEY.toName()
-        evictionOperationId = operationId
-        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
-      }
-    )
+    val draining =
+      service.advanceRawImpressionUploadEvictionFence(
+        advanceRawImpressionUploadEvictionFenceRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          evictionOperationId = operationId
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+          etag = acquired.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
     service.advanceRawImpressionUploadEvictionFence(
       advanceRawImpressionUploadEvictionFenceRequest {
         parent = DATA_PROVIDER_KEY.toName()
         evictionOperationId = operationId
         state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        etag = draining.etag
+        requestId = UUID.randomUUID().toString()
       }
     )
   }
@@ -976,6 +987,7 @@ class RawImpressionUploadServiceTest {
           acquireRawImpressionUploadEvictionFenceRequest {
             parent = DATA_PROVIDER_KEY.toName()
             evictionOperationId = UUID.randomUUID().toString()
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -992,6 +1004,7 @@ class RawImpressionUploadServiceTest {
             parent = DATA_PROVIDER_KEY.toName()
             evictionOperationId = "11111111-1111-1111-8111-111111111111"
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1008,6 +1021,7 @@ class RawImpressionUploadServiceTest {
             parent = DATA_PROVIDER_KEY.toName()
             evictionOperationId = "11111111-1111-4111-0111-111111111111"
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1024,6 +1038,7 @@ class RawImpressionUploadServiceTest {
             parent = DATA_PROVIDER_KEY.toName()
             evictionOperationId = "1-1-4111-8111-1"
             state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
