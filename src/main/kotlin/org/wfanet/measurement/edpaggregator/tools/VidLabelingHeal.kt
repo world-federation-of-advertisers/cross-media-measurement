@@ -102,6 +102,30 @@ class VidLabelingHeal : Runnable {
   }
 }
 
+/** Application entry point shared by the operator commands and in-process system tests. */
+class VidLabelingHealing(
+  private val evictUploader: EvictUploader,
+  private val workflowProvider: () -> UploadHealingWorkflow,
+) {
+  suspend fun plan(
+    badUploads: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String,
+    noReplacementUploads: Set<String> = emptySet(),
+  ): EvictUploader.EvictionPlan =
+    evictUploader.plan(badUploads, cutoffTime, evictionOperationId, noReplacementUploads)
+
+  suspend fun start(
+    plan: EvictUploader.EvictionPlan,
+    reason: String,
+    labeledImpressionsBlobPrefix: String,
+  ): UploadHealingWorkflow.Progress =
+    workflowProvider().start(plan, reason, labeledImpressionsBlobPrefix)
+
+  suspend fun resume(operationName: String): UploadHealingWorkflow.Progress =
+    workflowProvider().resume(operationName)
+}
+
 /** Base for sub-commands that call the EDP Aggregator public API over mutual TLS. */
 abstract class EdpaApiCommand : Runnable {
   @Mixin protected lateinit var tlsFlags: TlsFlags
@@ -695,10 +719,14 @@ class EvictUploadsCommand : EdpaApiCommand() {
       runBlocking {
         val evictUploader =
           newEvictUploader(channel, outputPrefixBlobUri, normalizedOutputPrefix, gcsProject)
+        val healing =
+          VidLabelingHealing(evictUploader) {
+            newUploadHealingWorkflow(channel, evictUploader, gcsProject)
+          }
         val cutoffTime: Instant = Instant.now().minus(Duration.ofDays(retentionDays.toLong()))
         val operationId = evictionOperationId ?: UUID.randomUUID().toString()
         val plan =
-          evictUploader.plan(
+          healing.plan(
             badUploads,
             cutoffTime,
             evictionOperationId = operationId,
@@ -745,9 +773,7 @@ class EvictUploadsCommand : EdpaApiCommand() {
           return@runBlocking
         }
 
-        val progress =
-          newUploadHealingWorkflow(channel, evictUploader, gcsProject)
-            .start(plan, reason, normalizedOutputPrefix)
+        val progress = healing.start(plan, reason, normalizedOutputPrefix)
         progress.evictionResult?.let { result ->
           println(
             "Evicted: marked ${result.failedModelLines.size} model line(s) FAILED, soft-deleted " +
@@ -879,7 +905,10 @@ class ResumeHealingCommand : EdpaApiCommand() {
             gcsProject,
           )
         val progress =
-          newUploadHealingWorkflow(channel, evictUploader, gcsProject).resume(operation.name)
+          VidLabelingHealing(evictUploader) {
+              newUploadHealingWorkflow(channel, evictUploader, gcsProject)
+            }
+            .resume(operation.name)
         progress.evictionResult?.let { result ->
           println(
             "Resumed eviction: marked ${result.failedModelLines.size} model line(s) FAILED, " +

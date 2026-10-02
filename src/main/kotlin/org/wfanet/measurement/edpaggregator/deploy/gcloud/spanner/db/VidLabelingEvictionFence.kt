@@ -24,6 +24,7 @@ import org.wfanet.measurement.common.singleOrNullIfEmpty
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64Array
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 
@@ -81,15 +82,14 @@ suspend fun AsyncDatabaseClient.ReadContext.hasActiveRawImpressionUploadModelLin
     SELECT RawImpressionUploadModelLineId
     FROM RawImpressionUploadModelLine@{FORCE_INDEX=RawImpressionUploadModelLineByState}
     WHERE DataProviderResourceId = @dataProviderResourceId
-      AND State IN UNNEST(@activeStates)
+      AND CAST(State AS INT64) IN UNNEST(@activeStates)
     LIMIT 1
     """
       .trimIndent()
   return executeQuery(
       statement(sql) {
         bind("dataProviderResourceId").to(dataProviderResourceId)
-        bind("activeStates")
-          .toProtoEnumArray(activeStates, RawImpressionUploadModelLineState.getDescriptor())
+        bind("activeStates").toInt64Array(activeStates.map { it.number.toLong() })
       },
       Options.tag("action=hasActiveRawImpressionUploadModelLine"),
     )
