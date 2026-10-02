@@ -2194,6 +2194,13 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
 
     assertThat(exception.status.code).isEqualTo(Status.Code.NOT_FOUND)
     assertThat(exception).hasMessageThat().contains("EventGroup state is DELETED")
+    assertThat(exception.errorInfo?.metadataMap)
+      .containsAtLeast(
+        "external_data_provider_id",
+        externalDataProviderId.toString(),
+        "external_event_group_id",
+        deletedEventGroup.externalEventGroupId.toString(),
+      )
   }
 
   @Test
