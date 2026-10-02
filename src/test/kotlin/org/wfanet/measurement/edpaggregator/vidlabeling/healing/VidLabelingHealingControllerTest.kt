@@ -585,6 +585,84 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
+  fun `operator recovery records a fresh done generation`() = runBlocking {
+    val recoveryStep =
+      APPROVED_OPERATION.stepsList.single().copy {
+        recoveryAction =
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+        state = UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+        rawImpressionUploadCorrectionCandidate = ""
+      }
+    var operation =
+      APPROVED_OPERATION.copy {
+        state = UploadHealingOperation.State.RECOVERING
+        rawImpressionUploadCorrectionCandidates.clear()
+        steps[0] = recoveryStep
+        etag = "recovering-etag"
+      }
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    val failedSource = SOURCE_UPLOAD.copy { state = RawImpressionUpload.State.FAILED }
+    whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(failedSource)
+    whenever(uploadsService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += failedSource })
+    whenever(filesService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+        >(
+          0
+        )
+      val updated =
+        operation.stepsList.single().copy {
+          state = UploadHealingStep.State.RECOVERY_STARTED
+          recoveryDoneBlobGeneration = request.recoveryDoneBlobGeneration
+          etag = "recovery-started-etag"
+        }
+      operation =
+        operation.copy {
+          steps[0] = updated
+          etag = "recovery-started-operation-etag"
+        }
+      updated
+    }
+    var recoveredSource = ""
+    var recoveredModelLines = emptyList<String>()
+    val freshGeneration = SOURCE_UPLOAD.doneBlobGeneration + 1L
+    val recoveryExecutor = RecoveryExecutor { source, modelLines ->
+      recoveredSource = source
+      recoveredModelLines = modelLines
+      RecoverUploader.Result(source, SOURCE_UPLOAD.doneBlobUri, freshGeneration, modelLines)
+    }
+    val replayer = org.mockito.kotlin.mock<DoneBlobReplayer>()
+
+    newController(doneBlobReplayer = replayer, recoveryExecutor = recoveryExecutor).run()
+
+    assertThat(recoveredSource).isEqualTo(SOURCE_UPLOAD_NAME)
+    assertThat(recoveredModelLines).containsExactly(CMMS_MODEL_LINE)
+    assertThat(operation.stepsList.single().recoveryDoneBlobGeneration).isEqualTo(freshGeneration)
+    assertThat(operation.stepsList.single().recoveryDoneBlobGeneration)
+      .isNotEqualTo(SOURCE_UPLOAD.doneBlobGeneration)
+    verify(replayer, never()).replay(any())
+    Unit
+  }
+
+  @Test
   fun `restart completes a partially recorded recovery checkpoint`() = runBlocking {
     val firstStep =
       APPROVED_OPERATION.stepsList.single().copy {
@@ -746,6 +824,7 @@ class VidLabelingHealingControllerTest {
     },
     manifestReader: CorrectionManifestReader = CorrectionManifestReader { _, _ -> emptyList() },
     doneBlobReplayer: DoneBlobReplayer = DoneBlobReplayer { _ -> },
+    recoveryExecutor: RecoveryExecutor = RecoveryExecutor { _, _ -> error("unexpected recovery") },
     eventSink: VidLabelingHealingControllerEventSink = VidLabelingHealingControllerEventSink {},
     stallTimeout: Duration = Duration.ofHours(1),
   ): VidLabelingHealingController {
@@ -806,6 +885,7 @@ class VidLabelingHealingControllerTest {
       evictionExecutorFactory = { evictionExecutor },
       manifestReader = manifestReader,
       doneBlobReplayerFactory = { doneBlobReplayer },
+      recoveryExecutorFactory = { recoveryExecutor },
       eventSink = eventSink,
       clock = Clock.fixed(Instant.ofEpochSecond(1_000L), ZoneOffset.UTC),
     )

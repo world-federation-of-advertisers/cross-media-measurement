@@ -48,14 +48,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
-/** Starts or resumes one memoized recovery upload. */
-fun interface RecoveryExecutor {
-  suspend fun recover(
-    sourceUploadName: String,
-    cmmsModelLines: List<String>,
-  ): RecoverUploader.Result
-}
-
 /** Executes and resumes a persisted upload-eviction and replacement workflow. */
 class UploadHealingWorkflow(
   private val operationsStub: UploadHealingOperationServiceCoroutineStub,

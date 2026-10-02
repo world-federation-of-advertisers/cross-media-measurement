@@ -1118,6 +1118,7 @@ class SpannerUploadHealingOperationService(
         operation.dataProviderResourceId,
         org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
           .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+        UUID.randomUUID().toString(),
       )
     }
   }

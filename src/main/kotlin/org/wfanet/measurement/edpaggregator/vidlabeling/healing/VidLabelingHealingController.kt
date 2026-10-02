@@ -123,6 +123,7 @@ class VidLabelingHealingController(
   private val evictionExecutorFactory: (DataProviderConfig) -> EvictionExecutor,
   private val manifestReader: CorrectionManifestReader,
   private val doneBlobReplayerFactory: (DataProviderConfig) -> DoneBlobReplayer,
+  private val recoveryExecutorFactory: (DataProviderConfig) -> RecoveryExecutor,
   private val eventSink: VidLabelingHealingControllerEventSink =
     VidLabelingHealingControllerEventSink {},
   private val clock: Clock = Clock.systemUTC(),
@@ -510,22 +511,20 @@ class VidLabelingHealingController(
       }
       return
     }
-    val replay =
+    val recoveryDoneBlobGeneration =
       when (group.first().recoveryAction) {
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION -> {
           verifyExactCandidateManifests(operation)
-          correctionReplay(operation, group)
+          val replay = correctionReplay(operation, group)
+          doneBlobReplayerFactory(config).replay(replay)
+          replay.doneBlobGeneration
         }
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY -> {
           val source = getUpload(group.first().sourceRawImpressionUpload)
           verifyExactUploadManifest(source, completeSnapshot = false)
-          DoneBlobReplayer.Request(
-            source.doneBlobUri,
-            source.doneBlobGeneration,
-            source.name,
-            group.map { it.cmmsModelLine }.distinct(),
-            operation.name,
-          )
+          recoveryExecutorFactory(config)
+            .recover(source.name, group.map { it.cmmsModelLine }.distinct())
+            .doneBlobGeneration
         }
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
           error("A no-replacement step cannot be a recovery target")
@@ -533,13 +532,12 @@ class VidLabelingHealingController(
         RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED ->
           error("Healing step has no recovery action")
       }
-    doneBlobReplayerFactory(config).replay(replay)
     val stepNames = group.mapTo(mutableSetOf()) { it.name }
     for (step in group) {
       checkpoint(
         step,
         AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
-        recoveryDoneBlobGeneration = replay.doneBlobGeneration,
+        recoveryDoneBlobGeneration = recoveryDoneBlobGeneration,
       )
       operation = getOperation(operation.name)
       group = operation.stepsList.filter { it.name in stepNames }

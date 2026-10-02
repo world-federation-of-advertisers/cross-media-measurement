@@ -147,6 +147,8 @@ class SpannerUploadHealingOperationServiceTest {
           .to(DATA_PROVIDER_ID)
           .set("EvictionOperationId")
           .to(OPERATION_ID)
+          .set("Etag")
+          .to("fence-etag")
           .set("State")
           .to(
             Value.protoEnum(
@@ -1278,6 +1280,8 @@ class SpannerUploadHealingOperationServiceTest {
           .to(DATA_PROVIDER_ID)
           .set("EvictionOperationId")
           .to(OPERATION_ID)
+          .set("Etag")
+          .to("fence-etag")
           .set("State")
           .to(
             Value.protoEnum(
