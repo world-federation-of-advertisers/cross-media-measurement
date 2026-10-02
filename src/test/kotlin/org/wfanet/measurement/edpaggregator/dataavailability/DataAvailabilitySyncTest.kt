@@ -20,6 +20,7 @@ import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Status
 import io.grpc.StatusException
@@ -33,6 +34,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import kotlin.test.assertFailsWith
 import kotlin.test.fail
 import kotlinx.coroutines.flow.emptyFlow
@@ -56,6 +58,8 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchUpdateImpressionMetadataRequest
@@ -107,6 +111,22 @@ class DataAvailabilitySyncTest {
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
     private const val DEFAULT_BATCH_SIZE = 100
+    private const val EXTERNAL_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/external"
+    private const val ON_OR_AFTER_MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/replacement"
+    private val MODEL_LINE_CUTOVER =
+      ModelLineCutoverConfig.from(
+        externalModelLine = EXTERNAL_MODEL_LINE,
+        historicalModelLine = EXTERNAL_MODEL_LINE,
+        replacementModelLine = ON_OR_AFTER_MODEL_LINE,
+        cutoverDate =
+          date {
+            year = 2026
+            month = 10
+            day = 1
+          },
+      )
   }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -315,6 +335,249 @@ class DataAvailabilitySyncTest {
       val availabilityKeys = requestCaptor.firstValue.dataAvailabilityIntervalsList.map { it.key }
       assertThat(availabilityKeys).containsExactlyElementsIn(mappedLines)
     }
+  }
+
+  @Test
+  fun `sync merges contiguous availability across model line cutover`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val boundary = Instant.parse("2026-10-01T00:00:00Z")
+    seedBlobDetailsWithModelLine(
+      storageClient,
+      folderPrefix,
+      listOf(boundary.epochSecond to boundary.plusSeconds(86400).epochSecond),
+      ON_OR_AFTER_MODEL_LINE,
+    )
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenReturn(
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBoundMapEntry {
+            key = EXTERNAL_MODEL_LINE
+            value = interval {
+              startTime = Instant.parse("2026-07-01T00:00:00Z").toProtoTime()
+              endTime = boundary.plusSeconds(86400).toProtoTime()
+            }
+          }
+          modelLineBounds += modelLineBoundMapEntry {
+            key = ON_OR_AFTER_MODEL_LINE
+            value = interval {
+              startTime = boundary.minusSeconds(86400).toProtoTime()
+              endTime = Instant.parse("2026-10-15T00:00:00Z").toProtoTime()
+            }
+          }
+        }
+      )
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        modelLineCutovers = listOf(MODEL_LINE_CUTOVER),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    val availabilityByModelLine =
+      requestCaptor.firstValue.dataAvailabilityIntervalsList.associate { it.key to it.value }
+    assertThat(availabilityByModelLine.getValue(EXTERNAL_MODEL_LINE))
+      .isEqualTo(
+        interval {
+          startTime = Instant.parse("2026-07-01T00:00:00Z").toProtoTime()
+          endTime = Instant.parse("2026-10-15T00:00:00Z").toProtoTime()
+        }
+      )
+    assertThat(availabilityByModelLine.getValue(ON_OR_AFTER_MODEL_LINE))
+      .isEqualTo(
+        interval {
+          startTime = boundary.minusSeconds(86400).toProtoTime()
+          endTime = Instant.parse("2026-10-15T00:00:00Z").toProtoTime()
+        }
+      )
+  }
+
+  @Test
+  fun `sync publishes available side when replacement bound is missing`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val boundary = Instant.parse("2026-10-01T00:00:00Z")
+    seedBlobDetailsWithModelLine(
+      storageClient,
+      folderPrefix,
+      listOf(boundary.minusSeconds(86400).epochSecond to boundary.epochSecond),
+      EXTERNAL_MODEL_LINE,
+    )
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenReturn(
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBoundMapEntry {
+            key = EXTERNAL_MODEL_LINE
+            value = interval {
+              startTime = Instant.parse("2026-07-01T00:00:00Z").toProtoTime()
+              endTime = boundary.toProtoTime()
+            }
+          }
+        }
+      )
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        modelLineCutovers = listOf(MODEL_LINE_CUTOVER),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    val availabilityByModelLine =
+      requestCaptor.firstValue.dataAvailabilityIntervalsList.associate { it.key to it.value }
+    assertThat(availabilityByModelLine.getValue(EXTERNAL_MODEL_LINE).endTime)
+      .isEqualTo(boundary.toProtoTime())
+  }
+
+  @Test
+  fun `sync publishes available side when historical bound is missing`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val boundary = Instant.parse("2026-10-01T00:00:00Z")
+    seedBlobDetailsWithModelLine(
+      storageClient,
+      folderPrefix,
+      listOf(boundary.epochSecond to boundary.plusSeconds(86400).epochSecond),
+      ON_OR_AFTER_MODEL_LINE,
+    )
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenReturn(
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBoundMapEntry {
+            key = ON_OR_AFTER_MODEL_LINE
+            value = interval {
+              startTime = boundary.minusSeconds(86400).toProtoTime()
+              endTime = Instant.parse("2026-10-15T00:00:00Z").toProtoTime()
+            }
+          }
+        }
+      )
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        modelLineCutovers = listOf(MODEL_LINE_CUTOVER),
+        errorIfGapsExist = true,
+      )
+
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    val requestCaptor = argumentCaptor<ReplaceDataAvailabilityIntervalsRequest>()
+    verifyBlocking(dataProvidersServiceMock) {
+      replaceDataAvailabilityIntervals(requestCaptor.capture())
+    }
+    val availabilityByModelLine =
+      requestCaptor.firstValue.dataAvailabilityIntervalsList.associate { it.key to it.value }
+    assertThat(availabilityByModelLine.getValue(EXTERNAL_MODEL_LINE).startTime)
+      .isEqualTo(boundary.toProtoTime())
+  }
+
+  @Test
+  fun `sync rejects availability gap across model line cutover`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val boundary = Instant.parse("2026-10-01T00:00:00Z")
+    seedBlobDetailsWithModelLine(
+      storageClient,
+      folderPrefix,
+      listOf(boundary.epochSecond to boundary.plusSeconds(86400).epochSecond),
+      ON_OR_AFTER_MODEL_LINE,
+    )
+    wheneverBlocking { impressionMetadataServiceMock.computeModelLineBounds(any()) }
+      .thenReturn(
+        computeModelLineBoundsResponse {
+          modelLineBounds += modelLineBoundMapEntry {
+            key = EXTERNAL_MODEL_LINE
+            value = interval {
+              startTime = Instant.parse("2026-07-01T00:00:00Z").toProtoTime()
+              endTime = boundary.minusSeconds(86400).toProtoTime()
+            }
+          }
+          modelLineBounds += modelLineBoundMapEntry {
+            key = ON_OR_AFTER_MODEL_LINE
+            value = interval {
+              startTime = boundary.toProtoTime()
+              endTime = Instant.parse("2026-10-15T00:00:00Z").toProtoTime()
+            }
+          }
+        }
+      )
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        modelLineCutovers = listOf(MODEL_LINE_CUTOVER),
+        errorIfGapsExist = true,
+      )
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+      }
+
+    assertThat(exception).hasMessageThat().contains("is not contiguous at cutover")
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+  }
+
+  @Test
+  fun `constructor rejects legacy mapping for cutover external model line`() {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        DataAvailabilitySync(
+          "edp/edpa_edp",
+          storageClient,
+          dataProvidersStub,
+          impressionMetadataStub,
+          "dataProviders/dataProvider123",
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1000)),
+          impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+          modelLineMap = mapOf(ON_OR_AFTER_MODEL_LINE to listOf(EXTERNAL_MODEL_LINE)),
+          modelLineCutovers = listOf(MODEL_LINE_CUTOVER),
+          errorIfGapsExist = true,
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains(EXTERNAL_MODEL_LINE)
   }
 
   @Test

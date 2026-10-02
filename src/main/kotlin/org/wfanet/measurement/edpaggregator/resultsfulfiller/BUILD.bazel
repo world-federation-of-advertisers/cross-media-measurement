@@ -71,6 +71,7 @@ kt_jvm_library(
     srcs = ["ResultsFulfillerParamsValidator.kt"],
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:results_fulfiller_params_kt_jvm_proto",
     ],
 )
@@ -176,10 +177,12 @@ kt_jvm_library(
         ":kms_constants",
         ":labeled_event",
         ":storage_event_reader",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:blob_details_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:grouped_requisitions_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
         "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto/tink",
@@ -320,6 +323,7 @@ kt_jvm_library(
     name = "model_line_info",
     srcs = ["ModelLineInfo.kt"],
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha:requisition",
         "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
     ],
@@ -346,6 +350,7 @@ kt_jvm_library(
         ":requisition_stub_factory",
         ":results_fulfiller",
         ":results_fulfiller_params_validator",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:model_line_cutover",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",

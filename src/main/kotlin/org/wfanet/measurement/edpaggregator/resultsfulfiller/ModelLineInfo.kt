@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.resultsfulfiller
 
 import com.google.protobuf.Descriptors.Descriptor
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverConfig
 import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIndexMap
 
 /**
@@ -28,10 +29,12 @@ import org.wfanet.measurement.eventdataprovider.requisition.v2alpha.common.VidIn
  * @property vidIndexMap Mapping of VIDs to their corresponding FrequencyVector indices for the
  *   model line.
  * @property localAlias Optional local model line alias used for impression lookup.
+ * @property modelLineCutover Optional date-based routing used for impression lookup.
  */
 data class ModelLineInfo(
   val populationSpec: PopulationSpec,
   val eventDescriptor: Descriptor,
   val vidIndexMap: VidIndexMap,
   val localAlias: String?,
+  val modelLineCutover: ModelLineCutoverConfig? = null,
 )

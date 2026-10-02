@@ -34,7 +34,8 @@ exits nonzero so the folder remains retryable after the gap is corrected.
 ## Run the CLI
 
 The config file is a `DataAvailabilitySyncConfig` textproto. Its GCS bucket, data provider,
-impression path, model-line mapping, and TLS file paths are reused by the recovery command.
+impression path, model-line mapping, model-line cutovers, and TLS file paths are reused by the
+recovery command.
 
 ```shell
 bazel run \
