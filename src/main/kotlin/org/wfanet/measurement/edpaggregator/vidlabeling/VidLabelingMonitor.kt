@@ -332,6 +332,9 @@ class VidLabelingMonitor(
       }
       .flattenConcat()
       .toList()
+      .filter {
+        !it.processingDeferred && it.state != RawImpressionUpload.State.CORRECTION_REQUIRED
+      }
 
   /** Lists the `RawImpressionUploadModelLine` children of [uploadName]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.

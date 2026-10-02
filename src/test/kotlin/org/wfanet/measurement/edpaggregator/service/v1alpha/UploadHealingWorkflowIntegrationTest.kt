@@ -94,6 +94,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.UploadHealingWorkflow
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
@@ -132,6 +133,8 @@ class UploadHealingWorkflowIntegrationTest {
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
   private lateinit var operationsStub:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
+  private lateinit var correctionDetectionStub:
+    InternalCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -158,6 +161,9 @@ class UploadHealingWorkflowIntegrationTest {
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel)
     operationsStub =
       UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(channel)
+    correctionDetectionStub =
+      InternalCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalServer.channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn
@@ -283,6 +289,12 @@ class UploadHealingWorkflowIntegrationTest {
     val completed = workflow.resume(started.operation.name)
 
     assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    impressionMetadataStub.batchUndeleteImpressionMetadata(
+      batchUndeleteImpressionMetadataRequest {
+        parent = DATA_PROVIDER
+        names += listOf(d2, d3, d4, d5).map { it.metadata.name }
+      }
+    )
     assertThat(
         completed.operation.stepsList.associate {
           it.sourceRawImpressionUpload to it.replacementRawImpressionUpload
@@ -437,6 +449,7 @@ class UploadHealingWorkflowIntegrationTest {
         storageClient = rawStorage,
         rawImpressionUploadStub = uploadsStub,
         rawImpressionUploadFilesStub = filesStub,
+        correctionDetectionStub = correctionDetectionStub,
         rawImpressionUploadModelLineStub = modelLinesStub,
         rankIndexBlobStub = rankIndexBlobsStub,
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(publicServer.channel),
@@ -476,12 +489,6 @@ class UploadHealingWorkflowIntegrationTest {
         .rawImpressionUploadModelLinesList
         .single()
     val completedModelLine = completeModelLine(createdModelLine, replacement.name)
-    impressionMetadataStub.batchUndeleteImpressionMetadata(
-      batchUndeleteImpressionMetadataRequest {
-        parent = DATA_PROVIDER
-        names += source.metadata.name
-      }
-    )
     outputBlobUris += source.outputBlobUris
     val completedUpload =
       uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = replacement.name })

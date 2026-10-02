@@ -117,6 +117,7 @@ message CreateRawImpressionUploadRequest {
   // Eviction operation authorizing this replacement while its fence is
   // active.
   string eviction_operation_id = 4;
+  string correction_candidate_id = 5;
 }
 
 // Request message for GetRawImpressionUpload.

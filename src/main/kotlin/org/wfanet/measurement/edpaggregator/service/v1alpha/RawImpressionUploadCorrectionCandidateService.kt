@@ -207,6 +207,7 @@ class RawImpressionUploadCorrectionCandidateService(
           .withCause(e)
           .asRuntimeException()
       Status.Code.INVALID_ARGUMENT -> Status.INVALID_ARGUMENT.withCause(e).asRuntimeException()
+      Status.Code.ALREADY_EXISTS -> Status.ALREADY_EXISTS.withCause(e).asRuntimeException()
       Status.Code.FAILED_PRECONDITION ->
         Status.FAILED_PRECONDITION.withCause(e).asRuntimeException()
       Status.Code.ABORTED -> Status.ABORTED.withCause(e).asRuntimeException()
