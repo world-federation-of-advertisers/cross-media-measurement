@@ -360,8 +360,9 @@ class EvictUploader(
           compareBy<Pair<Instant, CascadeEntry>> { it.first }.thenBy { it.second.cmmsModelLine }
         )
         .map { it.second }
-    val latestUploadByDoneBlobUri =
-      uploadsByName.values
+    val latestCascadeUploadByDoneBlobUri =
+      unlinkedCascade
+        .map { uploadsByName.getValue(it.uploadName) }
         .groupBy { it.doneBlobUri }
         .mapValues { (_, revisions) -> findLatestUpload(revisions) }
     val predecessorByModelLineAndUpload =
@@ -380,7 +381,7 @@ class EvictUploader(
           val actionHeads =
             cascadeEntries.filter { entry ->
               val upload = uploadsByName.getValue(entry.uploadName)
-              latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+              latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
             }
           val orderedActions = actionHeads
           if (orderedActions.isEmpty()) return@flatMap emptyList()
@@ -438,7 +439,7 @@ class EvictUploader(
             return@filter false
           }
           val upload = uploadsByName.getValue(entry.uploadName)
-          latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
         }
         .groupBy { it.uploadName }
         .map { (uploadName, entries) ->
@@ -454,7 +455,7 @@ class EvictUploader(
             return@filter false
           }
           val upload = uploadsByName.getValue(entry.uploadName)
-          latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
         }
         .groupBy { it.uploadName }
         .map { (uploadName, entries) ->

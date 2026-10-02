@@ -26,6 +26,7 @@ import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
@@ -126,6 +127,20 @@ class UploadHealingOperationService(
           recoveryAction = step.recoveryAction.toInternal()
           recoveryPredecessorRawImpressionUploadResourceId = predecessorId
           recoveryTarget = step.recoveryTarget
+          if (step.rawImpressionUploadCorrectionCandidate.isNotEmpty()) {
+            val candidateKey =
+              RawImpressionUploadCorrectionCandidateKey.fromName(
+                  step.rawImpressionUploadCorrectionCandidate
+                )
+                ?: invalid(
+                  "upload_healing_operation.steps.raw_impression_upload_correction_candidate"
+                )
+            if (candidateKey.parentKey != dataProviderKey) {
+              invalid("upload_healing_operation.steps.raw_impression_upload_correction_candidate")
+            }
+            rawImpressionUploadCorrectionCandidateId =
+              candidateKey.rawImpressionUploadCorrectionCandidateId
+          }
         }
       }
     val internalResponse =
@@ -239,11 +254,21 @@ class UploadHealingOperationService(
     return uploadHealingOperation {
       name = operationKey.toName()
       state = this@toPublic.state.toPublic()
+      if (
+        this@toPublic.resumeState !=
+          InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
+      ) {
+        resumeState = this@toPublic.resumeState.toPublic()
+      }
       reason = this@toPublic.reason
       labeledImpressionsBlobPrefix = this@toPublic.labeledImpressionsBlobPrefix
       badRawImpressionUploads +=
         badRawImpressionUploadResourceIdsList.map {
           RawImpressionUploadKey(dataProviderResourceId, it).toName()
+        }
+      rawImpressionUploadCorrectionCandidates +=
+        rawImpressionUploadCorrectionCandidateIdsList.map {
+          RawImpressionUploadCorrectionCandidateKey(dataProviderResourceId, it).toName()
         }
       cutoffTime = this@toPublic.cutoffTime
       steps += this@toPublic.stepsList.map { it.toPublic(operationKey) }
@@ -274,6 +299,14 @@ class UploadHealingOperationService(
             .toName()
       }
       recoveryTarget = this@toPublic.recoveryTarget
+      if (rawImpressionUploadCorrectionCandidateId.isNotEmpty()) {
+        rawImpressionUploadCorrectionCandidate =
+          RawImpressionUploadCorrectionCandidateKey(
+              operationKey.dataProviderId,
+              rawImpressionUploadCorrectionCandidateId,
+            )
+            .toName()
+      }
       state = this@toPublic.state.toPublic()
       if (replacementRawImpressionUploadResourceId.isNotEmpty()) {
         replacementRawImpressionUpload =
@@ -386,8 +419,20 @@ private fun InternalRecoveryAction.toPublic(): RawImpressionUploadModelLine.Reco
 
 private fun InternalOperation.State.toPublic(): UploadHealingOperation.State =
   when (this) {
-    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS ->
-      UploadHealingOperation.State.IN_PROGRESS
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ->
+      UploadHealingOperation.State.APPROVAL_REQUIRED
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED ->
+      UploadHealingOperation.State.APPROVED
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING ->
+      UploadHealingOperation.State.DRAINING
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING ->
+      UploadHealingOperation.State.EVICTING
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING ->
+      UploadHealingOperation.State.REPLAYING
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING ->
+      UploadHealingOperation.State.RECOVERING
+    InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION ->
+      UploadHealingOperation.State.NEEDS_ATTENTION
     InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE ->
       UploadHealingOperation.State.COMPLETE
     InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED,
