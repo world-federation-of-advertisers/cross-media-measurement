@@ -15,11 +15,9 @@
 package org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct
 
 import com.google.common.truth.Truth.assertThat
-import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.wfanet.measurement.eventdataprovider.noiser.DirectNoiseMechanism
 import org.wfanet.measurement.eventdataprovider.noiser.DpParams
 
 @RunWith(JUnit4::class)
@@ -31,47 +29,37 @@ class DirectDynamicClippingTest {
     // bounds anything.
     val frequencyData = IntArray(200) { BYTE_CEILING }
 
-    // A bound, so it holds for a stochastic mechanism too, whatever the draws come out as.
-    for (mechanism in SUPPORTED_MECHANISMS) {
-      assertThat(clip(frequencyData, mechanism).clip).isAtMost(BYTE_CEILING)
-    }
+    // A bound, so it holds for the stochastic mechanism too, whatever the draws come out as.
+    assertThat(stochasticClip(frequencyData).clip).isAtMost(BYTE_CEILING)
+    assertThat(deterministicClip(frequencyData).clip).isAtMost(BYTE_CEILING)
   }
 
   @Test
   fun `the deterministic mechanism yields the same clip and count for the same vector`() {
     val frequencyData = IntArray(200) { it % 40 }
 
-    val first = clip(frequencyData, DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
-    val second = clip(frequencyData, DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE)
+    val first = deterministicClip(frequencyData)
+    val second = deterministicClip(frequencyData)
 
     assertThat(second).isEqualTo(first)
   }
 
-  @Test
-  fun `a mechanism dynamic capping does not support is refused`() {
-    for (mechanism in listOf(DirectNoiseMechanism.CONTINUOUS_LAPLACE, DirectNoiseMechanism.NONE)) {
-      assertFailsWith<IllegalArgumentException>("$mechanism") {
-        clip(IntArray(200) { it % 40 }, mechanism)
-      }
-    }
-  }
-
-  private fun clip(frequencyData: IntArray, mechanism: DirectNoiseMechanism) =
+  private fun stochasticClip(frequencyData: IntArray) =
     computeDirectDynamicallyClippedImpressions(
-      directNoiseMechanism = mechanism,
       frequencyData = frequencyData,
       dpParams = DP_PARAMS,
       vidSamplingIntervalWidth = 1.0,
       resultMinimumThresholds = null,
     )
 
-  private companion object {
-    private val SUPPORTED_MECHANISMS =
-      listOf(
-        DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE,
-        DirectNoiseMechanism.CONTINUOUS_GAUSSIAN,
-      )
+  private fun deterministicClip(frequencyData: IntArray) =
+    computeDeterministicDynamicallyClippedImpressions(
+      frequencyData = frequencyData,
+      vidSamplingIntervalWidth = 1.0,
+      resultMinimumThresholds = null,
+    )
 
+  private companion object {
     private const val BYTE_CEILING = 127
     private val DP_PARAMS = DpParams(1.0, 1E-3)
   }
