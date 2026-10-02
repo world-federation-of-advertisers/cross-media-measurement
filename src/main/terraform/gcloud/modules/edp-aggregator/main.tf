@@ -15,6 +15,12 @@
 data "google_client_config" "default" {}
 data "google_project" "project" {}
 
+resource "google_storage_bucket_iam_member" "vid_labeling_trace_operator" {
+  bucket = var.edp_aggregator_bucket_name
+  role   = "roles/storage.objectViewer"
+  member = var.vid_labeling_trace_operator_member
+}
+
 locals {
   google_project_id = trimprefix(data.google_project.project.id, "projects/")
 

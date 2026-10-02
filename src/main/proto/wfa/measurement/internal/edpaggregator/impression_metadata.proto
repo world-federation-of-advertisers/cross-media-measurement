@@ -74,4 +74,11 @@ message ImpressionMetadata {
   // this field to filter blobs to a subset of entities without joining
   // against EventGroup metadata.
   repeated EntityKey entity_keys = 12;
+
+  // Resource ID of the RawImpressionUpload that produced this metadata.
+  // Empty for metadata created outside the VID-labeling pipeline.
+  string raw_impression_upload_resource_id = 13;
+
+  // Generation of the labeled-output done object that triggered registration.
+  int64 output_done_blob_generation = 14;
 }
