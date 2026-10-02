@@ -725,6 +725,8 @@ class VidLabelingHealingController(
         name = operation.name
         etag = operation.etag
         this.state = state
+        requestId =
+          RequestIds.forAdvanceUploadHealingOperation(operation.name, state.name, operation.etag)
       }
     )
 

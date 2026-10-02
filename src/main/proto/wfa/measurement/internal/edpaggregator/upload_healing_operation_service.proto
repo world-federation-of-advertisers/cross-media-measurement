@@ -124,6 +124,7 @@ message AdvanceUploadHealingOperationRequest {
   string upload_healing_operation_id = 2;
   string etag = 3;
   UploadHealingOperation.State state = 4;
+  string request_id = 5;
 }
 
 message AdvanceUploadHealingStepRequest {

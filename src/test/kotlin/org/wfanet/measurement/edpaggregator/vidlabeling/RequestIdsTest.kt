@@ -89,6 +89,7 @@ class RequestIdsTest {
         RequestIds.forMarkRawImpressionUploadModelLineCompleted(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG),
         RequestIds.forEvictRawImpressionUploadModelLine(MODEL_LINE_NAME, ETAG),
+        RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "DRAINING", ETAG),
         RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING"),
         RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING", ETAG),
         RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, ETAG),
@@ -132,6 +133,25 @@ class RequestIdsTest {
   }
 
   @Test
+  fun `operation transition request ids distinguish states and versions`() {
+    val requestId =
+      RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "DRAINING", ETAG)
+
+    assertThat(requestId)
+      .isNotEqualTo(
+        RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "EVICTING", ETAG)
+      )
+    assertThat(requestId)
+      .isNotEqualTo(
+        RequestIds.forAdvanceUploadHealingOperation(
+          UPLOAD_HEALING_OPERATION,
+          "DRAINING",
+          "new-etag",
+        )
+      )
+  }
+
+  @Test
   fun `healing request ids distinguish failure attempts`() {
     assertThat(RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID))
       .isNotEqualTo(RequestIds.forHealingRetryLabeling(MODEL_LINE_NAME, "failure-attempt-2"))
@@ -151,5 +171,7 @@ class RequestIdsTest {
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
     private const val EVICTION_OPERATION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private const val UPLOAD_HEALING_OPERATION =
+      "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
   }
 }

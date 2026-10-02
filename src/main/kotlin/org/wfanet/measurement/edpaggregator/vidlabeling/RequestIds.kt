@@ -130,6 +130,10 @@ object RequestIds {
   fun forReconcileUploadHealingOperation(operationId: String, canonicalPlan: ByteArray): String =
     fromBytes("reconcileUploadHealingOperation:$operationId", canonicalPlan)
 
+  /** `request_id` for advancing an upload-healing operation. */
+  fun forAdvanceUploadHealingOperation(operationName: String, state: String, etag: String): String =
+    fromKey("advanceUploadHealingOperation:$operationName:$state:$etag")
+
   /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
     fromKey("uploadHealingStep:$stepName:$checkpoint:$evidence")

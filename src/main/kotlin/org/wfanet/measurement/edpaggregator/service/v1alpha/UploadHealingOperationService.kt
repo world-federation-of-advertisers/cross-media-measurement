@@ -186,8 +186,8 @@ class UploadHealingOperationService(
           if (step.rawImpressionUploadCorrectionCandidate.isNotEmpty()) {
             val candidateKey =
               RawImpressionUploadCorrectionCandidateKey.fromName(
-                  step.rawImpressionUploadCorrectionCandidate
-                )
+                step.rawImpressionUploadCorrectionCandidate
+              )
                 ?: invalid(
                   "upload_healing_operation.steps.raw_impression_upload_correction_candidate"
                 )
@@ -376,6 +376,7 @@ class UploadHealingOperationService(
   ): UploadHealingOperation {
     val key = parseOperation(request.name)
     if (request.etag.isBlank()) required("etag")
+    validateUuid(request.requestId, "request_id")
     if (
       request.state == UploadHealingOperation.State.STATE_UNSPECIFIED ||
         request.state == UploadHealingOperation.State.UNRECOGNIZED
@@ -390,6 +391,7 @@ class UploadHealingOperationService(
             uploadHealingOperationId = key.uploadHealingOperationId
             etag = request.etag
             state = request.state.toInternal()
+            requestId = request.requestId
           }
         )
         .toPublic()

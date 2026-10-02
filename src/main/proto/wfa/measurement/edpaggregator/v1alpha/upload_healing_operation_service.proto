@@ -110,6 +110,16 @@ message AdvanceUploadHealingOperationRequest {
   // Next state of the healing operation.
   UploadHealingOperation.State state = 3
       [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 that makes the transition safe to retry.
+  // (-- api-linter: core::0136::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is required for retry-safe
+  //     progression.
+  //     --)
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Request message for `CreateUploadHealingOperation`.

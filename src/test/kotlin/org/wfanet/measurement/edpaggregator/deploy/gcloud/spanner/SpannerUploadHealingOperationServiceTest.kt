@@ -385,6 +385,7 @@ class SpannerUploadHealingOperationServiceTest {
         uploadHealingOperationId = OPERATION_ID
         etag = approved.etag
         state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+        requestId = UUID.randomUUID().toString()
       }
     )
 
@@ -396,11 +397,90 @@ class SpannerUploadHealingOperationServiceTest {
             uploadHealingOperationId = OPERATION_ID
             etag = approved.etag
             state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
 
     assertThat(error.status.code).isEqualTo(Status.Code.ABORTED)
+  }
+
+  @Test
+  fun `advance operation retry returns success after commit`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val created =
+      service.createUploadHealingOperation(
+        draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+      )
+    val approved =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = created.etag
+          candidateDecisions +=
+            approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    val request = advanceUploadHealingOperationRequest {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      uploadHealingOperationId = OPERATION_ID
+      etag = approved.etag
+      state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+      requestId = ADVANCE_REQUEST_ID
+    }
+
+    val advanced = service.advanceUploadHealingOperation(request)
+    val retried = service.advanceUploadHealingOperation(request)
+
+    assertThat(retried).isEqualTo(advanced)
+  }
+
+  @Test
+  fun `advance operation rejects request ID reused with different transition`() = runBlocking {
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val created =
+      service.createUploadHealingOperation(
+        draftRequest(listOf(CANDIDATE_IDS[0]), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+      )
+    val approved =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = created.etag
+          candidateDecisions +=
+            approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    service.advanceUploadHealingOperation(
+      advanceUploadHealingOperationRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        etag = approved.etag
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+        requestId = ADVANCE_REQUEST_ID
+      }
+    )
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.advanceUploadHealingOperation(
+          advanceUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            etag = approved.etag
+            state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
+            requestId = ADVANCE_REQUEST_ID
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 
   @Test
@@ -710,6 +790,7 @@ class SpannerUploadHealingOperationServiceTest {
             uploadHealingOperationId = OPERATION_ID
             etag = previousEtag
             this.state = state
+            requestId = UUID.randomUUID().toString()
           }
         )
 
@@ -739,6 +820,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
           state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -774,6 +856,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
           state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+          requestId = UUID.randomUUID().toString()
         }
       )
     val failed =
@@ -783,6 +866,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
           state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -800,6 +884,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperationId = OPERATION_ID
           etag = resumed.etag
           state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
+          requestId = UUID.randomUUID().toString()
         }
       )
     val replayedRetry = service.retryUploadHealingOperation(retryRequest)
@@ -847,6 +932,7 @@ class SpannerUploadHealingOperationServiceTest {
             uploadHealingOperationId = OPERATION_ID
             etag = operation.etag
             this.state = state
+            requestId = UUID.randomUUID().toString()
           }
         )
     }
@@ -881,6 +967,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
           state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+          requestId = UUID.randomUUID().toString()
         }
       )
     val updateError =
@@ -1054,6 +1141,7 @@ class SpannerUploadHealingOperationServiceTest {
             uploadHealingOperationId = OPERATION_ID
             etag = operation.etag
             state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1318,6 +1406,7 @@ class SpannerUploadHealingOperationServiceTest {
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
           state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+          requestId = UUID.randomUUID().toString()
         }
       )
 
@@ -1758,6 +1847,25 @@ class SpannerUploadHealingOperationServiceTest {
     assertThat(error).hasMessageThat().contains("request_id is required")
   }
 
+  @Test
+  fun `advance operation requires request ID`() = runBlocking {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+
+    val error =
+      assertFailsWith<IllegalArgumentException> {
+        service.advanceUploadHealingOperation(
+          advanceUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            etag = "etag"
+            state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING
+          }
+        )
+      }
+
+    assertThat(error).hasMessageThat().contains("request_id is required")
+  }
+
   private fun createRequest(
     memoized: Boolean,
     recoveryAction: RawImpressionUploadModelLineRecoveryAction =
@@ -2087,6 +2195,7 @@ class SpannerUploadHealingOperationServiceTest {
     private const val APPROVE_REQUEST_ID = "66666666-6666-4666-8666-666666666666"
     private const val RETRY_REQUEST_ID = "77777777-7777-4777-8777-777777777777"
     private const val RECONCILE_REQUEST_ID = "14141414-1414-4414-8414-141414141414"
+    private const val ADVANCE_REQUEST_ID = "15151515-1515-4515-8515-151515151515"
     private const val RECOVERY_GENERATION = 987L
     private val OPERATION_IDS =
       listOf(

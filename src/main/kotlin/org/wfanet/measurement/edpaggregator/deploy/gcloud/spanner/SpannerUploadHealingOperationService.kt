@@ -305,26 +305,52 @@ class SpannerUploadHealingOperationService(
     requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
     requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
     requireNotBlank(request.etag, "etag")
+    requireUuid(request.requestId, "request_id")
     require(
       request.state != UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED &&
         request.state != UploadHealingOperation.State.UNRECOGNIZED
     ) {
       "state is required"
     }
+    val requestFingerprint = request.fingerprint()
     databaseClient.readWriteTransaction(Options.tag("action=advanceUploadHealingOperation")).run {
       txn ->
-      val operation =
-        txn
-          .findUploadHealingOperation(
-            request.dataProviderResourceId,
+      val existingByRequestId =
+        txn.findUploadHealingOperationByMutationRequestId(
+          request.dataProviderResourceId,
+          request.requestId,
+        )
+      if (existingByRequestId != null) {
+        if (
+          isIdempotentMutation(
+            existingByRequestId,
             request.uploadHealingOperationId,
+            request.requestId,
+            requestFingerprint,
           )
-          ?.uploadHealingOperation ?: throw notFound(request.uploadHealingOperationId)
+        ) {
+          return@run
+        }
+        throw requestIdAlreadyUsed()
+      }
+      val result =
+        txn.findUploadHealingOperation(
+          request.dataProviderResourceId,
+          request.uploadHealingOperationId,
+        ) ?: throw notFound(request.uploadHealingOperationId)
+      val operation = result.uploadHealingOperation
       if (operation.etag != request.etag) {
         throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
           .asRuntimeException()
       }
-      if (operation.state == request.state) return@run
+      if (operation.state == request.state) {
+        txn.recordUploadHealingOperationMutation(
+          operation,
+          result.mutationRequestIds + request.requestId,
+          result.mutationRequestFingerprints + listOf(requestFingerprint),
+        )
+        return@run
+      }
       if (
         request.state ==
           UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
@@ -334,6 +360,9 @@ class SpannerUploadHealingOperationService(
           request.dataProviderResourceId,
           request.uploadHealingOperationId,
           request.state,
+          mutationRequestIds = result.mutationRequestIds + request.requestId,
+          mutationRequestFingerprints =
+            result.mutationRequestFingerprints + listOf(requestFingerprint),
         )
         return@run
       }
@@ -363,6 +392,8 @@ class SpannerUploadHealingOperationService(
         request.uploadHealingOperationId,
         request.state,
         resumeState,
+        result.mutationRequestIds + request.requestId,
+        result.mutationRequestFingerprints + listOf(requestFingerprint),
       )
     }
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
@@ -1493,6 +1524,9 @@ class SpannerUploadHealingOperationService(
     MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
 
   private fun RetryUploadHealingOperationRequest.fingerprint(): ByteString =
+    MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
+
+  private fun AdvanceUploadHealingOperationRequest.fingerprint(): ByteString =
     MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
 
   private fun ReconcileUploadHealingOperationRequest.fingerprint(): ByteString =

@@ -168,10 +168,12 @@ class UploadHealingOperationServiceTest {
           name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
           etag = "etag"
           state = UploadHealingOperation.State.DRAINING
+          requestId = REQUEST_ID
         }
       )
 
     assertThat(captured!!.etag).isEqualTo("etag")
+    assertThat(captured!!.requestId).isEqualTo(REQUEST_ID)
     assertThat(captured!!.state)
       .isEqualTo(InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING)
     Unit
@@ -522,6 +524,41 @@ class UploadHealingOperationServiceTest {
               name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
               etag = "etag"
               action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `advance operation requires request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .advanceUploadHealingOperation(
+            advanceUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+              etag = "etag"
+              state = UploadHealingOperation.State.DRAINING
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `advance operation rejects invalid request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .advanceUploadHealingOperation(
+            advanceUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+              etag = "etag"
+              state = UploadHealingOperation.State.DRAINING
+              requestId = "not-a-uuid"
             }
           )
       }
