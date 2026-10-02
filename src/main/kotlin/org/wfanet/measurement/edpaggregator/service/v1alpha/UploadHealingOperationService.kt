@@ -34,6 +34,7 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingStepKey
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateUploadHealingOperationRequest
@@ -42,6 +43,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsR
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.ReconcileUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RetryUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
@@ -57,11 +59,13 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub as InternalOperationStub
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep as InternalStep
+import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingOperationRequest as internalAdvanceOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingStepRequest as internalAdvanceStepRequest
 import org.wfanet.measurement.internal.edpaggregator.approveUploadHealingOperationRequest as internalApproveOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.createUploadHealingOperationRequest as internalCreateOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.getUploadHealingOperationRequest as internalGetOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsRequest as internalListOperationsRequest
+import org.wfanet.measurement.internal.edpaggregator.reconcileUploadHealingOperationRequest as internalReconcileOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.retryUploadHealingOperationRequest as internalRetryOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
@@ -71,6 +75,44 @@ class UploadHealingOperationService(
   private val internalOperationStub: InternalOperationStub,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : UploadHealingOperationServiceCoroutineImplBase(coroutineContext) {
+
+  override suspend fun reconcileUploadHealingOperation(
+    request: ReconcileUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    val dataProviderKey = parseDataProvider(request.parent, "parent")
+    if (!request.hasUploadHealingOperation()) required("upload_healing_operation")
+    validateUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
+    validateUuid(request.requestId, "request_id")
+    if (request.etag.isEmpty() && request.uploadHealingOperation.name.isNotEmpty()) {
+      invalid("upload_healing_operation.name")
+    }
+    val operation = request.uploadHealingOperation
+    val internalPlan =
+      operation.toInternalPlan(
+        dataProviderKey,
+        state =
+          if (operation.stepsCount == 0) {
+            InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+          } else {
+            InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+          },
+      )
+    return try {
+      internalOperationStub
+        .reconcileUploadHealingOperation(
+          internalReconcileOperationRequest {
+            dataProviderResourceId = dataProviderKey.dataProviderId
+            uploadHealingOperationId = request.uploadHealingOperationId
+            uploadHealingOperation = internalPlan
+            etag = request.etag
+            requestId = request.requestId
+          }
+        )
+        .toPublic()
+    } catch (e: StatusException) {
+      throw translateInternalError(e, "UploadHealingOperation could not be reconciled")
+    }
+  }
 
   override suspend fun createUploadHealingOperation(
     request: CreateUploadHealingOperationRequest
@@ -144,8 +186,8 @@ class UploadHealingOperationService(
           if (step.rawImpressionUploadCorrectionCandidate.isNotEmpty()) {
             val candidateKey =
               RawImpressionUploadCorrectionCandidateKey.fromName(
-                  step.rawImpressionUploadCorrectionCandidate
-                )
+                step.rawImpressionUploadCorrectionCandidate
+              )
                 ?: invalid(
                   "upload_healing_operation.steps.raw_impression_upload_correction_candidate"
                 )
@@ -329,6 +371,35 @@ class UploadHealingOperationService(
     }
   }
 
+  override suspend fun advanceUploadHealingOperation(
+    request: AdvanceUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    val key = parseOperation(request.name)
+    if (request.etag.isBlank()) required("etag")
+    validateUuid(request.requestId, "request_id")
+    if (
+      request.state == UploadHealingOperation.State.STATE_UNSPECIFIED ||
+        request.state == UploadHealingOperation.State.UNRECOGNIZED
+    ) {
+      invalid("state")
+    }
+    return try {
+      internalOperationStub
+        .advanceUploadHealingOperation(
+          internalAdvanceOperationRequest {
+            dataProviderResourceId = key.dataProviderId
+            uploadHealingOperationId = key.uploadHealingOperationId
+            etag = request.etag
+            state = request.state.toInternal()
+            requestId = request.requestId
+          }
+        )
+        .toPublic()
+    } catch (e: StatusException) {
+      throw translateInternalError(e, "UploadHealingOperation ${request.name} could not advance")
+    }
+  }
+
   override suspend fun advanceUploadHealingStep(
     request: AdvanceUploadHealingStepRequest
   ): UploadHealingStep {
@@ -476,6 +547,112 @@ class UploadHealingOperationService(
   private fun parseDataProvider(value: String, field: String): DataProviderKey {
     if (value.isBlank()) required(field)
     return DataProviderKey.fromName(value) ?: invalid(field)
+  }
+
+  private fun UploadHealingOperation.toInternalPlan(
+    dataProviderKey: DataProviderKey,
+    state: InternalOperation.State,
+  ): InternalOperation {
+    if (reason.isBlank()) required("upload_healing_operation.reason")
+    if (labeledImpressionsBlobPrefix.isBlank()) {
+      required("upload_healing_operation.labeled_impressions_blob_prefix")
+    }
+    if (badRawImpressionUploadsList.isEmpty()) {
+      required("upload_healing_operation.bad_raw_impression_uploads")
+    }
+    if (!hasCutoffTime()) required("upload_healing_operation.cutoff_time")
+    if (!Timestamps.isValid(cutoffTime)) invalid("upload_healing_operation.cutoff_time")
+    if (
+      stepsList.isEmpty() &&
+        state != InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+    ) {
+      required("upload_healing_operation.steps")
+    }
+    val badUploadIds =
+      badRawImpressionUploadsList.map {
+        parseUpload(it, "upload_healing_operation.bad_raw_impression_uploads", dataProviderKey)
+          .rawImpressionUploadId
+      }
+    val candidateIds =
+      rawImpressionUploadCorrectionCandidatesList.map {
+        val key =
+          RawImpressionUploadCorrectionCandidateKey.fromName(it)
+            ?: invalid("upload_healing_operation.raw_impression_upload_correction_candidates")
+        if (key.parentKey != dataProviderKey) {
+          invalid("upload_healing_operation.raw_impression_upload_correction_candidates")
+        }
+        key.rawImpressionUploadCorrectionCandidateId
+      }
+    val internalSteps =
+      stepsList.mapIndexed { index, step ->
+        val source =
+          parseUpload(
+            step.sourceRawImpressionUpload,
+            "upload_healing_operation.steps.source_raw_impression_upload",
+            dataProviderKey,
+          )
+        val modelLine =
+          RawImpressionUploadModelLineKey.fromName(step.rawImpressionUploadModelLine)
+            ?: invalid("upload_healing_operation.steps.raw_impression_upload_model_line")
+        if (modelLine.parentKey != source) {
+          invalid("upload_healing_operation.steps.raw_impression_upload_model_line")
+        }
+        val predecessorId =
+          if (step.recoveryPredecessorRawImpressionUpload.isEmpty()) {
+            ""
+          } else {
+            parseUpload(
+                step.recoveryPredecessorRawImpressionUpload,
+                "upload_healing_operation.steps.recovery_predecessor_raw_impression_upload",
+                dataProviderKey,
+              )
+              .rawImpressionUploadId
+          }
+        if (ModelLineKey.fromName(step.cmmsModelLine) == null) {
+          invalid("upload_healing_operation.steps.cmms_model_line")
+        }
+        if (
+          step.recoveryAction ==
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_UNSPECIFIED ||
+            step.recoveryAction == RawImpressionUploadModelLine.RecoveryAction.UNRECOGNIZED
+        ) {
+          invalid("upload_healing_operation.steps.recovery_action")
+        }
+        internalStep {
+          uploadHealingStepId = index.toLong() + 1L
+          sequenceNumber = step.sequenceNumber
+          sourceRawImpressionUploadResourceId = source.rawImpressionUploadId
+          rawImpressionUploadModelLineResourceId = modelLine.rawImpressionUploadModelLineId
+          cmmsModelLine = step.cmmsModelLine
+          memoized = step.memoized
+          recoveryAction = step.recoveryAction.toInternal()
+          recoveryPredecessorRawImpressionUploadResourceId = predecessorId
+          recoveryTarget = step.recoveryTarget
+          if (step.rawImpressionUploadCorrectionCandidate.isNotEmpty()) {
+            val candidateKey =
+              RawImpressionUploadCorrectionCandidateKey.fromName(
+                step.rawImpressionUploadCorrectionCandidate
+              )
+                ?: invalid(
+                  "upload_healing_operation.steps.raw_impression_upload_correction_candidate"
+                )
+            if (candidateKey.parentKey != dataProviderKey) {
+              invalid("upload_healing_operation.steps.raw_impression_upload_correction_candidate")
+            }
+            rawImpressionUploadCorrectionCandidateId =
+              candidateKey.rawImpressionUploadCorrectionCandidateId
+          }
+        }
+      }
+    return internalOperation {
+      this.state = state
+      reason = this@toInternalPlan.reason
+      labeledImpressionsBlobPrefix = this@toInternalPlan.labeledImpressionsBlobPrefix
+      badRawImpressionUploadResourceIds += badUploadIds
+      rawImpressionUploadCorrectionCandidateIds += candidateIds
+      cutoffTime = this@toInternalPlan.cutoffTime
+      steps += internalSteps
+    }
   }
 
   private fun parseOperation(value: String): UploadHealingOperationKey {

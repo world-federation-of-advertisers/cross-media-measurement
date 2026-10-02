@@ -71,6 +71,7 @@ message AcquireRawImpressionUploadEvictionFenceRequest {
 
 message AcquireRawImpressionUploadEvictionFenceResponse {
   bool newly_acquired = 1;
+  VidLabelingEvictionFenceState state = 2;
   string etag = 3;
 }
 

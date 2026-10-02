@@ -31,21 +31,30 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.UploadHeali
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.approveRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.assignRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.completeUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.deleteVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperationByMutationRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankIndexBlobs
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadCorrectionCandidates
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readUploadHealingOperations
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.recordUploadHealingOperationMutation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reopenRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.replaceUploadHealingOperationPlan
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingStep
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateVidLabelingEvictionFenceState
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest
@@ -54,6 +63,7 @@ import org.wfanet.measurement.internal.edpaggregator.BlobType
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.GetUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
+import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequest
@@ -63,6 +73,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.ReconcileUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.RetryUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.UpdateUploadHealingOperationPlanRequest
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
@@ -77,6 +88,81 @@ class SpannerUploadHealingOperationService(
   private val databaseClient: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : UploadHealingOperationServiceCoroutineImplBase(coroutineContext) {
+
+  override suspend fun reconcileUploadHealingOperation(
+    request: ReconcileUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    val operation = normalizeOperation(request)
+    validatePlan(operation)
+    require(
+      operation.state ==
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ||
+        operation.state ==
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+    ) {
+      "a reconciled plan must require approval or attention"
+    }
+    val requestFingerprint = request.fingerprint()
+    databaseClient
+      .readWriteTransaction(Options.tag("action=reconcileUploadHealingOperation"))
+      .run { txn ->
+        val existing =
+          txn.findUploadHealingOperation(
+            request.dataProviderResourceId,
+            request.uploadHealingOperationId,
+          )
+        if (existing == null) {
+          require(request.etag.isEmpty()) { "etag must be empty when creating a plan" }
+          syncCandidateAssignments(txn, null, operation)
+          txn.insertUploadHealingOperation(operation, request.requestId)
+          return@run
+        }
+        if (existing.createRequestId == request.requestId) {
+          if (hasSamePlan(existing.uploadHealingOperation, operation)) return@run
+          throw requestIdAlreadyUsed()
+        }
+        val mutationIndex = existing.mutationRequestIds.indexOf(request.requestId)
+        if (mutationIndex >= 0) {
+          if (
+            existing.mutationRequestFingerprints.getOrNull(mutationIndex) == requestFingerprint &&
+              hasSamePlan(existing.uploadHealingOperation, operation)
+          ) {
+            return@run
+          }
+          throw requestIdAlreadyUsed()
+        }
+        precondition(
+          existing.uploadHealingOperation.state ==
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ||
+            existing.uploadHealingOperation.state ==
+              UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION &&
+              existing.uploadHealingOperation.resumeState ==
+                UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
+        ) {
+          "only a pre-approval plan can be reconciled"
+        }
+        requireNotBlank(request.etag, "etag")
+        if (existing.uploadHealingOperation.etag != request.etag) {
+          throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
+            .asRuntimeException()
+        }
+        if (hasSamePlan(existing.uploadHealingOperation, operation)) {
+          txn.recordUploadHealingOperationMutation(
+            existing.uploadHealingOperation,
+            existing.mutationRequestIds + request.requestId,
+            existing.mutationRequestFingerprints + listOf(requestFingerprint),
+          )
+          return@run
+        }
+        syncCandidateAssignments(txn, existing.uploadHealingOperation, operation)
+        txn.replaceUploadHealingOperationPlan(
+          operation,
+          existing.mutationRequestIds + request.requestId,
+          existing.mutationRequestFingerprints + listOf(requestFingerprint),
+        )
+      }
+    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
+  }
 
   override suspend fun createUploadHealingOperation(
     request: CreateUploadHealingOperationRequest
@@ -219,26 +305,68 @@ class SpannerUploadHealingOperationService(
     requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
     requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
     requireNotBlank(request.etag, "etag")
+    requireUuid(request.requestId, "request_id")
     require(
       request.state != UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED &&
         request.state != UploadHealingOperation.State.UNRECOGNIZED
     ) {
       "state is required"
     }
+    val requestFingerprint = request.fingerprint()
     databaseClient.readWriteTransaction(Options.tag("action=advanceUploadHealingOperation")).run {
       txn ->
-      val operation =
-        txn
-          .findUploadHealingOperation(
-            request.dataProviderResourceId,
+      val existingByRequestId =
+        txn.findUploadHealingOperationByMutationRequestId(
+          request.dataProviderResourceId,
+          request.requestId,
+        )
+      if (existingByRequestId != null) {
+        if (
+          isIdempotentMutation(
+            existingByRequestId,
             request.uploadHealingOperationId,
+            request.requestId,
+            requestFingerprint,
           )
-          ?.uploadHealingOperation ?: throw notFound(request.uploadHealingOperationId)
-      if (operation.state == request.state) return@run
+        ) {
+          return@run
+        }
+        throw requestIdAlreadyUsed()
+      }
+      val result =
+        txn.findUploadHealingOperation(
+          request.dataProviderResourceId,
+          request.uploadHealingOperationId,
+        ) ?: throw notFound(request.uploadHealingOperationId)
+      val operation = result.uploadHealingOperation
       if (operation.etag != request.etag) {
         throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
           .asRuntimeException()
       }
+      if (operation.state == request.state) {
+        txn.recordUploadHealingOperationMutation(
+          operation,
+          result.mutationRequestIds + request.requestId,
+          result.mutationRequestFingerprints + listOf(requestFingerprint),
+        )
+        return@run
+      }
+      if (
+        request.state ==
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+      ) {
+        reopenSupersededPlan(txn, operation)
+        txn.updateUploadHealingOperationState(
+          request.dataProviderResourceId,
+          request.uploadHealingOperationId,
+          request.state,
+          mutationRequestIds = result.mutationRequestIds + request.requestId,
+          mutationRequestFingerprints =
+            result.mutationRequestFingerprints + listOf(requestFingerprint),
+        )
+        return@run
+      }
+      requireNoSupersededPlanCandidates(txn, operation)
       precondition(request.state in allowedOperationStates(operation.state)) {
         "cannot advance upload-healing operation from ${operation.state} to ${request.state}"
       }
@@ -252,11 +380,20 @@ class SpannerUploadHealingOperationService(
         } else {
           UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
         }
+      if (request.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING) {
+        updatePlanCandidateState(
+          txn,
+          operation,
+          RawImpressionUploadCorrectionCandidate.State.STATE_HEALING,
+        )
+      }
       txn.updateUploadHealingOperationState(
         request.dataProviderResourceId,
         request.uploadHealingOperationId,
         request.state,
         resumeState,
+        result.mutationRequestIds + request.requestId,
+        result.mutationRequestFingerprints + listOf(requestFingerprint),
       )
     }
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
@@ -325,6 +462,19 @@ class SpannerUploadHealingOperationService(
       if (operation.etag != request.etag) {
         throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
           .asRuntimeException()
+      }
+      val unassignedCandidate =
+        txn
+          .readRawImpressionUploadCorrectionCandidates(
+            request.dataProviderResourceId,
+            ListRawImpressionUploadCorrectionCandidatesRequestKt.filter {
+              stateIn += RawImpressionUploadCorrectionCandidate.State.STATE_PENDING
+            },
+            limit = 1,
+          )
+          .firstOrNull()
+      precondition(unassignedCandidate == null) {
+        "pending correction candidates must be added to the plan before approval"
       }
       precondition(
         decisions.keys == operation.rawImpressionUploadCorrectionCandidateIdsList.toSet()
@@ -472,6 +622,7 @@ class SpannerUploadHealingOperationService(
           request.uploadHealingOperationId,
         ) ?: throw notFound(request.uploadHealingOperationId)
       val operation = result.uploadHealingOperation
+      requireNoSupersededPlanCandidates(txn, operation)
       val current =
         operation.stepsList.firstOrNull { it.uploadHealingStepId == request.uploadHealingStepId }
           ?: throw Status.NOT_FOUND.withDescription(
@@ -555,6 +706,8 @@ class SpannerUploadHealingOperationService(
           request.dataProviderResourceId,
           request.uploadHealingOperationId,
         )
+        completePlanCandidates(txn, operation)
+        releasePlanFence(txn, operation)
       } else {
         txn.touchUploadHealingOperation(
           request.dataProviderResourceId,
@@ -590,6 +743,19 @@ class SpannerUploadHealingOperationService(
       if (state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED) {
         state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
       }
+    }
+  }
+
+  private fun normalizeOperation(
+    request: ReconcileUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
+    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
+    requireUuid(request.requestId, "request_id")
+    require(request.hasUploadHealingOperation()) { "upload_healing_operation is required" }
+    return request.uploadHealingOperation.copy {
+      dataProviderResourceId = request.dataProviderResourceId
+      uploadHealingOperationId = request.uploadHealingOperationId
     }
   }
 
@@ -731,6 +897,12 @@ class SpannerUploadHealingOperationService(
         txn
           .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
           ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      if (
+        candidate.uploadHealingOperationId == operation.uploadHealingOperationId &&
+          candidate.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED
+      ) {
+        continue
+      }
       precondition(
         candidate.uploadHealingOperationId == operation.uploadHealingOperationId &&
           candidate.state == previousCandidateState
@@ -790,6 +962,20 @@ class SpannerUploadHealingOperationService(
     }
   }
 
+  private suspend fun requireNoSupersededPlanCandidates(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+  ) {
+    if (operation.rawImpressionUploadCorrectionCandidateIdsCount == 0) return
+    precondition(
+      readPlanCandidates(txn, operation).none {
+        it.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED
+      }
+    ) {
+      "the healing plan contains a superseded correction candidate"
+    }
+  }
+
   private suspend fun markPlanCandidatesNeedAttention(
     txn: AsyncDatabaseClient.TransactionContext,
     operation: UploadHealingOperation,
@@ -808,6 +994,91 @@ class SpannerUploadHealingOperationService(
         RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED,
       )
     }
+  }
+
+  private suspend fun updatePlanCandidateState(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+    state: RawImpressionUploadCorrectionCandidate.State,
+  ) {
+    for (candidateId in operation.rawImpressionUploadCorrectionCandidateIdsList) {
+      val candidate =
+        txn
+          .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
+          ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      precondition(candidate.uploadHealingOperationId == operation.uploadHealingOperationId) {
+        "correction candidate $candidateId no longer belongs to this plan"
+      }
+      txn.assignRawImpressionUploadCorrectionCandidate(
+        candidate,
+        operation.uploadHealingOperationId,
+        state,
+      )
+    }
+  }
+
+  private suspend fun completePlanCandidates(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+  ) {
+    for (candidateId in operation.rawImpressionUploadCorrectionCandidateIdsList) {
+      val candidate =
+        txn
+          .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
+          ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      val state =
+        when (candidate.decision) {
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT ->
+            RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT ->
+            RawImpressionUploadCorrectionCandidate.State.STATE_NO_REPLACEMENT
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED,
+          RawImpressionUploadCorrectionCandidate.Decision.UNRECOGNIZED ->
+            error("completed plan candidate has no decision")
+        }
+      txn.assignRawImpressionUploadCorrectionCandidate(
+        candidate,
+        operation.uploadHealingOperationId,
+        state,
+      )
+    }
+  }
+
+  private suspend fun releasePlanFence(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+  ) {
+    val fence = txn.getVidLabelingEvictionFence(operation.dataProviderResourceId) ?: return
+    precondition(fence.evictionOperationId == operation.uploadHealingOperationId) {
+      "another healing operation owns the DataProvider fence"
+    }
+    val nextCandidate =
+      txn
+        .readRawImpressionUploadCorrectionCandidates(
+          operation.dataProviderResourceId,
+          ListRawImpressionUploadCorrectionCandidatesRequestKt.filter {
+            stateIn += RawImpressionUploadCorrectionCandidate.State.STATE_PENDING
+          },
+          limit = 1,
+        )
+        .firstOrNull()
+        ?.rawImpressionUploadCorrectionCandidate
+    if (nextCandidate != null) {
+      txn.transferVidLabelingEvictionFence(
+        operation.dataProviderResourceId,
+        nextCandidate.rawImpressionUploadCorrectionCandidateId,
+      )
+      return
+    }
+    txn.readProcessingDeferredRawImpressionUploadIds(operation.dataProviderResourceId).collect {
+      rawImpressionUploadId ->
+      txn.updateRawImpressionUploadProcessingDeferred(
+        operation.dataProviderResourceId,
+        rawImpressionUploadId,
+        false,
+      )
+    }
+    txn.deleteVidLabelingEvictionFence(operation.dataProviderResourceId)
   }
 
   private suspend fun restorePlanCandidateState(
@@ -847,6 +1118,38 @@ class SpannerUploadHealingOperationService(
         candidate,
         operation.uploadHealingOperationId,
         candidateState,
+      )
+    }
+  }
+
+  private suspend fun reopenSupersededPlan(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+  ) {
+    precondition(operation.state in SUPERSEDED_PLAN_REOPEN_STATES) {
+      "only an approved or active plan can be reopened"
+    }
+    val candidates = readPlanCandidates(txn, operation)
+    precondition(
+      candidates.any { it.state == RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED }
+    ) {
+      "the plan has no superseded correction candidate"
+    }
+    for (candidate in candidates) {
+      if (candidate.state != RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED) {
+        txn.reopenRawImpressionUploadCorrectionCandidate(candidate)
+      }
+    }
+    val fence = txn.getVidLabelingEvictionFence(operation.dataProviderResourceId)
+    if (fence != null) {
+      precondition(fence.evictionOperationId == operation.uploadHealingOperationId) {
+        "another healing operation owns the DataProvider fence"
+      }
+      txn.updateVidLabelingEvictionFenceState(
+        operation.dataProviderResourceId,
+        org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
+          .VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+        UUID.randomUUID().toString(),
       )
     }
   }
@@ -966,7 +1269,10 @@ class SpannerUploadHealingOperationService(
           UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
         )
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING ->
-        setOf(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION)
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        )
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION -> emptySet()
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE -> emptySet()
       UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED,
@@ -1025,11 +1331,15 @@ class SpannerUploadHealingOperationService(
     request: AdvanceUploadHealingStepRequest,
   ) {
     precondition(
-      current.recoveryAction ==
-        RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+      current.recoveryAction in
+        setOf(
+          RawImpressionUploadModelLineRecoveryAction
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION,
+          RawImpressionUploadModelLineRecoveryAction
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY,
+        )
     ) {
-      "only operator-recovery steps can record a recovery"
+      "only replacement steps can record a replay"
     }
     precondition(request.recoveryDoneBlobGeneration > 0L) {
       "recovery_done_blob_generation must be positive"
@@ -1073,13 +1383,20 @@ class SpannerUploadHealingOperationService(
     ) {
       "replacement is not the latest upload revision"
     }
+    val inPlaceRecovery =
+      replacement.rawImpressionUploadResourceId == current.sourceRawImpressionUploadResourceId &&
+        current.recoveryAction ==
+          RawImpressionUploadModelLineRecoveryAction
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY &&
+        current.recoveryDoneBlobGeneration == source.doneBlobGeneration
     precondition(
-      replacesUpload(
-        txn,
-        request.dataProviderResourceId,
-        replacement,
-        current.sourceRawImpressionUploadResourceId,
-      )
+      inPlaceRecovery ||
+        replacesUpload(
+          txn,
+          request.dataProviderResourceId,
+          replacement,
+          current.sourceRawImpressionUploadResourceId,
+        )
     ) {
       "replacement does not descend from the source upload"
     }
@@ -1090,9 +1407,9 @@ class SpannerUploadHealingOperationService(
       "replacement upload has not completed registration and processing"
     }
     if (
-      current.recoveryAction ==
+      current.recoveryAction !=
         RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
     ) {
       precondition(
         current.recoveryDoneBlobGeneration > 0L &&
@@ -1209,6 +1526,14 @@ class SpannerUploadHealingOperationService(
   private fun RetryUploadHealingOperationRequest.fingerprint(): ByteString =
     MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
 
+  private fun AdvanceUploadHealingOperationRequest.fingerprint(): ByteString =
+    MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
+
+  private fun ReconcileUploadHealingOperationRequest.fingerprint(): ByteString =
+    MessageDigest.getInstance("SHA-256")
+      .digest(toBuilder().clearEtag().build().toByteArray())
+      .toByteString()
+
   private fun isIdempotentMutation(
     result: UploadHealingOperationResult,
     uploadHealingOperationId: String,
@@ -1240,5 +1565,14 @@ class SpannerUploadHealingOperationService(
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     private const val MAX_PAGE_SIZE = 100
+    private val SUPERSEDED_PLAN_REOPEN_STATES =
+      setOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+      )
   }
 }

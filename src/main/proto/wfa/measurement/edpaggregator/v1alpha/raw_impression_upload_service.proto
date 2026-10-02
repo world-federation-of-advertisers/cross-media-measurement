@@ -100,6 +100,10 @@ message AcquireRawImpressionUploadEvictionFenceResponse {
   // same eviction operation.
   bool newly_acquired = 1;
 
+  // Current fence state.
+  VidLabelingEvictionFenceState state = 2
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
   // Opaque concurrency token for the fence.
   string etag = 3;
 }

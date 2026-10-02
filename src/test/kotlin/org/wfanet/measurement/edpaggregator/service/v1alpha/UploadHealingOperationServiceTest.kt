@@ -26,16 +26,20 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
+import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
+import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperationRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.copy as copyPublic
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.reconcileUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.retryUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
@@ -43,6 +47,7 @@ import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepReq
 import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest as InternalApproveRequest
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest as InternalCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction as InternalRecoveryAction
+import org.wfanet.measurement.internal.edpaggregator.ReconcileUploadHealingOperationRequest as InternalReconcileRequest
 import org.wfanet.measurement.internal.edpaggregator.RetryUploadHealingOperationRequest as InternalRetryRequest
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as InternalOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalServiceGrpcKt
@@ -94,8 +99,6 @@ class UploadHealingOperationServiceTest {
                 RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
               recoveryPredecessorRawImpressionUpload = PREDECESSOR
               recoveryTarget = true
-              rawImpressionUploadCorrectionCandidate =
-                "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/$CANDIDATE_ID"
             }
           }
         }
@@ -109,16 +112,70 @@ class UploadHealingOperationServiceTest {
         captured!!.uploadHealingOperation.stepsList.single().sourceRawImpressionUploadResourceId
       )
       .isEqualTo("upload")
-    assertThat(
-        captured!!
-          .uploadHealingOperation
-          .stepsList
-          .single()
-          .rawImpressionUploadCorrectionCandidateId
-      )
-      .isEqualTo(CANDIDATE_ID)
     assertThat(result.name).isEqualTo("$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID")
     assertThat(result.stepsList.single().rawImpressionUploadModelLine).isEqualTo(MODEL_LINE_ROW)
+    Unit
+  }
+
+  @Test
+  fun `reconcile forwards controller plan and candidate association`() = runBlocking {
+    var captured: InternalReconcileRequest? = null
+    org.mockito.kotlin
+      .whenever(internalService.reconcileUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured = invocation.getArgument(0)
+        INTERNAL_OPERATION
+      }
+    val operation =
+      validCreateRequest().uploadHealingOperation.copyPublic {
+        state = UploadHealingOperation.State.APPROVAL_REQUIRED
+        rawImpressionUploadCorrectionCandidates +=
+          "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/$CANDIDATE_ID"
+      }
+
+    newService()
+      .reconcileUploadHealingOperation(
+        reconcileUploadHealingOperationRequest {
+          parent = DATA_PROVIDER
+          uploadHealingOperation = operation
+          uploadHealingOperationId = OPERATION_ID
+          requestId = REQUEST_ID
+        }
+      )
+
+    assertThat(captured!!.uploadHealingOperation.state)
+      .isEqualTo(InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED)
+    assertThat(captured!!.uploadHealingOperation.rawImpressionUploadCorrectionCandidateIdsList)
+      .containsExactly(CANDIDATE_ID)
+    Unit
+  }
+
+  @Test
+  fun `advance operation forwards etag guarded transition`() = runBlocking {
+    var captured:
+      org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperationRequest? =
+      null
+    org.mockito.kotlin
+      .whenever(internalService.advanceUploadHealingOperation(org.mockito.kotlin.any()))
+      .thenAnswer { invocation ->
+        captured = invocation.getArgument(0)
+        INTERNAL_OPERATION
+      }
+
+    newService()
+      .advanceUploadHealingOperation(
+        advanceUploadHealingOperationRequest {
+          name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+          etag = "etag"
+          state = UploadHealingOperation.State.DRAINING
+          requestId = REQUEST_ID
+        }
+      )
+
+    assertThat(captured!!.etag).isEqualTo("etag")
+    assertThat(captured!!.requestId).isEqualTo(REQUEST_ID)
+    assertThat(captured!!.state)
+      .isEqualTo(InternalOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING)
     Unit
   }
 
@@ -467,6 +524,41 @@ class UploadHealingOperationServiceTest {
               name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID/uploadHealingSteps/1"
               etag = "etag"
               action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `advance operation requires request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .advanceUploadHealingOperation(
+            advanceUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+              etag = "etag"
+              state = UploadHealingOperation.State.DRAINING
+            }
+          )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `advance operation rejects invalid request ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        newService()
+          .advanceUploadHealingOperation(
+            advanceUploadHealingOperationRequest {
+              name = "$DATA_PROVIDER/uploadHealingOperations/$OPERATION_ID"
+              etag = "etag"
+              state = UploadHealingOperation.State.DRAINING
+              requestId = "not-a-uuid"
             }
           )
       }
