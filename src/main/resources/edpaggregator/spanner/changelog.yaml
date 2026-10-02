@@ -91,3 +91,6 @@ databaseChangeLog:
   - include:
       file: create-raw-impression-upload-correction-candidate-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-correction-candidate-manifest-comparison.sql
+      relativeToChangeLogFile: true
