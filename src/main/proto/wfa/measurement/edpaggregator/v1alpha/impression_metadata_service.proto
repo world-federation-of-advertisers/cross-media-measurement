@@ -130,6 +130,14 @@ message BatchCreateImpressionMetadataRequest {
   // The list of ImpressionMetadata to create.
   repeated CreateImpressionMetadataRequest requests = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
 }
 
 // Response message for the `BatchCreateImpressionMetadata` method.
@@ -178,6 +186,14 @@ message BatchUpdateImpressionMetadataRequest {
   // The list of ImpressionMetadata to update.
   repeated UpdateImpressionMetadataRequest requests = 2
       [(google.api.field_behavior) = REQUIRED];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
 }
 
 // Response message for the `BatchUpdateImpressionMetadata` method.
@@ -303,6 +319,14 @@ message UndeleteImpressionMetadataRequest {
       type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
     }
   ];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
 }
 
 // Request message for the `BatchDeleteImpressionMetadata` method.
@@ -350,6 +374,14 @@ message BatchUndeleteImpressionMetadataRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/ImpressionMetadata"
+    }
+  ];
+
+  // Synchronization lease authorizing this mutation.
+  string data_availability_sync_lease = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
     }
   ];
 }

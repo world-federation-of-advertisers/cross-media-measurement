@@ -54,6 +54,12 @@ interface DataAvailabilitySyncLeaseClient {
   ): DataAvailabilitySyncLease
 }
 
+/** Active synchronization lease passed to guarded work. */
+class DataAvailabilitySyncLeaseContext
+internal constructor(val name: String, private val ensureActive: suspend () -> Unit) {
+  suspend operator fun invoke() = ensureActive()
+}
+
 /** gRPC client for data-availability synchronization leases. */
 class GrpcDataAvailabilitySyncLeaseClient(
   private val leaseStub: DataAvailabilitySyncLeaseServiceCoroutineStub
@@ -115,7 +121,7 @@ class DataAvailabilitySyncLeaseRunner(
 
   suspend fun <T> run(
     dataProviderName: String,
-    synchronize: suspend (ensureLeaseActive: suspend () -> Unit) -> T,
+    synchronize: suspend (DataAvailabilitySyncLeaseContext) -> T,
   ): T {
     val attemptId = uuidGenerator()
     val lease = leaseClient.acquire(dataProviderName, attemptId, uuidGenerator())
@@ -131,7 +137,7 @@ class DataAvailabilitySyncLeaseRunner(
       }
     }
     suspend fun ensureLeaseActive() {
-      renewalMutex.withLock { currentLease.set(leaseClient.validate(currentLease.get())) }
+      renewLease()
     }
     var failure: Throwable? = null
     return try {
@@ -143,7 +149,7 @@ class DataAvailabilitySyncLeaseRunner(
           }
         }
         try {
-          synchronize(::ensureLeaseActive)
+          synchronize(DataAvailabilitySyncLeaseContext(lease.name, ::ensureLeaseActive))
         } finally {
           renewalJob.cancelAndJoin()
         }

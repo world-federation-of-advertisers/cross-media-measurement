@@ -25,6 +25,7 @@ import io.opentelemetry.api.common.Attributes
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
@@ -148,9 +149,14 @@ class DataAvailabilitySync(
    * collecting and processing metadata for that day.
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
+   * @param dataAvailabilitySyncLease synchronization lease resource name.
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    */
-  suspend fun sync(doneBlobPath: String, ensureLeaseActive: suspend () -> Unit) {
+  suspend fun sync(
+    doneBlobPath: String,
+    dataAvailabilitySyncLease: String = "",
+    ensureLeaseActive: suspend () -> Unit = {},
+  ) {
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
@@ -196,7 +202,7 @@ class DataAvailabilitySync(
 
       // 3. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
-        saveImpressionMetadata(metadataWithBlobKeys, ensureLeaseActive)
+        saveImpressionMetadata(metadataWithBlobKeys, dataAvailabilitySyncLease, ensureLeaseActive)
       }
 
       // Record metadata-store completion separately. Disjoint marker writes prevent an older
@@ -306,12 +312,14 @@ class DataAvailabilitySync(
       ensureLeaseActive()
       throttler.onReady {
         try {
-          dataProvidersStub.replaceDataAvailabilityIntervals(
-            replaceDataAvailabilityIntervalsRequest {
-              name = dataProviderName
-              dataAvailabilityIntervals += availabilityEntries
-            }
-          )
+          dataProvidersStub
+            .withDeadlineAfter(KINGDOM_PUBLICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = dataProviderName
+                dataAvailabilityIntervals += availabilityEntries
+              }
+            )
         } catch (e: StatusException) {
           // Record CMMS RPC error
           metrics.cmmsRpcErrorsCounter.add(
@@ -388,6 +396,7 @@ class DataAvailabilitySync(
 
   private suspend fun saveImpressionMetadata(
     impressionMetadataList: List<ImpressionMetadataWithBlobKey>,
+    dataAvailabilitySyncLease: String,
     ensureLeaseActive: suspend () -> Unit,
   ) {
     try {
@@ -433,6 +442,7 @@ class DataAvailabilitySync(
               impressionMetadataServiceStub.batchCreateImpressionMetadata(
                 batchCreateImpressionMetadataRequest {
                   parent = dataProviderName
+                  this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                   createChunk.forEach { item ->
                     requests += createImpressionMetadataRequest {
                       parent = dataProviderName
@@ -455,6 +465,7 @@ class DataAvailabilitySync(
               impressionMetadataServiceStub.batchUpdateImpressionMetadata(
                 batchUpdateImpressionMetadataRequest {
                   parent = dataProviderName
+                  this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                   updateChunk.forEach { item ->
                     requests += updateImpressionMetadataRequest {
                       impressionMetadata = item.impressionMetadata
@@ -477,6 +488,7 @@ class DataAvailabilitySync(
               impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
                 batchUndeleteImpressionMetadataRequest {
                   parent = dataProviderName
+                  this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                   names += restoreChunk.map { it.name }
                 }
               )
@@ -745,6 +757,7 @@ class DataAvailabilitySync(
   }
 
   companion object {
+    private const val KINGDOM_PUBLICATION_TIMEOUT_SECONDS = 300L
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")

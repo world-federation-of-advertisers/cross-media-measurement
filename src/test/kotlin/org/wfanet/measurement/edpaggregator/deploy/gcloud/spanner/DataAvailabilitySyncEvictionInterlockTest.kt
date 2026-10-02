@@ -27,6 +27,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZoneOffset
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.hours
 import kotlinx.coroutines.CompletableDeferred
@@ -37,6 +38,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.supervisorScope
+import kotlinx.coroutines.yield
 import org.junit.ClassRule
 import org.junit.Rule
 import org.junit.Test
@@ -71,6 +73,9 @@ import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceSta
 import org.wfanet.measurement.internal.edpaggregator.acquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.internal.edpaggregator.batchCreateImpressionMetadataRequest as internalBatchCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.createImpressionMetadataRequest as internalCreateImpressionMetadataRequest
+import org.wfanet.measurement.internal.edpaggregator.impressionMetadata as internalImpressionMetadata
 import org.wfanet.measurement.internal.edpaggregator.releaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.renewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.internal.edpaggregator.validateDataAvailabilitySyncLeaseRequest
@@ -179,8 +184,8 @@ class DataAvailabilitySyncEvictionInterlockTest {
 
     supervisorScope {
       val syncResult = async {
-        runner.run(DATA_PROVIDER_NAME) { ensureLeaseActive ->
-          sync.sync("gs://bucket/date/done", ensureLeaseActive)
+        runner.run(DATA_PROVIDER_NAME) { lease ->
+          sync.sync("gs://bucket/date/done", lease.name, lease::invoke)
         }
       }
       readStarted.await()
@@ -222,8 +227,106 @@ class DataAvailabilitySyncEvictionInterlockTest {
       finishRead.complete(Unit)
       val syncError = assertFailsWith<StatusRuntimeException> { syncResult.await() }
       assertThat(syncError.status.code).isEqualTo(Status.Code.UNAVAILABLE)
-      assertThat(leaseClient.validationCount).isGreaterThan(1)
+      assertThat(leaseClient.renewalCount).isGreaterThan(1)
       assertThat(createCount).isEqualTo(0)
+    }
+  }
+
+  @Test
+  fun `metadata mutation and eviction serialize after lease validation`(): Unit = runBlocking {
+    val clock = MutableClock(Instant.parse("2026-09-30T00:00:00Z"))
+    val leaseService =
+      SpannerDataAvailabilitySyncLeaseService(
+        spannerDatabase.databaseClient,
+        clock = clock,
+        leaseDuration = Duration.ofMinutes(10),
+      )
+    val uploadService =
+      SpannerRawImpressionUploadService(spannerDatabase.databaseClient, clock = clock)
+    val lease =
+      leaseService.acquireDataAvailabilitySyncLease(
+        acquireDataAvailabilitySyncLeaseRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          requestId = LEASE_REQUEST_ID
+        }
+      )
+    uploadService.acquireRawImpressionUploadEvictionFence(
+      acquireRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+      }
+    )
+    uploadService.advanceRawImpressionUploadEvictionFence(
+      advanceRawImpressionUploadEvictionFenceRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        evictionOperationId = EVICTION_OPERATION_ID
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING
+      }
+    )
+    val leaseValidated = CompletableDeferred<Unit>()
+    val continueMutation = CompletableDeferred<Unit>()
+    val completionOrder = AtomicInteger()
+    val metadataService =
+      SpannerImpressionMetadataService(
+        spannerDatabase.databaseClient,
+        clock = clock,
+        beforeGuardedMutation = {
+          leaseValidated.complete(Unit)
+          continueMutation.await()
+        },
+      )
+
+    supervisorScope {
+      val metadataResult = async {
+        runCatching {
+            metadataService.batchCreateImpressionMetadata(
+              internalBatchCreateImpressionMetadataRequest {
+                dataProviderResourceId = DATA_PROVIDER_ID
+                synchronizationAttemptId = lease.synchronizationAttemptId
+                requests += internalCreateImpressionMetadataRequest {
+                  requestId = METADATA_REQUEST_ID
+                  impressionMetadata = internalImpressionMetadata {
+                    dataProviderResourceId = DATA_PROVIDER_ID
+                    blobUri = "gs://bucket/date/impressions"
+                    blobTypeUrl = "type.googleapis.com/test.Impression"
+                    eventGroupReferenceId = "event-group"
+                    cmmsModelLine = MODEL_LINE
+                    interval = interval {
+                      startTime = timestamp { seconds = 1L }
+                      endTime = timestamp { seconds = 2L }
+                    }
+                  }
+                }
+              }
+            )
+          }
+          .map { completionOrder.incrementAndGet() }
+      }
+      leaseValidated.await()
+      clock.advance(Duration.ofMinutes(11))
+      val evictionResult = async {
+        runCatching {
+            uploadService.advanceRawImpressionUploadEvictionFence(
+              advanceRawImpressionUploadEvictionFenceRequest {
+                dataProviderResourceId = DATA_PROVIDER_ID
+                evictionOperationId = EVICTION_OPERATION_ID
+                state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+              }
+            )
+          }
+          .map { completionOrder.incrementAndGet() }
+      }
+      yield()
+      continueMutation.complete(Unit)
+
+      val metadata = metadataResult.await()
+      val eviction = evictionResult.await()
+      assertThat(eviction.isSuccess).isTrue()
+      if (metadata.isSuccess) {
+        assertThat(metadata.getOrThrow()).isLessThan(eviction.getOrThrow())
+      }
     }
   }
 
@@ -247,6 +350,9 @@ class DataAvailabilitySyncEvictionInterlockTest {
 
   private class InternalLeaseClient(private val service: SpannerDataAvailabilitySyncLeaseService) :
     DataAvailabilitySyncLeaseClient {
+    var renewalCount = 0
+      private set
+
     var validationCount = 0
       private set
 
@@ -268,8 +374,9 @@ class DataAvailabilitySyncEvictionInterlockTest {
     override suspend fun renew(
       lease: DataAvailabilitySyncLease,
       requestId: String,
-    ): DataAvailabilitySyncLease =
-      service
+    ): DataAvailabilitySyncLease {
+      renewalCount++
+      return service
         .renewDataAvailabilitySyncLease(
           renewDataAvailabilitySyncLeaseRequest {
             dataProviderResourceId = DATA_PROVIDER_ID
@@ -279,6 +386,7 @@ class DataAvailabilitySyncEvictionInterlockTest {
           }
         )
         .toPublic()
+    }
 
     override suspend fun validate(lease: DataAvailabilitySyncLease): DataAvailabilitySyncLease {
       validationCount++
@@ -352,6 +460,9 @@ class DataAvailabilitySyncEvictionInterlockTest {
     private const val DATA_PROVIDER_NAME = "dataProviders/$DATA_PROVIDER_ID"
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private const val EVICTION_OPERATION_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+    private const val SYNCHRONIZATION_ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private const val LEASE_REQUEST_ID = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+    private const val METADATA_REQUEST_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
     private val REQUEST_IDS =
       listOf(
         "11111111-1111-4111-8111-111111111111",

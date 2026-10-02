@@ -70,6 +70,7 @@ sealed class DataDateSelection {
  * @param throttler Throttles metadata list and mutation requests.
  * @param impressionMetadataBatchSize Maximum results per metadata list page.
  * @param dateSelection Date folders included in the reconciliation.
+ * @param dataAvailabilitySyncLease Synchronization lease resource name.
  * @param sync Re-runs data availability sync for a completion blob and selected metadata keys, and
  *   returns the keys that sync processed.
  * @param metrics Records reconciliation results.
@@ -86,6 +87,7 @@ class MissingImpressionMetadataRecovery(
   private val ensureLeaseActive: suspend () -> Unit,
   private val sync: suspend (doneBlobUri: String, metadataBlobKeys: Set<String>) -> Set<String>,
   private val metrics: MissingImpressionMetadataRecoveryMetrics,
+  private val dataAvailabilitySyncLease: String = "",
 ) {
   init {
     require(edpImpressionPath.isNotEmpty()) { "edpImpressionPath must not be empty" }
@@ -289,7 +291,11 @@ class MissingImpressionMetadataRecovery(
       try {
         throttler.onReady {
           impressionMetadataStub.undeleteImpressionMetadata(
-            undeleteImpressionMetadataRequest { name = metadata.name }
+            undeleteImpressionMetadataRequest {
+              name = metadata.name
+              this.dataAvailabilitySyncLease =
+                this@MissingImpressionMetadataRecovery.dataAvailabilitySyncLease
+            }
           )
         }
         undeletedRecords++

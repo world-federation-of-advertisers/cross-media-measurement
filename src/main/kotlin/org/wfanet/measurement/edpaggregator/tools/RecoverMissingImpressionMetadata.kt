@@ -262,7 +262,7 @@ class RecoverMissingImpressionMetadata : Runnable {
     val result =
       try {
         runBlocking {
-          dataAvailabilitySyncLeaseRunner.run(config.dataProvider) { ensureLeaseActive ->
+          dataAvailabilitySyncLeaseRunner.run(config.dataProvider) { lease ->
             MissingImpressionMetadataRecovery(
                 storageClient = storageClient,
                 storageRootUri =
@@ -273,7 +273,8 @@ class RecoverMissingImpressionMetadata : Runnable {
                 throttler = throttler,
                 impressionMetadataBatchSize = impressionMetadataBatchSize,
                 dateSelection = recoveryDateSelection,
-                ensureLeaseActive = ensureLeaseActive,
+                dataAvailabilitySyncLease = lease.name,
+                ensureLeaseActive = lease::invoke,
                 sync = { doneBlobUri, metadataBlobKeys ->
                   val filteringStorageClient =
                     FilteringBlobMetadataStorageClient(storageClient, metadataBlobKeys)
@@ -285,11 +286,10 @@ class RecoverMissingImpressionMetadata : Runnable {
                       dataProviderName = config.dataProvider,
                       throttler = throttler,
                       impressionMetadataBatchSize = impressionMetadataBatchSize,
-                      modelLineMap =
-                        config.modelLineMapMap.mapValues { it.value.modelLinesList },
+                      modelLineMap = config.modelLineMapMap.mapValues { it.value.modelLinesList },
                       errorIfGapsExist = config.errorIfGapsExist,
                     )
-                    .sync(doneBlobUri, ensureLeaseActive)
+                    .sync(doneBlobUri, lease.name, lease::invoke)
                   filteringStorageClient.processedMetadataBlobKeys
                 },
                 metrics = MissingImpressionMetadataRecoveryMetrics(Instrumentation.meter),

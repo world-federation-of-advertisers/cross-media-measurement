@@ -152,8 +152,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           DataAvailabilitySyncLeaseRunner(
               GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
             )
-            .run(dataAvailabilitySyncConfig.dataProvider) { ensureLeaseActive ->
-              dataAvailabilitySync.sync(doneBlobPath, ensureLeaseActive)
+            .run(dataAvailabilitySyncConfig.dataProvider) { lease ->
+              dataAvailabilitySync.sync(doneBlobPath, lease.name, lease::invoke)
             }
         }
       }
