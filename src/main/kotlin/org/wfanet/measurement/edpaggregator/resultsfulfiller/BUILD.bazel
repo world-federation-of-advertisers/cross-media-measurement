@@ -365,6 +365,7 @@ kt_jvm_library(
         ":requisition_stub_factory",
         ":results_fulfiller",
         ":results_fulfiller_params_validator",
+        ":trus_tee_v2_impression_count",
         "//src/main/kotlin/org/wfanet/measurement/eventdataprovider/requisition/v2alpha/trustee",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_item_attempts_service",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/controlplane/v1alpha:work_items_service",

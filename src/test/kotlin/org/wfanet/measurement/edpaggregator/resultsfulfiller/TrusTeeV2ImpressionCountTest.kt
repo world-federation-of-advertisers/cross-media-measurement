@@ -32,7 +32,7 @@ class TrusTeeV2ImpressionCountTest {
     val details =
       TrusTeeV2ImpressionCount.buildFulfillmentDetails(
         ImpressionCountMode.UNNOISED,
-        maxFrequencyPerUser = 0,
+        maxFrequencyPerUser = null,
         VECTOR.getByteArray(),
         VECTOR.getTotalUncappedImpressions(),
       )
@@ -79,7 +79,7 @@ class TrusTeeV2ImpressionCountTest {
     val details =
       TrusTeeV2ImpressionCount.buildFulfillmentDetails(
         ImpressionCountMode.NOISED,
-        maxFrequencyPerUser = 0,
+        maxFrequencyPerUser = null,
         VECTOR.getByteArray(),
         VECTOR.getTotalUncappedImpressions(),
       )
@@ -92,7 +92,7 @@ class TrusTeeV2ImpressionCountTest {
     assertThat(
         TrusTeeV2ImpressionCount.buildFulfillmentDetails(
           ImpressionCountMode.NOISED,
-          maxFrequencyPerUser = 0,
+          maxFrequencyPerUser = null,
           VECTOR.getByteArray(),
           VECTOR.getTotalUncappedImpressions(),
         )
@@ -111,6 +111,16 @@ class TrusTeeV2ImpressionCountTest {
       }
 
     assertThat(exception).hasMessageThat().contains("read only under NOISED")
+  }
+
+  @Test
+  fun `a zero clip is refused rather than read as unset`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        TrusTeeV2ImpressionCount.validateConfig(ImpressionCountMode.NOISED, maxFrequencyPerUser = 0)
+      }
+
+    assertThat(exception).hasMessageThat().contains("must be in 1..127")
   }
 
   @Test

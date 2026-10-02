@@ -168,7 +168,7 @@ internal fun frequencyVectorCap(
  * @param trusTeeV2ImpressionCountMode how a TrusTeeV2 fulfillment builds the impression count it
  *   carries alongside the frequency vector; UNSPECIFIED sends no count, leaving the TEE to derive
  *   one from the vector
- * @param trusTeeV2MaxFrequencyPerUser the per-user clip under NOISED; unset clips dynamically
+ * @param trusTeeV2MaxFrequencyPerUser the per-user clip under NOISED; null clips dynamically
  */
 class DefaultFulfillerSelector(
   private val requisitionsStub: RequisitionsGrpcKt.RequisitionsCoroutineStub,
@@ -187,7 +187,7 @@ class DefaultFulfillerSelector(
   private val kekUriToKeyNameMap: Map<String, String> = emptyMap(),
   private val trusTeeV2ImpressionCountMode: TrusTeeV2Config.ImpressionCountMode =
     TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED,
-  private val trusTeeV2MaxFrequencyPerUser: Int = 0,
+  private val trusTeeV2MaxFrequencyPerUser: Int? = null,
 ) : FulfillerSelector {
 
   init {

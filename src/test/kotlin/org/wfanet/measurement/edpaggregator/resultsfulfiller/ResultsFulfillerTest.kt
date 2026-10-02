@@ -3405,7 +3405,7 @@ class ResultsFulfillerTest {
     resultMinimumThresholds: ResultMinimumThresholds?,
     vidCounts: Map<Long, Int> = (1L..130L).associateWith { 1 },
     trusTeeV2ImpressionCountMode: ImpressionCountMode = ImpressionCountMode.UNSPECIFIED,
-    trusTeeV2MaxFrequencyPerUser: Int = 0,
+    trusTeeV2MaxFrequencyPerUser: Int? = null,
   ): TrusTeeV2Fulfillment {
     val impressionsTmpPath = Files.createTempDirectory(null).toFile()
     val metadataTmpPath = Files.createTempDirectory(null).toFile()

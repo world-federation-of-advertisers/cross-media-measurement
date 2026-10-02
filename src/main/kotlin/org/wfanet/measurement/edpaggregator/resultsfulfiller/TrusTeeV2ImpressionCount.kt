@@ -53,7 +53,7 @@ object TrusTeeV2ImpressionCount {
    */
   fun buildFulfillmentDetails(
     mode: TrusTeeV2Config.ImpressionCountMode,
-    maxFrequencyPerUser: Int,
+    maxFrequencyPerUser: Int?,
     frequencyData: ByteArray,
     totalUncappedImpressions: Long,
   ): FulfillRequisitionRequest.Header.TrusTeeV2.FulfillmentDetails {
@@ -69,12 +69,13 @@ object TrusTeeV2ImpressionCount {
               // No per-user clip accompanies an uncapped count, so none is reported with it.
               deterministicCount = deterministicCount {}
             }
-          maxFrequencyPerUser > 0 -> {
+          maxFrequencyPerUser != null -> {
+            val clip: Int = maxFrequencyPerUser
             val perVidFrequencies: IntArray = toIntArray(frequencyData)
             val histogram: LongArray =
               HistogramComputations.buildHistogram(
                 frequencyVector = perVidFrequencies,
-                maxFrequency = maxFrequencyPerUser,
+                maxFrequency = clip,
               )
             impression {
               value =
@@ -86,15 +87,13 @@ object TrusTeeV2ImpressionCount {
                     DeterministicTruncatedLaplaceResultNoiser(
                       combinedFrequencyVector = perVidFrequencies,
                       contributionCount = CONTRIBUTION_COUNT,
-                      maxFrequencyPerUser = maxFrequencyPerUser,
+                      maxFrequencyPerUser = clip,
                     ),
                   // This count is not thresholded here.
                   resultMinimumThresholds = null,
                 )
               noiseMechanism = ProtocolConfig.NoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE
-              deterministicCount = deterministicCount {
-                customMaximumFrequencyPerUser = maxFrequencyPerUser
-              }
+              deterministicCount = deterministicCount { customMaximumFrequencyPerUser = clip }
             }
           }
           else -> {
@@ -127,17 +126,17 @@ object TrusTeeV2ImpressionCount {
    *
    * @throws IllegalArgumentException with what to set instead
    */
-  fun validateConfig(mode: TrusTeeV2Config.ImpressionCountMode, maxFrequencyPerUser: Int) {
+  fun validateConfig(mode: TrusTeeV2Config.ImpressionCountMode, maxFrequencyPerUser: Int?) {
     when (mode) {
       TrusTeeV2Config.ImpressionCountMode.NOISED ->
-        require(maxFrequencyPerUser in 0..MAX_REPRESENTABLE_CLIP) {
-          "max_frequency_per_user must be in 1..$MAX_REPRESENTABLE_CLIP under NOISED, or unset to " +
+        require(maxFrequencyPerUser == null || maxFrequencyPerUser in 1..MAX_REPRESENTABLE_CLIP) {
+          "max_frequency_per_user must be in 1..$MAX_REPRESENTABLE_CLIP under NOISED, or null to " +
             "clip dynamically, got $maxFrequencyPerUser. A frequency vector cell saturates at the " +
             "largest signed byte."
         }
       TrusTeeV2Config.ImpressionCountMode.UNSPECIFIED,
       TrusTeeV2Config.ImpressionCountMode.UNNOISED ->
-        require(maxFrequencyPerUser == 0) {
+        require(maxFrequencyPerUser == null) {
           "max_frequency_per_user is read only under NOISED, got $maxFrequencyPerUser under $mode."
         }
       TrusTeeV2Config.ImpressionCountMode.UNRECOGNIZED ->
@@ -157,3 +156,12 @@ object TrusTeeV2ImpressionCount {
   private fun toIntArray(frequencyData: ByteArray): IntArray =
     IntArray(frequencyData.size) { frequencyData[it].toInt() }
 }
+
+/**
+ * The configured per-user clip, or null when `max_frequency_per_user` is unset.
+ *
+ * The proto encodes "unset" as 0, since a scalar field cannot be absent. Null is what the
+ * computation code reads, so the sentinel stops at this boundary.
+ */
+internal val TrusTeeV2Config.maxFrequencyPerUserOrNull: Int?
+  get() = if (maxFrequencyPerUser == 0) null else maxFrequencyPerUser
