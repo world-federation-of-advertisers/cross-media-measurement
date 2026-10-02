@@ -68,16 +68,23 @@ import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.dataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.storageParams
 import org.wfanet.measurement.config.edpaggregator.transportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLease
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.computeModelLineBoundsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
@@ -137,11 +144,61 @@ class DataAvailabilitySyncFunctionTest {
         }
     }
 
+  private val dataAvailabilitySyncLeaseServiceMock:
+    DataAvailabilitySyncLeaseServiceCoroutineImplBase =
+    mockService {
+      onBlocking {
+          acquireDataAvailabilitySyncLease(any<AcquireDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<AcquireDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = "etag"
+          }
+        }
+      onBlocking { renewDataAvailabilitySyncLease(any<RenewDataAvailabilitySyncLeaseRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<RenewDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = "renewed-etag"
+          }
+        }
+      onBlocking {
+          validateDataAvailabilitySyncLease(any<ValidateDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ValidateDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.ACTIVE
+            etag = request.etag
+          }
+        }
+      onBlocking {
+          releaseDataAvailabilitySyncLease(any<ReleaseDataAvailabilitySyncLeaseRequest>())
+        }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ReleaseDataAvailabilitySyncLeaseRequest>(0)
+          dataAvailabilitySyncLease {
+            name = request.name
+            state = DataAvailabilitySyncLease.State.RELEASED
+            etag = "released-etag"
+          }
+        }
+    }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(ServerInterceptors.intercept(dataProvidersServiceMock, metadataCaptureInterceptor))
     addService(
       ServerInterceptors.intercept(impressionMetadataServiceMock, metadataCaptureInterceptor)
+    )
+    addService(
+      ServerInterceptors.intercept(dataAvailabilitySyncLeaseServiceMock, metadataCaptureInterceptor)
     )
   }
 
@@ -166,6 +223,10 @@ class DataAvailabilitySyncFunctionTest {
               ),
               ServerInterceptors.intercept(
                 impressionMetadataServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
+              ServerInterceptors.intercept(
+                dataAvailabilitySyncLeaseServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
             ),
@@ -268,6 +329,12 @@ class DataAvailabilitySyncFunctionTest {
       .contains("some-model-line-mapped")
     verifyBlocking(impressionMetadataServiceMock, times(1)) { batchCreateImpressionMetadata(any()) }
     verifyBlocking(impressionMetadataServiceMock, times(1)) { computeModelLineBounds(any()) }
+    verifyBlocking(dataAvailabilitySyncLeaseServiceMock, times(1)) {
+      acquireDataAvailabilitySyncLease(any())
+    }
+    verifyBlocking(dataAvailabilitySyncLeaseServiceMock, times(1)) {
+      releaseDataAvailabilitySyncLease(any())
+    }
   }
 
   @Test

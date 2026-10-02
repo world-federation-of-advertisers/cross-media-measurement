@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Value
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
+import io.grpc.Status
 import java.time.Instant
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
@@ -37,6 +38,7 @@ import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLease
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.dataAvailabilitySyncLease
 
 data class DataAvailabilitySyncLeaseResult(
@@ -56,6 +58,40 @@ suspend fun AsyncDatabaseClient.ReadContext.findDataAvailabilitySyncLease(
       COLUMNS,
     )
     ?.let(::buildDataAvailabilitySyncLeaseResult)
+}
+
+/** Requires an active synchronization lease while reading the current eviction fence. */
+suspend fun AsyncDatabaseClient.ReadContext.requireActiveDataAvailabilitySyncLease(
+  dataProviderResourceId: String,
+  synchronizationAttemptId: String,
+  now: Instant,
+) {
+  if (
+    getVidLabelingEvictionFence(dataProviderResourceId)?.state ==
+      VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+  ) {
+    throw Status.UNAVAILABLE.withDescription(
+        "Data availability synchronization is fenced for DataProvider $dataProviderResourceId"
+      )
+      .asRuntimeException()
+  }
+  if (synchronizationAttemptId.isEmpty()) return
+  val lease =
+    findDataAvailabilitySyncLease(dataProviderResourceId, synchronizationAttemptId)
+      ?.dataAvailabilitySyncLease
+      ?: throw Status.FAILED_PRECONDITION.withDescription(
+          "DataAvailabilitySyncLease $synchronizationAttemptId does not exist"
+        )
+        .asRuntimeException()
+  if (
+    lease.state != DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_ACTIVE ||
+      !lease.expireTime.toInstant().isAfter(now)
+  ) {
+    throw Status.FAILED_PRECONDITION.withDescription(
+        "DataAvailabilitySyncLease $synchronizationAttemptId is not active"
+      )
+      .asRuntimeException()
+  }
 }
 
 /** Finds a data-availability synchronization lease by mutation request ID. */

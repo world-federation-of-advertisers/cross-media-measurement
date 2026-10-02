@@ -25,6 +25,7 @@ import io.opentelemetry.api.common.Attributes
 import java.nio.ByteBuffer
 import java.security.MessageDigest
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 import java.util.logging.Logger
 import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
@@ -148,12 +149,22 @@ class DataAvailabilitySync(
    * collecting and processing metadata for that day.
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
+   * @param dataAvailabilitySyncLease synchronization lease resource name.
+   * @param ensureLeaseActive validates the synchronization lease before each mutation.
    */
-  suspend fun sync(doneBlobPath: String) {
+  suspend fun sync(
+    doneBlobPath: String,
+    dataAvailabilitySyncLease: String,
+    ensureLeaseActive: suspend () -> Unit,
+  ) {
+    require(dataAvailabilitySyncLease.isNotEmpty()) {
+      "dataAvailabilitySyncLease must not be empty"
+    }
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
     try {
+      ensureLeaseActive()
       // 1. Crawl for metadata files
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
@@ -186,6 +197,7 @@ class DataAvailabilitySync(
       // 2. Announce this attempt before mutating ImpressionMetadata. This invalidates any
       // publication marker left by an earlier attempt, so a failure during persistence remains
       // visible and retryable.
+      ensureLeaseActive()
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata = mapOf(DataAvailabilityBlobs.SYNC_ID_KEY to syncId),
@@ -193,11 +205,12 @@ class DataAvailabilitySync(
 
       // 3. Persist ImpressionMetadata (create new, update changed)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
-        saveImpressionMetadata(metadataWithBlobKeys)
+        saveImpressionMetadata(metadataWithBlobKeys, dataAvailabilitySyncLease, ensureLeaseActive)
       }
 
       // Record metadata-store completion separately. Disjoint marker writes prevent an older
       // overlapping attempt from overwriting a newer attempt's ID and falsely completing it.
+      ensureLeaseActive()
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata =
@@ -205,6 +218,7 @@ class DataAvailabilitySync(
       )
 
       // 4. Retrieve model line bound from ImpressionMetadataStorage for all model lines
+      ensureLeaseActive()
       val modelLineBounds: ComputeModelLineBoundsResponse =
         impressionMetadataServiceStub.computeModelLineBounds(
           computeModelLineBoundsRequest { parent = dataProviderName }
@@ -298,14 +312,17 @@ class DataAvailabilitySync(
           return
         }
       }
+      ensureLeaseActive()
       throttler.onReady {
         try {
-          dataProvidersStub.replaceDataAvailabilityIntervals(
-            replaceDataAvailabilityIntervalsRequest {
-              name = dataProviderName
-              dataAvailabilityIntervals += availabilityEntries
-            }
-          )
+          dataProvidersStub
+            .withDeadlineAfter(KINGDOM_PUBLICATION_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+            .replaceDataAvailabilityIntervals(
+              replaceDataAvailabilityIntervalsRequest {
+                name = dataProviderName
+                dataAvailabilityIntervals += availabilityEntries
+              }
+            )
         } catch (e: StatusException) {
           // Record CMMS RPC error
           metrics.cmmsRpcErrorsCounter.add(
@@ -326,6 +343,7 @@ class DataAvailabilitySync(
       // This marker is the durable completion signal for both phases of synchronization. Only
       // update the publication ID here. If another attempt has written a newer sync ID while this
       // attempt was publishing, the resulting mismatch must remain visible and retryable.
+      ensureLeaseActive()
       storageClient.updateBlobMetadata(
         blobKey = doneBlobUri.key,
         metadata = mapOf(DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId),
@@ -380,7 +398,9 @@ class DataAvailabilitySync(
   }
 
   private suspend fun saveImpressionMetadata(
-    impressionMetadataList: List<ImpressionMetadataWithBlobKey>
+    impressionMetadataList: List<ImpressionMetadataWithBlobKey>,
+    dataAvailabilitySyncLease: String,
+    ensureLeaseActive: suspend () -> Unit,
   ) {
     try {
       // Build a map from metadata blob URI to impressions blob key for later lookup
@@ -419,11 +439,13 @@ class DataAvailabilitySync(
       // BatchCreate new entries, chunked at the RPC boundary
       val createResponses =
         toCreate.chunked(impressionMetadataBatchSize).flatMap { createChunk ->
+          ensureLeaseActive()
           throttler
             .onReady {
               impressionMetadataServiceStub.batchCreateImpressionMetadata(
                 batchCreateImpressionMetadataRequest {
                   parent = dataProviderName
+                  this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                   createChunk.forEach { item ->
                     requests += createImpressionMetadataRequest {
                       parent = dataProviderName
@@ -440,11 +462,13 @@ class DataAvailabilitySync(
       // BatchUpdate changed entries, chunked at the RPC boundary
       val updateResponses =
         toUpdate.chunked(impressionMetadataBatchSize).flatMap { updateChunk ->
+          ensureLeaseActive()
           throttler
             .onReady {
               impressionMetadataServiceStub.batchUpdateImpressionMetadata(
                 batchUpdateImpressionMetadataRequest {
                   parent = dataProviderName
+                  this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                   updateChunk.forEach { item ->
                     requests += updateImpressionMetadataRequest {
                       impressionMetadata = item.impressionMetadata
@@ -461,11 +485,13 @@ class DataAvailabilitySync(
       // prevents stale metadata from becoming visible if an update fails.
       val restoreResponses =
         toRestore.chunked(impressionMetadataBatchSize).flatMap { restoreChunk ->
+          ensureLeaseActive()
           throttler
             .onReady {
               impressionMetadataServiceStub.batchUndeleteImpressionMetadata(
                 batchUndeleteImpressionMetadataRequest {
                   parent = dataProviderName
+                  this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                   names += restoreChunk.map { it.name }
                 }
               )
@@ -485,6 +511,7 @@ class DataAvailabilitySync(
           restoreResponses.associateBy { it.blobUri } +
           updateResponses.associateBy { it.blobUri })
       for (item in impressionMetadataList) {
+        ensureLeaseActive()
         val blobUri = item.impressionMetadata.blobUri
         val resultMetadata = resourceIdByBlobUri.getValue(blobUri)
         val metadataBlobUri = SelectedStorageClient.parseBlobUri(blobUri)
@@ -501,6 +528,7 @@ class DataAvailabilitySync(
         )
 
         // Also update the impressions blob with Custom-Time (no resource ID needed)
+        ensureLeaseActive()
         val impressionsBlobKey = impressionsBlobKeyByMetadataUri.getValue(blobUri)
         storageClient.updateBlobMetadata(
           blobKey = impressionsBlobKey,
@@ -732,6 +760,7 @@ class DataAvailabilitySync(
   }
 
   companion object {
+    private const val KINGDOM_PUBLICATION_TIMEOUT_SECONDS = 300L
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private val DATA_PROVIDER_KEY_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.data_provider_key")

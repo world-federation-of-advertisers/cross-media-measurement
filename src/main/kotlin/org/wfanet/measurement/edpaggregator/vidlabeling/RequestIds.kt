@@ -130,6 +130,18 @@ object RequestIds {
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
     fromKey("uploadHealingStep:$stepName:$checkpoint:$evidence")
 
+  /** `request_id` for acquiring an upload-eviction fence. */
+  fun forAcquireUploadEvictionFence(operationId: String, state: String): String =
+    fromKey("acquireUploadEvictionFence:$operationId:$state")
+
+  /** `request_id` for advancing an upload-eviction fence. */
+  fun forAdvanceUploadEvictionFence(operationId: String, state: String, etag: String): String =
+    fromKey("advanceUploadEvictionFence:$operationId:$state:$etag")
+
+  /** `request_id` for releasing an upload-eviction fence. */
+  fun forReleaseUploadEvictionFence(operationId: String, etag: String): String =
+    fromKey("releaseUploadEvictionFence:$operationId:$etag")
+
   /** `request_id` for retrying a specific model-line failure at Phase 0. */
   fun forHealingRetryPoolAssigning(modelLineName: String, failureAttemptId: String): String =
     fromKey("healingRetryPoolAssigning:$modelLineName:$failureAttemptId")

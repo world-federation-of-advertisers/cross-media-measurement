@@ -47,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServi
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteRankIndexBlobRequest
@@ -484,9 +485,8 @@ class EvictUploader(
    * replacement upload can calculate its delta against the evicted upload. Before refreshing the
    * plan, this acquires a durable DataProvider-wide fence that verifies the pipeline is idle and
    * defers unrelated upload processing until the complete healing workflow finishes. A partial
-   * failure leaves the fence in place so the same operation ID can safely resume. The caller must
-   * pause `DataAvailabilitySync` and wait for existing sync calls to drain, because an in-flight
-   * sync could otherwise restore metadata while its output is being removed.
+   * failure leaves the fence in place so the same operation ID can safely resume. Synchronization
+   * leases prevent eviction from crossing in-flight `DataAvailabilitySync` mutations.
    *
    * Metadata is deleted before its GCS object. This makes `DataAvailabilityCleanup` harmless when
    * the object-deletion event arrives: its active-only lookup finds no row, and a cleanup event
@@ -505,6 +505,8 @@ class EvictUploader(
         acquireRawImpressionUploadEvictionFenceRequest {
           parent = dataProvider
           evictionOperationId = plan.evictionOperationId
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+          requestId = RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, state.name)
         }
       )
     try {
@@ -527,6 +529,12 @@ class EvictUploader(
               releaseRawImpressionUploadEvictionFenceRequest {
                 parent = dataProvider
                 evictionOperationId = plan.evictionOperationId
+                etag = acquireResponse.etag
+                requestId =
+                  RequestIds.forReleaseUploadEvictionFence(
+                    plan.evictionOperationId,
+                    acquireResponse.etag,
+                  )
               }
             )
           }
@@ -544,10 +552,14 @@ class EvictUploader(
     onEntryEvicted: suspend (CascadeEntry) -> Unit,
   ): EvictionResult {
     val dataProvider = dataProviderOf(plan.badUploads.first())
+    val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
     uploadsStub.acquireRawImpressionUploadEvictionFence(
       acquireRawImpressionUploadEvictionFenceRequest {
         parent = dataProvider
         evictionOperationId = plan.evictionOperationId
+        state = fenceState
+        requestId =
+          RequestIds.forAcquireUploadEvictionFence(plan.evictionOperationId, fenceState.name)
       }
     )
     val result = executeEviction(plan, reason, onEntryEvicted)

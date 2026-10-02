@@ -20,6 +20,7 @@ import "google/protobuf/timestamp.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_state.proto";
+import "wfa/measurement/internal/edpaggregator/vid_labeling_eviction_fence_state.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
 option java_multiple_files = true;
@@ -50,6 +51,11 @@ service RawImpressionUploadService {
       AcquireRawImpressionUploadEvictionFenceRequest)
       returns (AcquireRawImpressionUploadEvictionFenceResponse);
 
+  // Advances the data-provider-wide VID-labeling fence.
+  rpc AdvanceRawImpressionUploadEvictionFence(
+      AdvanceRawImpressionUploadEvictionFenceRequest)
+      returns (AdvanceRawImpressionUploadEvictionFenceResponse);
+
   // Releases the data-provider-wide VID-labeling fence after healing.
   rpc ReleaseRawImpressionUploadEvictionFence(
       ReleaseRawImpressionUploadEvictionFenceRequest)
@@ -59,15 +65,32 @@ service RawImpressionUploadService {
 message AcquireRawImpressionUploadEvictionFenceRequest {
   string data_provider_resource_id = 1;
   string eviction_operation_id = 2;
+  VidLabelingEvictionFenceState state = 3;
+  string request_id = 4;
 }
 
 message AcquireRawImpressionUploadEvictionFenceResponse {
   bool newly_acquired = 1;
+  string etag = 3;
+}
+
+message AdvanceRawImpressionUploadEvictionFenceRequest {
+  string data_provider_resource_id = 1;
+  string eviction_operation_id = 2;
+  VidLabelingEvictionFenceState state = 3;
+  string etag = 4;
+  string request_id = 5;
+}
+
+message AdvanceRawImpressionUploadEvictionFenceResponse {
+  string etag = 1;
 }
 
 message ReleaseRawImpressionUploadEvictionFenceRequest {
   string data_provider_resource_id = 1;
   string eviction_operation_id = 2;
+  string etag = 3;
+  string request_id = 4;
 }
 
 message ReleaseRawImpressionUploadEvictionFenceResponse {}

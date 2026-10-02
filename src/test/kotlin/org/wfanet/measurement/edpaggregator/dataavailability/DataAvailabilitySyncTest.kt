@@ -87,6 +87,22 @@ enum class BlobEncoding {
   EMPTY,
 }
 
+private suspend fun DataAvailabilitySync.sync(doneBlobPath: String) {
+  sync(doneBlobPath, TestDataAvailabilitySyncLease.NAME) {}
+}
+
+private suspend fun DataAvailabilitySync.sync(
+  doneBlobPath: String,
+  ensureLeaseActive: suspend () -> Unit,
+) {
+  sync(doneBlobPath, TestDataAvailabilitySyncLease.NAME, ensureLeaseActive)
+}
+
+private object TestDataAvailabilitySyncLease {
+  const val NAME =
+    "dataProviders/test/dataAvailabilitySyncLeases/11111111-1111-4111-8111-111111111111"
+}
+
 @RunWith(JUnit4::class)
 class DataAvailabilitySyncTest {
 
@@ -234,7 +250,8 @@ class DataAvailabilitySyncTest {
         errorIfGapsExist = true,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+    var leaseChecks = 0
+    dataAvailabilitySync.sync("$bucket/${folderPrefix}done") { leaseChecks++ }
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -246,6 +263,7 @@ class DataAvailabilitySyncTest {
       computeModelLineBounds(boundsRequestCaptor.capture())
     }
     assertThat(boundsRequestCaptor.firstValue.parent).isEqualTo("dataProviders/dataProvider123")
+    assertThat(leaseChecks).isEqualTo(9)
   }
 
   @Test
