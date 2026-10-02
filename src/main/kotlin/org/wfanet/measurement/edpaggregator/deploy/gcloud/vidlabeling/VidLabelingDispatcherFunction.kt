@@ -23,6 +23,8 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import com.google.protobuf.util.JsonFormat
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.trace.Span
 import io.opentelemetry.context.Context
 import io.opentelemetry.extension.kotlin.asContextElement
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
@@ -31,6 +33,7 @@ import java.nio.file.Files
 import java.nio.file.attribute.BasicFileAttributes
 import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
@@ -42,6 +45,7 @@ import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
@@ -49,6 +53,8 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguratio
 import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
@@ -292,8 +298,35 @@ class VidLabelingDispatcherFunction : HttpFunction {
         )
 
       Tracing.withW3CTraceContext(request) {
-        runBlocking(Context.current().asContextElement()) {
-          dispatcher.upload(doneBlobPath, doneBlobGeneration)
+        val doneBlobPathHash = VidLabelingTraceLogging.sha256(doneBlobPath)
+        Tracing.trace(
+          spanName = "edpa.vid_labeling.upload.register",
+          attributes =
+            Attributes.builder()
+              .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, config.dataProvider)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, doneBlobPathHash)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, doneBlobGeneration)
+              .put(XmmTraceAttributes.LIFECYCLE_STAGE, "upload_registration")
+              .put(XmmTraceAttributes.OUTCOME, "started")
+              .build(),
+        ) {
+          try {
+            val outcome =
+              runBlocking(Context.current().asContextElement()) {
+                dispatcher.upload(doneBlobPath, doneBlobGeneration)
+              }
+            Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.telemetryValue)
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            Span.current()
+              .setAttribute(XmmTraceAttributes.OUTCOME, "failed")
+              .setAttribute(XmmTraceAttributes.ERROR_TYPE, XmmTraceAttributes.errorType(e))
+            XmmTraceAttributes.errorCode(e)?.let {
+              Span.current().setAttribute(XmmTraceAttributes.ERROR_CODE, it)
+            }
+            throw e
+          }
         }
       }
     } catch (e: IllegalArgumentException) {
