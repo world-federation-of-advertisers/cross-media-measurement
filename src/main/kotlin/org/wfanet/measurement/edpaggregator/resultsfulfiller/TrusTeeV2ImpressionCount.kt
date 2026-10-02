@@ -163,5 +163,5 @@ object TrusTeeV2ImpressionCount {
  * The proto encodes "unset" as 0, since a scalar field cannot be absent. Null is what the
  * computation code reads, so the sentinel stops at this boundary.
  */
-internal val TrusTeeV2Config.maxFrequencyPerUserOrNull: Int?
+val TrusTeeV2Config.maxFrequencyPerUserOrNull: Int?
   get() = if (maxFrequencyPerUser == 0) null else maxFrequencyPerUser
