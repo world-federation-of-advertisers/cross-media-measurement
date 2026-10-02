@@ -35,8 +35,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findDataAva
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getDataAvailabilitySyncTaskByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineStateByCmmsModelLine
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasDataAvailabilitySyncTaskPublicationSlot
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertDataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readDataAvailabilitySyncTasks
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.releaseDataAvailabilitySyncTaskPublicationSlot
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateDataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
@@ -49,6 +52,9 @@ import org.wfanet.measurement.internal.edpaggregator.GetDataAvailabilitySyncTask
 import org.wfanet.measurement.internal.edpaggregator.ListDataAvailabilitySyncTasksPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListDataAvailabilitySyncTasksRequest
 import org.wfanet.measurement.internal.edpaggregator.ListDataAvailabilitySyncTasksResponse
+import org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskFailedRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskRunningRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkDataAvailabilitySyncTaskSucceededRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.dataAvailabilitySyncTask
 import org.wfanet.measurement.internal.edpaggregator.listDataAvailabilitySyncTasksPageToken
@@ -238,6 +244,175 @@ class SpannerDataAvailabilitySyncTaskService(
     }
   }
 
+  override suspend fun markDataAvailabilitySyncTaskRunning(
+    request: MarkDataAvailabilitySyncTaskRunningRequest
+  ): DataAvailabilitySyncTask =
+    transition(
+      request.dataProviderResourceId,
+      request.rawImpressionUploadResourceId,
+      request.dataAvailabilitySyncTaskResourceId,
+      request.etag,
+      request.requestId,
+      "MarkRunningRequestId",
+      DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING,
+      setOf(
+        DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_PENDING,
+        DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_FAILED,
+      ),
+      incrementAttempt = true,
+      failureCategory =
+        DataAvailabilitySyncTaskFailureCategory
+          .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_UNSPECIFIED,
+    )
+
+  override suspend fun markDataAvailabilitySyncTaskSucceeded(
+    request: MarkDataAvailabilitySyncTaskSucceededRequest
+  ): DataAvailabilitySyncTask =
+    transition(
+      request.dataProviderResourceId,
+      request.rawImpressionUploadResourceId,
+      request.dataAvailabilitySyncTaskResourceId,
+      request.etag,
+      request.requestId,
+      "MarkSucceededRequestId",
+      DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUCCEEDED,
+      setOf(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING),
+    )
+
+  override suspend fun markDataAvailabilitySyncTaskFailed(
+    request: MarkDataAvailabilitySyncTaskFailedRequest
+  ): DataAvailabilitySyncTask {
+    if (
+      request.failureCategory ==
+        DataAvailabilitySyncTaskFailureCategory
+          .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_UNSPECIFIED ||
+        request.failureCategory == DataAvailabilitySyncTaskFailureCategory.UNRECOGNIZED
+    ) {
+      invalidArgument("failure_category is required")
+    }
+    return transition(
+      request.dataProviderResourceId,
+      request.rawImpressionUploadResourceId,
+      request.dataAvailabilitySyncTaskResourceId,
+      request.etag,
+      request.requestId,
+      "MarkFailedRequestId",
+      DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_FAILED,
+      setOf(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING),
+      failureCategory = request.failureCategory,
+    )
+  }
+
+  private suspend fun transition(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    taskResourceId: String,
+    etag: String,
+    requestId: String,
+    requestIdColumn: String,
+    nextState: DataAvailabilitySyncTaskState,
+    allowedStates: Set<DataAvailabilitySyncTaskState>,
+    incrementAttempt: Boolean = false,
+    failureCategory: DataAvailabilitySyncTaskFailureCategory =
+      DataAvailabilitySyncTaskFailureCategory
+        .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_UNSPECIFIED,
+  ): DataAvailabilitySyncTask {
+    if (
+      dataProviderResourceId.isEmpty() ||
+        rawImpressionUploadResourceId.isEmpty() ||
+        taskResourceId.isEmpty() ||
+        etag.isEmpty()
+    ) {
+      invalidArgument("name and etag are required")
+    }
+    validateRequestId(requestId)
+    val runner =
+      databaseClient.readWriteTransaction(Options.tag("action=transitionDataAvailabilitySyncTask"))
+    val updated =
+      runner.run { transaction ->
+        val current =
+          transaction.getDataAvailabilitySyncTaskByResourceId(
+            dataProviderResourceId,
+            rawImpressionUploadResourceId,
+            taskResourceId,
+          )
+            ?: throw Status.NOT_FOUND.withDescription("DataAvailabilitySyncTask not found")
+              .asRuntimeException()
+        val previousRequestId =
+          when (requestIdColumn) {
+            "MarkRunningRequestId" -> current.markRunningRequestId
+            "MarkSucceededRequestId" -> current.markSucceededRequestId
+            "MarkFailedRequestId" -> current.markFailedRequestId
+            else -> error("unsupported request ID column")
+          }
+        if (previousRequestId == requestId) return@run current.task
+        if (current.task.etag != etag) {
+          throw Status.ABORTED.withDescription("etag does not match").asRuntimeException()
+        }
+        if (current.task.state !in allowedStates) {
+          throw Status.FAILED_PRECONDITION.withDescription(
+              "task cannot transition from ${current.task.state} to $nextState"
+            )
+            .asRuntimeException()
+        }
+        if (
+          nextState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_RUNNING &&
+            !transaction.hasDataAvailabilitySyncTaskPublicationSlot(
+              dataProviderResourceId,
+              current.rawImpressionUploadId,
+              taskResourceId,
+            )
+        ) {
+          throw Status.FAILED_PRECONDITION.withDescription("task publication slot is not held")
+            .asRuntimeException()
+        }
+        transaction.updateDataAvailabilitySyncTask(
+          current,
+          nextState,
+          attemptCount =
+            if (incrementAttempt) current.task.attemptCount + 1 else current.task.attemptCount,
+          failureCategory = failureCategory,
+          requestIdColumn = requestIdColumn,
+          requestId = requestId,
+        )
+        if (
+          nextState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUCCEEDED ||
+            nextState == DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_FAILED
+        ) {
+          transaction.releaseDataAvailabilitySyncTaskPublicationSlot(
+            dataProviderResourceId,
+            current.rawImpressionUploadId,
+            taskResourceId,
+          )
+        }
+        current.task.copy {
+          state = nextState
+          attemptCount =
+            if (incrementAttempt) current.task.attemptCount + 1 else current.task.attemptCount
+          this.failureCategory = failureCategory
+          clearUpdateTime()
+          clearEtag()
+        }
+      }
+    if (updated.hasUpdateTime()) return updated
+    val commitTime = runner.getCommitTimestamp().toProto()
+    return updated.copy {
+      updateTime = commitTime
+      this.etag = ETags.computeETag(commitTime.toInstant())
+    }
+  }
+
+  private fun validateRequestId(requestId: String) {
+    if (requestId.isEmpty()) invalidArgument("request_id is required")
+    try {
+      if (UUID.fromString(requestId).version() != 4) invalidArgument("request_id must be a UUID4")
+    } catch (e: IllegalArgumentException) {
+      throw Status.INVALID_ARGUMENT.withDescription("request_id must be a UUID4")
+        .withCause(e)
+        .asRuntimeException()
+    }
+  }
+
   private fun validateCreateRequest(request: CreateDataAvailabilitySyncTaskRequest) {
     if (
       request.dataProviderResourceId.isEmpty() ||
@@ -258,6 +433,9 @@ class SpannerDataAvailabilitySyncTaskService(
     }
     try {
       val canonicalDoneBlobUri = BlobUris.canonicalGcsUri(task.doneBlobUri)
+      if (!canonicalDoneBlobUri.endsWith("/done")) {
+        invalidArgument("done_blob_uri must identify a done object")
+      }
       if (request.requestId.isNotEmpty()) {
         if (UUID.fromString(request.requestId).version() != 4) {
           invalidArgument("request_id must be a UUID4")
