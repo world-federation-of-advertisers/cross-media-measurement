@@ -25,6 +25,9 @@ import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
 import java.util.Collections
+import java.util.logging.Handler
+import java.util.logging.LogRecord
+import java.util.logging.Logger
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.toList
@@ -199,35 +202,66 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
   @Test
   fun `failed publication is retried after its backoff`() =
     runBlocking<Unit> {
-      insertUpload()
-      val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
-      service.createDataAvailabilitySyncTask(createRequest())
-      val publisher = RecordingPublisher(fail = true)
-      val clock = MutableClock(Instant.now().plusSeconds(10))
-      val runner = newRunner(publisher, clock)
-
-      assertThat(runner.publishPendingTasks()).isEqualTo(0)
-      val failedTask =
-        service.getDataAvailabilitySyncTask(
-          getDataAvailabilitySyncTaskRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            rawImpressionUploadResourceId = UPLOAD_ID
-            dataAvailabilitySyncTaskResourceId = TASK_ID
+      val logRecords = mutableListOf<LogRecord>()
+      val handler =
+        object : Handler() {
+          override fun publish(record: LogRecord) {
+            logRecords += record
           }
-        )
-      assertThat(failedTask.state)
-        .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_FAILED)
-      assertThat(failedTask.failureCategory)
-        .isEqualTo(
-          DataAvailabilitySyncTaskFailureCategory
-            .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_PUBLICATION
-        )
-      assertThat(runner.publishPendingTasks()).isEqualTo(0)
-      publisher.fail = false
-      clock.advance(Duration.ofSeconds(2))
 
-      assertThat(runner.publishPendingTasks()).isEqualTo(1)
-      assertThat(publisher.taskNames).containsExactly(TASK_NAME)
+          override fun flush() {}
+
+          override fun close() {}
+        }
+      val logger = Logger.getLogger(DataAvailabilitySyncTaskPublicationRunner::class.java.name)
+      logger.addHandler(handler)
+      try {
+        insertUpload()
+        val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+        service.createDataAvailabilitySyncTask(createRequest())
+        val publisher = RecordingPublisher(fail = true)
+        val clock = MutableClock(Instant.now().plusSeconds(10))
+        val runner = newRunner(publisher, clock)
+
+        assertThat(runner.publishPendingTasks()).isEqualTo(0)
+        val failedTask =
+          service.getDataAvailabilitySyncTask(
+            getDataAvailabilitySyncTaskRequest {
+              dataProviderResourceId = DATA_PROVIDER_ID
+              rawImpressionUploadResourceId = UPLOAD_ID
+              dataAvailabilitySyncTaskResourceId = TASK_ID
+            }
+          )
+        assertThat(failedTask.state)
+          .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_FAILED)
+        assertThat(failedTask.failureCategory)
+          .isEqualTo(
+            DataAvailabilitySyncTaskFailureCategory
+              .DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_PUBLICATION
+          )
+        assertThat(runner.publishPendingTasks()).isEqualTo(0)
+        publisher.fail = false
+        clock.advance(Duration.ofSeconds(2))
+
+        assertThat(runner.publishPendingTasks()).isEqualTo(1)
+        assertThat(publisher.taskNames).containsExactly(TASK_NAME)
+      } finally {
+        logger.removeHandler(handler)
+      }
+      val failureLog = logRecords.single { it.message.contains("xmm.outcome=retryable_failure") }
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=availability_task_publication")
+      assertThat(failureLog.message)
+        .contains("xmm.edpa.data_availability_sync_task.publication_attempt=1")
+      assertThat(failureLog.message)
+        .contains("xmm.edpa.data_availability_sync_task.failure_category=PUBLICATION")
+      assertThat(failureLog.message)
+        .contains(
+          "xmm.gcs.object.path_hash=" + VidLabelingTraceAttributes.gcsObjectPathHash(DONE_URI)
+        )
+      assertThat(failureLog.message).contains("xmm.gcs.object.generation=$GENERATION")
+      assertThat(failureLog.message).doesNotContain(DONE_URI)
+      val retryLog = logRecords.single { it.message.contains("xmm.outcome=retry_scheduled") }
+      assertThat(retryLog.message).contains("xmm.edpa.data_availability_sync_task.state=FAILED")
     }
 
   @Test
@@ -538,11 +572,12 @@ class DataAvailabilitySyncTaskPublicationRunnerTest {
     private const val UPLOAD_ID = "upload"
     private const val OTHER_UPLOAD_ID = "other-upload"
     private const val DONE_URI_PREFIX = "gs://bucket/labeled/2026-09-30"
+    private const val DONE_URI = "gs://bucket/labeled/2026-09-30/output-0/done"
     private const val GENERATION = 123L
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private val TASK_ID =
       RequestIds.forDataAvailabilitySyncTask(
-        VidLabelingTraceAttributes.gcsObjectPathHash("$DONE_URI_PREFIX/output-0/done"),
+        VidLabelingTraceAttributes.gcsObjectPathHash(DONE_URI),
         GENERATION,
       )
     private val TASK_NAME =

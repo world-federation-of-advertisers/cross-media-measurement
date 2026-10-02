@@ -951,7 +951,14 @@ class VidLabelerApp(
               dataProvider,
               params,
             )
-        createDataAvailabilitySyncTask(upload, completedModelLine, eventDate, doneObject)
+        createDataAvailabilitySyncTask(
+          upload,
+          completedModelLine,
+          eventDate,
+          doneObject,
+          params,
+          dataProvider,
+        )
         doneObjectsWritten++
       }
       val completed =
@@ -1273,6 +1280,8 @@ class VidLabelerApp(
     modelLine: String,
     eventDate: LocalDate,
     doneObject: DoneObject,
+    params: VidLabelerParams,
+    dataProvider: String,
   ) {
     val generation =
       requireNotNull(doneObject.generation) {
@@ -1280,27 +1289,76 @@ class VidLabelerApp(
       }
     val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneObject.uri)
     val taskId = RequestIds.forDataAvailabilitySyncTask(pathHash, generation)
+    val expectedTaskName = "$rawImpressionUpload/dataAvailabilitySyncTasks/$taskId"
     val traceContext = Tracing.currentW3CTraceContext()
-    rpcThrottlers.metadataWrite.onReady {
-      dataAvailabilitySyncTasksStub.createDataAvailabilitySyncTask(
-        createDataAvailabilitySyncTaskRequest {
-          parent = rawImpressionUpload
-          dataAvailabilitySyncTaskId = taskId
-          requestId = taskId
-          dataAvailabilitySyncTask = dataAvailabilitySyncTask {
-            doneBlobUri = doneObject.uri
-            doneBlobGeneration = generation
-            cmmsModelLine = modelLine
-            this.eventDate = date {
-              year = eventDate.year
-              month = eventDate.monthValue
-              day = eventDate.dayOfMonth
+    try {
+      val task =
+        rpcThrottlers.metadataWrite.onReady {
+          dataAvailabilitySyncTasksStub.createDataAvailabilitySyncTask(
+            createDataAvailabilitySyncTaskRequest {
+              parent = rawImpressionUpload
+              dataAvailabilitySyncTaskId = taskId
+              requestId = taskId
+              dataAvailabilitySyncTask = dataAvailabilitySyncTask {
+                doneBlobUri = doneObject.uri
+                doneBlobGeneration = generation
+                cmmsModelLine = modelLine
+                this.eventDate = date {
+                  year = eventDate.year
+                  month = eventDate.monthValue
+                  day = eventDate.dayOfMonth
+                }
+                traceparent = traceContext["traceparent"].orEmpty()
+                tracestate = traceContext["tracestate"].orEmpty()
+              }
             }
-            traceparent = traceContext["traceparent"].orEmpty()
-            tracestate = traceContext["tracestate"].orEmpty()
-          }
+          )
         }
+      val taskName = task.name.ifEmpty { expectedTaskName }
+      Span.current()
+        .addEvent(
+          "edpa.data_availability_sync_task.create",
+          Attributes.builder()
+            .put(VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_NAME, taskName)
+            .put(VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE, task.state.name)
+            .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine)
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
+            .put(XmmTraceAttributes.OUTCOME, "resolved")
+            .build(),
+        )
+      logLabelLifecycle(
+        Level.INFO,
+        "edpa.data_availability_sync_task.create",
+        params,
+        dataProvider,
+        "availability_task_create",
+        "resolved",
+        VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_NAME_STRING to taskName,
+        VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE_STRING to task.state.name,
+        VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT_STRING to
+          task.attemptCount.toString(),
+        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+        VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+        VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
       )
+    } catch (e: CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      logLabelFailure(
+        Level.WARNING,
+        "edpa.data_availability_sync_task.create",
+        params,
+        dataProvider,
+        "availability_task_create",
+        "failed",
+        e,
+        VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_NAME_STRING to expectedTaskName,
+        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
+        VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+        VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
+      )
+      throw e
     }
   }
 

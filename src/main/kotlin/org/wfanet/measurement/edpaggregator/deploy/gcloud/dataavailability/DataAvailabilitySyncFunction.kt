@@ -33,6 +33,7 @@ import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap
+import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.runBlocking
@@ -55,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncTaskKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
@@ -206,6 +208,15 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       task.state == DataAvailabilitySyncTask.State.SUCCEEDED ||
         task.state == DataAvailabilitySyncTask.State.RUNNING
     ) {
+      logTaskLifecycle(
+        task,
+        taskKey,
+        if (task.state == DataAvailabilitySyncTask.State.SUCCEEDED) {
+          "already_succeeded"
+        } else {
+          "already_running"
+        },
+      )
       return
     }
 
@@ -221,24 +232,46 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, task.cmmsModelLine)
           .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, task.doneBlobPathHash)
           .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, task.doneBlobGeneration)
-          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "data_availability_sync")
+          .put(VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE, task.state.name)
+          .put(
+            VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT,
+            task.attemptCount.toLong(),
+          )
+          .put(XmmTraceAttributes.LIFECYCLE_STAGE, "availability_task_process")
           .put(XmmTraceAttributes.OUTCOME, "started")
           .build()
       Tracing.trace("edpa.data_availability.sync.task", attributes) {
         val running =
-          runBlocking(Context.current().asContextElement()) {
-            taskStub.markDataAvailabilitySyncTaskRunning(
-              markDataAvailabilitySyncTaskRunningRequest {
-                name = task.name
-                etag = task.etag
-                requestId =
-                  RequestIds.forMarkDataAvailabilitySyncTaskRunning(
-                    task.name,
-                    task.attemptCount + 1,
-                  )
-              }
-            )
+          try {
+            runBlocking(Context.current().asContextElement()) {
+              taskStub.markDataAvailabilitySyncTaskRunning(
+                markDataAvailabilitySyncTaskRunningRequest {
+                  name = task.name
+                  etag = task.etag
+                  requestId =
+                    RequestIds.forMarkDataAvailabilitySyncTaskRunning(
+                      task.name,
+                      task.attemptCount + 1,
+                    )
+                }
+              )
+            }
+          } catch (e: CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            logTaskLifecycle(task, taskKey, "start_failed", e)
+            throw e
           }
+        Span.current()
+          .setAttribute(
+            VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT,
+            running.attemptCount.toLong(),
+          )
+          .setAttribute(
+            VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE,
+            running.state.name,
+          )
+        logTaskLifecycle(running, taskKey, "started")
         var failureCategory = DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION
         try {
           verifyTaskDoneObject(running, config)
@@ -256,27 +289,71 @@ class DataAvailabilitySyncFunction() : HttpFunction {
                 )
             }
           if (outcome == DataAvailabilitySync.Outcome.BLOCKED_GAPS) {
-            markTaskFailed(taskStub, running, DataAvailabilitySyncTask.FailureCategory.GAP_POLICY)
+            val failed =
+              markTaskFailed(taskStub, running, DataAvailabilitySyncTask.FailureCategory.GAP_POLICY)
+            Span.current()
+              .setAttribute(
+                VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE,
+                failed.state.name,
+              )
+              .setAttribute(
+                VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY,
+                DataAvailabilitySyncTask.FailureCategory.GAP_POLICY.name,
+              )
+            logTaskLifecycle(
+              failed,
+              taskKey,
+              "failed",
+              failureCategory = DataAvailabilitySyncTask.FailureCategory.GAP_POLICY,
+            )
             Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
             return@trace
           }
-          runBlocking(Context.current().asContextElement()) {
-            taskStub.markDataAvailabilitySyncTaskSucceeded(
-              markDataAvailabilitySyncTaskSucceededRequest {
-                name = running.name
-                etag = running.etag
-                requestId = RequestIds.forMarkDataAvailabilitySyncTaskSucceeded(running.name)
-              }
+          val succeeded =
+            runBlocking(Context.current().asContextElement()) {
+              taskStub.markDataAvailabilitySyncTaskSucceeded(
+                markDataAvailabilitySyncTaskSucceededRequest {
+                  name = running.name
+                  etag = running.etag
+                  requestId = RequestIds.forMarkDataAvailabilitySyncTaskSucceeded(running.name)
+                }
+              )
+            }
+          Span.current()
+            .setAttribute(
+              VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE,
+              succeeded.state.name,
             )
-          }
+            .setAttribute(
+              VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT,
+              succeeded.attemptCount.toLong(),
+            )
+          logTaskLifecycle(succeeded, taskKey, "succeeded")
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
           try {
-            markTaskFailed(taskStub, running, failureCategory)
+            val failed = markTaskFailed(taskStub, running, failureCategory)
+            Span.current()
+              .setAttribute(
+                VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE,
+                failed.state.name,
+              )
+              .setAttribute(
+                VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY,
+                failureCategory.name,
+              )
+            logTaskLifecycle(failed, taskKey, "failed", e, failureCategory)
           } catch (markFailedException: Exception) {
             e.addSuppressed(markFailedException)
+            logTaskLifecycle(
+              running,
+              taskKey,
+              "failure_writeback_failed",
+              markFailedException,
+              failureCategory,
+            )
             throw e
           }
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "failed")
@@ -285,12 +362,42 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
   }
 
+  private fun logTaskLifecycle(
+    task: DataAvailabilitySyncTask,
+    taskKey: DataAvailabilitySyncTaskKey,
+    outcome: String,
+    error: Throwable? = null,
+    failureCategory: DataAvailabilitySyncTask.FailureCategory = task.failureCategory,
+  ) {
+    VidLabelingTraceLogging.log(
+      logger,
+      if (error == null) Level.INFO else Level.WARNING,
+      "edpa.data_availability_sync_task.process",
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_NAME_STRING to task.name,
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_STATE_STRING to task.state.name,
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_ATTEMPT_COUNT_STRING to
+        task.attemptCount.toString(),
+      VidLabelingTraceAttributes.DATA_AVAILABILITY_SYNC_TASK_FAILURE_CATEGORY_STRING to
+        failureCategory.name.takeUnless {
+          it == DataAvailabilitySyncTask.FailureCategory.FAILURE_CATEGORY_UNSPECIFIED.name
+        },
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to taskKey.parentKey.toName(),
+      VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to task.cmmsModelLine,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to task.doneBlobPathHash,
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to task.doneBlobGeneration.toString(),
+      XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "availability_task_process",
+      XmmTraceAttributes.OUTCOME_STRING to outcome,
+      XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),
+      XmmTraceAttributes.ERROR_CODE_STRING to error?.let(XmmTraceAttributes::errorCode),
+    )
+  }
+
   private fun markTaskFailed(
     taskStub: DataAvailabilitySyncTaskServiceCoroutineStub,
     task: DataAvailabilitySyncTask,
     failureCategory: DataAvailabilitySyncTask.FailureCategory,
-  ) {
-    runBlocking(Context.current().asContextElement()) {
+  ): DataAvailabilitySyncTask {
+    return runBlocking(Context.current().asContextElement()) {
       taskStub.markDataAvailabilitySyncTaskFailed(
         markDataAvailabilitySyncTaskFailedRequest {
           name = task.name

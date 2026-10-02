@@ -46,6 +46,8 @@ import org.wfanet.measurement.common.telemetry.SafeTelemetryText
 import org.wfanet.measurement.common.telemetry.buildCloudTelemetryLoggingOptions
 import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
@@ -113,6 +115,17 @@ internal data class VidLabelingEvidence(
   val traceId: String? = null,
 )
 
+internal data class VidLabelingAvailabilityTask(
+  val name: String,
+  val modelLine: String,
+  val state: String,
+  val attemptCount: Int,
+  val failureCategory: String,
+  val eventDate: String,
+  val doneBlobPathHash: String,
+  val doneBlobGeneration: Long,
+)
+
 internal data class VidLabelingTraceCollection(
   val rawImpressionUpload: String,
   val traceStatus: VidLabelingTraceStatus,
@@ -121,6 +134,7 @@ internal data class VidLabelingTraceCollection(
   val evidence: List<VidLabelingEvidence>,
   val sourceStatuses: List<CloudTelemetrySourceStatus>,
   val warnings: List<String>,
+  val availabilityTasks: List<VidLabelingAvailabilityTask> = emptyList(),
 )
 
 internal data class VidLabelingTraceRequest(
@@ -157,7 +171,11 @@ internal class VidLabelingTraceCollector(
       initialGraph.copy(
         nodes =
           initialGraph.nodes +
-            finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
+            finalStateResolver.resolve(
+              initialGraph.upload,
+              initialGraph.modelLines,
+              initialGraph.availabilityTasks,
+            )
       )
     val evidence = linkedSetOf<VidLabelingEvidence>()
     val sourceStatuses = mutableListOf<CloudTelemetrySourceStatus>()
@@ -283,8 +301,29 @@ internal class VidLabelingTraceCollector(
       orderedEvidence,
       sourceStatuses.distinct(),
       warnings.distinct(),
+      authoritativeGraph.availabilityTasks.map { it.toTraceTask() },
     )
   }
+
+  private fun DataAvailabilitySyncTask.toTraceTask(): VidLabelingAvailabilityTask =
+    VidLabelingAvailabilityTask(
+      name,
+      cmmsModelLine,
+      state.name,
+      attemptCount,
+      failureCategory.name
+        .takeUnless {
+          it == DataAvailabilitySyncTask.FailureCategory.FAILURE_CATEGORY_UNSPECIFIED.name
+        }
+        .orEmpty(),
+      eventDate.year.toString().padStart(4, '0') +
+        "-" +
+        eventDate.month.toString().padStart(2, '0') +
+        "-" +
+        eventDate.day.toString().padStart(2, '0'),
+      doneBlobPathHash,
+      doneBlobGeneration,
+    )
 
   private suspend fun readLogs(
     project: String,
@@ -518,6 +557,17 @@ internal class VidLabelingTraceCollector(
     if (graph.modelLines.any { it.state.name == "FAILED" }) {
       return VidLabelingExecutionStatus.FAILED
     }
+    if (graph.availabilityTasks.any { it.state == DataAvailabilitySyncTask.State.FAILED }) {
+      return VidLabelingExecutionStatus.FAILED
+    }
+    if (
+      graph.availabilityTasks.any {
+        it.state == DataAvailabilitySyncTask.State.PENDING ||
+          it.state == DataAvailabilitySyncTask.State.RUNNING
+      }
+    ) {
+      return VidLabelingExecutionStatus.IN_PROGRESS
+    }
     val availabilityNodes = graph.nodes.filter { it.stage == "data_availability_publish" }
     if (
       graph.modelLines.isNotEmpty() &&
@@ -560,6 +610,7 @@ internal class VidLabelingTraceCollector(
   private fun durableUnit(item: VidLabelingEvidence): String {
     return listOf(
         IMPRESSION_METADATA,
+        AVAILABILITY_TASK,
         "xmm.edpa.vid_labeling_job.name",
         "xmm.edpa.ranker_job.name",
         "xmm.edpa.pool_assignment_job.name",
@@ -669,6 +720,12 @@ internal class VidLabelingTraceCollector(
         "label_finalize"
       "label" in normalized -> "label"
       "data_watcher" in normalized -> "data_watcher"
+      "availability_sync_task" in normalized || "availability_task" in normalized ->
+        when {
+          "publication" in normalized -> "availability_task_publication"
+          "process" in normalized || "sync.task" in normalized -> "availability_task_process"
+          else -> "availability_task_create"
+        }
       "availability" in normalized && ("publish" in normalized || "interval" in normalized) ->
         "data_availability_publish"
       "availability" in normalized -> "data_availability_metadata"
@@ -703,6 +760,7 @@ internal class VidLabelingTraceCollector(
     private const val RAW_UPLOAD = "xmm.edpa.raw_impression_upload.name"
     private const val RAW_UPLOAD_MODEL_LINE = "xmm.edpa.raw_impression_upload_model_line.name"
     private const val IMPRESSION_METADATA = "xmm.edpa.impression_metadata.name"
+    private const val AVAILABILITY_TASK = "xmm.edpa.data_availability_sync_task.name"
     private const val GCS_PATH_HASH = "xmm.gcs.object.path_hash"
     private const val GCS_GENERATION = "xmm.gcs.object.generation"
 
@@ -720,6 +778,11 @@ internal class VidLabelingTraceCollector(
         "xmm.edpa.rank_index_blob.name",
         "xmm.edpa.rank_index_blob.type",
         IMPRESSION_METADATA,
+        AVAILABILITY_TASK,
+        "xmm.edpa.data_availability_sync_task.state",
+        "xmm.edpa.data_availability_sync_task.attempt_count",
+        "xmm.edpa.data_availability_sync_task.publication_attempt",
+        "xmm.edpa.data_availability_sync_task.failure_category",
         "xmm.edpa.recovery_work_item.name",
         "xmm.edpa.replaces_raw_impression_upload.name",
         "xmm.edpa.upload_healing_operation.name",
@@ -757,6 +820,7 @@ internal class VidLabelingTraceCollector(
         "xmm.edpa.vid_labeling_job.name",
         "xmm.edpa.rank_index_blob.name",
         IMPRESSION_METADATA,
+        AVAILABILITY_TASK,
         "xmm.edpa.recovery_work_item.name",
       )
     private val DISCOVERY_CORRELATION_FIELDS = UNIQUE_CORRELATION_FIELDS + GCS_PATH_HASH
@@ -773,7 +837,9 @@ internal class VidLabelingTraceCollector(
         "dispatch",
         "label",
         "label_finalize",
-        "data_watcher",
+        "availability_task_create",
+        "availability_task_publication",
+        "availability_task_process",
         "data_availability_metadata",
         "data_availability_publish",
       )
@@ -788,6 +854,7 @@ internal class VidLabelingTraceCollector(
         "xmm.work_item_attempt.name",
         "xmm.work_item.name",
         "xmm.edpa.impression_metadata.name",
+        AVAILABILITY_TASK,
         "xmm.edpa.pool_assignment_job.name",
         "xmm.edpa.ranker_job.name",
         "xmm.edpa.vid_labeling_job.name",
@@ -849,6 +916,36 @@ internal object VidLabelingTraceOutput {
             " (" +
             stage.evidenceCount +
             ")"
+        )
+      }
+      appendLine()
+    }
+    if (collection.availabilityTasks.isNotEmpty()) {
+      appendLine("## Availability tasks")
+      appendLine()
+      appendLine(
+        "| Task | Model line | State | Attempts | Failure category | Event date | Object |"
+      )
+      appendLine("|---|---|---|---:|---|---|---|")
+      for (task in collection.availabilityTasks.sortedBy { it.name }) {
+        appendLine(
+          "| `" +
+            safe(task.name) +
+            "` | `" +
+            safe(task.modelLine) +
+            "` | " +
+            safe(task.state) +
+            " | " +
+            task.attemptCount +
+            " | " +
+            safe(task.failureCategory) +
+            " | " +
+            safe(task.eventDate) +
+            " | `" +
+            safe(task.doneBlobPathHash) +
+            "@" +
+            task.doneBlobGeneration +
+            "` |"
         )
       }
       appendLine()
@@ -1138,6 +1235,7 @@ internal class VidLabelingTrace(private val dependencies: VidLabelingTraceDepend
         PoolAssignmentJobServiceCoroutineStub(edpaChannel),
         RankerJobServiceCoroutineStub(edpaChannel),
         VidLabelingJobServiceCoroutineStub(edpaChannel),
+        DataAvailabilitySyncTaskServiceCoroutineStub(edpaChannel),
         RankIndexBlobServiceCoroutineStub(edpaChannel),
         WorkItemsCoroutineStub(controlPlaneChannel),
         WorkItemAttemptsCoroutineStub(controlPlaneChannel),
@@ -1249,6 +1347,11 @@ private val VID_SAFE_LOG_FIELDS =
     "xmm.edpa.rank_index_blob.name",
     "xmm.edpa.rank_index_blob.type",
     "xmm.edpa.impression_metadata.name",
+    "xmm.edpa.data_availability_sync_task.name",
+    "xmm.edpa.data_availability_sync_task.state",
+    "xmm.edpa.data_availability_sync_task.attempt_count",
+    "xmm.edpa.data_availability_sync_task.publication_attempt",
+    "xmm.edpa.data_availability_sync_task.failure_category",
     "xmm.edpa.recovery_work_item.name",
     "xmm.edpa.replaces_raw_impression_upload.name",
     "xmm.edpa.upload_healing_operation.name",
@@ -1290,6 +1393,7 @@ private val VID_CORRELATION_FIELDS =
     "xmm.edpa.vid_labeling_job.name",
     "xmm.edpa.rank_index_blob.name",
     "xmm.edpa.impression_metadata.name",
+    "xmm.edpa.data_availability_sync_task.name",
     "xmm.edpa.recovery_work_item.name",
     "xmm.edpa.replaces_raw_impression_upload.name",
     "xmm.edpa.upload_healing_operation.name",
@@ -1308,6 +1412,7 @@ internal fun vidTraceAttributesFor(value: String): Collection<String> {
     "/rankerJobs/" in value -> listOf("xmm.edpa.ranker_job.name")
     "/vidLabelingJobs/" in value -> listOf("xmm.edpa.vid_labeling_job.name")
     "/rankIndexBlobs/" in value -> listOf("xmm.edpa.rank_index_blob.name")
+    "/dataAvailabilitySyncTasks/" in value -> listOf("xmm.edpa.data_availability_sync_task.name")
     "/rawImpressionUploads/" in value ->
       listOf(
         "xmm.edpa.raw_impression_upload.name",
