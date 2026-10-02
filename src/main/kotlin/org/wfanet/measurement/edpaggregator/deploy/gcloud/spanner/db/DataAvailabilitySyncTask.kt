@@ -219,6 +219,11 @@ fun AsyncDatabaseClient.TransactionContext.insertDataAvailabilitySyncTask(
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
+  insertDataAvailabilitySyncTaskPublication(
+    task.dataProviderResourceId,
+    rawImpressionUploadId,
+    task.dataAvailabilitySyncTaskResourceId,
+  )
 }
 
 private suspend fun AsyncDatabaseClient.ReadContext.querySingle(

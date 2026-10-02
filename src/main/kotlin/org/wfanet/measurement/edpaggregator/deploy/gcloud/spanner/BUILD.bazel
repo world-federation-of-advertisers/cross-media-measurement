@@ -12,6 +12,20 @@ package(
 )
 
 kt_jvm_library(
+    name = "data_availability_sync_task_publication_runner",
+    srcs = ["DataAvailabilitySyncTaskPublicationRunner.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/dataavailability:data_availability_sync_task_publisher",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
     name = "spanner_data_availability_sync_task_service",
     srcs = ["SpannerDataAvailabilitySyncTaskService.kt"],
     deps = [
@@ -173,17 +187,22 @@ kt_jvm_library(
     srcs = ["InternalApiServer.kt"],
     visibility = ["//visibility:private"],
     deps = [
+        ":data_availability_sync_task_publication_runner",
         ":internal_api_services",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_duration_converter",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/dataavailability:google_data_availability_sync_task_publisher",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:interceptors",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiter_provider",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:rate_limiting_server_interceptor",
         "//src/main/kotlin/org/wfanet/measurement/common/grpc:service_flags",
         "//src/main/proto/wfa/measurement/config:rate_limit_config_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
         "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/pubsub:default_google_pub_sub_client",
     ],
 )
 
