@@ -329,6 +329,7 @@ object LiquidLegionsV2Starter {
       }
       ComputationDetails.ProtocolCase.HONEST_MAJORITY_SHARE_SHUFFLE,
       ComputationDetails.ProtocolCase.TRUS_TEE,
+      ComputationDetails.ProtocolCase.TRUS_TEE_V2,
       ComputationDetails.ProtocolCase.PROTOCOL_NOT_SET -> {
         error("Invalid Protocol type in ComputationDetails.")
       }

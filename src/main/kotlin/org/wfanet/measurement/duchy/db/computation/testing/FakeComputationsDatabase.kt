@@ -359,6 +359,7 @@ private constructor(
                 ComputationStage.StageCase.HONEST_MAJORITY_SHARE_SHUFFLE ->
                   ComputationType.HONEST_MAJORITY_SHARE_SHUFFLE
                 ComputationStage.StageCase.TRUS_TEE -> ComputationType.TRUS_TEE
+                ComputationStage.StageCase.TRUS_TEE_V2 -> ComputationType.TRUS_TEE_V2
                 ComputationStage.StageCase.STAGE_NOT_SET ->
                   error("Computation type for $it is unknown")
               },
