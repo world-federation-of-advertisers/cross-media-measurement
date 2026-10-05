@@ -44,9 +44,13 @@ message DataProviderFieldSupportConfig {
 
   // Support for a single field over a time interval.
   message FieldSupport {
-    // A field path with respect to the local market Event message, e.g.
-    // `common.us_state`. Must reference a non-virtual field.
-    string field = 1;
+    // A field path with respect to the local market Event message with `.`
+    // as the traversal operator, e.g. `common.us_state`.
+    //
+    // The field at this path must be tagged GROUPABLE. It may be real or
+    // virtual. There may be at most one policy per field path.
+    // Must reference a non-virtual field.
+    string field_path = 1;
 
     // Interval over which the field is supported. Required.
     google.type.Interval supported_interval = 2;
