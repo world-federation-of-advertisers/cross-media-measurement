@@ -6,6 +6,20 @@ package(default_visibility = ["//visibility:public"])
 IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
+    name = "data_provider_field_support_config_proto",
+    srcs = ["data_provider_field_support_config.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/type:interval_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "data_provider_field_support_config_kt_jvm_proto",
+    deps = [":data_provider_field_support_config_proto"],
+)
+
+proto_library(
     name = "encryption_key_pair_config_proto",
     srcs = ["encryption_key_pair_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,

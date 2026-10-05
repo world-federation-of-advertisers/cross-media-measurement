@@ -1,0 +1,56 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.reporting;
+
+import "google/type/interval.proto";
+
+option java_package = "org.wfanet.measurement.config.reporting";
+option java_multiple_files = true;
+option java_outer_classname = "DataProviderFieldSupportConfigProto";
+
+// Declares which real event template fields each DataProvider supports,
+// and over which date ranges.
+//
+// A DataProvider supports a field for a reporting window only if a single
+// FieldSupport entry's date range covers the entire window. A DataProvider
+// with no FieldSupport entry for a field does not support it.
+//
+// Virtual dimensions are never listed. Support for a virtual dimension is
+// derived from the support of the real fields used in each of its
+// definitions.
+message DataProviderFieldSupportConfig {
+  // The fields supported by a single DataProvider.
+  message DataProviderFieldSupport {
+    // Resource name of the DataProvider.
+    string data_provider = 1;
+
+    // Each field this DataProvider supports, with its period of support.
+    repeated FieldSupport field_support = 2;
+  }
+
+  // Support for a single field over a time interval.
+  message FieldSupport {
+    // A field path with respect to the local market Event message, e.g.
+    // `common.us_state`. Must reference a non-virtual field.
+    string field = 1;
+
+    // Interval over which the field is supported. Required.
+    google.type.Interval supported_interval = 2;
+  }
+
+  repeated DataProviderFieldSupport data_provider_field_supports = 1;
+}
