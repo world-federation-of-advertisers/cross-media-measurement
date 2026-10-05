@@ -106,7 +106,6 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
       service.createDataAvailabilitySyncTask(
         createRequest()
           .toBuilder()
-          .clearRequestId()
           .setDataAvailabilitySyncTask(
             createRequest()
               .dataAvailabilitySyncTask
@@ -117,6 +116,20 @@ class SpannerDataAvailabilitySyncTaskServiceTest {
       )
 
     assertThat(replayed).isEqualTo(created)
+    Unit
+  }
+
+  @Test
+  fun `missing request ID is rejected`() = runBlocking {
+    insertUpload()
+    val service = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.createDataAvailabilitySyncTask(createRequest().toBuilder().clearRequestId().build())
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
     Unit
   }
 

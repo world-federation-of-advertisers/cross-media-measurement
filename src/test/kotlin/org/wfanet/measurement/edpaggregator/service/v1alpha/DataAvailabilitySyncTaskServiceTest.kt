@@ -86,6 +86,21 @@ class DataAvailabilitySyncTaskServiceTest {
     }
 
   @Test
+  fun `create rejects missing request ID`() =
+    runBlocking<Unit> {
+      insertUpload()
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.createDataAvailabilitySyncTask(
+            createRequest().toBuilder().clearRequestId().build()
+          )
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+    }
+
+  @Test
   fun `create rejects malformed trace context`() =
     runBlocking<Unit> {
       insertUpload()

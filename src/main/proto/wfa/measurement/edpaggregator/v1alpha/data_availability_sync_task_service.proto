@@ -65,10 +65,13 @@ message CreateDataAvailabilitySyncTaskRequest {
     (google.api.field_info).format = UUID4
   ];
 
-  // Optional UUID4 used to make retries idempotent. When set, it must equal
+  // UUID4 used to make retries idempotent. It must equal
   // `data_availability_sync_task_id`.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is intentionally REQUIRED so the
+  //     server can deduplicate retries of this server-named resource. --)
   string request_id = 4 [
-    (google.api.field_behavior) = OPTIONAL,
+    (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
 }

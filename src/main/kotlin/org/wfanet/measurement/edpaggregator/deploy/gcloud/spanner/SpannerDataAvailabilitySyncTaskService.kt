@@ -256,21 +256,22 @@ class SpannerDataAvailabilitySyncTaskService(
     ) {
       invalidArgument("done object, model line, and event date are required")
     }
+    if (request.requestId.isEmpty()) {
+      invalidArgument("request_id is required")
+    }
     try {
       val canonicalDoneBlobUri = BlobUris.canonicalGcsUri(task.doneBlobUri)
-      if (request.requestId.isNotEmpty()) {
-        if (UUID.fromString(request.requestId).version() != 4) {
-          invalidArgument("request_id must be a UUID4")
-        }
-        if (
-          request.requestId !=
-            RequestIds.forDataAvailabilitySyncTask(
-              VidLabelingTraceAttributes.gcsObjectPathHash(canonicalDoneBlobUri),
-              task.doneBlobGeneration,
-            )
-        ) {
-          invalidArgument("request_id must match the done object")
-        }
+      if (UUID.fromString(request.requestId).version() != 4) {
+        invalidArgument("request_id must be a UUID4")
+      }
+      if (
+        request.requestId !=
+          RequestIds.forDataAvailabilitySyncTask(
+            VidLabelingTraceAttributes.gcsObjectPathHash(canonicalDoneBlobUri),
+            task.doneBlobGeneration,
+          )
+      ) {
+        invalidArgument("request_id must match the done object")
       }
       LocalDate.of(task.eventDate.year, task.eventDate.month, task.eventDate.day)
     } catch (e: IllegalArgumentException) {

@@ -82,11 +82,9 @@ class DataAvailabilitySyncTaskService(
     if (request.dataAvailabilitySyncTaskId != expectedId) {
       invalidArgument("data_availability_sync_task_id must match the done object")
     }
-    if (request.requestId.isNotEmpty()) {
-      validateUuid(request.requestId, "request_id")
-      if (request.requestId != expectedId) {
-        invalidArgument("request_id must match the done object")
-      }
+    validateUuid(request.requestId, "request_id")
+    if (request.requestId != expectedId) {
+      invalidArgument("request_id must match the done object")
     }
 
     val internalResponse = callInternal {
