@@ -59,6 +59,7 @@ import org.wfanet.measurement.common.api.grpc.listResourcesWithAdaptivePageSize
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.edpaggregator.common.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.traceSuspending
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRequisitionMetadataRequestKt

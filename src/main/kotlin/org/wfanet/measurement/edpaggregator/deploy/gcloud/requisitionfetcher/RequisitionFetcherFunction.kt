@@ -50,11 +50,11 @@ import org.wfanet.measurement.config.edpaggregator.DataProviderRequisitionConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.edpaggregator.common.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionGrouperByReportId
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionsValidator
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.SecureComputationRequisitionWorkItemDispatcher
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing.trace

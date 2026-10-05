@@ -23,8 +23,8 @@ import org.wfanet.measurement.config.edpaggregator.RequisitionFetcherConfig
 import org.wfanet.measurement.config.edpaggregator.RequisitionWorkItemDispatchConfig
 import org.wfanet.measurement.config.edpaggregator.StorageParams
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.common.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.RequisitionFetcher
-import org.wfanet.measurement.edpaggregator.requisitionfetcher.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerParamsValidator
 
 /** Validates RequisitionFetcher direct-dispatch configuration before or during activation. */

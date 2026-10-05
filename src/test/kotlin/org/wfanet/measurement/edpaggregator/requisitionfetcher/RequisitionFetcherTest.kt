@@ -85,6 +85,7 @@ import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.consent.client.measurementconsumer.encryptRequisitionSpec
 import org.wfanet.measurement.consent.client.measurementconsumer.signMeasurementSpec
+import org.wfanet.measurement.edpaggregator.common.StoragePathPrefixes
 import org.wfanet.measurement.edpaggregator.requisitionfetcher.testing.TestRequisitionData
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateRequisitionMetadataRequest

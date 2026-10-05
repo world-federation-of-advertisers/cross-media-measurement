@@ -18,7 +18,11 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 
 import java.time.Duration
 import org.wfanet.measurement.common.toDuration
+import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
+import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
+import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
+import org.wfanet.measurement.edpaggregator.common.StoragePathPrefixes
 
 /**
  * LabelerInput field path the Phase-2 TEE requires: the raw event-id column that feeds
@@ -95,5 +99,109 @@ fun requireValidStalenessThreshold(config: VidLabelingConfig) {
 fun requireValidMaxFileBatchSizeBytes(config: VidLabelingConfig) {
   require(config.maxFileBatchSizeBytes > 0) {
     "max_file_batch_size_bytes must be set (> 0) for data provider: ${config.dataProvider}"
+  }
+}
+
+/** Validates labeled-output routing shared by VID labeling and availability synchronization. */
+object VidLabelingStorageConfigValidator {
+  fun validate(
+    dispatcherConfigs: VidLabelingConfigs,
+    monitorConfigs: VidLabelingConfigs,
+    dataAvailabilitySyncConfigs: DataAvailabilitySyncConfigs,
+    dataWatcherConfig: DataWatcherConfig,
+  ) {
+    val dispatcherRoutes = routesByDataProvider(dispatcherConfigs)
+    val monitorRoutes = routesByDataProvider(monitorConfigs)
+    require(dispatcherRoutes == monitorRoutes) {
+      "VID labeling dispatcher and monitor storage routes differ"
+    }
+
+    val syncConfigsByDataProvider =
+      dataAvailabilitySyncConfigs.configsList.associateBy { it.dataProvider }
+    require(syncConfigsByDataProvider.size == dataAvailabilitySyncConfigs.configsCount) {
+      "DataAvailabilitySync config contains duplicate data providers"
+    }
+
+    val namespaces = mutableListOf<StoragePathPrefixes.Namespace>()
+    for (vidConfig in dispatcherConfigs.configsList) {
+      require(vidConfig.vidLabeledImpressionsStorageParams.hasGcs()) {
+        "VID-labeled impression storage must use GCS for ${vidConfig.dataProvider}"
+      }
+      requireValidPath(vidConfig.edpImpressionPath, "VID labeling", vidConfig.dataProvider)
+      val syncConfig =
+        requireNotNull(syncConfigsByDataProvider[vidConfig.dataProvider]) {
+          "Missing DataAvailabilitySync config for ${vidConfig.dataProvider}"
+        }
+      require(syncConfig.dataAvailabilityStorage.hasGcs()) {
+        "DataAvailabilitySync storage must use GCS for ${vidConfig.dataProvider}"
+      }
+      requireValidPath(syncConfig.edpImpressionPath, "DataAvailabilitySync", vidConfig.dataProvider)
+
+      val internalStorageRoot =
+        "gs://${vidConfig.vidLabeledImpressionsStorageParams.gcs.bucketName}"
+      val externalStorageRoot = "gs://${syncConfig.dataAvailabilityStorage.gcs.bucketName}"
+      require(internalStorageRoot == externalStorageRoot) {
+        "VID labeling and DataAvailabilitySync buckets differ for ${vidConfig.dataProvider}"
+      }
+      namespaces +=
+        StoragePathPrefixes.Namespace(
+          internalStorageRoot,
+          vidConfig.edpImpressionPath,
+          "internal labeled output for ${vidConfig.dataProvider}",
+        )
+      namespaces +=
+        StoragePathPrefixes.Namespace(
+          externalStorageRoot,
+          syncConfig.edpImpressionPath,
+          "external labeled output for ${vidConfig.dataProvider}",
+        )
+
+      val availabilityRoutes =
+        dataWatcherConfig.watchedPathsList.filter { watchedPath ->
+          watchedPath.hasHttpEndpointSink() &&
+            watchedPath.httpEndpointSink.appParams.fieldsMap["dataProvider"]?.stringValue ==
+              vidConfig.dataProvider
+        }
+      val externalDone =
+        "$externalStorageRoot/${syncConfig.edpImpressionPath}/model-line/example/2000-01-01/done"
+      require(availabilityRoutes.any { it.sourcePathRegex.toRegex().matches(externalDone) }) {
+        "DataWatcher does not match the external labeled-output path for ${vidConfig.dataProvider}"
+      }
+      val internalPrefix = "$internalStorageRoot/${vidConfig.edpImpressionPath}"
+      val internalExamples =
+        listOf(
+          internalPrefix,
+          "$internalPrefix/",
+          "$internalPrefix/model-line/example/2000-01-01/done",
+        )
+      require(
+        availabilityRoutes.none { watchedPath ->
+          val regex = watchedPath.sourcePathRegex.toRegex()
+          internalExamples.any(regex::matches)
+        }
+      ) {
+        "DataWatcher matches the internal labeled-output path for ${vidConfig.dataProvider}"
+      }
+    }
+    StoragePathPrefixes.requireDisjoint(namespaces)
+  }
+
+  private fun routesByDataProvider(configs: VidLabelingConfigs): Map<String, Pair<String, String>> {
+    val routes =
+      configs.configsList.associate { config ->
+        config.dataProvider to
+          (config.vidLabeledImpressionsStorageParams.gcs.bucketName to config.edpImpressionPath)
+      }
+    require(routes.size == configs.configsCount) {
+      "VidLabeling config contains duplicate data providers"
+    }
+    return routes
+  }
+
+  private fun requireValidPath(path: String, owner: String, dataProvider: String) {
+    require(path.isNotEmpty()) { "$owner edp_impression_path is missing for $dataProvider" }
+    require(path == path.trim('/')) {
+      "$owner edp_impression_path must not start or end with '/' for $dataProvider"
+    }
   }
 }
