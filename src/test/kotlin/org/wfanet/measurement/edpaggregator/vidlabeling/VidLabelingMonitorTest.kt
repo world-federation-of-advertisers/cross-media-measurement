@@ -72,6 +72,8 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.CreateDataAvailabilitySyncTaskRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
@@ -79,6 +81,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
@@ -97,6 +100,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
+import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
@@ -151,6 +155,9 @@ class VidLabelingMonitorTest {
     mockService()
   private val rankerJobService: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase =
     mockService()
+  private val dataAvailabilitySyncTaskService:
+    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineImplBase =
+    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -164,6 +171,7 @@ class VidLabelingMonitorTest {
     addService(rawImpressionUploadFileService)
     addService(vidLabelingJobService)
     addService(rankerJobService)
+    addService(dataAvailabilitySyncTaskService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -201,6 +209,11 @@ class VidLabelingMonitorTest {
   }
   private val rankerJobStub by lazy {
     RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(grpcTestServerRule.channel)
+  }
+  private val dataAvailabilitySyncTaskStub by lazy {
+    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
+      grpcTestServerRule.channel
+    )
   }
   private val rawImpressionsStorageClient = InMemoryStorageClient()
   private val vidLabeledImpressionsStorageClient = InMemoryStorageClient()
@@ -292,7 +305,8 @@ class VidLabelingMonitorTest {
     )
 
   private fun createMonitor(
-    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+    rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    readDoneBlobGeneration: suspend (String) -> Long? = { null },
   ): VidLabelingMonitor =
     VidLabelingMonitor(
       rawImpressionUploadStub = rawImpressionUploadStub,
@@ -306,7 +320,10 @@ class VidLabelingMonitorTest {
       poolAssignmentJobStub = poolAssignmentJobStub,
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
+      dataAvailabilitySyncTaskStub = dataAvailabilitySyncTaskStub,
       workItemsStub = workItemsStub,
+      vidLabeledImpressionsBlobPrefix = VID_LABELED_IMPRESSIONS_PREFIX,
+      readDoneBlobGeneration = readDoneBlobGeneration,
       rpcThrottlers = rpcThrottlers,
       clock = fixedClock,
     )
@@ -540,6 +557,105 @@ class VidLabelingMonitorTest {
 
     assertThat(result.stuckUploads).isEmpty()
     assertThat(result.hasIssues).isFalse()
+  }
+
+  @Test
+  fun `health recovers stale labeling handoff after all jobs succeeded`() = runBlocking {
+    val upload =
+      upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(13)))
+    val modelLine = rawImpressionUploadModelLine {
+      name = "${upload.name}/modelLines/ml1"
+      cmmsModelLine = MODEL_LINE
+      state = RawImpressionUploadModelLine.State.LABELING
+      updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(13)).toEpochMilli())
+      etag = "etag-1"
+    }
+    stubUploads(active = listOf(upload))
+    stubModelLines(modelLine)
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "${upload.name}/files/file1"
+            blobUri = "gs://raw-bucket/2026-06-01/file.parquet"
+            eventDate = date {
+              year = 2026
+              month = 6
+              day = 1
+            }
+          }
+        }
+      )
+    whenever(vidLabelingJobService.listVidLabelingJobs(any()))
+      .thenReturn(
+        listVidLabelingJobsResponse {
+          vidLabelingJobs += vidLabelingJob {
+            name = "${upload.name}/vidLabelingJobs/job1"
+            cmmsModelLines += MODEL_LINE
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+        }
+      )
+    whenever(dataAvailabilitySyncTaskService.createDataAvailabilitySyncTask(any()))
+      .thenReturn(dataAvailabilitySyncTask {})
+    whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineCompleted(any()))
+      .thenReturn(modelLine.copy { state = RawImpressionUploadModelLine.State.COMPLETED })
+
+    val result = createMonitor(readDoneBlobGeneration = { 1234L }).runHealth()
+
+    assertThat(result.recoveredAvailabilityHandoffs).isEqualTo(1)
+    val createCaptor = argumentCaptor<CreateDataAvailabilitySyncTaskRequest>()
+    verifyBlocking(dataAvailabilitySyncTaskService) {
+      createDataAvailabilitySyncTask(createCaptor.capture())
+    }
+    assertThat(createCaptor.firstValue.dataAvailabilitySyncTask.doneBlobUri)
+      .isEqualTo("$VID_LABELED_IMPRESSIONS_PREFIX/model-line/ml1/2026-06-01/done")
+    assertThat(createCaptor.firstValue.dataAvailabilitySyncTask.doneBlobGeneration).isEqualTo(1234L)
+    val markCaptor = argumentCaptor<MarkRawImpressionUploadModelLineCompletedRequest>()
+    verifyBlocking(rawImpressionUploadModelLineService) {
+      markRawImpressionUploadModelLineCompleted(markCaptor.capture())
+    }
+    assertThat(markCaptor.firstValue.name).isEqualTo(modelLine.name)
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
+  }
+
+  @Test
+  fun `health does not recover fresh or failed labeling handoffs`() = runBlocking {
+    val active = upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)
+    val failed = upload("failed-1", RawImpressionUpload.State.FAILED, FIXED_NOW.minusSeconds(1))
+    stubUploads(active = listOf(active), failed = listOf(failed))
+    stubModelLinesByParent(
+      mapOf(
+        active.name to
+          listOf(
+            rawImpressionUploadModelLine {
+              name = "${active.name}/modelLines/ml1"
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.LABELING
+              updateTime =
+                Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofHours(11)).toEpochMilli())
+            }
+          ),
+        failed.name to
+          listOf(
+            rawImpressionUploadModelLine {
+              name = "${failed.name}/modelLines/ml1"
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.FAILED
+              updateTime = Timestamps.fromMillis(FIXED_NOW.minus(Duration.ofDays(1)).toEpochMilli())
+            }
+          ),
+      )
+    )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(listRawImpressionUploadFilesResponse {})
+
+    val result = createMonitor(readDoneBlobGeneration = { 1234L }).runHealth()
+
+    assertThat(result.recoveredAvailabilityHandoffs).isEqualTo(0)
+    verifyBlocking(dataAvailabilitySyncTaskService, never()) {
+      createDataAvailabilitySyncTask(any())
+    }
   }
 
   @Test
@@ -1312,6 +1428,7 @@ class VidLabelingMonitorTest {
     private const val MODEL_LINE = "$MODEL_SUITE/modelLines/ml1"
     private const val MODEL_RELEASE = "$MODEL_SUITE/modelReleases/mr1"
     private const val MODEL_BLOB_PATH = "gs://models/vid-model-v1.pb"
+    private const val VID_LABELED_IMPRESSIONS_PREFIX = "gs://vid-labeled-bucket/edp123"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2
