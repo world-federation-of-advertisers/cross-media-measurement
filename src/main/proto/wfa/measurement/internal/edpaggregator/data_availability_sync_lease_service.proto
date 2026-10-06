@@ -1,0 +1,106 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/api/field_behavior.proto";
+import "google/protobuf/empty.proto";
+import "wfa/measurement/internal/edpaggregator/data_availability_sync_lease.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "DataAvailabilitySyncLeaseServiceProto";
+
+// Internal service for data-availability synchronization leases.
+service DataAvailabilitySyncLeaseService {
+  // Acquires a lease for a synchronization attempt.
+  rpc AcquireDataAvailabilitySyncLease(AcquireDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Retrieves a synchronization lease.
+  rpc GetDataAvailabilitySyncLease(GetDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Validates that a synchronization lease remains active.
+  rpc ValidateDataAvailabilitySyncLease(
+      ValidateDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Renews an active synchronization lease.
+  rpc RenewDataAvailabilitySyncLease(RenewDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Releases an active synchronization lease.
+  rpc ReleaseDataAvailabilitySyncLease(ReleaseDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Marks every elapsed active lease as expired.
+  rpc ExpireDataAvailabilitySyncLeases(ExpireDataAvailabilitySyncLeasesRequest)
+      returns (google.protobuf.Empty);
+
+  // Reports whether a data provider has any unexpired active lease.
+  rpc HasActiveDataAvailabilitySyncLeases(
+      HasActiveDataAvailabilitySyncLeasesRequest)
+      returns (HasActiveDataAvailabilitySyncLeasesResponse);
+}
+
+message AcquireDataAvailabilitySyncLeaseRequest {
+  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
+  string synchronization_attempt_id = 2
+      [(google.api.field_behavior) = REQUIRED];
+  string request_id = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+message GetDataAvailabilitySyncLeaseRequest {
+  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
+  string synchronization_attempt_id = 2
+      [(google.api.field_behavior) = REQUIRED];
+}
+
+message ValidateDataAvailabilitySyncLeaseRequest {
+  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
+  string synchronization_attempt_id = 2
+      [(google.api.field_behavior) = REQUIRED];
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+}
+
+message RenewDataAvailabilitySyncLeaseRequest {
+  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
+  string synchronization_attempt_id = 2
+      [(google.api.field_behavior) = REQUIRED];
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  string request_id = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+message ReleaseDataAvailabilitySyncLeaseRequest {
+  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
+  string synchronization_attempt_id = 2
+      [(google.api.field_behavior) = REQUIRED];
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+  string request_id = 4 [(google.api.field_behavior) = REQUIRED];
+}
+
+message ExpireDataAvailabilitySyncLeasesRequest {
+  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message HasActiveDataAvailabilitySyncLeasesRequest {
+  string data_provider_resource_id = 1 [(google.api.field_behavior) = REQUIRED];
+}
+
+message HasActiveDataAvailabilitySyncLeasesResponse {
+  bool has_active_leases = 1;
+}
