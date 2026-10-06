@@ -37,6 +37,7 @@ internal enum class IdVariable {
   WORK_ITEM,
   UPLOAD_HEALING_OPERATION,
   UPLOAD_HEALING_STEP,
+  DATA_AVAILABILITY_SYNC_TASK,
 }
 
 internal fun ResourceNameParser.assembleName(idMap: Map<IdVariable, String>): String {
