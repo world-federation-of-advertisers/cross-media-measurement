@@ -233,7 +233,6 @@ class DataAvailabilitySync(
           impressionMetadataBlobs,
           doneBlobUri,
           doneBlobGeneration,
-          expectedRawImpressionUpload,
           expectedModelLine,
           expectedEventDate,
         )
@@ -857,11 +856,6 @@ class DataAvailabilitySync(
       // Validate intervals
       require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
         "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
-      }
-      if (expectedRawImpressionUpload != null) {
-        require(blobDetails.rawImpressionUpload == expectedRawImpressionUpload) {
-          "BlobDetails raw_impression_upload does not match the WorkItem"
-        }
       }
       if (expectedModelLine != null) {
         require(blobDetails.modelLine == expectedModelLine) {
