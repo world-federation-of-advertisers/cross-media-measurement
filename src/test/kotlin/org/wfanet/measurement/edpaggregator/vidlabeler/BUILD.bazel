@@ -216,9 +216,11 @@ kt_jvm_test(
     srcs = ["VidLabelerAppTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerAppTest",
     deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:storage_config",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/rawimpressions:rank_index_store",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/testing:vid_labeling_rpc_throttlers",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_app",
