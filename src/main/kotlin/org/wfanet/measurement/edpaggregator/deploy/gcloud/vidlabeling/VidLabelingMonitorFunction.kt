@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.util.logging.Level
@@ -35,6 +36,7 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
@@ -45,6 +47,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSeque
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -254,6 +257,10 @@ class VidLabelingMonitorFunction : HttpFunction {
     // RankerJobService is served by the same RawImpressionMetadata storage deployment.
     val rankerJobStub =
       RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(rawImpressionUploadChannel)
+    val dataAvailabilitySyncTaskStub =
+      DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
+        rawImpressionUploadChannel
+      )
     val dispatchSequencer =
       VidLabelingDispatchSequencer(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -278,6 +285,11 @@ class VidLabelingMonitorFunction : HttpFunction {
         rpcThrottlers = rpcThrottlers,
       )
 
+    val vidLabeledBucket = config.vidLabeledImpressionsStorageParams.gcs.bucketName
+    val vidLabeledStorage: Storage by lazy {
+      createGoogleCloudStorage(config.vidLabeledImpressionsStorageParams.gcs.projectId)
+    }
+    val vidLabeledImpressionsBlobPrefix = "gs://$vidLabeledBucket/${config.edpImpressionPath}"
     val monitor =
       VidLabelingMonitor(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -293,15 +305,18 @@ class VidLabelingMonitorFunction : HttpFunction {
           )
         },
         vidLabeledImpressionsStorageClientProvider = {
-          createStorageClient(
-            config.vidLabeledImpressionsStorageParams.gcs.bucketName,
-            config.vidLabeledImpressionsStorageParams.gcs.projectId,
-          )
+          GcsStorageClient(vidLabeledStorage, vidLabeledBucket)
         },
         poolAssignmentJobStub = poolAssignmentJobStub,
         rankerJobStub = rankerJobStub,
         vidLabelingJobStub = vidLabelingJobStub,
+        dataAvailabilitySyncTaskStub = dataAvailabilitySyncTaskStub,
         workItemsStub = workItemsStub,
+        vidLabeledImpressionsBlobPrefix = vidLabeledImpressionsBlobPrefix,
+        readDoneBlobGeneration = { blobUri ->
+          val parsed = SelectedStorageClient.parseBlobUri(blobUri)
+          vidLabeledStorage.get(checkNotNull(parsed.bucket), parsed.key)?.generation
+        },
         rpcThrottlers = rpcThrottlers,
       )
 
@@ -360,17 +375,17 @@ class VidLabelingMonitorFunction : HttpFunction {
 
     /** Builds a bucket-rooted [StorageClient] for the data-quality crawl. */
     private fun createStorageClient(bucketName: String, projectId: String): StorageClient {
-      return GcsStorageClient(
-        StorageOptions.newBuilder()
-          .also { builder ->
-            if (projectId.isNotEmpty()) {
-              builder.setProjectId(projectId)
-            }
-          }
-          .build()
-          .service,
-        bucketName,
-      )
+      return GcsStorageClient(createGoogleCloudStorage(projectId), bucketName)
     }
+
+    private fun createGoogleCloudStorage(projectId: String): Storage =
+      StorageOptions.newBuilder()
+        .also { builder ->
+          if (projectId.isNotEmpty()) {
+            builder.setProjectId(projectId)
+          }
+        }
+        .build()
+        .service
   }
 }
