@@ -5,6 +5,30 @@ load(
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 spanner_emulator_test(
+    name = "SpannerDataAvailabilitySyncTaskServiceTest",
+    srcs = ["SpannerDataAvailabilitySyncTaskServiceTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.SpannerDataAvailabilitySyncTaskServiceTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner:spanner_data_availability_sync_task_service",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/testing:schemata",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_state_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_state_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner/testing",
+    ],
+)
+
+spanner_emulator_test(
     name = "EdpAggregatorSchemaTest",
     srcs = ["EdpAggregatorSchemaTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.EdpAggregatorSchemaTest",
