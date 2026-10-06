@@ -711,9 +711,13 @@ class VidLabelingDispatcherTest {
       )
     val manifestComparison =
       candidate.firstValue.rawImpressionUploadCorrectionCandidate.manifestComparison
-    assertThat(manifestComparison.priorManifestList.single().ownerRawImpressionUploadResourceId)
+    assertThat(
+        manifestComparison.priorManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
       .isEqualTo("previous")
-    assertThat(manifestComparison.currentManifestList.single().ownerRawImpressionUploadResourceId)
+    assertThat(
+        manifestComparison.currentManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
       .isEqualTo(RAW_IMPRESSION_UPLOAD_ID)
     assertThat(manifestComparison.currentManifestList.single().eventDate)
       .isEqualTo(EVENT_DATE_PROTO)
