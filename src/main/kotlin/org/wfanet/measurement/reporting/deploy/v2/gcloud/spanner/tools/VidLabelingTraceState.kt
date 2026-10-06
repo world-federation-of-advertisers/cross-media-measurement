@@ -26,9 +26,12 @@ import org.wfanet.measurement.api.v2alpha.ModelLinesGrpcKt.ModelLinesCoroutineSt
 import org.wfanet.measurement.api.v2alpha.ModelRolloutsGrpcKt.ModelRolloutsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.ModelShardsGrpcKt.ModelShardsCoroutineStub
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListDataAvailabilitySyncTasksRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequest
@@ -78,6 +81,7 @@ internal data class VidLabelingAuthoritativeGraph(
   val upload: RawImpressionUpload,
   val modelLines: List<RawImpressionUploadModelLine>,
   val nodes: List<ExpectedTraceNode>,
+  val availabilityTasks: List<DataAvailabilitySyncTask> = emptyList(),
 ) {
   val correlationValues: Set<String>
     get() =
@@ -142,6 +146,7 @@ internal fun interface VidLabelingFinalStateResolver {
   suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
+    availabilityTasks: List<DataAvailabilitySyncTask>,
   ): List<ExpectedTraceNode>
 }
 
@@ -155,6 +160,7 @@ internal class GcsKingdomFinalStateResolver(
   override suspend fun resolve(
     upload: RawImpressionUpload,
     modelLines: List<RawImpressionUploadModelLine>,
+    availabilityTasks: List<DataAvailabilitySyncTask>,
   ): List<ExpectedTraceNode> {
     val dataProviderName = upload.name.substringBefore("/rawImpressionUploads/")
     val dataProvider =
@@ -182,6 +188,27 @@ internal class GcsKingdomFinalStateResolver(
         )
       )
       for (modelLine in modelLines) {
+        val tasksForModelLine =
+          availabilityTasks.filter { it.cmmsModelLine == modelLine.cmmsModelLine }
+        for (task in tasksForModelLine) {
+          val doneBlob = readObjectMetadata(task.doneBlobUri, task.doneBlobGeneration)
+          add(
+            ExpectedTraceNode(
+              task.name + ":done_object",
+              modelLine.cmmsModelLine,
+              "availability_task_create",
+              if (doneBlob?.generation == task.doneBlobGeneration) "PUBLISHED" else "MISSING",
+              mapOf(
+                RAW_UPLOAD to upload.name,
+                MODEL_LINE to modelLine.cmmsModelLine,
+                AVAILABILITY_TASK to task.name,
+                GCS_GENERATION to task.doneBlobGeneration.toString(),
+                GCS_PATH_HASH to task.doneBlobPathHash,
+              ),
+              ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+            )
+          )
+        }
         val rowsForUpload = listMetadata(dataProviderName, upload.name, modelLine.cmmsModelLine)
         if (
           modelLine.state == RawImpressionUploadModelLine.State.COMPLETED && rowsForUpload.isEmpty()
@@ -193,24 +220,17 @@ internal class GcsKingdomFinalStateResolver(
               "data_availability_metadata",
               "MISSING",
               mapOf(MODEL_LINE to modelLine.cmmsModelLine),
-            )
-          )
-          add(
-            ExpectedTraceNode(
-              modelLine.name + ":data_watcher",
-              modelLine.cmmsModelLine,
-              "data_watcher",
-              "MISSING",
-              mapOf(MODEL_LINE to modelLine.cmmsModelLine),
+              if (tasksForModelLine.any { it.state == DataAvailabilitySyncTask.State.SUCCEEDED }) {
+                ExpectedNodeDisposition.REQUIRED
+              } else {
+                ExpectedNodeDisposition.NOT_APPLICABLE
+              },
             )
           )
         }
         for (row in rowsForUpload) {
           val sidecarUri = row.blobUri
           val labeledUri = sidecarUri.removeSuffix(".metadata.binpb")
-          val doneUri = doneUri(sidecarUri)
-          val doneBlob =
-            readObjectMetadata(doneUri, row.outputDoneBlobGeneration.takeIf { it != 0L })
           add(
             ExpectedTraceNode(
               row.name,
@@ -240,20 +260,6 @@ internal class GcsKingdomFinalStateResolver(
               readObjectMetadata(sidecarUri, null) != null,
             )
           )
-          add(
-            ExpectedTraceNode(
-              "gcs:" + hash(doneUri),
-              modelLine.cmmsModelLine,
-              "data_watcher",
-              if (doneBlob == null) "MISSING" else "PUBLISHED",
-              mapOf(
-                RAW_UPLOAD to upload.name,
-                MODEL_LINE to modelLine.cmmsModelLine,
-                GCS_GENERATION to (doneBlob?.generation?.toString() ?: "0"),
-                GCS_PATH_HASH to hash(doneUri),
-              ),
-            )
-          )
         }
         val availability = availabilityByModelLine[modelLine.cmmsModelLine]
         if (rowsForUpload.isEmpty()) {
@@ -264,7 +270,10 @@ internal class GcsKingdomFinalStateResolver(
               "data_availability_publish",
               "MISSING",
               mapOf(MODEL_LINE to modelLine.cmmsModelLine),
-              if (modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
+              if (
+                modelLine.state == RawImpressionUploadModelLine.State.COMPLETED &&
+                  tasksForModelLine.any { it.state == DataAvailabilitySyncTask.State.SUCCEEDED }
+              ) {
                 ExpectedNodeDisposition.REQUIRED
               } else {
                 ExpectedNodeDisposition.NOT_APPLICABLE
@@ -285,7 +294,10 @@ internal class GcsKingdomFinalStateResolver(
                 AVAILABILITY_INTERVAL_START to Timestamps.toString(row.interval.startTime),
                 AVAILABILITY_INTERVAL_END to Timestamps.toString(row.interval.endTime),
               ),
-              if (modelLine.state == RawImpressionUploadModelLine.State.COMPLETED) {
+              if (
+                modelLine.state == RawImpressionUploadModelLine.State.COMPLETED &&
+                  tasksForModelLine.any { it.state == DataAvailabilitySyncTask.State.SUCCEEDED }
+              ) {
                 ExpectedNodeDisposition.REQUIRED
               } else {
                 ExpectedNodeDisposition.NOT_APPLICABLE
@@ -336,8 +348,6 @@ internal class GcsKingdomFinalStateResolver(
     return result
   }
 
-  private fun doneUri(sidecarUri: String): String = sidecarUri.substringBeforeLast('/') + "/done"
-
   private fun hash(value: String): String =
     java.security.MessageDigest.getInstance("SHA-256").digest(value.toByteArray()).joinToString(
       ""
@@ -349,6 +359,7 @@ internal class GcsKingdomFinalStateResolver(
     private const val RAW_UPLOAD = "xmm.edpa.raw_impression_upload.name"
     private const val MODEL_LINE = "xmm.model_line.name"
     private const val IMPRESSION_METADATA = "xmm.edpa.impression_metadata.name"
+    private const val AVAILABILITY_TASK = "xmm.edpa.data_availability_sync_task.name"
     private const val GCS_GENERATION = "xmm.gcs.object.generation"
     private const val GCS_PATH_HASH = "xmm.gcs.object.path_hash"
     private const val AVAILABILITY_INTERVAL_START = "xmm.edpa.availability.interval_start"
@@ -363,6 +374,7 @@ internal class GrpcVidLabelingStateResolver(
   private val poolJobs: PoolAssignmentJobServiceCoroutineStub,
   private val rankerJobs: RankerJobServiceCoroutineStub,
   private val labelingJobs: VidLabelingJobServiceCoroutineStub,
+  private val availabilityTasks: DataAvailabilitySyncTaskServiceCoroutineStub,
   private val rankBlobs: RankIndexBlobServiceCoroutineStub,
   private val workItems: WorkItemsCoroutineStub,
   private val workItemAttempts: WorkItemAttemptsCoroutineStub,
@@ -375,6 +387,7 @@ internal class GrpcVidLabelingStateResolver(
       )
     val fileRows = listRawFiles(rawImpressionUpload)
     val modelLineRows = listModelLines(rawImpressionUpload)
+    val availabilityTaskRows = listAvailabilityTasks(rawImpressionUpload)
     val nodes = mutableListOf<ExpectedTraceNode>()
     nodes +=
       ExpectedTraceNode(
@@ -414,6 +427,7 @@ internal class GrpcVidLabelingStateResolver(
       val rankRows = listRankerJobs(rawImpressionUpload, modelLine.cmmsModelLine)
       val labelRows = listLabelingJobs(rawImpressionUpload, modelLine.cmmsModelLine)
       val blobRows = listRankBlobs(rawImpressionUpload, modelLine.cmmsModelLine)
+      val taskRows = availabilityTaskRows.filter { it.cmmsModelLine == modelLine.cmmsModelLine }
       val memoized =
         routeResolver.isMemoized(dataProviderName(upload.name), modelLine.cmmsModelLine)
       nodes +=
@@ -471,8 +485,69 @@ internal class GrpcVidLabelingStateResolver(
           labelRows.map { it.state.name },
           labelRows.isNotEmpty(),
         )
+      if (modelLine.state == RawImpressionUploadModelLine.State.COMPLETED && taskRows.isEmpty()) {
+        nodes +=
+          ExpectedTraceNode(
+            modelLine.name + ":availability_task",
+            modelLine.cmmsModelLine,
+            "availability_task_create",
+            "MISSING",
+            baseIdentifiers(upload.name, modelLine),
+          )
+      }
+      for (task in taskRows) {
+        nodes += availabilityTaskNodes(upload.name, modelLine, task)
+      }
     }
-    return VidLabelingAuthoritativeGraph(upload, modelLineRows, nodes)
+    return VidLabelingAuthoritativeGraph(upload, modelLineRows, nodes, availabilityTaskRows)
+  }
+
+  private fun availabilityTaskNodes(
+    upload: String,
+    modelLine: RawImpressionUploadModelLine,
+    task: DataAvailabilitySyncTask,
+  ): List<ExpectedTraceNode> {
+    val identifiers =
+      baseIdentifiers(upload, modelLine) +
+        mapOf(
+          AVAILABILITY_TASK to task.name,
+          AVAILABILITY_TASK_STATE to task.state.name,
+          AVAILABILITY_TASK_ATTEMPT_COUNT to task.attemptCount.toString(),
+          AVAILABILITY_TASK_FAILURE_CATEGORY to task.failureCategory.name,
+          GCS_GENERATION to task.doneBlobGeneration.toString(),
+          GCS_PATH_HASH to task.doneBlobPathHash,
+          LABEL_EVENT_DATE to task.eventDate.toIsoDate(),
+        )
+    return listOf(
+      ExpectedTraceNode(
+        task.name + ":create",
+        modelLine.cmmsModelLine,
+        "availability_task_create",
+        "CREATED",
+        identifiers,
+        ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+      ),
+      ExpectedTraceNode(
+        task.name + ":publication",
+        modelLine.cmmsModelLine,
+        "availability_task_publication",
+        task.state.name,
+        identifiers,
+        ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
+      ),
+      ExpectedTraceNode(
+        task.name + ":process",
+        modelLine.cmmsModelLine,
+        "availability_task_process",
+        task.state.name,
+        identifiers,
+        if (task.attemptCount > 0) {
+          ExpectedNodeDisposition.AUTHORITATIVE_ONLY
+        } else {
+          ExpectedNodeDisposition.NOT_APPLICABLE
+        },
+      ),
+    )
   }
 
   private fun baseIdentifiers(
@@ -746,6 +821,23 @@ internal class GrpcVidLabelingStateResolver(
     return result
   }
 
+  private suspend fun listAvailabilityTasks(parent: String): List<DataAvailabilitySyncTask> {
+    val result = mutableListOf<DataAvailabilitySyncTask>()
+    var token = ""
+    do {
+      val response =
+        availabilityTasks.listDataAvailabilitySyncTasks(
+          ListDataAvailabilitySyncTasksRequest.newBuilder()
+            .setParent(parent)
+            .setPageToken(token)
+            .build()
+        )
+      result += response.dataAvailabilitySyncTasksList
+      token = response.nextPageToken
+    } while (token.isNotEmpty())
+    return result
+  }
+
   private suspend fun getWorkItemOrNull(name: String): WorkItem? {
     return try {
       workItems.getWorkItem(GetWorkItemRequest.newBuilder().setName(name).build())
@@ -781,8 +873,15 @@ internal class GrpcVidLabelingStateResolver(
     private const val RANKER_JOB = "xmm.edpa.ranker_job.name"
     private const val LABELING_JOB = "xmm.edpa.vid_labeling_job.name"
     private const val RANK_BLOB = "xmm.edpa.rank_index_blob.name"
+    private const val AVAILABILITY_TASK = "xmm.edpa.data_availability_sync_task.name"
+    private const val AVAILABILITY_TASK_STATE = "xmm.edpa.data_availability_sync_task.state"
+    private const val AVAILABILITY_TASK_ATTEMPT_COUNT =
+      "xmm.edpa.data_availability_sync_task.attempt_count"
+    private const val AVAILABILITY_TASK_FAILURE_CATEGORY =
+      "xmm.edpa.data_availability_sync_task.failure_category"
     private const val SHARD_INDEX = "xmm.edpa.shard_index"
     private const val LABEL_ROUTE = "xmm.edpa.label.route"
+    private const val LABEL_EVENT_DATE = "xmm.edpa.label.event_date"
     private const val GCS_GENERATION = "xmm.gcs.object.generation"
     private const val GCS_PATH_HASH = "xmm.gcs.object.path_hash"
     private const val WORK_ITEM = "xmm.work_item.name"
@@ -803,4 +902,11 @@ internal class GrpcVidLabelingStateResolver(
     ) {
       (it.toInt() and 0xff).toString(16).padStart(2, '0')
     }
+
+  private fun com.google.type.Date.toIsoDate(): String =
+    year.toString().padStart(4, '0') +
+      "-" +
+      month.toString().padStart(2, '0') +
+      "-" +
+      day.toString().padStart(2, '0')
 }
