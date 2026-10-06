@@ -174,9 +174,9 @@ class DataAvailabilitySync(
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable generation of that object, when supplied by
    *   DataWatcher.
-   * @param expectedRawImpressionUpload required raw upload on task-triggered sidecars.
-   * @param expectedModelLine required model line on task-triggered sidecars.
-   * @param expectedEventDate required event date on task-triggered sidecars.
+   * @param expectedRawImpressionUpload required raw upload on WorkItem-triggered sidecars.
+   * @param expectedModelLine required model line on WorkItem-triggered sidecars.
+   * @param expectedEventDate required event date on WorkItem-triggered sidecars.
    * @param onStage called before synchronization enters a new stage.
    */
   suspend fun sync(
@@ -843,19 +843,19 @@ class DataAvailabilitySync(
       }
       if (expectedRawImpressionUpload != null) {
         require(blobDetails.rawImpressionUpload == expectedRawImpressionUpload) {
-          "BlobDetails raw_impression_upload does not match the task"
+          "BlobDetails raw_impression_upload does not match the WorkItem"
         }
       }
       if (expectedModelLine != null) {
         require(blobDetails.modelLine == expectedModelLine) {
-          "BlobDetails model_line does not match the task"
+          "BlobDetails model_line does not match the WorkItem"
         }
       }
       if (expectedEventDate != null) {
         val intervalStartDate =
           blobDetails.interval.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
         require(intervalStartDate == expectedEventDate) {
-          "BlobDetails interval does not match the task event date"
+          "BlobDetails interval does not match the WorkItem event date"
         }
       }
       // At least one of event_group_reference_id or entity_keys must identify the
