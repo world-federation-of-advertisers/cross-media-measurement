@@ -94,6 +94,8 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.tools.RecoverMissingImpressionMetadataTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/tools:recover_missing_impression_metadata",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
