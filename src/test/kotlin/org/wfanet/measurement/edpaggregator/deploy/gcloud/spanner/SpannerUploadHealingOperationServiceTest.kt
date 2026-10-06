@@ -171,7 +171,11 @@ class SpannerUploadHealingOperationServiceTest {
       val request =
         draftRequest(
             listOf(CANDIDATE_IDS[index]),
-            if (index == 1) emptyList() else listOf(planStep(1L, SOURCE_UPLOAD_ID)),
+            if (index == 1) {
+              emptyList()
+            } else {
+              listOf(planStep(1L, SOURCE_UPLOAD_ID, candidateId = CANDIDATE_IDS[index]))
+            },
             OPERATION_IDS[index],
             CREATE_REQUEST_IDS[index],
           )
@@ -275,6 +279,8 @@ class SpannerUploadHealingOperationServiceTest {
       created.copy {
         rawImpressionUploadCorrectionCandidateIds.clear()
         rawImpressionUploadCorrectionCandidateIds += CANDIDATE_IDS.drop(1)
+        steps.clear()
+        steps += planStep(1L, SOURCE_UPLOAD_ID, candidateId = CANDIDATE_IDS[1])
       }
     val candidateUpdated =
       service.updateUploadHealingOperationPlan(
@@ -285,7 +291,10 @@ class SpannerUploadHealingOperationServiceTest {
           etag = created.etag
         }
       )
-    val stepsUpdatedPlan = candidateUpdated.copy { steps += planStep(2L, SUCCESSOR_UPLOAD_ID) }
+    val stepsUpdatedPlan =
+      candidateUpdated.copy {
+        steps += planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[2])
+      }
     val stepsUpdated =
       service.updateUploadHealingOperationPlan(
         updateUploadHealingOperationPlanRequest {
@@ -314,7 +323,13 @@ class SpannerUploadHealingOperationServiceTest {
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     val created =
       service.createUploadHealingOperation(
-        draftRequest(CANDIDATE_IDS.take(2), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+        draftRequest(
+          CANDIDATE_IDS.take(2),
+          listOf(
+            planStep(1L, SOURCE_UPLOAD_ID),
+            planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[1]),
+          ),
+        )
       )
     val approved =
       service.approveUploadHealingOperation(
@@ -322,7 +337,10 @@ class SpannerUploadHealingOperationServiceTest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
           etag = created.etag
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+          candidateDecisions +=
+            CANDIDATE_IDS.take(2).map {
+              approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT, it)
+            }
           requestId = APPROVE_REQUEST_ID
         }
       )
@@ -367,7 +385,8 @@ class SpannerUploadHealingOperationServiceTest {
       dataProviderResourceId = DATA_PROVIDER_ID
       uploadHealingOperationId = OPERATION_ID
       etag = operation.etag
-      decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+      candidateDecisions +=
+        approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
       requestId = APPROVE_REQUEST_ID
     }
     operation = service.approveUploadHealingOperation(approveRequest)
@@ -440,7 +459,8 @@ class SpannerUploadHealingOperationServiceTest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+          candidateDecisions +=
+            approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
           requestId = APPROVE_REQUEST_ID
         }
       )
@@ -507,7 +527,8 @@ class SpannerUploadHealingOperationServiceTest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+          candidateDecisions +=
+            approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
           requestId = APPROVE_REQUEST_ID
         }
       )
@@ -772,7 +793,8 @@ class SpannerUploadHealingOperationServiceTest {
             dataProviderResourceId = DATA_PROVIDER_ID
             uploadHealingOperationId = OPERATION_ID
             etag = "etag"
-            decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+            candidateDecisions +=
+              approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
             requestId = "11111111-1111-1111-8111-111111111111"
           }
         )
@@ -792,7 +814,8 @@ class SpannerUploadHealingOperationServiceTest {
             dataProviderResourceId = DATA_PROVIDER_ID
             uploadHealingOperationId = OPERATION_ID
             etag = "etag"
-            decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+            candidateDecisions +=
+              approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
             requestId = "11111111-1111-4111-0111-111111111111"
           }
         )
@@ -812,7 +835,8 @@ class SpannerUploadHealingOperationServiceTest {
             dataProviderResourceId = DATA_PROVIDER_ID
             uploadHealingOperationId = OPERATION_ID
             etag = "etag"
-            decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+            candidateDecisions +=
+              approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
             requestId = "1-1-4111-8111-1"
           }
         )
@@ -828,7 +852,13 @@ class SpannerUploadHealingOperationServiceTest {
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     val operation =
       service.createUploadHealingOperation(
-        draftRequest(CANDIDATE_IDS.take(2), listOf(planStep(1L, SOURCE_UPLOAD_ID)))
+        draftRequest(
+          CANDIDATE_IDS.take(2),
+          listOf(
+            planStep(1L, SOURCE_UPLOAD_ID),
+            planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[1]),
+          ),
+        )
       )
     val approved =
       service.approveUploadHealingOperation(
@@ -836,7 +866,13 @@ class SpannerUploadHealingOperationServiceTest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+          candidateDecisions +=
+            CANDIDATE_IDS.take(2).map {
+              approvalDecision(
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT,
+                it,
+              )
+            }
           requestId = APPROVE_REQUEST_ID
         }
       )
@@ -850,12 +886,61 @@ class SpannerUploadHealingOperationServiceTest {
       assertThat(candidate.decision)
         .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT)
     }
-    assertThat(approved.stepsList.single().recoveryAction)
-      .isEqualTo(
+    assertThat(approved.stepsList.map { it.recoveryAction }.distinct())
+      .containsExactly(
         RawImpressionUploadModelLineRecoveryAction
           .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
       )
-    assertThat(approved.stepsList.single().recoveryTarget).isFalse()
+    assertThat(approved.stepsList.all { !it.recoveryTarget }).isTrue()
+  }
+
+  @Test
+  fun `approval applies independent decisions to candidates in one plan`() = runBlocking {
+    CANDIDATE_IDS.take(2).forEach { insertCorrectionCandidate(it) }
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val operation =
+      service.createUploadHealingOperation(
+        draftRequest(
+          CANDIDATE_IDS.take(2),
+          listOf(
+            planStep(1L, SOURCE_UPLOAD_ID),
+            planStep(2L, SUCCESSOR_UPLOAD_ID, candidateId = CANDIDATE_IDS[1]),
+          ),
+        )
+      )
+
+    val approved =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT,
+              CANDIDATE_IDS[0],
+            )
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT,
+              CANDIDATE_IDS[1],
+            )
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+
+    assertThat(approved.stepsList.map { it.recoveryAction })
+      .containsExactly(
+        RawImpressionUploadModelLineRecoveryAction
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION,
+        RawImpressionUploadModelLineRecoveryAction
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT,
+      )
+      .inOrder()
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[0]).decision)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
+    assertThat(readCorrectionCandidate(CANDIDATE_IDS[1]).decision)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT)
   }
 
   @Test
@@ -875,6 +960,7 @@ class SpannerUploadHealingOperationServiceTest {
                   .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY,
                 memoized = true,
                 predecessorUploadId = "d2",
+                candidateId = "",
               ),
               planStep(3L, "d4", memoized = true, predecessorUploadId = "d3"),
               planStep(
@@ -884,6 +970,7 @@ class SpannerUploadHealingOperationServiceTest {
                   .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY,
                 memoized = true,
                 predecessorUploadId = "d4",
+                candidateId = "",
               ),
             ),
           )
@@ -902,7 +989,10 @@ class SpannerUploadHealingOperationServiceTest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
           etag = operation.etag
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+            )
           requestId = APPROVE_REQUEST_ID
         }
       )
@@ -959,7 +1049,8 @@ class SpannerUploadHealingOperationServiceTest {
         dataProviderResourceId = DATA_PROVIDER_ID
         uploadHealingOperationId = OPERATION_ID
         etag = operation.etag
-        decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+        candidateDecisions +=
+          approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
         requestId = APPROVE_REQUEST_ID
       }
     )
@@ -971,7 +1062,10 @@ class SpannerUploadHealingOperationServiceTest {
             dataProviderResourceId = DATA_PROVIDER_ID
             uploadHealingOperationId = OPERATION_ID
             etag = operation.etag
-            decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+            candidateDecisions +=
+              approvalDecision(
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
+              )
             requestId = APPROVE_REQUEST_ID
           }
         )
@@ -998,7 +1092,7 @@ class SpannerUploadHealingOperationServiceTest {
       service.createUploadHealingOperation(
         draftRequest(
           listOf(CANDIDATE_IDS[1]),
-          listOf(planStep(1L, SOURCE_UPLOAD_ID)),
+          listOf(planStep(1L, SOURCE_UPLOAD_ID, candidateId = CANDIDATE_IDS[1])),
           OPERATION_IDS[1],
           CREATE_REQUEST_IDS[1],
         )
@@ -1008,7 +1102,8 @@ class SpannerUploadHealingOperationServiceTest {
         dataProviderResourceId = DATA_PROVIDER_ID
         uploadHealingOperationId = first.uploadHealingOperationId
         etag = first.etag
-        decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+        candidateDecisions +=
+          approvalDecision(RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
         requestId = APPROVE_REQUEST_ID
       }
     )
@@ -1020,7 +1115,11 @@ class SpannerUploadHealingOperationServiceTest {
             dataProviderResourceId = DATA_PROVIDER_ID
             uploadHealingOperationId = second.uploadHealingOperationId
             etag = second.etag
-            decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+            candidateDecisions +=
+              approvalDecision(
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT,
+                CANDIDATE_IDS[1],
+              )
             requestId = APPROVE_REQUEST_ID
           }
         )
@@ -1312,6 +1411,16 @@ class SpannerUploadHealingOperationServiceTest {
     }
   }
 
+  private fun approvalDecision(
+    decision: RawImpressionUploadCorrectionCandidate.Decision,
+    candidateId: String = CANDIDATE_IDS[0],
+  ) =
+    org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequestKt
+      .candidateDecision {
+        rawImpressionUploadCorrectionCandidateId = candidateId
+        this.decision = decision
+      }
+
   private fun planStep(
     id: Long,
     uploadId: String,
@@ -1321,7 +1430,7 @@ class SpannerUploadHealingOperationServiceTest {
     recoveryTarget: Boolean = true,
     memoized: Boolean = false,
     predecessorUploadId: String = "",
-    candidateId: String = "",
+    candidateId: String = CANDIDATE_IDS[0],
   ) = uploadHealingStep {
     uploadHealingStepId = id
     sequenceNumber = id - 1L
