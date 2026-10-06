@@ -18,6 +18,11 @@ variable "tee_consumers_enabled" {
   default     = true
 }
 
+variable "vid_labeling_trace_operator_member" {
+  description = "IAM member for the read-only VID-labeling trace operator."
+  type        = string
+}
+
 variable "requisition_fulfiller_config" {
   description = "Config for a single Pub/Sub queue and its corresponding MIG worker"
   type = object({
