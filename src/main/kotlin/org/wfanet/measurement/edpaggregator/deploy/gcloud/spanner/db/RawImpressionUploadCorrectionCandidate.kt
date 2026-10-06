@@ -432,6 +432,33 @@ fun AsyncDatabaseClient.TransactionContext.approveRawImpressionUploadCorrectionC
   }
 }
 
+/** Marks an approved correction candidate complete after its healing operation finishes. */
+fun AsyncDatabaseClient.TransactionContext.completeRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
+/** Returns an approved correction candidate to its mutable healing plan. */
+fun AsyncDatabaseClient.TransactionContext.reopenRawImpressionUploadCorrectionCandidate(
+  candidate: RawImpressionUploadCorrectionCandidate
+) {
+  bufferUpdateMutation("RawImpressionUploadCorrectionCandidate") {
+    set("DataProviderResourceId").to(candidate.dataProviderResourceId)
+    set("RawImpressionUploadCorrectionCandidateId")
+      .to(candidate.rawImpressionUploadCorrectionCandidateId)
+    set("State").to(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED)
+    set("Decision").to(RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED)
+    set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+  }
+}
+
 /** Marks an assigned correction candidate as requiring operator intervention. */
 fun AsyncDatabaseClient.TransactionContext
   .markRawImpressionUploadCorrectionCandidateManualInterventionRequired(
