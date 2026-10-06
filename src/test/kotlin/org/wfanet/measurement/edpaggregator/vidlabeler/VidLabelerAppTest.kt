@@ -73,9 +73,7 @@ import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateDataAvailabilitySyncTaskRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkVidLabelingJobSucceededRequest
@@ -91,8 +89,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
-import org.wfanet.measurement.edpaggregator.v1alpha.listDataAvailabilitySyncTasksResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededResponse
@@ -102,8 +98,11 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.queue.QueueSubscriber
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -128,12 +127,6 @@ class VidLabelerAppTest {
   private val rawImpressionUploadFilesService:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
     mockService()
-  private val dataAvailabilitySyncTasksService:
-    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineImplBase =
-    mockService {
-      onBlocking { listDataAvailabilitySyncTasks(any()) } doReturn
-        listDataAvailabilitySyncTasksResponse {}
-    }
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -143,7 +136,6 @@ class VidLabelerAppTest {
     addService(rawImpressionUploadModelLinesService)
     addService(rankIndexBlobsService)
     addService(rawImpressionUploadFilesService)
-    addService(dataAvailabilitySyncTasksService)
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
@@ -167,11 +159,6 @@ class VidLabelerAppTest {
   }
   private val rawImpressionUploadFilesStub by lazy {
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
-      grpcTestServerRule.channel
-    )
-  }
-  private val dataAvailabilitySyncTasksStub by lazy {
-    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
       grpcTestServerRule.channel
     )
   }
@@ -280,6 +267,7 @@ class VidLabelerAppTest {
     writeGcsObject: suspend (String?, BlobInfo, ByteArray) -> Long = { _, _, _ ->
       error("writeGcsObject should not be invoked")
     },
+    getGcsObjectGeneration: suspend (String?, String, String) -> Long? = { _, _, _ -> null },
   ): VidLabelerApp {
     return VidLabelerApp(
       subscriptionId = "test-subscription",
@@ -294,7 +282,6 @@ class VidLabelerAppTest {
       },
       vidLabelingJobsStub = vidLabelingJobsStub,
       rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
-      dataAvailabilitySyncTasksStub = dataAvailabilitySyncTasksStub,
       rankIndexBlobsStub = rankIndexBlobsStub,
       rawImpressionUploadFilesStub = rawImpressionUploadFilesStub,
       buildParquetStorageClient = { _, _ -> mockParquetStorageClient },
@@ -307,6 +294,7 @@ class VidLabelerAppTest {
       },
       rpcThrottlers = rpcThrottlers,
       writeGcsObject = writeGcsObject,
+      getGcsObjectGeneration = getGcsObjectGeneration,
       metrics = metrics,
     )
   }
@@ -663,26 +651,30 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork creates durable task for GCS done object`() = runBlocking {
+  fun `runWork ensures availability WorkItem for GCS done object`() = runBlocking {
     stubLastOutWithEventDate()
     val capturedProject = AtomicReference<String?>()
     val capturedBlobInfo = AtomicReference<BlobInfo>()
     val capturedContent = AtomicReference<ByteArray>()
-    val taskCreated = AtomicBoolean(false)
+    val workItemEnsured = AtomicBoolean(false)
     val params = taskParams()
-    dataAvailabilitySyncTasksService.stub {
-      onBlocking {
-        createDataAvailabilitySyncTask(any<CreateDataAvailabilitySyncTaskRequest>())
-      } doAnswer
-        {
-          taskCreated.set(true)
-          dataAvailabilitySyncTask { state = DataAvailabilitySyncTask.State.PENDING }
+    workItemsService.stub {
+      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+        { invocation ->
+          val request = invocation.getArgument<CreateWorkItemRequest>(0)
+          workItemEnsured.set(true)
+          request.workItem
+            .toBuilder()
+            .setName("workItems/${request.workItemId}")
+            .setState(WorkItem.State.QUEUED)
+            .setGeneration(1L)
+            .build()
         }
     }
     rawImpressionUploadModelLinesService.stub {
       onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
         {
-          check(taskCreated.get())
+          check(workItemEnsured.get())
           rawImpressionUploadModelLine {
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
@@ -708,16 +700,25 @@ class VidLabelerAppTest {
     assertThat(blobInfo.blobId.name).endsWith("/model-line/ml1/2026-06-30/done")
     assertThat(capturedContent.get()).isEmpty()
     assertThat(blobInfo.metadata.orEmpty()).isEmpty()
-    val taskRequest = argumentCaptor<CreateDataAvailabilitySyncTaskRequest>()
-    verifyBlocking(dataAvailabilitySyncTasksService) {
-      createDataAvailabilitySyncTask(taskRequest.capture())
-    }
-    assertThat(taskRequest.firstValue.parent).isEqualTo(UPLOAD)
-    assertThat(taskRequest.firstValue.dataAvailabilitySyncTask.doneBlobUri)
-      .isEqualTo("gs://output-bucket/labeled/model-line/ml1/2026-06-30/done")
-    assertThat(taskRequest.firstValue.dataAvailabilitySyncTask.doneBlobGeneration).isEqualTo(321L)
-    assertThat(taskRequest.firstValue.dataAvailabilitySyncTask.cmmsModelLine).isEqualTo(MODEL_LINE)
-    assertThat(taskRequest.firstValue.dataAvailabilitySyncTask.eventDate)
+    val request = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
+    val doneBlobUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+    val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
+    val expectedWorkItemId = WorkItemIds.forDataAvailabilitySync(pathHash, 321L)
+    assertThat(request.firstValue.workItemId).isEqualTo(expectedWorkItemId)
+    assertThat(request.firstValue.workItem.queue).isEqualTo("data-availability-sync-queue")
+    assertThat(request.firstValue.workItem.serializationKey).isEqualTo("$UPLOAD|$MODEL_LINE")
+    val workItemParams =
+      request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    assertThat(workItemParams.dataPathParams.dataPath).isEqualTo(doneBlobUri)
+    assertThat(workItemParams.dataPathParams.generation).isEqualTo(321L)
+    assertThat(workItemParams.dataPathParams.eventType).isEqualTo(StorageEventType.FINALIZED)
+    assertThat(workItemParams.traceContextMap).containsKey("traceparent")
+    val appParams = workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
+    assertThat(appParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
+    assertThat(appParams.rawImpressionUpload).isEqualTo(UPLOAD)
+    assertThat(appParams.modelLine).isEqualTo(MODEL_LINE)
+    assertThat(appParams.eventDate)
       .isEqualTo(
         com.google.type.date {
           year = 2026
@@ -725,22 +726,16 @@ class VidLabelerAppTest {
           day = 30
         }
       )
-    assertThat(taskRequest.firstValue.dataAvailabilitySyncTask.traceparent).isNotEmpty()
-    assertThat(taskRequest.firstValue.requestId)
-      .isEqualTo(taskRequest.firstValue.dataAvailabilitySyncTaskId)
-    assertThat(taskCreated.get()).isTrue()
-    val taskLog =
-      logRecords.single { it.message.contains("event=edpa.data_availability_sync_task.create ") }
-    assertThat(taskLog.message).contains("xmm.lifecycle.stage=availability_task_create")
-    assertThat(taskLog.message).contains("xmm.outcome=resolved")
-    assertThat(taskLog.message)
-      .contains(
-        "xmm.edpa.data_availability_sync_task.name=$UPLOAD/dataAvailabilitySyncTasks/" +
-          taskRequest.firstValue.dataAvailabilitySyncTaskId
-      )
-    assertThat(taskLog.message).contains("xmm.edpa.data_availability_sync_task.state=PENDING")
-    assertThat(taskLog.message).contains("xmm.gcs.object.generation=321")
-    assertThat(taskLog.message).doesNotContain("gs://output-bucket")
+    assertThat(workItemEnsured.get()).isTrue()
+    val workItemLog =
+      logRecords.single {
+        it.message.contains("event=edpa.data_availability_sync_work_item.create ")
+      }
+    assertThat(workItemLog.message).contains("xmm.lifecycle.stage=availability_work_item_create")
+    assertThat(workItemLog.message).contains("xmm.outcome=created")
+    assertThat(workItemLog.message).contains("xmm.work_item.name=workItems/$expectedWorkItemId")
+    assertThat(workItemLog.message).contains("xmm.gcs.object.generation=321")
+    assertThat(workItemLog.message).doesNotContain("gs://output-bucket")
     val finalizeSpan =
       spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
     val doneEvent = finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.done_object" }
@@ -755,12 +750,11 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork logs task creation failure before parent completion`() = runBlocking {
+  fun `runWork logs availability WorkItem failure before parent completion`() = runBlocking {
     stubLastOutWithEventDate()
-    dataAvailabilitySyncTasksService.stub {
-      onBlocking {
-        createDataAvailabilitySyncTask(any<CreateDataAvailabilitySyncTaskRequest>())
-      } doThrow StatusRuntimeException(Status.UNAVAILABLE)
+    workItemsService.stub {
+      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doThrow
+        StatusRuntimeException(Status.UNAVAILABLE)
     }
 
     assertFailsWith<StatusException> {
@@ -772,45 +766,24 @@ class VidLabelerAppTest {
     }
     val failureLog =
       logRecords.single {
-        it.message.contains("event=edpa.data_availability_sync_task.create ") &&
+        it.message.contains("event=edpa.data_availability_sync_work_item.create ") &&
           it.message.contains("xmm.outcome=failed")
       }
-    assertThat(failureLog.message).contains("xmm.lifecycle.stage=availability_task_create")
+    assertThat(failureLog.message).contains("xmm.lifecycle.stage=availability_work_item_create")
     assertThat(failureLog.message).contains("xmm.error.code=grpc.UNAVAILABLE")
     assertThat(failureLog.message).doesNotContain("gs://output-bucket")
   }
 
   @Test
-  fun `runWork reuses existing task generation after a lost response`() = runBlocking {
+  fun `runWork reuses existing done generation after a lost response`() = runBlocking {
     stubLastOutWithEventDate()
-    val taskCreated = AtomicBoolean(false)
-    dataAvailabilitySyncTasksService.stub {
-      onBlocking { listDataAvailabilitySyncTasks(any()) } doReturn
-        listDataAvailabilitySyncTasksResponse {
-          dataAvailabilitySyncTasks += dataAvailabilitySyncTask {
-            doneBlobUri = "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
-            doneBlobGeneration = 321L
-            cmmsModelLine = MODEL_LINE
-            eventDate =
-              com.google.type.date {
-                year = 2026
-                month = 6
-                day = 30
-              }
-          }
-        }
-      onBlocking {
-        createDataAvailabilitySyncTask(any<CreateDataAvailabilitySyncTaskRequest>())
-      } doAnswer
-        {
-          taskCreated.set(true)
-          dataAvailabilitySyncTask { state = DataAvailabilitySyncTask.State.PENDING }
-        }
+    workItemsService.stub {
+      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doThrow
+        StatusRuntimeException(Status.ALREADY_EXISTS)
     }
     rawImpressionUploadModelLinesService.stub {
       onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
         {
-          check(taskCreated.get())
           rawImpressionUploadModelLine {
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
@@ -819,14 +792,16 @@ class VidLabelerAppTest {
         }
     }
 
-    createApp().runWork(buildMessage(taskParams()))
+    createApp(getGcsObjectGeneration = { _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
 
-    val taskRequest = argumentCaptor<CreateDataAvailabilitySyncTaskRequest>()
-    verifyBlocking(dataAvailabilitySyncTasksService) {
-      createDataAvailabilitySyncTask(taskRequest.capture())
+    val request = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
+    val workItemParams =
+      request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+    assertThat(workItemParams.dataPathParams.generation).isEqualTo(321L)
+    verifyBlocking(rawImpressionUploadModelLinesService) {
+      markRawImpressionUploadModelLineCompleted(any())
     }
-    assertThat(taskRequest.firstValue.dataAvailabilitySyncTask.doneBlobGeneration).isEqualTo(321L)
-    assertThat(taskCreated.get()).isTrue()
   }
 
   @Test
