@@ -1,6 +1,32 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "VidLabelingHealingControllerFunctionTest",
+    srcs = ["VidLabelingHealingControllerFunctionTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_healing_controller_function"],
+    jvm_flags = [
+        "-Dotel.logs.exporter=none",
+        "-Dotel.metrics.exporter=none",
+        "-Dotel.traces.exporter=none",
+    ],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingHealingControllerFunctionTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:vid_labeling_healing_controller",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
+        "@wfa_common_jvm//imports/java/com/google/api/gax",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//imports/kotlin/org/mockito/kotlin",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelingConfigValidationTest",
     srcs = ["VidLabelingConfigValidationTest.kt"],
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingConfigValidationTest",
