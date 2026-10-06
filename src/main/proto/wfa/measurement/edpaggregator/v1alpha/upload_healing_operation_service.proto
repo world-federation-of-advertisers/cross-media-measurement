@@ -19,16 +19,13 @@ package wfa.measurement.edpaggregator.v1alpha;
 import "google/api/field_behavior.proto";
 import "google/api/field_info.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload_correction_candidate.proto";
 import "wfa/measurement/edpaggregator/v1alpha/upload_healing_operation.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "UploadHealingOperationServiceProto";
 
-// (-- api-linter: core::0121::resource-must-support-list=disabled
-//     aip.dev/not-precedent: The CLI prints the operation name used to resume
-//     this bounded operator workflow, so collection discovery is intentionally
-//     unsupported. --)
 // Service for persisting and resuming VID-labeling upload healing workflows.
 service UploadHealingOperationService {
   // Creates a healing operation and all of its ordered steps atomically.
@@ -37,6 +34,18 @@ service UploadHealingOperationService {
 
   // Retrieves a healing operation and its ordered steps.
   rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
+      returns (UploadHealingOperation) {}
+
+  // Lists healing operations.
+  rpc ListUploadHealingOperations(ListUploadHealingOperationsRequest)
+      returns (ListUploadHealingOperationsResponse) {}
+
+  // Approves a correction plan with the operator's decision.
+  rpc ApproveUploadHealingOperation(ApproveUploadHealingOperationRequest)
+      returns (UploadHealingOperation) {}
+
+  // Retries a healing operation that needs operator attention.
+  rpc RetryUploadHealingOperation(RetryUploadHealingOperationRequest)
       returns (UploadHealingOperation) {}
 
   // Advances one healing step after verifying the requested workflow action.
@@ -83,6 +92,110 @@ message GetUploadHealingOperationRequest {
     (google.api.resource_reference) = {
       type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
     }
+  ];
+}
+
+// Request message for `ListUploadHealingOperations`.
+// (-- api-linter: core::0132::request-field-types=disabled
+//     aip.dev/not-precedent: The structured filter matches existing EDPA APIs.
+//     --)
+message ListUploadHealingOperationsRequest {
+  // Parent data provider resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      child_type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+
+  // Maximum number of results to return.
+  int32 page_size = 2 [(google.api.field_behavior) = OPTIONAL];
+
+  // Page token received from a previous list request.
+  string page_token = 3 [(google.api.field_behavior) = OPTIONAL];
+
+  // Structured upload healing operation filters.
+  message Filter {
+    // Operation lifecycle states to include.
+    repeated UploadHealingOperation.State state_in = 1
+        [(google.api.field_behavior) = OPTIONAL];
+  }
+
+  // Structured filter applied to the operation collection. Supports `state_in`.
+  Filter filter = 4 [(google.api.field_behavior) = OPTIONAL];
+}
+
+// Response message for `ListUploadHealingOperations`.
+message ListUploadHealingOperationsResponse {
+  // Matching healing operations.
+  repeated UploadHealingOperation upload_healing_operations = 1;
+
+  // Token for retrieving the next page.
+  string next_page_token = 2;
+}
+
+// Request message for `ApproveUploadHealingOperation`.
+message ApproveUploadHealingOperationRequest {
+  // Decision for one correction candidate in the plan.
+  message CandidateDecision {
+    // Correction candidate being approved.
+    string raw_impression_upload_correction_candidate = 1 [
+      (google.api.field_behavior) = REQUIRED,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+      }
+    ];
+
+    // Whether the candidate replaces or permanently removes its prior data.
+    RawImpressionUploadCorrectionCandidate.Decision decision = 2
+        [(google.api.field_behavior) = REQUIRED];
+  }
+
+  // Resource name of the operation to approve.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+
+  // One decision for every correction candidate in the plan.
+  repeated CandidateDecision candidate_decisions = 2
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Entity tag returned with the current plan.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 that makes approval safe to retry.
+  // (-- api-linter: core::0136::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is required for retry-safe approval.
+  //     --)
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `RetryUploadHealingOperation`.
+message RetryUploadHealingOperationRequest {
+  // Resource name of the operation to retry.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+
+  // Entity tag returned with the operation needing attention.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 that makes retry safe to repeat.
+  // (-- api-linter: core::0136::request-required-fields=disabled
+  //     aip.dev/not-precedent: request_id is required for retry-safe recovery.
+  //     --)
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
   ];
 }
 

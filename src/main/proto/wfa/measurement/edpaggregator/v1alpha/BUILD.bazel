@@ -398,6 +398,7 @@ proto_library(
     srcs = ["upload_healing_operation_service.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
+        ":raw_impression_upload_correction_candidate_proto",
         ":upload_healing_operation_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
