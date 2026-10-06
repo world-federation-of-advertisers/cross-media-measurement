@@ -116,13 +116,19 @@ jobs:
     - name: Write validation inputs
       env:
         CONFIG_DIR: ${{ runner.temp }}/configs
+        DATA_AVAILABILITY_SYNC_CONFIG_CONTENT: ${{ vars.DATA_AVAILABILITY_SYNC_CONFIG_CONTENT }}
         DATA_WATCHER_CONFIG_CONTENT: ${{ vars.DATA_WATCHER_CONFIG_CONTENT }}
         REQUISITION_FETCHER_CONFIG_CONTENT: ${{ vars.REQUISITION_FETCHER_CONFIG_CONTENT }}
+        VID_LABELING_DISPATCHER_CONFIG_CONTENT: ${{ vars.VID_LABELING_DISPATCHER_CONFIG_CONTENT }}
+        VID_LABELING_MONITOR_CONFIG_CONTENT: ${{ vars.VID_LABELING_MONITOR_CONFIG_CONTENT }}
       run: |
         set -euo pipefail
         mkdir -p "$CONFIG_DIR"
+        printf '%s' "$DATA_AVAILABILITY_SYNC_CONFIG_CONTENT" > "$CONFIG_DIR/data-availability-sync-config.textproto"
         printf '%s' "$DATA_WATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/data-watcher-config.textproto"
         printf '%s' "$REQUISITION_FETCHER_CONFIG_CONTENT" > "$CONFIG_DIR/requisition-fetcher-config.textproto"
+        printf '%s' "$VID_LABELING_DISPATCHER_CONFIG_CONTENT" > "$CONFIG_DIR/vid-labeling-dispatcher-config.textproto"
+        printf '%s' "$VID_LABELING_MONITOR_CONFIG_CONTENT" > "$CONFIG_DIR/vid-labeling-monitor-config.textproto"
 
     - name: Validate RequisitionFetcher and DataWatcher configuration
       env:
@@ -135,6 +141,18 @@ jobs:
           --requisition-fetcher-config="$CONFIG_DIR/requisition-fetcher-config.textproto" \
           --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto" \
           --control-plane-target="$SECURE_COMPUTATION_PUBLIC_API_TARGET"
+
+    - name: Validate VID labeling storage routing
+      env:
+        CONFIG_DIR: ${{ runner.temp }}/configs
+      run: |
+        bazelisk run \
+          //src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:ValidateVidLabelingStorageConfig \
+          -- \
+          --vid-labeling-config="$CONFIG_DIR/vid-labeling-dispatcher-config.textproto" \
+          --vid-labeling-monitor-config="$CONFIG_DIR/vid-labeling-monitor-config.textproto" \
+          --data-availability-sync-config="$CONFIG_DIR/data-availability-sync-config.textproto" \
+          --data-watcher-config="$CONFIG_DIR/data-watcher-config.textproto"
 
   update-secure-computation-dlq-paused:
     uses: ./.github/workflows/configure-secure-computation-control-plane.yml
