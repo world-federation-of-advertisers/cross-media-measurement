@@ -152,6 +152,8 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
         )
 
     assertThat(response.newlyAcquired).isTrue()
+    assertThat(response.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
     assertThat(response.etag).isNotEmpty()
   }
 
