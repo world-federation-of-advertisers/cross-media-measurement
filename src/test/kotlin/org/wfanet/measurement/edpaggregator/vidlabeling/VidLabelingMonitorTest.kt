@@ -72,8 +72,7 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.CreateDataAvailabilitySyncTaskRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequest
@@ -100,7 +99,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
-import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
@@ -155,9 +153,6 @@ class VidLabelingMonitorTest {
     mockService()
   private val rankerJobService: RankerJobServiceGrpcKt.RankerJobServiceCoroutineImplBase =
     mockService()
-  private val dataAvailabilitySyncTaskService:
-    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineImplBase =
-    mockService()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -171,7 +166,6 @@ class VidLabelingMonitorTest {
     addService(rawImpressionUploadFileService)
     addService(vidLabelingJobService)
     addService(rankerJobService)
-    addService(dataAvailabilitySyncTaskService)
   }
 
   private val rawImpressionUploadStub by lazy {
@@ -209,11 +203,6 @@ class VidLabelingMonitorTest {
   }
   private val rankerJobStub by lazy {
     RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(grpcTestServerRule.channel)
-  }
-  private val dataAvailabilitySyncTaskStub by lazy {
-    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
-      grpcTestServerRule.channel
-    )
   }
   private val rawImpressionsStorageClient = InMemoryStorageClient()
   private val vidLabeledImpressionsStorageClient = InMemoryStorageClient()
@@ -320,7 +309,6 @@ class VidLabelingMonitorTest {
       poolAssignmentJobStub = poolAssignmentJobStub,
       rankerJobStub = rankerJobStub,
       vidLabelingJobStub = vidLabelingJobStub,
-      dataAvailabilitySyncTaskStub = dataAvailabilitySyncTaskStub,
       workItemsStub = workItemsStub,
       vidLabeledImpressionsBlobPrefix = VID_LABELED_IMPRESSIONS_PREFIX,
       readDoneBlobGeneration = readDoneBlobGeneration,
@@ -630,27 +618,33 @@ class VidLabelingMonitorTest {
           }
         }
       )
-    whenever(dataAvailabilitySyncTaskService.createDataAvailabilitySyncTask(any()))
-      .thenReturn(dataAvailabilitySyncTask {})
+    whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
+      val request = invocation.getArgument<CreateWorkItemRequest>(0)
+      request.workItem.toBuilder().setName("workItems/${request.workItemId}").build()
+    }
     whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineCompleted(any()))
       .thenReturn(modelLine.copy { state = RawImpressionUploadModelLine.State.COMPLETED })
 
     val result = createMonitor(readDoneBlobGeneration = { 1234L }).runHealth()
 
     assertThat(result.recoveredAvailabilityHandoffs).isEqualTo(1)
-    val createCaptor = argumentCaptor<CreateDataAvailabilitySyncTaskRequest>()
-    verifyBlocking(dataAvailabilitySyncTaskService) {
-      createDataAvailabilitySyncTask(createCaptor.capture())
-    }
-    assertThat(createCaptor.firstValue.dataAvailabilitySyncTask.doneBlobUri)
+    val ensureCaptor = argumentCaptor<CreateWorkItemRequest>()
+    verifyBlocking(workItemsService) { createWorkItem(ensureCaptor.capture()) }
+    val ensuredWorkItem = ensureCaptor.firstValue.workItem
+    assertThat(ensuredWorkItem.queue).isEqualTo("data-availability-sync-queue")
+    assertThat(ensuredWorkItem.serializationKey).isEqualTo("${upload.name}|$MODEL_LINE")
+    val workItemParams = ensuredWorkItem.workItemParams.unpack<WorkItem.WorkItemParams>()
+    assertThat(workItemParams.dataPathParams.dataPath)
       .isEqualTo("$VID_LABELED_IMPRESSIONS_PREFIX/model-line/ml1/2026-06-01/done")
-    assertThat(createCaptor.firstValue.dataAvailabilitySyncTask.doneBlobGeneration).isEqualTo(1234L)
+    assertThat(workItemParams.dataPathParams.generation).isEqualTo(1234L)
+    val appParams = workItemParams.appParams.unpack<DataAvailabilitySyncParams>()
+    assertThat(appParams.rawImpressionUpload).isEqualTo(upload.name)
+    assertThat(appParams.modelLine).isEqualTo(MODEL_LINE)
     val markCaptor = argumentCaptor<MarkRawImpressionUploadModelLineCompletedRequest>()
     verifyBlocking(rawImpressionUploadModelLineService) {
       markRawImpressionUploadModelLineCompleted(markCaptor.capture())
     }
     assertThat(markCaptor.firstValue.name).isEqualTo(modelLine.name)
-    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
@@ -687,9 +681,7 @@ class VidLabelingMonitorTest {
     val result = createMonitor(readDoneBlobGeneration = { 1234L }).runHealth()
 
     assertThat(result.recoveredAvailabilityHandoffs).isEqualTo(0)
-    verifyBlocking(dataAvailabilitySyncTaskService, never()) {
-      createDataAvailabilitySyncTask(any())
-    }
+    verifyBlocking(workItemsService, never()) { createWorkItem(any()) }
   }
 
   @Test
