@@ -36,7 +36,6 @@ import org.wfanet.measurement.config.edpaggregator.VidLabelingConfig
 import org.wfanet.measurement.config.edpaggregator.VidLabelingConfigs
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
@@ -257,10 +256,6 @@ class VidLabelingMonitorFunction : HttpFunction {
     // RankerJobService is served by the same RawImpressionMetadata storage deployment.
     val rankerJobStub =
       RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(rawImpressionUploadChannel)
-    val dataAvailabilitySyncTaskStub =
-      DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
-        rawImpressionUploadChannel
-      )
     val dispatchSequencer =
       VidLabelingDispatchSequencer(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -310,7 +305,6 @@ class VidLabelingMonitorFunction : HttpFunction {
         poolAssignmentJobStub = poolAssignmentJobStub,
         rankerJobStub = rankerJobStub,
         vidLabelingJobStub = vidLabelingJobStub,
-        dataAvailabilitySyncTaskStub = dataAvailabilitySyncTaskStub,
         workItemsStub = workItemsStub,
         vidLabeledImpressionsBlobPrefix = vidLabeledImpressionsBlobPrefix,
         readDoneBlobGeneration = { blobUri ->
