@@ -361,7 +361,7 @@ class SpannerRawImpressionUploadService(
                   )
                   .asRuntimeException()
               }
-              return@run FenceMutationResult(replay.newlyAcquired, liveFence.etag)
+              return@run FenceMutationResult(replay.newlyAcquired, liveFence.etag, liveFence.state)
             }
           val currentFence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
           if (currentFence?.evictionOperationId == request.evictionOperationId) {
@@ -381,7 +381,7 @@ class SpannerRawImpressionUploadService(
               requestFingerprint,
               currentFence.etag,
             )
-            return@run FenceMutationResult(false, currentFence.etag)
+            return@run FenceMutationResult(false, currentFence.etag, currentFence.state)
           }
           if (currentFence != null) {
             throw Status.FAILED_PRECONDITION.withDescription(
@@ -409,10 +409,11 @@ class SpannerRawImpressionUploadService(
             requestedEtag,
             newlyAcquired = true,
           )
-          FenceMutationResult(true, requestedEtag)
+          FenceMutationResult(true, requestedEtag, requestedState)
         }
     return acquireRawImpressionUploadEvictionFenceResponse {
       newlyAcquired = result.newlyAcquired
+      state = result.state
       etag = result.etag
     }
   }
@@ -658,7 +659,11 @@ class SpannerRawImpressionUploadService(
   private fun ByteString.toEtag(): String =
     toByteArray().joinToString(separator = "") { byte -> "%02x".format(byte) }
 
-  private data class FenceMutationResult(val newlyAcquired: Boolean, val etag: String)
+  private data class FenceMutationResult(
+    val newlyAcquired: Boolean,
+    val etag: String,
+    val state: VidLabelingEvictionFenceState,
+  )
 
   private fun AcquireRawImpressionUploadEvictionFenceRequest.initialFenceState():
     VidLabelingEvictionFenceState =
