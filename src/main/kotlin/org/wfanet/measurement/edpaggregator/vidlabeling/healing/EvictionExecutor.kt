@@ -18,9 +18,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 /** Executes an eviction while reporting each durable per-entry checkpoint. */
 fun interface EvictionExecutor {
-  /** Acquires the eviction fence and verifies that [plan] is still current. */
-  suspend fun prepare(plan: EvictUploader.EvictionPlan): EvictUploader.EvictionPlan = plan
-
   suspend fun evict(
     plan: EvictUploader.EvictionPlan,
     reason: String,

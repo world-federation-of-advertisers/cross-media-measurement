@@ -32,6 +32,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
+import org.mockito.kotlin.mock
 import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
@@ -51,7 +52,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
-import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
@@ -77,10 +77,7 @@ class VidLabelingHealingControllerTest {
     mockService<
       RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
     >()
-  private val operationsService =
-    mockService<
-      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
-    >()
+  private val operationsService = mock<HealingOperationStore>()
   private val uploadsService =
     mockService<RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase>()
   private val filesService =
@@ -97,7 +94,6 @@ class VidLabelingHealingControllerTest {
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(candidatesService)
-    addService(operationsService)
     addService(uploadsService)
     addService(filesService)
     addService(modelLinesService)
@@ -172,7 +168,6 @@ class VidLabelingHealingControllerTest {
 
     assertThat(reconciled.rawImpressionUploadCorrectionCandidatesList)
       .containsExactly(CANDIDATE_NAME)
-    assertThat(reconciled.badRawImpressionUploadsList).containsExactly(SOURCE_UPLOAD_NAME)
     assertThat(reconciled.state).isEqualTo(UploadHealingOperation.State.STATE_UNSPECIFIED)
     Unit
   }
@@ -473,10 +468,19 @@ class VidLabelingHealingControllerTest {
       .thenReturn(listRawImpressionUploadFilesResponse {})
     whenever(uploadsService.listRawImpressionUploads(any()))
       .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += SOURCE_UPLOAD })
-    val evictionExecutor = EvictionExecutor { plan, _, checkpoint ->
-      plan.cascade.forEach { checkpoint(it) }
-      EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
-    }
+    lateinit var executedPlan: EvictUploader.EvictionPlan
+    val evictionExecutor =
+      object : EvictionExecutor {
+        override suspend fun evict(
+          plan: EvictUploader.EvictionPlan,
+          reason: String,
+          onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
+        ): EvictUploader.EvictionResult {
+          executedPlan = plan
+          plan.cascade.forEach { onEntryEvicted(it) }
+          return EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
+        }
+      }
     var replay: DoneBlobReplayer.Request? = null
 
     newController(
@@ -488,6 +492,8 @@ class VidLabelingHealingControllerTest {
     assertThat(replay!!.doneBlobUri).isEqualTo(CANDIDATE_UPLOAD.doneBlobUri)
     assertThat(replay!!.doneBlobGeneration).isEqualTo(CANDIDATE_UPLOAD.doneBlobGeneration)
     assertThat(replay!!.sourceRawImpressionUpload).isEqualTo(SOURCE_UPLOAD_NAME)
+    assertThat(executedPlan.badUploads).containsExactly(SOURCE_UPLOAD_NAME)
+    assertThat(executedPlan.cutoffTime).isEqualTo(Instant.MIN)
     assertThat(operation.stepsList.single().state)
       .isEqualTo(UploadHealingStep.State.RECOVERY_STARTED)
     Unit
@@ -1722,9 +1728,7 @@ class VidLabelingHealingControllerTest {
       RawImpressionUploadCorrectionCandidateServiceGrpcKt
         .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(grpcTestServerRule.channel),
       candidateCleaner,
-      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-        grpcTestServerRule.channel
-      ),
+      operationsService,
       RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub(
         grpcTestServerRule.channel
       ),
@@ -1798,9 +1802,7 @@ class VidLabelingHealingControllerTest {
       etag = "approved-etag"
       reason = "correction"
       labeledImpressionsBlobPrefix = "gs://output/vid"
-      badRawImpressionUploads += SOURCE_UPLOAD_NAME
       rawImpressionUploadCorrectionCandidates += CANDIDATE_NAME
-      cutoffTime = timestamp { seconds = 1L }
       steps += uploadHealingStep {
         name = "$OPERATION_NAME/uploadHealingSteps/1"
         sourceRawImpressionUpload = SOURCE_UPLOAD_NAME
