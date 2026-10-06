@@ -40,7 +40,7 @@ class VidLabelingEvictionFenceTest {
   fun `insert defaults to evicting`() =
     runBlocking<Unit> {
       spannerDatabase.databaseClient.readWriteTransaction().run { txn ->
-        txn.insertVidLabelingEvictionFence(DATA_PROVIDER_ID, OPERATION_ID)
+        txn.insertVidLabelingEvictionFence(DATA_PROVIDER_ID, OPERATION_ID, INITIAL_ETAG)
       }
 
       val fence =
@@ -53,6 +53,7 @@ class VidLabelingEvictionFenceTest {
           VidLabelingEvictionFence(
             OPERATION_ID,
             VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING,
+            INITIAL_ETAG,
           )
         )
     }
@@ -64,6 +65,7 @@ class VidLabelingEvictionFenceTest {
         txn.insertVidLabelingEvictionFence(
           DATA_PROVIDER_ID,
           OPERATION_ID,
+          INITIAL_ETAG,
           VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
         )
       }
@@ -79,6 +81,7 @@ class VidLabelingEvictionFenceTest {
         txn.updateVidLabelingEvictionFenceState(
           DATA_PROVIDER_ID,
           VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING,
+          UPDATED_ETAG,
         )
       }
 
@@ -88,6 +91,7 @@ class VidLabelingEvictionFenceTest {
         }
       assertThat(fence?.state)
         .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_DRAINING)
+      assertThat(fence?.etag).isEqualTo(UPDATED_ETAG)
     }
 
   @Test
@@ -99,6 +103,8 @@ class VidLabelingEvictionFenceTest {
             .set("DataProviderResourceId")
             .to(DATA_PROVIDER_ID)
             .set("EvictionOperationId")
+            .to(OPERATION_ID)
+            .set("Etag")
             .to(OPERATION_ID)
             .set("CreateTime")
             .to(Value.COMMIT_TIMESTAMP)
@@ -112,6 +118,7 @@ class VidLabelingEvictionFenceTest {
         }
       assertThat(fence?.state)
         .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING)
+      assertThat(fence?.etag).isEqualTo(OPERATION_ID)
     }
 
   companion object {
@@ -119,5 +126,7 @@ class VidLabelingEvictionFenceTest {
 
     private const val DATA_PROVIDER_ID = "data-provider"
     private const val OPERATION_ID = "11111111-1111-4111-8111-111111111111"
+    private const val INITIAL_ETAG = "initial-etag"
+    private const val UPDATED_ETAG = "updated-etag"
   }
 }
