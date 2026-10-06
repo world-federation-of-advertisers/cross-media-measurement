@@ -27,6 +27,7 @@ resource "google_pubsub_subscription" "subscription" {
   topic = google_pubsub_topic.topic.id
 
   ack_deadline_seconds       = var.ack_deadline_seconds
+  enable_message_ordering    = var.enable_message_ordering
   message_retention_duration = var.subscription_queue_retention_period
 
   dead_letter_policy {

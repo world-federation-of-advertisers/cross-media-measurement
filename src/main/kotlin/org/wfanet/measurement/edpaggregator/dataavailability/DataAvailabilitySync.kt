@@ -174,7 +174,6 @@ class DataAvailabilitySync(
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable generation of that object, when supplied by
    *   DataWatcher.
-   * @param expectedRawImpressionUpload required raw upload on WorkItem-triggered sidecars.
    * @param expectedModelLine required model line on WorkItem-triggered sidecars.
    * @param expectedEventDate required event date on WorkItem-triggered sidecars.
    * @param onStage called before synchronization enters a new stage.
@@ -183,7 +182,6 @@ class DataAvailabilitySync(
     doneBlobPath: String,
     dataAvailabilitySyncLease: String,
     doneBlobGeneration: Long? = null,
-    expectedRawImpressionUpload: String? = null,
     expectedModelLine: String? = null,
     expectedEventDate: LocalDate? = null,
     onStage: (Stage) -> Unit = {},
@@ -230,7 +228,6 @@ class DataAvailabilitySync(
           impressionMetadataBlobs,
           doneBlobUri,
           doneBlobGeneration,
-          expectedRawImpressionUpload,
           expectedModelLine,
           expectedEventDate,
         )
@@ -814,7 +811,6 @@ class DataAvailabilitySync(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
     doneBlobGeneration: Long?,
-    expectedRawImpressionUpload: String?,
     expectedModelLine: String?,
     expectedEventDate: LocalDate?,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
@@ -840,11 +836,6 @@ class DataAvailabilitySync(
       // Validate intervals
       require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
         "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
-      }
-      if (expectedRawImpressionUpload != null) {
-        require(blobDetails.rawImpressionUpload == expectedRawImpressionUpload) {
-          "BlobDetails raw_impression_upload does not match the WorkItem"
-        }
       }
       if (expectedModelLine != null) {
         require(blobDetails.modelLine == expectedModelLine) {
