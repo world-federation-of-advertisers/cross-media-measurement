@@ -12,6 +12,24 @@ package(
 )
 
 kt_jvm_library(
+    name = "spanner_raw_impression_upload_correction_candidate_service",
+    srcs = ["SpannerRawImpressionUploadCorrectionCandidateService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/spanner/db",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/spanner",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
+    ],
+)
+
+kt_jvm_library(
     name = "spanner_impression_metadata_service",
     srcs = ["SpannerImpressionMetadataService.kt"],
     deps = [
@@ -82,6 +100,8 @@ kt_jvm_library(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/internal:errors",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_file_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_state_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/gcloud/spanner",
     ],
 )
@@ -134,6 +154,7 @@ kt_jvm_library(
         ":spanner_pool_assignment_job_service",
         ":spanner_rank_index_blob_service",
         ":spanner_ranker_job_service",
+        ":spanner_raw_impression_upload_correction_candidate_service",
         ":spanner_raw_impression_upload_file_service",
         ":spanner_raw_impression_upload_model_line_service",
         ":spanner_raw_impression_upload_service",
