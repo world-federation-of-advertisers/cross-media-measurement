@@ -422,7 +422,7 @@ class SubpoolAssigner(
       poolOffsets
         .map { poolOffset ->
           async {
-            var failureShard = shardIndex
+            var failureShard: Int? = null
             // NOTE(world-federation-of-advertisers/cross-media-measurement#3999): mergeSubpool
             //   writes unconditionally (see SubpoolFingerprintsStore.mergeSubpool). This recovery
             //   path re-runs the merge idempotently by re-writing the merged blob, which a
@@ -439,7 +439,7 @@ class SubpoolAssigner(
                     },
                   )
                 }
-              failureShard = shardIndex
+              failureShard = null
               store.mergeSubpool(inputs, mergedSubpoolKey(poolOffset), mergedDek, readSemaphore)
             } catch (e: CancellationException) {
               throw e
@@ -817,7 +817,7 @@ class SubpoolAssigner(
     outcome: String,
     poolOffset: Long,
     error: Throwable? = null,
-    failureShard: Int = shardIndex,
+    failureShard: Int? = shardIndex,
   ) {
     VidLabelingTraceLogging.log(
       logger,
@@ -827,7 +827,7 @@ class SubpoolAssigner(
       VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
       VidLabelingTraceAttributes.POOL_ASSIGNMENT_JOB_NAME_STRING to poolAssignmentJob,
       VidLabelingTraceAttributes.POOL_OFFSET_STRING to poolOffset.toString(),
-      VidLabelingTraceAttributes.SHARD_INDEX_STRING to failureShard.toString(),
+      VidLabelingTraceAttributes.SHARD_INDEX_STRING to failureShard?.toString(),
       XmmTraceAttributes.LIFECYCLE_STAGE_STRING to lifecycleStage,
       XmmTraceAttributes.OUTCOME_STRING to outcome,
       XmmTraceAttributes.ERROR_TYPE_STRING to error?.let(XmmTraceAttributes::errorType),

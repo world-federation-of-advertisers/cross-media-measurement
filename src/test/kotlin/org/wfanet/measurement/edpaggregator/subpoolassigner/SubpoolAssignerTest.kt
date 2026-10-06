@@ -391,6 +391,58 @@ class SubpoolAssignerTest {
     }
 
   @Test
+  fun `merge failure omits shard identity`() =
+    runBlocking<Unit> {
+      val store =
+        mock<SubpoolFingerprintsStore> {
+          on { generateDek(any()) } doReturn DEK_GEN
+          onBlocking { writeBlob(any(), any(), any(), any()) } doReturn Unit
+          onBlocking { mergeSubpool(any(), any(), any(), any()) } doAnswer { error("merge failed") }
+        }
+      val paj =
+        mock<PoolAssignmentJobServiceCoroutineStub> {
+          onBlocking { getPoolAssignmentJob(any(), any()) } doReturn
+            jobResponse(PoolAssignmentJob.State.CREATED)
+          onBlocking { markPoolAssignmentJobSucceeded(any(), any()) } doReturn
+            markPoolAssignmentJobSucceededResponse {
+              lastShardResult =
+                MarkPoolAssignmentJobSucceededResponseKt.lastShardResult { poolOffsets += 7L }
+            }
+          onBlocking { listPoolAssignmentJobs(any(), any()) } doReturn
+            listPoolAssignmentJobsResponse {
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 0
+                encryptedDek = DEK_SHARD0
+              }
+              poolAssignmentJobs += poolAssignmentJob {
+                shardIndex = 1
+                encryptedDek = DEK_SHARD0
+              }
+            }
+        }
+      val ruml =
+        mock<RawImpressionUploadModelLineServiceCoroutineStub> {
+          onBlocking { listRawImpressionUploadModelLines(any(), any()) } doReturn
+            listRawImpressionUploadModelLinesResponse {
+              rawImpressionUploadModelLines +=
+                parent(RawImpressionUploadModelLine.State.POOL_ASSIGNING, listOf(7L))
+            }
+        }
+
+      assertFailsWith<IllegalStateException> {
+        assigner(store, paj, ruml, accumulator = accumulatorWith(7L), totalShards = 2).assign()
+      }
+
+      val failureLog = logRecords.single { it.message.contains("pool_assignment.merge_failed") }
+      assertThat(failureLog.message).contains("xmm.edpa.pool_offset=7")
+      assertThat(failureLog.message).doesNotContain("xmm.edpa.shard_index=")
+      assertThat(failureLog.message).contains("xmm.lifecycle.stage=pool_assignment_merge")
+      assertThat(failureLog.message).contains("xmm.outcome=failed")
+      assertThat(failureLog.message).contains("xmm.error.type=IllegalStateException")
+      assertThat(failureLog.message).doesNotContain("xmm.error.code=")
+    }
+
+  @Test
   fun `early successful shard retries until the parent reaches POOL_ASSIGNING`() = runBlocking {
     val store = storeMock()
     val ranker = rankerStubMock()
