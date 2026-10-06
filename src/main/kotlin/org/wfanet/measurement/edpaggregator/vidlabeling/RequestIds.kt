@@ -143,6 +143,14 @@ object RequestIds {
   fun forRetryUploadHealingOperation(operationName: String, etag: String): String =
     fromKey("retryUploadHealingOperation:$operationName:$etag")
 
+  /** `request_id` for acquiring an upload-eviction fence. */
+  fun forAcquireUploadEvictionFence(operationId: String, state: String): String =
+    fromKey("acquireUploadEvictionFence:$operationId:$state")
+
+  /** `request_id` for releasing an upload-eviction fence. */
+  fun forReleaseUploadEvictionFence(operationId: String, etag: String): String =
+    fromKey("releaseUploadEvictionFence:$operationId:$etag")
+
   /** `request_id` for recording one durable upload-healing checkpoint and its evidence. */
   fun forUploadHealingStep(stepName: String, checkpoint: String, evidence: String): String =
     fromKey("uploadHealingStep:$stepName:$checkpoint:$evidence")
