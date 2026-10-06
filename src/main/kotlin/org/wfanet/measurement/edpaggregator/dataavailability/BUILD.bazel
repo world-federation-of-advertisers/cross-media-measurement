@@ -16,6 +16,17 @@ kt_jvm_library(
 )
 
 kt_jvm_library(
+    name = "data_availability_sync_lease_runner",
+    srcs = ["DataAvailabilitySyncLeaseRunner.kt"],
+    deps = [
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+    ],
+)
+
+kt_jvm_library(
     name = "missing_impression_metadata_recovery",
     srcs = [
         "MissingImpressionMetadataRecovery.kt",

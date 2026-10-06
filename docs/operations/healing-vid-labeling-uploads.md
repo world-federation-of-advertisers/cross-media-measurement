@@ -7,6 +7,9 @@ lines.
 
 ## Before eviction
 
+Do not pause `DataAvailabilitySync` manually. Synchronization leases block eviction until in-flight
+work drains and prevent new synchronization attempts after a correction fence is acquired.
+
 The command checks every upload/model-line under the DataProvider and refuses to run while any VID
 labeling pipeline is queued or running. If this happens, retry later after processing for that
 DataProvider has finished.

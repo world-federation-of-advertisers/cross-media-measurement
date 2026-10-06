@@ -82,6 +82,7 @@ message BatchCreateImpressionMetadataRequest {
   // parent `external_data_provider_id`. A maximum of 50 ImpressionMetadata
   // can be created in a batch.
   repeated CreateImpressionMetadataRequest requests = 2;
+  string synchronization_attempt_id = 3;
 }
 
 message BatchCreateImpressionMetadataResponse {
@@ -100,6 +101,7 @@ message BatchUpdateImpressionMetadataRequest {
   // The request message specifying the ImpressionMetadata to update.
   // A maximum of 50 ImpressionMetadata can be updated in a batch.
   repeated UpdateImpressionMetadataRequest requests = 2;
+  string synchronization_attempt_id = 3;
 }
 
 message BatchUpdateImpressionMetadataResponse {
@@ -166,6 +168,7 @@ message DeleteImpressionMetadataRequest {
 message UndeleteImpressionMetadataRequest {
   string data_provider_resource_id = 1;
   string impression_metadata_resource_id = 2;
+  string synchronization_attempt_id = 3;
 }
 
 message BatchDeleteImpressionMetadataRequest {
