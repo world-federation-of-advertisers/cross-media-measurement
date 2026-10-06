@@ -17,36 +17,61 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.cloud.spanner.Options
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import java.security.MessageDigest
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.flow.collectIndexed
 import kotlinx.coroutines.flow.firstOrNull
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.UploadHealingOperationResult
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.approveRawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.assignRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.completeUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findLatestUploadByDoneBlobUri
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findUploadHealingOperationByMutationRequestId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.markRawImpressionUploadCorrectionCandidateManualInterventionRequired
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRankIndexBlobs
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploadModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readUploadHealingOperations
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.replaceUploadHealingOperationPlan
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUploadHealingOperation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingStep
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest
+import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.BlobType
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.GetUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsPageTokenKt
+import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequest
+import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsResponse
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineRecoveryAction
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.RetryUploadHealingOperationRequest
+import org.wfanet.measurement.internal.edpaggregator.UpdateUploadHealingOperationPlanRequest
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep
+import org.wfanet.measurement.internal.edpaggregator.copy
+import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsPageToken
+import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsResponse
 
 /** Spanner-backed persistence for resumable VID-labeling upload healing. */
 class SpannerUploadHealingOperationService(
@@ -57,7 +82,8 @@ class SpannerUploadHealingOperationService(
   override suspend fun createUploadHealingOperation(
     request: CreateUploadHealingOperationRequest
   ): UploadHealingOperation {
-    validateCreateRequest(request)
+    val operation = normalizeOperation(request)
+    validatePlan(operation)
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createUploadHealingOperation"))
     transactionRunner.run { txn ->
@@ -69,7 +95,7 @@ class SpannerUploadHealingOperationService(
       if (existing != null) {
         if (
           existing.createRequestId == request.requestId &&
-            hasSamePlan(existing.uploadHealingOperation, request.uploadHealingOperation)
+            hasSamePlan(existing.uploadHealingOperation, operation)
         ) {
           return@run
         }
@@ -78,14 +104,8 @@ class SpannerUploadHealingOperationService(
           )
           .asRuntimeException()
       }
-      txn.insertUploadHealingOperation(
-        request.uploadHealingOperation
-          .toBuilder()
-          .setDataProviderResourceId(request.dataProviderResourceId)
-          .setUploadHealingOperationId(request.uploadHealingOperationId)
-          .build(),
-        request.requestId,
-      )
+      syncCandidateAssignments(txn, null, operation)
+      txn.insertUploadHealingOperation(operation, request.requestId)
     }
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
   }
@@ -95,6 +115,290 @@ class SpannerUploadHealingOperationService(
   ): UploadHealingOperation {
     requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
     requireNotBlank(request.uploadHealingOperationId, "upload_healing_operation_id")
+    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
+  }
+
+  override suspend fun listUploadHealingOperations(
+    request: ListUploadHealingOperationsRequest
+  ): ListUploadHealingOperationsResponse {
+    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
+    require(request.pageSize >= 0) { "page_size must be non-negative" }
+    request.filter.stateInList.forEach { state ->
+      require(
+        state != UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED &&
+          state != UploadHealingOperation.State.UNRECOGNIZED
+      ) {
+        "filter.state_in contains an unspecified state"
+      }
+    }
+    val pageSize =
+      if (request.pageSize == 0) DEFAULT_PAGE_SIZE else request.pageSize.coerceAtMost(MAX_PAGE_SIZE)
+    val after =
+      if (request.hasPageToken()) {
+        require(request.pageToken.dataProviderResourceId == request.dataProviderResourceId) {
+          "page_token does not belong to data_provider_resource_id"
+        }
+        require(request.pageToken.filter == request.filter) { "page_token does not match filter" }
+        request.pageToken.after
+      } else {
+        null
+      }
+    databaseClient.readOnlyTransaction().use { txn ->
+      return listUploadHealingOperationsResponse {
+        txn
+          .readUploadHealingOperations(
+            request.dataProviderResourceId,
+            request.filter,
+            pageSize + 1,
+            after,
+          )
+          .collectIndexed { index, result ->
+            if (index == pageSize) {
+              val last = uploadHealingOperations.last()
+              nextPageToken = listUploadHealingOperationsPageToken {
+                dataProviderResourceId = request.dataProviderResourceId
+                filter = request.filter
+                this.after =
+                  ListUploadHealingOperationsPageTokenKt.after {
+                    createTime = last.createTime
+                    uploadHealingOperationId = last.uploadHealingOperationId
+                  }
+              }
+            } else {
+              uploadHealingOperations += result.uploadHealingOperation
+            }
+          }
+      }
+    }
+  }
+
+  override suspend fun updateUploadHealingOperationPlan(
+    request: UpdateUploadHealingOperationPlanRequest
+  ): UploadHealingOperation {
+    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
+    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
+    requireNotBlank(request.etag, "etag")
+    require(request.hasUploadHealingOperation()) { "upload_healing_operation is required" }
+    val requested =
+      request.uploadHealingOperation.copy {
+        dataProviderResourceId = request.dataProviderResourceId
+        uploadHealingOperationId = request.uploadHealingOperationId
+      }
+    validatePlan(requested)
+    databaseClient
+      .readWriteTransaction(Options.tag("action=updateUploadHealingOperationPlan"))
+      .run { txn ->
+        val existing =
+          txn.findUploadHealingOperation(
+            request.dataProviderResourceId,
+            request.uploadHealingOperationId,
+          ) ?: throw notFound(request.uploadHealingOperationId)
+        if (hasSamePlan(existing.uploadHealingOperation, requested)) return@run
+        precondition(
+          existing.uploadHealingOperation.state ==
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ||
+            existing.uploadHealingOperation.state ==
+              UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION &&
+              existing.uploadHealingOperation.resumeState ==
+                UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
+        ) {
+          "only a pre-approval plan can be changed"
+        }
+        if (existing.uploadHealingOperation.etag != request.etag) {
+          throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
+            .asRuntimeException()
+        }
+        syncCandidateAssignments(txn, existing.uploadHealingOperation, requested)
+        txn.replaceUploadHealingOperationPlan(requested)
+      }
+    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
+  }
+
+  override suspend fun advanceUploadHealingOperation(
+    request: AdvanceUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
+    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
+    requireNotBlank(request.etag, "etag")
+    require(
+      request.state != UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED &&
+        request.state != UploadHealingOperation.State.UNRECOGNIZED
+    ) {
+      "state is required"
+    }
+    databaseClient.readWriteTransaction(Options.tag("action=advanceUploadHealingOperation")).run {
+      txn ->
+      val operation =
+        txn
+          .findUploadHealingOperation(
+            request.dataProviderResourceId,
+            request.uploadHealingOperationId,
+          )
+          ?.uploadHealingOperation ?: throw notFound(request.uploadHealingOperationId)
+      if (operation.state == request.state) return@run
+      if (operation.etag != request.etag) {
+        throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
+          .asRuntimeException()
+      }
+      precondition(request.state in allowedOperationStates(operation.state)) {
+        "cannot advance upload-healing operation from ${operation.state} to ${request.state}"
+      }
+      val resumeState =
+        if (
+          request.state ==
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+        ) {
+          markPlanCandidatesNeedAttention(txn, operation)
+          operation.state
+        } else {
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
+        }
+      txn.updateUploadHealingOperationState(
+        request.dataProviderResourceId,
+        request.uploadHealingOperationId,
+        request.state,
+        resumeState,
+      )
+    }
+    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
+  }
+
+  override suspend fun approveUploadHealingOperation(
+    request: ApproveUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
+    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
+    requireNotBlank(request.etag, "etag")
+    requireUuid(request.requestId, "request_id")
+    require(
+      request.decision ==
+        RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE ||
+        request.decision ==
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+    ) {
+      "decision is required"
+    }
+    val requestFingerprint = request.fingerprint()
+    databaseClient.readWriteTransaction(Options.tag("action=approveUploadHealingOperation")).run {
+      txn ->
+      val existingByRequestId =
+        txn.findUploadHealingOperationByMutationRequestId(
+          request.dataProviderResourceId,
+          request.requestId,
+        )
+      if (existingByRequestId != null) {
+        if (
+          isIdempotentMutation(
+            existingByRequestId,
+            request.uploadHealingOperationId,
+            request.requestId,
+            requestFingerprint,
+          )
+        ) {
+          return@run
+        }
+        throw requestIdAlreadyUsed()
+      }
+      val result =
+        txn.findUploadHealingOperation(
+          request.dataProviderResourceId,
+          request.uploadHealingOperationId,
+        ) ?: throw notFound(request.uploadHealingOperationId)
+      val operation = result.uploadHealingOperation
+      precondition(
+        operation.state ==
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+      ) {
+        "only a plan awaiting approval can be approved"
+      }
+      if (operation.etag != request.etag) {
+        throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
+          .asRuntimeException()
+      }
+      val approvedPlan = finalizeDecisionPlan(operation, request.decision)
+      validateDecisionPlan(approvedPlan, request.decision)
+      val candidates = readPlanCandidates(txn, operation)
+      precondition(
+        candidates.all {
+          it.uploadHealingOperationId == operation.uploadHealingOperationId &&
+            it.state == RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED &&
+            it.decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
+        }
+      ) {
+        "every correction candidate must still belong to the draft plan"
+      }
+      for (candidate in candidates) {
+        txn.approveRawImpressionUploadCorrectionCandidate(candidate, request.decision)
+      }
+      txn.replaceUploadHealingOperationPlan(
+        approvedPlan,
+        result.mutationRequestIds + request.requestId,
+        result.mutationRequestFingerprints + listOf(requestFingerprint),
+      )
+    }
+    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
+  }
+
+  override suspend fun retryUploadHealingOperation(
+    request: RetryUploadHealingOperationRequest
+  ): UploadHealingOperation {
+    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
+    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
+    requireNotBlank(request.etag, "etag")
+    requireUuid(request.requestId, "request_id")
+    val requestFingerprint = request.fingerprint()
+    databaseClient.readWriteTransaction(Options.tag("action=retryUploadHealingOperation")).run { txn
+      ->
+      val existingByRequestId =
+        txn.findUploadHealingOperationByMutationRequestId(
+          request.dataProviderResourceId,
+          request.requestId,
+        )
+      if (existingByRequestId != null) {
+        if (
+          isIdempotentMutation(
+            existingByRequestId,
+            request.uploadHealingOperationId,
+            request.requestId,
+            requestFingerprint,
+          )
+        ) {
+          return@run
+        }
+        throw requestIdAlreadyUsed()
+      }
+      val result =
+        txn.findUploadHealingOperation(
+          request.dataProviderResourceId,
+          request.uploadHealingOperationId,
+        ) ?: throw notFound(request.uploadHealingOperationId)
+      val operation = result.uploadHealingOperation
+      precondition(
+        operation.state ==
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+      ) {
+        "only an operation needing attention can be retried"
+      }
+      precondition(
+        operation.resumeState !=
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
+      ) {
+        "the operation requires replanning instead of retry"
+      }
+      if (operation.etag != request.etag) {
+        throw Status.ABORTED.withDescription("upload_healing_operation etag mismatch")
+          .asRuntimeException()
+      }
+      restorePlanCandidateState(txn, operation, operation.resumeState)
+      txn.updateUploadHealingOperationState(
+        request.dataProviderResourceId,
+        request.uploadHealingOperationId,
+        operation.resumeState,
+        mutationRequestIds = result.mutationRequestIds + request.requestId,
+        mutationRequestFingerprints =
+          result.mutationRequestFingerprints + listOf(requestFingerprint),
+      )
+    }
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
   }
 
@@ -158,6 +462,16 @@ class SpannerUploadHealingOperationService(
             .asRuntimeException()
       if (isIdempotentReplay(current, request)) {
         return@run
+      }
+      precondition(
+        operation.state in
+          setOf(
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+          )
+      ) {
+        "upload-healing steps cannot advance while the operation is ${operation.state}"
       }
       if (current.etag != request.etag) {
         throw Status.ABORTED.withDescription("upload_healing_step etag mismatch")
@@ -245,12 +559,32 @@ class SpannerUploadHealingOperationService(
         ?.uploadHealingOperation ?: throw notFound(operationId)
     }
 
-  private fun validateCreateRequest(request: CreateUploadHealingOperationRequest) {
+  private fun normalizeOperation(
+    request: CreateUploadHealingOperationRequest
+  ): UploadHealingOperation {
     requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
     requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
     requireUuid(request.requestId, "request_id")
     require(request.hasUploadHealingOperation()) { "upload_healing_operation is required" }
-    val operation = request.uploadHealingOperation
+    return request.uploadHealingOperation.copy {
+      dataProviderResourceId = request.dataProviderResourceId
+      uploadHealingOperationId = request.uploadHealingOperationId
+      if (state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED) {
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
+      }
+    }
+  }
+
+  private fun validatePlan(operation: UploadHealingOperation) {
+    val allowedStates =
+      setOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+      )
+    require(operation.state in allowedStates) {
+      "upload_healing_operation.state is not valid for a new plan"
+    }
     require(operation.reason.isNotBlank()) { "upload_healing_operation.reason is required" }
     require(operation.labeledImpressionsBlobPrefix.isNotBlank()) {
       "upload_healing_operation.labeled_impressions_blob_prefix is required"
@@ -261,7 +595,40 @@ class SpannerUploadHealingOperationService(
     require(operation.hasCutoffTime() && Timestamps.isValid(operation.cutoffTime)) {
       "upload_healing_operation.cutoff_time is required and must be valid"
     }
-    require(operation.stepsList.isNotEmpty()) { "upload_healing_operation.steps is required" }
+    require(
+      operation.resumeState ==
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED
+    ) {
+      "upload_healing_operation.resume_state is output-only"
+    }
+    require(
+      operation.stepsList.isNotEmpty() ||
+        operation.state ==
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+    ) {
+      "upload_healing_operation.steps is required"
+    }
+    require(
+      operation.rawImpressionUploadCorrectionCandidateIdsList.distinct().size ==
+        operation.rawImpressionUploadCorrectionCandidateIdsCount
+    ) {
+      "upload_healing_operation.raw_impression_upload_correction_candidate_ids must be unique"
+    }
+    if (
+      operation.state ==
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ||
+        operation.state ==
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+    ) {
+      require(operation.rawImpressionUploadCorrectionCandidateIdsCount > 0) {
+        "upload_healing_operation.raw_impression_upload_correction_candidate_ids is required"
+      }
+    }
+    if (operation.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING) {
+      require(operation.rawImpressionUploadCorrectionCandidateIdsCount == 0) {
+        "a candidate-backed plan must require approval"
+      }
+    }
     require(
       operation.stepsList.map { it.uploadHealingStepId }.distinct().size == operation.stepsCount
     ) {
@@ -287,6 +654,28 @@ class SpannerUploadHealingOperationService(
       ) {
         "step recovery_action is required"
       }
+      require(
+        step.rawImpressionUploadCorrectionCandidateId.isEmpty() ||
+          step.rawImpressionUploadCorrectionCandidateId in
+            operation.rawImpressionUploadCorrectionCandidateIdsList
+      ) {
+        "step correction candidate must belong to the operation"
+      }
+      require(step.hasLabeledOutputManifest()) { "step labeled_output_manifest is required" }
+      require(
+        step.labeledOutputManifest.blobsList.map { it.blobUri }.distinct().size ==
+          step.labeledOutputManifest.blobsCount
+      ) {
+        "step labeled_output_manifest.blobs must have unique blob URIs"
+      }
+      for (blob in step.labeledOutputManifest.blobsList) {
+        require(blob.blobUri.isNotBlank()) {
+          "step labeled_output_manifest.blobs.blob_uri is required"
+        }
+        require(!blob.hasGeneration() || blob.generation > 0L) {
+          "step labeled_output_manifest.blobs.generation must be positive"
+        }
+      }
     }
   }
 
@@ -296,9 +685,13 @@ class SpannerUploadHealingOperationService(
   ): Boolean {
     if (
       existing.reason != requested.reason ||
+        existing.state != requested.state ||
+        existing.resumeState != requested.resumeState ||
         existing.labeledImpressionsBlobPrefix != requested.labeledImpressionsBlobPrefix ||
         existing.badRawImpressionUploadResourceIdsList !=
           requested.badRawImpressionUploadResourceIdsList ||
+        existing.rawImpressionUploadCorrectionCandidateIdsList !=
+          requested.rawImpressionUploadCorrectionCandidateIdsList ||
         existing.cutoffTime != requested.cutoffTime ||
         existing.stepsCount != requested.stepsCount
     ) {
@@ -315,9 +708,266 @@ class SpannerUploadHealingOperationService(
         left.recoveryAction == right.recoveryAction &&
         left.recoveryPredecessorRawImpressionUploadResourceId ==
           right.recoveryPredecessorRawImpressionUploadResourceId &&
-        left.recoveryTarget == right.recoveryTarget
+        left.recoveryTarget == right.recoveryTarget &&
+        left.rawImpressionUploadCorrectionCandidateId ==
+          right.rawImpressionUploadCorrectionCandidateId &&
+        left.labeledOutputManifest == right.labeledOutputManifest
     }
   }
+
+  private suspend fun syncCandidateAssignments(
+    txn: AsyncDatabaseClient.TransactionContext,
+    previousOperation: UploadHealingOperation?,
+    operation: UploadHealingOperation,
+  ) {
+    val previousCandidateIds =
+      previousOperation?.rawImpressionUploadCorrectionCandidateIdsList.orEmpty()
+    val previousCandidateState = previousOperation?.let { candidateState(it.state) }
+    val nextCandidateIds = operation.rawImpressionUploadCorrectionCandidateIdsList.toSet()
+    for (candidateId in previousCandidateIds.filter { it !in nextCandidateIds }) {
+      val candidate =
+        txn
+          .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
+          ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      precondition(
+        candidate.uploadHealingOperationId == operation.uploadHealingOperationId &&
+          candidate.state == previousCandidateState
+      ) {
+        "correction candidate $candidateId is not assigned to this mutable plan"
+      }
+      txn.unassignRawImpressionUploadCorrectionCandidate(candidate)
+    }
+    val candidateState = candidateState(operation.state)
+    for (candidateId in nextCandidateIds) {
+      val candidate =
+        txn
+          .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
+          ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      precondition(
+        candidate.state == RawImpressionUploadCorrectionCandidate.State.STATE_PENDING ||
+          (candidate.uploadHealingOperationId == operation.uploadHealingOperationId &&
+            (candidate.state == candidateState || candidate.state == previousCandidateState))
+      ) {
+        "correction candidate $candidateId is already assigned or no longer pending"
+      }
+      if (
+        candidate.state != candidateState ||
+          candidate.uploadHealingOperationId != operation.uploadHealingOperationId
+      ) {
+        if (
+          candidateState ==
+            RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED
+        ) {
+          txn.markRawImpressionUploadCorrectionCandidateManualInterventionRequired(
+            candidate,
+            operation.uploadHealingOperationId,
+          )
+        } else {
+          txn.assignRawImpressionUploadCorrectionCandidate(
+            candidate,
+            operation.uploadHealingOperationId,
+          )
+        }
+      }
+    }
+  }
+
+  private fun candidateState(
+    operationState: UploadHealingOperation.State
+  ): RawImpressionUploadCorrectionCandidate.State =
+    if (
+      operationState == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION
+    ) {
+      RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED
+    } else {
+      RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED
+    }
+
+  private suspend fun readPlanCandidates(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+  ): List<RawImpressionUploadCorrectionCandidate> {
+    precondition(operation.rawImpressionUploadCorrectionCandidateIdsCount > 0) {
+      "an approval requires correction candidates"
+    }
+    return operation.rawImpressionUploadCorrectionCandidateIdsList.map { candidateId ->
+      txn
+        .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
+        ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+    }
+  }
+
+  private suspend fun markPlanCandidatesNeedAttention(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+  ) {
+    for (candidateId in operation.rawImpressionUploadCorrectionCandidateIdsList) {
+      val candidate =
+        txn
+          .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
+          ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      precondition(candidate.uploadHealingOperationId == operation.uploadHealingOperationId) {
+        "correction candidate $candidateId no longer belongs to this plan"
+      }
+      txn.markRawImpressionUploadCorrectionCandidateManualInterventionRequired(
+        candidate,
+        operation.uploadHealingOperationId,
+      )
+    }
+  }
+
+  private suspend fun restorePlanCandidateState(
+    txn: AsyncDatabaseClient.TransactionContext,
+    operation: UploadHealingOperation,
+    state: UploadHealingOperation.State,
+  ) {
+    when (state) {
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING -> {}
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE,
+      UploadHealingOperation.State.UNRECOGNIZED -> error("invalid resume state")
+    }
+    for (candidateId in operation.rawImpressionUploadCorrectionCandidateIdsList) {
+      val candidate =
+        txn
+          .findRawImpressionUploadCorrectionCandidate(operation.dataProviderResourceId, candidateId)
+          ?.rawImpressionUploadCorrectionCandidate ?: throw candidateNotFound(candidateId)
+      precondition(
+        candidate.uploadHealingOperationId == operation.uploadHealingOperationId &&
+          candidate.state ==
+            RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED
+      ) {
+        "correction candidate $candidateId cannot resume with this plan"
+      }
+      txn.assignRawImpressionUploadCorrectionCandidate(
+        candidate,
+        operation.uploadHealingOperationId,
+      )
+    }
+  }
+
+  private fun finalizeDecisionPlan(
+    operation: UploadHealingOperation,
+    decision: RawImpressionUploadCorrectionCandidate.Decision,
+  ): UploadHealingOperation {
+    if (decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE) {
+      return operation.copy {
+        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+      }
+    }
+    val removedUploadIds = operation.badRawImpressionUploadResourceIdsList.toSet()
+    val rewiredSteps = mutableMapOf<Long, UploadHealingStep>()
+    for (modelLineSteps in
+      operation.stepsList.filter { it.memoized }.groupBy { it.cmmsModelLine }.values) {
+      val orderedSteps = modelLineSteps.sortedBy { it.sequenceNumber }
+      var predecessor = orderedSteps.first().recoveryPredecessorRawImpressionUploadResourceId
+      for (step in orderedSteps) {
+        val removed = step.sourceRawImpressionUploadResourceId in removedUploadIds
+        rewiredSteps[step.uploadHealingStepId] =
+          step.copy {
+            recoveryPredecessorRawImpressionUploadResourceId = predecessor
+            if (removed) {
+              recoveryAction =
+                RawImpressionUploadModelLineRecoveryAction
+                  .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+              recoveryTarget = false
+            }
+          }
+        if (!removed && step.recoveryTarget) {
+          predecessor = step.sourceRawImpressionUploadResourceId
+        }
+      }
+    }
+    return operation.copy {
+      state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED
+      steps.clear()
+      steps +=
+        operation.stepsList.map { step ->
+          rewiredSteps[step.uploadHealingStepId]
+            ?: if (step.sourceRawImpressionUploadResourceId in removedUploadIds) {
+              step.copy {
+                recoveryAction =
+                  RawImpressionUploadModelLineRecoveryAction
+                    .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+                recoveryPredecessorRawImpressionUploadResourceId = ""
+                recoveryTarget = false
+              }
+            } else {
+              step
+            }
+        }
+    }
+  }
+
+  private fun validateDecisionPlan(
+    operation: UploadHealingOperation,
+    decision: RawImpressionUploadCorrectionCandidate.Decision,
+  ) {
+    val noReplacement =
+      decision ==
+        RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+    val expectedAction =
+      if (noReplacement) {
+        RawImpressionUploadModelLineRecoveryAction
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT
+      } else {
+        RawImpressionUploadModelLineRecoveryAction
+          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
+      }
+    val ownerIds = operation.badRawImpressionUploadResourceIdsList.toSet()
+    val ownerSteps =
+      operation.stepsList.filter { it.sourceRawImpressionUploadResourceId in ownerIds }
+    precondition(
+      ownerSteps.isNotEmpty() &&
+        ownerSteps.all { step ->
+          step.recoveryAction == expectedAction && (!noReplacement || !step.recoveryTarget)
+        } &&
+        (noReplacement || ownerSteps.any { it.recoveryTarget })
+    ) {
+      "the healing plan does not match the operator decision"
+    }
+  }
+
+  private fun allowedOperationStates(
+    state: UploadHealingOperation.State
+  ): Set<UploadHealingOperation.State> =
+    when (state) {
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED ->
+        setOf(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION)
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVED ->
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        )
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING ->
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        )
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING ->
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        )
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_REPLAYING ->
+        setOf(
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING,
+          UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
+        )
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_RECOVERING ->
+        setOf(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION)
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION -> emptySet()
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE -> emptySet()
+      UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED,
+      UploadHealingOperation.State.UNRECOGNIZED -> error("invalid upload-healing operation state")
+    }
 
   private fun isIdempotentReplay(
     current: UploadHealingStep,
@@ -536,13 +1186,55 @@ class SpannerUploadHealingOperationService(
   private fun requireUuid(value: String, field: String) {
     requireNotBlank(value, field)
     try {
-      UUID.fromString(value)
+      val uuid = UUID.fromString(value)
+      require(
+        uuid.version() == 4 &&
+          uuid.variant() == 2 &&
+          uuid.toString().equals(value, ignoreCase = true)
+      ) {
+        "$field must be a UUID4"
+      }
     } catch (e: IllegalArgumentException) {
-      throw IllegalArgumentException("$field must be a UUID", e)
+      throw IllegalArgumentException("$field must be a UUID4", e)
     }
   }
+
+  private fun ApproveUploadHealingOperationRequest.fingerprint(): ByteString =
+    MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
+
+  private fun RetryUploadHealingOperationRequest.fingerprint(): ByteString =
+    MessageDigest.getInstance("SHA-256").digest(toByteArray()).toByteString()
+
+  private fun isIdempotentMutation(
+    result: UploadHealingOperationResult,
+    uploadHealingOperationId: String,
+    requestId: String,
+    requestFingerprint: ByteString,
+  ): Boolean {
+    if (result.uploadHealingOperation.uploadHealingOperationId != uploadHealingOperationId) {
+      return false
+    }
+    val requestIndex = result.mutationRequestIds.indexOf(requestId)
+    return requestIndex >= 0 &&
+      result.mutationRequestFingerprints.getOrNull(requestIndex) == requestFingerprint
+  }
+
+  private fun requestIdAlreadyUsed() =
+    Status.ALREADY_EXISTS.withDescription("request_id was already used for another mutation")
+      .asRuntimeException()
 
   private fun notFound(operationId: String) =
     Status.NOT_FOUND.withDescription("UploadHealingOperation $operationId not found")
       .asRuntimeException()
+
+  private fun candidateNotFound(candidateId: String) =
+    Status.NOT_FOUND.withDescription(
+        "RawImpressionUploadCorrectionCandidate $candidateId not found"
+      )
+      .asRuntimeException()
+
+  companion object {
+    private const val DEFAULT_PAGE_SIZE = 50
+    private const val MAX_PAGE_SIZE = 100
+  }
 }
