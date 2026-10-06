@@ -57,11 +57,13 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneObjectMetadataReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -156,6 +158,12 @@ class VidLabelingHealingControllerFunction(
       val ranks = RankIndexBlobServiceCoroutineStub(rawChannel)
       val impressionMetadata = ImpressionMetadataServiceCoroutineStub(rawChannel)
       val candidates = RawImpressionUploadCorrectionCandidateServiceCoroutineStub(rawChannel)
+      val candidateCleaner =
+        GrpcCorrectionCandidateCleaner(
+          InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
+            .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalChannel),
+          rpcThrottlers = rpcThrottlers,
+        )
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
       val operationStore =
         GrpcHealingOperationStore(
@@ -225,6 +233,7 @@ class VidLabelingHealingControllerFunction(
           )
         },
         candidates,
+        candidateCleaner,
         operationStore,
         uploads,
         files,
