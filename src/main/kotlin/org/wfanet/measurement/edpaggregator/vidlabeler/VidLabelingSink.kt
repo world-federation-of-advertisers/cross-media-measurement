@@ -58,6 +58,20 @@ import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.virtualpeople.common.LabelerInput
 
+/** One durable labeled-output or metadata-sidecar publication attempt. */
+data class LabeledOutputPublication(
+  val type: Type,
+  val uri: String,
+  val modelLine: String,
+  val outcome: String,
+  val error: Throwable? = null,
+) {
+  enum class Type(val telemetryValue: String) {
+    LABELED_OUTPUT("labeled_output"),
+    METADATA_SIDECAR("metadata_sidecar"),
+  }
+}
+
 /**
  * Per-input-file [RawImpressionSource.BlobSink] that labels one raw-impression file's
  * shard-filtered events and writes the encrypted labeled output for that file.
@@ -127,6 +141,7 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
   private val dataProvider: String,
   private val metrics: VidLabelerMetrics,
   private val encryptionKeySemaphore: Semaphore,
+  private val publicationObserver: (LabeledOutputPublication) -> Unit = {},
 ) : RawImpressionSource.BlobSink<E> {
 
   /**
@@ -301,32 +316,32 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
     }
 
     private suspend fun runWriter() {
-      // Generate-and-wrap the output DEK (a KMS roundtrip) and build the envelope-encrypting
-      // client under [encryptionKeySemaphore] so the WorkItem's group fan-out cannot burst the
-      // shared KEK past Cloud KMS rate limits. The permit guards only this short setup, not the
-      // streaming write below, so holding it can never stall another group's blob stream.
-      val aeadStorageClient =
-        encryptionKeySemaphore.withPermit {
-          val serializedEncryptionKey =
-            EncryptedStorage.generateSerializedEncryptionKey(
-              encryptKmsClient,
-              encryptKekUri,
-              TINK_KEY_TEMPLATE,
-            )
-          outputEncryptedDek = encryptedDek {
-            kekUri = encryptKekUri
-            ciphertext = serializedEncryptionKey
-            protobufFormat = EncryptedDek.ProtobufFormat.BINARY
-            typeUrl = TINK_KEYSET_TYPE_URL
-          }
-          SelectedStorageClient(
-              SelectedStorageClient.parseBlobUri(outputBlobUri),
-              storageConfig.rootDirectory,
-              storageConfig.projectId,
-            )
-            .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
-        }
       try {
+        // Generate-and-wrap the output DEK (a KMS roundtrip) and build the envelope-encrypting
+        // client under [encryptionKeySemaphore] so the WorkItem's group fan-out cannot burst the
+        // shared KEK past Cloud KMS rate limits. The permit guards only this short setup, not the
+        // streaming write below, so holding it can never stall another group's blob stream.
+        val aeadStorageClient =
+          encryptionKeySemaphore.withPermit {
+            val serializedEncryptionKey =
+              EncryptedStorage.generateSerializedEncryptionKey(
+                encryptKmsClient,
+                encryptKekUri,
+                TINK_KEY_TEMPLATE,
+              )
+            outputEncryptedDek = encryptedDek {
+              kekUri = encryptKekUri
+              ciphertext = serializedEncryptionKey
+              protobufFormat = EncryptedDek.ProtobufFormat.BINARY
+              typeUrl = TINK_KEYSET_TYPE_URL
+            }
+            SelectedStorageClient(
+                SelectedStorageClient.parseBlobUri(outputBlobUri),
+                storageConfig.rootDirectory,
+                storageConfig.projectId,
+              )
+              .withEnvelopeEncryption(encryptKmsClient, encryptKekUri, serializedEncryptionKey)
+          }
         // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
         // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery.
         MesosRecordIoStorageClient(aeadStorageClient)
@@ -347,10 +362,27 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
           "Labeled-output writer failed for model line " + key.modelLine + " at " + outputBlobUri,
           e,
         )
+        publicationObserver(
+          LabeledOutputPublication(
+            LabeledOutputPublication.Type.LABELED_OUTPUT,
+            outputBlobUri,
+            key.modelLine,
+            "failed",
+            e,
+          )
+        )
         throw e
       }
       metrics.blobsWrittenCounter.add(1, labelAttributes(key.modelLine))
       logger.info("Wrote labeled impressions for ${key.modelLine} to $outputBlobUri")
+      publicationObserver(
+        LabeledOutputPublication(
+          LabeledOutputPublication.Type.LABELED_OUTPUT,
+          outputBlobUri,
+          key.modelLine,
+          "written",
+        )
+      )
     }
 
     private fun updateAggregates(impression: LabeledImpression) {
@@ -370,34 +402,56 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
 
     /** Writes the `.metadata.binpb` sidecar from the aggregates collected while streaming. */
     suspend fun writeMetadata() {
-      val details = blobDetails {
-        blobUri = outputBlobUri
-        encryptedDek = outputEncryptedDek
-        modelLine = key.modelLine
-        interval = interval {
-          startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
-          endTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
-        }
-        entityKeys +=
-          entityIdsByType.map { (type, ids) ->
-            entityKeyGroup {
-              entityType = type
-              entityIds += ids
-            }
-          }
-      }
-
       val metadataUri = "$outputBlobUri.metadata.binpb"
-      // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
-      // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
-      // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
-      // the same input file would race here too.
-      SelectedStorageClient(
-          SelectedStorageClient.parseBlobUri(metadataUri),
-          storageConfig.rootDirectory,
-          storageConfig.projectId,
+      try {
+        val details = blobDetails {
+          blobUri = outputBlobUri
+          encryptedDek = outputEncryptedDek
+          modelLine = key.modelLine
+          interval = interval {
+            startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
+            endTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
+          }
+          entityKeys +=
+            entityIdsByType.map { (type, ids) ->
+              entityKeyGroup {
+                entityType = type
+                entityIds += ids
+              }
+            }
+        }
+        // TODO(world-federation-of-advertisers/cross-media-measurement#3999): Add ifGenerationMatch
+        // (write-if-absent) to prevent overwrite races on Pub/Sub redelivery. Same exposure as the
+        // labeled-impressions write: the metadata key is deterministic, so concurrent VMs labeling
+        // the same input file would race here too.
+        SelectedStorageClient(
+            SelectedStorageClient.parseBlobUri(metadataUri),
+            storageConfig.rootDirectory,
+            storageConfig.projectId,
+          )
+          .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        publicationObserver(
+          LabeledOutputPublication(
+            LabeledOutputPublication.Type.METADATA_SIDECAR,
+            metadataUri,
+            key.modelLine,
+            "failed",
+            e,
+          )
         )
-        .writeBlob(SelectedStorageClient.parseBlobUri(metadataUri).key, details.toByteString())
+        throw e
+      }
+      publicationObserver(
+        LabeledOutputPublication(
+          LabeledOutputPublication.Type.METADATA_SIDECAR,
+          metadataUri,
+          key.modelLine,
+          "written",
+        )
+      )
     }
   }
 
@@ -468,6 +522,7 @@ class MemoizedVidLabelingSink(
   dataProvider: String,
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
+  publicationObserver: (LabeledOutputPublication) -> Unit = {},
 ) :
   BaseVidLabelingSink<ParquetDigestedEvent>(
     inputBlobUri,
@@ -481,6 +536,7 @@ class MemoizedVidLabelingSink(
     dataProvider,
     metrics,
     encryptionKeySemaphore,
+    publicationObserver,
   ) {
   override fun resolveLabelerInput(
     event: ParquetDigestedEvent,
@@ -525,6 +581,7 @@ class PlainVidLabelingSink(
   dataProvider: String,
   metrics: VidLabelerMetrics,
   encryptionKeySemaphore: Semaphore,
+  publicationObserver: (LabeledOutputPublication) -> Unit = {},
 ) :
   BaseVidLabelingSink<ParquetUndigestedEvent>(
     inputBlobUri,
@@ -538,6 +595,7 @@ class PlainVidLabelingSink(
     dataProvider,
     metrics,
     encryptionKeySemaphore,
+    publicationObserver,
   ) {
   override fun resolveLabelerInput(
     event: ParquetUndigestedEvent,
