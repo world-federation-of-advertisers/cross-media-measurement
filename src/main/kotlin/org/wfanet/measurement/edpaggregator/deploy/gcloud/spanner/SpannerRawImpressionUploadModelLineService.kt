@@ -40,6 +40,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpre
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadModelLineByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadState
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionOperationId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadModelLineExists
@@ -73,6 +74,7 @@ import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLin
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState as State
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadModelLinesPageToken
@@ -375,10 +377,9 @@ class SpannerRawImpressionUploadModelLineService(
    *
    * Adding a model line to a COMPLETED upload (operator backfill) flips the denormalized parent
    * state back to ACTIVE in the same transaction so the dispatcher re-processes it. Adding a model
-   * line to a FAILED upload is rejected: reviving it would strand the new child (the dispatcher
-   * skips FAILED parents) and, once the child completed, leave the parent stuck ACTIVE because its
-   * FAILED siblings block the COMPLETED roll-up, mis-classifying it as stale. CREATED and ACTIVE
-   * parents need no change — the normal state cascade in [transitionState] handles them.
+   * line to a FAILED or CORRECTION_REQUIRED upload is rejected: reviving it would strand the new
+   * child and make the parent lifecycle inconsistent. CREATED and ACTIVE parents need no change —
+   * the normal state cascade in [transitionState] handles them.
    */
   private suspend fun reactivateParentForBackfill(
     txn: AsyncDatabaseClient.TransactionContext,
@@ -396,11 +397,12 @@ class SpannerRawImpressionUploadModelLineService(
           rawImpressionUploadId,
           RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
         )
-      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ->
         throw RawImpressionUploadStateInvalidException(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
-            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
+            parentState,
           )
           .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       // CREATED/ACTIVE need no reactivation — the normal child-Mark cascade handles them.
@@ -813,6 +815,7 @@ class SpannerRawImpressionUploadModelLineService(
           txn.requireProcessingAllowedDuringEviction(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
+            currentState,
           )
         }
 
@@ -938,15 +941,22 @@ class SpannerRawImpressionUploadModelLineService(
   private suspend fun AsyncDatabaseClient.ReadContext.requireProcessingAllowedDuringEviction(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
+    currentState: State,
   ) {
-    val operationId = getVidLabelingEvictionOperationId(dataProviderResourceId) ?: return
+    val fence = getVidLabelingEvictionFence(dataProviderResourceId) ?: return
     val upload =
       getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
         .rawImpressionUpload
-    if (upload.evictionOperationId == operationId) return
+    if (
+      upload.evictionOperationId == fence.evictionOperationId ||
+        (fence.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING &&
+          currentState in PROCESSING_STATES)
+    ) {
+      return
+    }
     throw Status.FAILED_PRECONDITION.withDescription(
         "RawImpressionUpload $rawImpressionUploadResourceId is waiting for VID-labeling " +
-          "eviction $operationId to complete"
+          "eviction ${fence.evictionOperationId} to complete"
       )
       .asRuntimeException()
   }

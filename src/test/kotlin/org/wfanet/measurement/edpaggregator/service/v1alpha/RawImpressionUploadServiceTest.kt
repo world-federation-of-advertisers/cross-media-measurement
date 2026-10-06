@@ -60,6 +60,8 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase as InternalUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub as InternalUploadServiceCoroutineStub
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
 
 @RunWith(JUnit4::class)
 class RawImpressionUploadServiceTest {
@@ -83,6 +85,17 @@ class RawImpressionUploadServiceTest {
   fun initService() {
     service =
       RawImpressionUploadService(InternalUploadServiceCoroutineStub(grpcTestServerRule.channel))
+  }
+
+  @Test
+  fun `state conversions map correction required`() {
+    val internal = internalRawImpressionUpload {
+      dataProviderResourceId = DATA_PROVIDER_ID
+      rawImpressionUploadResourceId = "candidate-upload"
+      state = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+    }
+
+    assertThat(internal.toPublic().state).isEqualTo(RawImpressionUpload.State.CORRECTION_REQUIRED)
   }
 
   @Test
@@ -782,10 +795,8 @@ class RawImpressionUploadServiceTest {
   }
 
   @Test
-  fun `listRawImpressionUploads state filter maps ACTIVE and COMPLETED`(): Unit = runBlocking {
-    // Only CREATED uploads are reachable via the public API, so ACTIVE and COMPLETED filters must
-    // map through toInternal() and match nothing here. This pins the ACTIVE and COMPLETED state
-    // conversions that the CREATED/FAILED filter tests do not exercise.
+  fun `listRawImpressionUploads maps non-created state filters`(): Unit = runBlocking {
+    // Only CREATED uploads are reachable via the public API, so the other filters match nothing.
     val created =
       service.createRawImpressionUpload(
         createRawImpressionUploadRequest {
@@ -820,6 +831,18 @@ class RawImpressionUploadServiceTest {
       )
     assertThat(completedResponse.rawImpressionUploadsList).isEmpty()
 
+    val correctionResponse =
+      service.listRawImpressionUploads(
+        listRawImpressionUploadsRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter =
+            ListRawImpressionUploadsRequestKt.filter {
+              stateIn += RawImpressionUpload.State.CORRECTION_REQUIRED
+            }
+        }
+      )
+    assertThat(correctionResponse.rawImpressionUploadsList).isEmpty()
+
     val mixedResponse =
       service.listRawImpressionUploads(
         listRawImpressionUploadsRequest {
@@ -829,6 +852,7 @@ class RawImpressionUploadServiceTest {
               stateIn += RawImpressionUpload.State.CREATED
               stateIn += RawImpressionUpload.State.ACTIVE
               stateIn += RawImpressionUpload.State.COMPLETED
+              stateIn += RawImpressionUpload.State.CORRECTION_REQUIRED
             }
         }
       )
