@@ -28,6 +28,7 @@ import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.time.LocalDate
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -226,6 +227,36 @@ class MissingImpressionMetadataRecoveryTest {
     assertThat(metricValue(DELETED_RECORDS_WITH_BLOBS_METRIC)).isEqualTo(0)
     assertThat(metricValue(FAILED_UNDELETES_METRIC)).isEqualTo(0)
     assertThat(metricValue(RECOVERY_ERRORS_METRIC)).isEqualTo(0)
+  }
+
+  @Test
+  fun `recover revalidates lease before undeleting metadata`() = runBlocking {
+    val storageClient = InMemoryStorageClient()
+    val deletedUri = metadataUri("2026-08-03", "metadata-deleted.json")
+    writeFinalizedMetadata(storageClient, "2026-08-03", "metadata-deleted.json")
+    registeredMetadata[deletedUri] = impressionMetadata {
+      name = "$DATA_PROVIDER_NAME/impressionMetadata/deleted-1"
+      blobUri = deletedUri
+      state = ImpressionMetadata.State.DELETED
+    }
+    var leaseChecks = 0
+
+    val error =
+      assertFailsWith<StatusException> {
+        buildRecovery(
+            storageClient,
+            impressionMetadataBatchSize = 100,
+            registerSyncedMetadata = true,
+            ensureLeaseActive = {
+              leaseChecks++
+              if (leaseChecks == 2) throw Status.UNAVAILABLE.asException()
+            },
+          ) { _, _ -> }
+          .recover()
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(undeleteRequests).isEmpty()
   }
 
   @Test
@@ -902,6 +933,7 @@ class MissingImpressionMetadataRecoveryTest {
         earliestDate = LocalDate.parse("2026-06-01"),
         latestDate = LocalDate.parse("2026-08-31"),
       ),
+    ensureLeaseActive: suspend () -> Unit = {},
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     buildRecovery(
@@ -910,6 +942,7 @@ class MissingImpressionMetadataRecoveryTest {
       registerSyncedMetadata,
       markSyncedBlobs = true,
       dateSelection = dateSelection,
+      ensureLeaseActive = ensureLeaseActive,
       sync,
     )
 
@@ -923,6 +956,7 @@ class MissingImpressionMetadataRecoveryTest {
         earliestDate = LocalDate.parse("2026-06-01"),
         latestDate = LocalDate.parse("2026-08-31"),
       ),
+    ensureLeaseActive: suspend () -> Unit = {},
     sync: suspend (String, Set<String>) -> Unit,
   ): MissingImpressionMetadataRecovery =
     MissingImpressionMetadataRecovery(
@@ -937,6 +971,7 @@ class MissingImpressionMetadataRecoveryTest {
         },
       impressionMetadataBatchSize = impressionMetadataBatchSize,
       dateSelection = dateSelection,
+      ensureLeaseActive = ensureLeaseActive,
       sync = { doneBlobUri, blobKeys ->
         val doneBlobKey = doneBlobUri.removePrefix("$BUCKET_URI/")
         storageClient.updateBlobMetadata(
