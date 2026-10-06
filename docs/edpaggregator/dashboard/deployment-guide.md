@@ -34,8 +34,10 @@ The dashboard creates the following resources:
 *   **Row access policies**: Each EDP sees only rows matching their
     `DataProviderResourceId` or `CmmsDataProvider`. Policies survive scheduled
     query runs (MERGE is atomic and does not recreate the table).
-*   **Connection isolation**: Only the Terraform service account has
-    `connectionUser` on BigQuery connections. EDP service accounts cannot run
+*   **Connection isolation**: `connectionUser` is held only by the Terraform
+    service account, on all four connections, and the `dashboard-compliance`
+    service account, on `kingdom-conn` alone so the `unlinked_accounts`
+    pipeline check can federate. EDP service accounts hold none and cannot run
     `EXTERNAL_QUERY` against any Spanner or Postgres database.
 *   **Spanner-side decoding**: Proto fields are decoded inside Spanner via
     `TO_JSON()`. Sensitive fields (e.g., `data_provider_keys` in
