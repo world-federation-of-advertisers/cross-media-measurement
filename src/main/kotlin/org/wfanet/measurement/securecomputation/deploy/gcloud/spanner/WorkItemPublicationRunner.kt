@@ -210,7 +210,11 @@ class WorkItemPublicationRunner(
       errorType = null,
     )
     try {
-      workItemPublisher.publishMessage(publication.queueResourceId, publication.workItem)
+      workItemPublisher.publishMessage(
+        publication.queueResourceId,
+        publication.workItem,
+        publication.workItem.serializationKey,
+      )
     } catch (e: CancellationException) {
       throw e
     } catch (e: Exception) {

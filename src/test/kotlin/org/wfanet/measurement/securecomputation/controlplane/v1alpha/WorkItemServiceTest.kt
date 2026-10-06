@@ -80,6 +80,7 @@ class WorkItemServiceTest {
     val internalWorkItem = internalWorkItem {
       workItemResourceId = "workItem"
       queueResourceId = "queueId"
+      serializationKey = "data-availability:dataProviders/provider-1"
       state = InternalWorkItem.State.QUEUED
     }
     internalServiceMock.stub { onBlocking { createWorkItem(any()) } doReturn internalWorkItem }
@@ -88,6 +89,7 @@ class WorkItemServiceTest {
       workItem = workItem {
         name = "workItems/${internalWorkItem.workItemResourceId}"
         queue = "queueId"
+        serializationKey = internalWorkItem.serializationKey
       }
       workItemId = "workItem"
     }
@@ -103,6 +105,7 @@ class WorkItemServiceTest {
             queueResourceId = "queueId"
             workItemResourceId = request.workItemId
             workItemParams = Any.getDefaultInstance()
+            serializationKey = request.workItem.serializationKey
           }
         }
       )
@@ -124,13 +127,17 @@ class WorkItemServiceTest {
     val internalWorkItem = internalWorkItem {
       workItemResourceId = "work-item"
       queueResourceId = "queue-id"
+      serializationKey = "data-availability:dataProviders/provider-1"
       state = InternalWorkItem.State.QUEUED
       generation = 1L
     }
     internalServiceMock.stub { onBlocking { ensureWorkItem(any()) } doReturn internalWorkItem }
     val request = ensureWorkItemRequest {
       workItemId = "work-item"
-      workItem = workItem { queue = "queue-id" }
+      workItem = workItem {
+        queue = "queue-id"
+        serializationKey = internalWorkItem.serializationKey
+      }
     }
 
     val response = service.ensureWorkItem(request)
@@ -145,10 +152,12 @@ class WorkItemServiceTest {
             workItemResourceId = "work-item"
             queueResourceId = "queue-id"
             workItemParams = Any.getDefaultInstance()
+            serializationKey = request.workItem.serializationKey
           }
         }
       )
     assertThat(response.name).isEqualTo("workItems/work-item")
+    assertThat(response.serializationKey).isEqualTo(internalWorkItem.serializationKey)
     assertThat(response.state).isEqualTo(WorkItem.State.QUEUED)
     assertThat(response.generation).isEqualTo(1L)
   }
