@@ -6,6 +6,50 @@ package(default_visibility = ["//visibility:public"])
 _IMPORT_PREFIX = "/src/main/proto"
 
 proto_library(
+    name = "data_availability_sync_lease_proto",
+    srcs = ["data_availability_sync_lease.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_lease_kt_jvm_proto",
+    deps = [":data_availability_sync_lease_proto"],
+)
+
+proto_library(
+    name = "data_availability_sync_lease_service_proto",
+    srcs = ["data_availability_sync_lease_service.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+    deps = [
+        ":data_availability_sync_lease_proto",
+        "@com_google_googleapis//google/api:field_behavior_proto",
+        "@com_google_googleapis//google/api:field_info_proto",
+        "@com_google_googleapis//google/api:resource_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "data_availability_sync_lease_service_kt_jvm_grpc_proto",
+    deps = [":data_availability_sync_lease_service_proto"],
+)
+
+proto_library(
+    name = "vid_labeling_eviction_fence_state_proto",
+    srcs = ["vid_labeling_eviction_fence_state.proto"],
+    strip_import_prefix = _IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "vid_labeling_eviction_fence_state_kt_jvm_proto",
+    deps = [":vid_labeling_eviction_fence_state_proto"],
+)
+
+proto_library(
     name = "labeled_impression_proto",
     srcs = ["labeled_impression.proto"],
     strip_import_prefix = _IMPORT_PREFIX,
@@ -332,6 +376,7 @@ proto_library(
     strip_import_prefix = _IMPORT_PREFIX,
     deps = [
         ":raw_impression_upload_proto",
+        ":vid_labeling_eviction_fence_state_proto",
         "@com_google_googleapis//google/api:field_behavior_proto",
         "@com_google_googleapis//google/api:field_info_proto",
         "@com_google_googleapis//google/api:resource_proto",

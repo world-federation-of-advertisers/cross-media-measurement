@@ -20,6 +20,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import java.time.Clock
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -36,6 +37,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressi
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getImpressionMetadataByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readImpressionMetadata
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readModelLinesBounds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.requireActiveDataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateImpressionMetadataState
 import org.wfanet.measurement.edpaggregator.service.internal.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.internal.ImpressionMetadataAlreadyExistsException
@@ -78,6 +80,8 @@ import org.wfanet.measurement.internal.edpaggregator.listImpressionMetadataRespo
 class SpannerImpressionMetadataService(
   private val databaseClient: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
+  private val clock: Clock = Clock.systemUTC(),
+  private val beforeGuardedMutation: suspend () -> Unit = {},
 ) : ImpressionMetadataServiceCoroutineImplBase(coroutineContext) {
 
   override suspend fun getImpressionMetadata(
@@ -193,7 +197,15 @@ class SpannerImpressionMetadataService(
 
     val results =
       try {
-        transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(request.requestsList) }
+        transactionRunner.run { txn ->
+          txn.requireActiveDataAvailabilitySyncLease(
+            dataProviderResourceId,
+            request.synchronizationAttemptId,
+            clock.instant(),
+          )
+          if (request.synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
+          txn.batchCreateImpressionMetadata(request.requestsList)
+        }
       } catch (e: SpannerException) {
         throw e
       }
@@ -297,7 +309,15 @@ class SpannerImpressionMetadataService(
       databaseClient.readWriteTransaction(Options.tag("action=batchUpdateImpressionMetadata"))
 
     val results =
-      transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(request.requestsList) }
+      transactionRunner.run { txn ->
+        txn.requireActiveDataAvailabilitySyncLease(
+          dataProviderResourceId,
+          request.synchronizationAttemptId,
+          clock.instant(),
+        )
+        if (request.synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
+        txn.batchUpdateImpressionMetadata(request.requestsList)
+      }
 
     val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
     return batchUpdateImpressionMetadataResponse {
@@ -458,6 +478,12 @@ class SpannerImpressionMetadataService(
     val undeletedImpressionMetadata =
       try {
         transactionRunner.run { txn ->
+          txn.requireActiveDataAvailabilitySyncLease(
+            request.dataProviderResourceId,
+            request.synchronizationAttemptId,
+            clock.instant(),
+          )
+          if (request.synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
           val result =
             txn.getImpressionMetadataByResourceId(
               request.dataProviderResourceId,
@@ -596,11 +622,16 @@ class SpannerImpressionMetadataService(
     }
 
     val dataProviderResourceId = request.requestsList.first().dataProviderResourceId
+    val synchronizationAttemptId = request.requestsList.first().synchronizationAttemptId
     val resourceIds = mutableSetOf<String>()
     request.requestsList.forEachIndexed { index, subRequest ->
       validateUndeleteRequest(subRequest, "requests.$index.")
       if (subRequest.dataProviderResourceId != dataProviderResourceId) {
         throw InvalidFieldValueException("requests.$index.data_provider_resource_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (subRequest.synchronizationAttemptId != synchronizationAttemptId) {
+        throw InvalidFieldValueException("requests.$index.synchronization_attempt_id")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
       if (!resourceIds.add(subRequest.impressionMetadataResourceId)) {
@@ -613,6 +644,12 @@ class SpannerImpressionMetadataService(
       databaseClient.readWriteTransaction(Options.tag("action=batchUndeleteImpressionMetadata"))
     val restored =
       transactionRunner.run { txn ->
+        txn.requireActiveDataAvailabilitySyncLease(
+          dataProviderResourceId,
+          synchronizationAttemptId,
+          clock.instant(),
+        )
+        if (synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
         val existing =
           txn.getImpressionMetadataByResourceIds(dataProviderResourceId, resourceIds.toList())
         request.requestsList.map { subRequest ->
