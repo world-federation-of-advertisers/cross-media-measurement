@@ -30,6 +30,7 @@ import org.wfanet.measurement.edpaggregator.BaseVidLabelingTeeAppRunner
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.rawimpressions.gcsHadoopConfiguration
 import org.wfanet.measurement.edpaggregator.runBlockingWithTelemetry
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
@@ -49,9 +50,9 @@ import picocli.CommandLine
  * EDPA-level `event-data-provider-configs.textproto` via Workload Identity Federation, opens a
  * mutual-TLS channel to the Secure Computation control plane for `WorkItem` / `WorkItemAttempt`
  * reads and a mutual-TLS channel to the EDP Aggregator metadata-storage public API for the
- * `VidLabelingJob`, `RawImpressionUploadModelLine`, `RawImpressionUploadFile`, and `RankIndexBlob`
- * services, subscribes to the Phase-2 Pub/Sub queue, wires the production storage / model /
- * converter seams, and hands everything to [VidLabelerApp.run].
+ * `VidLabelingJob`, `RawImpressionUploadModelLine`, `RawImpressionUploadFile`, `RankIndexBlob`, and
+ * `DataAvailabilitySyncTask` services, subscribes to the Phase-2 Pub/Sub queue, wires the
+ * production storage / model / converter seams, and hands everything to [VidLabelerApp.run].
  */
 @CommandLine.Command(name = "vid_labeler_app_runner")
 class VidLabelerAppRunner :
@@ -100,6 +101,8 @@ class VidLabelerAppRunner :
 
     val metadataStorageChannel = buildMetadataStoragePublicChannel()
     val vidLabelingJobsClient = VidLabelingJobServiceCoroutineStub(metadataStorageChannel)
+    val dataAvailabilitySyncTasksClient =
+      DataAvailabilitySyncTaskServiceCoroutineStub(metadataStorageChannel)
     val rawImpressionUploadModelLinesClient =
       RawImpressionUploadModelLineServiceCoroutineStub(metadataStorageChannel)
     val rawImpressionUploadFilesClient =
@@ -118,6 +121,7 @@ class VidLabelerAppRunner :
         getStorageConfig = getStorageConfig,
         vidLabelingJobsStub = vidLabelingJobsClient,
         rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesClient,
+        dataAvailabilitySyncTasksStub = dataAvailabilitySyncTasksClient,
         rankIndexBlobsStub = rankIndexBlobsClient,
         rawImpressionUploadFilesStub = rawImpressionUploadFilesClient,
         buildParquetStorageClient = { cfg, kms -> buildParquetStorageClient(cfg, kms) },
