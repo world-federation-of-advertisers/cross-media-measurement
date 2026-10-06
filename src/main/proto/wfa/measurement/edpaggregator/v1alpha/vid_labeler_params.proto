@@ -166,6 +166,7 @@ message VidLabelerParams {
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
   ];
+
   // Parameters for the memoized rank-index Phase-2 path.
   //
   // Its presence selects the memoized path: the TEE resolves the per-subpool
