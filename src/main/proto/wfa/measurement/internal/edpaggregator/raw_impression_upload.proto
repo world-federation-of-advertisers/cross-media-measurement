@@ -69,4 +69,7 @@ message RawImpressionUpload {
   // Whether processing is deferred until the active eviction fence is
   // released.
   bool processing_deferred = 13;
+
+  // Candidate ID that initiated quarantine for this upload.
+  string correction_candidate_id = 14;
 }
