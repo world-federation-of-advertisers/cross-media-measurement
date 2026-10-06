@@ -49,9 +49,11 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.hasIncomple
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertVidLabelingEvictionFenceMutation
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadCorrectionCandidateHasOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadExists
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasEvictionOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadHasModelLines
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readDispatchableRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readProcessingDeferredRawImpressionUploadIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readRawImpressionUploads
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
@@ -139,6 +141,18 @@ class SpannerRawImpressionUploadService(
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
+    if (request.correctionCandidateId.isNotEmpty()) {
+      try {
+        UUID.fromString(request.correctionCandidateId)
+      } catch (e: IllegalArgumentException) {
+        throw InvalidFieldValueException("correction_candidate_id", e)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (request.evictionOperationId.isNotEmpty()) {
+        throw InvalidFieldValueException("correction_candidate_id")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
 
     val transactionRunner: AsyncDatabaseClient.TransactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createRawImpressionUpload"))
@@ -158,7 +172,8 @@ class SpannerRawImpressionUploadService(
                 (existing.rawImpressionUpload.hasDoneBlobCreateTime() &&
                   existing.rawImpressionUpload.doneBlobCreateTime !=
                     request.rawImpressionUpload.doneBlobCreateTime) ||
-                existing.rawImpressionUpload.evictionOperationId != request.evictionOperationId
+                existing.rawImpressionUpload.evictionOperationId != request.evictionOperationId ||
+                existing.rawImpressionUpload.correctionCandidateId != request.correctionCandidateId
             ) {
               throw RawImpressionUploadAlreadyExistsException(
                   request.dataProviderResourceId,
@@ -178,8 +193,18 @@ class SpannerRawImpressionUploadService(
               request.dataProviderResourceId,
               request.rawImpressionUpload.doneBlobUri,
             )
+          val exactRecoveryReplay =
+            request.evictionOperationId.isNotEmpty() &&
+              previous != null &&
+              previous.rawImpressionUpload.doneBlobGeneration ==
+                request.rawImpressionUpload.doneBlobGeneration &&
+              previous.rawImpressionUpload.hasDoneBlobCreateTime() &&
+              request.rawImpressionUpload.hasDoneBlobCreateTime() &&
+              previous.rawImpressionUpload.doneBlobCreateTime ==
+                request.rawImpressionUpload.doneBlobCreateTime
           if (
             previous != null &&
+              !exactRecoveryReplay &&
               (!request.rawImpressionUpload.hasDoneBlobCreateTime() ||
                 (previous.rawImpressionUpload.hasDoneBlobCreateTime() &&
                   Timestamps.compare(
@@ -214,7 +239,26 @@ class SpannerRawImpressionUploadService(
           val replacesResourceId = previous?.rawImpressionUpload?.rawImpressionUploadResourceId
           val activeEvictionFence = txn.getVidLabelingEvictionFence(request.dataProviderResourceId)
           val processingDeferred =
-            if (activeEvictionFence == null) {
+            if (request.correctionCandidateId.isNotEmpty()) {
+              if (activeEvictionFence == null) {
+                txn
+                  .readDispatchableRawImpressionUploadIds(request.dataProviderResourceId)
+                  .collect { rawImpressionUploadId ->
+                    txn.updateRawImpressionUploadProcessingDeferred(
+                      request.dataProviderResourceId,
+                      rawImpressionUploadId,
+                      true,
+                    )
+                  }
+                txn.insertVidLabelingEvictionFence(
+                  request.dataProviderResourceId,
+                  request.correctionCandidateId,
+                  UUID.randomUUID().toString(),
+                  VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING,
+                )
+              }
+              true
+            } else if (activeEvictionFence == null) {
               if (request.evictionOperationId.isNotEmpty()) {
                 throw Status.FAILED_PRECONDITION.withDescription(
                     "VID-labeling eviction ${request.evictionOperationId} is not active for " +
@@ -250,6 +294,11 @@ class SpannerRawImpressionUploadService(
                       request.dataProviderResourceId,
                       previous.rawImpressionUploadId,
                       request.evictionOperationId,
+                    ) &&
+                    !txn.rawImpressionUploadCorrectionCandidateHasOperation(
+                      request.dataProviderResourceId,
+                      previous.rawImpressionUpload.rawImpressionUploadResourceId,
+                      request.evictionOperationId,
                     ))
               ) {
                 throw Status.FAILED_PRECONDITION.withDescription(
@@ -282,6 +331,7 @@ class SpannerRawImpressionUploadService(
             replacesResourceId,
             request.evictionOperationId.takeIf { it.isNotEmpty() },
             processingDeferred,
+            request.correctionCandidateId.takeIf { it.isNotEmpty() },
           )
 
           rawImpressionUpload {
@@ -299,6 +349,7 @@ class SpannerRawImpressionUploadService(
             registrationComplete = false
             evictionOperationId = request.evictionOperationId
             this.processingDeferred = processingDeferred
+            correctionCandidateId = request.correctionCandidateId
           }
         }
       } catch (e: SpannerException) {
@@ -395,6 +446,14 @@ class SpannerRawImpressionUploadService(
               VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
           ) {
             requireDrained(txn, request.dataProviderResourceId)
+          }
+          txn.readDispatchableRawImpressionUploadIds(request.dataProviderResourceId).collect {
+            rawImpressionUploadId ->
+            txn.updateRawImpressionUploadProcessingDeferred(
+              request.dataProviderResourceId,
+              rawImpressionUploadId,
+              true,
+            )
           }
           txn.insertVidLabelingEvictionFence(
             request.dataProviderResourceId,
@@ -771,14 +830,15 @@ class SpannerRawImpressionUploadService(
               )
               .asRuntimeException()
           }
+          val hasModelLines =
+            txn.rawImpressionUploadHasModelLines(
+              request.dataProviderResourceId,
+              existing.rawImpressionUploadId,
+            )
           val completedState =
             if (
               existing.rawImpressionUpload.state !=
-                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED ||
-                txn.rawImpressionUploadHasModelLines(
-                  request.dataProviderResourceId,
-                  existing.rawImpressionUploadId,
-                )
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED || hasModelLines
             ) {
               null
             } else {
