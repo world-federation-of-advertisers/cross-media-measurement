@@ -26,6 +26,8 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.nio.ByteBuffer
 import java.security.MessageDigest
+import java.time.LocalDate
+import java.time.ZoneOffset
 import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.logging.Level
@@ -133,6 +135,13 @@ class DataAvailabilitySync(
     PUBLISHED,
   }
 
+  enum class Stage {
+    DISCOVERY,
+    METADATA_PERSISTENCE,
+    GAP_POLICY,
+    KINGDOM_PUBLICATION,
+  }
+
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
   /** Holds an [ImpressionMetadata] along with its associated impressions blob key. */
@@ -165,11 +174,19 @@ class DataAvailabilitySync(
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable generation of that object, when supplied by
    *   DataWatcher.
+   * @param expectedRawImpressionUpload required raw upload on task-triggered sidecars.
+   * @param expectedModelLine required model line on task-triggered sidecars.
+   * @param expectedEventDate required event date on task-triggered sidecars.
+   * @param onStage called before synchronization enters a new stage.
    */
   suspend fun sync(
     doneBlobPath: String,
     dataAvailabilitySyncLease: String,
     doneBlobGeneration: Long? = null,
+    expectedRawImpressionUpload: String? = null,
+    expectedModelLine: String? = null,
+    expectedEventDate: LocalDate? = null,
+    onStage: (Stage) -> Unit = {},
     ensureLeaseActive: suspend () -> Unit,
   ): Outcome {
     require(dataAvailabilitySyncLease.isNotEmpty()) {
@@ -180,6 +197,7 @@ class DataAvailabilitySync(
 
     try {
       ensureLeaseActive()
+      onStage(Stage.DISCOVERY)
       // 1. Crawl for metadata files
       val doneBlobUri: BlobUri = SelectedStorageClient.parseBlobUri(doneBlobPath)
       val folderPrefix = doneBlobUri.key.substringBeforeLast("/", "")
@@ -191,6 +209,18 @@ class DataAvailabilitySync(
       }
 
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
+      if (expectedModelLine != null && expectedEventDate != null) {
+        val modelLineId =
+          requireNotNull(ModelLineKey.fromName(expectedModelLine)) {
+              "expectedModelLine is not a valid ModelLine resource name"
+            }
+            .modelLineId
+        require(
+          doneBlobUri.key == "$edpImpressionPath/model-line/$modelLineId/$expectedEventDate/done"
+        ) {
+          "Done-object path does not match the expected model line, event date, and filename"
+        }
+      }
       val impressionMetadataBlobs: Flow<StorageClient.Blob> =
         storageClient.listBlobs(doneBlobFolderPath)
 
@@ -200,6 +230,9 @@ class DataAvailabilitySync(
           impressionMetadataBlobs,
           doneBlobUri,
           doneBlobGeneration,
+          expectedRawImpressionUpload,
+          expectedModelLine,
+          expectedEventDate,
         )
 
       if (impressionMetadataMap.isEmpty()) {
@@ -223,6 +256,7 @@ class DataAvailabilitySync(
       )
 
       // 3. Persist ImpressionMetadata (create new, update changed)
+      onStage(Stage.METADATA_PERSISTENCE)
       impressionMetadataMap.values.forEach { metadataWithBlobKeys ->
         saveImpressionMetadata(metadataWithBlobKeys, dataAvailabilitySyncLease, ensureLeaseActive)
       }
@@ -288,6 +322,7 @@ class DataAvailabilitySync(
       // [earliestFinalized, latestFinalized] still has no "done" blob. Unfinalized dates that
       // trail after latestFinalized or lead before earliestFinalized are ignored — they extend
       // the window rather than punching a hole in it.
+      onStage(Stage.GAP_POLICY)
       val blockedDetails = mutableListOf<String>()
       for (modelLineKey in impressionMetadataMap.keys) {
         val modelLinePrefix =
@@ -359,6 +394,7 @@ class DataAvailabilitySync(
         }
       }
       ensureLeaseActive()
+      onStage(Stage.KINGDOM_PUBLICATION)
       throttler.onReady {
         try {
           dataProvidersStub
@@ -778,6 +814,9 @@ class DataAvailabilitySync(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
     doneBlobGeneration: Long?,
+    expectedRawImpressionUpload: String?,
+    expectedModelLine: String?,
+    expectedEventDate: LocalDate?,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
     val impressionMetadataMap =
       mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
@@ -801,6 +840,23 @@ class DataAvailabilitySync(
       // Validate intervals
       require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
         "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
+      }
+      if (expectedRawImpressionUpload != null) {
+        require(blobDetails.rawImpressionUpload == expectedRawImpressionUpload) {
+          "BlobDetails raw_impression_upload does not match the task"
+        }
+      }
+      if (expectedModelLine != null) {
+        require(blobDetails.modelLine == expectedModelLine) {
+          "BlobDetails model_line does not match the task"
+        }
+      }
+      if (expectedEventDate != null) {
+        val intervalStartDate =
+          blobDetails.interval.startTime.toInstant().atZone(ZoneOffset.UTC).toLocalDate()
+        require(intervalStartDate == expectedEventDate) {
+          "BlobDetails interval does not match the task event date"
+        }
       }
       // At least one of event_group_reference_id or entity_keys must identify the
       // EventGroup that produced this blob. Both empty means the metadata cannot be
