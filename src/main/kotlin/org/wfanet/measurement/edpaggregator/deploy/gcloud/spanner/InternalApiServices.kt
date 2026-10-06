@@ -29,6 +29,7 @@ object InternalApiServices {
   ): Services {
     return Services(
       SpannerDataAvailabilitySyncLeaseService(databaseClient, coroutineContext),
+      SpannerDataAvailabilitySyncTaskService(databaseClient, coroutineContext),
       SpannerRequisitionMetadataService(databaseClient, coroutineContext, idGenerator),
       SpannerImpressionMetadataService(databaseClient, coroutineContext),
       SpannerRawImpressionUploadService(databaseClient, coroutineContext, idGenerator),
