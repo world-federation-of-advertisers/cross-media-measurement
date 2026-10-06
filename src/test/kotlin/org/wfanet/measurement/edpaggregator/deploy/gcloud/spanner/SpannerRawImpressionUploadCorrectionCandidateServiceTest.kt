@@ -45,6 +45,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorr
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadCorrectionCandidateRequest
@@ -745,6 +746,32 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
+  fun `assign plan rejects operation without candidate membership`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      insertHealingOperation(candidateIds = emptyList())
+      val pending = service.createRawImpressionUploadCorrectionCandidate(createRequest())
+
+      val error =
+        assertFailsWith<StatusRuntimeException> {
+          service.advanceRawImpressionUploadCorrectionCandidate(
+            advanceRequest(
+              CANDIDATE_ID,
+              pending.etag,
+              AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
+              operationId = OPERATION_ID,
+            )
+          )
+        }
+
+      assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
+    }
+
+  @Test
   fun `complete rejects active healing operation`() =
     runBlocking<Unit> {
       insertRawUpload(
@@ -1108,7 +1135,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     spannerDatabase.databaseClient.write(listOf(mutation.build()))
   }
 
-  private suspend fun insertHealingOperation() {
+  private suspend fun insertHealingOperation(candidateIds: List<String> = CANDIDATE_IDS) {
     spannerDatabase.databaseClient.write(
       listOf(
         Mutation.newInsertBuilder("UploadHealingOperation")
@@ -1118,12 +1145,23 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           .to(OPERATION_ID)
           .set("CreateRequestId")
           .to(HEALING_CREATE_REQUEST_ID)
+          .set("State")
+          .to(
+            UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED.number
+              .toLong()
+          )
           .set("Reason")
           .to("correction")
           .set("LabeledImpressionsBlobPrefix")
           .to("gs://bucket/labeled")
           .set("BadRawImpressionUploadResourceIds")
           .toStringArray(listOf(UPLOAD_ID))
+          .set("RawImpressionUploadCorrectionCandidateIds")
+          .toStringArray(candidateIds)
+          .set("MutationRequestIds")
+          .toStringArray(emptyList())
+          .set("MutationRequestFingerprints")
+          .toBytesArray(emptyList())
           .set("CutoffTime")
           .to(Timestamp.ofTimeSecondsAndNanos(1L, 0))
           .set("CreateTime")
@@ -1143,6 +1181,8 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
           .to(DATA_PROVIDER_ID)
           .set("UploadHealingOperationId")
           .to(OPERATION_ID)
+          .set("State")
+          .to(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE.number.toLong())
           .set("CompleteTime")
           .to(Value.COMMIT_TIMESTAMP)
           .set("UpdateTime")
