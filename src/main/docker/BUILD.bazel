@@ -3,6 +3,8 @@ load(
     "container_push",
     "container_push_all",
 )
+# DO_NOT_SUBMIT: just testing copilot skills
+# loads IMAGE_REPOSITORY_SETTINGS and IMAGE_FOO_BAR
 load("//build:variables.bzl", "IMAGE_REPOSITORY_SETTINGS")
 load("//build/cosign:macros.bzl", "sign_all")
 load(":images.bzl", "ALL_EKS_IMAGES", "ALL_GKE_IMAGES", "ALL_IMAGES", "ALL_LOCAL_IMAGES", "ALL_REPORTING_GKE_IMAGES", "ALL_TEE_APP_GKE_IMAGES")
@@ -14,7 +16,6 @@ package(
         "//src/test/kotlin/org/wfanet/panelmatch/integration/k8s:__pkg__",
     ],
 )
-
 # These rules push Docker images to the container registry.
 # 'bazel build' builds the image, 'bazel run' will actually push it.
 [
