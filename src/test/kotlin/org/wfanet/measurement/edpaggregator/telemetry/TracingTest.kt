@@ -44,7 +44,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 
 @RunWith(JUnit4::class)
 class TracingTest {
@@ -139,18 +139,17 @@ class TracingTest {
   }
 
   @Test
-  fun `traceSuspending records bounded failure metadata`() = runBlocking {
+  fun `traceSuspending records exception and sets error status`() = runBlocking {
     assertFailsWith<IllegalStateException> {
       Tracing.traceSuspending(spanName = "failing-span") { error("test failure") }
     }
 
     val span = spanExporter.finishedSpanItems.single()
     assertThat(span.status.statusCode).isEqualTo(StatusCode.ERROR)
-    assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("failed")
-    assertThat(span.attributes.get(XmmTraceAttributes.ERROR_TYPE))
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isEqualTo("failed")
+    assertThat(span.attributes.get(ReportTraceAttributes.ERROR_TYPE))
       .isEqualTo("IllegalStateException")
-    assertThat(span.status.description).isEmpty()
-    assertThat(span.events).isEmpty()
+    assertThat(span.events.map { it.name }).contains("exception")
   }
 
   @Test
@@ -163,7 +162,7 @@ class TracingTest {
 
     val span = spanExporter.finishedSpanItems.single()
     assertThat(span.status.statusCode).isEqualTo(StatusCode.UNSET)
-    assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isNull()
+    assertThat(span.attributes.get(ReportTraceAttributes.OUTCOME)).isNull()
     assertThat(span.events.map { it.name }).doesNotContain("exception")
   }
 

@@ -22,6 +22,7 @@ import com.google.protobuf.Parser
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.trace.Span
+import io.opentelemetry.api.trace.StatusCode
 import java.time.Duration
 import java.util.UUID
 import java.util.logging.Level
@@ -36,9 +37,9 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.grpc.errorInfo
+import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
+import org.wfanet.measurement.common.telemetry.ReportTracing
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
-import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
-import org.wfanet.measurement.common.telemetry.XmmTracing
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -134,7 +135,6 @@ abstract class BaseTeeApplication(
   private suspend fun processMessage(queueMessage: QueueSubscriber.QueueMessage<WorkItem>) {
     val body = queueMessage.body
     val workItemName = canonicalWorkItemName(body.name)
-    val workItemGeneration = body.generation.takeUnless { it == 0L } ?: 1L
     val traceContext =
       if (body.workItemParams.`is`(WorkItem.WorkItemParams::class.java)) {
         runCatching {
@@ -145,17 +145,16 @@ abstract class BaseTeeApplication(
         emptyMap()
       }
     W3CTraceContext.withExtractedContext(traceContext) {
-      XmmTracing.traceSuspending(
+      ReportTracing.traceSuspending(
         spanName = "secure_computation.work_item.process",
         attributes =
           io.opentelemetry.api.common.Attributes.builder()
-            .put(XmmTraceAttributes.WORK_ITEM_NAME, workItemName)
-            .put(XmmTraceAttributes.WORK_ITEM_GENERATION, workItemGeneration)
-            .put(XmmTraceAttributes.LIFECYCLE_STAGE, "work_item_processing")
-            .put(XmmTraceAttributes.OUTCOME, "started")
+            .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+            .put(ReportTraceAttributes.LIFECYCLE_STAGE, "work_item_processing")
+            .put(ReportTraceAttributes.OUTCOME, "started")
             .build(),
       ) {
-        processMessageInContext(queueMessage, workItemName, workItemGeneration)
+        processMessageInContext(queueMessage, workItemName)
       }
     }
   }
@@ -163,7 +162,6 @@ abstract class BaseTeeApplication(
   private suspend fun processMessageInContext(
     queueMessage: QueueSubscriber.QueueMessage<WorkItem>,
     workItemName: String,
-    workItemGeneration: Long,
   ) {
     logger.info("Starting to process message with ackId: ${queueMessage.ackId}")
     val body: WorkItem = queueMessage.body
@@ -177,8 +175,12 @@ abstract class BaseTeeApplication(
     }
     logger.info("Processing WorkItem: ${body.name}")
     val workItemAttempt =
-      awaitWorkItemAttempt(queueMessage, workItemName, workItemGeneration) ?: return
-    Span.current().setAttribute(XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttempt.name)
+      awaitWorkItemAttempt(
+        queueMessage,
+        workItemName,
+        body.generation.takeUnless { it == 0L } ?: 1L,
+      ) ?: return
+    Span.current().setAttribute(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttempt.name)
 
     try {
       logger.info("Starting runWork for WorkItemAttempt: ${workItemAttempt.name}")
@@ -210,7 +212,7 @@ abstract class BaseTeeApplication(
               WorkItemAttempt.State.SUCCEEDED.name
         ) {
           logger.info("WorkItemAttempt already succeeded. Acking message ${queueMessage.ackId}")
-          Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
+          Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
           queueMessage.ack()
           return
         }
@@ -222,7 +224,7 @@ abstract class BaseTeeApplication(
         return
       }
       logger.info("Successfully completed processing. Acking message ${queueMessage.ackId}")
-      Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
+      Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "succeeded")
       queueMessage.ack()
     } catch (e: InvalidProtocolBufferException) {
       recordCurrentSpanError(e)
@@ -279,19 +281,28 @@ abstract class BaseTeeApplication(
     workItemAttemptName: String,
     error: Throwable,
   ) {
-    XmmTracing.recordFailure(
+    ReportTracing.recordFailure(
       spanName,
       io.opentelemetry.api.common.Attributes.builder()
-        .put(XmmTraceAttributes.WORK_ITEM_NAME, workItemName)
-        .put(XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttemptName)
-        .put(XmmTraceAttributes.LIFECYCLE_STAGE, lifecycleStage)
+        .put(ReportTraceAttributes.WORK_ITEM_NAME, workItemName)
+        .put(ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME, workItemAttemptName)
+        .put(ReportTraceAttributes.LIFECYCLE_STAGE, lifecycleStage)
         .build(),
       error,
     )
   }
 
   private fun recordCurrentSpanError(error: Throwable) {
-    XmmTracing.recordFailure(Span.current(), error)
+    Span.current()
+      .setStatus(StatusCode.ERROR, error.message ?: error::class.java.name)
+      .setAttribute(ReportTraceAttributes.OUTCOME, "failed")
+      .setAttribute(ReportTraceAttributes.ERROR_TYPE, ReportTraceAttributes.errorType(error))
+      .also { span ->
+        ReportTraceAttributes.errorCode(error)?.let {
+          span.setAttribute(ReportTraceAttributes.ERROR_CODE, it)
+        }
+      }
+      .recordException(error)
   }
 
   private suspend fun createWorkItemAttempt(
@@ -338,7 +349,7 @@ abstract class BaseTeeApplication(
             reason == Errors.Reason.INVALID_WORK_ITEM_STATE.name &&
               workItemState == WorkItem.State.RUNNING.name
           ) {
-            Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "in_progress")
+            Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "in_progress")
             logger.info(
               "WorkItem $workItemName already has an active attempt; retaining delivery while " +
                 "waiting for ownership"
@@ -356,9 +367,9 @@ abstract class BaseTeeApplication(
           ) {
             when {
               workItemState == WorkItem.State.SUCCEEDED.name ->
-                Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "already_completed")
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "already_completed")
               reason == Errors.Reason.WORK_ITEM_GENERATION_MISMATCH.name ->
-                Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "stale_delivery")
+                Span.current().setAttribute(ReportTraceAttributes.OUTCOME, "stale_delivery")
               else -> recordCurrentSpanError(e)
             }
             logger.log(Level.WARNING, e) {

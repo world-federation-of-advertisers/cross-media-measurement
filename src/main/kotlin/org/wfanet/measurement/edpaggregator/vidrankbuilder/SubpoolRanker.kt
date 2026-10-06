@@ -201,10 +201,6 @@ class SubpoolRanker(
    * @property backfillReusedOldRank backfilled fingerprints given back their old-snapshot rank.
    * @property backfillRankCollisions subset of [backfillReusedOldRank] whose old rank differs from
    *   the rank they hold in the latest snapshot (the accepted reach-undercount sizing).
-   * @property priorSnapshotName the latest cumulative snapshot used as the rank baseline, if any.
-   * @property backfillSnapshotName the historical snapshot used to replay a backfill, if any.
-   * @property snapshotRankIndexBlobName the durable cumulative output resource.
-   * @property dayOnlyRankIndexBlobName the durable per-day output resource.
    */
   data class Result(
     val poolOffset: Long,
@@ -217,10 +213,6 @@ class SubpoolRanker(
     val backfill: Boolean = false,
     val backfillReusedOldRank: Long = 0L,
     val backfillRankCollisions: Long = 0L,
-    val priorSnapshotName: String? = null,
-    val backfillSnapshotName: String? = null,
-    val snapshotRankIndexBlobName: String? = null,
-    val dayOnlyRankIndexBlobName: String? = null,
   )
 
   /** Ranks [poolOffset]; [subpoolBlobUri] is its Phase-0 merged blob; caps at [rankedSize]. */
@@ -228,23 +220,11 @@ class SubpoolRanker(
     // Idempotency gate: an existing SNAPSHOT row for this (upload, subpool) means a prior attempt
     // committed both blobs + rows atomically (a backfill writes a SNAPSHOT too), so skip the
     // re-rank.
-    val currentSnapshot = findUploadBlob(poolOffset, RankIndexBlob.BlobType.SNAPSHOT)
-    if (currentSnapshot != null) {
-      val currentDayOnly = findUploadBlob(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)
+    if (findUploadBlob(poolOffset, RankIndexBlob.BlobType.SNAPSHOT) != null) {
       logger.info(
         "Subpool $poolOffset for $modelLine already ranked for $rawImpressionUpload; skipping"
       )
-      return Result(
-        poolOffset,
-        0,
-        0,
-        0,
-        0,
-        0,
-        skipped = true,
-        snapshotRankIndexBlobName = currentSnapshot.name,
-        dayOnlyRankIndexBlobName = currentDayOnly?.name,
-      )
+      return Result(poolOffset, 0, 0, 0, 0, 0, skipped = true)
     }
 
     val eventDay = epochDayOf(maxEventDate)
@@ -399,13 +379,12 @@ class SubpoolRanker(
     allocator.assign(cpuDispatcher)
 
     // 5. Single serial write: ONE SNAPSHOT + ONE DAY_ONLY blob, streamed across all stripes.
-    val outputs =
-      writeBlobsAndRows(
-        poolOffset,
-        allocator.streamCumulativeChunks(),
-        allocator.streamDayOnlyChunks(),
-        snapshotMaxEventDate = maxEventDate,
-      )
+    writeBlobsAndRows(
+      poolOffset,
+      allocator.streamCumulativeChunks(),
+      allocator.streamDayOnlyChunks(),
+      snapshotMaxEventDate = maxEventDate,
+    )
 
     recordMetrics(
       allocator.allocated,
@@ -427,9 +406,6 @@ class SubpoolRanker(
       overflow = allocator.overflow,
       freed = allocator.freed,
       cumulativeSize = allocator.cumulativeSize,
-      priorSnapshotName = priorSnapshot?.name,
-      snapshotRankIndexBlobName = outputs.snapshot.name,
-      dayOnlyRankIndexBlobName = outputs.dayOnly.name,
     )
   }
 
@@ -514,13 +490,12 @@ class SubpoolRanker(
     // The SNAPSHOT's max_event_date is the prior snapshot's (unchanged) date for a backfill, which
     // only adds older fingerprints. A backfill always has a prior snapshot (backfill detection
     // requires one).
-    val outputs =
-      writeBlobsAndRows(
-        poolOffset,
-        allocator.streamCumulativeChunks(),
-        allocator.streamDayOnlyChunks(),
-        snapshotMaxEventDate = priorSnapshot!!.maxEventDate,
-      )
+    writeBlobsAndRows(
+      poolOffset,
+      allocator.streamCumulativeChunks(),
+      allocator.streamDayOnlyChunks(),
+      snapshotMaxEventDate = priorSnapshot!!.maxEventDate,
+    )
 
     recordMetrics(
       allocator.allocated,
@@ -554,10 +529,6 @@ class SubpoolRanker(
       backfill = true,
       backfillReusedOldRank = allocator.backfillReusedOldRank,
       backfillRankCollisions = allocator.backfillRankCollisions,
-      priorSnapshotName = priorSnapshot.name,
-      backfillSnapshotName = oldSnapshot.name,
-      snapshotRankIndexBlobName = outputs.snapshot.name,
-      dayOnlyRankIndexBlobName = outputs.dayOnly.name,
     )
   }
 
@@ -574,7 +545,7 @@ class SubpoolRanker(
     cumulativeChunks: Flow<RankIndexMap>,
     dayOnlyChunks: Flow<RankIndexMap>,
     snapshotMaxEventDate: Date,
-  ): OutputRankIndexBlobs {
+  ) {
     val attemptId = UUID.randomUUID().toString()
     val dek = rankIndexStore.generateDek(kekUri)
     val snapshotKey =
@@ -595,7 +566,7 @@ class SubpoolRanker(
       )
     val snapshotChecksum = rankIndexStore.writeBlob(snapshotKey, dek, cumulativeChunks)
     val dayOnlyChecksum = rankIndexStore.writeBlob(dayOnlyKey, dek, dayOnlyChunks)
-    return insertBlobRows(
+    insertBlobRows(
       poolOffset,
       snapshotKey,
       snapshotChecksum,
@@ -605,8 +576,6 @@ class SubpoolRanker(
       snapshotMaxEventDate,
     )
   }
-
-  private data class OutputRankIndexBlobs(val snapshot: RankIndexBlob, val dayOnly: RankIndexBlob)
 
   /**
    * The [blobType] `RankIndexBlob` row for [poolOffset] under **this** upload, or `null`. A
@@ -864,49 +833,40 @@ class SubpoolRanker(
     dayOnlyChecksum: com.google.protobuf.ByteString,
     dek: EncryptedDek,
     snapshotMaxEventDate: Date,
-  ): OutputRankIndexBlobs {
-    val response =
-      rpcThrottlers.metadataWrite.onReady {
-        rankIndexBlobsStub.batchCreateRankIndexBlobs(
-          batchCreateRankIndexBlobsRequest {
+  ) {
+    rpcThrottlers.metadataWrite.onReady {
+      rankIndexBlobsStub.batchCreateRankIndexBlobs(
+        batchCreateRankIndexBlobsRequest {
+          parent = rawImpressionUpload
+          requests += createRankIndexBlobRequest {
             parent = rawImpressionUpload
-            requests += createRankIndexBlobRequest {
-              parent = rawImpressionUpload
-              rankIndexBlob = rankIndexBlob {
-                blobType = RankIndexBlob.BlobType.SNAPSHOT
-                cmmsModelLine = modelLine
-                this.poolOffset = poolOffset
-                blobUri = snapshotKey
-                blobChecksum = snapshotChecksum
-                encryptedDek = dek
-                maxEventDate = snapshotMaxEventDate
-              }
-              requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.SNAPSHOT)
+            rankIndexBlob = rankIndexBlob {
+              blobType = RankIndexBlob.BlobType.SNAPSHOT
+              cmmsModelLine = modelLine
+              this.poolOffset = poolOffset
+              blobUri = snapshotKey
+              blobChecksum = snapshotChecksum
+              encryptedDek = dek
+              maxEventDate = snapshotMaxEventDate
             }
-            requests += createRankIndexBlobRequest {
-              parent = rawImpressionUpload
-              rankIndexBlob = rankIndexBlob {
-                blobType = RankIndexBlob.BlobType.DAY_ONLY
-                cmmsModelLine = modelLine
-                this.poolOffset = poolOffset
-                blobUri = dayOnlyKey
-                blobChecksum = dayOnlyChecksum
-                encryptedDek = dek
-                maxEventDate = this@SubpoolRanker.maxEventDate
-              }
-              requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)
-            }
+            requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.SNAPSHOT)
           }
-        )
-      }
-    val snapshot =
-      response.rankIndexBlobsList.singleOrNull { it.blobType == RankIndexBlob.BlobType.SNAPSHOT }
-    val dayOnly =
-      response.rankIndexBlobsList.singleOrNull { it.blobType == RankIndexBlob.BlobType.DAY_ONLY }
-    check(snapshot != null && dayOnly != null) {
-      "BatchCreateRankIndexBlobs did not return one SNAPSHOT and one DAY_ONLY resource"
+          requests += createRankIndexBlobRequest {
+            parent = rawImpressionUpload
+            rankIndexBlob = rankIndexBlob {
+              blobType = RankIndexBlob.BlobType.DAY_ONLY
+              cmmsModelLine = modelLine
+              this.poolOffset = poolOffset
+              blobUri = dayOnlyKey
+              blobChecksum = dayOnlyChecksum
+              encryptedDek = dek
+              maxEventDate = this@SubpoolRanker.maxEventDate
+            }
+            requestId = blobRequestId(poolOffset, RankIndexBlob.BlobType.DAY_ONLY)
+          }
+        }
+      )
     }
-    return OutputRankIndexBlobs(snapshot, dayOnly)
   }
 
   private fun recordMetrics(
