@@ -23,6 +23,8 @@ import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
 import com.google.protobuf.util.Timestamps
 import io.grpc.Status
+import java.nio.ByteBuffer
+import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
@@ -471,6 +473,7 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
     if (candidate.currentManifestDigest.size() != MANIFEST_DIGEST_SIZE_BYTES) {
       invalid("current_manifest_digest must be a SHA-256 digest")
     }
+    validateManifestComparison(candidate)
     if (!candidate.hasExpireTime() || !Timestamps.isValid(candidate.expireTime)) {
       invalid("expire_time is required and must be valid")
     }
@@ -590,7 +593,115 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
       existing.classification == requested.classification &&
       existing.priorManifestDigest == requested.priorManifestDigest &&
       existing.currentManifestDigest == requested.currentManifestDigest &&
+      existing.manifestComparison == requested.manifestComparison &&
       existing.expireTime == requested.expireTime
+  }
+
+  private fun validateManifestComparison(candidate: RawImpressionUploadCorrectionCandidate) {
+    if (!candidate.hasManifestComparison()) invalid("manifest_comparison is required")
+    val comparison = candidate.manifestComparison
+    val prior =
+      comparison.priorManifestList.associateByUniqueUri(
+        "prior_manifest",
+        allowUnknownGeneration = true,
+      )
+    val current = comparison.currentManifestList.associateByUniqueUri("current_manifest")
+    if (manifestDigest(prior) != candidate.priorManifestDigest) {
+      invalid("prior_manifest does not match prior_manifest_digest")
+    }
+    if (manifestDigest(current) != candidate.currentManifestDigest) {
+      invalid("current_manifest does not match current_manifest_digest")
+    }
+    val expectedDifferenceUris =
+      (prior.keys + current.keys).filterTo(sortedSetOf()) { uri ->
+        prior[uri]?.blobGeneration != current[uri]?.blobGeneration
+      }
+    val differences =
+      comparison.differencesList.associateBy {
+        when {
+          it.hasPrior() -> it.prior.blobUri
+          it.hasCurrent() -> it.current.blobUri
+          else -> invalid("manifest difference must contain a prior or current entry")
+        }
+      }
+    if (differences.size != comparison.differencesCount) {
+      invalid("manifest differences must contain unique blob URIs")
+    }
+    if (differences.keys != expectedDifferenceUris) {
+      invalid("manifest differences do not match the compared manifests")
+    }
+    for (uri in expectedDifferenceUris) {
+      val difference = differences.getValue(uri)
+      val priorEntry = prior[uri]
+      val currentEntry = current[uri]
+      if (
+        difference.prior.takeIf { difference.hasPrior() } != priorEntry ||
+          difference.current.takeIf { difference.hasCurrent() } != currentEntry
+      ) {
+        invalid("manifest difference for $uri does not match the compared manifests")
+      }
+      val expectedType =
+        when {
+          priorEntry == null ->
+            RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_ADDED
+          currentEntry == null ->
+            RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_REMOVED
+          else -> RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_EDITED
+        }
+      if (difference.type != expectedType) {
+        invalid("manifest difference for $uri has an invalid type")
+      }
+    }
+    val types = differences.values.mapTo(mutableSetOf()) { it.type }
+    if (
+      RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_EDITED !in types &&
+        RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_REMOVED !in types
+    ) {
+      invalid("manifest comparison is additive")
+    }
+    val expectedClassification =
+      when {
+        types ==
+          setOf(RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_EDITED) ->
+          RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED
+        types ==
+          setOf(RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_REMOVED) ->
+          RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_REMOVED
+        else -> RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED
+      }
+    if (candidate.classification != expectedClassification) {
+      invalid("classification does not match manifest differences")
+    }
+  }
+
+  private fun List<RawImpressionUploadCorrectionCandidate.ManifestEntry>.associateByUniqueUri(
+    field: String,
+    allowUnknownGeneration: Boolean = false,
+  ): Map<String, RawImpressionUploadCorrectionCandidate.ManifestEntry> = buildMap {
+    for (entry in this@associateByUniqueUri) {
+      requireField(entry.blobUri, "$field.blob_uri")
+      if (entry.blobGeneration < 0L || (!allowUnknownGeneration && entry.blobGeneration == 0L)) {
+        invalid("$field.blob_generation is invalid")
+      }
+      requireField(
+        entry.ownerRawImpressionUploadResourceId,
+        "$field.owner_raw_impression_upload_resource_id",
+      )
+      if (put(entry.blobUri, entry) != null) invalid("$field must contain unique blob URIs")
+    }
+  }
+
+  private fun manifestDigest(
+    manifest: Map<String, RawImpressionUploadCorrectionCandidate.ManifestEntry>
+  ): ByteString {
+    val digest = MessageDigest.getInstance("SHA-256")
+    for ((uri, entry) in manifest.toSortedMap()) {
+      val uriBytes = uri.toByteArray(StandardCharsets.UTF_8)
+      digest.update(ByteBuffer.allocate(Int.SIZE_BYTES).putInt(uriBytes.size).array())
+      digest.update(uriBytes)
+      digest.update(ByteBuffer.allocate(Long.SIZE_BYTES).putLong(entry.blobGeneration).array())
+    }
+    return digest.digest().toByteString()
   }
 
   private fun isIdempotentAdvance(
