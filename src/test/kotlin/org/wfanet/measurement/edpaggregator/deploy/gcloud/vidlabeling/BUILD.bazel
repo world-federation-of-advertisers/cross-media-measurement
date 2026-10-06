@@ -6,11 +6,32 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingConfigValidationTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_config_validation",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_function_helpers",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:storage_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:labeler_input_field_mapping_kt_jvm_proto",
         "@wfa_common_jvm//imports/java/com/google/common/truth",
         "@wfa_common_jvm//imports/java/com/google/protobuf/util",
         "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/kotlin/kotlin/test",
+    ],
+)
+
+kt_jvm_test(
+    name = "VidLabelingStorageConfigValidatorTest",
+    srcs = ["VidLabelingStorageConfigValidatorTest.kt"],
+    test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingStorageConfigValidatorTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:validate_vid_labeling_storage_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/deploy/gcloud/vidlabeling:vid_labeling_config_validation",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:storage_params_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/org/junit",
+        "@wfa_common_jvm//imports/java/picocli",
         "@wfa_common_jvm//imports/kotlin/kotlin/test",
     ],
 )
