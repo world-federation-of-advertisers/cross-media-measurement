@@ -135,9 +135,21 @@ object RequestIds {
   fun forUploadHealingOperation(operationId: String): String =
     fromKey("uploadHealingOperation:$operationId")
 
+  /** `request_id` for reconciling a draft correction plan. */
+  fun forReconcileUploadHealingOperation(operationId: String, canonicalPlan: ByteArray): String =
+    fromBytes("reconcileUploadHealingOperation:$operationId", canonicalPlan)
+
+  /** `request_id` for advancing an upload-healing operation. */
+  fun forAdvanceUploadHealingOperation(operationName: String, state: String, etag: String): String =
+    fromKey("advanceUploadHealingOperation:$operationName:$state:$etag")
+
   /** `request_id` for acquiring an upload-eviction fence. */
   fun forAcquireUploadEvictionFence(operationId: String, state: String): String =
     fromKey("acquireUploadEvictionFence:$operationId:$state")
+
+  /** `request_id` for advancing an upload-eviction fence. */
+  fun forAdvanceUploadEvictionFence(operationId: String, state: String, etag: String): String =
+    fromKey("advanceUploadEvictionFence:$operationId:$state:$etag")
 
   /** `request_id` for releasing an upload-eviction fence. */
   fun forReleaseUploadEvictionFence(operationId: String, etag: String): String =
@@ -169,7 +181,17 @@ object RequestIds {
     // request_id
     // field across the EDPA gRPC APIs. A random v4 UUID can't be reproduced on retry, so the 16
     // bytes come from a SHA-256 hash of [key] with the version and variant bits set to 4 / IETF.
-    val bytes = MessageDigest.getInstance("SHA-256").digest(key.toByteArray())
+    return uuidFromDigest(MessageDigest.getInstance("SHA-256").digest(key.toByteArray()))
+  }
+
+  private fun fromBytes(domain: String, value: ByteArray): String {
+    val digest = MessageDigest.getInstance("SHA-256")
+    digest.update(domain.toByteArray())
+    digest.update(0.toByte())
+    return uuidFromDigest(digest.digest(value))
+  }
+
+  private fun uuidFromDigest(bytes: ByteArray): String {
     bytes[6] = ((bytes[6].toInt() and 0x0f) or 0x40).toByte() // version 4
     bytes[8] = ((bytes[8].toInt() and 0x3f) or 0x80).toByte() // IETF variant
     var msb = 0L
