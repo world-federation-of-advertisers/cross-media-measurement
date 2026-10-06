@@ -222,7 +222,11 @@ proto_library(
     name = "upload_healing_operation_service_proto",
     srcs = ["upload_healing_operation_service.proto"],
     strip_import_prefix = IMPORT_PREFIX,
-    deps = [":upload_healing_operation_proto"],
+    deps = [
+        ":raw_impression_upload_correction_candidate_proto",
+        ":upload_healing_operation_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
 )
 
 kt_jvm_grpc_proto_library(
