@@ -18,20 +18,37 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "google/type/date.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
 option java_outer_classname = "DataAvailabilitySyncParamsProto";
 
-// Parameters for the Data Availability Sync cloud function, passed over the
-// wire from the dispatcher as a google.protobuf.Any.
+// Parameters for one Data Availability Sync invocation.
 //
 // The remaining configuration (storage, TLS connections, model line mapping)
-// is loaded at startup from the EDPA config bucket.
+// is loaded at startup from the EDPA config bucket. Internal VID-labeling
+// WorkItems populate the optional source fields below.
 message DataAvailabilitySyncParams {
   // Resource name of the DataProvider.
   string data_provider = 1 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
+
+  // Resource name of the source raw impression upload.
+  string raw_impression_upload = 2 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RawImpressionUpload"
+  ];
+
+  // Resource name of the model line represented by the output.
+  string model_line = 3 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type = "halo.wfanet.org/ModelLine"
+  ];
+
+  // Event date represented by the output.
+  google.type.Date event_date = 4 [(google.api.field_behavior) = OPTIONAL];
 }
