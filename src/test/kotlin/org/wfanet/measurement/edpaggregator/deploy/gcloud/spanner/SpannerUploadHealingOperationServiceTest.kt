@@ -17,7 +17,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
-import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.util.UUID
@@ -32,13 +31,9 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpr
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
-import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
-import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest
-import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTask
-import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskState
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
@@ -52,9 +47,6 @@ import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingOperati
 import org.wfanet.measurement.internal.edpaggregator.advanceUploadHealingStepRequest
 import org.wfanet.measurement.internal.edpaggregator.approveUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
-import org.wfanet.measurement.internal.edpaggregator.createDataAvailabilitySyncTaskRequest
-import org.wfanet.measurement.internal.edpaggregator.dataAvailabilitySyncTask
-import org.wfanet.measurement.internal.edpaggregator.getDataAvailabilitySyncTaskRequest
 import org.wfanet.measurement.internal.edpaggregator.getUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsRequest
@@ -1681,94 +1673,56 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
-  fun `replacement completes healing without consuming its pending availability task`() =
-    runBlocking {
-      val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
-      insertUploadGraph()
-      insertCorrectionCandidate(CANDIDATE_IDS[0])
-      val taskService = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
-      val replacementTask =
-        createAvailabilityTask(
-          taskService,
-          REPLACEMENT_UPLOAD_ID,
-          doneBlobUri = "gs://output/replacement/done",
-        )
-      val created = activateOperation(service, createRequest(memoized = false))
-      val waiting =
-        service.advanceUploadHealingStep(
-          advanceUploadHealingStepRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            uploadHealingOperationId = OPERATION_ID
-            uploadHealingStepId = 1L
-            etag = created.stepsList.single().etag
-            action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
-            requestId = WAITING_REQUEST_ID
-          }
-        )
-      val started =
-        service.advanceUploadHealingStep(
-          advanceUploadHealingStepRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            uploadHealingOperationId = OPERATION_ID
-            uploadHealingStepId = 1L
-            etag = waiting.etag
-            action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
-            recoveryDoneBlobGeneration = RECOVERY_GENERATION
-            requestId = STARTED_REQUEST_ID
-          }
-        )
-
+  fun `replacement completes healing`() = runBlocking {
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    insertUploadGraph()
+    insertCorrectionCandidate(CANDIDATE_IDS[0])
+    val created = activateOperation(service, createRequest(memoized = false))
+    val waiting =
       service.advanceUploadHealingStep(
         advanceUploadHealingStepRequest {
           dataProviderResourceId = DATA_PROVIDER_ID
           uploadHealingOperationId = OPERATION_ID
           uploadHealingStepId = 1L
-          etag = started.etag
-          action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
-          replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
-          requestId = COMPLETE_REQUEST_ID
+          etag = created.stepsList.single().etag
+          action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+          requestId = WAITING_REQUEST_ID
+        }
+      )
+    val started =
+      service.advanceUploadHealingStep(
+        advanceUploadHealingStepRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          uploadHealingStepId = 1L
+          etag = waiting.etag
+          action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
+          recoveryDoneBlobGeneration = RECOVERY_GENERATION
+          requestId = STARTED_REQUEST_ID
         }
       )
 
-      val operation =
-        service.getUploadHealingOperation(
-          getUploadHealingOperationRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            uploadHealingOperationId = OPERATION_ID
-          }
-        )
-      assertThat(operation.state)
-        .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
-      val pendingReplacementTask =
-        taskService.getDataAvailabilitySyncTask(
-          getDataAvailabilitySyncTaskRequest {
-            dataProviderResourceId = DATA_PROVIDER_ID
-            rawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
-            dataAvailabilitySyncTaskResourceId = replacementTask.dataAvailabilitySyncTaskResourceId
-          }
-        )
-      assertThat(pendingReplacementTask.state)
-        .isEqualTo(DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_PENDING)
-    }
-
-  @Test
-  fun `confirming replacement eviction supersedes unfinished availability tasks`() = runBlocking {
-    assertEvictionTerminatesTask(
-      RawImpressionUploadModelLineRecoveryAction
-        .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION,
-      recoveryTarget = true,
-      DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUPERSEDED,
+    service.advanceUploadHealingStep(
+      advanceUploadHealingStepRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingStepId = 1L
+        etag = started.etag
+        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
+        replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
+        requestId = COMPLETE_REQUEST_ID
+      }
     )
-  }
 
-  @Test
-  fun `confirming no-replacement eviction cancels unfinished availability tasks`() = runBlocking {
-    assertEvictionTerminatesTask(
-      RawImpressionUploadModelLineRecoveryAction
-        .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT,
-      recoveryTarget = false,
-      DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_CANCELLED,
-    )
+    val operation =
+      service.getUploadHealingOperation(
+        getUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+        }
+      )
+    assertThat(operation.state)
+      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
   }
 
   @Test
@@ -1923,79 +1877,6 @@ class SpannerUploadHealingOperationServiceTest {
       }
 
     assertThat(error).hasMessageThat().contains("request_id is required")
-  }
-
-  private suspend fun assertEvictionTerminatesTask(
-    recoveryAction: RawImpressionUploadModelLineRecoveryAction,
-    recoveryTarget: Boolean,
-    expectedState: DataAvailabilitySyncTaskState,
-  ) {
-    insertUploadGraph()
-    insertCorrectionCandidate(CANDIDATE_IDS[0])
-    val taskService = SpannerDataAvailabilitySyncTaskService(spannerDatabase.databaseClient)
-    val task = createAvailabilityTask(taskService)
-    val healingService = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
-    val operation =
-      activateOperation(
-        healingService,
-        createRequest(
-          memoized = false,
-          recoveryAction = recoveryAction,
-          recoveryTarget = recoveryTarget,
-        ),
-      )
-
-    healingService.advanceUploadHealingStep(
-      advanceUploadHealingStepRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        uploadHealingOperationId = OPERATION_ID
-        uploadHealingStepId = 1L
-        etag = operation.stepsList.single().etag
-        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
-        requestId = WAITING_REQUEST_ID
-      }
-    )
-
-    val terminated =
-      taskService.getDataAvailabilitySyncTask(
-        getDataAvailabilitySyncTaskRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          rawImpressionUploadResourceId = SOURCE_UPLOAD_ID
-          dataAvailabilitySyncTaskResourceId = task.dataAvailabilitySyncTaskResourceId
-        }
-      )
-    assertThat(terminated.state).isEqualTo(expectedState)
-  }
-
-  private suspend fun createAvailabilityTask(
-    service: SpannerDataAvailabilitySyncTaskService,
-    rawImpressionUploadResourceId: String = SOURCE_UPLOAD_ID,
-    doneBlobUri: String = "gs://output/day/done",
-  ): DataAvailabilitySyncTask {
-    val generation = 123L
-    val taskId =
-      RequestIds.forDataAvailabilitySyncTask(
-        VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri),
-        generation,
-      )
-    return service.createDataAvailabilitySyncTask(
-      createDataAvailabilitySyncTaskRequest {
-        dataProviderResourceId = DATA_PROVIDER_ID
-        this.rawImpressionUploadResourceId = rawImpressionUploadResourceId
-        dataAvailabilitySyncTaskResourceId = taskId
-        requestId = taskId
-        dataAvailabilitySyncTask = dataAvailabilitySyncTask {
-          this.doneBlobUri = doneBlobUri
-          doneBlobGeneration = generation
-          cmmsModelLine = CMMS_MODEL_LINE
-          eventDate = date {
-            year = 2026
-            month = 9
-            day = 30
-          }
-        }
-      }
-    )
   }
 
   private fun createRequest(
