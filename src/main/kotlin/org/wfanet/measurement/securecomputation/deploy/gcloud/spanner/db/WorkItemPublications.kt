@@ -279,6 +279,7 @@ private val WORK_ITEM_PUBLICATION_SQL =
     WorkItems.QueueId,
     WorkItems.State,
     WorkItems.WorkItemParams,
+    WorkItems.SerializationKey,
     WorkItems.Generation,
     WorkItems.PublicationScheduledGeneration,
     WorkItems.CreateTime,
