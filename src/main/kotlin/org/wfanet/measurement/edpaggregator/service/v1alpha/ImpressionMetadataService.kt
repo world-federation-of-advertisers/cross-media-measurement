@@ -32,6 +32,7 @@ import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExi
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataKey
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataNotFoundException
 import org.wfanet.measurement.edpaggregator.service.InvalidFieldValueException
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.internal.Errors as InternalErrors
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateImpressionMetadataRequest
@@ -830,6 +831,15 @@ class ImpressionMetadataService(
         throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
     }
+    try {
+      validateRawImpressionUpload(
+        request.filter.rawImpressionUpload,
+        request.parent,
+        "filter.raw_impression_upload",
+      )
+    } catch (e: InvalidFieldValueException) {
+      throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
 
     val internalState =
       when (request.filter.state) {
@@ -890,6 +900,11 @@ class ImpressionMetadataService(
         entityKeys += request.filter.entityKeysList.map { it.toInternal() }
         if (request.filter.blobUrisList.isNotEmpty()) {
           blobUris += request.filter.blobUrisList
+        }
+        if (request.filter.rawImpressionUpload.isNotEmpty()) {
+          rawImpressionUploadResourceId =
+            checkNotNull(RawImpressionUploadKey.fromName(request.filter.rawImpressionUpload))
+              .rawImpressionUploadId
         }
 
         state = internalState
@@ -1070,6 +1085,14 @@ class ImpressionMetadataService(
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.interval")
     }
 
+    validateSourceUpload(
+      request.impressionMetadata.rawImpressionUpload,
+      request.impressionMetadata.outputDoneBlobGeneration,
+      request.parent,
+      "${fieldPathPrefix}impression_metadata.raw_impression_upload",
+      "${fieldPathPrefix}impression_metadata.output_done_blob_generation",
+    )
+
     request.impressionMetadata.entityKeysList.forEachIndexed { index, entityKey ->
       validateEntityKey(entityKey, "${fieldPathPrefix}impression_metadata.entity_keys.$index")
     }
@@ -1109,6 +1132,17 @@ class ImpressionMetadataService(
     if (request.impressionMetadata.name.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.name")
     }
+    val impressionMetadataKey =
+      ImpressionMetadataKey.fromName(request.impressionMetadata.name)
+        ?: throw InvalidFieldValueException("${fieldPathPrefix}impression_metadata.name")
+
+    validateSourceUpload(
+      request.impressionMetadata.rawImpressionUpload,
+      request.impressionMetadata.outputDoneBlobGeneration,
+      impressionMetadataKey.parentKey.toName(),
+      "${fieldPathPrefix}impression_metadata.raw_impression_upload",
+      "${fieldPathPrefix}impression_metadata.output_done_blob_generation",
+    )
 
     if (request.impressionMetadata.blobUri.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}impression_metadata.blob_uri")
@@ -1157,6 +1191,41 @@ class ImpressionMetadataService(
     }
   }
 
+  private fun validateRawImpressionUpload(
+    rawImpressionUpload: String,
+    parent: String,
+    fieldPath: String,
+  ) {
+    if (rawImpressionUpload.isEmpty()) return
+    val key =
+      RawImpressionUploadKey.fromName(rawImpressionUpload)
+        ?: throw InvalidFieldValueException(fieldPath)
+    val dataProviderKey =
+      checkNotNull(DataProviderKey.fromName(parent)) { "parent was already validated" }
+    if (key.dataProviderId != dataProviderKey.dataProviderId) {
+      throw InvalidFieldValueException(fieldPath)
+    }
+  }
+
+  private fun validateSourceUpload(
+    rawImpressionUpload: String,
+    outputDoneBlobGeneration: Long,
+    parent: String,
+    rawImpressionUploadFieldPath: String,
+    generationFieldPath: String,
+  ) {
+    if (rawImpressionUpload.isEmpty()) {
+      if (outputDoneBlobGeneration != 0L) {
+        throw InvalidFieldValueException(generationFieldPath)
+      }
+      return
+    }
+    if (outputDoneBlobGeneration <= 0L) {
+      throw InvalidFieldValueException(generationFieldPath)
+    }
+    validateRawImpressionUpload(rawImpressionUpload, parent, rawImpressionUploadFieldPath)
+  }
+
   companion object {
     private const val DEFAULT_PAGE_SIZE = 50
     /**
@@ -1186,6 +1255,12 @@ fun InternalImpressionMetadata.toImpressionMetadata(): ImpressionMetadata {
     createTime = source.createTime
     updateTime = source.updateTime
     entityKeys += source.entityKeysList.map { it.toPublic() }
+    if (source.rawImpressionUploadResourceId.isNotEmpty()) {
+      rawImpressionUpload =
+        RawImpressionUploadKey(source.dataProviderResourceId, source.rawImpressionUploadResourceId)
+          .toName()
+    }
+    outputDoneBlobGeneration = source.outputDoneBlobGeneration
   }
 }
 
@@ -1208,6 +1283,12 @@ fun ImpressionMetadata.toInternal(
     cmmsModelLine = source.modelLine
     interval = source.interval
     entityKeys += source.entityKeysList.map { it.toInternal() }
+    if (source.rawImpressionUpload.isNotEmpty()) {
+      rawImpressionUploadResourceId =
+        checkNotNull(RawImpressionUploadKey.fromName(source.rawImpressionUpload))
+          .rawImpressionUploadId
+    }
+    outputDoneBlobGeneration = source.outputDoneBlobGeneration
   }
 }
 

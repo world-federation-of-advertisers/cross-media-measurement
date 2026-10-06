@@ -41,6 +41,8 @@ module "reporting_v2" {
   reporting_operators                 = var.reporting_operators
   report_trace_operators              = var.report_trace_operators
   report_trace_observability_projects = var.report_trace_observability_projects
+  vid_labeling_trace_operators              = var.vid_labeling_trace_operators
+  vid_labeling_trace_observability_projects = var.vid_labeling_trace_observability_projects
 }
 
 resource "google_compute_address" "reporting_v2alpha" {

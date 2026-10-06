@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.undeleteImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.updateImpressionMetadataRequest
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase as InternalImpressionMetadataServiceCoroutineImplBase
@@ -142,6 +143,55 @@ class ImpressionMetadataServiceTest {
       assertThat(impressionMetadata.createTime.toInstant()).isGreaterThan(startTime)
       assertThat(impressionMetadata.updateTime).isEqualTo(impressionMetadata.createTime)
     }
+
+  @Test
+  fun `updateImpressionMetadata moves deterministic output to corrected upload`() = runBlocking {
+    val sourceUploadA = DATA_PROVIDER_KEY.toName() + "/rawImpressionUploads/upload-a"
+    val sourceUploadB = DATA_PROVIDER_KEY.toName() + "/rawImpressionUploads/upload-b"
+    val created =
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          impressionMetadata =
+            IMPRESSION_METADATA.copy {
+              rawImpressionUpload = sourceUploadA
+              outputDoneBlobGeneration = 77L
+            }
+        }
+      )
+    val corrected =
+      service.updateImpressionMetadata(
+        updateImpressionMetadataRequest {
+          impressionMetadata =
+            created.copy {
+              rawImpressionUpload = sourceUploadB
+              outputDoneBlobGeneration = 88L
+            }
+          requestId = "22222222-2222-4222-8222-222222222222"
+        }
+      )
+
+    val oldUploadResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter = ListImpressionMetadataRequestKt.filter { rawImpressionUpload = sourceUploadA }
+        }
+      )
+    val correctedUploadResponse =
+      service.listImpressionMetadata(
+        listImpressionMetadataRequest {
+          parent = DATA_PROVIDER_KEY.toName()
+          filter = ListImpressionMetadataRequestKt.filter { rawImpressionUpload = sourceUploadB }
+        }
+      )
+
+    assertThat(corrected.rawImpressionUpload).isEqualTo(sourceUploadB)
+    assertThat(corrected.outputDoneBlobGeneration).isEqualTo(88L)
+    assertThat(oldUploadResponse.impressionMetadataList).isEmpty()
+    assertThat(correctedUploadResponse.impressionMetadataList).containsExactly(corrected)
+    Unit
+  }
 
   @Test
   fun `createImpressionMetadata with existing requestId returns the existing ImpressionMetadata`() =
