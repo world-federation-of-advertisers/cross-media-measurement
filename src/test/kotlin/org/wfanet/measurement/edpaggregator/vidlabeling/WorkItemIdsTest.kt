@@ -50,6 +50,23 @@ class WorkItemIdsTest {
   }
 
   @Test
+  fun `forDataAvailabilitySync is a stable RFC-1034 id with the das- prefix`() {
+    val id = WorkItemIds.forDataAvailabilitySync(DONE_BLOB_PATH_HASH, 123L)
+
+    assertThat(id).startsWith("das-")
+    assertThat(ResourceIds.RFC_1034_REGEX.matches(id)).isTrue()
+    assertThat(id).isEqualTo(WorkItemIds.forDataAvailabilitySync(DONE_BLOB_PATH_HASH, 123L))
+  }
+
+  @Test
+  fun `forDataAvailabilitySync distinguishes exact done object versions`() {
+    val id = WorkItemIds.forDataAvailabilitySync(DONE_BLOB_PATH_HASH, 123L)
+
+    assertThat(id).isNotEqualTo(WorkItemIds.forDataAvailabilitySync("other-path-hash", 123L))
+    assertThat(id).isNotEqualTo(WorkItemIds.forDataAvailabilitySync(DONE_BLOB_PATH_HASH, 124L))
+  }
+
+  @Test
   fun `forMonitorRecovery uses bounded deterministic suffixes`() {
     val original = WorkItemIds.forVidLabeler("$UPLOAD/vidLabelingJobs/vj1")
 
@@ -88,5 +105,7 @@ class WorkItemIdsTest {
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
+    private const val DONE_BLOB_PATH_HASH =
+      "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   }
 }
