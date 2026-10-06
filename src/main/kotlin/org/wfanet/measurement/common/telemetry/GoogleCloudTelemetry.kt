@@ -712,7 +712,8 @@ class GoogleCloudTraceReader(
 
     private fun isFailureOutcome(outcome: String?): Boolean {
       val normalized = outcome?.lowercase() ?: return false
-      return normalized in setOf("failed", "failure", "error", "refused", "report_failed") ||
+      return normalized in
+        setOf("failed", "failure", "error", "refused", "report_failed", "permanent_failure") ||
         normalized.startsWith("failed_")
     }
   }
