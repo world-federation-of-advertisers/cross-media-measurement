@@ -46,6 +46,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -83,6 +84,8 @@ class EvictUploaderTest {
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase =
     mockService()
   private val deletedBlobUris = mutableListOf<String>()
+  private val deletedBlobVersions = mutableListOf<Pair<String, Long>>()
+  private val blobGenerations = mutableMapOf<String, Long?>()
 
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
@@ -104,7 +107,11 @@ class EvictUploaderTest {
       RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(channel),
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel),
       LABELED_IMPRESSIONS_BLOB_PREFIX,
-      deleteBlob = { blobUri -> deletedBlobUris.add(blobUri) },
+      getBlobGeneration = { blobUri -> blobGenerations.getOrDefault(blobUri, DEFAULT_GENERATION) },
+      deleteBlob = { blobUri, generation ->
+        deletedBlobVersions += blobUri to generation
+        deletedBlobUris.add(blobUri)
+      },
     )
   }
 
@@ -115,6 +122,8 @@ class EvictUploaderTest {
     whenever(uploadService.releaseRawImpressionUploadEvictionFence(any()))
       .thenReturn(ReleaseRawImpressionUploadEvictionFenceResponse.getDefaultInstance())
     deletedBlobUris.clear()
+    deletedBlobVersions.clear()
+    blobGenerations.clear()
     whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
       .thenReturn(listRawImpressionUploadFilesResponse {})
     whenever(impressionMetadataService.listImpressionMetadata(any()))
@@ -834,6 +843,13 @@ class EvictUploaderTest {
             doneBlobUri = "gs://raw/done"
             replacesRawImpressionUpload = uploadName("up1")
           }
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up3")
+            createTime = T3.toProtoTime()
+            doneBlobUri = "gs://raw/done"
+            replacesRawImpressionUpload = uploadName("up2")
+            state = RawImpressionUpload.State.CORRECTION_REQUIRED
+          }
         }
       )
     stubModelLineRows("up1", "up2")
@@ -1280,6 +1296,12 @@ class EvictUploaderTest {
       assertThat(result.deletedImpressionMetadata).isEqualTo(1)
       assertThat(result.deletedOutputBlobs).isEqualTo(2)
       assertThat(deletedBlobUris).containsExactly("$outputUri.metadata.binpb", outputUri).inOrder()
+      assertThat(deletedBlobVersions)
+        .containsExactly(
+          "$outputUri.metadata.binpb" to DEFAULT_GENERATION,
+          outputUri to DEFAULT_GENERATION,
+        )
+        .inOrder()
       val requestCaptor = argumentCaptor<ListImpressionMetadataRequest>()
       verifyBlocking(impressionMetadataService) { listImpressionMetadata(requestCaptor.capture()) }
       assertThat(requestCaptor.firstValue.filter.blobUrisList)
@@ -1343,6 +1365,51 @@ class EvictUploaderTest {
       assertThat(deletedBlobUris).containsExactly("$outputUri.metadata.binpb", outputUri).inOrder()
     }
 
+  @Test
+  fun `evict rejects a changed output generation before mutating state`(): Unit = runBlocking {
+    val rawBlobUri = "gs://raw-bucket/day/file.parquet"
+    val eventDate = LocalDate.of(2026, 7, 1)
+    val outputKey = LabeledImpressionsBlobKeys.forInput(rawBlobUri, MODEL_LINE, eventDate)
+    val outputUri = "$LABELED_IMPRESSIONS_BLOB_PREFIX/$outputKey"
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up1")
+            createTime = T1.toProtoTime()
+          }
+        }
+      )
+    stubModelLineRows("up1")
+    whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+      .thenReturn(listRankIndexBlobsResponse {})
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "${uploadName("up1")}/files/file1"
+            blobUri = rawBlobUri
+            this.eventDate = date {
+              year = eventDate.year
+              month = eventDate.monthValue
+              day = eventDate.dayOfMonth
+            }
+          }
+        }
+      )
+
+    val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+    blobGenerations[outputUri] = DEFAULT_GENERATION + 1L
+
+    val error = assertFailsWith<IllegalStateException> { evictUploader.evict(plan, REASON) {} }
+
+    assertThat(error).hasMessageThat().contains("changed after plan approval")
+    assertThat(deletedBlobVersions).isEmpty()
+    verifyBlocking(modelLineService, never()) { markRawImpressionUploadModelLineFailed(any()) }
+    verifyBlocking(rankIndexBlobService, never()) { deleteRankIndexBlob(any()) }
+    verifyBlocking(impressionMetadataService, never()) { batchDeleteImpressionMetadata(any()) }
+  }
+
   companion object {
     private const val DATA_PROVIDER = "dataProviders/dp1"
     private const val LABELED_IMPRESSIONS_BLOB_PREFIX = "gs://output-bucket/prefix"
@@ -1351,6 +1418,7 @@ class EvictUploaderTest {
     private const val NON_MEMOIZED_MODEL_LINE =
       "modelProviders/mp1/modelSuites/ms1/modelLines/non-memoized"
     private const val REASON = "bad data"
+    private const val DEFAULT_GENERATION = 100L
     private val T0: Instant = Instant.parse("2026-06-30T00:00:00Z")
     private val T1: Instant = Instant.parse("2026-07-01T00:00:00Z")
     private val T2: Instant = Instant.parse("2026-07-02T00:00:00Z")
