@@ -407,8 +407,11 @@ module "data_availability_sync_cloud_function" {
   extra_env_vars                           = var.cloud_function_configs.data_availability_sync.extra_env_vars
   secret_mappings                          = var.cloud_function_configs.data_availability_sync.secret_mappings
   uber_jar_path                            = var.cloud_function_configs.data_availability_sync.uber_jar_path
-  secrets_to_access                        = [for key in local.data_availability_sync_secrets_access : local.all_secrets[key].secret_id]
-  timeout_seconds                          = 540
+  secrets_to_access = [
+    for key in concat(local.data_availability_sync_secrets_access, ["secure_computation_root_ca"]) :
+    local.all_secrets[key].secret_id
+  ]
+  timeout_seconds = 540
 }
 
 module "data_availability_cleanup_cloud_function" {
@@ -687,35 +690,47 @@ resource "google_spanner_database_iam_member" "edp_aggregator_internal" {
   }
 }
 
-module "data_availability_sync_task_queue" {
+module "data_availability_sync_work_item_queue" {
   source = "../pubsub"
 
-  depends_on = [google_service_account_iam_member.data_availability_sync_task_token_creator]
+  depends_on = [google_service_account_iam_member.data_availability_sync_work_item_token_creator]
 
-  topic_name            = var.data_availability_sync_task_queue.topic_name
-  subscription_name     = var.data_availability_sync_task_queue.subscription_name
-  ack_deadline_seconds  = var.data_availability_sync_task_queue.ack_deadline_seconds
-  max_delivery_attempts = var.data_availability_sync_task_queue.max_delivery_attempts
-  minimum_backoff       = var.data_availability_sync_task_queue.minimum_backoff
-  maximum_backoff       = var.data_availability_sync_task_queue.maximum_backoff
+  topic_name                 = var.data_availability_sync_work_item_queue.topic_name
+  subscription_name          = var.data_availability_sync_work_item_queue.subscription_name
+  ack_deadline_seconds       = var.data_availability_sync_work_item_queue.ack_deadline_seconds
+  max_delivery_attempts      = var.data_availability_sync_work_item_queue.max_delivery_attempts
+  minimum_backoff            = var.data_availability_sync_work_item_queue.minimum_backoff
+  maximum_backoff            = var.data_availability_sync_work_item_queue.maximum_backoff
   push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
   push_service_account_email = module.data_availability_sync_cloud_function.cloud_function_service_account.email
   push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
 }
 
-resource "google_pubsub_topic_iam_member" "data_availability_sync_task_publisher" {
-  topic  = module.data_availability_sync_task_queue.pubsub_topic.id
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.pubsub_topic.id
   role   = "roles/pubsub.publisher"
-  member = module.edp_aggregator_internal.iam_service_account.member
+  member = var.pubsub_iam_service_account_member
 }
 
-resource "google_service_account_iam_member" "data_availability_sync_task_token_creator" {
+resource "google_pubsub_topic_iam_member" "data_availability_sync_work_item_dead_letter_publisher" {
+  topic  = module.data_availability_sync_work_item_queue.dead_letter_topic.id
+  role   = "roles/pubsub.publisher"
+  member = var.pubsub_iam_service_account_member
+}
+
+resource "google_pubsub_subscription_iam_member" "data_availability_sync_work_item_dead_letter_subscriber" {
+  subscription = module.data_availability_sync_work_item_queue.dead_letter_subscription.name
+  role         = "roles/pubsub.subscriber"
+  member       = var.pubsub_iam_service_account_member
+}
+
+resource "google_service_account_iam_member" "data_availability_sync_work_item_token_creator" {
   service_account_id = module.data_availability_sync_cloud_function.cloud_function_service_account.name
   role               = "roles/iam.serviceAccountTokenCreator"
   member             = "serviceAccount:service-${data.google_project.project.number}@gcp-sa-pubsub.iam.gserviceaccount.com"
 }
 
-resource "google_cloud_run_service_iam_member" "data_availability_sync_task_invoker" {
+resource "google_cloud_run_service_iam_member" "data_availability_sync_work_item_invoker" {
   depends_on = [module.data_availability_sync_cloud_function]
   service    = var.data_availability_sync_function_name
   role       = "roles/run.invoker"
