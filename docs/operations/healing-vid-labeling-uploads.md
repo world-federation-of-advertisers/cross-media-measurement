@@ -28,6 +28,10 @@ vid-labeling-heal get-correction-plan \
 
 The plan contains every correction candidate, historical owner, memoized cascade step, and
 non-memoized local step. Its `etag` changes whenever a pending candidate or computed step changes.
+Output locations and retention policy remain controller configuration; they are not copied into the
+persisted operation. Candidate-linked steps identify the uploads whose derived state is invalid.
+Retention is enforced while the draft remains mutable; approval freezes the step graph, so later
+controller progression does not reject it merely because the configured window advanced.
 
 List candidate summaries when the plan needs more investigation:
 
