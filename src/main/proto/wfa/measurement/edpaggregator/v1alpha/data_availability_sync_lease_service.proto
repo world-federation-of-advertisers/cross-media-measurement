@@ -1,0 +1,119 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/field_info.proto";
+import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/data_availability_sync_lease.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "DataAvailabilitySyncLeaseServiceProto";
+
+// Service for coordinating data-availability synchronization with upload
+// healing.
+service DataAvailabilitySyncLeaseService {
+  // Acquires a lease for a synchronization attempt.
+  // (-- api-linter: core::0131::synonyms=disabled
+  //     aip.dev/not-precedent: Acquisition creates a time-bounded lease. --)
+  rpc AcquireDataAvailabilitySyncLease(AcquireDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Renews an active synchronization lease.
+  rpc RenewDataAvailabilitySyncLease(RenewDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Validates that a synchronization lease remains active.
+  rpc ValidateDataAvailabilitySyncLease(ValidateDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+
+  // Releases a synchronization lease.
+  rpc ReleaseDataAvailabilitySyncLease(ReleaseDataAvailabilitySyncLeaseRequest)
+      returns (DataAvailabilitySyncLease);
+}
+
+// Request message for `AcquireDataAvailabilitySyncLease`.
+message AcquireDataAvailabilitySyncLeaseRequest {
+  // Resource name of the lease to acquire.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
+
+  // UUID4 request identifier for idempotency.
+  string request_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `RenewDataAvailabilitySyncLease`.
+message RenewDataAvailabilitySyncLeaseRequest {
+  // Resource name of the lease.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
+
+  // Etag returned by the preceding lease mutation.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 request identifier for idempotency.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Request message for `ValidateDataAvailabilitySyncLease`.
+message ValidateDataAvailabilitySyncLeaseRequest {
+  // Resource name of the lease.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
+
+  // Current lease etag.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+}
+
+// Request message for `ReleaseDataAvailabilitySyncLease`.
+message ReleaseDataAvailabilitySyncLeaseRequest {
+  // Resource name of the lease.
+  string name = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/DataAvailabilitySyncLease"
+    }
+  ];
+
+  // Etag returned by the preceding lease mutation.
+  string etag = 2 [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 request identifier for idempotency.
+  string request_id = 3 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
