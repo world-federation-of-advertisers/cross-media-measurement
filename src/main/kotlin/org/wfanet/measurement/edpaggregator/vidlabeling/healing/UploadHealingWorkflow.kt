@@ -48,26 +48,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 
-/** Executes an eviction while reporting each durable per-entry checkpoint. */
-fun interface EvictionExecutor {
-  /** Acquires the eviction fence and verifies that [plan] is still current. */
-  suspend fun prepare(plan: EvictUploader.EvictionPlan): EvictUploader.EvictionPlan = plan
-
-  suspend fun evict(
-    plan: EvictUploader.EvictionPlan,
-    reason: String,
-    onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
-  ): EvictUploader.EvictionResult
-}
-
-/** Starts or resumes one memoized recovery upload. */
-fun interface RecoveryExecutor {
-  suspend fun recover(
-    sourceUploadName: String,
-    cmmsModelLines: List<String>,
-  ): RecoverUploader.Result
-}
-
 /** Executes and resumes a persisted upload-eviction and replacement workflow. */
 class UploadHealingWorkflow(
   private val operationsStub: UploadHealingOperationServiceCoroutineStub,
@@ -175,6 +155,20 @@ class UploadHealingWorkflow(
 
       val readyReplacement = findReadyReplacement(group)
       if (readyReplacement != null) {
+        for (step in group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
+          operation =
+            checkpoint(
+              step,
+              UploadHealingStep.State.RECOVERY_STARTED,
+              recoveryDoneBlobGeneration = readyReplacement.doneBlobGeneration,
+            )
+        }
+        group =
+          operation.stepsList.filter {
+            it.sourceRawImpressionUpload == initialGroup.first().sourceRawImpressionUpload &&
+              it.recoveryAction == initialGroup.first().recoveryAction &&
+              it.recoveryTarget
+          }
         for (step in group.filter { it.state != UploadHealingStep.State.COMPLETE }) {
           operation = checkpoint(step, UploadHealingStep.State.COMPLETE, readyReplacement.name)
         }
