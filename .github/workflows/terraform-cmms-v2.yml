@@ -346,6 +346,8 @@ jobs:
         REPORTING_OPERATORS: ${{ vars.REPORTING_OPERATORS }}
         REPORT_TRACE_OPERATORS: ${{ vars.REPORT_TRACE_OPERATORS }}
         REPORT_TRACE_OBSERVABILITY_PROJECTS: ${{ vars.REPORT_TRACE_OBSERVABILITY_PROJECTS }}
+        VID_LABELING_TRACE_OPERATORS: ${{ vars.VID_LABELING_TRACE_OPERATORS }}
+        VID_LABELING_TRACE_OBSERVABILITY_PROJECTS: ${{ vars.VID_LABELING_TRACE_OBSERVABILITY_PROJECTS }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -414,6 +416,8 @@ jobs:
         -var="reporting_operators=${REPORTING_OPERATORS:-[]}"
         -var="report_trace_operators=${REPORT_TRACE_OPERATORS:-[]}"
         -var="report_trace_observability_projects=${REPORT_TRACE_OBSERVABILITY_PROJECTS:-[]}"
+        -var="vid_labeling_trace_operators=${VID_LABELING_TRACE_OPERATORS:-[]}"
+        -var="vid_labeling_trace_observability_projects=${VID_LABELING_TRACE_OBSERVABILITY_PROJECTS:-[]}"
         -out=tfplan
 
     - name: terraform apply

@@ -23,6 +23,10 @@ locals {
     toset([data.google_project.project.project_id]),
     toset(var.report_trace_observability_projects),
   )
+  vid_labeling_trace_observability_projects = setunion(
+    toset([data.google_project.project.project_id]),
+    toset(var.vid_labeling_trace_observability_projects),
+  )
 }
 
 module "reporting_internal" {
@@ -173,6 +177,42 @@ resource "google_project_iam_member" "report_trace_operator_service_usage_consum
   project  = each.value
   role     = "roles/serviceusage.serviceUsageConsumer"
   member   = google_service_account.report_trace_operator.member
+}
+
+# Dedicated least-privilege identity for the VID-labeling trace CLI. Sibling modules grant it
+# read-only access to authoritative pipeline state and object metadata.
+resource "google_service_account" "vid_labeling_trace_operator" {
+  account_id   = "vid-labeling-trace-operator"
+  display_name = "VID labeling trace operator"
+  description  = "Read-only identity for the vid-labeling-trace operator CLI."
+}
+
+resource "google_service_account_iam_member" "vid_labeling_trace_operator_token_creator" {
+  for_each           = toset(var.vid_labeling_trace_operators)
+  service_account_id = google_service_account.vid_labeling_trace_operator.name
+  role               = "roles/iam.serviceAccountTokenCreator"
+  member             = each.value
+}
+
+resource "google_project_iam_member" "vid_labeling_trace_operator_logging_viewer" {
+  for_each = local.vid_labeling_trace_observability_projects
+  project  = each.value
+  role     = "roles/logging.viewer"
+  member   = google_service_account.vid_labeling_trace_operator.member
+}
+
+resource "google_project_iam_member" "vid_labeling_trace_operator_trace_viewer" {
+  for_each = local.vid_labeling_trace_observability_projects
+  project  = each.value
+  role     = "roles/cloudtrace.viewer"
+  member   = google_service_account.vid_labeling_trace_operator.member
+}
+
+resource "google_project_iam_member" "vid_labeling_trace_operator_service_usage_consumer" {
+  for_each = local.vid_labeling_trace_observability_projects
+  project  = each.value
+  role     = "roles/serviceusage.serviceUsageConsumer"
+  member   = google_service_account.vid_labeling_trace_operator.member
 }
 
 resource "google_spanner_database" "reporting" {
