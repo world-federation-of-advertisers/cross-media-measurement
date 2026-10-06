@@ -48,6 +48,7 @@ object XmmTraceLogging {
       XmmTraceAttributes.WORK_ITEM_NAME_STRING,
       XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME_STRING,
       XmmTraceAttributes.WORK_ITEM_GENERATION_STRING,
+      XmmTraceAttributes.WORK_ITEM_PUBLICATION_ATTEMPT_STRING,
       XmmTraceAttributes.LIFECYCLE_STAGE_STRING,
       XmmTraceAttributes.OUTCOME_STRING,
       XmmTraceAttributes.ERROR_TYPE_STRING,
