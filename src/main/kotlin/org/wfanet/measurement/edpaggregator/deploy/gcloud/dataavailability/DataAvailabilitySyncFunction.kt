@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.StorageOptions
 import io.grpc.ClientInterceptors
 import io.grpc.ManagedChannel
@@ -33,6 +34,7 @@ import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
+import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
@@ -49,12 +51,16 @@ import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
+import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncTaskKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskNotification
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -74,9 +80,9 @@ data class GrpcChannels(
  * Cloud Function that synchronizes data availability state between ImpressionMetadataStorage and
  * the Kingdom.
  *
- * Invoked when an EDP finishes uploading impressions and writes a "done" blob to Google Cloud
- * Storage. The function reads the new availability, synchronizes it with ImpressionMetadataStorage,
- * and updates the impression availability interval in the Kingdom.
+ * Invoked by DataWatcher for externally produced data or by a durable task notification for
+ * internally labeled data. The function reads the new availability, synchronizes it with
+ * ImpressionMetadataStorage, and updates the impression availability interval in the Kingdom.
  *
  * The "done" blob is expected to be written to the bucket under the prefix:
  * `/edp/<edp_name>/<unique_identifier>/[optional subfolder]`.
@@ -91,8 +97,8 @@ data class GrpcChannels(
  *   instead of GCS. Used only in testing.
  *
  * ## Configuration
- * - A [DataAvailabilitySyncConfig] is provided in the request body by the DataWatcher Cloud
- *   Function.
+ * - DataWatcher requests provide a [DataAvailabilitySyncConfig] in the request body.
+ * - Task notifications select a configured data provider from the task resource name.
  * - gRPC channels are created with mutual TLS using the provided certificate files.
  */
 class DataAvailabilitySyncFunction() : HttpFunction {
@@ -103,62 +109,33 @@ class DataAvailabilitySyncFunction() : HttpFunction {
   override fun service(request: HttpRequest, response: HttpResponse) {
     try {
       logger.fine("Starting DataAvailabilitySyncFunction")
+      val doneBlobPath = request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElse(null)
+      if (doneBlobPath == null) {
+        serviceTaskNotification(request)
+        return
+      }
       val requestBody = request.reader.readText()
       val dataAvailabilitySyncConfig =
         ConfigLoader.buildDataAvailabilitySyncConfig(requestBody, runtimeConfigs.configsList)
 
-      // Read the path as request header
-      val doneBlobPath =
-        request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElseThrow {
-          IllegalArgumentException("Missing required header: $DATA_WATHCER_PATH_HEADER")
-        }
-
-      val storageClient: BlobMetadataStorageClient = createStorageClient(dataAvailabilitySyncConfig)
-
-      val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
-
-      val cmmsPublicChannel = grpcChannels.cmmsChannel
-      val impressionMetadataStoragePublicChannel = grpcChannels.impressionMetadataChannel
-
-      val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
-
-      val instrumentedCmmsChannel =
-        ClientInterceptors.intercept(cmmsPublicChannel, grpcTelemetry.newClientInterceptor())
-
-      val instrumentedImpMetadataChannel =
-        ClientInterceptors.intercept(
-          impressionMetadataStoragePublicChannel,
-          grpcTelemetry.newClientInterceptor(),
-        )
-
-      val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
-      val impressionMetadataServicesClient =
-        ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
-      val dataAvailabilitySyncLeaseClient =
-        DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedImpMetadataChannel)
-
-      val dataAvailabilitySync =
-        DataAvailabilitySync(
-          dataAvailabilitySyncConfig.edpImpressionPath,
-          storageClient,
-          dataProvidersClient,
-          impressionMetadataServicesClient,
-          dataAvailabilitySyncConfig.dataProvider,
-          globalThrottler,
-          impressionMetadataBatchSize = impressionMetadataBatchSize,
-          errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
-          modelLineMap =
-            dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
-        )
+      val dataAvailabilitySync = buildDataAvailabilitySync(dataAvailabilitySyncConfig)
 
       Tracing.withW3CTraceContext(request) {
-        val generation =
+        val generationHeader =
           request
             .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
-            .map(String::toLongOrNull)
-            .orElse(null)
-        val objectIdentity =
-          generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, it) }
+            .orElseThrow {
+              IllegalArgumentException(
+                "Missing required header: " +
+                  VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER
+              )
+            }
+        val generation =
+          generationHeader.toLongOrNull()?.takeIf { it > 0 }
+            ?: throw IllegalArgumentException(
+              "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must be a positive integer"
+            )
+        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, generation)
         val attributes =
           Attributes.builder()
             .put(
@@ -179,27 +156,24 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
                 builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
               }
-              if (objectIdentity != null) {
-                builder
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
-              }
+              builder
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
             }
             .build()
         Tracing.trace("edpa.data_availability.sync", attributes) {
           val outcome =
             runBlocking(Context.current().asContextElement()) {
-              DataAvailabilitySyncLeaseRunner(
-                  GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+              buildDataAvailabilitySyncLeaseRunner(dataAvailabilitySyncConfig).run(
+                dataAvailabilitySyncConfig.dataProvider
+              ) { lease ->
+                dataAvailabilitySync.sync(
+                  doneBlobPath,
+                  dataAvailabilitySyncLease = lease.name,
+                  ensureLeaseActive = lease::invoke,
+                  doneBlobGeneration = generation,
                 )
-                .run(dataAvailabilitySyncConfig.dataProvider) { lease ->
-                  dataAvailabilitySync.sync(
-                    doneBlobPath,
-                    dataAvailabilitySyncLease = lease.name,
-                    ensureLeaseActive = lease::invoke,
-                    doneBlobGeneration = generation,
-                  )
-                }
+              }
             }
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
         }
@@ -208,6 +182,102 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       // Critical for Cloud Functions: flush metrics before function freezes
       EdpaTelemetry.flush()
     }
+  }
+
+  private fun serviceTaskNotification(request: HttpRequest) {
+    val notification = DataAvailabilitySyncTaskNotification.parseFrom(request.inputStream)
+    val taskKey =
+      requireNotNull(DataAvailabilitySyncTaskKey.fromName(notification.dataAvailabilitySyncTask)) {
+        "data_availability_sync_task must be a valid resource name"
+      }
+    val dataProviderName = DataProviderKey(taskKey.dataProviderId).toName()
+    val config = runtimeConfigs.configsList.single { it.dataProvider == dataProviderName }
+    val grpcChannels = getOrCreateSharedChannels(config)
+    val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(
+        grpcChannels.impressionMetadataChannel,
+        grpcTelemetry.newClientInterceptor(),
+      )
+    val processor =
+      DataAvailabilitySyncTaskProcessor(
+        DataAvailabilitySyncTaskServiceCoroutineStub(instrumentedMetadataChannel),
+        DataAvailabilitySyncLeaseRunner(
+          GrpcDataAvailabilitySyncLeaseClient(
+            DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
+          )
+        ),
+        buildDataAvailabilitySync = { buildDataAvailabilitySync(config) },
+        verifyDoneObject = { task -> verifyTaskDoneObject(task, config) },
+      )
+    runBlocking { processor.process(notification.dataAvailabilitySyncTask) }
+  }
+
+  private fun verifyTaskDoneObject(
+    task: DataAvailabilitySyncTask,
+    config: DataAvailabilitySyncConfig,
+  ) {
+    if (!fileSystemPath.isNullOrEmpty()) return
+    val doneBlobUri =
+      org.wfanet.measurement.storage.SelectedStorageClient.parseBlobUri(task.doneBlobUri)
+    require(doneBlobUri.scheme == "gs") { "task done object must use gs://" }
+    require(doneBlobUri.bucket == config.dataAvailabilityStorage.gcs.bucketName) {
+      "task done object is outside the configured bucket"
+    }
+    val storage =
+      StorageOptions.newBuilder()
+        .also { builder ->
+          config.dataAvailabilityStorage.gcs.projectId.takeIf(String::isNotEmpty)?.let {
+            builder.setProjectId(it)
+          }
+        }
+        .build()
+        .service
+    val blob = storage.get(BlobId.of(doneBlobUri.bucket, doneBlobUri.key))
+    validateTaskDoneObjectGeneration(blob?.generation, task.doneBlobGeneration)
+  }
+
+  private fun buildDataAvailabilitySync(
+    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+  ): DataAvailabilitySync {
+    val storageClient = createStorageClient(dataAvailabilitySyncConfig)
+    val grpcChannels = getOrCreateSharedChannels(dataAvailabilitySyncConfig)
+    val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+    return DataAvailabilitySync(
+      dataAvailabilitySyncConfig.edpImpressionPath,
+      storageClient,
+      DataProvidersCoroutineStub(
+        ClientInterceptors.intercept(grpcChannels.cmmsChannel, grpcTelemetry.newClientInterceptor())
+      ),
+      ImpressionMetadataServiceCoroutineStub(
+        ClientInterceptors.intercept(
+          grpcChannels.impressionMetadataChannel,
+          grpcTelemetry.newClientInterceptor(),
+        )
+      ),
+      dataAvailabilitySyncConfig.dataProvider,
+      globalThrottler,
+      impressionMetadataBatchSize = impressionMetadataBatchSize,
+      errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
+      modelLineMap =
+        dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+    )
+  }
+
+  private fun buildDataAvailabilitySyncLeaseRunner(
+    dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+  ): DataAvailabilitySyncLeaseRunner {
+    val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
+    val instrumentedMetadataChannel =
+      ClientInterceptors.intercept(
+        getOrCreateSharedChannels(dataAvailabilitySyncConfig).impressionMetadataChannel,
+        grpcTelemetry.newClientInterceptor(),
+      )
+    return DataAvailabilitySyncLeaseRunner(
+      GrpcDataAvailabilitySyncLeaseClient(
+        DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
+      )
+    )
   }
 
   /**
@@ -385,4 +455,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
     }
   }
+}
+
+internal fun validateTaskDoneObjectGeneration(actual: Long?, expected: Long) {
+  require(actual == expected) { "task done object generation is not available" }
 }
