@@ -51,7 +51,7 @@ object DataAvailabilitySyncWorkItems {
       this.workItemId = workItemId
       workItem = workItem {
         queue = QUEUE
-        serializationKey = "$rawImpressionUpload|$modelLine"
+        serializationKey = "data-availability-sync:$dataProvider"
         workItemParams =
           Any.pack(
             workItemParams {
