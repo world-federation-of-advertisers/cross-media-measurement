@@ -502,6 +502,7 @@ class VidLabelerApp(
     val modelLineSpec =
       ModelLineSpec(
         modelLine = modelLine,
+        rawImpressionUpload = rawImpressionUpload(params),
         modelBlobUri =
           requireNotNull(params.modelBlobPathsMap[modelLine]) {
             "model_blob_paths must contain an entry for $modelLine"
@@ -624,6 +625,7 @@ class VidLabelerApp(
         val config = configsByModelLine.getValue(modelLine)
         ModelLineSpec(
           modelLine = modelLine,
+          rawImpressionUpload = rawImpressionUpload(params),
           modelBlobUri =
             requireNotNull(params.modelBlobPathsMap[modelLine]) {
               "model_blob_paths must contain an entry for $modelLine"
@@ -1277,32 +1279,20 @@ class VidLabelerApp(
           }
           .build()
       span.addEvent(event, eventAttributes)
-      if (publicationError == null) {
-        logLabelLifecycle(
-          Level.INFO,
-          event,
-          params,
-          dataProvider,
-          "label",
-          publication.outcome,
-          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to publication.modelLine,
-          VidLabelingTraceAttributes.LABEL_OUTPUT_TYPE_STRING to publication.type.telemetryValue,
-          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
-        )
-      } else {
-        logLabelFailure(
-          Level.WARNING,
-          event,
-          params,
-          dataProvider,
-          "label",
-          publication.outcome,
-          publicationError,
-          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to publication.modelLine,
-          VidLabelingTraceAttributes.LABEL_OUTPUT_TYPE_STRING to publication.type.telemetryValue,
-          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
-        )
-      }
+      VidLabelingTraceLogging.logLabelOutput(
+        logger,
+        if (publicationError == null) Level.INFO else Level.WARNING,
+        event,
+        dataProvider,
+        rawImpressionUpload(params),
+        params.vidLabelingJob,
+        route,
+        publication.modelLine,
+        publication.type.telemetryValue,
+        pathHash,
+        publication.outcome,
+        publicationError,
+      )
     }
   }
 
