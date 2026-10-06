@@ -50,10 +50,13 @@ import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
+import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.EventGroupActivityPublisherMetrics
+import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -137,6 +140,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val dataProvidersClient = DataProvidersCoroutineStub(instrumentedCmmsChannel)
       val impressionMetadataServicesClient =
         ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
+      val dataAvailabilitySyncLeaseClient =
+        DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedImpMetadataChannel)
 
       val eventGroupActivityPublisher =
         dataAvailabilitySyncConfig.eventGroupActivityPublishing
@@ -230,7 +235,17 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         Tracing.trace("edpa.data_availability.sync", attributes) {
           val outcome =
             runBlocking(Context.current().asContextElement()) {
-              dataAvailabilitySync.sync(doneBlobPath, generation)
+              DataAvailabilitySyncLeaseRunner(
+                  GrpcDataAvailabilitySyncLeaseClient(dataAvailabilitySyncLeaseClient)
+                )
+                .run(dataAvailabilitySyncConfig.dataProvider) { lease ->
+                  dataAvailabilitySync.sync(
+                    doneBlobPath,
+                    dataAvailabilitySyncLease = lease.name,
+                    ensureLeaseActive = lease::invoke,
+                    doneBlobGeneration = generation,
+                  )
+                }
             }
           Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome.name.lowercase())
         }
