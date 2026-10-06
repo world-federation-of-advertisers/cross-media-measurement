@@ -16,24 +16,10 @@
 
 package org.wfanet.measurement.edpaggregator
 
-import java.net.URI
 import org.wfanet.measurement.storage.BlobUri
 
 /** Utilities for working with storage [BlobUri]s. */
 object BlobUris {
-  /** Returns a canonical URI for a GCS object. */
-  fun canonicalGcsUri(uri: String): String {
-    val parsed = URI.create(uri)
-    require(parsed.scheme.equals("gs", ignoreCase = true)) { "blob URI must use gs://" }
-    require(!parsed.authority.isNullOrEmpty() && parsed.rawPath.length > 1) {
-      "blob URI must include a bucket and object"
-    }
-    require(parsed.rawQuery == null && parsed.rawFragment == null) {
-      "blob URI must not include a query or fragment"
-    }
-    return "gs://${parsed.authority}${parsed.rawPath}"
-  }
-
   /**
    * Reconstructs the full storage URI for [blobKey] using the scheme and bucket of [blobUri].
    *
