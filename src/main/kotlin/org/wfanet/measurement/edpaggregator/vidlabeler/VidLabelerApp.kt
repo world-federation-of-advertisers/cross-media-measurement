@@ -35,6 +35,7 @@ import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.DigestedEvent
@@ -60,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadFileRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
@@ -88,8 +90,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * `RankIndexBlobService`, derives each VID from its memoized rank (the labeler hashes any overflow
  * / unseen fingerprint), writes the encrypted labeled output, marks the `VidLabelingJob`
  * `SUCCEEDED`, and — when this call was the last job out for a model line — transitions the parent
- * `RawImpressionUploadModelLine` to `COMPLETED`, writes its `done` marker, and ensures the
- * downstream availability WorkItem.
+ * `RawImpressionUploadModelLine` to `COMPLETED`, writes its dated `done` markers, and ensures the
+ * downstream availability WorkItems.
  *
  * Failure model: [runWork] does NOT mark the job `FAILED` itself. A transient failure propagates
  * out of [runWork] so the TEE framework retains the delivery while another attempt owns the
@@ -113,8 +115,8 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   `RawImpressionUploadModelLine` to `COMPLETED` on last-job-out.
  * @param rankIndexBlobsStub stub used by [MemoizedRankIndex.load] to resolve the per-subpool
  *   rank-index blob pointers.
- * @param rawImpressionUploadFilesStub stub used by [RawImpressionSource] to discover this upload's
- *   raw-impression files.
+ * @param rawImpressionUploadFilesStub stub used by [RawImpressionSource] and to resolve the
+ *   upload-wide event dates finalized after the last labeling job succeeds.
  * @param buildParquetStorageClient builds a [ParquetStorageClient] for the raw-impressions storage,
  *   threaded with the per-EDP [KmsClient] for PME decryption.
  * @param buildVidRankMapStorageClient builds a [ConditionalOperationStorageClient] for the
@@ -707,14 +709,14 @@ class VidLabelerApp(
 
   /**
    * Marks this WorkItem's `VidLabelingJob` `SUCCEEDED` and, when the service reports this call
-   * completed one or more model lines (last-job-out), drops that model line's single `done` marker
-   * blob and then transitions its parent `RawImpressionUploadModelLine` to `COMPLETED`. The service
-   * returns a model line in `completedModelLines` only to the caller whose mark finished its last
-   * outstanding `VidLabelingJob`, so exactly one TEE finalizes each model line — a sibling TEE that
-   * finishes the same model line earlier (while others still label it) gets nothing back for it and
-   * writes no marker. Idempotent on Pub/Sub redelivery: the mark is keyed by a deterministic
-   * `request_id`, the transition swallows the benign already-advanced races, and the done blob has
-   * a deterministic key.
+   * completed one or more model lines (last-job-out), drops one `done` marker for every registered
+   * upload event date and then transitions its parent `RawImpressionUploadModelLine` to
+   * `COMPLETED`. The service returns a model line in `completedModelLines` only to the caller whose
+   * mark finished its last outstanding `VidLabelingJob`, so exactly one TEE finalizes each model
+   * line — a sibling TEE that finishes the same model line earlier (while others still label it)
+   * gets nothing back for it and writes no marker. Idempotent on Pub/Sub redelivery: the mark is
+   * keyed by a deterministic `request_id`, the transition swallows the benign already-advanced
+   * races, and every done blob has a deterministic key.
    *
    * The mark and the parent-line transitions are two separate RPCs, not a single atomic
    * `MarkLabelingJobSucceeded` that also flips the parent (as an earlier design draft described).
@@ -897,30 +899,22 @@ class VidLabelerApp(
     // completed model line resolves to its parent row (name + etag) for the COMPLETED transition.
     val parentsByModelLine = listAllModelLines(upload).associateBy { it.cmmsModelLine }
     val completedModelLines = response.lastVidLabelingJobResult.completedModelLinesList
-    // The date folder each completed model line's done marker goes in. Reuse the event dates the
-    // labeler already read from each file's footer while streaming (no extra I/O); on the
-    // skip-relabel recovery path no labeling ran this delivery, so fall back to reading
-    // the footers.
-    val eventDates = observedEventDates.ifEmpty { readEventDates(params, kmsClient, inputFiles) }
-    if (completedModelLines.isNotEmpty()) {
-      if (eventDates.isEmpty()) {
-        logger.warning(
-          "VidLabelingJob $vidLabelingJob reported completed model line(s) but carried no input " +
-            "files; cannot resolve the footer event date, so no done marker is written"
-        )
+    // The last WorkItem contains only its own file batch. Resolve dates from every registered file
+    // so earlier batches cannot leave a dated output folder without its durable handoff.
+    val eventDates =
+      if (completedModelLines.isEmpty()) {
+        emptySet()
       } else {
-        // TODO(world-federation-of-advertisers/cross-media-measurement#4145): future improvement —
-        //   this only validates THIS (last-out) WorkItem's files. An upload whose files span
-        //   several dates across separate single-date WorkItems still leaves the other WorkItems'
-        //   date folders without a done marker; finalize done per (model line, date) upload-wide.
-        check(eventDates.size == 1) {
-          "VidLabelingJob $vidLabelingJob spans multiple event dates ${eventDates.sorted()}; the " +
-            "done marker is written per (model line, date) and this path assumes one date per upload"
+        listUploadEventDates(upload).ifEmpty {
+          observedEventDates.ifEmpty { readEventDates(params, kmsClient, inputFiles) }
         }
       }
+    if (completedModelLines.isNotEmpty() && eventDates.isEmpty()) {
+      logger.warning(
+        "VidLabelingJob $vidLabelingJob reported completed model line(s), but upload $upload has " +
+          "no registered event dates; no done marker is written"
+      )
     }
-    // Single shared event date for this WorkItem (null only when it carried no files).
-    val eventDate = eventDates.singleOrNull()
     var doneObjectsWritten = 0
     var parentsCompleted = 0
     for (completedModelLine in completedModelLines) {
@@ -941,8 +935,9 @@ class VidLabelerApp(
         )
         continue
       }
-      // Persist the done marker and durable handoff before the parent completion transition.
-      if (eventDate != null) {
+      // Persist every dated done marker and durable handoff before the parent completion
+      // transition.
+      for (eventDate in eventDates.sorted()) {
         val doneObject =
           findExistingDoneObject(
             params.vidLabeledImpressionsStorageParams,
@@ -1008,15 +1003,37 @@ class VidLabelerApp(
       )
     }
     val expectedFinalizations = completedModelLines.size
+    val expectedDoneObjects = expectedFinalizations * eventDates.size
     val outcome =
       when {
         expectedFinalizations == 0 -> "no_work"
-        doneObjectsWritten < expectedFinalizations || parentsCompleted < expectedFinalizations ->
-          "missing"
+        eventDates.isEmpty() ||
+          doneObjectsWritten < expectedDoneObjects ||
+          parentsCompleted < expectedFinalizations -> "missing"
         replay -> "recovered"
         else -> "succeeded"
       }
     return FinalizationResult(outcome, expectedFinalizations, doneObjectsWritten, parentsCompleted)
+  }
+
+  /** Lists the authoritative event dates persisted for every registered file in [upload]. */
+  private suspend fun listUploadEventDates(upload: String): Set<LocalDate> {
+    val eventDates = mutableSetOf<LocalDate>()
+    rawImpressionUploadFilesStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            rawImpressionUploadFilesStub.listRawImpressionUploadFiles(
+              listRawImpressionUploadFilesRequest {
+                parent = upload
+                this.pageToken = pageToken
+              }
+            )
+          }
+        ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
+      }
+      .collect { page -> eventDates.addAll(page.map { it.eventDate.toLocalDate() }) }
+    return eventDates
   }
 
   /**
@@ -1108,8 +1125,8 @@ class VidLabelerApp(
    * Reads the `event_date` footer of every file in [inputFiles] into a set (empty when [inputFiles]
    * is empty). The date lives only in each file's plaintext Parquet footer ("Option Y").
    *
-   * Used only on the skip-relabel recovery path, where no labeling ran this delivery to collect the
-   * dates from the sinks; the happy path reuses the dates [VidLabeler.label] already read.
+   * Used only as a fallback when the upload-wide file listing is empty. The normal finalization
+   * path uses the immutable event dates persisted on every registered upload file.
    *
    * TODO(world-federation-of-advertisers/cross-media-measurement#4130): Cover the done-marker write
    *   end-to-end in [VidLabelerAppTest] once `ParquetStorageClient` can WRITE footer key-value
@@ -1152,7 +1169,7 @@ class VidLabelerApp(
   }
 
   /**
-   * Writes the single empty `done` marker for [cmmsModelLine] at
+   * Writes an empty `done` marker for [cmmsModelLine] at
    * `<prefix>/model-line/<modelLineId>/<eventDate>/done` — the folder [VidLabelingSink] wrote this
    * model line's labeled output to — so `DataAvailabilitySync` finalizes that (model line, date).
    *
