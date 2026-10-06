@@ -70,6 +70,12 @@ object RequestIds {
   fun forVidLabelingJob(uploadName: String, modelLineNames: List<String>, batchIndex: Int): String =
     fromKey("vidLabelingJob:$uploadName:${modelLineNames.sorted().joinToString(",")}:$batchIndex")
 
+  /** Returns the resource ID and matching `request_id` for an availability-sync task. */
+  fun forDataAvailabilitySyncTask(doneBlobPathHash: String, generation: Long): String {
+    require(generation > 0) { "generation must be positive" }
+    return fromKey("dataAvailabilitySyncTask:$doneBlobPathHash:$generation")
+  }
+
   /**
    * `request_id` for marking a `VidLabelingJob` SUCCEEDED.
    *

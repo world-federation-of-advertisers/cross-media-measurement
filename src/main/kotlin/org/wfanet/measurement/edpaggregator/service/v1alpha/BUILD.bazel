@@ -10,6 +10,26 @@ package(
 )
 
 kt_jvm_library(
+    name = "data_availability_sync_task_service",
+    srcs = ["DataAvailabilitySyncTaskService.kt"],
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:blob_uris",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry:tracing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:request_ids",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_task_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_task_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_failure_category_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_state_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
     name = "impression_metadata_service",
     srcs = [
         "ImpressionMetadataService.kt",
@@ -171,6 +191,7 @@ kt_jvm_library(
     name = "services",
     srcs = ["Services.kt"],
     deps = [
+        ":data_availability_sync_task_service",
         ":impression_metadata_service",
         ":pool_assignment_job_service",
         ":rank_index_blob_service",
@@ -182,6 +203,7 @@ kt_jvm_library(
         ":requisition_metadata_service",
         ":upload_healing_operation_service",
         ":vid_labeling_job_service",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_task_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:pool_assignment_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
@@ -193,6 +215,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:requisition_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:vid_labeling_job_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:data_availability_sync_task_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:impression_metadata_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:pool_assignment_job_service_kt_jvm_grpc_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:rank_index_blob_service_kt_jvm_grpc_proto",
