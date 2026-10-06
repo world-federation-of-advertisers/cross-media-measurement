@@ -64,7 +64,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
-import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireDataAvailabilitySyncLeaseRequest
@@ -102,6 +101,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionCandid
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.HealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -133,14 +133,7 @@ class VidLabelingHealingControllerIntegrationTest {
     mockService<
       RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
     >()
-  private val operationsService =
-    mockService<
-      UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase
-    >()
-  private val controllerServer = GrpcTestServerRule {
-    addService(candidatesService)
-    addService(operationsService)
-  }
+  private val controllerServer = GrpcTestServerRule { addService(candidatesService) }
 
   @get:Rule
   val ruleChain: TestRule =
@@ -239,7 +232,8 @@ class VidLabelingHealingControllerIntegrationTest {
         etag = "step-etag"
       }
     }
-    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+    val operationStore = mock<HealingOperationStore>()
+    whenever(operationStore.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
         invocation
           .getArgument<
@@ -253,8 +247,8 @@ class VidLabelingHealingControllerIntegrationTest {
         if (operation.state in states) uploadHealingOperations += operation
       }
     }
-    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
-    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+    whenever(operationStore.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationStore.advanceUploadHealingStep(any())).thenAnswer { invocation ->
       val request =
         invocation.getArgument<
           org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
@@ -289,9 +283,7 @@ class VidLabelingHealingControllerIntegrationTest {
         RawImpressionUploadCorrectionCandidateServiceGrpcKt
           .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(controllerServer.channel),
         CorrectionCandidateCleaner { _ -> },
-        UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
-          controllerServer.channel
-        ),
+        operationStore,
         uploadsStub,
         filesStub,
         modelLinesStub,
