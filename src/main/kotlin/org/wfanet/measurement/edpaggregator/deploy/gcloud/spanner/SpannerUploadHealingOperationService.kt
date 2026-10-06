@@ -48,7 +48,6 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.readUploadH
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.recordUploadHealingOperationMutation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.reopenRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.replaceUploadHealingOperationPlan
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.terminateDataAvailabilitySyncTasks
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUploadHealingOperation
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
@@ -62,7 +61,6 @@ import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepReq
 import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.BlobType
 import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskState
 import org.wfanet.measurement.internal.edpaggregator.GetUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadCorrectionCandidatesRequestKt
@@ -1341,27 +1339,9 @@ class SpannerUploadHealingOperationService(
     ) {
       "source model line has not been evicted by this healing operation"
     }
-    val terminalTaskState =
-      when (current.recoveryAction) {
-        RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION,
-        RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_OPERATOR_RECOVERY ->
-          DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_SUPERSEDED
-        RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_NO_REPLACEMENT ->
-          DataAvailabilitySyncTaskState.DATA_AVAILABILITY_SYNC_TASK_STATE_CANCELLED
-        RawImpressionUploadModelLineRecoveryAction
-          .RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_UNSPECIFIED,
-        RawImpressionUploadModelLineRecoveryAction.UNRECOGNIZED ->
-          error("evicted step has no recovery action")
-      }
-    txn.terminateDataAvailabilitySyncTasks(
-      request.dataProviderResourceId,
-      current.sourceRawImpressionUploadResourceId,
-      current.cmmsModelLine,
-      terminalTaskState,
-    )
+    // The eviction fence has already drained synchronization leases and blocks new ones. Any stale
+    // WorkItem delivered after the fence is released fails its exact-generation check because the
+    // evicted GCS generation no longer exists.
   }
 
   private fun validateRecoveryStart(
