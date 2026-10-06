@@ -32,7 +32,6 @@ import org.wfanet.measurement.common.telemetry.CloudTraceReader
 import org.wfanet.measurement.common.telemetry.CloudTraceSpan
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 
@@ -251,11 +250,10 @@ class VidLabelingTraceTest {
   }
 
   @Test
-  fun `task resource name maps to task correlation attribute`() {
-    val task = RAW_UPLOAD + "/dataAvailabilitySyncTasks/task-1"
+  fun `availability WorkItem resource name maps to generic WorkItem correlation attribute`() {
+    val workItem = "workItems/das-01234567"
 
-    assertThat(vidTraceAttributesFor(task))
-      .containsExactly("xmm.edpa.data_availability_sync_task.name")
+    assertThat(vidTraceAttributesFor(workItem)).contains("xmm.work_item.name")
   }
 
   @Test
@@ -297,7 +295,7 @@ class VidLabelingTraceTest {
   }
 
   @Test
-  fun `render reports failed task retries before metadata exists`() {
+  fun `render reports failed availability WorkItem attempts before metadata exists`() {
     val collection =
       VidLabelingTraceCollection(
         RAW_UPLOAD,
@@ -308,13 +306,22 @@ class VidLabelingTraceTest {
         emptyList(),
         emptyList(),
         listOf(
-          VidLabelingAvailabilityTask(
-            RAW_UPLOAD + "/dataAvailabilitySyncTasks/task-1",
+          VidLabelingAvailabilityWorkItem(
+            "workItems/das-01234567",
             NON_MEMOIZED_MODEL_LINE,
             "FAILED",
-            3,
-            "METADATA_PERSISTENCE",
+            1,
+            listOf(
+              VidLabelingAvailabilityAttempt(
+                "workItems/das-01234567/workItemAttempts/attempt-3",
+                "FAILED",
+                3,
+                "METADATA_PERSISTENCE",
+                "SpannerException",
+              )
+            ),
             "2026-09-01",
+            "gs://bucket/secret/done",
             "0123456789abcdef",
             77,
           )
@@ -323,24 +330,29 @@ class VidLabelingTraceTest {
 
     val output = VidLabelingTraceOutput.render(collection)
 
-    assertThat(output).contains("## Availability tasks")
-    assertThat(output).contains("FAILED | 3 | METADATA_PERSISTENCE")
+    assertThat(output).contains("## Availability WorkItems")
+    assertThat(output).contains("FAILED | 1 | 3 | FAILED | METADATA_PERSISTENCE | SpannerException")
     assertThat(output).contains("0123456789abcdef@77")
     assertThat(output).doesNotContain("gs://")
   }
 
   @Test
-  fun `pending availability task keeps completed labeling in progress`() = runBlocking {
-    val task =
-      DataAvailabilitySyncTask.newBuilder()
-        .setName(RAW_UPLOAD + "/dataAvailabilitySyncTasks/task-pending")
-        .setState(DataAvailabilitySyncTask.State.PENDING)
-        .setDoneBlobPathHash("0123456789abcdef")
-        .setDoneBlobGeneration(77)
-        .setCmmsModelLine(NON_MEMOIZED_MODEL_LINE)
-        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
-        .build()
-    val graph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).copy(availabilityTasks = listOf(task))
+  fun `queued availability WorkItem keeps completed labeling in progress`() = runBlocking {
+    val workItem = availabilityWorkItem("QUEUED")
+    val graph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+    val resolvedNames = mutableSetOf<String>()
+    val stateResolver =
+      object : VidLabelingStateResolver {
+        override suspend fun resolve(rawImpressionUpload: String) = graph
+
+        override suspend fun resolveAvailabilityWorkItems(
+          rawImpressionUpload: String,
+          workItemNames: Set<String>,
+        ): List<VidLabelingAvailabilityWorkItem> {
+          resolvedNames += workItemNames
+          return listOf(workItem)
+        }
+      }
     val entries =
       listOf(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)) +
         routeEntries(
@@ -349,35 +361,59 @@ class VidLabelingTraceTest {
           NON_MEMOIZED_STAGES,
           "direct",
           DIRECT_TRACE,
+        ) +
+        entry(
+          "availability_work_item_create",
+          additionalFields =
+            "xmm.work_item.name=${workItem.name} xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE",
+          rawImpressionUpload = RAW_UPLOAD,
+          traceId = DIRECT_AVAILABILITY_TRACE,
+        ) +
+        entry(
+          "work_item_publication",
+          additionalFields =
+            "xmm.work_item.name=${workItem.name} xmm.work_item.publication_attempt=2",
+          traceId = DIRECT_AVAILABILITY_TRACE,
         )
     val collector =
       VidLabelingTraceCollector(
         logReaderFactory = { FakeCloudLogReader(entries) },
         spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
-        stateResolver = VidLabelingStateResolver { graph },
+        stateResolver = stateResolver,
         finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
       )
 
     val collection = collector.collect(request())
 
     assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.IN_PROGRESS)
-    assertThat(collection.availabilityTasks.single().state).isEqualTo("PENDING")
+    assertThat(collection.availabilityWorkItems.single().state).isEqualTo("QUEUED")
+    assertThat(resolvedNames).containsExactly(workItem.name)
+    assertThat(
+        collection.modelLines
+          .single()
+          .stages
+          .filter { it.name == "availability_work_item_create" }
+          .any { it.evidenceCount > 0 }
+      )
+      .isTrue()
+    assertThat(
+        collection.evidence
+          .first {
+            it.stage == "work_item_publication" &&
+              it.identifiers.containsKey("xmm.work_item.publication_attempt")
+          }
+          .identifiers
+      )
+      .containsEntry("xmm.work_item.publication_attempt", "2")
+    Unit
   }
 
   @Test
-  fun `superseded availability task makes completed labeling superseded`() = runBlocking {
-    val collection = collectWithAvailabilityTaskState(DataAvailabilitySyncTask.State.SUPERSEDED)
+  fun `failed availability WorkItem makes completed labeling failed`() = runBlocking {
+    val collection = collectWithAvailabilityWorkItemState("FAILED")
 
-    assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.SUPERSEDED)
-    assertThat(collection.availabilityTasks.single().state).isEqualTo("SUPERSEDED")
-  }
-
-  @Test
-  fun `cancelled availability task makes completed labeling evicted`() = runBlocking {
-    val collection = collectWithAvailabilityTaskState(DataAvailabilitySyncTask.State.CANCELLED)
-
-    assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.EVICTED)
-    assertThat(collection.availabilityTasks.single().state).isEqualTo("CANCELLED")
+    assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.FAILED)
+    assertThat(collection.availabilityWorkItems.single().state).isEqualTo("FAILED")
   }
 
   @Test
@@ -877,19 +913,12 @@ class VidLabelingTraceTest {
       expansionRounds = expansionRounds,
     )
 
-  private suspend fun collectWithAvailabilityTaskState(
-    state: DataAvailabilitySyncTask.State
+  private suspend fun collectWithAvailabilityWorkItemState(
+    state: String
   ): VidLabelingTraceCollection {
-    val task =
-      DataAvailabilitySyncTask.newBuilder()
-        .setName(RAW_UPLOAD + "/dataAvailabilitySyncTasks/task-terminal")
-        .setState(state)
-        .setDoneBlobPathHash("0123456789abcdef")
-        .setDoneBlobGeneration(77)
-        .setCmmsModelLine(NON_MEMOIZED_MODEL_LINE)
-        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
-        .build()
-    val graph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).copy(availabilityTasks = listOf(task))
+    val workItem = availabilityWorkItem(state)
+    val graph =
+      testGraph(listOf(NON_MEMOIZED_MODEL_LINE)).copy(availabilityWorkItems = listOf(workItem))
     val entries =
       listOf(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)) +
         routeEntries(
@@ -907,6 +936,19 @@ class VidLabelingTraceTest {
       )
       .collect(request())
   }
+
+  private fun availabilityWorkItem(state: String): VidLabelingAvailabilityWorkItem =
+    VidLabelingAvailabilityWorkItem(
+      "workItems/das-01234567",
+      NON_MEMOIZED_MODEL_LINE,
+      state,
+      1,
+      emptyList(),
+      "2026-09-01",
+      "gs://bucket/model-line/2026-09-01/done",
+      "0123456789abcdef",
+      77,
+    )
 
   private fun testGraph(
     modelLineNames: List<String> = listOf(MEMOIZED_MODEL_LINE, NON_MEMOIZED_MODEL_LINE)
@@ -1126,9 +1168,9 @@ class VidLabelingTraceTest {
         "rank_finalize",
         "label",
         "label_finalize",
-        "availability_task_create",
-        "availability_task_publication",
-        "availability_task_process",
+        "availability_work_item_create",
+        "work_item_publication",
+        "availability_work_item_process",
         "data_availability_metadata",
         "data_availability_publish",
       )
@@ -1137,9 +1179,9 @@ class VidLabelingTraceTest {
         "dispatch",
         "label",
         "label_finalize",
-        "availability_task_create",
-        "availability_task_publication",
-        "availability_task_process",
+        "availability_work_item_create",
+        "work_item_publication",
+        "availability_work_item_process",
         "data_availability_metadata",
         "data_availability_publish",
       )
