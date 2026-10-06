@@ -79,6 +79,7 @@ class WorkItemsService(
               queueResourceId = request.workItem.queue
               workItemResourceId = request.workItemId
               workItemParams = request.workItem.workItemParams
+              serializationKey = request.workItem.serializationKey
             }
           }
         )
@@ -134,6 +135,7 @@ class WorkItemsService(
               queueResourceId = request.workItem.queue
               workItemResourceId = request.workItemId
               workItemParams = request.workItem.workItemParams
+              serializationKey = request.workItem.serializationKey
             }
           }
         )
