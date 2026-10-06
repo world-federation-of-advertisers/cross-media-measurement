@@ -707,7 +707,8 @@ class VidLabelerAppTest {
     val expectedWorkItemId = WorkItemIds.forDataAvailabilitySync(pathHash, 321L)
     assertThat(request.firstValue.workItemId).isEqualTo(expectedWorkItemId)
     assertThat(request.firstValue.workItem.queue).isEqualTo("data-availability-sync-queue")
-    assertThat(request.firstValue.workItem.serializationKey).isEqualTo("$UPLOAD|$MODEL_LINE")
+    assertThat(request.firstValue.workItem.serializationKey)
+      .isEqualTo("data-availability-sync:$DATA_PROVIDER_NAME")
     val workItemParams =
       request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     assertThat(workItemParams.dataPathParams.dataPath).isEqualTo(doneBlobUri)
