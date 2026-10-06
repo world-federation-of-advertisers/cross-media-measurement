@@ -49,16 +49,23 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManife
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingControllerEventSink
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalRawImpressionUploadCorrectionCandidateServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 
-/** Scheduled Cloud Function for automatic VID-labeling correction progression. */
+/**
+ * Scheduled Cloud Function for automatic VID-labeling correction progression.
+ *
+ * `HEALING_INTERNAL_API_TARGET` selects the controller-only persistence endpoint, and
+ * `HEALING_INTERNAL_API_CERT_HOST` optionally overrides its TLS authority.
+ */
 class VidLabelingHealingControllerFunction(
   private val runController: suspend () -> Unit = { controller.run() }
 ) : HttpFunction {
@@ -151,6 +158,13 @@ class VidLabelingHealingControllerFunction(
         )
       val operations = UploadHealingOperationServiceCoroutineStub(rawChannel)
       val labeledOutputStore = GcsLabeledOutputStore(storage)
+      val operationStore =
+        GrpcHealingOperationStore(
+          operations,
+          InternalUploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(
+            internalChannel
+          ),
+        )
       val watchers =
         vidLabelingConfigs.associate { config ->
           val controlPlaneChannel =
@@ -193,7 +207,7 @@ class VidLabelingHealingControllerFunction(
         },
         candidates,
         candidateCleaner,
-        operations,
+        operationStore,
         uploads,
         files,
         modelLines,
