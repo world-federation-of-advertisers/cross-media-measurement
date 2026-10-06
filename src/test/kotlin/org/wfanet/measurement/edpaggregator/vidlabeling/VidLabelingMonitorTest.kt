@@ -632,7 +632,7 @@ class VidLabelingMonitorTest {
     verifyBlocking(workItemsService) { createWorkItem(ensureCaptor.capture()) }
     val ensuredWorkItem = ensureCaptor.firstValue.workItem
     assertThat(ensuredWorkItem.queue).isEqualTo("data-availability-sync-queue")
-    assertThat(ensuredWorkItem.serializationKey).isEqualTo("${upload.name}|$MODEL_LINE")
+    assertThat(ensuredWorkItem.serializationKey).isEqualTo("data-availability-sync:$DATA_PROVIDER")
     val workItemParams = ensuredWorkItem.workItemParams.unpack<WorkItem.WorkItemParams>()
     assertThat(workItemParams.dataPathParams.dataPath)
       .isEqualTo("$VID_LABELED_IMPRESSIONS_PREFIX/model-line/ml1/2026-06-01/done")
