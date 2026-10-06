@@ -21,6 +21,7 @@ kt_jvm_library(
         "PoolAssignmentJobKey.kt",
         "RankIndexBlobKey.kt",
         "RankerJobKey.kt",
+        "RawImpressionUploadCorrectionCandidateKey.kt",
         "RawImpressionUploadKey.kt",
         "RawImpressionUploadModelLineKey.kt",
         "RequisitionMetadataKey.kt",
