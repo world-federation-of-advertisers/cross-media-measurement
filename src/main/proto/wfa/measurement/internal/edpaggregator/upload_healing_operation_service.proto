@@ -16,6 +16,8 @@ syntax = "proto3";
 
 package wfa.measurement.internal.edpaggregator;
 
+import "google/protobuf/timestamp.proto";
+import "wfa/measurement/internal/edpaggregator/raw_impression_upload_correction_candidate.proto";
 import "wfa/measurement/internal/edpaggregator/upload_healing_operation.proto";
 
 option java_package = "org.wfanet.measurement.internal.edpaggregator";
@@ -26,6 +28,16 @@ service UploadHealingOperationService {
   rpc CreateUploadHealingOperation(CreateUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
+  rpc ListUploadHealingOperations(ListUploadHealingOperationsRequest)
+      returns (ListUploadHealingOperationsResponse);
+  rpc UpdateUploadHealingOperationPlan(UpdateUploadHealingOperationPlanRequest)
+      returns (UploadHealingOperation);
+  rpc ApproveUploadHealingOperation(ApproveUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
+  rpc RetryUploadHealingOperation(RetryUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
+  rpc AdvanceUploadHealingOperation(AdvanceUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc AdvanceUploadHealingStep(AdvanceUploadHealingStepRequest)
       returns (UploadHealingStep);
@@ -41,6 +53,62 @@ message CreateUploadHealingOperationRequest {
 message GetUploadHealingOperationRequest {
   string data_provider_resource_id = 1;
   string upload_healing_operation_id = 2;
+}
+
+message ListUploadHealingOperationsRequest {
+  string data_provider_resource_id = 1;
+  int32 page_size = 2;
+  ListUploadHealingOperationsPageToken page_token = 3;
+
+  message Filter {
+    repeated UploadHealingOperation.State state_in = 1;
+  }
+  Filter filter = 4;
+}
+
+message ListUploadHealingOperationsResponse {
+  repeated UploadHealingOperation upload_healing_operations = 1;
+  ListUploadHealingOperationsPageToken next_page_token = 2;
+}
+
+message ListUploadHealingOperationsPageToken {
+  string data_provider_resource_id = 1;
+  ListUploadHealingOperationsRequest.Filter filter = 2;
+
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string upload_healing_operation_id = 2;
+  }
+  After after = 3;
+}
+
+message UpdateUploadHealingOperationPlanRequest {
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  UploadHealingOperation upload_healing_operation = 3;
+  string etag = 4;
+}
+
+message ApproveUploadHealingOperationRequest {
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  string etag = 3;
+  RawImpressionUploadCorrectionCandidate.Decision decision = 4;
+  string request_id = 5;
+}
+
+message RetryUploadHealingOperationRequest {
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  string etag = 3;
+  string request_id = 4;
+}
+
+message AdvanceUploadHealingOperationRequest {
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  string etag = 3;
+  UploadHealingOperation.State state = 4;
 }
 
 message AdvanceUploadHealingStepRequest {
