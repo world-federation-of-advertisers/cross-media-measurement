@@ -14,6 +14,7 @@
 
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
+import com.google.cloud.ByteArray as CloudByteArray
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import io.grpc.Status
@@ -32,6 +33,7 @@ import org.wfanet.measurement.gcloud.spanner.insertMutation
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseState
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineFailureReason
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineState
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
@@ -41,6 +43,7 @@ import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadE
 import org.wfanet.measurement.internal.edpaggregator.advanceRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.copy
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.releaseRawImpressionUploadEvictionFenceRequest
 
@@ -167,6 +170,88 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     assertThat(response.state)
       .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
     assertThat(response.etag).isNotEmpty()
+  }
+
+  @Test
+  fun `correction upload atomically fences and defers queued uploads`() = runBlocking {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        insertMutation("RawImpressionUpload") {
+          set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
+          set("RawImpressionUploadId").to(20L)
+          set("RawImpressionUploadResourceId").to("queued-upload")
+          set("DoneBlobUri").to("gs://bucket/queued/done")
+          set("DoneBlobGeneration").to(1L)
+          set("RegistrationComplete").to(true)
+          set("ProcessingDeferred").to(false)
+          set("State")
+            .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED))
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        }
+      )
+    )
+    val service = newService()
+
+    val correction =
+      service.createRawImpressionUpload(
+        createRawImpressionUploadRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          rawImpressionUpload = rawImpressionUpload {
+            doneBlobUri = "gs://bucket/correction/done"
+            doneBlobGeneration = 2L
+            doneBlobCreateTime = com.google.protobuf.timestamp { seconds = 2L }
+          }
+          requestId = UUID.randomUUID().toString()
+          correctionCandidateId = CORRECTION_CANDIDATE_ID
+        }
+      )
+
+    assertThat(correction.processingDeferred).isTrue()
+    val queued =
+      service.getRawImpressionUpload(
+        getRawImpressionUploadRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          rawImpressionUploadResourceId = "queued-upload"
+        }
+      )
+    assertThat(queued.processingDeferred).isTrue()
+    val fence =
+      service.acquireRawImpressionUploadEvictionFence(
+        acquireRawImpressionUploadEvictionFenceRequest {
+          dataProviderResourceId = TEST_DATA_PROVIDER_ID
+          evictionOperationId = CORRECTION_CANDIDATE_ID
+          state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    assertThat(fence.newlyAcquired).isFalse()
+    assertThat(fence.state)
+      .isEqualTo(VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING)
+  }
+
+  @Test
+  fun `correction create rejects changed quarantine intent for one request ID`() = runBlocking {
+    val service = newService()
+    val requestId = UUID.randomUUID().toString()
+    fun request(candidateId: String) = createRawImpressionUploadRequest {
+      dataProviderResourceId = TEST_DATA_PROVIDER_ID
+      rawImpressionUpload = rawImpressionUpload {
+        doneBlobUri = "gs://bucket/idempotent-correction/done"
+        doneBlobGeneration = 20L
+        doneBlobCreateTime = com.google.protobuf.timestamp { seconds = 20L }
+      }
+      this.requestId = requestId
+      correctionCandidateId = candidateId
+    }
+    service.createRawImpressionUpload(request(CORRECTION_CANDIDATE_ID))
+
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.createRawImpressionUpload(request(UUID.randomUUID().toString()))
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.ALREADY_EXISTS)
   }
 
   @Test
@@ -416,6 +501,93 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     assertThat(error.status.code).isEqualTo(Status.Code.FAILED_PRECONDITION)
   }
 
+  @Test
+  fun `evicting fence accepts exact approved correction generation`() = runBlocking {
+    val doneBlobUri = "gs://bucket/exact-correction/done"
+    spannerDatabase.databaseClient.write(
+      listOf(
+        insertMutation("RawImpressionUpload") {
+          set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
+          set("RawImpressionUploadId").to(30L)
+          set("RawImpressionUploadResourceId").to("candidate-upload")
+          set("DoneBlobUri").to(doneBlobUri)
+          set("DoneBlobGeneration").to(5L)
+          set("DoneBlobCreateTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(5L, 0))
+          set("RegistrationComplete").to(true)
+          set("CorrectionCandidateId").to(CORRECTION_CANDIDATE_ID)
+          set("State")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+              )
+            )
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+        insertMutation("RawImpressionUploadCorrectionCandidate") {
+          set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
+          set("RawImpressionUploadCorrectionCandidateId").to(CORRECTION_CANDIDATE_ID)
+          set("RawImpressionUploadResourceId").to("candidate-upload")
+          set("CreateRequestId").to(UUID.randomUUID().toString())
+          set("Classification")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED
+              )
+            )
+          set("PriorManifestDigest").to(CloudByteArray.copyFrom(ByteArray(32)))
+          set("CurrentManifestDigest").to(CloudByteArray.copyFrom(ByteArray(32) { 1 }))
+          set("ManifestComparison").to(CloudByteArray.copyFrom(ByteArray(0)))
+          set("State")
+            .to(Value.protoEnum(RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED))
+          set("Decision")
+            .to(
+              Value.protoEnum(
+                RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
+              )
+            )
+          set("UploadHealingOperationId").to(EVICTION_OPERATION_ID)
+          set("ExpireTime").to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(100L, 0))
+          set("AdvanceRequestIds").toStringArray(emptyList())
+          set("AdvanceRequestFingerprints").toBytesArray(emptyList())
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+          set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+        insertMutation("VidLabelingEvictionFence") {
+          set("DataProviderResourceId").to(TEST_DATA_PROVIDER_ID)
+          set("EvictionOperationId").to(EVICTION_OPERATION_ID)
+          set("Etag").to("fence-etag")
+          set("State")
+            .to(
+              Value.protoEnum(
+                VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+              )
+            )
+          set("CreateTime").to(Value.COMMIT_TIMESTAMP)
+        },
+      )
+    )
+
+    val replay =
+      newService()
+        .createRawImpressionUpload(
+          createRawImpressionUploadRequest {
+            dataProviderResourceId = TEST_DATA_PROVIDER_ID
+            rawImpressionUpload = rawImpressionUpload {
+              this.doneBlobUri = doneBlobUri
+              doneBlobGeneration = 5L
+              doneBlobCreateTime = com.google.protobuf.timestamp { seconds = 5L }
+            }
+            requestId = UUID.randomUUID().toString()
+            evictionOperationId = EVICTION_OPERATION_ID
+          }
+        )
+
+    assertThat(replay.rawImpressionUploadResourceId).isNotEqualTo("candidate-upload")
+    assertThat(replay.replacesRawImpressionUploadResourceId).isEqualTo("candidate-upload")
+    assertThat(replay.processingDeferred).isFalse()
+  }
+
   private suspend fun insertActiveDataAvailabilitySyncLease() {
     spannerDatabase.databaseClient.write(
       listOf(
@@ -512,6 +684,7 @@ class SpannerRawImpressionUploadServiceTest : RawImpressionUploadServiceTest() {
     @get:ClassRule @JvmStatic val spannerEmulator = SpannerEmulatorRule()
 
     private const val EVICTION_OPERATION_ID = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee"
+    private const val CORRECTION_CANDIDATE_ID = "cccccccc-cccc-4ccc-8ccc-cccccccccccc"
     private const val SYNCHRONIZATION_ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     private const val TEST_DATA_PROVIDER_ID = "data-provider"
   }
