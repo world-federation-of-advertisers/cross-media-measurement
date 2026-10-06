@@ -399,11 +399,6 @@ reuse a report or SA across EDPs.
 | `EntityTypes` | ARRAY\<STRING\> | Entity types for your event groups in this report |
 | `EntityIds` | ARRAY\<STRING\> | Entity IDs for your event groups in this report |
 
-Event groups are listed for the whole campaign group the report was built on. If
-that campaign group is a composite ReportingSet using a DIFFERENCE or
-INTERSECTION set expression, `CmmsEventGroupIds` is a superset of the event
-groups the report actually measured.
-
 #### `unlinked_accounts`
 
 Advertiser client accounts observed in your event group data that have no
