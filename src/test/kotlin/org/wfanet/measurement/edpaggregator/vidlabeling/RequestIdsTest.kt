@@ -89,7 +89,10 @@ class RequestIdsTest {
         RequestIds.forMarkRawImpressionUploadModelLineCompleted(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineFailed(MODEL_LINE_NAME, ETAG),
         RequestIds.forEvictRawImpressionUploadModelLine(MODEL_LINE_NAME, ETAG),
+        RequestIds.forReconcileUploadHealingOperation(EVICTION_OPERATION_ID, byteArrayOf(1)),
+        RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "DRAINING", ETAG),
         RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING"),
+        RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING", ETAG),
         RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, ETAG),
         RequestIds.forHealingRetryPoolAssigning(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
         RequestIds.forHealingRetryRanking(MODEL_LINE_NAME, FAILURE_ATTEMPT_ID),
@@ -118,13 +121,37 @@ class RequestIdsTest {
   @Test
   fun `fence request ids distinguish actions states and versions`() {
     val acquire = RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "DRAINING")
+    val advance = RequestIds.forAdvanceUploadEvictionFence(EVICTION_OPERATION_ID, "DRAINING", ETAG)
     val release = RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, ETAG)
 
-    assertThat(acquire).isNotEqualTo(release)
+    assertThat(setOf(acquire, advance, release)).hasSize(3)
     assertThat(acquire)
       .isNotEqualTo(RequestIds.forAcquireUploadEvictionFence(EVICTION_OPERATION_ID, "EVICTING"))
     assertThat(release)
       .isNotEqualTo(RequestIds.forReleaseUploadEvictionFence(EVICTION_OPERATION_ID, "new-etag"))
+  }
+
+  @Test
+  fun `operation request ids distinguish states versions and plans`() {
+    val advance =
+      RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "DRAINING", ETAG)
+
+    assertThat(advance)
+      .isNotEqualTo(
+        RequestIds.forAdvanceUploadHealingOperation(UPLOAD_HEALING_OPERATION, "EVICTING", ETAG)
+      )
+    assertThat(advance)
+      .isNotEqualTo(
+        RequestIds.forAdvanceUploadHealingOperation(
+          UPLOAD_HEALING_OPERATION,
+          "DRAINING",
+          "new-etag",
+        )
+      )
+    assertThat(RequestIds.forReconcileUploadHealingOperation(EVICTION_OPERATION_ID, byteArrayOf(1)))
+      .isNotEqualTo(
+        RequestIds.forReconcileUploadHealingOperation(EVICTION_OPERATION_ID, byteArrayOf(2))
+      )
   }
 
   @Test
@@ -147,5 +174,7 @@ class RequestIdsTest {
     private const val ETAG = "etag-1"
     private const val FAILURE_ATTEMPT_ID = "failure-attempt-1"
     private const val EVICTION_OPERATION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+    private const val UPLOAD_HEALING_OPERATION =
+      "$DATA_PROVIDER/uploadHealingOperations/$EVICTION_OPERATION_ID"
   }
 }
