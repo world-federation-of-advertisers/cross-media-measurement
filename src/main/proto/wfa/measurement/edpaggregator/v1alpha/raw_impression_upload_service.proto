@@ -21,6 +21,7 @@ import "google/api/field_info.proto";
 import "google/api/resource.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/edpaggregator/v1alpha/raw_impression_upload.proto";
+import "wfa/measurement/edpaggregator/v1alpha/vid_labeling_eviction_fence_state.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
 option java_multiple_files = true;
@@ -53,6 +54,11 @@ service RawImpressionUploadService {
       AcquireRawImpressionUploadEvictionFenceRequest)
       returns (AcquireRawImpressionUploadEvictionFenceResponse) {}
 
+  // Advances the data-provider-wide VID-labeling fence.
+  rpc AdvanceRawImpressionUploadEvictionFence(
+      AdvanceRawImpressionUploadEvictionFenceRequest)
+      returns (AdvanceRawImpressionUploadEvictionFenceResponse) {}
+
   // Releases the data-provider-wide fence after upload healing completes.
   rpc ReleaseRawImpressionUploadEvictionFence(
       ReleaseRawImpressionUploadEvictionFenceRequest)
@@ -74,6 +80,18 @@ message AcquireRawImpressionUploadEvictionFenceRequest {
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
+
+  // Initial fence state.
+  VidLabelingEvictionFenceState state = 3
+      [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 request identifier for idempotency.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: Required for safe mutation retries. --)
+  string request_id = 4 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
 }
 
 // Response from acquiring the VID-labeling eviction fence.
@@ -81,6 +99,49 @@ message AcquireRawImpressionUploadEvictionFenceResponse {
   // Whether this request created the fence instead of reacquiring it for the
   // same eviction operation.
   bool newly_acquired = 1;
+
+  // Current fence state.
+  VidLabelingEvictionFenceState state = 2
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Opaque concurrency token for the fence.
+  string etag = 3;
+}
+
+// Request message for `AdvanceRawImpressionUploadEvictionFence`.
+message AdvanceRawImpressionUploadEvictionFenceRequest {
+  // Parent data provider resource name.
+  string parent = 1 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.resource_reference) = { type: "halo.wfanet.org/DataProvider" }
+  ];
+
+  // UUID of the operation that owns the fence.
+  string eviction_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+
+  // Next fence state.
+  VidLabelingEvictionFenceState state = 3
+      [(google.api.field_behavior) = REQUIRED];
+
+  // Etag returned by the preceding fence mutation.
+  string etag = 4 [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 request identifier for idempotency.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: Required for safe mutation retries. --)
+  string request_id = 5 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+}
+
+// Response message for `AdvanceRawImpressionUploadEvictionFence`.
+message AdvanceRawImpressionUploadEvictionFenceResponse {
+  // Opaque concurrency token for the fence.
+  string etag = 1;
 }
 
 // Request message for `ReleaseRawImpressionUploadEvictionFence`.
@@ -95,6 +156,17 @@ message ReleaseRawImpressionUploadEvictionFenceRequest {
 
   // UUID4 identifying the operation that owns the fence.
   string eviction_operation_id = 2 [
+    (google.api.field_behavior) = REQUIRED,
+    (google.api.field_info).format = UUID4
+  ];
+
+  // Etag returned by the preceding fence mutation.
+  string etag = 3 [(google.api.field_behavior) = REQUIRED];
+
+  // UUID4 request identifier for idempotency.
+  // (-- api-linter: core::0133::request-required-fields=disabled
+  //     aip.dev/not-precedent: Required for safe mutation retries. --)
+  string request_id = 4 [
     (google.api.field_behavior) = REQUIRED,
     (google.api.field_info).format = UUID4
   ];
