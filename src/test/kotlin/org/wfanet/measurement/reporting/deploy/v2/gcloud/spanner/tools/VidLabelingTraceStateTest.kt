@@ -37,8 +37,11 @@ import org.wfanet.measurement.api.v2alpha.modelLine as kingdomModelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.ListDataAvailabilitySyncTasksResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsResponse
@@ -106,11 +109,51 @@ class VidLabelingTraceStateTest {
     val resolver = GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, _ -> null }
     val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)))
+    val nodes =
+      resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), emptyList())
 
     assertThat(nodes.filter { it.authoritativeState == "MISSING" }.map { it.stage })
-      .containsAtLeast("data_watcher", "data_availability_metadata", "data_availability_publish")
+      .containsAtLeast("data_availability_metadata", "data_availability_publish")
     Unit
+  }
+
+  @Test
+  fun `failed task makes unavailable downstream stages not applicable`() = runBlocking {
+    val metadataStub = mock<ImpressionMetadataServiceCoroutineStub>()
+    val dataProvidersStub = mock<DataProvidersCoroutineStub>()
+    whenever(metadataStub.listImpressionMetadata(any(), any()))
+      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+    whenever(dataProvidersStub.getDataProvider(any(), any()))
+      .thenReturn(DataProvider.newBuilder().setName("dataProviders/123").build())
+    val task =
+      DataAvailabilitySyncTask.newBuilder()
+        .setName(UPLOAD + "/dataAvailabilitySyncTasks/task-failed")
+        .setState(DataAvailabilitySyncTask.State.FAILED)
+        .setFailureCategory(DataAvailabilitySyncTask.FailureCategory.METADATA_PERSISTENCE)
+        .setAttemptCount(3)
+        .setDoneBlobUri("gs://bucket/model-line/direct/2026-09-01/done")
+        .setDoneBlobPathHash("done-path-hash")
+        .setDoneBlobGeneration(9)
+        .setCmmsModelLine(DIRECT_MODEL_LINE)
+        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
+        .build()
+    val resolver =
+      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, generation ->
+        StoredObjectMetadata(checkNotNull(generation))
+      }
+    val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
+
+    val nodes =
+      resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), listOf(task))
+
+    assertThat(nodes.single { it.id == task.name + ":done_object" }.authoritativeState)
+      .isEqualTo("PUBLISHED")
+    assertThat(
+        nodes
+          .filter { it.stage in setOf("data_availability_metadata", "data_availability_publish") }
+          .all { it.disposition == ExpectedNodeDisposition.NOT_APPLICABLE }
+      )
+      .isTrue()
   }
 
   @Test
@@ -172,16 +215,22 @@ class VidLabelingTraceStateTest {
         .setDoneBlobGeneration(7)
         .build()
     val modelLine = modelLine("direct", DIRECT_MODEL_LINE)
+    val task =
+      DataAvailabilitySyncTask.newBuilder()
+        .setName(UPLOAD + "/dataAvailabilitySyncTasks/task-1")
+        .setState(DataAvailabilitySyncTask.State.SUCCEEDED)
+        .setDoneBlobUri(doneUri)
+        .setDoneBlobPathHash("done-path-hash")
+        .setDoneBlobGeneration(9)
+        .setCmmsModelLine(DIRECT_MODEL_LINE)
+        .setAttemptCount(1)
+        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
+        .build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine))
+    val nodes = resolver.resolve(upload, listOf(modelLine), listOf(task))
 
     assertThat(nodes.map { it.stage })
-      .containsAtLeast(
-        "label",
-        "data_watcher",
-        "data_availability_metadata",
-        "data_availability_publish",
-      )
+      .containsAtLeast("label", "data_availability_metadata", "data_availability_publish")
     assertThat(nodes.count { it.stage == VidLabelingTraceLogging.LABEL_OUTPUT_STAGE }).isEqualTo(2)
     assertThat(nodes.none { it.authoritativeState == "MISSING" }).isTrue()
     assertThat(objectReads).contains("gs://raw/input/done" to 7L)
@@ -229,7 +278,8 @@ class VidLabelingTraceStateTest {
         .setDoneBlobGeneration(7)
         .build()
 
-    val nodes = resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)))
+    val nodes =
+      resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), emptyList())
 
     assertThat(nodes.single { it.stage == "data_availability_publish" }.authoritativeState)
       .isEqualTo("MISSING")
@@ -243,6 +293,7 @@ class VidLabelingTraceStateTest {
     val poolJobs = mock<PoolAssignmentJobServiceCoroutineStub>()
     val rankerJobs = mock<RankerJobServiceCoroutineStub>()
     val labelingJobs = mock<VidLabelingJobServiceCoroutineStub>()
+    val availabilityTasks = mock<DataAvailabilitySyncTaskServiceCoroutineStub>()
     val rankBlobs = mock<RankIndexBlobServiceCoroutineStub>()
     val workItems = mock<WorkItemsCoroutineStub>()
     val attempts = mock<WorkItemAttemptsCoroutineStub>()
@@ -310,6 +361,23 @@ class VidLabelingTraceStateTest {
     }
     whenever(rankBlobs.listRankIndexBlobs(any(), any()))
       .thenReturn(ListRankIndexBlobsResponse.getDefaultInstance())
+    whenever(availabilityTasks.listDataAvailabilitySyncTasks(any(), any()))
+      .thenReturn(
+        ListDataAvailabilitySyncTasksResponse.newBuilder()
+          .addDataAvailabilitySyncTasks(
+            DataAvailabilitySyncTask.newBuilder()
+              .setName(UPLOAD + "/dataAvailabilitySyncTasks/task-1")
+              .setState(DataAvailabilitySyncTask.State.SUCCEEDED)
+              .setDoneBlobUri("gs://bucket/model-line/direct/2026-09-01/done")
+              .setDoneBlobPathHash("done-path-hash")
+              .setDoneBlobGeneration(9)
+              .setCmmsModelLine(DIRECT_MODEL_LINE)
+              .setAttemptCount(2)
+              .setFailureCategory(DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION)
+              .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
+          )
+          .build()
+      )
     val directJobName = UPLOAD + "/vidLabelingJobs/direct"
     val originalWorkItemId = WorkItemIds.forVidLabeler(directJobName)
     val originalWorkItemName = "workItems/" + originalWorkItemId
@@ -396,6 +464,7 @@ class VidLabelingTraceStateTest {
         poolJobs,
         rankerJobs,
         labelingJobs,
+        availabilityTasks,
         rankBlobs,
         workItems,
         attempts,
@@ -407,7 +476,11 @@ class VidLabelingTraceStateTest {
       initialGraph.copy(
         nodes =
           initialGraph.nodes +
-            finalStateResolver.resolve(initialGraph.upload, initialGraph.modelLines)
+            finalStateResolver.resolve(
+              initialGraph.upload,
+              initialGraph.modelLines,
+              initialGraph.availabilityTasks,
+            )
       )
 
     assertThat(graph.modelLines.map { it.cmmsModelLine })
@@ -423,6 +496,13 @@ class VidLabelingTraceStateTest {
     assertThat(graph.nodes.flatMap { it.identifiers.values }.any { "/workItemAttempts/" in it })
       .isTrue()
     assertThat(graph.nodes.filter { it.stage == "data_availability_publish" }).hasSize(2)
+    assertThat(graph.availabilityTasks).hasSize(1)
+    assertThat(
+        graph.nodes
+          .filter { it.stage.startsWith("availability_task") }
+          .map { it.authoritativeState }
+      )
+      .containsAtLeast("CREATED", "SUCCEEDED")
     verifyBlocking(workItems, never()) { listWorkItems(any(), any()) }
     Unit
   }
@@ -435,6 +515,7 @@ class VidLabelingTraceStateTest {
     val poolJobs = mock<PoolAssignmentJobServiceCoroutineStub>()
     val rankerJobs = mock<RankerJobServiceCoroutineStub>()
     val labelingJobs = mock<VidLabelingJobServiceCoroutineStub>()
+    val availabilityTasks = mock<DataAvailabilitySyncTaskServiceCoroutineStub>()
     val rankBlobs = mock<RankIndexBlobServiceCoroutineStub>()
     val workItems = mock<WorkItemsCoroutineStub>()
     val attempts = mock<WorkItemAttemptsCoroutineStub>()
@@ -461,6 +542,8 @@ class VidLabelingTraceStateTest {
       .thenReturn(ListVidLabelingJobsResponse.getDefaultInstance())
     whenever(rankBlobs.listRankIndexBlobs(any(), any()))
       .thenReturn(ListRankIndexBlobsResponse.getDefaultInstance())
+    whenever(availabilityTasks.listDataAvailabilitySyncTasks(any(), any()))
+      .thenReturn(ListDataAvailabilitySyncTasksResponse.getDefaultInstance())
     val resolver =
       GrpcVidLabelingStateResolver(
         uploads,
@@ -469,6 +552,7 @@ class VidLabelingTraceStateTest {
         poolJobs,
         rankerJobs,
         labelingJobs,
+        availabilityTasks,
         rankBlobs,
         workItems,
         attempts,
