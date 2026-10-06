@@ -17,3 +17,12 @@ filegroup(
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:__pkg__",
     ],
 )
+
+# Riegeli record file compiled from memoized_reference_test_model.textproto with the
+# virtual-people-core-serving 0.6.0 model writer.
+filegroup(
+    name = "memoized_reference_test_model_riegeli",
+    testonly = True,
+    srcs = ["memoized_reference_test_model_riegeli_list"],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:__pkg__"],
+)
