@@ -164,3 +164,44 @@ java_binary(
     main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingMonitorFunction",
     runtime_deps = [":vid_labeling_monitor_function"],
 )
+
+kt_jvm_library(
+    name = "vid_labeling_healing_controller_function",
+    srcs = ["VidLabelingHealingControllerFunction.kt"],
+    deps = [
+        ":vid_labeling_function_helpers",
+        "//imports/java/io/opentelemetry/api",
+        "//imports/java/io/opentelemetry/instrumentation/grpc",
+        "//src/main/kotlin/org/wfanet/measurement/common:env_vars",
+        "//src/main/kotlin/org/wfanet/measurement/common/edpaggregator:edp_aggregator_config",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service:resource_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/telemetry",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:raw_impression_upload_manifest_classifier",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:raw_impression_upload_correction_planner",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling/healing:vid_labeling_healing_controller",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:data_watcher",
+        "//src/main/kotlin/org/wfanet/measurement/securecomputation/datawatcher:watched_blobs",
+        "//src/main/proto/wfa/measurement/config/edpaggregator:vid_labeling_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/config/securecomputation:data_watcher_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:impression_metadata_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:rank_index_blob_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_file_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/securecomputation/controlplane/v1alpha:work_items_service_kt_jvm_grpc_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/functions:functions_framework_api",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "VidLabelingHealingControllerFunction",
+    main_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling.VidLabelingHealingControllerFunction",
+    runtime_deps = [":vid_labeling_healing_controller_function"],
+)
