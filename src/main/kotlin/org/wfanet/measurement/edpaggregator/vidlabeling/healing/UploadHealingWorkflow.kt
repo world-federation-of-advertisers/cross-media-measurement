@@ -110,6 +110,7 @@ class UploadHealingWorkflow(
             recoveryAction = entry.recoveryAction
             recoveryPredecessorRawImpressionUpload = entry.recoveryPredecessorUploadName
             recoveryTarget = (entry.uploadName to entry.cmmsModelLine) in replacementTargets
+            labeledOutputManifest = entry.labeledOutputManifest
           }
         }
     }
@@ -326,6 +327,7 @@ class UploadHealingWorkflow(
             memoized = step.memoized,
             recoveryAction = step.recoveryAction,
             recoveryPredecessorUploadName = step.recoveryPredecessorRawImpressionUpload,
+            labeledOutputManifest = step.labeledOutputManifest,
           )
         }
     val badUploadSet = badRawImpressionUploadsList.toSet()
