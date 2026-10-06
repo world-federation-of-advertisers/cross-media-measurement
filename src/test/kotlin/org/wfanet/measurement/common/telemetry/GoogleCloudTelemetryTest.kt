@@ -76,12 +76,16 @@ class GoogleCloudTelemetryTest {
   }
 
   @Test
-  fun `trace retention keeps an older failure`() {
+  fun `trace retention keeps older failures`() {
     val failure = span("failure", NOW.minusSeconds(100), mapOf("xmm.outcome" to "failed_writeback"))
+    val permanentFailure =
+      span("permanent-failure", NOW.minusSeconds(100), mapOf("xmm.outcome" to "permanent_failure"))
     val newest = span("newest", NOW, emptyMap())
 
     assertThat(GoogleCloudTraceReader.retainSpans(listOf(newest, failure), 1))
       .containsExactly(failure)
+    assertThat(GoogleCloudTraceReader.retainSpans(listOf(newest, permanentFailure), 1))
+      .containsExactly(permanentFailure)
   }
 
   @Test
