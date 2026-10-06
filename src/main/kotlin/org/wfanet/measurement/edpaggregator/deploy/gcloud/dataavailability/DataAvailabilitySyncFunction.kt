@@ -34,7 +34,6 @@ import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
-import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
@@ -47,20 +46,20 @@ import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
+import org.wfanet.measurement.config.edpaggregator.copy
 import org.wfanet.measurement.edpaggregator.ConfigLoader
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
-import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncTaskKey
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
-import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncTaskNotification
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineStub
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
@@ -80,8 +79,8 @@ data class GrpcChannels(
  * Cloud Function that synchronizes data availability state between ImpressionMetadataStorage and
  * the Kingdom.
  *
- * Invoked by DataWatcher for externally produced data or by a durable task notification for
- * internally labeled data. The function reads the new availability, synchronizes it with
+ * Invoked by DataWatcher for externally produced data or by a durable `WorkItem` for internally
+ * labeled data. The function reads the new availability, synchronizes it with
  * ImpressionMetadataStorage, and updates the impression availability interval in the Kingdom.
  *
  * The "done" blob is expected to be written to the bucket under the prefix:
@@ -93,12 +92,17 @@ data class GrpcChannels(
  * - `CHANNEL_SHUTDOWN_DURATION_SECONDS`: Optional. gRPC channel shutdown timeout (default: 3s).
  * - `IMPRESSION_METADATA_TARGET`: Required. Target endpoint for the Impression Metadata service.
  * - `IMPRESSION_METADATA_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `SECURE_COMPUTATION_CONTROL_PLANE_TARGET`: Required for WorkItem processing. Target endpoint
+ *   for the Secure Computation public API.
+ * - `SECURE_COMPUTATION_CERT_HOST`: Optional. Overrides TLS authority for testing.
+ * - `SECURE_COMPUTATION_CERT_COLLECTION_FILE`: Optional trusted certificate collection for the
+ *   Secure Computation public API.
  * - `DATA_AVAILABILITY_FILE_SYSTEM_PATH`: Optional. If set, enables `FileSystemStorageClient`
  *   instead of GCS. Used only in testing.
  *
  * ## Configuration
  * - DataWatcher requests provide a [DataAvailabilitySyncConfig] in the request body.
- * - Task notifications select a configured data provider from the task resource name.
+ * - WorkItems select a configured data provider from their application parameters.
  * - gRPC channels are created with mutual TLS using the provided certificate files.
  */
 class DataAvailabilitySyncFunction() : HttpFunction {
@@ -111,7 +115,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       logger.fine("Starting DataAvailabilitySyncFunction")
       val doneBlobPath = request.getFirstHeader(DATA_WATHCER_PATH_HEADER).orElse(null)
       if (doneBlobPath == null) {
-        serviceTaskNotification(request)
+        serviceWorkItem(request)
         return
       }
       val requestBody = request.reader.readText()
@@ -176,14 +180,10 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     }
   }
 
-  private fun serviceTaskNotification(request: HttpRequest) {
-    val notification = DataAvailabilitySyncTaskNotification.parseFrom(request.inputStream)
-    val taskKey =
-      requireNotNull(DataAvailabilitySyncTaskKey.fromName(notification.dataAvailabilitySyncTask)) {
-        "data_availability_sync_task must be a valid resource name"
-      }
-    val dataProviderName = DataProviderKey(taskKey.dataProviderId).toName()
-    val config = runtimeConfigs.configsList.single { it.dataProvider == dataProviderName }
+  private fun serviceWorkItem(request: HttpRequest) {
+    val input = DataAvailabilitySyncWorkItem.parse(WorkItem.parseFrom(request.inputStream))
+    val config =
+      runtimeConfigs.configsList.single { it.dataProvider == input.appParams.dataProvider }
     val grpcChannels = getOrCreateSharedChannels(config)
     val grpcTelemetry = GrpcTelemetry.create(Instrumentation.openTelemetry)
     val instrumentedMetadataChannel =
@@ -191,30 +191,48 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         grpcChannels.impressionMetadataChannel,
         grpcTelemetry.newClientInterceptor(),
       )
+    val instrumentedControlPlaneChannel =
+      ClientInterceptors.intercept(
+        getOrCreateSecureComputationChannel(config),
+        grpcTelemetry.newClientInterceptor(),
+      )
     val processor =
-      DataAvailabilitySyncTaskProcessor(
-        DataAvailabilitySyncTaskServiceCoroutineStub(instrumentedMetadataChannel),
+      DataAvailabilitySyncWorkItemProcessor(
+        WorkItemsCoroutineStub(instrumentedControlPlaneChannel),
+        WorkItemAttemptsCoroutineStub(instrumentedControlPlaneChannel),
         DataAvailabilitySyncLeaseRunner(
           GrpcDataAvailabilitySyncLeaseClient(
             DataAvailabilitySyncLeaseServiceCoroutineStub(instrumentedMetadataChannel)
           )
         ),
-        buildDataAvailabilitySync = { buildDataAvailabilitySync(config) },
-        verifyDoneObject = { task -> verifyTaskDoneObject(task, config) },
+        synchronize = { workItem, lease, onStage ->
+          buildDataAvailabilitySync(config)
+            .sync(
+              workItem.doneBlobUri,
+              dataAvailabilitySyncLease = lease.name,
+              doneBlobGeneration = workItem.doneBlobGeneration,
+              expectedRawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
+              expectedModelLine = workItem.appParams.modelLine,
+              expectedEventDate = workItem.eventDate,
+              onStage = onStage,
+              ensureLeaseActive = lease::invoke,
+            )
+        },
+        verifyDoneObject = { workItem -> verifyWorkItemDoneObject(workItem, config) },
       )
-    runBlocking { processor.process(notification.dataAvailabilitySyncTask) }
+    runBlocking { processor.process(input) }
   }
 
-  private fun verifyTaskDoneObject(
-    task: DataAvailabilitySyncTask,
+  private fun verifyWorkItemDoneObject(
+    workItem: DataAvailabilitySyncWorkItem,
     config: DataAvailabilitySyncConfig,
   ) {
     if (!fileSystemPath.isNullOrEmpty()) return
     val doneBlobUri =
-      org.wfanet.measurement.storage.SelectedStorageClient.parseBlobUri(task.doneBlobUri)
-    require(doneBlobUri.scheme == "gs") { "task done object must use gs://" }
+      org.wfanet.measurement.storage.SelectedStorageClient.parseBlobUri(workItem.doneBlobUri)
+    require(doneBlobUri.scheme == "gs") { "WorkItem done object must use gs://" }
     require(doneBlobUri.bucket == config.dataAvailabilityStorage.gcs.bucketName) {
-      "task done object is outside the configured bucket"
+      "WorkItem done object is outside the configured bucket"
     }
     val storage =
       StorageOptions.newBuilder()
@@ -226,7 +244,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         .build()
         .service
     val blob = storage.get(BlobId.of(doneBlobUri.bucket, doneBlobUri.key))
-    validateTaskDoneObjectGeneration(blob?.generation, task.doneBlobGeneration)
+    validateWorkItemDoneObjectGeneration(blob?.generation, workItem.doneBlobGeneration)
   }
 
   private fun buildDataAvailabilitySync(
@@ -341,6 +359,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
     private val impressionMetadataTarget = EnvVars.checkNotNullOrEmpty("IMPRESSION_METADATA_TARGET")
     private val impressionMetadataCertHost: String? = System.getenv("IMPRESSION_METADATA_CERT_HOST")
 
+    private val secureComputationControlPlaneTarget: String? =
+      System.getenv("SECURE_COMPUTATION_CONTROL_PLANE_TARGET")
+    private val secureComputationCertHost: String? = System.getenv("SECURE_COMPUTATION_CERT_HOST")
+    private val secureComputationCertCollectionFile: String? =
+      System.getenv("SECURE_COMPUTATION_CERT_COLLECTION_FILE")
+
     private val fileSystemPath: String? = System.getenv("DATA_AVAILABILITY_FILE_SYSTEM_PATH")
 
     private val globalThrottler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
@@ -446,6 +470,23 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
       return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
     }
+
+    fun getOrCreateSecureComputationChannel(
+      dataAvailabilitySyncConfig: DataAvailabilitySyncConfig
+    ): ManagedChannel {
+      val target =
+        requireNotNull(secureComputationControlPlaneTarget) {
+          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET is required for WorkItem processing"
+        }
+      val connection =
+        dataAvailabilitySyncConfig.impressionMetadataStorageConnection.copy {
+          secureComputationCertCollectionFile?.let { certCollectionFilePath = it }
+        }
+      val channelKey = ChannelKey(connection, target, secureComputationCertHost)
+      return channelCache.computeIfAbsent(channelKey) {
+        createPublicChannel(connection, target, secureComputationCertHost)
+      }
+    }
   }
 }
 
@@ -460,6 +501,6 @@ internal fun parseDataWatcherGeneration(value: String?): Long {
   return generation
 }
 
-internal fun validateTaskDoneObjectGeneration(actual: Long?, expected: Long) {
-  require(actual == expected) { "task done object generation is not available" }
+internal fun validateWorkItemDoneObjectGeneration(actual: Long?, expected: Long) {
+  require(actual == expected) { "WorkItem done object generation is not available" }
 }
