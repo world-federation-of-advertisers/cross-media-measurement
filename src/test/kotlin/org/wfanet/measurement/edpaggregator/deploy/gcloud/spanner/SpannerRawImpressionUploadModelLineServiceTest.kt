@@ -29,6 +29,7 @@ import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 
 class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelLineServiceTest() {
   @get:Rule
@@ -68,12 +69,15 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
   override suspend fun setEvictionFence(
     dataProviderResourceId: String,
     evictionOperationId: String,
+    state: VidLabelingEvictionFenceState,
   ) {
     spannerDatabase.databaseClient.write(
       listOf(
         insertMutation("VidLabelingEvictionFence") {
           set("DataProviderResourceId").to(dataProviderResourceId)
           set("EvictionOperationId").to(evictionOperationId)
+          set("Etag").to("fence-etag")
+          set("State").to(Value.protoEnum(state))
           set("CreateTime").to(Value.COMMIT_TIMESTAMP)
         }
       )
@@ -97,6 +101,27 @@ class SpannerRawImpressionUploadModelLineServiceTest : RawImpressionUploadModelL
           .to(evictionOperationId)
           .set("ProcessingDeferred")
           .to(processingDeferred)
+          .build()
+      )
+    )
+  }
+
+  override suspend fun setParentUploadState(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    state: RawImpressionUploadState,
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(dataProviderResourceId)
+          .set("RawImpressionUploadId")
+          .to(uploadIdsByResourceId.getValue(rawImpressionUploadResourceId))
+          .set("State")
+          .to(Value.protoEnum(state))
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
           .build()
       )
     )
