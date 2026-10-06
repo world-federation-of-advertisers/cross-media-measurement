@@ -16,29 +16,33 @@
 
 package org.wfanet.measurement.edpaggregator.tools
 
-import com.google.cloud.storage.Blob
-import com.google.cloud.storage.BlobId
-import com.google.cloud.storage.BlobInfo
-import com.google.cloud.storage.Storage
 import com.google.common.truth.Truth.assertThat
 import kotlin.test.assertFailsWith
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
-import org.mockito.kotlin.any
-import org.mockito.kotlin.argumentCaptor
-import org.mockito.kotlin.mock
-import org.mockito.kotlin.verify
-import org.mockito.kotlin.whenever
-import org.wfanet.measurement.config.edpaggregator.StorageParamsKt.gcsStorage
-import org.wfanet.measurement.config.edpaggregator.storageParams
-import org.wfanet.measurement.config.edpaggregator.vidLabelingConfig
-import org.wfanet.measurement.config.edpaggregator.vidLabelingConfigs
-import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import picocli.CommandLine
 
 @RunWith(JUnit4::class)
 class VidLabelingHealTest {
+  @Test
+  fun `command exposes only supported operator actions`() {
+    assertThat(CommandLine(VidLabelingHeal()).subcommands.keys)
+      .containsExactly(
+        "mark-failed",
+        "retry-failed",
+        "backfill-model-line",
+        "list-correction-candidates",
+        "get-correction-candidate",
+        "list-correction-plans",
+        "get-correction-plan",
+        "approve-correction-plan",
+        "retry-correction-plan",
+        "redeliver-dlq",
+        "help",
+      )
+  }
+
   @Test
   fun `command line rejects negative RPC interval`() {
     val exception =
@@ -59,247 +63,5 @@ class VidLabelingHealTest {
       }
 
     assertThat(exception).hasMessageThat().contains("complete human-readable duration")
-  }
-
-  @Test
-  fun `isAffirmative accepts y and yes case-insensitively, ignoring surrounding whitespace`() {
-    assertThat(isAffirmative("yes")).isTrue()
-    assertThat(isAffirmative("y")).isTrue()
-    assertThat(isAffirmative("YES")).isTrue()
-    assertThat(isAffirmative("Yes")).isTrue()
-    assertThat(isAffirmative("  yes  ")).isTrue()
-    assertThat(isAffirmative(" Y ")).isTrue()
-  }
-
-  @Test
-  fun `isAffirmative rejects anything that is not exactly y or yes`() {
-    assertThat(isAffirmative("no")).isFalse()
-    assertThat(isAffirmative("n")).isFalse()
-    assertThat(isAffirmative("yep")).isFalse()
-    assertThat(isAffirmative("yesss")).isFalse()
-    assertThat(isAffirmative("ye")).isFalse()
-    assertThat(isAffirmative("")).isFalse()
-    assertThat(isAffirmative("   ")).isFalse()
-  }
-
-  @Test
-  fun `isAffirmative treats null (no stdin or EOF) as a decline`() {
-    assertThat(isAffirmative(null)).isFalse()
-  }
-
-  @Test
-  fun `dataProviderOf accepts multiple uploads under the same DataProvider`() {
-    val dataProvider =
-      EvictUploadsCommand.dataProviderOf(
-        listOf(
-          "$DATA_PROVIDER/rawImpressionUploads/upload-A",
-          "$DATA_PROVIDER/rawImpressionUploads/upload-B",
-        )
-      )
-
-    assertThat(dataProvider).isEqualTo(DATA_PROVIDER)
-  }
-
-  @Test
-  fun `labeled impressions prefix is validated before eviction`() {
-    val parsed =
-      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-        "gs://output-bucket/edp/edp7/",
-        VID_LABELING_CONFIGS,
-        DATA_PROVIDER,
-      )
-
-    assertThat(parsed.scheme).isEqualTo("gs")
-    assertThat(parsed.bucket).isEqualTo("output-bucket")
-    assertThat(parsed.key).isEqualTo("edp/edp7")
-    assertFailsWith<IllegalArgumentException> {
-      EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-        "https://output-bucket/edp/edp7",
-        VID_LABELING_CONFIGS,
-        DATA_PROVIDER,
-      )
-    }
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects a bucket root`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://output-bucket",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects the wrong bucket`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://other-bucket/edp/edp7",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects the wrong DataProvider root`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://output-bucket/edp/edp8",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `labeled impressions prefix rejects a path below the configured root`() {
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        EvictUploadsCommand.parseLabeledImpressionsBlobPrefix(
-          "gs://output-bucket/edp/edp7/model-line",
-          VID_LABELING_CONFIGS,
-          DATA_PROVIDER,
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("must exactly match")
-  }
-
-  @Test
-  fun `rewriteDoneBlob replaces the expected source generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    val created = mock<Blob>()
-    val recoveryMetadata =
-      mapOf(
-        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
-        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
-      )
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(10L)
-    whenever(current.metadata).thenReturn(mapOf("existing-key" to "existing-value"))
-    whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
-      .thenReturn(created)
-    whenever(created.generation).thenReturn(7L)
-
-    val generation =
-      RecoverUploadCommand.rewriteDoneBlob(
-        storage,
-        "gs://bucket/path/done",
-        expectedGeneration = 10L,
-        metadata = recoveryMetadata,
-      )
-
-    assertThat(generation).isEqualTo(7L)
-    val blobInfo = argumentCaptor<BlobInfo>()
-    val targetOption = argumentCaptor<Storage.BlobTargetOption>()
-    verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
-    assertThat(blobInfo.firstValue.metadata)
-      .containsExactlyEntriesIn(mapOf("existing-key" to "existing-value") + recoveryMetadata)
-    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(10L))
-  }
-
-  @Test
-  fun `rewriteDoneBlob can retry a lower-numbered undelivered recovery generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    val created = mock<Blob>()
-    val metadata =
-      mapOf(
-        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
-        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
-      )
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(9L)
-    whenever(current.metadata).thenReturn(metadata)
-    whenever(storage.create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>()))
-      .thenReturn(created)
-    whenever(created.generation).thenReturn(12L)
-    val generation =
-      RecoverUploadCommand.rewriteDoneBlob(
-        storage,
-        "gs://bucket/path/done",
-        expectedGeneration = 10L,
-        metadata = metadata,
-      )
-
-    assertThat(generation).isEqualTo(12L)
-    val blobInfo = argumentCaptor<BlobInfo>()
-    val targetOption = argumentCaptor<Storage.BlobTargetOption>()
-    verify(storage).create(blobInfo.capture(), any<ByteArray>(), targetOption.capture())
-    assertThat(blobInfo.firstValue.metadata).containsAtLeastEntriesIn(metadata)
-    assertThat(targetOption.firstValue).isEqualTo(Storage.BlobTargetOption.generationMatch(9L))
-  }
-
-  @Test
-  fun `resumeDoneBlob reuses an existing matching recovery generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    val metadata =
-      mapOf(
-        WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1",
-        WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY to "rawImpressionUploads/up1",
-      )
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(9L)
-    whenever(current.metadata).thenReturn(metadata)
-
-    val generation =
-      RecoverUploadCommand.resumeDoneBlob(
-        storage,
-        "gs://bucket/path/done",
-        expectedGeneration = 10L,
-        metadata = metadata,
-      )
-
-    assertThat(generation).isEqualTo(9L)
-    verify(storage, org.mockito.kotlin.never())
-      .create(any<BlobInfo>(), any<ByteArray>(), any<Storage.BlobTargetOption>())
-  }
-
-  @Test
-  fun `rewriteDoneBlob rejects a newer unrelated generation`() {
-    val storage = mock<Storage>()
-    val current = mock<Blob>()
-    whenever(storage.get(BlobId.of("bucket", "path/done"))).thenReturn(current)
-    whenever(current.generation).thenReturn(11L)
-    whenever(current.metadata).thenReturn(emptyMap())
-
-    val error =
-      assertFailsWith<IllegalArgumentException> {
-        RecoverUploadCommand.rewriteDoneBlob(
-          storage,
-          "gs://bucket/path/done",
-          expectedGeneration = 10L,
-          mapOf(WatchedBlobs.OVERRIDE_MODEL_LINES_KEY to "modelLines/ml1"),
-        )
-      }
-
-    assertThat(error).hasMessageThat().contains("does not carry the same recovery metadata")
-  }
-
-  companion object {
-    private const val DATA_PROVIDER = "dataProviders/dp1"
-    private val VID_LABELING_CONFIGS = vidLabelingConfigs {
-      configs += vidLabelingConfig {
-        dataProvider = DATA_PROVIDER
-        vidLabeledImpressionsStorageParams = storageParams {
-          gcs = gcsStorage { bucketName = "output-bucket" }
-        }
-        edpImpressionPath = "edp/edp7"
-      }
-    }
   }
 }
