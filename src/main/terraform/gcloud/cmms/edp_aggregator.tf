@@ -471,6 +471,15 @@ locals {
     }
   }
 
+  data_availability_sync_task_queue = {
+    topic_name            = "data-availability-sync-tasks"
+    subscription_name     = "data-availability-sync-tasks-subscription"
+    ack_deadline_seconds  = 600
+    max_delivery_attempts = 5
+    minimum_backoff       = "10s"
+    maximum_backoff       = "600s"
+  }
+
 }
 
 module "edp_aggregator" {
@@ -526,6 +535,7 @@ module "edp_aggregator" {
   data_availability_monitor_config                 = local.data_availability_monitor_config
   data_availability_monitor_scheduler_config       = local.data_availability_monitor_scheduler_config
   vid_labeling_workers                             = local.vid_labeling_workers
+  data_availability_sync_task_queue                = local.data_availability_sync_task_queue
   vid_labeling_dispatcher_service_account_name     = "edpa-vid-labeling-dispatcher"
   vid_labeling_monitor_service_account_name        = "edpa-vid-labeling-monitor"
   vid_labeling_dispatcher_config                   = local.vid_labeling_dispatcher_config
