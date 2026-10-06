@@ -25,6 +25,8 @@ option java_multiple_files = true;
 option java_outer_classname = "UploadHealingOperationServiceProto";
 
 service UploadHealingOperationService {
+  rpc ReconcileUploadHealingOperation(ReconcileUploadHealingOperationRequest)
+      returns (UploadHealingOperation);
   rpc CreateUploadHealingOperation(CreateUploadHealingOperationRequest)
       returns (UploadHealingOperation);
   rpc GetUploadHealingOperation(GetUploadHealingOperationRequest)
@@ -41,6 +43,14 @@ service UploadHealingOperationService {
       returns (UploadHealingOperation);
   rpc AdvanceUploadHealingStep(AdvanceUploadHealingStepRequest)
       returns (UploadHealingStep);
+}
+
+message ReconcileUploadHealingOperationRequest {
+  string data_provider_resource_id = 1;
+  string upload_healing_operation_id = 2;
+  UploadHealingOperation upload_healing_operation = 3;
+  string etag = 4;
+  string request_id = 5;
 }
 
 message CreateUploadHealingOperationRequest {
@@ -114,6 +124,7 @@ message AdvanceUploadHealingOperationRequest {
   string upload_healing_operation_id = 2;
   string etag = 3;
   UploadHealingOperation.State state = 4;
+  string request_id = 5;
 }
 
 message AdvanceUploadHealingStepRequest {
