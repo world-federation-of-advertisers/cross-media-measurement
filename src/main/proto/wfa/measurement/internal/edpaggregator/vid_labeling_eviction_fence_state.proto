@@ -1,0 +1,33 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "VidLabelingEvictionFenceStateProto";
+
+enum VidLabelingEvictionFenceState {
+  // No fence state has been assigned.
+  VID_LABELING_EVICTION_FENCE_STATE_UNSPECIFIED = 0;
+  // A correction plan is waiting for operator approval while new work remains
+  // fenced.
+  VID_LABELING_EVICTION_FENCE_STATE_APPROVAL_PENDING = 1;
+  // New work is fenced while previously started VID-labeling work finishes.
+  VID_LABELING_EVICTION_FENCE_STATE_DRAINING = 2;
+  // The approved correction plan is removing affected derived state and output.
+  VID_LABELING_EVICTION_FENCE_STATE_EVICTING = 3;
+}
