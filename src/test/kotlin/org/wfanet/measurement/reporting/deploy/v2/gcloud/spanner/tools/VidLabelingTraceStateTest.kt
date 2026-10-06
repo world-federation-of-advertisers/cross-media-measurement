@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.protobuf.Any
 import com.google.protobuf.Timestamp
 import com.google.type.Interval
 import io.grpc.Status
@@ -37,11 +38,9 @@ import org.wfanet.measurement.api.v2alpha.modelLine as kingdomModelLine
 import org.wfanet.measurement.api.v2alpha.modelRollout
 import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
-import org.wfanet.measurement.edpaggregator.v1alpha.ListDataAvailabilitySyncTasksResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsResponse
@@ -118,43 +117,45 @@ class VidLabelingTraceStateTest {
   }
 
   @Test
-  fun `failed task makes unavailable downstream stages not applicable`() = runBlocking {
-    val metadataStub = mock<ImpressionMetadataServiceCoroutineStub>()
-    val dataProvidersStub = mock<DataProvidersCoroutineStub>()
-    whenever(metadataStub.listImpressionMetadata(any(), any()))
-      .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
-    whenever(dataProvidersStub.getDataProvider(any(), any()))
-      .thenReturn(DataProvider.newBuilder().setName("dataProviders/123").build())
-    val task =
-      DataAvailabilitySyncTask.newBuilder()
-        .setName(UPLOAD + "/dataAvailabilitySyncTasks/task-failed")
-        .setState(DataAvailabilitySyncTask.State.FAILED)
-        .setFailureCategory(DataAvailabilitySyncTask.FailureCategory.METADATA_PERSISTENCE)
-        .setAttemptCount(3)
-        .setDoneBlobUri("gs://bucket/model-line/direct/2026-09-01/done")
-        .setDoneBlobPathHash("done-path-hash")
-        .setDoneBlobGeneration(9)
-        .setCmmsModelLine(DIRECT_MODEL_LINE)
-        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
-        .build()
-    val resolver =
-      GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, generation ->
-        StoredObjectMetadata(checkNotNull(generation))
-      }
-    val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
+  fun `failed availability WorkItem makes unavailable downstream stages not applicable`() =
+    runBlocking {
+      val metadataStub = mock<ImpressionMetadataServiceCoroutineStub>()
+      val dataProvidersStub = mock<DataProvidersCoroutineStub>()
+      whenever(metadataStub.listImpressionMetadata(any(), any()))
+        .thenReturn(ListImpressionMetadataResponse.getDefaultInstance())
+      whenever(dataProvidersStub.getDataProvider(any(), any()))
+        .thenReturn(DataProvider.newBuilder().setName("dataProviders/123").build())
+      val workItem =
+        availabilityWorkItem(
+          "FAILED",
+          listOf(
+            VidLabelingAvailabilityAttempt(
+              AVAILABILITY_WORK_ITEM + "/workItemAttempts/attempt-3",
+              "FAILED",
+              3,
+              "METADATA_PERSISTENCE",
+              "SpannerException",
+            )
+          ),
+        )
+      val resolver =
+        GcsKingdomFinalStateResolver(metadataStub, dataProvidersStub) { _, generation ->
+          StoredObjectMetadata(checkNotNull(generation))
+        }
+      val upload = RawImpressionUpload.newBuilder().setName(UPLOAD).setDoneBlobGeneration(7).build()
 
-    val nodes =
-      resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), listOf(task))
+      val nodes =
+        resolver.resolve(upload, listOf(modelLine("direct", DIRECT_MODEL_LINE)), listOf(workItem))
 
-    assertThat(nodes.single { it.id == task.name + ":done_object" }.authoritativeState)
-      .isEqualTo("PUBLISHED")
-    assertThat(
-        nodes
-          .filter { it.stage in setOf("data_availability_metadata", "data_availability_publish") }
-          .all { it.disposition == ExpectedNodeDisposition.NOT_APPLICABLE }
-      )
-      .isTrue()
-  }
+      assertThat(nodes.single { it.id == workItem.name + ":done_object" }.authoritativeState)
+        .isEqualTo("PUBLISHED")
+      assertThat(
+          nodes
+            .filter { it.stage in setOf("data_availability_metadata", "data_availability_publish") }
+            .all { it.disposition == ExpectedNodeDisposition.NOT_APPLICABLE }
+        )
+        .isTrue()
+    }
 
   @Test
   fun `final state reads exact raw done generation and resolves publication`() = runBlocking {
@@ -215,19 +216,9 @@ class VidLabelingTraceStateTest {
         .setDoneBlobGeneration(7)
         .build()
     val modelLine = modelLine("direct", DIRECT_MODEL_LINE)
-    val task =
-      DataAvailabilitySyncTask.newBuilder()
-        .setName(UPLOAD + "/dataAvailabilitySyncTasks/task-1")
-        .setState(DataAvailabilitySyncTask.State.SUCCEEDED)
-        .setDoneBlobUri(doneUri)
-        .setDoneBlobPathHash("done-path-hash")
-        .setDoneBlobGeneration(9)
-        .setCmmsModelLine(DIRECT_MODEL_LINE)
-        .setAttemptCount(1)
-        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
-        .build()
+    val workItem = availabilityWorkItem("SUCCEEDED", doneBlobUri = doneUri)
 
-    val nodes = resolver.resolve(upload, listOf(modelLine), listOf(task))
+    val nodes = resolver.resolve(upload, listOf(modelLine), listOf(workItem))
 
     assertThat(nodes.map { it.stage })
       .containsAtLeast("label", "data_availability_metadata", "data_availability_publish")
@@ -293,7 +284,6 @@ class VidLabelingTraceStateTest {
     val poolJobs = mock<PoolAssignmentJobServiceCoroutineStub>()
     val rankerJobs = mock<RankerJobServiceCoroutineStub>()
     val labelingJobs = mock<VidLabelingJobServiceCoroutineStub>()
-    val availabilityTasks = mock<DataAvailabilitySyncTaskServiceCoroutineStub>()
     val rankBlobs = mock<RankIndexBlobServiceCoroutineStub>()
     val workItems = mock<WorkItemsCoroutineStub>()
     val attempts = mock<WorkItemAttemptsCoroutineStub>()
@@ -361,23 +351,6 @@ class VidLabelingTraceStateTest {
     }
     whenever(rankBlobs.listRankIndexBlobs(any(), any()))
       .thenReturn(ListRankIndexBlobsResponse.getDefaultInstance())
-    whenever(availabilityTasks.listDataAvailabilitySyncTasks(any(), any()))
-      .thenReturn(
-        ListDataAvailabilitySyncTasksResponse.newBuilder()
-          .addDataAvailabilitySyncTasks(
-            DataAvailabilitySyncTask.newBuilder()
-              .setName(UPLOAD + "/dataAvailabilitySyncTasks/task-1")
-              .setState(DataAvailabilitySyncTask.State.SUCCEEDED)
-              .setDoneBlobUri("gs://bucket/model-line/direct/2026-09-01/done")
-              .setDoneBlobPathHash("done-path-hash")
-              .setDoneBlobGeneration(9)
-              .setCmmsModelLine(DIRECT_MODEL_LINE)
-              .setAttemptCount(2)
-              .setFailureCategory(DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION)
-              .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
-          )
-          .build()
-      )
     val directJobName = UPLOAD + "/vidLabelingJobs/direct"
     val originalWorkItemId = WorkItemIds.forVidLabeler(directJobName)
     val originalWorkItemName = "workItems/" + originalWorkItemId
@@ -400,6 +373,7 @@ class VidLabelingTraceStateTest {
             .setState(WorkItem.State.RUNNING)
             .setGeneration(1)
             .build()
+        AVAILABILITY_WORK_ITEM -> availabilityWorkItemProto(AVAILABILITY_WORK_ITEM, "SUCCEEDED")
         else -> throw Status.NOT_FOUND.asException()
       }
     }
@@ -408,14 +382,31 @@ class VidLabelingTraceStateTest {
         invocation.arguments[0]
           as
           org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsRequest
-      ListWorkItemAttemptsResponse.newBuilder()
-        .addWorkItemAttempts(
+      val response = ListWorkItemAttemptsResponse.newBuilder()
+      if (request.parent == AVAILABILITY_WORK_ITEM) {
+        response
+          .addWorkItemAttempts(
+            WorkItemAttempt.newBuilder()
+              .setName(request.parent + "/workItemAttempts/attempt-1")
+              .setState(WorkItemAttempt.State.FAILED)
+              .setAttemptNumber(1)
+              .setErrorMessage("SYNCHRONIZATION:UnavailableException")
+          )
+          .addWorkItemAttempts(
+            WorkItemAttempt.newBuilder()
+              .setName(request.parent + "/workItemAttempts/attempt-2")
+              .setState(WorkItemAttempt.State.SUCCEEDED)
+              .setAttemptNumber(2)
+          )
+      } else {
+        response.addWorkItemAttempts(
           WorkItemAttempt.newBuilder()
             .setName(request.parent + "/workItemAttempts/attempt-1")
             .setState(WorkItemAttempt.State.SUCCEEDED)
             .setAttemptNumber(1)
         )
-        .build()
+      }
+      response.build()
     }
     whenever(metadataStub.listImpressionMetadata(any(), any())).thenAnswer { invocation ->
       val request =
@@ -464,7 +455,6 @@ class VidLabelingTraceStateTest {
         poolJobs,
         rankerJobs,
         labelingJobs,
-        availabilityTasks,
         rankBlobs,
         workItems,
         attempts,
@@ -472,14 +462,17 @@ class VidLabelingTraceStateTest {
       )
 
     val initialGraph = resolver.resolve(UPLOAD)
+    val availabilityWorkItems =
+      resolver.resolveAvailabilityWorkItems(UPLOAD, setOf(AVAILABILITY_WORK_ITEM))
+    val graphWithAvailability = initialGraph.withAvailabilityWorkItems(availabilityWorkItems)
     val graph =
-      initialGraph.copy(
+      graphWithAvailability.copy(
         nodes =
-          initialGraph.nodes +
+          graphWithAvailability.nodes +
             finalStateResolver.resolve(
-              initialGraph.upload,
-              initialGraph.modelLines,
-              initialGraph.availabilityTasks,
+              graphWithAvailability.upload,
+              graphWithAvailability.modelLines,
+              availabilityWorkItems,
             )
       )
 
@@ -496,10 +489,12 @@ class VidLabelingTraceStateTest {
     assertThat(graph.nodes.flatMap { it.identifiers.values }.any { "/workItemAttempts/" in it })
       .isTrue()
     assertThat(graph.nodes.filter { it.stage == "data_availability_publish" }).hasSize(2)
-    assertThat(graph.availabilityTasks).hasSize(1)
+    assertThat(graph.availabilityWorkItems).hasSize(1)
+    assertThat(graph.availabilityWorkItems.single().attemptCount).isEqualTo(2)
+    assertThat(graph.availabilityWorkItems.single().failureStage).isEqualTo("SYNCHRONIZATION")
     assertThat(
         graph.nodes
-          .filter { it.stage.startsWith("availability_task") }
+          .filter { it.stage.startsWith("availability_work_item") }
           .map { it.authoritativeState }
       )
       .containsAtLeast("CREATED", "SUCCEEDED")
@@ -515,7 +510,6 @@ class VidLabelingTraceStateTest {
     val poolJobs = mock<PoolAssignmentJobServiceCoroutineStub>()
     val rankerJobs = mock<RankerJobServiceCoroutineStub>()
     val labelingJobs = mock<VidLabelingJobServiceCoroutineStub>()
-    val availabilityTasks = mock<DataAvailabilitySyncTaskServiceCoroutineStub>()
     val rankBlobs = mock<RankIndexBlobServiceCoroutineStub>()
     val workItems = mock<WorkItemsCoroutineStub>()
     val attempts = mock<WorkItemAttemptsCoroutineStub>()
@@ -542,8 +536,6 @@ class VidLabelingTraceStateTest {
       .thenReturn(ListVidLabelingJobsResponse.getDefaultInstance())
     whenever(rankBlobs.listRankIndexBlobs(any(), any()))
       .thenReturn(ListRankIndexBlobsResponse.getDefaultInstance())
-    whenever(availabilityTasks.listDataAvailabilitySyncTasks(any(), any()))
-      .thenReturn(ListDataAvailabilitySyncTasksResponse.getDefaultInstance())
     val resolver =
       GrpcVidLabelingStateResolver(
         uploads,
@@ -552,7 +544,6 @@ class VidLabelingTraceStateTest {
         poolJobs,
         rankerJobs,
         labelingJobs,
-        availabilityTasks,
         rankBlobs,
         workItems,
         attempts,
@@ -567,6 +558,51 @@ class VidLabelingTraceStateTest {
           .identifiers["xmm.edpa.label.route"]
       )
       .isEqualTo("memoized")
+  }
+
+  private fun availabilityWorkItem(
+    state: String,
+    attempts: List<VidLabelingAvailabilityAttempt> = emptyList(),
+    doneBlobUri: String = "gs://bucket/model-line/direct/2026-09-01/done",
+  ): VidLabelingAvailabilityWorkItem =
+    VidLabelingAvailabilityWorkItem(
+      AVAILABILITY_WORK_ITEM,
+      DIRECT_MODEL_LINE,
+      state,
+      1,
+      attempts,
+      "2026-09-01",
+      doneBlobUri,
+      "done-path-hash",
+      9,
+    )
+
+  private fun availabilityWorkItemProto(name: String, state: String): WorkItem {
+    val appParams =
+      DataAvailabilitySyncParams.newBuilder()
+        .setDataProvider("dataProviders/123")
+        .setRawImpressionUpload(UPLOAD)
+        .setModelLine(DIRECT_MODEL_LINE)
+        .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
+        .build()
+    val dataPath =
+      WorkItem.WorkItemParams.DataPathParams.newBuilder()
+        .setDataPath("gs://bucket/model-line/direct/2026-09-01/done")
+        .setGeneration(9)
+        .setEventType(WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED)
+        .build()
+    val params =
+      WorkItem.WorkItemParams.newBuilder()
+        .setAppParams(Any.pack(appParams))
+        .setDataPathParams(dataPath)
+        .build()
+    return WorkItem.newBuilder()
+      .setName(name)
+      .setQueue("data-availability-sync-queue")
+      .setWorkItemParams(Any.pack(params))
+      .setState(WorkItem.State.valueOf(state))
+      .setGeneration(1)
+      .build()
   }
 
   private fun modelLine(id: String, cmmsModelLine: String): RawImpressionUploadModelLine =
@@ -593,5 +629,6 @@ class VidLabelingTraceStateTest {
       "modelProviders/456/modelSuites/suite/modelLines/memoized"
     private const val DIRECT_MODEL_LINE = "modelProviders/456/modelSuites/suite/modelLines/direct"
     private const val MODEL_RELEASE = "modelProviders/456/modelSuites/suite/modelReleases/release-1"
+    private const val AVAILABILITY_WORK_ITEM = "workItems/das-01234567"
   }
 }
