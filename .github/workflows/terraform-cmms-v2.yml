@@ -319,6 +319,11 @@ jobs:
         KINGDOM_SYSTEM_API_TARGET: ${{ vars.KINGDOM_SYSTEM_API_TARGET }}
         AGGREGATOR_DUCHY_CERT_ID: ${{ vars.AGGREGATOR_DUCHY_CERT_ID }}
         TRUSTED_IMAGE_SIGNING_FINGERPRINT: ${{ steps.get-public-key-fingerprint.outputs.fingerprint }}
+        REPORTING_OPERATORS: ${{ vars.REPORTING_OPERATORS }}
+        REPORT_TRACE_OPERATORS: ${{ vars.REPORT_TRACE_OPERATORS }}
+        REPORT_TRACE_OBSERVABILITY_PROJECTS: ${{ vars.REPORT_TRACE_OBSERVABILITY_PROJECTS }}
+        VID_LABELING_TRACE_OPERATORS: ${{ vars.VID_LABELING_TRACE_OPERATORS }}
+        VID_LABELING_TRACE_OBSERVABILITY_PROJECTS: ${{ vars.VID_LABELING_TRACE_OBSERVABILITY_PROJECTS }}
       working-directory: ${{ env.GCLOUD_MODULE_PATH }}
       run: >
         terraform plan
@@ -372,6 +377,11 @@ jobs:
         -var="edp_simulator_names=$EDP_SIMULATOR_NAMES"
         -var="cmms_operator_members=$CMMS_OPERATOR_MEMBERS_JSON"
         -var="trusted_image_signing_fingerprint=$TRUSTED_IMAGE_SIGNING_FINGERPRINT"
+        -var="reporting_operators=${REPORTING_OPERATORS:-[]}"
+        -var="report_trace_operators=${REPORT_TRACE_OPERATORS:-[]}"
+        -var="report_trace_observability_projects=${REPORT_TRACE_OBSERVABILITY_PROJECTS:-[]}"
+        -var="vid_labeling_trace_operators=${VID_LABELING_TRACE_OPERATORS:-[]}"
+        -var="vid_labeling_trace_observability_projects=${VID_LABELING_TRACE_OBSERVABILITY_PROJECTS:-[]}"
         -out=tfplan
 
     - name: terraform apply

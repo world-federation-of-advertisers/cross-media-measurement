@@ -408,6 +408,8 @@ abstract class BaseVidLabelingSink<E : ParquetRawEvent>(
           blobUri = outputBlobUri
           encryptedDek = outputEncryptedDek
           modelLine = key.modelLine
+          rawImpressionUpload =
+            modelLineContexts.single { it.modelLine == key.modelLine }.rawImpressionUpload
           interval = interval {
             startTime = checkNotNull(earliest) { "No impressions written for ${key.modelLine}" }
             endTime = checkNotNull(latest) { "No impressions written for ${key.modelLine}" }
@@ -629,6 +631,7 @@ typealias VidLabelingSinkFactory<E> =
  * A model line resolved to everything [VidLabelingSink] needs to label with it.
  *
  * @property modelLine model line resource name.
+ * @property rawImpressionUpload source upload recorded in the output metadata sidecar.
  * @property activeWindow the model line's active interval, for event-time filtering.
  * @property assigner the [VidAssigner] bound to this model line's compiled model.
  * @property config the model line's field-mapping configuration.
@@ -640,6 +643,7 @@ data class ModelLineContext(
   val activeWindow: ActiveWindow,
   val assigner: VidAssigner,
   val config: VidLabelerParams.ModelLineConfig,
+  val rawImpressionUpload: String = "",
   val rankIndex: MemoizedRankIndex? = null,
 )
 

@@ -89,6 +89,7 @@ class VidLabeler<E : ParquetRawEvent>(
       specs.map { spec ->
         ModelLineContext(
           modelLine = spec.modelLine,
+          rawImpressionUpload = spec.rawImpressionUpload,
           activeWindow = spec.activeWindow,
           assigner = vidModelLoader.getAssigner(spec.modelStorageConfig, spec.modelBlobUri),
           config = spec.config,
@@ -166,6 +167,7 @@ class VidLabeler<E : ParquetRawEvent>(
  * @property modelStorageConfig storage config (GCS project) of the compiled-model blob's bucket.
  * @property activeWindow the model line's active interval, for event-time filtering.
  * @property config the model line's field-mapping configuration.
+ * @property rawImpressionUpload source upload recorded in output metadata sidecars.
  * @property rankIndex the memoized rank index for this model line, or `null` for the non-memoized
  *   (hash-only) path. When set, each impression's rank is looked up and attached to the
  *   `LabelerInput` before labeling.
@@ -176,5 +178,6 @@ data class ModelLineSpec(
   val modelStorageConfig: StorageConfig,
   val activeWindow: ActiveWindow,
   val config: VidLabelerParams.ModelLineConfig,
+  val rawImpressionUpload: String = "",
   val rankIndex: MemoizedRankIndex? = null,
 )
