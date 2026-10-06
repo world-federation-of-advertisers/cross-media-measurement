@@ -106,6 +106,7 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
   workItemResourceId: String,
   queueId: Long,
   workItemParams: Any,
+  serializationKey: String,
 ): WorkItem.State {
   val state = WorkItem.State.QUEUED
   bufferInsertMutation("WorkItems") {
@@ -116,6 +117,9 @@ fun AsyncDatabaseClient.TransactionContext.insertWorkItem(
     set("Generation").to(INITIAL_WORK_ITEM_GENERATION)
     set("PublicationScheduledGeneration").to(INITIAL_WORK_ITEM_GENERATION)
     set("WorkItemParams").to(workItemParams)
+    if (serializationKey.isNotEmpty()) {
+      set("SerializationKey").to(serializationKey)
+    }
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
     set("UpdateTime").to(Value.COMMIT_TIMESTAMP)
   }
@@ -258,6 +262,7 @@ internal object WorkItems {
       QueueId,
       State,
       WorkItemParams,
+      SerializationKey,
       Generation,
       PublicationScheduledGeneration,
       CreateTime,
@@ -275,6 +280,9 @@ internal object WorkItems {
         queueResourceId = queue.queueResourceId
         state = row.getProtoEnum("State", WorkItem.State::forNumber)
         workItemParams = row.getProtoMessage("WorkItemParams", Any.getDefaultInstance())
+        if (!row.isNull("SerializationKey")) {
+          serializationKey = row.getString("SerializationKey")
+        }
         generation =
           if (row.isNull("Generation")) {
             INITIAL_WORK_ITEM_GENERATION
