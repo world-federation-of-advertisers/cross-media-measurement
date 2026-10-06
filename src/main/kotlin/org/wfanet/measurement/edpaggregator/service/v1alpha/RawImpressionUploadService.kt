@@ -551,6 +551,8 @@ internal fun RawImpressionUploadState.toPublic(): RawImpressionUpload.State {
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED ->
       RawImpressionUpload.State.COMPLETED
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED -> RawImpressionUpload.State.FAILED
+    RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ->
+      RawImpressionUpload.State.CORRECTION_REQUIRED
     RawImpressionUploadState.UNRECOGNIZED,
     RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_UNSPECIFIED -> error("Unrecognized state")
   }
@@ -565,6 +567,8 @@ internal fun RawImpressionUpload.State.toInternal(): RawImpressionUploadState {
     RawImpressionUpload.State.COMPLETED ->
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED
     RawImpressionUpload.State.FAILED -> RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED
+    RawImpressionUpload.State.CORRECTION_REQUIRED ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
     RawImpressionUpload.State.UNRECOGNIZED,
     RawImpressionUpload.State.STATE_UNSPECIFIED -> error("Unrecognized state")
   }

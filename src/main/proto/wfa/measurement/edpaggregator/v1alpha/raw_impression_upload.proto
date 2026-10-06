@@ -48,6 +48,8 @@ message RawImpressionUpload {
     COMPLETED = 3;
     // At least one model line failed.
     FAILED = 4;
+    // The upload is quarantined pending correction approval.
+    CORRECTION_REQUIRED = 5;
   }
 
   // Resource name.
