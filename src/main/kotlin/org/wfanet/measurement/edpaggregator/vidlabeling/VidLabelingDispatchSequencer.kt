@@ -209,7 +209,7 @@ class VidLabelingDispatchSequencer(
       (listUploads(RawImpressionUpload.State.CREATED) +
           listUploads(RawImpressionUpload.State.ACTIVE))
         .filter { it.registrationComplete }
-        .filter { !it.processingDeferred }
+        .filter { it.state == RawImpressionUpload.State.ACTIVE || !it.processingDeferred }
         .sortedBy { Timestamps.toNanos(it.createTime) }
     val modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>> =
       uploads.associate { it.name to listUploadModelLines(it.name) }
@@ -242,8 +242,28 @@ class VidLabelingDispatchSequencer(
       // Memoized model lines are dispatched individually (Phase-0 fan-out); non-memoized lines of
       // this upload are collected and dispatched together as one bundled Phase-2 fan-out.
       val nonMemoized = mutableListOf<BundledModelLine>()
+      val resumedNonMemoized = mutableListOf<BundledModelLine>()
       for (modelLine in modelLinesByUpload.getValue(upload.name)) {
+        if (
+          modelLine.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING ||
+            modelLine.state == RawImpressionUploadModelLine.State.LABELING
+        ) {
+          val shardInfo = resolveShardInfo(modelLine.cmmsModelLine) ?: continue
+          if (
+            modelLine.state == RawImpressionUploadModelLine.State.POOL_ASSIGNING &&
+              shardInfo.memoizationEnabled
+          ) {
+            dispatchMemoized(upload.name, modelLine, shardInfo, alreadyClaimed = true)
+          } else if (
+            modelLine.state == RawImpressionUploadModelLine.State.LABELING &&
+              !shardInfo.memoizationEnabled
+          ) {
+            resumedNonMemoized += BundledModelLine(modelLine, shardInfo)
+          }
+          continue
+        }
         if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
+        if (upload.processingDeferred) continue
         val blockedByAvailability =
           availabilityOperationsByModelLine[modelLine.cmmsModelLine].orEmpty().any {
             availabilitySyncingBlocksDispatch(it, upload.uploadHealingOperation)
@@ -260,19 +280,22 @@ class VidLabelingDispatchSequencer(
           continue
         }
         if (shardInfo.memoizationEnabled) {
-          dispatchMemoized(upload.name, modelLine, shardInfo)
-          busyModelLines += modelLine.cmmsModelLine
-          if (dispatchedUpload == null) dispatchedUpload = upload.name
+          if (dispatchMemoized(upload.name, modelLine, shardInfo)) {
+            busyModelLines += modelLine.cmmsModelLine
+            if (dispatchedUpload == null) dispatchedUpload = upload.name
+          }
         } else {
           nonMemoized += BundledModelLine(modelLine, shardInfo)
         }
       }
       if (nonMemoized.isNotEmpty()) {
-        val dispatched = dispatchNonMemoizedBundle(upload.name, nonMemoized)
-        for (bundled in nonMemoized) busyModelLines += bundled.modelLine.cmmsModelLine
-        if (dispatched) {
+        if (dispatchNonMemoizedBundle(upload.name, nonMemoized)) {
+          for (bundled in nonMemoized) busyModelLines += bundled.modelLine.cmmsModelLine
           if (dispatchedUpload == null) dispatchedUpload = upload.name
         }
+      }
+      if (resumedNonMemoized.isNotEmpty()) {
+        dispatchNonMemoizedBundle(upload.name, resumedNonMemoized, alreadyClaimed = true)
       }
     }
 
@@ -296,16 +319,14 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Non-memoized (Phase-2) dispatch for all bundled non-memoized model lines of [uploadName]:
-   * bin-pack the upload's `RawImpressionUploadFile`s by size into batches, create one
-   * `VidLabelingJob` per batch (each job covering every bundled model line), publish one VidLabeler
-   * `WorkItem` per job on [queueName], then transition every bundled model line to `LABELING`.
+   * Non-memoized (Phase-2) dispatch for all bundled non-memoized model lines of [uploadName]: claim
+   * every bundled model line as `LABELING`, bin-pack its files, create one `VidLabelingJob` per
+   * batch, and publish one VidLabeler `WorkItem` per job on [queueName].
    *
    * Mirrors the Phase-1 `VidRankBuilder` fan-out (shared [RawImpressionFileBinPacker]). The
-   * last-out `MarkVidLabelingJobSucceeded` flips each covered model line to `COMPLETED`. Create
-   * order is jobs -> WorkItems -> mark, so all rows exist before the line is advanced; every create
-   * is idempotent (deterministic `request_id`s / `workItemId`s), so a caller that loses the
-   * per-model-line etag CAS at [markLabeling] has only repeated harmless creates.
+   * last-out `MarkVidLabelingJobSucceeded` flips each covered model line to `COMPLETED`. The claim
+   * occurs before external publication so a correction fence cannot race a WorkItem; every later
+   * create is deterministic and resumable.
    *
    * Bundle-set stability under partial failure: the job `request_id` is keyed by the *sorted bundle
    * set* ([RequestIds.forVidLabelingJob]), so if [markLabeling] succeeds for some lines but throws
@@ -322,12 +343,13 @@ class VidLabelingDispatchSequencer(
   private suspend fun dispatchNonMemoizedBundle(
     uploadName: String,
     bundle: List<BundledModelLine>,
+    alreadyClaimed: Boolean = false,
   ): Boolean =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.dispatch",
       attributes = dispatchAttributes(uploadName, "phase2"),
     ) {
-      val dispatched = dispatchNonMemoizedBundleInternal(uploadName, bundle)
+      val dispatched = dispatchNonMemoizedBundleInternal(uploadName, bundle, alreadyClaimed)
       if (dispatched) {
         recordDispatched(uploadName, "phase2")
       } else {
@@ -339,18 +361,30 @@ class VidLabelingDispatchSequencer(
   private suspend fun dispatchNonMemoizedBundleInternal(
     uploadName: String,
     bundle: List<BundledModelLine>,
+    alreadyClaimed: Boolean = false,
   ): Boolean {
     require(maxFileBatchSizeBytes > 0) {
       "max_file_batch_size_bytes missing for non-memoized model lines under $uploadName; " +
         "set it on VidLabelingConfig for this DataProvider"
     }
-    val modelLineNames: List<String> = bundle.map { it.modelLine.cmmsModelLine }
+    val claimedBundle =
+      if (alreadyClaimed) {
+        bundle
+      } else {
+        buildList {
+          for (bundled in bundle) {
+            if (markLabeling(bundled.modelLine.name, bundled.modelLine.etag)) add(bundled)
+          }
+        }
+      }
+    if (claimedBundle.isEmpty()) return false
+    val modelLineNames: List<String> = claimedBundle.map { it.modelLine.cmmsModelLine }
     // The active window is read per ModelLine so the TEE can drop out-of-window impressions; the
     // model blob path comes from each line's resolved ModelShard.
     val resolvedModelLines: Map<String, ModelLine> =
       modelLineNames.associateWith { getModelLine(it) }
     val modelBlobPathByLine: Map<String, String> =
-      bundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
+      claimedBundle.associate { it.modelLine.cmmsModelLine to it.shardInfo.modelBlobPath }
 
     val files: List<RawImpressionUploadFile> = listUploadFiles(uploadName)
     if (files.isEmpty()) {
@@ -372,7 +406,6 @@ class VidLabelingDispatchSequencer(
     for (job in labelingJobs) {
       createWorkItem(uploadName, modelLineNames, modelBlobPathByLine, resolvedModelLines, job.name)
     }
-    for (bundled in bundle) markLabeling(bundled.modelLine.name, bundled.modelLine.etag)
     return true
   }
 
@@ -465,20 +498,17 @@ class VidLabelingDispatchSequencer(
   }
 
   /**
-   * Memoized (Phase-0) dispatch: pre-create a `PoolAssignmentJob` per shard, publish one
-   * SubpoolAssigner `WorkItem` per shard on [poolAssignerQueueName] (each carrying the resource
-   * name of its pre-created job), then transition the model line to `POOL_ASSIGNING`.
+   * Memoized (Phase-0) dispatch: claim `POOL_ASSIGNING`, create one `PoolAssignmentJob` per shard,
+   * and publish one SubpoolAssigner `WorkItem` per shard on [poolAssignerQueueName].
    *
-   * Mirrors [dispatchNonMemoized]'s create-then-mark order. Every create is idempotent
-   * (deterministic `request_id` for the jobs, deterministic `workItemId` for the WorkItems), so a
-   * caller that loses the per-model-line etag CAS at [markPoolAssigning] has only repeated harmless
-   * creates.
+   * Every create is idempotent, so a claimed phase resumes safely after interruption.
    */
   private suspend fun dispatchMemoized(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
-  ) =
+    alreadyClaimed: Boolean = false,
+  ): Boolean =
     Tracing.traceSuspending(
       spanName = "edpa.vid_labeling.dispatch",
       attributes =
@@ -488,15 +518,21 @@ class VidLabelingDispatchSequencer(
           .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME, modelLine.name)
           .build(),
     ) {
-      dispatchMemoizedInternal(uploadName, modelLine, shardInfo)
-      recordDispatched(uploadName, "phase0", modelLine.cmmsModelLine)
+      val dispatched = dispatchMemoizedInternal(uploadName, modelLine, shardInfo, alreadyClaimed)
+      if (dispatched) {
+        recordDispatched(uploadName, "phase0", modelLine.cmmsModelLine)
+      } else {
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "no_work")
+      }
+      dispatched
     }
 
   private suspend fun dispatchMemoizedInternal(
     uploadName: String,
     modelLine: RawImpressionUploadModelLine,
     shardInfo: ResolvedShardInfo,
-  ) {
+    alreadyClaimed: Boolean = false,
+  ): Boolean {
     // `vid_rank_map_storage_params`, `subpool_map_storage_params`, and `model_storage_params` are
     // REQUIRED on `SubpoolAssignerParams` but OPTIONAL on `VidLabelingConfig` (only required for
     // EDPs with at least one memoized model line). Enforce that intent here: fail fast at the first
@@ -526,6 +562,8 @@ class VidLabelingDispatchSequencer(
     // The active window is read from the ModelLine so the TEE can drop out-of-window impressions.
     val resolvedModelLine: ModelLine = getModelLine(modelLine.cmmsModelLine)
 
+    if (!alreadyClaimed && !markPoolAssigning(modelLine.name, modelLine.etag)) return false
+
     // Pre-create the shard rows first; the server assigns each a name we thread into its WorkItem.
     val poolAssignmentJobsByShard: Map<Int, String> =
       createPoolAssignmentJobs(uploadName, modelLine.cmmsModelLine)
@@ -546,7 +584,7 @@ class VidLabelingDispatchSequencer(
         shardIndex = shardIndex,
       )
     }
-    markPoolAssigning(modelLine.name, modelLine.etag)
+    return true
   }
 
   /** Lists this DataProvider's uploads in [state]. */
@@ -778,7 +816,7 @@ class VidLabelingDispatchSequencer(
     )
   }
 
-  private suspend fun markLabeling(modelLineName: String, etag: String) {
+  private suspend fun markLabeling(modelLineName: String, etag: String): Boolean {
     try {
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineLabeling(
@@ -805,7 +843,7 @@ class VidLabelingDispatchSequencer(
           VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
           XmmTraceAttributes.OUTCOME to "superseded",
         )
-        return
+        return false
       }
       recordDispatchFailure(
         "transition",
@@ -823,10 +861,11 @@ class VidLabelingDispatchSequencer(
       )
       throw e
     }
+    return true
   }
 
   /** Retries the phase claim when child completion changed only the parent etag. */
-  private suspend fun markPoolAssigning(modelLineName: String, initialEtag: String) {
+  private suspend fun markPoolAssigning(modelLineName: String, initialEtag: String): Boolean {
     var etag = initialEtag
     while (true) {
       try {
@@ -844,7 +883,7 @@ class VidLabelingDispatchSequencer(
           VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
           XmmTraceAttributes.OUTCOME to "pool_assigning",
         )
-        return
+        return true
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.FAILED_PRECONDITION) {
           logger.info(
@@ -855,7 +894,7 @@ class VidLabelingDispatchSequencer(
             VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
             XmmTraceAttributes.OUTCOME to "superseded",
           )
-          return
+          return false
         }
         if (e.status.code != Status.Code.ABORTED) {
           recordDispatchFailure(
@@ -893,7 +932,7 @@ class VidLabelingDispatchSequencer(
             VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME to modelLineName,
             XmmTraceAttributes.OUTCOME to "superseded",
           )
-          return
+          return false
         }
         etag = current.etag
       }

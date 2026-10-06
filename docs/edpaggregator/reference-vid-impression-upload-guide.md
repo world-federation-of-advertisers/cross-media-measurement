@@ -78,54 +78,42 @@ Bad data includes situations such as:
 * a file containing incorrect impressions, campaign data, or dates; or
 * a previously processed file that must be replaced or removed.
 
-**The EDP must not fix bad data by deleting or overwriting files and writing a new `done` generation
-on its own.** Without eviction, the pipeline treats the new marker as an incremental upload and
-does not remove all data and generated output from the earlier upload. This can leave stale
-VID-labeled impressions and can corrupt the ordering required by memoized model lines.
+The EDP corrects bad data by first making the affected directory contain its intended final state,
+then writing a new `done` generation. The pipeline compares the complete directory with its
+effective registered history. Pure additions continue normally; edits, removals, and mixed changes
+are quarantined as correction candidates and create no labeling work before approval.
 
-Contact the market operator and wait for confirmation that the affected upload has been evicted
-before modifying the directory. If the existing files are correct and the only problem is that
-additional files were forgotten, use one of the backfill strategies above instead; eviction is not
-required for a purely additive backfill.
+For a corrected replacement:
 
-Before the operator starts eviction, choose and communicate one final outcome for each affected
-upload:
-
-* **Correct and replace:** keep the valid files, fix or remove the bad files, and publish a new
-  `done` generation after eviction.
-* **Permanently remove:** remove the entire upload without publishing a replacement `done`
-  generation. Do not create an empty replacement upload.
-
-The choice applies to the entire upload directory identified by its `done` object. For example, if
-one file is bad but other files in that directory must remain in the dataset, choose **correct and
-replace**. Treat the choice as final once it is communicated to the operator: the operator persists
-it when the eviction plan is confirmed, and it cannot be changed for that healing operation.
-
-When bad data is discovered:
-
-1. Contact the market operator and provide:
-   * the DataProvider resource name;
-   * every affected date and `done` object URI; and
-   * whether each affected upload will be corrected and replaced or permanently removed.
-2. Do not modify the raw-impression directory or its `done` object while the operator investigates
-   or runs eviction.
-3. Wait for the operator to confirm that eviction completed successfully.
-4. For an upload being corrected and replaced, make its directory contain the complete corrected
-   dataset:
+1. Make the directory contain the complete corrected dataset:
    * leave unchanged objects in place;
    * overwrite corrupted objects with corrected data;
    * add missing objects; and
    * remove objects that must no longer contribute impressions.
-5. After a replacement directory is final, overwrite its empty `done` object to create a new
-   generation.
-6. For an upload being permanently removed, delete its bad raw objects if desired, but do not write
-   a new `done` generation; no replacement upload is required.
-7. When replacing multiple dates, process them from oldest to newest and wait for each replacement
-   to complete before writing the next `done` generation.
+2. Overwrite the empty `done` object after the directory is final.
+3. Do not modify that directory again while its correction is pending or healing.
+
+To remove an upload permanently, remove every raw object from its directory and write a new `done`
+generation. An empty initial upload is invalid, but an empty revision of a previously registered
+directory is a removal candidate.
+
+The first pending correction fences the DataProvider. Later uploads may still be registered, but
+they remain deferred and no ordinary labeling work starts until correction completes. Additional
+non-additive revisions become candidates in the same draft plan; a newer generation for the same
+directory supersedes its older pending candidate.
+
+The operator inspects the complete computed plan and makes one decision per candidate:
+
+* **CORRECT:** evict derived state and replay the approved exact `done` generation.
+* **NO_REPLACEMENT:** evict the upload without replaying it.
+
+After approval, eviction, replay, dependent recovery, and fence release are automatic. The EDP does
+not wait for an operator-managed eviction before publishing the corrected manifest, and the
+operator does not ask the EDP to rewrite `done` during healing.
 
 The replacement upload processes every object remaining in the directory, including unchanged
-objects. Later dates evicted only because they depend on a corrected memoized rank-index state do
-not need to be re-uploaded by the EDP; the market operator recovers those dates separately.
+objects. Later dates evicted only because they depend on corrected memoized state are recovered
+automatically from their persisted upload history.
 
 ## Processing failures without bad data
 

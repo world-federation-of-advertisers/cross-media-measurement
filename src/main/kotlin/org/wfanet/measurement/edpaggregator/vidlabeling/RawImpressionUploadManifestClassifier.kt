@@ -95,8 +95,10 @@ class RawImpressionUploadManifestClassifier {
         val prior = priorManifest[blobUri]
         val currentEntry = currentManifest[blobUri]
         if (
-          prior?.file?.blobGeneration == currentEntry?.file?.blobGeneration &&
-            prior?.file?.eventDate == currentEntry?.file?.eventDate
+          prior != null &&
+            currentEntry != null &&
+            prior.file.blobGeneration == currentEntry.file.blobGeneration &&
+            !eventDateChanged(prior.file, currentEntry.file)
         ) {
           null
         } else {
@@ -132,7 +134,7 @@ class RawImpressionUploadManifestClassifier {
               when {
                 difference.prior == null -> InternalCandidate.ManifestDifference.Type.TYPE_ADDED
                 difference.current == null -> InternalCandidate.ManifestDifference.Type.TYPE_REMOVED
-                difference.prior.file.eventDate != difference.current.file.eventDate ->
+                eventDateChanged(difference.prior.file, difference.current.file) ->
                   InternalCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED
                 else -> InternalCandidate.ManifestDifference.Type.TYPE_EDITED
               }
@@ -252,15 +254,11 @@ class RawImpressionUploadManifestClassifier {
     val hasAdditions = differences.any { it.prior == null }
     val hasEdits =
       differences.any {
-        it.prior != null &&
-          it.current != null &&
-          it.prior.file.eventDate == it.current.file.eventDate
+        it.prior != null && it.current != null && !eventDateChanged(it.prior.file, it.current.file)
       }
     val hasEventDateChanges =
       differences.any {
-        it.prior != null &&
-          it.current != null &&
-          it.prior.file.eventDate != it.current.file.eventDate
+        it.prior != null && it.current != null && eventDateChanged(it.prior.file, it.current.file)
       }
     val hasRemovals = differences.any { it.current == null }
     return when {
@@ -270,6 +268,11 @@ class RawImpressionUploadManifestClassifier {
       else -> Classification.MIXED
     }
   }
+
+  private fun eventDateChanged(prior: File, current: File): Boolean =
+    prior.eventDate != Date.getDefaultInstance() &&
+      current.eventDate != Date.getDefaultInstance() &&
+      prior.eventDate != current.eventDate
 
   private fun digestManifest(manifest: Map<String, ManifestEntry>): ByteString {
     val digest = MessageDigest.getInstance("SHA-256")

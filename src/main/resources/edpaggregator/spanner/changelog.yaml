@@ -106,3 +106,12 @@ databaseChangeLog:
   - include:
       file: add-raw-impression-upload-model-line-availability-sync.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-correction-candidate-id.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: drop-raw-impression-upload-generation-uniqueness.sql
+      relativeToChangeLogFile: true
+  - include:
+      file: add-correction-candidate-expiration-index.sql
+      relativeToChangeLogFile: true
