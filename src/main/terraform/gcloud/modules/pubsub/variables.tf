@@ -53,3 +53,21 @@ variable "maximum_backoff" {
   type        = string
   nullable    = false
 }
+
+variable "push_endpoint" {
+  description = "HTTPS endpoint for push delivery. Null configures a pull subscription."
+  type        = string
+  default     = null
+}
+
+variable "push_service_account_email" {
+  description = "Service account used to authenticate push delivery."
+  type        = string
+  default     = null
+}
+
+variable "push_audience" {
+  description = "OIDC audience for push delivery."
+  type        = string
+  default     = null
+}
