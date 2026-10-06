@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.protobuf.util.Timestamps
 import org.wfanet.measurement.common.toInstant
@@ -90,8 +90,8 @@ class UploadHealingWorkflow(
     val preparedPlan = evictionExecutor.prepare(plan)
     val dataProviderName = dataProviderOf(preparedPlan.badUploads.first())
     val operationId = preparedPlan.evictionOperationId
-    val operatorRecoveryTargets =
-      preparedPlan.recoveryTargets
+    val replacementTargets =
+      (preparedPlan.recoveryTargets + preparedPlan.replacementTargets)
         .flatMap { target -> target.cmmsModelLines.map { target.uploadName to it } }
         .toSet()
     val operation = uploadHealingOperation {
@@ -109,10 +109,7 @@ class UploadHealingWorkflow(
             memoized = entry.memoized
             recoveryAction = entry.recoveryAction
             recoveryPredecessorRawImpressionUpload = entry.recoveryPredecessorUploadName
-            recoveryTarget =
-              entry.recoveryAction ==
-                RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION ||
-                (entry.uploadName to entry.cmmsModelLine) in operatorRecoveryTargets
+            recoveryTarget = (entry.uploadName to entry.cmmsModelLine) in replacementTargets
           }
         }
     }
@@ -343,6 +340,17 @@ class UploadHealingWorkflow(
         .map { (uploadName, steps) ->
           EvictUploader.RecoveryTarget(uploadName, steps.map { it.cmmsModelLine }.distinct())
         }
+    val replacementTargets =
+      stepsList
+        .filter {
+          it.recoveryTarget &&
+            it.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+        }
+        .groupBy { it.sourceRawImpressionUpload }
+        .map { (uploadName, steps) ->
+          EvictUploader.RecoveryTarget(uploadName, steps.map { it.cmmsModelLine }.distinct())
+        }
     return EvictUploader.EvictionPlan(
       cascade = cascade,
       extraUploads = cascade.map { it.uploadName }.filter { it !in badUploadSet }.distinct(),
@@ -361,6 +369,7 @@ class UploadHealingWorkflow(
       cutoffTime = cutoffTime.toInstant(),
       evictionOperationId = operationId,
       recoveryTargets = recoveryTargets,
+      replacementTargets = replacementTargets,
     )
   }
 

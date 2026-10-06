@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.type.interval
 import java.time.Instant
@@ -111,7 +111,7 @@ class EvictUploader(
     val recoveryPredecessorUploadName: String,
   )
 
-  /** An evicted upload that the operator must recover for the memoized path only. */
+  /** An evicted upload on which a replacement action must run. */
   data class RecoveryTarget(val uploadName: String, val cmmsModelLines: List<String>)
 
   /** The forward cascade to evict, ordered by upload create time. */
@@ -129,6 +129,8 @@ class EvictUploader(
     val evictionOperationId: String,
     /** Latest revisions evicted only because their memoized rank state depended on a bad upload. */
     val recoveryTargets: List<RecoveryTarget>,
+    /** Latest invalid revisions that an EDP correction replaces. */
+    val replacementTargets: List<RecoveryTarget> = emptyList(),
   )
 
   /** Outcome of an [evict] run. */
@@ -157,6 +159,38 @@ class EvictUploader(
     cutoffTime: Instant,
     evictionOperationId: String = UUID.randomUUID().toString(),
     noReplacementUploads: Set<String> = emptySet(),
+  ): EvictionPlan =
+    plan(
+      badUploads,
+      cutoffTime,
+      evictionOperationId,
+      noReplacementUploads,
+      includeSupersedingRevisions = false,
+    )
+
+  /**
+   * Builds a correction plan that also evicts completed revisions superseding [historicalOwners].
+   */
+  suspend fun planCorrection(
+    historicalOwners: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String = UUID.randomUUID().toString(),
+    noReplacementOwners: Set<String> = emptySet(),
+  ): EvictionPlan =
+    plan(
+      historicalOwners,
+      cutoffTime,
+      evictionOperationId,
+      noReplacementOwners,
+      includeSupersedingRevisions = true,
+    )
+
+  private suspend fun plan(
+    badUploads: List<String>,
+    cutoffTime: Instant,
+    evictionOperationId: String,
+    noReplacementUploads: Set<String>,
+    includeSupersedingRevisions: Boolean,
   ): EvictionPlan {
     require(badUploads.isNotEmpty()) { "at least one bad upload is required" }
     require(runCatching { UUID.fromString(evictionOperationId) }.isSuccess) {
@@ -192,7 +226,30 @@ class EvictUploader(
         "finished. Active upload/model-line resources: ${queuedOrRunningRows.map { it.name }}"
     }
 
-    val rowsByUpload = badUploads.associateWith { listModelLines(it) }
+    val candidateSupersedingUploads =
+      if (includeSupersedingRevisions) {
+        uploadsByName.keys.filter { candidate ->
+          candidate !in badUploads &&
+            badUploads.any { owner -> replacesUpload(candidate, owner, uploadsByName) }
+        }
+      } else {
+        emptyList()
+      }
+    val candidateSupersedingRows = candidateSupersedingUploads.associateWith { listModelLines(it) }
+    val supersedingUploads =
+      candidateSupersedingRows
+        .filterValues { rows ->
+          rows.any { it.state == RawImpressionUploadModelLine.State.COMPLETED }
+        }
+        .keys
+    val plannedBadUploads =
+      (badUploads + supersedingUploads)
+        .distinct()
+        .sortedWith(compareBy<String> { createTimeByUpload.getValue(it) }.thenBy { it })
+    val rowsByUpload =
+      plannedBadUploads.associateWith { uploadName ->
+        candidateSupersedingRows[uploadName] ?: listModelLines(uploadName)
+      }
     val requestedMissing = badUploads.filter { rowsByUpload.getValue(it).isEmpty() }
     require(requestedMissing.isEmpty()) {
       "requested upload(s) have no model-line rows (nothing to evict): $requestedMissing"
@@ -218,7 +275,18 @@ class EvictUploader(
       snapshots.filter { !it.deleted }.mapTo(mutableSetOf()) { it.uploadName to it.cmmsModelLine }
     val memoizedRequestedRows = requestedRows.filter { isMemoized(it, snapshotRows) }
     val nonMemoizedRequestedRows = requestedRows - memoizedRequestedRows.toSet()
-    val requestedNames = badUploads.toSet()
+    val requestedNames = plannedBadUploads.toSet()
+    val plannedNoReplacementUploads =
+      if (includeSupersedingRevisions) {
+        plannedBadUploads
+          .filter { upload ->
+            upload in noReplacementUploads ||
+              noReplacementUploads.any { owner -> replacesUpload(upload, owner, uploadsByName) }
+          }
+          .toSet()
+      } else {
+        noReplacementUploads
+      }
     val completedReplacements =
       requestedRows.flatMap { badRow ->
         val badUploadName = uploadNameOf(badRow.name)
@@ -256,7 +324,7 @@ class EvictUploader(
               cmmsModelLine = cmmsModelLine,
               memoized = true,
               recoveryAction =
-                if (uploadName in noReplacementUploads) {
+                if (uploadName in plannedNoReplacementUploads) {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
                 } else if (uploadName in requestedNames) {
                   RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
@@ -277,7 +345,7 @@ class EvictUploader(
             row.cmmsModelLine,
             memoized = false,
             recoveryAction =
-              if (uploadName in noReplacementUploads) {
+              if (uploadName in plannedNoReplacementUploads) {
                 RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
               } else {
                 RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
@@ -376,16 +444,33 @@ class EvictUploader(
         .map { (uploadName, entries) ->
           RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
         }
+    val replacementTargets =
+      cascade
+        .filter { entry ->
+          if (
+            entry.recoveryAction !=
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_EDP_CORRECTION
+          ) {
+            return@filter false
+          }
+          val upload = uploadsByName.getValue(entry.uploadName)
+          latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+        }
+        .groupBy { it.uploadName }
+        .map { (uploadName, entries) ->
+          RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
+        }
     return EvictionPlan(
       cascade,
       extraUploads,
       memoizedModelLines,
       nonMemoizedModelLines,
-      badUploads,
-      noReplacementUploads,
+      plannedBadUploads,
+      plannedNoReplacementUploads,
       cutoffTime,
       evictionOperationId,
       recoveryTargets,
+      replacementTargets,
     )
   }
 
