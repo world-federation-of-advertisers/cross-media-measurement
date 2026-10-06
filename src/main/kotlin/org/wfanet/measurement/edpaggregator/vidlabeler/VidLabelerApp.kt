@@ -25,7 +25,6 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
-import java.security.MessageDigest
 import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -119,7 +118,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   threaded with the per-EDP [KmsClient] for PME decryption.
  * @param buildVidRankMapStorageClient builds a [ConditionalOperationStorageClient] for the
  *   vid-rank-map storage read by [RankIndexStore].
- * @param writeGcsObject creates a GCS object and returns its immutable generation.
+ * @param writeGcsObject atomically creates a GCS object and returns its immutable generation.
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
  * @param buildImpressionConverter builds the per-(WorkItem, model line) [ImpressionConverter],
@@ -223,7 +222,7 @@ class VidLabelerApp(
       attributes =
         Attributes.builder()
           .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProvider)
-          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, params.rawImpressionUpload)
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, rawImpressionUpload(params))
           .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, params.vidLabelingJob)
           .put(VidLabelingTraceAttributes.PIPELINE_PHASE, "phase2")
           .put(VidLabelingTraceAttributes.LABEL_ROUTE, route)
@@ -250,7 +249,7 @@ class VidLabelerApp(
           "edpa.vid_labeling.label_completed",
           VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProvider,
           VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to
-            params.rawImpressionUpload,
+            rawImpressionUpload(params),
           VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to params.vidLabelingJob,
           VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine,
           VidLabelingTraceAttributes.PIPELINE_PHASE_STRING to "phase2",
@@ -726,7 +725,7 @@ class VidLabelerApp(
       attributes =
         Attributes.builder()
           .put(VidLabelingTraceAttributes.DATA_PROVIDER_NAME, dataProvider)
-          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, params.rawImpressionUpload)
+          .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, rawImpressionUpload(params))
           .put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, vidLabelingJob)
           .put(VidLabelingTraceAttributes.MODEL_LINE_NAMES, params.modelLinesList.sorted())
           .put(VidLabelingTraceAttributes.LABEL_ROUTE, labelRoute(params))
@@ -1181,11 +1180,15 @@ class VidLabelerApp(
           e,
           VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
           VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
-          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to storageUriHash(doneUri),
+          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to
+            VidLabelingTraceAttributes.gcsObjectPathHash(doneUri),
         )
         throw e
       }
-    val pathHash = storageUriHash(doneUri)
+    val doneObjectIdentity =
+      generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneUri, it) }
+    val doneObjectPathHash =
+      doneObjectIdentity?.pathHash ?: VidLabelingTraceAttributes.gcsObjectPathHash(doneUri)
     metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
     logger.info("Wrote done marker $doneUri")
     Span.current()
@@ -1194,11 +1197,14 @@ class VidLabelerApp(
         Attributes.builder()
           .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, cmmsModelLine)
           .put(VidLabelingTraceAttributes.LABEL_EVENT_DATE, eventDate.toString())
-          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, doneObjectPathHash)
           .put(XmmTraceAttributes.OUTCOME, "written")
           .also { builder ->
-            if (generation != null) {
-              builder.put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
+            if (doneObjectIdentity != null) {
+              builder.put(
+                VidLabelingTraceAttributes.GCS_OBJECT_GENERATION,
+                doneObjectIdentity.generation,
+              )
             }
           }
           .build(),
@@ -1212,7 +1218,7 @@ class VidLabelerApp(
       "written",
       VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
       VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
-      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to doneObjectPathHash,
       VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation?.toString(),
     )
   }
@@ -1231,6 +1237,11 @@ class VidLabelerApp(
   private fun labelRoute(params: VidLabelerParams): String =
     if (params.hasMemoizedParams()) "memoized" else "non_memoized"
 
+  private fun rawImpressionUpload(params: VidLabelerParams): String =
+    params.rawImpressionUpload.ifEmpty {
+      params.vidLabelingJob.takeIf { it.isNotEmpty() }?.let(::parentUpload).orEmpty()
+    }
+
   private fun outputPublicationObserver(
     params: VidLabelerParams,
     dataProvider: String,
@@ -1239,7 +1250,7 @@ class VidLabelerApp(
     val span = Span.current()
     return { publication ->
       val publicationError = publication.error
-      val pathHash = storageUriHash(publication.uri)
+      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(publication.uri)
       val event =
         when (publication.type) {
           LabeledOutputPublication.Type.LABELED_OUTPUT -> "edpa.vid_labeling.label.labeled_output"
@@ -1309,7 +1320,7 @@ class VidLabelerApp(
       level,
       event,
       VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProvider,
-      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to params.rawImpressionUpload,
+      VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to rawImpressionUpload(params),
       VidLabelingTraceAttributes.VID_LABELING_JOB_NAME_STRING to params.vidLabelingJob,
       VidLabelingTraceAttributes.LABEL_ROUTE_STRING to labelRoute(params),
       XmmTraceAttributes.LIFECYCLE_STAGE_STRING to lifecycleStage,
@@ -1340,13 +1351,6 @@ class VidLabelerApp(
       XmmTraceAttributes.ERROR_CODE_STRING to XmmTraceAttributes.errorCode(error),
     )
   }
-
-  private fun storageUriHash(uri: String): String =
-    MessageDigest.getInstance("SHA-256").digest(uri.toByteArray(Charsets.UTF_8)).joinToString(
-      separator = ""
-    ) { byte ->
-      (byte.toInt() and 0xff).toString(16).padStart(2, '0')
-    }
 
   /**
    * Derives the parent `RawImpressionUpload` resource name from a `VidLabelingJob` resource name.
