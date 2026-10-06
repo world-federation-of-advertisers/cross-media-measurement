@@ -165,9 +165,11 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.service.v1alpha.UploadHealingOperationServiceTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/service/v1alpha:upload_healing_operation_service",
+        "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_correction_candidate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:raw_impression_upload_model_line_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:upload_healing_operation_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_correction_candidate_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:raw_impression_upload_model_line_recovery_action_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/internal/edpaggregator:upload_healing_operation_service_kt_jvm_grpc_proto",
