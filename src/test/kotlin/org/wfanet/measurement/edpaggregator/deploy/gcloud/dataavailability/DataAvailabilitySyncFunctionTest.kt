@@ -22,6 +22,7 @@ import com.google.protobuf.TextFormat
 import com.google.protobuf.TypeRegistry
 import com.google.protobuf.timestamp
 import com.google.protobuf.util.JsonFormat
+import com.google.type.date
 import com.google.type.interval
 import io.grpc.Metadata
 import io.grpc.ServerCall
@@ -90,6 +91,20 @@ import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RenewWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt.WorkItemsCoroutineImplBase
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItemAttempt
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 @RunWith(JUnit4::class)
@@ -192,6 +207,58 @@ class DataAvailabilitySyncFunctionTest {
         }
     }
 
+  private val workItemAttemptsServiceMock: WorkItemAttemptsCoroutineImplBase = mockService {
+    onBlocking { createWorkItemAttempt(any<CreateWorkItemAttemptRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<CreateWorkItemAttemptRequest>(0)
+        workItemAttempt {
+          name = "${request.parent}/workItemAttempts/${request.workItemAttemptId}"
+          state = WorkItemAttempt.State.ACTIVE
+          attemptNumber = 1
+        }
+      }
+    onBlocking { renewWorkItemAttempt(any<RenewWorkItemAttemptRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<RenewWorkItemAttemptRequest>(0)
+        workItemAttempt {
+          name = request.name
+          state = WorkItemAttempt.State.ACTIVE
+          attemptNumber = 1
+        }
+      }
+    onBlocking { completeWorkItemAttempt(any<CompleteWorkItemAttemptRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<CompleteWorkItemAttemptRequest>(0)
+        workItemAttempt {
+          name = request.name
+          state = WorkItemAttempt.State.SUCCEEDED
+          attemptNumber = 1
+        }
+      }
+    onBlocking { failWorkItemAttempt(any<FailWorkItemAttemptRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<FailWorkItemAttemptRequest>(0)
+        workItemAttempt {
+          name = request.name
+          state = WorkItemAttempt.State.FAILED
+          attemptNumber = 1
+          errorMessage = request.errorMessage
+        }
+      }
+  }
+
+  private val workItemsServiceMock: WorkItemsCoroutineImplBase = mockService {
+    onBlocking { failWorkItem(any<FailWorkItemRequest>()) }
+      .thenAnswer { invocation ->
+        val request = invocation.getArgument<FailWorkItemRequest>(0)
+        workItem {
+          name = request.name
+          state = WorkItem.State.FAILED
+          generation = request.expectedWorkItemGeneration
+        }
+      }
+  }
+
   @get:Rule
   val grpcTestServerRule = GrpcTestServerRule {
     addService(ServerInterceptors.intercept(dataProvidersServiceMock, metadataCaptureInterceptor))
@@ -201,6 +268,10 @@ class DataAvailabilitySyncFunctionTest {
     addService(
       ServerInterceptors.intercept(dataAvailabilitySyncLeaseServiceMock, metadataCaptureInterceptor)
     )
+    addService(
+      ServerInterceptors.intercept(workItemAttemptsServiceMock, metadataCaptureInterceptor)
+    )
+    addService(ServerInterceptors.intercept(workItemsServiceMock, metadataCaptureInterceptor))
   }
 
   @get:Rule val tempFolder = TemporaryFolder()
@@ -230,6 +301,14 @@ class DataAvailabilitySyncFunctionTest {
                 dataAvailabilitySyncLeaseServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
+              ServerInterceptors.intercept(
+                workItemAttemptsServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
+              ServerInterceptors.intercept(
+                workItemsServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
             ),
         )
         .start()
@@ -253,6 +332,127 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(parseDataWatcherGeneration(DONE_BLOB_GENERATION.toString()))
       .isEqualTo(DONE_BLOB_GENERATION)
+  }
+
+  @Test
+  fun `WorkItem synchronizes availability and completes attempt`() {
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    File(configBucketDir, "config.textproto")
+      .writeText(
+        TextFormat.printer()
+          .printToString(
+            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+          )
+      )
+    val outputDirectory = "edp/edp_name/model-line/some-model-line/2025-01-05"
+    File(tempFolder.root, outputDirectory).mkdirs()
+    runBlocking {
+      val storageClient = FileSystemStorageClient(tempFolder.root)
+      storageClient.writeBlob("$outputDirectory/impressions", emptyFlow())
+      storageClient.writeBlob(
+        "$outputDirectory/metadata.binpb",
+        flowOf(
+          blobDetails {
+              blobUri = "file:////$outputDirectory/impressions"
+              eventGroupReferenceId = "reference-id"
+              modelLine = MODEL_LINE
+              rawImpressionUpload = RAW_UPLOAD
+              interval = interval {
+                startTime = timestamp { seconds = 1736035200 }
+                endTime = timestamp { seconds = 1736121600 }
+              }
+            }
+            .toByteString()
+        ),
+      )
+    }
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "IMPRESSION_METADATA_CERT_HOST" to "localhost",
+          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+          "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+    val workItem = workItem {
+      name = WORK_ITEM_NAME
+      queue = "data-availability-sync-queue"
+      generation = 1L
+      workItemParams =
+        Any.pack(
+          workItemParams {
+            appParams =
+              Any.pack(
+                dataAvailabilitySyncParams {
+                  dataProvider = DATA_PROVIDER
+                  triggeringRawImpressionUpload = RAW_UPLOAD
+                  modelLine = MODEL_LINE
+                  eventDate = date {
+                    year = 2025
+                    month = 1
+                    day = 5
+                  }
+                }
+              )
+            dataPathParams = dataPathParams {
+              dataPath = "file:////$outputDirectory/done"
+              generation = 123L
+              eventType = StorageEventType.FINALIZED
+            }
+            traceContext["traceparent"] = "00-1af7651916cd43dd8448eb211c80319c-0123456789abcdef-01"
+          }
+        )
+    }
+    val request =
+      HttpRequest.newBuilder()
+        .uri(URI.create("http://localhost:$port"))
+        .header("Content-Type", "application/octet-stream")
+        .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+        .build()
+
+    val response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString())
+
+    assertThat(response.statusCode()).isEqualTo(200)
+    val propagatedTraceIds =
+      synchronized(capturedTraceparentHeaders) {
+        val w3cIds = capturedTraceparentHeaders.mapNotNull { parseTraceparentTraceId(it) }
+        val grpcTraceIds = capturedGrpcTraceBinHeaders.mapNotNull { parseGrpcTraceBinTraceId(it) }
+        (w3cIds + grpcTraceIds).toSet()
+      }
+    assertThat(propagatedTraceIds).contains("1af7651916cd43dd8448eb211c80319c")
+    val createAttempt = argumentCaptor<CreateWorkItemAttemptRequest>()
+    verifyBlocking(workItemAttemptsServiceMock) { createWorkItemAttempt(createAttempt.capture()) }
+    assertThat(createAttempt.firstValue.parent).isEqualTo(WORK_ITEM_NAME)
+    assertThat(createAttempt.firstValue.expectedWorkItemGeneration).isEqualTo(1L)
+    assertThat(createAttempt.firstValue.supportsAttemptLease).isTrue()
+    verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
+    verifyBlocking(workItemAttemptsServiceMock, times(0)) { failWorkItemAttempt(any()) }
+    verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchCreateImpressionMetadata(metadataRequest.capture())
+    }
+    assertThat(
+        metadataRequest.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+      )
+      .isEqualTo(123L)
+    assertThat(
+        metadataRequest.firstValue.requestsList.single().impressionMetadata.rawImpressionUpload
+      )
+      .isEqualTo(RAW_UPLOAD)
   }
 
   @Test
@@ -789,6 +989,10 @@ class DataAvailabilitySyncFunctionTest {
   companion object {
 
     private const val DONE_BLOB_GENERATION = 77L
+    private const val DATA_PROVIDER = "dataProviders/edp123"
+    private const val RAW_UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/upload"
+    private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
+    private const val WORK_ITEM_NAME = "workItems/das-123"
 
     private val SECRETS_DIR: Path =
       getRuntimePath(
