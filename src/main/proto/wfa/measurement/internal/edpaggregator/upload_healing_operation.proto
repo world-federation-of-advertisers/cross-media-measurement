@@ -31,6 +31,9 @@ message UploadHealingOperation {
     UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED = 2;
   }
 
+  reserved 6, 7;
+  reserved "bad_raw_impression_upload_resource_ids", "cutoff_time";
+
   enum State {
     reserved 1;
     reserved "UPLOAD_HEALING_OPERATION_STATE_IN_PROGRESS";
@@ -52,8 +55,6 @@ message UploadHealingOperation {
   State state = 3;
   string reason = 4;
   string labeled_impressions_blob_prefix = 5;
-  repeated string bad_raw_impression_upload_resource_ids = 6;
-  google.protobuf.Timestamp cutoff_time = 7;
   repeated UploadHealingStep steps = 8;
   google.protobuf.Timestamp create_time = 9;
   google.protobuf.Timestamp update_time = 10;
