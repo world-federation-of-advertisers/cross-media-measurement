@@ -1101,29 +1101,35 @@ class VidLabelingDispatcher(
     uploadName: String,
     blobs: List<RawBlobVersion>,
   ) {
-    for (chunk in blobs.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
-      // Resolve each file's event date from its Parquet footer up front, in bounded parallel. Every
-      // read is an independent, read-only GCS tail-range fetch (~1 round trip), so resolving them
-      // serially would make the fast path O(files) sequential round trips and time the Cloud
-      // Function out on large uploads; [readSemaphore] caps in-flight reads under GCS QPS. The
-      // BatchCreate writes below stay serial on purpose: they all write interleaved children of the
-      // same RawImpressionUpload row, so parallelizing them would only force Spanner to
-      // lock-serialize (or abort-retry) the writes.
-      val eventDateByBlobKey: Map<String, LocalDate> = coroutineScope {
-        chunk
-          .associate { blobVersion ->
-            blobVersion.blob.blobKey to
-              async {
-                readSemaphore.withPermit {
-                  readEventDate(
-                    generationMatchedBlobUri(blobVersion.blobUri, blobVersion.generation)
-                  )
+    // Resolve every footer before creating any child resources so an upload cannot be partially
+    // registered before a later file reveals a conflicting event date.
+    val eventDateByBlobKey =
+      blobs
+        .chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)
+        .flatMap { chunk ->
+          coroutineScope {
+            chunk
+              .map { blobVersion ->
+                async {
+                  blobVersion.blob.blobKey to
+                    readSemaphore.withPermit {
+                      readEventDate(
+                        generationMatchedBlobUri(blobVersion.blobUri, blobVersion.generation)
+                      )
+                    }
                 }
               }
+              .map { it.await() }
           }
-          .mapValues { (_, deferred) -> deferred.await() }
-      }
+        }
+        .toMap()
+    val eventDates = eventDateByBlobKey.values.toSet()
+    check(eventDates.size <= 1) {
+      "RawImpressionUpload $uploadName contains files with multiple footer event dates: " +
+        eventDates.sorted().joinToString()
+    }
 
+    for (chunk in blobs.chunked(RAW_IMPRESSION_UPLOAD_FILE_BATCH_SIZE)) {
       val request = batchCreateRawImpressionUploadFilesRequest {
         parent = uploadName
         for (blobVersion in chunk) {
