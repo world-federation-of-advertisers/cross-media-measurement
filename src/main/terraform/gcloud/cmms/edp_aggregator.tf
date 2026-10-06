@@ -281,11 +281,20 @@ locals {
       uber_jar_path   = var.event_group_uber_jar_path
     }
     data_availability_sync = {
-      function_name   = "data-availability-sync"
-      entry_point     = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
-      extra_env_vars  = "${var.data_availability_env_var},CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination},EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}"
-      secret_mappings = var.data_availability_secret_mapping
-      uber_jar_path   = var.data_availability_uber_jar_path
+      function_name = "data-availability-sync"
+      entry_point   = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunction"
+      extra_env_vars = join(",", compact([
+        var.data_availability_env_var,
+        "CONFIG_BLOB_KEY=${local.data_availability_sync_config.destination}",
+        "EDPA_CONFIG_STORAGE_BUCKET=gs://${var.edpa_config_files_bucket_name}",
+        "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+        "SECURE_COMPUTATION_CERT_COLLECTION_FILE=/secrets/secure-computation-ca/secure_computation_root.pem",
+      ]))
+      secret_mappings = join(",", compact([
+        var.data_availability_secret_mapping,
+        "/secrets/secure-computation-ca/secure_computation_root.pem=${local.secure_computation_root_ca.secret_id}:latest",
+      ]))
+      uber_jar_path = var.data_availability_uber_jar_path
     }
     data_watcher_delete = {
       function_name   = "data-watcher-delete"
@@ -471,6 +480,15 @@ locals {
     }
   }
 
+  data_availability_sync_work_item_queue = {
+    topic_name            = "data-availability-sync-queue"
+    subscription_name     = "data-availability-sync-subscription"
+    ack_deadline_seconds  = 600
+    max_delivery_attempts = 100
+    minimum_backoff       = "10s"
+    maximum_backoff       = "600s"
+  }
+
 }
 
 module "edp_aggregator" {
@@ -526,6 +544,7 @@ module "edp_aggregator" {
   data_availability_monitor_config                 = local.data_availability_monitor_config
   data_availability_monitor_scheduler_config       = local.data_availability_monitor_scheduler_config
   vid_labeling_workers                             = local.vid_labeling_workers
+  data_availability_sync_work_item_queue           = local.data_availability_sync_work_item_queue
   vid_labeling_dispatcher_service_account_name     = "edpa-vid-labeling-dispatcher"
   vid_labeling_monitor_service_account_name        = "edpa-vid-labeling-monitor"
   vid_labeling_dispatcher_config                   = local.vid_labeling_dispatcher_config
