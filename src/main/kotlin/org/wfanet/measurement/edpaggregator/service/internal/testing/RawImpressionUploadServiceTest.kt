@@ -38,6 +38,7 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadsRes
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
+import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceState
 import org.wfanet.measurement.internal.edpaggregator.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadRequest
@@ -1059,13 +1060,16 @@ abstract class RawImpressionUploadServiceTest {
       val acquireRequest = acquireRawImpressionUploadEvictionFenceRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         evictionOperationId = operationId
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        requestId = UUID.randomUUID().toString()
       }
 
       val initialAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
       val resumedAcquire = service.acquireRawImpressionUploadEvictionFence(acquireRequest)
 
       assertThat(initialAcquire.newlyAcquired).isTrue()
-      assertThat(resumedAcquire.newlyAcquired).isFalse()
+      assertThat(initialAcquire.etag).isNotEmpty()
+      assertThat(resumedAcquire).isEqualTo(initialAcquire)
 
       val competingOperation =
         assertFailsWith<StatusRuntimeException> {
@@ -1073,6 +1077,8 @@ abstract class RawImpressionUploadServiceTest {
             acquireRawImpressionUploadEvictionFenceRequest {
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               evictionOperationId = UUID.randomUUID().toString()
+              state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+              requestId = UUID.randomUUID().toString()
             }
           )
         }
@@ -1085,6 +1091,8 @@ abstract class RawImpressionUploadServiceTest {
         releaseRawImpressionUploadEvictionFenceRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           evictionOperationId = operationId
+          etag = initialAcquire.etag
+          requestId = RELEASE_REQUEST_ID
         }
       )
       val releasedUpload =
@@ -1101,9 +1109,44 @@ abstract class RawImpressionUploadServiceTest {
         releaseRawImpressionUploadEvictionFenceRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           evictionOperationId = operationId
+          etag = initialAcquire.etag
+          requestId = RELEASE_REQUEST_ID
         }
       )
     }
+
+  @Test
+  fun `eviction fence acquisition requires explicit state`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            evictionOperationId = UUID.randomUUID().toString()
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `eviction fence rejects noncanonical operation ID`() = runBlocking {
+    val error =
+      assertFailsWith<StatusRuntimeException> {
+        service.acquireRawImpressionUploadEvictionFence(
+          acquireRawImpressionUploadEvictionFenceRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            evictionOperationId = "1-1-4111-8111-1"
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+      }
+
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
 
   @Test
   fun `eviction fence authorizes a replacement from its healing operation`(): Unit = runBlocking {
@@ -1113,6 +1156,8 @@ abstract class RawImpressionUploadServiceTest {
       acquireRawImpressionUploadEvictionFenceRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         evictionOperationId = operationId
+        state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+        requestId = UUID.randomUUID().toString()
       }
     )
 
@@ -1162,6 +1207,8 @@ abstract class RawImpressionUploadServiceTest {
           acquireRawImpressionUploadEvictionFenceRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = UUID.randomUUID().toString()
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1180,6 +1227,8 @@ abstract class RawImpressionUploadServiceTest {
           acquireRawImpressionUploadEvictionFenceRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             evictionOperationId = UUID.randomUUID().toString()
+            state = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
+            requestId = UUID.randomUUID().toString()
           }
         )
       }
@@ -1205,6 +1254,7 @@ abstract class RawImpressionUploadServiceTest {
   }
 
   companion object {
+    private const val RELEASE_REQUEST_ID = "dddddddd-dddd-4ddd-8ddd-dddddddddddd"
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
     private const val DONE_BLOB_URI = "gs://test-bucket/2026-06-16/done"
     private const val DONE_BLOB_GENERATION = 1234L

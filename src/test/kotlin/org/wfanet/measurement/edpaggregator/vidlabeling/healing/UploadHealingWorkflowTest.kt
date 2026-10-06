@@ -29,6 +29,8 @@ import org.junit.runners.JUnit4
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.AcquireRawImpressionUploadEvictionFenceResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest
@@ -78,6 +80,11 @@ class UploadHealingWorkflowTest {
                   it.doneBlobUri == request.filter.doneBlobUri)
             }
         }
+
+      override suspend fun acquireRawImpressionUploadEvictionFence(
+        request: AcquireRawImpressionUploadEvictionFenceRequest
+      ): AcquireRawImpressionUploadEvictionFenceResponse =
+        AcquireRawImpressionUploadEvictionFenceResponse.newBuilder().setEtag(FENCE_ETAG).build()
 
       override suspend fun releaseRawImpressionUploadEvictionFence(
         request: ReleaseRawImpressionUploadEvictionFenceRequest
@@ -530,6 +537,7 @@ class UploadHealingWorkflowTest {
   }
 
   companion object {
+    private const val FENCE_ETAG = "fence-etag"
     private const val DATA_PROVIDER = "dataProviders/dp"
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private const val D1 = "$DATA_PROVIDER/rawImpressionUploads/d1"
