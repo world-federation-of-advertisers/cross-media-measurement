@@ -17,7 +17,6 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.protobuf.util.Timestamps
-import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
@@ -40,7 +39,6 @@ import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
@@ -56,8 +54,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.createDataAvailabilitySyncTaskRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncTask
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
@@ -96,7 +92,6 @@ import org.wfanet.measurement.storage.StorageClient
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
  * @param poolAssignmentJobStub stub for `PoolAssignmentJobService`.
- * @param dataAvailabilitySyncTaskStub stub for durable availability handoff creation.
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
@@ -122,8 +117,6 @@ class VidLabelingMonitor(
     PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub,
   private val rankerJobStub: RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub,
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
-  private val dataAvailabilitySyncTaskStub:
-    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val vidLabeledImpressionsBlobPrefix: String,
   private val readDoneBlobGeneration: suspend (String) -> Long?,
@@ -299,7 +292,7 @@ class VidLabelingMonitor(
     // states eligible for the staleness check. FAILED is terminal but is still scanned below so a
     // rolled-up FAILED upload's model lines surface.
     val createdUploads: List<RawImpressionUpload> =
-      snapshot.uploads(RawImpressionUpload.State.CREATED)
+      snapshot.uploads(RawImpressionUpload.State.CREATED).filterNot { it.processingDeferred }
     val activeUploads: List<RawImpressionUpload> =
       snapshot.uploads(RawImpressionUpload.State.ACTIVE)
     val failedUploads: List<RawImpressionUpload> =
@@ -629,7 +622,7 @@ class VidLabelingMonitor(
 
   private data class AvailabilityHandoffRecovery(val recoveredModelLineNames: Set<String>)
 
-  /** Restores durable availability tasks left missing by an interrupted labeler finalization. */
+  /** Restores durable availability WorkItems left missing by interrupted labeler finalization. */
   private suspend fun recoverAvailabilityHandoffs(
     snapshot: RunSnapshot
   ): AvailabilityHandoffRecovery {
@@ -672,34 +665,53 @@ class VidLabelingMonitor(
           eventDate,
         )
       val generation = readDoneBlobGeneration(doneBlobUri) ?: continue
-      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
-      val taskId = RequestIds.forDataAvailabilitySyncTask(pathHash, generation)
-      try {
-        rpcThrottlers.metadataWrite.onReady {
-          dataAvailabilitySyncTaskStub.createDataAvailabilitySyncTask(
-            createDataAvailabilitySyncTaskRequest {
-              parent = upload.name
-              dataAvailabilitySyncTaskId = taskId
-              requestId = taskId
-              dataAvailabilitySyncTask = dataAvailabilitySyncTask {
-                this.doneBlobUri = doneBlobUri
-                doneBlobGeneration = generation
-                cmmsModelLine = modelLine.cmmsModelLine
-                this.eventDate = date {
-                  year = eventDate.year
-                  month = eventDate.monthValue
-                  day = eventDate.dayOfMonth
-                }
-                val traceContext = Tracing.currentW3CTraceContext()
-                traceparent = traceContext["traceparent"].orEmpty()
-                tracestate = traceContext["tracestate"].orEmpty()
-              }
-            }
-          )
+      val request =
+        DataAvailabilitySyncWorkItems.createRequest(
+          dataProviderName,
+          upload.name,
+          modelLine.cmmsModelLine,
+          eventDate,
+          doneBlobUri,
+          generation,
+          Tracing.currentW3CTraceContext(),
+        )
+      val workItemName = "workItems/${request.workItemId}"
+      val workItemOutcome =
+        try {
+          rpcThrottlers.controlPlane.onReady { workItemsStub.createWorkItem(request) }
+          "created"
+        } catch (e: StatusException) {
+          if (e.status.code == Status.Code.ALREADY_EXISTS) {
+            "already_exists"
+          } else {
+            throw e
+          }
         }
-      } catch (e: StatusException) {
-        if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
-      }
+      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
+      Span.current()
+        .addEvent(
+          "edpa.data_availability_sync_work_item.recover",
+          Attributes.builder()
+            .put(XmmTraceAttributes.WORK_ITEM_NAME, workItemName)
+            .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, upload.name)
+            .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine.cmmsModelLine)
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
+            .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
+            .put(XmmTraceAttributes.OUTCOME, workItemOutcome)
+            .build(),
+        )
+      VidLabelingTraceLogging.log(
+        logger,
+        Level.INFO,
+        "edpa.data_availability_sync_work_item.recover",
+        XmmTraceAttributes.WORK_ITEM_NAME_STRING to workItemName,
+        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to upload.name,
+        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine.cmmsModelLine,
+        VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+        VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
+        XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "availability_work_item_recovery",
+        XmmTraceAttributes.OUTCOME_STRING to workItemOutcome,
+      )
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineCompleted(
           markRawImpressionUploadModelLineCompletedRequest {
@@ -710,7 +722,7 @@ class VidLabelingMonitor(
         )
       }
       recovered += modelLine.name
-      logger.info("Recovered durable availability handoff for ${modelLine.name}")
+      logger.info("Recovered durable availability WorkItem for ${modelLine.name}")
     }
     return AvailabilityHandoffRecovery(recovered)
   }
