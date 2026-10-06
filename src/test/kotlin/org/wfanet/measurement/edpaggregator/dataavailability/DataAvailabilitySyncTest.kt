@@ -92,6 +92,22 @@ enum class BlobEncoding {
   EMPTY,
 }
 
+private suspend fun DataAvailabilitySync.sync(doneBlobPath: String) {
+  sync(doneBlobPath, TestDataAvailabilitySyncLease.NAME) {}
+}
+
+private suspend fun DataAvailabilitySync.sync(
+  doneBlobPath: String,
+  ensureLeaseActive: suspend () -> Unit,
+) {
+  sync(doneBlobPath, TestDataAvailabilitySyncLease.NAME, ensureLeaseActive = ensureLeaseActive)
+}
+
+private object TestDataAvailabilitySyncLease {
+  const val NAME =
+    "dataProviders/test/dataAvailabilitySyncLeases/11111111-1111-4111-8111-111111111111"
+}
+
 @RunWith(JUnit4::class)
 class DataAvailabilitySyncTest {
   private val logRecords = mutableListOf<LogRecord>()
@@ -262,7 +278,14 @@ class DataAvailabilitySyncTest {
         errorIfGapsExist = true,
       )
 
-    dataAvailabilitySync.sync("$bucket/${folderPrefix}done", 77L)
+    var leaseChecks = 0
+    dataAvailabilitySync.sync(
+      "$bucket/${folderPrefix}done",
+      TestDataAvailabilitySyncLease.NAME,
+      doneBlobGeneration = 77L,
+    ) {
+      leaseChecks++
+    }
     verifyBlocking(dataProvidersServiceMock, times(1)) { replaceDataAvailabilityIntervals(any()) }
     val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock, times(1)) {
@@ -302,6 +325,7 @@ class DataAvailabilitySyncTest {
       )
     assertThat(intervalLog.message).contains("xmm.lifecycle.stage=data_availability_publish")
     assertThat(intervalLog.message).contains("xmm.outcome=published")
+    assertThat(leaseChecks).isEqualTo(9)
   }
 
   @Test

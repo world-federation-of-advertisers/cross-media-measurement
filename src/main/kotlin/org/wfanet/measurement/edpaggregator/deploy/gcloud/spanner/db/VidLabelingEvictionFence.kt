@@ -20,7 +20,10 @@ import com.google.cloud.spanner.Key
 import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.Value
+import com.google.protobuf.ByteString
+import com.google.protobuf.kotlin.toByteString
 import org.wfanet.measurement.common.singleOrNullIfEmpty
+import org.wfanet.measurement.gcloud.common.toGcloudByteArray
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
@@ -32,6 +35,13 @@ import org.wfanet.measurement.internal.edpaggregator.VidLabelingEvictionFenceSta
 data class VidLabelingEvictionFence(
   val evictionOperationId: String,
   val state: VidLabelingEvictionFenceState,
+  val etag: String,
+)
+
+data class VidLabelingEvictionFenceMutation(
+  val requestFingerprint: ByteString,
+  val resultEtag: String,
+  val newlyAcquired: Boolean,
 )
 
 /** Reads the VID-labeling eviction fence, if any. */
@@ -42,7 +52,7 @@ suspend fun AsyncDatabaseClient.ReadContext.getVidLabelingEvictionFence(
     readRow(
       "VidLabelingEvictionFence",
       Key.of(dataProviderResourceId),
-      listOf("EvictionOperationId", "State"),
+      listOf("EvictionOperationId", "State", "Etag"),
     ) ?: return null
   return VidLabelingEvictionFence(
     evictionOperationId = row.getString("EvictionOperationId"),
@@ -52,6 +62,25 @@ suspend fun AsyncDatabaseClient.ReadContext.getVidLabelingEvictionFence(
       } else {
         row.getProtoEnum("State", VidLabelingEvictionFenceState::forNumber)
       },
+    etag = row.getString("Etag"),
+  )
+}
+
+/** Reads a recorded eviction-fence mutation. */
+suspend fun AsyncDatabaseClient.ReadContext.findVidLabelingEvictionFenceMutation(
+  dataProviderResourceId: String,
+  requestId: String,
+): VidLabelingEvictionFenceMutation? {
+  val row =
+    readRow(
+      "VidLabelingEvictionFenceMutation",
+      Key.of(dataProviderResourceId, requestId),
+      listOf("RequestFingerprint", "ResultEtag", "NewlyAcquired"),
+    ) ?: return null
+  return VidLabelingEvictionFenceMutation(
+    requestFingerprint = row.getBytes("RequestFingerprint").toByteArray().toByteString(),
+    resultEtag = row.getString("ResultEtag"),
+    newlyAcquired = row.getBoolean("NewlyAcquired"),
   )
 }
 
@@ -146,6 +175,7 @@ suspend fun AsyncDatabaseClient.ReadContext.rawImpressionUploadHasEvictionOperat
 fun AsyncDatabaseClient.TransactionContext.insertVidLabelingEvictionFence(
   dataProviderResourceId: String,
   evictionOperationId: String,
+  etag: String,
   state: VidLabelingEvictionFenceState =
     VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING,
 ) {
@@ -153,6 +183,7 @@ fun AsyncDatabaseClient.TransactionContext.insertVidLabelingEvictionFence(
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("EvictionOperationId").to(evictionOperationId)
     set("State").to(state)
+    set("Etag").to(etag)
     set("CreateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
@@ -161,10 +192,30 @@ fun AsyncDatabaseClient.TransactionContext.insertVidLabelingEvictionFence(
 fun AsyncDatabaseClient.TransactionContext.updateVidLabelingEvictionFenceState(
   dataProviderResourceId: String,
   state: VidLabelingEvictionFenceState,
+  etag: String,
 ) {
   bufferUpdateMutation("VidLabelingEvictionFence") {
     set("DataProviderResourceId").to(dataProviderResourceId)
     set("State").to(state)
+    set("Etag").to(etag)
+  }
+}
+
+/** Buffers an eviction-fence mutation receipt. */
+fun AsyncDatabaseClient.TransactionContext.insertVidLabelingEvictionFenceMutation(
+  dataProviderResourceId: String,
+  requestId: String,
+  requestFingerprint: ByteString,
+  resultEtag: String,
+  newlyAcquired: Boolean = false,
+) {
+  bufferInsertMutation("VidLabelingEvictionFenceMutation") {
+    set("DataProviderResourceId").to(dataProviderResourceId)
+    set("RequestId").to(requestId)
+    set("RequestFingerprint").to(requestFingerprint.toGcloudByteArray())
+    set("ResultEtag").to(resultEtag)
+    set("NewlyAcquired").to(newlyAcquired)
+    set("CreateTime").to(Value.COMMIT_TIMESTAMP)
   }
 }
 

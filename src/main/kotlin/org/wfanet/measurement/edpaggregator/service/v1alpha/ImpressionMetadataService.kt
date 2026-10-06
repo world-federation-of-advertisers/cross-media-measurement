@@ -26,6 +26,7 @@ import org.wfanet.measurement.api.v2alpha.DataProviderKey
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.base64UrlDecode
 import org.wfanet.measurement.common.base64UrlEncode
+import org.wfanet.measurement.edpaggregator.service.DataAvailabilitySyncLeaseKey
 import org.wfanet.measurement.edpaggregator.service.DataProviderMismatchException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyActiveException
 import org.wfanet.measurement.edpaggregator.service.ImpressionMetadataAlreadyExistsException
@@ -241,6 +242,11 @@ class ImpressionMetadataService(
       DataProviderKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val synchronizationAttemptId =
+      parseSynchronizationAttemptId(
+        request.dataAvailabilitySyncLease,
+        dataProviderKey.dataProviderId,
+      )
 
     val blobUriSet = mutableSetOf<String>()
     val requestIdSet = mutableSetOf<String>()
@@ -289,6 +295,7 @@ class ImpressionMetadataService(
         internalImpressionMetadataStub.batchCreateImpressionMetadata(
           internalBatchCreateImpressionMetadataRequest {
             dataProviderResourceId = dataProviderKey.dataProviderId
+            this.synchronizationAttemptId = synchronizationAttemptId
             requests += internalRequests
           }
         )
@@ -422,6 +429,11 @@ class ImpressionMetadataService(
       DataProviderKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val synchronizationAttemptId =
+      parseSynchronizationAttemptId(
+        request.dataAvailabilitySyncLease,
+        dataProviderKey.dataProviderId,
+      )
 
     val blobUriSet = mutableSetOf<String>()
     val requestIdSet = mutableSetOf<String>()
@@ -471,6 +483,7 @@ class ImpressionMetadataService(
         internalImpressionMetadataStub.batchUpdateImpressionMetadata(
           internalBatchUpdateImpressionMetadataRequest {
             dataProviderResourceId = dataProviderKey.dataProviderId
+            this.synchronizationAttemptId = synchronizationAttemptId
             requests += internalRequests
           }
         )
@@ -531,7 +544,6 @@ class ImpressionMetadataService(
       ImpressionMetadataKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
     return try {
       internalImpressionMetadataStub
         .deleteImpressionMetadata(
@@ -593,6 +605,8 @@ class ImpressionMetadataService(
       ImpressionMetadataKey.fromName(request.name)
         ?: throw InvalidFieldValueException("name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val synchronizationAttemptId =
+      parseSynchronizationAttemptId(request.dataAvailabilitySyncLease, key.dataProviderId)
 
     return try {
       internalImpressionMetadataStub
@@ -600,6 +614,7 @@ class ImpressionMetadataService(
           internalUndeleteImpressionMetadataRequest {
             dataProviderResourceId = key.dataProviderId
             impressionMetadataResourceId = key.impressionMetadataId
+            this.synchronizationAttemptId = synchronizationAttemptId
           }
         )
         .toImpressionMetadata()
@@ -658,7 +673,6 @@ class ImpressionMetadataService(
       DataProviderKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
-
     if (request.namesList.isEmpty()) {
       throw RequiredFieldNotSetException("names")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -757,6 +771,11 @@ class ImpressionMetadataService(
       DataProviderKey.fromName(request.parent)
         ?: throw InvalidFieldValueException("parent")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    val synchronizationAttemptId =
+      parseSynchronizationAttemptId(
+        request.dataAvailabilitySyncLease,
+        dataProviderKey.dataProviderId,
+      )
     if (request.namesList.isEmpty()) {
       throw RequiredFieldNotSetException("names")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -780,6 +799,7 @@ class ImpressionMetadataService(
         internalUndeleteImpressionMetadataRequest {
           dataProviderResourceId = dataProviderKey.dataProviderId
           impressionMetadataResourceId = key.impressionMetadataId
+          this.synchronizationAttemptId = synchronizationAttemptId
         }
       }
 
@@ -804,6 +824,22 @@ class ImpressionMetadataService(
       impressionMetadata +=
         internalResponse.impressionMetadataList.map { it.toImpressionMetadata() }
     }
+  }
+
+  private fun parseSynchronizationAttemptId(
+    leaseName: String,
+    dataProviderResourceId: String,
+  ): String {
+    if (leaseName.isEmpty()) return ""
+    val key =
+      DataAvailabilitySyncLeaseKey.fromName(leaseName)
+        ?: throw InvalidFieldValueException("data_availability_sync_lease")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    if (key.dataProviderId != dataProviderResourceId) {
+      throw InvalidFieldValueException("data_availability_sync_lease")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return key.dataAvailabilitySyncLeaseId
   }
 
   override suspend fun listImpressionMetadata(
