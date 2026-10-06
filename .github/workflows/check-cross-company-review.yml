@@ -1,0 +1,209 @@
+name: Cross-company review policy
+
+on:
+# DO_NOT_SUBMIT: events?
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+  pull_request_review:
+    types: [submitted, dismissed]
+
+permissions:
+  contents: read
+
+jobs:
+  cross-company-review-policy:
+    name: Cross-company review policy
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    env:
+      # DO_NOT_SUBMIT: remove this testing env var
+      TMP_LARRY: ${{ vars.TMP_LARRY }}
+    steps:
+      - uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        id: app-token
+        with:
+          # DO_NOT_SUBMIT: separated app with same permissions?
+          client-id: ${{ vars.GH_APP_ISSUE_NOTIFICATION_ID }}
+          private-key: ${{ secrets.GH_APP_ISSUE_NOTIFICATION_PRIVATE_KEY }}
+          owner: world-federation-of-advertisers
+          permission-members: read
+
+      - name: Fetch teams
+        if: false
+        id: fetch-teams
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          github-token: ${{ steps.app-token.outputs.token }}
+          script: |
+            const org = context.repo.owner;
+            const TEAMS = [
+              'squad-1',
+              'squad-2',
+              'wfa-devops',
+            ];
+            const teamMembers = {};
+
+            for (const team of TEAMS) {
+              const members = await github.paginate(
+                'GET /orgs/{org}/teams/{team_slug}/members',
+                {
+                  org,
+                  team_slug: team,
+                  per_page: 100,
+                }
+              );
+              teamMembers[team] = members.map(member => member.login);
+            }
+            const output = JSON.stringify(teamMembers);
+            console.log(`Output: ${output}`);
+            core.setOutput('json', output);
+
+      - name: Fetch approvers
+        id: fetch-approvers
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            // DO_NOT_SUBMIT: remove test variables
+            const pullNumber = JSON.parse(process.env.TMP_LARRY).number;
+            const pullAuthor = JSON.parse(process.env.TMP_LARRY).author;
+            //const pullNumber = context.payload.pull_request.number;
+            //const pullAuthor = context.payload.pull_request.user.login;
+
+            // The list of reviews returns in chronological order
+            const reviews = await github.paginate(
+              github.rest.pulls.listReviews,
+              {
+                owner,
+                repo,
+                pull_number: pullNumber,
+                per_page: 100,
+              }
+            );
+
+            // ------------------------------------------------------------
+            // Calculate effective state for every reviewer
+            // ------------------------------------------------------------
+
+            const reviewStates = new Map();
+
+            for (const review of reviews) {
+              const username = review.user.login;
+              if (
+                review.state === 'APPROVED' ||
+                review.state === 'CHANGES_REQUESTED' ||
+                review.state === 'DISMISSED'
+              ) {
+                reviewStates.set(username, review.state);
+              }
+            }
+
+            // ------------------------------------------------------------
+            // Get effective approvers, excluding PR author
+            // ------------------------------------------------------------
+
+            const approvers = [...reviewStates.entries()]
+              .filter(
+                ([username, state]) =>
+                  username !== pullAuthor &&
+                  state === 'APPROVED'
+              )
+              .map(([username]) => username);
+
+            console.log(`Effective approvers for PR ${pullNumber} authored by ${pullAuthor}: ${approvers}`)
+
+            const output = JSON.stringify(approvers);
+            console.log(`Output: ${output}`);
+            core.setOutput('json', output);
+
+      - name: Check cross-company review policy
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          TEAMS_JSON: ${{ vars.CROSS_COMPANY_TEAMS }}
+          # DO_NOT_SUBMIT: use teams or var?
+          # TEAMS_JSON: ${{ steps.fetch-teams.outputs.json }}
+          PR_APPROVERS_JSON: ${{ steps.fetch-approvers.outputs.json }}
+        with:
+          script: |
+            const teamMembers = new Map(
+              JSON.parse(process.env.TEAMS_JSON)
+                .map(({ name, members }) => [name, new Set(members)])
+            );
+            console.log("Team members:", teamMembers)
+            const prApprovers = new Set(
+              JSON.parse(process.env.PR_APPROVERS_JSON)
+            );
+            if (prApprovers.size === 0){
+              console.log("There's no approvers yet. Skipping check")
+              return;
+            }
+            const TEAMS = [...teamMembers.keys()]
+
+            function getUserTeam(username){
+              // DO_NOT_SUBMIT: handle Tej's user
+              if (username === "TNATALI"){
+                return 'wfa-devops';
+              }
+              const userTeams = TEAMS.filter(team => teamMembers.get(team).has(username));
+              if (userTeams.length > 1) {
+                throw new Error(
+                  `User ${username} belongs to multiple configured teams: ${userTeams.join(', ')}`
+                );
+              }
+              return userTeams[0] ?? null;
+            }
+
+            function getAuthorTeam(username) {
+              const userTeam = getUserTeam(username);
+              if (userTeam === null) {
+                throw new Error(
+                  `User ${username} does not belong to any of the configured team: ${TEAMS.join(', ')}`
+                );
+              }
+              return userTeam;
+            }
+
+            function computeApproverTeamMap(approvers){
+              const approverToTeam = new Map();
+              for (const approver of approvers) {
+                const team = getUserTeam(approver);
+                if (team !== null){
+                  approverToTeam.set(approver, team);
+                }
+              }
+              console.log("Approver to team:", approverToTeam);
+              return approverToTeam;                
+            }
+
+            // DO_NOT_SUBMIT: remove test variable
+            const pullAuthor = JSON.parse(process.env.TMP_LARRY).author;
+            //const pullAuthor = context.payload.pull_request.user.login;
+            const authorTeam = getAuthorTeam(pullAuthor);
+            
+            const approverToTeam = computeApproverTeamMap(prApprovers);
+            const crossCompanyTeams = TEAMS.filter(team => team !== authorTeam);
+
+            console.log(`Author team: ${pullAuthor} - ${authorTeam}`);
+            console.log(`Candidate cross-company teams: ${crossCompanyTeams.join(', ')}`);
+
+            const crossCompanyApprovers = Array.from(approverToTeam.entries())
+              .filter(([_, team]) => crossCompanyTeams.includes(team))
+              .map(([approver]) => approver);
+
+            if (crossCompanyApprovers.length === 0) {
+              core.setFailed(
+                `Cross-company review policy not met: PR author ${pullAuthor} belongs to team '${authorTeam}', ` + 
+                `and the PR has not been approved by any reviewers belonging to teams from other companies: ` + 
+                `${crossCompanyTeams.join(', ')}.`
+              );
+              return;
+            }
+
+            core.summary.addHeading('Cross-company review policy satisfied.', '3');
+            core.summary.addEOL();
+            core.summary.addRaw('Cross-company approver(s):');
+            core.summary.addList(crossCompanyApprovers);
+            console.log(core.summary.stringify())
+            core.summary.write()
