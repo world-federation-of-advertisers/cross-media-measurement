@@ -18,8 +18,15 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import io.grpc.ServerServiceDefinition
 import java.io.File
+import java.time.Duration
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.runInterruptible
+import kotlinx.coroutines.selects.select
 import org.wfanet.measurement.common.commandLineMain
 import org.wfanet.measurement.common.grpc.CommonServer
 import org.wfanet.measurement.common.grpc.RateLimiterProvider
@@ -30,6 +37,9 @@ import org.wfanet.measurement.common.parseTextProto
 import org.wfanet.measurement.config.RateLimitConfig
 import org.wfanet.measurement.config.RateLimitConfigKt
 import org.wfanet.measurement.config.rateLimitConfig
+import org.wfanet.measurement.edpaggregator.VidLabelingRpcDurationConverter
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.GoogleDataAvailabilitySyncTaskPublisher
+import org.wfanet.measurement.gcloud.pubsub.DefaultGooglePubSubClient
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.SpannerFlags
 import org.wfanet.measurement.gcloud.spanner.usingSpanner
@@ -37,11 +47,50 @@ import picocli.CommandLine
 
 private const val SERVER_NAME = "EdpAggregatorInternalApiServer"
 
+internal suspend fun runInternalApiServerJobs(
+  blockingServer: () -> Unit,
+  shutdownServer: () -> Unit,
+  backgroundJobs: List<suspend () -> Unit>,
+) = coroutineScope {
+  val serverJob = async { runInterruptible(Dispatchers.IO) { blockingServer() } }
+  val jobs = backgroundJobs.map { backgroundJob -> async { backgroundJob() } }
+  try {
+    select<Unit> {
+      serverJob.onAwait {}
+      jobs.forEach { job -> job.onAwait {} }
+    }
+  } finally {
+    shutdownServer()
+    serverJob.cancelAndJoin()
+    jobs.forEach { job -> job.cancelAndJoin() }
+  }
+}
+
 @CommandLine.Command(name = SERVER_NAME)
 class InternalApiServer : Runnable {
   @CommandLine.Mixin private lateinit var serverFlags: CommonServer.Flags
   @CommandLine.Mixin private lateinit var serviceFlags: ServiceFlags
   @CommandLine.Mixin private lateinit var spannerFlags: SpannerFlags
+
+  @CommandLine.Option(names = ["--google-project-id"], required = true)
+  private lateinit var googleProjectId: String
+
+  @CommandLine.Option(names = ["--data-availability-sync-task-topic-id"], required = true)
+  private lateinit var dataAvailabilitySyncTaskTopicId: String
+
+  @CommandLine.Option(
+    names = ["--data-availability-sync-task-publication-poll-interval"],
+    defaultValue = "1s",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var dataAvailabilitySyncTaskPublicationPollInterval: Duration
+
+  @CommandLine.Option(
+    names = ["--data-availability-sync-task-publication-lease-duration"],
+    defaultValue = "1m",
+    converter = [VidLabelingRpcDurationConverter::class],
+  )
+  private lateinit var dataAvailabilitySyncTaskPublicationLeaseDuration: Duration
 
   @CommandLine.Option(
     names = ["--rate-limit-config-file"],
@@ -79,8 +128,24 @@ class InternalApiServer : Runnable {
             .toList()
             .map { it.withInterceptor(rateLimitingInterceptor) }
         val server = CommonServer.fromFlags(serverFlags, SERVER_NAME, services)
-
-        server.start().blockUntilShutdown()
+        val publisher =
+          GoogleDataAvailabilitySyncTaskPublisher(
+            googleProjectId,
+            dataAvailabilitySyncTaskTopicId,
+            DefaultGooglePubSubClient(),
+          )
+        val publicationRunner =
+          DataAvailabilitySyncTaskPublicationRunner(
+            databaseClient,
+            publisher,
+            pollInterval = dataAvailabilitySyncTaskPublicationPollInterval,
+            leaseDuration = dataAvailabilitySyncTaskPublicationLeaseDuration,
+          )
+        runInternalApiServerJobs(
+          blockingServer = { server.start().blockUntilShutdown() },
+          shutdownServer = { server.shutdown() },
+          backgroundJobs = listOf { publicationRunner.run() },
+        )
       }
     }
   }
