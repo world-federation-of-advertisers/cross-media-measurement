@@ -88,6 +88,23 @@ class WorkItemPublicationRunnerTest {
   }
 
   @Test
+  fun `publication forwards the WorkItem serialization key`() =
+    runBlocking<Unit> {
+      insertPendingWorkItem(
+        WORK_ITEM_ID,
+        "work-item-1",
+        serializationKey = "data-availability:dataProviders/provider-1",
+      )
+      val publisher = RecordingPublisher()
+
+      assertThat(newRunner(publisher, MutableClock(Instant.now())).publishPendingWorkItems())
+        .isEqualTo(1)
+
+      assertThat(publisher.orderingKeys)
+        .containsExactly("data-availability:dataProviders/provider-1")
+    }
+
+  @Test
   fun `publication runner logs retryable failure and later success`() = runBlocking {
     insertPendingWorkItem(WORK_ITEM_ID, "work-item-1")
     val publisher = RecordingPublisher(fail = true)
@@ -463,15 +480,20 @@ class WorkItemPublicationRunnerTest {
     )
   }
 
-  private suspend fun insertPendingWorkItem(workItemId: Long, workItemResourceId: String) {
+  private suspend fun insertPendingWorkItem(
+    workItemId: Long,
+    workItemResourceId: String,
+    serializationKey: String = "",
+  ) {
     val queue = checkNotNull(TestConfig.QUEUE_MAPPING.getQueueByResourceId(QUEUE_RESOURCE_ID))
-    insertPendingWorkItem(workItemId, workItemResourceId, queue.queueId)
+    insertPendingWorkItem(workItemId, workItemResourceId, queue.queueId, serializationKey)
   }
 
   private suspend fun insertPendingWorkItem(
     workItemId: Long,
     workItemResourceId: String,
     queueId: Long,
+    serializationKey: String = "",
   ) {
     spannerDatabase.databaseClient.readWriteTransaction().run { transaction ->
       transaction.insertWorkItem(
@@ -479,6 +501,7 @@ class WorkItemPublicationRunnerTest {
         workItemResourceId,
         queueId,
         Any.pack(testWork { userName = "UserName" }),
+        serializationKey,
       )
       transaction.insertWorkItemPublication(workItemId)
     }
@@ -560,13 +583,19 @@ class WorkItemPublicationRunnerTest {
       private set
 
     val messages = mutableListOf<Message>()
+    val orderingKeys = mutableListOf<String>()
 
     override suspend fun publishMessage(queueName: String, message: Message) {
+      publishMessage(queueName, message, "")
+    }
+
+    override suspend fun publishMessage(queueName: String, message: Message, orderingKey: String) {
       callCount++
       if (fail) {
         error("Publication failed")
       }
       messages += message
+      orderingKeys += orderingKey
     }
   }
 
