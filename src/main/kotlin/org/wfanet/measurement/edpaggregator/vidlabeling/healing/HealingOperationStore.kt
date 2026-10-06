@@ -118,8 +118,6 @@ class GrpcHealingOperationStore(
                 val source = request.uploadHealingOperation
                 reason = source.reason
                 labeledImpressionsBlobPrefix = source.labeledImpressionsBlobPrefix
-                badRawImpressionUploads += source.badRawImpressionUploadsList
-                if (source.hasCutoffTime()) cutoffTime = source.cutoffTime
                 rawImpressionUploadCorrectionCandidates +=
                   source.rawImpressionUploadCorrectionCandidatesList
                 planFormatVersion = source.planFormatVersion

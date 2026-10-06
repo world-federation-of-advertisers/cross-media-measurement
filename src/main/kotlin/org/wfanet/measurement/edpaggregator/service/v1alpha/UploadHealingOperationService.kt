@@ -16,7 +16,6 @@
 
 package org.wfanet.measurement.edpaggregator.service.v1alpha
 
-import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
@@ -255,9 +254,6 @@ class UploadHealingOperationService(
     if (plan.reason.isBlank()) required("plan.reason")
     if (plan.labeledImpressionsBlobPrefix.isBlank())
       required("plan.labeled_impressions_blob_prefix")
-    if (plan.badRawImpressionUploadsList.isEmpty()) required("plan.bad_raw_impression_uploads")
-    if (!plan.hasCutoffTime()) required("plan.cutoff_time")
-    if (!Timestamps.isValid(plan.cutoffTime)) invalid("plan.cutoff_time")
     if (plan.planFormatVersion !in 1..2) invalid("plan.plan_format_version")
     val expectedManifestState =
       if (plan.planFormatVersion == 2)
@@ -593,12 +589,6 @@ class UploadHealingOperationService(
         resumeState = this@toPublic.resumeState.toPublic()
       }
       reason = this@toPublic.reason
-      labeledImpressionsBlobPrefix = this@toPublic.labeledImpressionsBlobPrefix
-      badRawImpressionUploads +=
-        this@toPublic.badRawImpressionUploadResourceIdsList.map {
-          RawImpressionUploadKey(dataProviderResourceId, it).toName()
-        }
-      cutoffTime = this@toPublic.cutoffTime
       labeledImpressionsBlobPrefix = this@toPublic.labeledImpressionsBlobPrefix
       rawImpressionUploadCorrectionCandidates +=
         rawImpressionUploadCorrectionCandidateIdsList.map {

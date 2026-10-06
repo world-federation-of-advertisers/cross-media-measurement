@@ -202,7 +202,6 @@ class VidLabelingHealingControllerTest {
 
     assertThat(reconciled.rawImpressionUploadCorrectionCandidatesList)
       .containsExactly(CANDIDATE_NAME)
-    assertThat(reconciled.badRawImpressionUploadsList).containsExactly(SOURCE_UPLOAD_NAME)
     assertThat(reconciled.state).isEqualTo(UploadHealingOperation.State.STATE_UNSPECIFIED)
     Unit
   }
@@ -530,10 +529,23 @@ class VidLabelingHealingControllerTest {
       .thenReturn(listRawImpressionUploadFilesResponse {})
     whenever(uploadsService.listRawImpressionUploads(any()))
       .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += SOURCE_UPLOAD })
-    val evictionExecutor = testEvictionExecutor { plan, _, checkpoint ->
-      plan.cascade.forEach { checkpoint(it) }
-      EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
-    }
+    lateinit var executedPlan: EvictUploader.EvictionPlan
+    val evictionExecutor =
+      object : EvictionExecutor {
+        override suspend fun finalizeOutputManifests(
+          plan: EvictUploader.EvictionPlan
+        ): EvictUploader.EvictionPlan = plan
+
+        override suspend fun evict(
+          plan: EvictUploader.EvictionPlan,
+          reason: String,
+          onEntryEvicted: suspend (EvictUploader.CascadeEntry) -> Unit,
+        ): EvictUploader.EvictionResult {
+          executedPlan = plan
+          plan.cascade.forEach { onEntryEvicted(it) }
+          return EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
+        }
+      }
     var replay: DoneBlobReplayer.Request? = null
 
     newController(
@@ -545,6 +557,8 @@ class VidLabelingHealingControllerTest {
     assertThat(replay!!.doneBlobUri).isEqualTo(CANDIDATE_UPLOAD.doneBlobUri)
     assertThat(replay!!.doneBlobGeneration).isEqualTo(CANDIDATE_UPLOAD.doneBlobGeneration)
     assertThat(replay!!.sourceRawImpressionUpload).isEqualTo(SOURCE_UPLOAD_NAME)
+    assertThat(executedPlan.badUploads).containsExactly(SOURCE_UPLOAD_NAME)
+    assertThat(executedPlan.cutoffTime).isEqualTo(Instant.MIN)
     assertThat(operation.stepsList.single().state)
       .isEqualTo(UploadHealingStep.State.RECOVERY_STARTED)
     Unit
@@ -2197,9 +2211,7 @@ class VidLabelingHealingControllerTest {
       etag = "approved-etag"
       reason = "correction"
       labeledImpressionsBlobPrefix = "gs://output/vid"
-      badRawImpressionUploads += SOURCE_UPLOAD_NAME
       rawImpressionUploadCorrectionCandidates += CANDIDATE_NAME
-      cutoffTime = timestamp { seconds = 1L }
       steps += uploadHealingStep {
         name = "$OPERATION_NAME/uploadHealingSteps/1"
         sourceRawImpressionUpload = SOURCE_UPLOAD_NAME
