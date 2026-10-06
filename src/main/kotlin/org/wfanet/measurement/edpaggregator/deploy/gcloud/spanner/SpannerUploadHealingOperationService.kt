@@ -19,7 +19,6 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 import com.google.cloud.spanner.Options
 import com.google.protobuf.ByteString
 import com.google.protobuf.kotlin.toByteString
-import com.google.protobuf.util.Timestamps
 import io.grpc.Status
 import java.security.MessageDigest
 import java.util.UUID
@@ -67,7 +66,6 @@ import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperati
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.internal.edpaggregator.ApproveUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.BlobType
-import org.wfanet.measurement.internal.edpaggregator.CreateUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.GetUploadHealingOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRankIndexBlobsRequest
@@ -126,7 +124,7 @@ class SpannerUploadHealingOperationService(
           txn.insertUploadHealingOperation(operation, request.requestId)
           return@run
         }
-        if (existing.createRequestId == request.requestId) {
+        if (existing.reconcileRequestId == request.requestId) {
           if (hasSamePlan(existing.uploadHealingOperation, operation)) return@run
           throw requestIdAlreadyUsed()
         }
@@ -170,37 +168,6 @@ class SpannerUploadHealingOperationService(
           existing.mutationRequestFingerprints + listOf(requestFingerprint),
         )
       }
-    return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
-  }
-
-  override suspend fun createUploadHealingOperation(
-    request: CreateUploadHealingOperationRequest
-  ): UploadHealingOperation {
-    val operation = normalizeOperation(request)
-    validatePlan(operation)
-    val transactionRunner =
-      databaseClient.readWriteTransaction(Options.tag("action=createUploadHealingOperation"))
-    transactionRunner.run { txn ->
-      val existing =
-        txn.findUploadHealingOperation(
-          request.dataProviderResourceId,
-          request.uploadHealingOperationId,
-        )
-      if (existing != null) {
-        if (
-          existing.createRequestId == request.requestId &&
-            hasSamePlan(existing.uploadHealingOperation, operation)
-        ) {
-          return@run
-        }
-        throw Status.ALREADY_EXISTS.withDescription(
-            "UploadHealingOperation ${request.uploadHealingOperationId} already exists"
-          )
-          .asRuntimeException()
-      }
-      syncCandidateAssignments(txn, null, operation)
-      txn.insertUploadHealingOperation(operation, request.requestId)
-    }
     return getOperation(request.dataProviderResourceId, request.uploadHealingOperationId)
   }
 
@@ -923,27 +890,6 @@ class SpannerUploadHealingOperationService(
     }
 
   private fun normalizeOperation(
-    request: CreateUploadHealingOperationRequest
-  ): UploadHealingOperation {
-    requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
-    requireUuid(request.uploadHealingOperationId, "upload_healing_operation_id")
-    requireUuid(request.requestId, "request_id")
-    require(request.hasUploadHealingOperation()) { "upload_healing_operation is required" }
-    return request.uploadHealingOperation.copy {
-      dataProviderResourceId = request.dataProviderResourceId
-      uploadHealingOperationId = request.uploadHealingOperationId
-      if (planFormatVersion == 0) {
-        planFormatVersion = LEGACY_PLAN_FORMAT_VERSION
-        outputManifestState =
-          UploadHealingOperation.OutputManifestState.UPLOAD_HEALING_OUTPUT_MANIFEST_STATE_FINALIZED
-      }
-      if (state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_UNSPECIFIED) {
-        state = UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING
-      }
-    }
-  }
-
-  private fun normalizeOperation(
     request: ReconcileUploadHealingOperationRequest
   ): UploadHealingOperation {
     requireNotBlank(request.dataProviderResourceId, "data_provider_resource_id")
@@ -965,7 +911,6 @@ class SpannerUploadHealingOperationService(
     val allowedStates =
       setOf(
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED,
-        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
         UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_NEEDS_ATTENTION,
       )
     require(operation.state in allowedStates) {
@@ -993,12 +938,6 @@ class SpannerUploadHealingOperationService(
     }
     require(operation.labeledImpressionsBlobPrefix.isNotBlank()) {
       "upload_healing_operation.labeled_impressions_blob_prefix is required"
-    }
-    require(operation.badRawImpressionUploadResourceIdsList.isNotEmpty()) {
-      "upload_healing_operation.bad_raw_impression_upload_resource_ids is required"
-    }
-    require(operation.hasCutoffTime() && Timestamps.isValid(operation.cutoffTime)) {
-      "upload_healing_operation.cutoff_time is required and must be valid"
     }
     require(
       operation.resumeState ==
@@ -1029,9 +968,18 @@ class SpannerUploadHealingOperationService(
         "upload_healing_operation.raw_impression_upload_correction_candidate_ids is required"
       }
     }
-    if (operation.state == UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING) {
-      require(operation.rawImpressionUploadCorrectionCandidateIdsCount == 0) {
-        "a candidate-backed plan must require approval"
+    if (
+      operation.state ==
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_APPROVAL_REQUIRED
+    ) {
+      val candidateIdsOwnedBySteps =
+        operation.stepsList
+          .map { it.rawImpressionUploadCorrectionCandidateId }
+          .filterTo(mutableSetOf()) { it.isNotEmpty() }
+      require(
+        candidateIdsOwnedBySteps == operation.rawImpressionUploadCorrectionCandidateIdsList.toSet()
+      ) {
+        "every correction candidate must own at least one healing step"
       }
     }
     require(
@@ -1161,14 +1109,11 @@ class SpannerUploadHealingOperationService(
       existing.reason != requested.reason ||
         existing.planFormatVersion != requested.planFormatVersion ||
         existing.outputManifestState != requested.outputManifestState ||
+        existing.labeledImpressionsBlobPrefix != requested.labeledImpressionsBlobPrefix ||
         existing.state != requested.state ||
         existing.resumeState != requested.resumeState ||
-        existing.labeledImpressionsBlobPrefix != requested.labeledImpressionsBlobPrefix ||
-        existing.badRawImpressionUploadResourceIdsList !=
-          requested.badRawImpressionUploadResourceIdsList ||
         existing.rawImpressionUploadCorrectionCandidateIdsList !=
           requested.rawImpressionUploadCorrectionCandidateIdsList ||
-        existing.cutoffTime != requested.cutoffTime ||
         existing.stepsCount != requested.stepsCount
     ) {
       return false
