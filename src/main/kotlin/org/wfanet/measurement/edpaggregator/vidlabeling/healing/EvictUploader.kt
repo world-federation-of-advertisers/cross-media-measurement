@@ -35,6 +35,8 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
+import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequestKt
@@ -51,6 +53,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEv
 import org.wfanet.measurement.edpaggregator.v1alpha.batchDeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.deleteRankIndexBlobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelLineRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
@@ -82,7 +85,8 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
  * @param impressionMetadataStub stub used to soft-delete invalid labeled-output metadata.
  * @param labeledImpressionsBlobPrefix absolute URI prefix under which the VID labeler writes
  *   generated output.
- * @param deleteBlob deletes a labeled output or sidecar by URI and returns whether it existed.
+ * @param getBlobGeneration returns the live generation of a labeled output or sidecar.
+ * @param deleteBlob deletes one exact labeled-output generation and returns whether it existed.
  */
 class EvictUploader(
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
@@ -91,7 +95,8 @@ class EvictUploader(
   private val rawImpressionFilesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val impressionMetadataStub: ImpressionMetadataServiceCoroutineStub,
   labeledImpressionsBlobPrefix: String,
-  private val deleteBlob: suspend (String) -> Boolean,
+  private val getBlobGeneration: suspend (String) -> Long?,
+  private val deleteBlob: suspend (String, Long) -> Boolean,
 ) : EvictionExecutor {
   private val labeledImpressionsBlobPrefix = labeledImpressionsBlobPrefix.trimEnd('/')
 
@@ -109,6 +114,7 @@ class EvictUploader(
     val memoized: Boolean,
     val recoveryAction: RawImpressionUploadModelLine.RecoveryAction,
     val recoveryPredecessorUploadName: String,
+    val labeledOutputManifest: LabeledOutputManifest = LabeledOutputManifest.getDefaultInstance(),
   )
 
   /** An evicted upload on which a replacement action must run. */
@@ -360,8 +366,9 @@ class EvictUploader(
           compareBy<Pair<Instant, CascadeEntry>> { it.first }.thenBy { it.second.cmmsModelLine }
         )
         .map { it.second }
-    val latestUploadByDoneBlobUri =
-      uploadsByName.values
+    val latestCascadeUploadByDoneBlobUri =
+      unlinkedCascade
+        .map { uploadsByName.getValue(it.uploadName) }
         .groupBy { it.doneBlobUri }
         .mapValues { (_, revisions) -> findLatestUpload(revisions) }
     val predecessorByModelLineAndUpload =
@@ -380,7 +387,7 @@ class EvictUploader(
           val actionHeads =
             cascadeEntries.filter { entry ->
               val upload = uploadsByName.getValue(entry.uploadName)
-              latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+              latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
             }
           val orderedActions = actionHeads
           if (orderedActions.isEmpty()) return@flatMap emptyList()
@@ -427,9 +434,14 @@ class EvictUploader(
             }
         )
       }
-    val extraUploads = cascade.map { it.uploadName }.filter { it !in requestedNames }.distinct()
+    val cascadeWithOutputManifests =
+      cascade.map { entry ->
+        entry.copy(labeledOutputManifest = resolveLabeledOutputManifest(entry))
+      }
+    val extraUploads =
+      cascadeWithOutputManifests.map { it.uploadName }.filter { it !in requestedNames }.distinct()
     val recoveryTargets =
-      cascade
+      cascadeWithOutputManifests
         .filter { entry ->
           if (
             entry.recoveryAction !=
@@ -438,14 +450,14 @@ class EvictUploader(
             return@filter false
           }
           val upload = uploadsByName.getValue(entry.uploadName)
-          latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
         }
         .groupBy { it.uploadName }
         .map { (uploadName, entries) ->
           RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
         }
     val replacementTargets =
-      cascade
+      cascadeWithOutputManifests
         .filter { entry ->
           if (
             entry.recoveryAction !=
@@ -454,14 +466,14 @@ class EvictUploader(
             return@filter false
           }
           val upload = uploadsByName.getValue(entry.uploadName)
-          latestUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
+          latestCascadeUploadByDoneBlobUri.getValue(upload.doneBlobUri).name == entry.uploadName
         }
         .groupBy { it.uploadName }
         .map { (uploadName, entries) ->
           RecoveryTarget(uploadName, entries.map { it.cmmsModelLine }.distinct())
         }
     return EvictionPlan(
-      cascade,
+      cascadeWithOutputManifests,
       extraUploads,
       memoizedModelLines,
       nonMemoizedModelLines,
@@ -558,6 +570,7 @@ class EvictUploader(
     reason: String,
     onEntryEvicted: suspend (CascadeEntry) -> Unit,
   ): EvictionResult {
+    verifyLabeledOutputManifests(plan)
     val failed = mutableListOf<String>()
     var deleted = 0
     var deletedMetadata = 0
@@ -698,16 +711,9 @@ class EvictUploader(
 
   private data class OutputCleanupResult(val deletedMetadata: Int, val deletedBlobs: Int)
 
-  private suspend fun cleanLabeledOutputs(
-    entry: CascadeEntry,
-    cleanedMetadataNames: MutableSet<String>,
-    cleanedBlobUris: MutableSet<String>,
-  ): OutputCleanupResult {
-    val files = listRawImpressionUploadFiles(entry.uploadName)
-    if (files.isEmpty()) return OutputCleanupResult(0, 0)
-
-    val expectedImpressionsBlobUris =
-      files
+  private suspend fun resolveLabeledOutputManifest(entry: CascadeEntry): LabeledOutputManifest {
+    val outputUris =
+      listRawImpressionUploadFiles(entry.uploadName)
         .map { file ->
           LabeledImpressionsBlobKeys.forInputUri(
             labeledImpressionsBlobPrefix,
@@ -717,6 +723,62 @@ class EvictUploader(
           )
         }
         .distinct()
+        .sorted()
+        .flatMap { impressionsBlobUri ->
+          listOf(impressionsBlobUri + LABELED_OUTPUT_METADATA_SUFFIX, impressionsBlobUri)
+        }
+    val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
+    val versions = coroutineScope {
+      outputUris
+        .map { blobUri ->
+          async {
+            semaphore.withPermit {
+              LabeledOutputManifestKt.blobVersion {
+                this.blobUri = blobUri
+                getBlobGeneration(blobUri)?.let { generation = it }
+              }
+            }
+          }
+        }
+        .awaitAll()
+    }
+    return labeledOutputManifest { blobs += versions }
+  }
+
+  private suspend fun verifyLabeledOutputManifests(plan: EvictionPlan) {
+    val approvedByUri = mutableMapOf<String, LabeledOutputManifest.BlobVersion>()
+    for (entry in plan.cascade) {
+      for (blob in entry.labeledOutputManifest.blobsList) {
+        val previous = approvedByUri.putIfAbsent(blob.blobUri, blob)
+        check(previous == null || previous == blob) {
+          "Healing plan has conflicting generations for ${blob.blobUri}"
+        }
+      }
+    }
+    for (blob in approvedByUri.values) {
+      val liveGeneration = getBlobGeneration(blob.blobUri)
+      val unchanged =
+        if (blob.hasGeneration()) {
+          liveGeneration == null || liveGeneration == blob.generation
+        } else {
+          liveGeneration == null
+        }
+      check(unchanged) {
+        "Labeled output ${blob.blobUri} changed after plan approval: " +
+          "expected=${blob.generation.takeIf { blob.hasGeneration() }}, live=$liveGeneration"
+      }
+    }
+  }
+
+  private suspend fun cleanLabeledOutputs(
+    entry: CascadeEntry,
+    cleanedMetadataNames: MutableSet<String>,
+    cleanedBlobUris: MutableSet<String>,
+  ): OutputCleanupResult {
+    val versionsByUri = entry.labeledOutputManifest.blobsList.associateBy { it.blobUri }
+    val expectedImpressionsBlobUris =
+      versionsByUri.keys.filterNot { it.endsWith(LABELED_OUTPUT_METADATA_SUFFIX) }.sorted()
+    if (expectedImpressionsBlobUris.isEmpty()) return OutputCleanupResult(0, 0)
     val expectedMetadataBlobUris =
       expectedImpressionsBlobUris.map { it + LABELED_OUTPUT_METADATA_SUFFIX }
     val expectedMetadataBlobUriSet = expectedMetadataBlobUris.toSet()
@@ -735,24 +797,24 @@ class EvictUploader(
       )
     }
 
-    val blobUriPairs =
+    val blobVersionPairs =
       expectedMetadataBlobUris.zip(expectedImpressionsBlobUris).mapNotNull {
         (metadataBlobUri, impressionsBlobUri) ->
-        listOf(metadataBlobUri, impressionsBlobUri)
-          .filter { cleanedBlobUris.add(it) }
+        listOfNotNull(versionsByUri[metadataBlobUri], versionsByUri[impressionsBlobUri])
+          .filter { cleanedBlobUris.add(it.blobUri) }
           .takeIf { it.isNotEmpty() }
       }
     val deletedBlobs = coroutineScope {
       val semaphore = Semaphore(OUTPUT_DELETE_PARALLELISM)
-      blobUriPairs
-        .map { blobUris ->
+      blobVersionPairs
+        .map { blobVersions ->
           async {
             semaphore.withPermit {
               // Delete the sidecar before its data blob so metadata is never left pointing at an
               // absent data object if this pair fails partway through.
               var count = 0
-              for (blobUri in blobUris) {
-                if (deleteBlob(blobUri)) count++
+              for (blob in blobVersions) {
+                if (blob.hasGeneration() && deleteBlob(blob.blobUri, blob.generation)) count++
               }
               count
             }

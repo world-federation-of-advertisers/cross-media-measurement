@@ -191,7 +191,8 @@ class UploadHealingWorkflowIntegrationTest {
         filesStub,
         impressionMetadataStub,
         LABELED_OUTPUT_PREFIX,
-        deleteBlob = { blobUri ->
+        getBlobGeneration = { blobUri -> if (blobUri in outputBlobUris) 100L else null },
+        deleteBlob = { blobUri, _ ->
           requestedBlobDeletions += blobUri
           check(blobUri.startsWith("$LABELED_OUTPUT_PREFIX/")) {
             "Eviction attempted to delete a blob outside the labeled-output prefix: $blobUri"

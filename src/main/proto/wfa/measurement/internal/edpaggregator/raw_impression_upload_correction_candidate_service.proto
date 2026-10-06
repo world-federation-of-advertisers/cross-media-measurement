@@ -80,10 +80,11 @@ message ListRawImpressionUploadCorrectionCandidatesPageToken {
 
 message AdvanceRawImpressionUploadCorrectionCandidateRequest {
   enum Action {
+    reserved 2, 3;
+    reserved "APPROVE_CORRECT", "APPROVE_NO_REPLACEMENT";
+
     ACTION_UNSPECIFIED = 0;
     ASSIGN_PLAN = 1;
-    APPROVE_CORRECT = 2;
-    APPROVE_NO_REPLACEMENT = 3;
     START_HEALING = 4;
     COMPLETE = 5;
     REJECT = 6;

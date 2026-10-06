@@ -246,7 +246,8 @@ class UploadHealingWorkflowTest {
           RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(channel),
           ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel),
           "gs://output/vid",
-          deleteBlob = { true },
+          getBlobGeneration = { 100L },
+          deleteBlob = { _, _ -> true },
         )
         .plan(listOf(D2, D4), cutoffTime = Instant.EPOCH)
     assertThat(plan.cascade.map { it.uploadName }).containsExactly(D2, D3, D4, D5).inOrder()
@@ -364,7 +365,8 @@ class UploadHealingWorkflowTest {
             ),
             ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel),
             "gs://output/vid",
-            deleteBlob = { true },
+            getBlobGeneration = { 100L },
+            deleteBlob = { _, _ -> true },
           )
           .plan(listOf(D2, D4), cutoffTime = Instant.EPOCH, noReplacementUploads = setOf(D2, D4))
       val workflow =
@@ -466,7 +468,7 @@ class UploadHealingWorkflowTest {
       operation =
         request.uploadHealingOperation.copy {
           name = operationName
-          state = UploadHealingOperation.State.IN_PROGRESS
+          state = UploadHealingOperation.State.EVICTING
           steps.clear()
           steps +=
             request.uploadHealingOperation.stepsList.mapIndexed { index, step ->
