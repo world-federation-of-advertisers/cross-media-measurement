@@ -1,0 +1,114 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.edpaggregator;
+
+import "google/protobuf/timestamp.proto";
+import "google/type/interval.proto";
+import "wfa/measurement/internal/edpaggregator/data_availability_sync_task.proto";
+import "wfa/measurement/internal/edpaggregator/data_availability_sync_task_failure_category.proto";
+import "wfa/measurement/internal/edpaggregator/data_availability_sync_task_state.proto";
+
+option java_package = "org.wfanet.measurement.internal.edpaggregator";
+option java_multiple_files = true;
+option java_outer_classname = "DataAvailabilitySyncTaskServiceProto";
+
+service DataAvailabilitySyncTaskService {
+  rpc CreateDataAvailabilitySyncTask(CreateDataAvailabilitySyncTaskRequest)
+      returns (DataAvailabilitySyncTask);
+  rpc GetDataAvailabilitySyncTask(GetDataAvailabilitySyncTaskRequest)
+      returns (DataAvailabilitySyncTask);
+  rpc ListDataAvailabilitySyncTasks(ListDataAvailabilitySyncTasksRequest)
+      returns (ListDataAvailabilitySyncTasksResponse);
+  rpc MarkDataAvailabilitySyncTaskRunning(
+      MarkDataAvailabilitySyncTaskRunningRequest)
+      returns (DataAvailabilitySyncTask);
+  rpc MarkDataAvailabilitySyncTaskSucceeded(
+      MarkDataAvailabilitySyncTaskSucceededRequest)
+      returns (DataAvailabilitySyncTask);
+  rpc MarkDataAvailabilitySyncTaskFailed(
+      MarkDataAvailabilitySyncTaskFailedRequest)
+      returns (DataAvailabilitySyncTask);
+}
+
+message CreateDataAvailabilitySyncTaskRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+  DataAvailabilitySyncTask data_availability_sync_task = 4;
+  string request_id = 5;
+}
+
+message GetDataAvailabilitySyncTaskRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+}
+
+message ListDataAvailabilitySyncTasksRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  int32 page_size = 3;
+  ListDataAvailabilitySyncTasksPageToken page_token = 4;
+
+  message Filter {
+    DataAvailabilitySyncTaskState state = 1;
+    google.type.Interval create_time_interval = 2;
+    string cmms_model_line = 3;
+  }
+  Filter filter = 5;
+}
+
+message ListDataAvailabilitySyncTasksResponse {
+  repeated DataAvailabilitySyncTask data_availability_sync_tasks = 1;
+  ListDataAvailabilitySyncTasksPageToken next_page_token = 2;
+}
+
+message ListDataAvailabilitySyncTasksPageToken {
+  message After {
+    google.protobuf.Timestamp create_time = 1;
+    string data_availability_sync_task_resource_id = 2;
+  }
+  After after = 1;
+  string data_provider_resource_id = 2;
+  string raw_impression_upload_resource_id = 3;
+  ListDataAvailabilitySyncTasksRequest.Filter filter = 4;
+}
+
+message MarkDataAvailabilitySyncTaskRunningRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+  string etag = 4;
+  string request_id = 5;
+}
+
+message MarkDataAvailabilitySyncTaskSucceededRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+  string etag = 4;
+  string request_id = 5;
+}
+
+message MarkDataAvailabilitySyncTaskFailedRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string data_availability_sync_task_resource_id = 3;
+  DataAvailabilitySyncTaskFailureCategory failure_category = 4;
+  string etag = 5;
+  string request_id = 6;
+}

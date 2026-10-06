@@ -525,6 +525,74 @@ kt_jvm_grpc_proto_library(
 )
 
 proto_library(
+    name = "data_availability_sync_task_notification_proto",
+    srcs = ["data_availability_sync_task_notification.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_task_notification_kt_jvm_proto",
+    deps = [":data_availability_sync_task_notification_proto"],
+)
+
+proto_library(
+    name = "data_availability_sync_task_failure_category_proto",
+    srcs = ["data_availability_sync_task_failure_category.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_task_failure_category_kt_jvm_proto",
+    deps = [":data_availability_sync_task_failure_category_proto"],
+)
+
+proto_library(
+    name = "data_availability_sync_task_state_proto",
+    srcs = ["data_availability_sync_task_state.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_task_state_kt_jvm_proto",
+    deps = [":data_availability_sync_task_state_proto"],
+)
+
+proto_library(
+    name = "data_availability_sync_task_proto",
+    srcs = ["data_availability_sync_task.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_availability_sync_task_failure_category_proto",
+        ":data_availability_sync_task_state_proto",
+        "@com_google_googleapis//google/type:date_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "data_availability_sync_task_kt_jvm_proto",
+    deps = [":data_availability_sync_task_proto"],
+)
+
+proto_library(
+    name = "data_availability_sync_task_service_proto",
+    srcs = ["data_availability_sync_task_service.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        ":data_availability_sync_task_failure_category_proto",
+        ":data_availability_sync_task_proto",
+        ":data_availability_sync_task_state_proto",
+        "@com_google_googleapis//google/type:interval_proto",
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_grpc_proto_library(
+    name = "data_availability_sync_task_service_kt_jvm_grpc_proto",
+    deps = [":data_availability_sync_task_service_proto"],
+)
+
+proto_library(
     name = "vid_labeling_state_proto",
     srcs = ["vid_labeling_state.proto"],
     strip_import_prefix = IMPORT_PREFIX,
