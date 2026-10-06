@@ -128,10 +128,12 @@ class WorkItemPublicationRunnerTest {
       .containsAtLeast(
         "event=secure_computation.work_item.publication " +
           "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.work_item.publication_attempt=1 " +
           "xmm.lifecycle.stage=work_item_publication xmm.outcome=retryable_failure " +
           "xmm.error.type=IllegalStateException",
         "event=secure_computation.work_item.publication " +
           "xmm.work_item.name=workItems/work-item-1 " +
+          "xmm.work_item.publication_attempt=2 " +
           "xmm.lifecycle.stage=work_item_publication xmm.outcome=succeeded",
       )
     Unit
