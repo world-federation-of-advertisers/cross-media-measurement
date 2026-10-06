@@ -88,3 +88,6 @@ databaseChangeLog:
   - include:
       file: create-upload-healing-operation-schema.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-impression-metadata-raw-upload.sql
+      relativeToChangeLogFile: true
