@@ -117,6 +117,7 @@ class SpannerWorkItemsService(
               request.workItem.workItemResourceId,
               queue.queueId,
               request.workItem.workItemParams,
+              request.workItem.serializationKey,
             )
           txn.insertWorkItemPublication(workItemId)
 
@@ -168,7 +169,8 @@ class SpannerWorkItemsService(
               txn.getWorkItemByResourceId(queueMapping, request.workItem.workItemResourceId)
             if (
               existing.workItem.queueResourceId != request.workItem.queueResourceId ||
-                existing.workItem.workItemParams != request.workItem.workItemParams
+                existing.workItem.workItemParams != request.workItem.workItemParams ||
+                existing.workItem.serializationKey != request.workItem.serializationKey
             ) {
               throw WorkItemAlreadyExistsException()
             }
@@ -198,6 +200,7 @@ class SpannerWorkItemsService(
                 request.workItem.workItemResourceId,
                 queue.queueId,
                 request.workItem.workItemParams,
+                request.workItem.serializationKey,
               )
             txn.insertWorkItemPublication(workItemId)
             EnsuredWorkItem(
@@ -578,7 +581,8 @@ class SpannerWorkItemsService(
       }
     if (
       existing.workItem.queueResourceId != request.workItem.queueResourceId ||
-        existing.workItem.workItemParams != request.workItem.workItemParams
+        existing.workItem.workItemParams != request.workItem.workItemParams ||
+        existing.workItem.serializationKey != request.workItem.serializationKey
     ) {
       throw WorkItemAlreadyExistsException().asStatusRuntimeException(Status.Code.ALREADY_EXISTS)
     }

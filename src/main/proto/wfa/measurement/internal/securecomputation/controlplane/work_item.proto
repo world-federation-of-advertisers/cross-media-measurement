@@ -66,4 +66,7 @@ message WorkItem {
   // This advances only when the current execution is retried. Queue consumers
   // use it to reject stale deliveries from an earlier generation.
   int64 generation = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Key used to order delivery relative to other `WorkItem`s.
+  string serialization_key = 8 [(google.api.field_behavior) = IMMUTABLE];
 }
