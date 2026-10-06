@@ -217,7 +217,6 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
               doneBlobGeneration = workItem.doneBlobGeneration,
-              expectedRawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
               expectedModelLine = workItem.appParams.modelLine,
               expectedEventDate = workItem.eventDate,
               onStage = onStage,

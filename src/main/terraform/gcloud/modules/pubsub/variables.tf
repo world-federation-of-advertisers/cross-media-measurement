@@ -24,6 +24,13 @@ variable "subscription_name" {
   nullable    = false
 }
 
+variable "enable_message_ordering" {
+  description = "Whether messages with the same ordering key are delivered in order."
+  type        = bool
+  default     = false
+  nullable    = false
+}
+
 variable "subscription_queue_retention_period" {
   description = "The duration (in seconds) for which the subscription queue retains unacknowledged messages."
   type        = string
