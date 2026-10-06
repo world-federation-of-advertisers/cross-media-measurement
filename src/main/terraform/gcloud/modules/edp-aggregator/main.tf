@@ -701,6 +701,7 @@ module "data_availability_sync_work_item_queue" {
   max_delivery_attempts      = var.data_availability_sync_work_item_queue.max_delivery_attempts
   minimum_backoff            = var.data_availability_sync_work_item_queue.minimum_backoff
   maximum_backoff            = var.data_availability_sync_work_item_queue.maximum_backoff
+  enable_message_ordering    = true
   push_endpoint              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"
   push_service_account_email = module.data_availability_sync_cloud_function.cloud_function_service_account.email
   push_audience              = "https://${data.google_client_config.default.region}-${local.google_project_id}.cloudfunctions.net/${var.data_availability_sync_function_name}"

@@ -325,7 +325,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `WorkItem synchronizes availability and completes attempt`() {
+  fun `WorkItem synchronizes entire folder and completes attempt`() {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -340,6 +340,7 @@ class DataAvailabilitySyncFunctionTest {
     runBlocking {
       val storageClient = FileSystemStorageClient(tempFolder.root)
       storageClient.writeBlob("$outputDirectory/impressions", emptyFlow())
+      storageClient.writeBlob("$outputDirectory/other-impressions", emptyFlow())
       storageClient.writeBlob(
         "$outputDirectory/metadata.binpb",
         flowOf(
@@ -348,6 +349,22 @@ class DataAvailabilitySyncFunctionTest {
               eventGroupReferenceId = "reference-id"
               modelLine = MODEL_LINE
               rawImpressionUpload = RAW_UPLOAD
+              interval = interval {
+                startTime = timestamp { seconds = 1736035200 }
+                endTime = timestamp { seconds = 1736121600 }
+              }
+            }
+            .toByteString()
+        ),
+      )
+      storageClient.writeBlob(
+        "$outputDirectory/other-metadata.binpb",
+        flowOf(
+          blobDetails {
+              blobUri = "file:////$outputDirectory/other-impressions"
+              eventGroupReferenceId = "other-reference-id"
+              modelLine = MODEL_LINE
+              rawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/upload-2"
               interval = interval {
                 startTime = timestamp { seconds = 1736035200 }
                 endTime = timestamp { seconds = 1736121600 }
@@ -436,13 +453,15 @@ class DataAvailabilitySyncFunctionTest {
       batchCreateImpressionMetadata(metadataRequest.capture())
     }
     assertThat(
-        metadataRequest.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
+        metadataRequest.firstValue.requestsList.map {
+          it.impressionMetadata.outputDoneBlobGeneration
+        }
       )
-      .isEqualTo(123L)
+      .containsExactly(123L, 123L)
     assertThat(
-        metadataRequest.firstValue.requestsList.single().impressionMetadata.rawImpressionUpload
+        metadataRequest.firstValue.requestsList.map { it.impressionMetadata.rawImpressionUpload }
       )
-      .isEqualTo(RAW_UPLOAD)
+      .containsExactly(RAW_UPLOAD, "$DATA_PROVIDER/rawImpressionUploads/upload-2")
   }
 
   @Test
