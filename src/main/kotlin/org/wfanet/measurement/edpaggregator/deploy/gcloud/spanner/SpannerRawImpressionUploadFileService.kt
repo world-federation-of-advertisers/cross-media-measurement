@@ -29,8 +29,8 @@ import org.wfanet.measurement.common.IdGenerator
 import org.wfanet.measurement.common.generateNewId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.RawImpressionUploadFileResult
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findExistingUploadFilesByRequestIds
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadFileByResourceId
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getUploadFilesByResourceIds
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.insertRawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.rawImpressionUploadFileExists
@@ -54,8 +54,10 @@ import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFile
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFilesPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFilesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadFilesResponse
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUpload
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFile
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadState
 import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUploadFilesResponse
 import org.wfanet.measurement.internal.edpaggregator.batchDeleteRawImpressionUploadFilesResponse
 import org.wfanet.measurement.internal.edpaggregator.copy
@@ -118,11 +120,12 @@ class SpannerRawImpressionUploadFileService(
     val result: RawImpressionUploadFile =
       try {
         transactionRunner.run { txn ->
-          val rawImpressionUploadId: Long =
-            txn.getRawImpressionUploadId(
+          val uploadResult =
+            txn.getRawImpressionUploadByResourceId(
               file.dataProviderResourceId,
               file.rawImpressionUploadResourceId,
             )
+          val rawImpressionUploadId = uploadResult.rawImpressionUploadId
           val existingByRequestId: Map<String, RawImpressionUploadFileResult> =
             txn.findExistingUploadFilesByRequestIds(
               file.dataProviderResourceId,
@@ -134,6 +137,7 @@ class SpannerRawImpressionUploadFileService(
             validateIdempotentCreate(existing, file)
             return@run existing
           }
+          requireMutableManifest(uploadResult.rawImpressionUpload)
           val fileId: Long =
             idGenerator.generateNewId { id ->
               txn.rawImpressionUploadFileExists(
@@ -260,11 +264,12 @@ class SpannerRawImpressionUploadFileService(
     val results: List<RawImpressionUploadFile> =
       try {
         transactionRunner.run { txn ->
-          val rawImpressionUploadId: Long =
-            txn.getRawImpressionUploadId(
+          val uploadResult =
+            txn.getRawImpressionUploadByResourceId(
               request.dataProviderResourceId,
               request.rawImpressionUploadResourceId,
             )
+          val rawImpressionUploadId = uploadResult.rawImpressionUploadId
           val existingByRequestId: Map<String, RawImpressionUploadFileResult> =
             txn.findExistingUploadFilesByRequestIds(
               request.dataProviderResourceId,
@@ -281,6 +286,7 @@ class SpannerRawImpressionUploadFileService(
               validateIdempotentCreate(existing, subRequest.rawImpressionUploadFile)
               return@map existing
             }
+            requireMutableManifest(uploadResult.rawImpressionUpload)
             val blobUri: String = subRequest.rawImpressionUploadFile.blobUri
             val sizeBytes: Long = subRequest.rawImpressionUploadFile.sizeBytes
             val fileProto = subRequest.rawImpressionUploadFile
@@ -466,6 +472,14 @@ class SpannerRawImpressionUploadFileService(
     val deletedFile: RawImpressionUploadFile =
       try {
         transactionRunner.run { txn ->
+          val upload =
+            txn
+              .getRawImpressionUploadByResourceId(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
+              )
+              .rawImpressionUpload
+          requireMutableManifest(upload)
           val result: RawImpressionUploadFileResult =
             txn.getRawImpressionUploadFileByResourceId(
               request.dataProviderResourceId,
@@ -550,6 +564,14 @@ class SpannerRawImpressionUploadFileService(
     val deletedList: List<RawImpressionUploadFile> =
       try {
         transactionRunner.run { txn ->
+          val upload =
+            txn
+              .getRawImpressionUploadByResourceId(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
+              )
+              .rawImpressionUpload
+          requireMutableManifest(upload)
           val existingByResourceId: Map<String, RawImpressionUploadFileResult> =
             txn.getUploadFilesByResourceIds(
               request.dataProviderResourceId,
@@ -595,6 +617,18 @@ class SpannerRawImpressionUploadFileService(
     } catch (e: IllegalArgumentException) {
       throw InvalidFieldValueException(fieldName, e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun requireMutableManifest(upload: RawImpressionUpload) {
+    if (
+      upload.registrationComplete ||
+        upload.state != RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CREATED
+    ) {
+      throw Status.FAILED_PRECONDITION.withDescription(
+          "RawImpressionUpload ${upload.rawImpressionUploadResourceId} manifest is immutable"
+        )
+        .asRuntimeException()
     }
   }
 
