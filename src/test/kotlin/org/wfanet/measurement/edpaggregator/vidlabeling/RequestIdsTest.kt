@@ -35,22 +35,12 @@ class RequestIdsTest {
       .isEqualTo(RequestIds.forRawImpressionUploadFile(UPLOAD, FILE_URI))
     assertThat(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
       .isEqualTo(RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE))
-    assertThat(RequestIds.forDataAvailabilitySyncTask(DONE_BLOB_PATH_HASH, 1L))
-      .isEqualTo("b825cb82-66b9-4d30-b10f-8d2dd49af388")
   }
 
   @Test
   fun `upload request id differs by generation`() {
     assertThat(RequestIds.forRawImpressionUpload(DONE_BLOB, 1L))
       .isNotEqualTo(RequestIds.forRawImpressionUpload(DONE_BLOB, 2L))
-    assertThat(RequestIds.forDataAvailabilitySyncTask(DONE_BLOB_PATH_HASH, 1L))
-      .isNotEqualTo(RequestIds.forDataAvailabilitySyncTask(DONE_BLOB_PATH_HASH, 2L))
-  }
-
-  @Test
-  fun `availability task id differs by path hash`() {
-    assertThat(RequestIds.forDataAvailabilitySyncTask(DONE_BLOB_PATH_HASH, 1L))
-      .isNotEqualTo(RequestIds.forDataAvailabilitySyncTask("different-path-hash", 1L))
   }
 
   @Test
@@ -92,7 +82,6 @@ class RequestIdsTest {
         RequestIds.forRawImpressionUploadModelLine(UPLOAD, MODEL_LINE),
         RequestIds.forPoolAssignmentJob(UPLOAD, MODEL_LINE, 0),
         RequestIds.forVidLabelingJob(UPLOAD, listOf(MODEL_LINE), 0),
-        RequestIds.forDataAvailabilitySyncTask(DONE_BLOB_PATH_HASH, 1L),
         RequestIds.forMarkVidLabelingJobSucceeded(VID_LABELING_JOB),
         RequestIds.forMarkRawImpressionUploadModelLinePoolAssigning(MODEL_LINE_NAME),
         RequestIds.forMarkRawImpressionUploadModelLineRanking(MODEL_LINE_NAME),
@@ -137,8 +126,6 @@ class RequestIdsTest {
     private const val UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
     private const val DONE_BLOB = "gs://bucket/edp/2026-01-01/done"
     private const val FILE_URI = "gs://bucket/edp/2026-01-01/impressions_001"
-    private const val DONE_BLOB_PATH_HASH =
-      "87d8490f17edd49fce27593d73573197633cf69b51d8bfa4ae35fec95acc1c94"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val SHARED = "shared-value"
     private const val MODEL_LINE_NAME = "$UPLOAD/rawImpressionUploadModelLines/riuml-1"
