@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package org.wfanet.measurement.edpaggregator.tools
+package org.wfanet.measurement.edpaggregator.vidlabeling.healing
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.timestamp
@@ -778,6 +778,73 @@ class EvictUploaderTest {
       assertThat(error).hasMessageThat().contains("completed replacement rows")
       assertThat(error).hasMessageThat().contains(modelLineName("up2"))
     }
+
+  @Test
+  fun `correction plan includes completed superseding revisions`(): Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up1")
+            createTime = T1.toProtoTime()
+          }
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up2")
+            createTime = T2.toProtoTime()
+            replacesRawImpressionUpload = uploadName("up1")
+          }
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up3")
+            createTime = T3.toProtoTime()
+            replacesRawImpressionUpload = uploadName("up2")
+          }
+        }
+      )
+    stubModelLineRows("up1", "up2")
+    whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+      .thenReturn(listRankIndexBlobsResponse {})
+
+    val plan =
+      evictUploader.planCorrection(
+        listOf(uploadName("up1")),
+        cutoffTime = T0,
+        noReplacementOwners = setOf(uploadName("up1")),
+      )
+
+    assertThat(plan.badUploads).containsExactly(uploadName("up1"), uploadName("up2")).inOrder()
+    assertThat(plan.noReplacementUploads).containsExactly(uploadName("up1"), uploadName("up2"))
+    assertThat(plan.replacementTargets).isEmpty()
+    assertThat(plan.cascade.map { it.recoveryAction }.distinct())
+      .containsExactly(RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT)
+  }
+
+  @Test
+  fun `correction plan replaces only latest completed revision`(): Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up1")
+            createTime = T1.toProtoTime()
+            doneBlobUri = "gs://raw/done"
+          }
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up2")
+            createTime = T2.toProtoTime()
+            doneBlobUri = "gs://raw/done"
+            replacesRawImpressionUpload = uploadName("up1")
+          }
+        }
+      )
+    stubModelLineRows("up1", "up2")
+    whenever(rankIndexBlobService.listRankIndexBlobs(any()))
+      .thenReturn(listRankIndexBlobsResponse {})
+
+    val plan = evictUploader.planCorrection(listOf(uploadName("up1")), cutoffTime = T0)
+
+    assertThat(plan.replacementTargets)
+      .containsExactly(EvictUploader.RecoveryTarget(uploadName("up2"), listOf(MODEL_LINE)))
+  }
 
   @Test
   fun `plan rejects old memoized revision whose replacement owns current output`(): Unit =
