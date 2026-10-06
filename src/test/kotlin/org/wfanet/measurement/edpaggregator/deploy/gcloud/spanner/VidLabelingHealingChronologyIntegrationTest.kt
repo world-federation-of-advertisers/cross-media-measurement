@@ -98,6 +98,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSeque
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingOperationCommand
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingStepCommand
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
@@ -114,6 +115,7 @@ import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServi
 import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest as internalManifest
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
@@ -155,6 +157,8 @@ class VidLabelingHealingChronologyIntegrationTest {
   private lateinit var operationsStub:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
   private lateinit var operationStore: GrpcHealingOperationStore
+  private lateinit var correctionDetectionStub:
+    InternalCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -188,6 +192,9 @@ class VidLabelingHealingChronologyIntegrationTest {
         operationsStub,
         InternalOperations.UploadHealingOperationServiceCoroutineStub(internalServer.channel),
       )
+    correctionDetectionStub =
+      InternalCorrectionCandidateServiceGrpcKt
+        .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(internalServer.channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn
@@ -311,6 +318,7 @@ class VidLabelingHealingChronologyIntegrationTest {
         ),
         RawImpressionUploadCorrectionCandidateServiceGrpcKt
           .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(publicServer.channel),
+        CorrectionCandidateCleaner { _ -> },
         operationStore,
         uploadsStub,
         filesStub,
@@ -612,6 +620,7 @@ class VidLabelingHealingChronologyIntegrationTest {
         storageClient = rawStorage,
         rawImpressionUploadStub = uploadsStub,
         rawImpressionUploadFilesStub = filesStub,
+        correctionDetectionStub = correctionDetectionStub,
         rawImpressionUploadModelLineStub = modelLinesStub,
         rankIndexBlobStub = rankIndexBlobsStub,
         modelLinesStub = ModelLinesGrpcKt.ModelLinesCoroutineStub(publicServer.channel),
