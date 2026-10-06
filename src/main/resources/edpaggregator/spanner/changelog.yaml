@@ -103,6 +103,3 @@ databaseChangeLog:
   - include:
       file: add-vid-labeling-eviction-fence-concurrency.sql
       relativeToChangeLogFile: true
-  - include:
-      file: add-data-availability-sync-task-transitions.sql
-      relativeToChangeLogFile: true
