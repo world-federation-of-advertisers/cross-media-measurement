@@ -21,6 +21,7 @@ import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataServiceGr
 import org.wfanet.measurement.internal.edpaggregator.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankIndexBlobServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RankerJobServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadModelLineServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadServiceGrpcKt
@@ -36,6 +37,8 @@ data class Services(
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase,
   val rawImpressionUpload:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineImplBase,
+  val rawImpressionUploadCorrectionCandidate:
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase,
   val uploadHealingOperation:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineImplBase,
   val rawImpressionUploadFile:
@@ -52,6 +55,7 @@ data class Services(
       requisitionMetadata,
       impressionMetadata,
       rawImpressionUpload,
+      rawImpressionUploadCorrectionCandidate,
       uploadHealingOperation,
       rawImpressionUploadFile,
       rawImpressionUploadModelLine,
