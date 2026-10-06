@@ -30,7 +30,6 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import org.wfanet.measurement.common.toInstant
-import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectionCandidateKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
@@ -52,13 +51,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
-import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.finalizeUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
@@ -135,7 +134,7 @@ class VidLabelingHealingController(
   dataProviderConfigs: Collection<DataProviderConfig>,
   private val candidatesStub: RawImpressionUploadCorrectionCandidateServiceCoroutineStub,
   private val candidateCleaner: CorrectionCandidateCleaner,
-  private val operationsStub: UploadHealingOperationServiceCoroutineStub,
+  private val operationsStub: HealingOperationStore,
   private val uploadsStub: RawImpressionUploadServiceCoroutineStub,
   private val filesStub: RawImpressionUploadFileServiceCoroutineStub,
   private val modelLinesStub: RawImpressionUploadModelLineServiceCoroutineStub,
@@ -309,7 +308,7 @@ class VidLabelingHealingController(
             requireNotNull(RawImpressionUploadCorrectionCandidateKey.fromName(it.name))
               .rawImpressionUploadCorrectionCandidateId
           }
-    val cutoffTime = draft?.cutoffTime?.toInstant() ?: clock.instant().minus(config.retention)
+    val cutoffTime = clock.instant().minus(config.retention)
     var planningFailed = false
     val plan =
       try {
@@ -348,16 +347,11 @@ class VidLabelingHealingController(
           .plan(
             plannerCandidates,
             cutoffTime,
-            mapOf(
-              config.name to
-                RawImpressionUploadCorrectionPlanner.DataProviderConfig(
-                  config.labeledImpressionsBlobPrefix
-                )
-            ),
             operationIdsByDataProvider = mapOf(config.name to operationId),
           )
           .single()
           .toPublicPlan()
+          .copy { labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix }
       } catch (e: Exception) {
         if (e is CancellationException || e is InterruptedException || e.isTransient()) throw e
         planningFailed = true
@@ -367,8 +361,6 @@ class VidLabelingHealingController(
             UploadHealingOperation.OutputManifestState.OUTPUT_MANIFEST_STATE_PROVISIONAL
           reason = "Correction plan could not be computed: ${e.message.orEmpty()}"
           labeledImpressionsBlobPrefix = config.labeledImpressionsBlobPrefix
-          badRawImpressionUploads += summaries.map { it.rawImpressionUpload }
-          this.cutoffTime = cutoffTime.toProtoTime()
           rawImpressionUploadCorrectionCandidates += summaries.map { it.name }
         }
       }
@@ -503,7 +495,8 @@ class VidLabelingHealingController(
     }
     val evictionExecutor =
       evictionExecutorFactory(dataProviderConfigs.getValue(key.parentKey.toName()))
-    val finalizedPlan = evictionExecutor.finalizeOutputManifests(operation.toEvictionPlan())
+    val finalizedPlan =
+      evictionExecutor.finalizeOutputManifests(operation.toPersistedEvictionPlan())
     check(finalizedPlan.outputManifestsFinalized) {
       "Eviction executor returned provisional labeled-output manifests"
     }
@@ -556,7 +549,9 @@ class VidLabelingHealingController(
   private suspend fun evict(config: DataProviderConfig, initial: UploadHealingOperation) {
     verifyExactCandidateManifests(initial)
     var operation = initial
-    evictionExecutorFactory(config).evict(operation.toEvictionPlan(), operation.reason) { entry ->
+    val evictionExecutor = evictionExecutorFactory(config)
+    val evictionPlan = operation.toPersistedEvictionPlan()
+    evictionExecutor.evict(evictionPlan, operation.reason) { entry ->
       val step =
         operation.stepsList.single { it.rawImpressionUploadModelLine == entry.modelLineName }
       if (step.state == UploadHealingStep.State.PENDING_EVICTION) {
@@ -1197,12 +1192,6 @@ class VidLabelingHealingController(
           this@toPublicPlan.outputManifestState.number
         )
       reason = this@toPublicPlan.reason
-      labeledImpressionsBlobPrefix = this@toPublicPlan.labeledImpressionsBlobPrefix
-      badRawImpressionUploads +=
-        badRawImpressionUploadResourceIdsList.map {
-          RawImpressionUploadKey(dataProviderResourceId, it).toName()
-        }
-      cutoffTime = this@toPublicPlan.cutoffTime
       rawImpressionUploadCorrectionCandidates +=
         rawImpressionUploadCorrectionCandidateIdsList.map {
           RawImpressionUploadCorrectionCandidateKey(dataProviderResourceId, it).toName()
@@ -1260,7 +1249,7 @@ class VidLabelingHealingController(
         error("Planner produced an unspecified recovery action")
     }
 
-  private fun UploadHealingOperation.toEvictionPlan(): EvictUploader.EvictionPlan {
+  private fun UploadHealingOperation.toPersistedEvictionPlan(): EvictUploader.EvictionPlan {
     val operationId =
       requireNotNull(UploadHealingOperationKey.fromName(name)).uploadHealingOperationId
     val cascade =
@@ -1277,7 +1266,11 @@ class VidLabelingHealingController(
             step.labeledOutputManifest,
           )
         }
-    val badUploads = badRawImpressionUploadsList.toSet()
+    val badUploads =
+      stepsList
+        .filter { it.rawImpressionUploadCorrectionCandidate.isNotEmpty() }
+        .mapTo(linkedSetOf()) { it.sourceRawImpressionUpload }
+    check(badUploads.isNotEmpty()) { "Correction plan $name has no candidate-owned uploads" }
     fun recoveryTargets(action: RawImpressionUploadModelLine.RecoveryAction) =
       stepsList
         .filter { it.recoveryTarget && it.recoveryAction == action }
@@ -1290,14 +1283,14 @@ class VidLabelingHealingController(
       cascade.map { it.uploadName }.filter { it !in badUploads }.distinct(),
       cascade.filter { it.memoized }.mapTo(mutableSetOf()) { it.cmmsModelLine },
       cascade.filterNot { it.memoized }.mapTo(mutableSetOf()) { it.cmmsModelLine },
-      badRawImpressionUploadsList,
+      badUploads.toList(),
       cascade
         .filter {
           it.recoveryAction ==
             RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
         }
         .mapTo(mutableSetOf()) { it.uploadName },
-      cutoffTime.toInstant(),
+      Instant.MIN,
       operationId,
       recoveryTargets(
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
