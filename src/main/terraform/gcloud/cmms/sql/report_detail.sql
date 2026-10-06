@@ -18,8 +18,11 @@
 -- the reporting Spanner DB (report -> campaign group), the reporting Postgres DB
 -- (campaign group -> event groups + data provider), and the Kingdom Spanner DB
 -- (event group -> campaign/brand/entity metadata).
--- NOTE: Only primitive campaign groups (direct ReportingSetEventGroups rows) are
--- resolved; composite campaign groups would need set-expression resolution.
+-- Composite campaign groups are resolved by walking their SetExpression tree down
+-- to the primitive ReportingSets that own the ReportingSetEventGroups rows. The
+-- walk collects every reachable EventGroup regardless of the set Operation, so a
+-- campaign group built with DIFFERENCE or INTERSECTION yields a superset of the
+-- EventGroups the report actually measured.
 -- Includes all terminal reports -- SUCCEEDED (4), FAILED (5), and INVALID (6);
 -- the ReportState column carries the state so consumers can distinguish.
 
@@ -76,21 +79,92 @@ FROM (
       WHERE br.State IN (4, 5, 6)''')
   ) br
   JOIN (
-    -- Reporting Postgres: campaign group -> event groups + data provider
+    -- Reporting Postgres: campaign group -> event groups + data provider.
+    -- A primitive ReportingSet owns its EventGroups directly. A composite one
+    -- owns a SetExpression tree whose operands are either nested expressions
+    -- (same ReportingSet) or other ReportingSets, so both are followed before
+    -- reading ReportingSetEventGroups.
     SELECT * FROM EXTERNAL_QUERY(
       'projects/${project_id}/locations/${region}/connections/reporting-postgres-conn',
-      '''SELECT
+      '''WITH RECURSIVE
+      -- Edges between expression nodes inside one ReportingSet tree. Split into
+      -- a non-recursive CTE so the recursive term below self-references once,
+      -- which is all Postgres permits.
+      expression_edges AS (
+        SELECT measurementconsumerid, reportingsetid,
+               setexpressionid AS parentsetexpressionid,
+               lefthandsetexpressionid AS childsetexpressionid
+        FROM setexpressions
+        WHERE lefthandsetexpressionid IS NOT NULL
+        UNION ALL
+        SELECT measurementconsumerid, reportingsetid,
+               setexpressionid, righthandsetexpressionid
+        FROM setexpressions
+        WHERE righthandsetexpressionid IS NOT NULL
+      ),
+      -- Expression nodes that name another ReportingSet as an operand.
+      expression_reporting_sets AS (
+        SELECT measurementconsumerid, reportingsetid, setexpressionid,
+               lefthandreportingsetid AS referencedreportingsetid
+        FROM setexpressions
+        WHERE lefthandreportingsetid IS NOT NULL
+        UNION ALL
+        SELECT measurementconsumerid, reportingsetid, setexpressionid,
+               righthandreportingsetid
+        FROM setexpressions
+        WHERE righthandreportingsetid IS NOT NULL
+      ),
+      -- Every expression node reachable from a composite ReportingSet root.
+      expression_nodes AS (
+        SELECT measurementconsumerid, reportingsetid, setexpressionid
+        FROM reportingsets
+        WHERE setexpressionid IS NOT NULL
+        UNION
+        SELECT e.measurementconsumerid, e.reportingsetid, e.childsetexpressionid
+        FROM expression_edges e
+        JOIN expression_nodes n
+          ON n.measurementconsumerid = e.measurementconsumerid
+          AND n.reportingsetid = e.reportingsetid
+          AND n.setexpressionid = e.parentsetexpressionid
+      ),
+      -- ReportingSet -> ReportingSet references, collapsed across the tree.
+      reporting_set_edges AS (
+        SELECT DISTINCT n.measurementconsumerid,
+               n.reportingsetid AS parentreportingsetid,
+               r.referencedreportingsetid AS childreportingsetid
+        FROM expression_nodes n
+        JOIN expression_reporting_sets r
+          ON r.measurementconsumerid = n.measurementconsumerid
+          AND r.reportingsetid = n.reportingsetid
+          AND r.setexpressionid = n.setexpressionid
+      ),
+      -- Transitive closure. UNION dedupes, so a reference cycle terminates.
+      campaign_group_members AS (
+        SELECT measurementconsumerid,
+               reportingsetid AS rootreportingsetid,
+               reportingsetid AS memberreportingsetid
+        FROM reportingsets
+        UNION
+        SELECT m.measurementconsumerid, m.rootreportingsetid, e.childreportingsetid
+        FROM campaign_group_members m
+        JOIN reporting_set_edges e
+          ON e.measurementconsumerid = m.measurementconsumerid
+          AND e.parentreportingsetid = m.memberreportingsetid
+      )
+      SELECT DISTINCT
         rs.externalreportingsetid AS ExternalCampaignGroupId,
         eg.cmmsdataproviderid AS CmmsDataProvider,
         eg.cmmseventgroupid AS CmmsEventGroupId
       FROM reportingsets rs
+      JOIN campaign_group_members m
+        ON m.measurementconsumerid = rs.measurementconsumerid
+        AND m.rootreportingsetid = rs.reportingsetid
       JOIN reportingseteventgroups rseg
-        ON rs.measurementconsumerid = rseg.measurementconsumerid
-        AND rs.reportingsetid = rseg.reportingsetid
+        ON rseg.measurementconsumerid = m.measurementconsumerid
+        AND rseg.reportingsetid = m.memberreportingsetid
       JOIN eventgroups eg
         ON rseg.measurementconsumerid = eg.measurementconsumerid
-        AND rseg.eventgroupid = eg.eventgroupid
-      WHERE rs.setexpressionid IS NULL''')
+        AND rseg.eventgroupid = eg.eventgroupid''')
   ) cg
     ON br.ExternalCampaignGroupId = cg.ExternalCampaignGroupId
   LEFT JOIN (

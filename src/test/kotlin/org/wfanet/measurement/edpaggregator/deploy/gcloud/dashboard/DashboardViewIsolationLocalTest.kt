@@ -199,6 +199,31 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
+  fun reportDetailResolvesCompositeCampaignGroups() {
+    // A composite campaign group owns a SetExpression tree rather than direct
+    // ReportingSetEventGroups rows, so the old `setexpressionid IS NULL` filter
+    // silently dropped every report built on one. The Postgres subquery must walk
+    // the tree instead, following both operand kinds: nested expressions within
+    // the same ReportingSet, and references to other ReportingSets.
+    val sql = readSqlFile("report_detail.sql")
+    for (platformEnabled in listOf(true, false)) {
+      val rendered = render(sql, platformEnabled)
+      assertThat(rendered).doesNotContain("WHERE rs.setexpressionid IS NULL")
+      assertThat(rendered).contains("WITH RECURSIVE")
+      assertThat(rendered).contains("campaign_group_members")
+      for (operand in
+        listOf(
+          "lefthandsetexpressionid",
+          "righthandsetexpressionid",
+          "lefthandreportingsetid",
+          "righthandreportingsetid",
+        )) {
+        assertThat(rendered).contains(operand)
+      }
+    }
+  }
+
+  @Test
   fun allSqlFilesUseExternalQuery() {
     for (fileName in SQL_FILES) {
       val sql = readSqlFile(fileName)
