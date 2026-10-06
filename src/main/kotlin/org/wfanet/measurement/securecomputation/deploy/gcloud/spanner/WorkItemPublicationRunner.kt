@@ -29,6 +29,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import org.wfanet.measurement.common.telemetry.ReportTraceAttributes
 import org.wfanet.measurement.common.telemetry.ReportTraceLogging
+import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationClaimResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResult
@@ -208,6 +209,7 @@ class WorkItemPublicationRunner(
       publication.workItem.workItemResourceId,
       outcome = "started",
       errorType = null,
+      publicationAttempt = publication.attemptCount,
     )
     try {
       workItemPublisher.publishMessage(
@@ -222,6 +224,7 @@ class WorkItemPublicationRunner(
         publication.workItem.workItemResourceId,
         outcome = "retryable_failure",
         error = e,
+        publicationAttempt = publication.attemptCount,
       )
       scheduleRetry(publication)
       return false
@@ -231,6 +234,7 @@ class WorkItemPublicationRunner(
       publication.workItem.workItemResourceId,
       outcome = "succeeded",
       errorType = null,
+      publicationAttempt = publication.attemptCount,
     )
     databaseClient.readWriteTransaction().run { transaction ->
       transaction.completeWorkItemPublication(publication.workItemId, publication.leaseToken)
@@ -242,11 +246,13 @@ class WorkItemPublicationRunner(
     workItemResourceId: String,
     outcome: String,
     errorType: String?,
+    publicationAttempt: Long? = null,
   ) {
     ReportTraceLogging.log(
       logger,
       "secure_computation.work_item.publication",
       ReportTraceAttributes.WORK_ITEM_NAME_STRING to WorkItemKey(workItemResourceId).toName(),
+      XmmTraceAttributes.WORK_ITEM_PUBLICATION_ATTEMPT_STRING to publicationAttempt?.toString(),
       ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "work_item_publication",
       ReportTraceAttributes.OUTCOME_STRING to outcome,
       ReportTraceAttributes.ERROR_TYPE_STRING to errorType,
@@ -257,6 +263,7 @@ class WorkItemPublicationRunner(
     workItemResourceId: String,
     outcome: String,
     error: Throwable,
+    publicationAttempt: Long? = null,
   ) {
     ReportTraceLogging.log(
       logger,
@@ -264,6 +271,7 @@ class WorkItemPublicationRunner(
       error,
       "secure_computation.work_item.publication",
       ReportTraceAttributes.WORK_ITEM_NAME_STRING to WorkItemKey(workItemResourceId).toName(),
+      XmmTraceAttributes.WORK_ITEM_PUBLICATION_ATTEMPT_STRING to publicationAttempt?.toString(),
       ReportTraceAttributes.LIFECYCLE_STAGE_STRING to "work_item_publication",
       ReportTraceAttributes.OUTCOME_STRING to outcome,
       ReportTraceAttributes.ERROR_TYPE_STRING to ReportTraceAttributes.errorType(error),
