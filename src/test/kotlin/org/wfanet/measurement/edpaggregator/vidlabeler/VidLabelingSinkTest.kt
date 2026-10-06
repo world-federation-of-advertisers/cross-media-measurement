@@ -99,7 +99,6 @@ class VidLabelingSinkTest {
     encryptKmsClient: KmsClient = kmsClient,
     encryptionKeySemaphore: Semaphore =
       Semaphore(BaseVidLabelingSink.DEFAULT_ENCRYPTION_KEY_PARALLELISM),
-    publicationObserver: (LabeledOutputPublication) -> Unit = {},
   ) =
     MemoizedVidLabelingSink(
       inputBlobUri = "file:///raw/file-1.parquet",
@@ -113,7 +112,6 @@ class VidLabelingSinkTest {
       dataProvider = DATA_PROVIDER,
       metrics = testMetrics,
       encryptionKeySemaphore = encryptionKeySemaphore,
-      publicationObserver = publicationObserver,
     )
 
   /** Sum of a long counter's points matching [attributes] exactly. */
@@ -155,12 +153,7 @@ class VidLabelingSinkTest {
   fun `commit writes in-window labeled impressions and skips out-of-window`() =
     runBlocking<Unit> {
       tempFolder.root.resolve("labeled").mkdirs()
-      val publications = mutableListOf<LabeledOutputPublication>()
-      val sink =
-        sink(
-          listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
-          publicationObserver = { publications += it },
-        )
+      val sink = sink(listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))))
 
       sink.processBatch(
         listOf(
@@ -214,15 +207,6 @@ class VidLabelingSinkTest {
       val unionByType = blobDetails.entityKeysList.associate { it.entityType to it.entityIdsList }
       assertThat(unionByType.getValue("household")).containsExactly("hh-1", "hh-2")
       assertThat(unionByType.getValue("person")).containsExactly("p-shared")
-      assertThat(publications.map { it.type })
-        .containsExactly(
-          LabeledOutputPublication.Type.LABELED_OUTPUT,
-          LabeledOutputPublication.Type.METADATA_SIDECAR,
-        )
-        .inOrder()
-      assertThat(publications.map { it.outcome }).containsExactly("written", "written")
-      assertThat(publications[0].uri).isEqualTo(blobDetails.blobUri)
-      assertThat(publications[1].uri).isEqualTo("${blobDetails.blobUri}.metadata.binpb")
     }
 
   @Test
@@ -382,29 +366,6 @@ class VidLabelingSinkTest {
       // VM's committed output (TODO(#3999) tracks write-if-absent as the real fix).
       val files = tempFolder.root.walkTopDown().filter { it.isFile }.toList()
       assertThat(files.filter { it.name.endsWith(".metadata.binpb") }).isEmpty()
-    }
-
-  @Test
-  fun `commit reports output identity when encryption setup fails`() =
-    runBlocking<Unit> {
-      tempFolder.root.resolve("labeled").mkdirs()
-      val publications = mutableListOf<LabeledOutputPublication>()
-      val sink =
-        sink(
-          contexts = listOf(context(ActiveWindow(startMicros = 1_000L, endMicros = 2_000L))),
-          encryptKmsClient = FakeKmsClient(),
-          publicationObserver = { publications += it },
-        )
-      sink.processBatch(listOf(rawEvent(eventTimeMicros = 1_500L, idByte = 1)))
-
-      assertFailsWith<Exception> { sink.commit() }
-
-      val failure = publications.single()
-      assertThat(failure.type).isEqualTo(LabeledOutputPublication.Type.LABELED_OUTPUT)
-      assertThat(failure.modelLine).isEqualTo(MODEL_LINE)
-      assertThat(failure.uri).contains("model-line")
-      assertThat(failure.outcome).isEqualTo("failed")
-      assertThat(failure.error).isNotNull()
     }
 
   @Test

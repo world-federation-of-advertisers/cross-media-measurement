@@ -28,7 +28,7 @@ import kotlin.coroutines.CoroutineContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.Instrumentation
-import org.wfanet.measurement.common.telemetry.XmmTracing
+import org.wfanet.measurement.common.telemetry.ReportTracing
 
 object Tracing {
   private val w3cPropagator: TextMapPropagator = W3CTraceContextPropagator.getInstance()
@@ -202,7 +202,7 @@ object Tracing {
 
   @PublishedApi
   internal fun recordFailure(span: Span, error: Throwable) {
-    XmmTracing.recordFailure(span, error)
+    ReportTracing.recordFailure(span, error)
   }
 
   private object CloudFunctionsHttpRequestGetter : TextMapGetter<HttpRequest> {

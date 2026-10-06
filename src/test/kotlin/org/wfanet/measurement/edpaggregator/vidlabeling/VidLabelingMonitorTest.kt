@@ -18,7 +18,6 @@ package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
-import com.google.protobuf.kotlin.unpack
 import com.google.protobuf.util.Timestamps
 import com.google.type.date
 import io.grpc.Status
@@ -30,16 +29,10 @@ import io.opentelemetry.sdk.metrics.data.MetricData
 import io.opentelemetry.sdk.metrics.export.MetricReader
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
-import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
-import io.opentelemetry.sdk.trace.SdkTracerProvider
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
 import java.time.ZoneId
-import java.util.logging.Handler
-import java.util.logging.LogRecord
-import java.util.logging.Logger
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.After
@@ -66,10 +59,7 @@ import org.wfanet.measurement.api.v2alpha.modelShard
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.common.pack
-import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
-import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BatchCreateVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabelerInputFieldMapping
@@ -112,8 +102,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
@@ -210,19 +198,6 @@ class VidLabelingMonitorTest {
   private lateinit var openTelemetry: OpenTelemetrySdk
   private lateinit var metricExporter: InMemoryMetricExporter
   private lateinit var metricReader: MetricReader
-  private lateinit var spanExporter: InMemorySpanExporter
-  private val logRecords = mutableListOf<LogRecord>()
-  private val rootLogger = Logger.getLogger("")
-  private val logHandler =
-    object : Handler() {
-      override fun publish(record: LogRecord) {
-        logRecords += record
-      }
-
-      override fun flush() {}
-
-      override fun close() {}
-    }
 
   @Before
   fun initTelemetry() {
@@ -230,23 +205,14 @@ class VidLabelingMonitorTest {
     Instrumentation.resetForTest()
     metricExporter = InMemoryMetricExporter.create()
     metricReader = PeriodicMetricReader.create(metricExporter)
-    spanExporter = InMemorySpanExporter.create()
     openTelemetry =
       OpenTelemetrySdk.builder()
         .setMeterProvider(SdkMeterProvider.builder().registerMetricReader(metricReader).build())
-        .setTracerProvider(
-          SdkTracerProvider.builder()
-            .addSpanProcessor(SimpleSpanProcessor.create(spanExporter))
-            .build()
-        )
         .buildAndRegisterGlobal()
-    logRecords.clear()
-    rootLogger.addHandler(logHandler)
   }
 
   @After
   fun cleanupTelemetry() {
-    rootLogger.removeHandler(logHandler)
     if (this::openTelemetry.isInitialized) {
       openTelemetry.close()
     }
@@ -751,9 +717,8 @@ class VidLabelingMonitorTest {
     stubModelLines()
     stubFiles()
 
-    val result = createMonitor().runHealth()
+    createMonitor().runHealth()
 
-    assertThat(result.dataQualityCheckFailed).isFalse()
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
       .isEqualTo(0)
   }
@@ -767,23 +732,10 @@ class VidLabelingMonitorTest {
         .thenThrow(StatusRuntimeException(Status.INTERNAL))
 
       // Non-blocking: the health run completes despite the crawl failure.
-      val result = createMonitor().runHealth()
+      createMonitor().runHealth()
 
-      assertThat(result.dataQualityCheckFailed).isTrue()
-      assertThat(result.hasIssues).isTrue()
       assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.data_quality_check_failed"))
         .isEqualTo(1)
-      val healthSpan =
-        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.monitor.health" }
-      assertThat(healthSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("failed")
-      val failureLog =
-        logRecords.single {
-          it.message.contains("event=edpa.vid_labeling.monitor.data_quality_failed ")
-        }
-      assertThat(failureLog.message).contains("xmm.lifecycle.stage=monitor_health")
-      assertThat(failureLog.message).contains("xmm.outcome=failed")
-      assertThat(failureLog.message).contains("xmm.error.type=")
-      assertThat(failureLog.message).contains("xmm.error.code=grpc.INTERNAL")
     }
 
   @Test
@@ -909,10 +861,7 @@ class VidLabelingMonitorTest {
       whenever(workItemsService.getWorkItem(any())).thenAnswer { invocation ->
         val request = invocation.getArgument<GetWorkItemRequest>(0)
         if (request.name == "workItems/$originalWorkItem") {
-          workItem {
-            queue = "queues/pool-assigner"
-            workItemParams = workItemParams { traceContext.putAll(TRACE_CONTEXT) }.pack()
-          }
+          workItem { queue = "queues/pool-assigner" }
         } else {
           throw Status.NOT_FOUND.asRuntimeException()
         }
@@ -929,19 +878,6 @@ class VidLabelingMonitorTest {
       assertThat(createCaptor.firstValue.workItemId)
         .isEqualTo("$originalWorkItem-monitor-recovery-1")
       assertThat(createCaptor.firstValue.workItem.queue).isEqualTo("queues/pool-assigner")
-      assertThat(
-          createCaptor.firstValue.workItem.workItemParams
-            .unpack<WorkItem.WorkItemParams>()
-            .traceContextMap
-        )
-        .containsExactlyEntriesIn(TRACE_CONTEXT)
-      val recoverySpan =
-        spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.monitor.recover" }
-      assertThat(recoverySpan.attributes.get(XmmTraceAttributes.WORK_ITEM_NAME))
-        .isEqualTo("workItems/$originalWorkItem")
-      assertThat(recoverySpan.attributes.get(VidLabelingTraceAttributes.RECOVERY_WORK_ITEM_NAME))
-        .isEqualTo("workItems/$originalWorkItem-monitor-recovery-1")
-      assertThat(recoverySpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("recovered")
       verifyBlocking(poolAssignmentJobService, times(2)) { listPoolAssignmentJobs(any()) }
     }
 
@@ -1316,8 +1252,6 @@ class VidLabelingMonitorTest {
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2
     private const val MAX_FILE_BATCH_SIZE_BYTES = 1000L
-    private val TRACE_CONTEXT =
-      mapOf("traceparent" to "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
 
     private val FIXED_NOW: Instant = Instant.parse("2026-06-03T12:00:00Z")
     private val STALENESS_THRESHOLD: Duration = Duration.ofHours(24)
