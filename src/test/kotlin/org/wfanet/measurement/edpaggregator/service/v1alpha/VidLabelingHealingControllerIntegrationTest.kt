@@ -134,7 +134,6 @@ class VidLabelingHealingControllerIntegrationTest {
     mockService<
       RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase
     >()
-  private val operationsService = mock<HealingOperationStore>()
   private val controllerServer = GrpcTestServerRule { addService(candidatesService) }
 
   @get:Rule
@@ -234,7 +233,8 @@ class VidLabelingHealingControllerIntegrationTest {
         etag = "step-etag"
       }
     }
-    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+    val operationStore = mock<HealingOperationStore>()
+    whenever(operationStore.listUploadHealingOperations(any())).thenAnswer { invocation ->
       val states =
         invocation
           .getArgument<
@@ -248,8 +248,8 @@ class VidLabelingHealingControllerIntegrationTest {
         if (operation.state in states) uploadHealingOperations += operation
       }
     }
-    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
-    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+    whenever(operationStore.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationStore.advanceUploadHealingStep(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       val updated =
         operation.stepsList.single().copy {
@@ -284,7 +284,7 @@ class VidLabelingHealingControllerIntegrationTest {
         RawImpressionUploadCorrectionCandidateServiceGrpcKt
           .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(controllerServer.channel),
         CorrectionCandidateCleaner { _ -> },
-        operationsService,
+        operationStore,
         uploadsStub,
         filesStub,
         modelLinesStub,

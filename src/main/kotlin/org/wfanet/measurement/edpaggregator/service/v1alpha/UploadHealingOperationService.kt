@@ -235,12 +235,6 @@ class UploadHealingOperationService(
       }
       reason = this@toPublic.reason
       labeledImpressionsBlobPrefix = this@toPublic.labeledImpressionsBlobPrefix
-      badRawImpressionUploads +=
-        this@toPublic.badRawImpressionUploadResourceIdsList.map {
-          RawImpressionUploadKey(dataProviderResourceId, it).toName()
-        }
-      cutoffTime = this@toPublic.cutoffTime
-      labeledImpressionsBlobPrefix = this@toPublic.labeledImpressionsBlobPrefix
       rawImpressionUploadCorrectionCandidates +=
         rawImpressionUploadCorrectionCandidateIdsList.map {
           RawImpressionUploadCorrectionCandidateKey(dataProviderResourceId, it).toName()

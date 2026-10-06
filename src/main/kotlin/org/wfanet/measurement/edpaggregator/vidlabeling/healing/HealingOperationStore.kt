@@ -240,11 +240,6 @@ class GrpcHealingOperationStore(
         InternalOperation.OutputManifestState.forNumber(this@toInternal.outputManifestState.number)
       reason = this@toInternal.reason
       labeledImpressionsBlobPrefix = this@toInternal.labeledImpressionsBlobPrefix
-      badRawImpressionUploadResourceIds +=
-        this@toInternal.badRawImpressionUploadsList.map {
-          requireNotNull(RawImpressionUploadKey.fromName(it)).rawImpressionUploadId
-        }
-      cutoffTime = this@toInternal.cutoffTime
       rawImpressionUploadCorrectionCandidateIds +=
         rawImpressionUploadCorrectionCandidatesList.map {
           val key = requireNotNull(RawImpressionUploadCorrectionCandidateKey.fromName(it))
