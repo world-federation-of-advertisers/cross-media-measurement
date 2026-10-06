@@ -33,6 +33,7 @@ import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.bufferInsertMutation
 import org.wfanet.measurement.gcloud.spanner.bufferUpdateMutation
 import org.wfanet.measurement.gcloud.spanner.statement
+import org.wfanet.measurement.gcloud.spanner.toInt64Array
 import org.wfanet.measurement.internal.edpaggregator.EncryptedDek
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
@@ -221,7 +222,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
     WHERE RawImpressionUploadModelLine.DataProviderResourceId = @dataProviderResourceId
       AND RawImpressionUploadModelLine.CmmsModelLine = @cmmsModelLine
       AND RawImpressionUploadModelLine.RawImpressionUploadId != @excludeRawImpressionUploadId
-      AND RawImpressionUploadModelLine.State IN UNNEST(@inProgressStates)
+      AND CAST(RawImpressionUploadModelLine.State AS INT64) IN UNNEST(@inProgressStates)
     LIMIT @limit
     """
       .trimIndent()
@@ -234,13 +235,13 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
           bind("excludeRawImpressionUploadId").to(excludeRawImpressionUploadId)
           bind("limit").to(limit.toLong())
           bind("inProgressStates")
-            .toProtoEnumArray(
+            .toInt64Array(
               listOf(
-                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
-                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-                State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
-              ),
-              State.getDescriptor(),
+                  State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
+                  State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
+                  State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+                )
+                .map { it.number.toLong() }
             )
         }
       )
@@ -400,7 +401,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
 
     if (filter != null) {
       if (filter.stateInList.isNotEmpty()) {
-        conjuncts.add("RawImpressionUploadModelLine.State IN UNNEST(@state_in)")
+        conjuncts.add("CAST(RawImpressionUploadModelLine.State AS INT64) IN UNNEST(@state_in)")
       }
       if (filter.hasCreateTimeIn()) {
         if (filter.createTimeIn.hasStartTime()) {
@@ -440,7 +441,7 @@ fun AsyncDatabaseClient.ReadContext.readRawImpressionUploadModelLines(
 
       if (filter != null) {
         if (filter.stateInList.isNotEmpty()) {
-          bind("state_in").toProtoEnumArray(filter.stateInList, State.getDescriptor())
+          bind("state_in").toInt64Array(filter.stateInList.map { it.number.toLong() })
         }
         if (filter.hasCreateTimeIn()) {
           if (filter.createTimeIn.hasStartTime()) {

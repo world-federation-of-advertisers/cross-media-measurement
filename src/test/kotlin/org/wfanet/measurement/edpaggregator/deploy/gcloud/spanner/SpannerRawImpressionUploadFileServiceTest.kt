@@ -15,6 +15,7 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner
 
 import com.google.cloud.Timestamp
+import com.google.cloud.spanner.Mutation
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
 import java.util.UUID
@@ -39,6 +40,8 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
   val spannerDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
+  private val uploadIdsByResourceId = mutableMapOf<String, Long>()
+
   override fun newFileService(): RawImpressionUploadFileServiceCoroutineImplBase {
     val databaseClient: AsyncDatabaseClient = spannerDatabase.databaseClient
     return SpannerRawImpressionUploadFileService(databaseClient)
@@ -48,7 +51,32 @@ class SpannerRawImpressionUploadFileServiceTest : RawImpressionUploadFileService
     val rawImpressionUploadId: Long = idCounter.incrementAndGet()
     val rawImpressionUploadResourceId: String = UUID.randomUUID().toString()
     insertUpload(dataProviderResourceId, rawImpressionUploadId, rawImpressionUploadResourceId)
+    uploadIdsByResourceId[rawImpressionUploadResourceId] = rawImpressionUploadId
     return rawImpressionUploadResourceId
+  }
+
+  override suspend fun setUploadManifestState(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    registrationComplete: Boolean,
+    state: RawImpressionUploadState,
+  ) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newUpdateBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(dataProviderResourceId)
+          .set("RawImpressionUploadId")
+          .to(uploadIdsByResourceId.getValue(rawImpressionUploadResourceId))
+          .set("RegistrationComplete")
+          .to(registrationComplete)
+          .set("State")
+          .to(Value.protoEnum(state))
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
   }
 
   private suspend fun insertUpload(
