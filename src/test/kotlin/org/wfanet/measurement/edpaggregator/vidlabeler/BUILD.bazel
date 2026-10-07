@@ -226,6 +226,7 @@ kt_jvm_test(
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_assigner",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeler_app",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:vid_labeling",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:work_item_ids",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_params_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:encrypted_dek_kt_jvm_proto",

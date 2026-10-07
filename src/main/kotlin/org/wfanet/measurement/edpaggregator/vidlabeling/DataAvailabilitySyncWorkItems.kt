@@ -17,11 +17,14 @@
 package org.wfanet.measurement.edpaggregator.vidlabeling
 
 import com.google.protobuf.Any
+import com.google.protobuf.InvalidProtocolBufferException
 import com.google.type.date
 import java.time.LocalDate
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.WorkItemParamsKt.dataPathParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
@@ -79,4 +82,47 @@ object DataAvailabilitySyncWorkItems {
       }
     }
   }
+
+  /**
+   * Returns whether [existing] has the same immutable availability identity as [request].
+   *
+   * Trace context is intentionally excluded: a retry or recovery attempt has a new trace, while the
+   * source upload, model line, event date, exact done object, queue, and serialization key must
+   * remain identical.
+   */
+  fun hasSameIdentity(existing: WorkItem, request: CreateWorkItemRequest): Boolean {
+    val existingIdentity = existing.toIdentity() ?: return false
+    return existingIdentity == request.workItem.toIdentity()
+  }
+
+  private fun WorkItem.toIdentity(): Identity? {
+    if (!workItemParams.`is`(WorkItem.WorkItemParams::class.java)) return null
+    val params =
+      try {
+        workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      } catch (_: InvalidProtocolBufferException) {
+        return null
+      }
+    if (
+      !params.hasAppParams() ||
+        !params.appParams.`is`(DataAvailabilitySyncParams::class.java) ||
+        !params.hasDataPathParams()
+    ) {
+      return null
+    }
+    val appParams =
+      try {
+        params.appParams.unpack(DataAvailabilitySyncParams::class.java)
+      } catch (_: InvalidProtocolBufferException) {
+        return null
+      }
+    return Identity(queue, serializationKey, appParams, params.dataPathParams)
+  }
+
+  private data class Identity(
+    val queue: String,
+    val serializationKey: String,
+    val appParams: DataAvailabilitySyncParams,
+    val dataPathParams: WorkItem.WorkItemParams.DataPathParams,
+  )
 }
