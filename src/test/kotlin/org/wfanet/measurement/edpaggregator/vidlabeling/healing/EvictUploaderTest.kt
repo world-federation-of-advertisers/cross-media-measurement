@@ -1097,7 +1097,7 @@ class EvictUploaderTest {
           rawImpressionUploadModelLines += rawImpressionUploadModelLine {
             name = modelLineName("running-upload")
             cmmsModelLine = "modelProviders/mp/modelSuites/ms/modelLines/other"
-            state = RawImpressionUploadModelLine.State.RANKING
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
           }
         }
       )
@@ -1121,6 +1121,7 @@ class EvictUploaderTest {
           RawImpressionUploadModelLine.State.POOL_ASSIGNING,
           RawImpressionUploadModelLine.State.RANKING,
           RawImpressionUploadModelLine.State.LABELING,
+          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
         )
       )
   }
