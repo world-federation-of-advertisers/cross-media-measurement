@@ -324,6 +324,7 @@ class VidLabelingTraceTest {
             "gs://bucket/secret/done",
             "0123456789abcdef",
             77,
+            RAW_UPLOAD + "/rawImpressionUploadModelLines/direct",
           )
         ),
       )
@@ -331,6 +332,7 @@ class VidLabelingTraceTest {
     val output = VidLabelingTraceOutput.render(collection)
 
     assertThat(output).contains("## Availability WorkItems")
+    assertThat(output).contains(RAW_UPLOAD + "/rawImpressionUploadModelLines/direct")
     assertThat(output).contains("FAILED | 1 | 3 | FAILED | METADATA_PERSISTENCE | SpannerException")
     assertThat(output).contains("0123456789abcdef@77")
     assertThat(output).doesNotContain("gs://")
@@ -392,6 +394,44 @@ class VidLabelingTraceTest {
 
     assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.FAILED)
     assertThat(collection.availabilityWorkItems.single().state).isEqualTo("FAILED")
+  }
+
+  @Test
+  fun `availability syncing model line is in progress and renders pending dates`() = runBlocking {
+    val baseGraph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
+    val pendingModelLine =
+      baseGraph.modelLines
+        .single()
+        .toBuilder()
+        .setState(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
+        .addPendingAvailabilityDates(
+          com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1)
+        )
+        .build()
+    val entries =
+      listOf(entry("upload_registration", rawImpressionUpload = RAW_UPLOAD, traceId = ROOT_TRACE)) +
+        routeEntries(
+          NON_MEMOIZED_MODEL_LINE,
+          "non_memoized",
+          NON_MEMOIZED_STAGES,
+          "direct",
+          DIRECT_TRACE,
+        )
+    val collection =
+      VidLabelingTraceCollector(
+          logReaderFactory = { FakeCloudLogReader(entries) },
+          spanReader = CloudTraceReader { _, _, _, _, _, _ -> emptyList() },
+          stateResolver =
+            VidLabelingStateResolver { baseGraph.copy(modelLines = listOf(pendingModelLine)) },
+          finalStateResolver = NOOP_FINAL_STATE_RESOLVER,
+        )
+        .collect(request())
+
+    assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.IN_PROGRESS)
+    assertThat(collection.modelLines.single().pendingAvailabilityDates)
+      .containsExactly("2026-09-01")
+    assertThat(VidLabelingTraceOutput.render(collection))
+      .contains("Pending availability dates: `2026-09-01`")
   }
 
   @Test

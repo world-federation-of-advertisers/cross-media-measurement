@@ -512,6 +512,8 @@ class VidLabelingTraceStateTest {
     assertThat(graph.availabilityWorkItems).hasSize(1)
     assertThat(graph.availabilityWorkItems.single().attemptCount).isEqualTo(2)
     assertThat(graph.availabilityWorkItems.single().failureStage).isEqualTo("SYNCHRONIZATION")
+    assertThat(graph.availabilityWorkItems.single().rawImpressionUploadModelLine)
+      .isEqualTo(UPLOAD + "/rawImpressionUploadModelLines/direct")
     assertThat(
         graph.nodes
           .filter { it.stage.startsWith("availability_work_item") }
