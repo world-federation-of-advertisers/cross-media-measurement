@@ -431,6 +431,29 @@ class VidLabelerAppTest {
     mockParquetStorageClient.stub { onBlocking { getBlob(any()) } doReturn parquetBlob }
   }
 
+  private fun stubRegisteredEventDate() {
+    rawImpressionUploadFilesService.stub {
+      onBlocking { listRawImpressionUploadFiles(any()) } doReturn
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "$UPLOAD/files/file-1"
+            eventDate =
+              com.google.type.date {
+                year = 2026
+                month = 6
+                day = 30
+              }
+          }
+        }
+    }
+    workItemsService.stub {
+      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+        { invocation ->
+          invocation.getArgument<CreateWorkItemRequest>(0).workItem
+        }
+    }
+  }
+
   @Test
   fun `runWork marks job succeeded`() = runBlocking {
     seedRankIndexBlob()
@@ -460,7 +483,7 @@ class VidLabelerAppTest {
     assertThat(captor.firstValue.requestId).isNotEmpty()
     // Not last-job-out: no model line completed, so no transition and no done blob.
     verifyBlocking(rawImpressionUploadModelLinesService, never()) {
-      markRawImpressionUploadModelLineCompleted(any())
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     val span = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
     assertThat(span.attributes.get(VidLabelingTraceAttributes.PIPELINE_PHASE)).isEqualTo("phase2")
@@ -514,7 +537,7 @@ class VidLabelerAppTest {
       assertThat(captor.firstValue.requestId).isNotEmpty()
       // Not last-job-out: no model line completed, so no transition.
       verifyBlocking(rawImpressionUploadModelLinesService, never()) {
-        markRawImpressionUploadModelLineCompleted(any())
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
       }
       assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
       assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(1)
@@ -553,22 +576,26 @@ class VidLabelerAppTest {
       preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.LABELING),
       postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED),
     )
+    stubRegisteredEventDate()
 
     // FileSystemStorageClient requires the bucket directory to pre-exist (GCS buckets always do).
     tempFolder.root.resolve("output-bucket").mkdirs()
     val recordingThrottlers = VidLabelingRpcThrottlersTestHelper.recording()
 
-    val app = createApp(rpcThrottlers = recordingThrottlers.throttlers)
-    app.runWork(buildMessage(memoizedParams()))
+    val app =
+      createApp(
+        rpcThrottlers = recordingThrottlers.throttlers,
+        writeGcsObject = { _, _, _ -> 321L },
+      )
+    app.runWork(buildMessage(taskParams()))
 
     verifyBlocking(rawImpressionUploadModelLinesService) {
-      markRawImpressionUploadModelLineCompleted(any())
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
-    // This fixture has no registered files or observed dates, so no done marker is written.
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(4)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
-    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
+    assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(1)
   }
 
   @Test
@@ -627,9 +654,8 @@ class VidLabelerAppTest {
 
     // The (mocked) converter would throw if label() ran; reaching here proves relabel was skipped.
     verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
-    // Last-job-out recovery still runs from the already-SUCCEEDED path.
-    verifyBlocking(rawImpressionUploadModelLinesService) {
-      markRawImpressionUploadModelLineCompleted(any())
+    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     val span = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
     assertThat(span.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("missing")
@@ -641,12 +667,7 @@ class VidLabelerAppTest {
     assertThat(finalizeSpan.attributes.get(VidLabelingTraceAttributes.LABEL_DONE_OBJECTS_WRITTEN))
       .isEqualTo(0L)
     assertThat(finalizeSpan.attributes.get(VidLabelingTraceAttributes.LABEL_PARENTS_COMPLETED))
-      .isEqualTo(1L)
-    val transition =
-      finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.parent_transition" }
-    assertThat(transition.attributes.get(VidLabelingTraceAttributes.MODEL_LINE_NAME))
-      .isEqualTo(MODEL_LINE)
-    assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("completed")
+      .isEqualTo(0L)
   }
 
   @Test
@@ -656,10 +677,12 @@ class VidLabelerAppTest {
     val capturedBlobInfo = AtomicReference<BlobInfo>()
     val capturedContent = AtomicReference<ByteArray>()
     val workItemEnsured = AtomicBoolean(false)
+    val availabilitySyncing = AtomicBoolean(false)
     val params = taskParams()
     workItemsService.stub {
       onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
         { invocation ->
+          check(availabilitySyncing.get())
           val request = invocation.getArgument<CreateWorkItemRequest>(0)
           workItemEnsured.set(true)
           request.workItem
@@ -671,13 +694,14 @@ class VidLabelerAppTest {
         }
     }
     rawImpressionUploadModelLinesService.stub {
-      onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doAnswer
         {
-          check(workItemEnsured.get())
+          check(!workItemEnsured.get())
+          availabilitySyncing.set(true)
           rawImpressionUploadModelLine {
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
-            state = RawImpressionUploadModelLine.State.COMPLETED
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
           }
         }
     }
@@ -716,7 +740,8 @@ class VidLabelerAppTest {
     assertThat(workItemParams.traceContextMap).containsKey("traceparent")
     val appParams = workItemParams.appParams.unpack(DataAvailabilitySyncParams::class.java)
     assertThat(appParams.dataProvider).isEqualTo(DATA_PROVIDER_NAME)
-    assertThat(appParams.rawImpressionUpload).isEqualTo(UPLOAD)
+    assertThat(appParams.triggeringRawImpressionUpload).isEqualTo(UPLOAD)
+    assertThat(appParams.rawImpressionUploadModelLine).isEqualTo(PARENT_NAME)
     assertThat(appParams.modelLine).isEqualTo(MODEL_LINE)
     assertThat(appParams.eventDate)
       .isEqualTo(
@@ -809,13 +834,13 @@ class VidLabelerAppTest {
         }
     }
     rawImpressionUploadModelLinesService.stub {
-      onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doAnswer
         {
-          check(workItemRequests.size == 2)
+          check(workItemRequests.isEmpty())
           rawImpressionUploadModelLine {
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
-            state = RawImpressionUploadModelLine.State.COMPLETED
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
           }
         }
     }
@@ -881,7 +906,7 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadFilesService) { listRawImpressionUploadFiles(any()) }
     verifyBlocking(rawImpressionUploadFilesService, never()) { getRawImpressionUploadFile(any()) }
     verifyBlocking(rawImpressionUploadModelLinesService) {
-      markRawImpressionUploadModelLineCompleted(any())
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
   }
 
@@ -897,8 +922,8 @@ class VidLabelerAppTest {
       createApp(writeGcsObject = { _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
     }
 
-    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
-      markRawImpressionUploadModelLineCompleted(any())
+    verifyBlocking(rawImpressionUploadModelLinesService) {
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     val failureLog =
       logRecords.single {
@@ -920,7 +945,7 @@ class VidLabelerAppTest {
         StatusRuntimeException(Status.ALREADY_EXISTS)
     }
     rawImpressionUploadModelLinesService.stub {
-      onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doAnswer
         {
           rawImpressionUploadModelLine {
             name = PARENT_NAME
@@ -938,7 +963,7 @@ class VidLabelerAppTest {
       request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
     assertThat(workItemParams.dataPathParams.generation).isEqualTo(321L)
     verifyBlocking(rawImpressionUploadModelLinesService) {
-      markRawImpressionUploadModelLineCompleted(any())
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
   }
 
@@ -955,7 +980,7 @@ class VidLabelerAppTest {
           }
       }
       rawImpressionUploadModelLinesService.stub {
-        onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
+        onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doAnswer
           {
             rawImpressionUploadModelLine {
               name = PARENT_NAME
@@ -982,11 +1007,13 @@ class VidLabelerAppTest {
         request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
       assertThat(params.dataPathParams.generation).isEqualTo(322L)
       assertThat(
-          params.appParams.unpack(DataAvailabilitySyncParams::class.java).rawImpressionUpload
+          params.appParams
+            .unpack(DataAvailabilitySyncParams::class.java)
+            .triggeringRawImpressionUpload
         )
         .isEqualTo(UPLOAD)
       verifyBlocking(rawImpressionUploadModelLinesService) {
-        markRawImpressionUploadModelLineCompleted(any())
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
       }
     }
 
@@ -1006,8 +1033,8 @@ class VidLabelerAppTest {
       }
 
     assertThat(error).hasMessageThat().contains("does not match the current availability handoff")
-    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
-      markRawImpressionUploadModelLineCompleted(any())
+    verifyBlocking(rawImpressionUploadModelLinesService) {
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
   }
 
@@ -1016,6 +1043,7 @@ class VidLabelerAppTest {
       DataAvailabilitySyncWorkItems.createRequest(
         DATA_PROVIDER_NAME,
         rawImpressionUpload,
+        PARENT_NAME,
         MODEL_LINE,
         LocalDate.of(2026, 6, 30),
         "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done",
@@ -1086,7 +1114,7 @@ class VidLabelerAppTest {
     // Mark succeeded still happens; no completion transition is attempted for the absent parent.
     verifyBlocking(vidLabelingJobsService) { markVidLabelingJobSucceeded(any()) }
     verifyBlocking(rawImpressionUploadModelLinesService, never()) {
-      markRawImpressionUploadModelLineCompleted(any())
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
     val rootSpan = spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label" }
     assertThat(rootSpan.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("missing")
@@ -1104,7 +1132,7 @@ class VidLabelerAppTest {
   }
 
   @Test
-  fun `runWork swallows FAILED_PRECONDITION from markRawImpressionUploadModelLineCompleted`() =
+  fun `runWork swallows FAILED_PRECONDITION from markRawImpressionUploadModelLineAvailabilitySyncing`() =
     runBlocking {
       seedRankIndexBlob()
       vidLabelingJobsService.stub {
@@ -1130,20 +1158,21 @@ class VidLabelerAppTest {
         preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.LABELING),
         postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED),
       )
+      stubRegisteredEventDate()
       // The parent already advanced: the transition is a benign already-advanced race.
       rawImpressionUploadModelLinesService.stub {
-        onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doThrow
+        onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doThrow
           StatusRuntimeException(Status.FAILED_PRECONDITION)
       }
 
       tempFolder.root.resolve("output-bucket").mkdirs()
 
-      val app = createApp()
+      val app = createApp(writeGcsObject = { _, _, _ -> 321L })
       // No throw: FAILED_PRECONDITION on the completion transition is treated as already-done.
-      app.runWork(buildMessage(memoizedParams()))
+      app.runWork(buildMessage(taskParams()))
 
       verifyBlocking(rawImpressionUploadModelLinesService) {
-        markRawImpressionUploadModelLineCompleted(any())
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
       }
     }
 
@@ -1190,31 +1219,32 @@ class VidLabelerAppTest {
             etag = "parent-etag"
           }
         }
-      onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doAnswer
         {
           if (parentState.get() != RawImpressionUploadModelLine.State.LABELING) {
             throw StatusRuntimeException(Status.FAILED_PRECONDITION)
           }
-          parentState.set(RawImpressionUploadModelLine.State.COMPLETED)
+          parentState.set(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
           rawImpressionUploadModelLine {
             name = PARENT_NAME
             cmmsModelLine = MODEL_LINE
-            state = RawImpressionUploadModelLine.State.COMPLETED
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
           }
         }
     }
+    stubRegisteredEventDate()
     tempFolder.root.resolve("output-bucket").mkdirs()
-    val app = createApp()
+    val app = createApp(writeGcsObject = { _, _, _ -> 321L })
 
-    assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+    assertFailsWith<StatusException> { app.runWork(buildMessage(taskParams())) }
     assertThat(parentState.get()).isEqualTo(RawImpressionUploadModelLine.State.RANKING)
 
     parentState.set(RawImpressionUploadModelLine.State.LABELING)
-    app.runWork(buildMessage(memoizedParams()))
+    app.runWork(buildMessage(taskParams()))
 
-    assertThat(parentState.get()).isEqualTo(RawImpressionUploadModelLine.State.COMPLETED)
+    assertThat(parentState.get()).isEqualTo(RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING)
     verifyBlocking(rawImpressionUploadModelLinesService, times(2)) {
-      markRawImpressionUploadModelLineCompleted(any())
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
   }
 
@@ -1256,18 +1286,19 @@ class VidLabelerAppTest {
           SIBLING_MODEL_LINE to RawImpressionUploadModelLine.State.LABELING,
         ),
     )
+    stubRegisteredEventDate()
 
     tempFolder.root.resolve("output-bucket").mkdirs()
 
-    val app = createApp()
-    app.runWork(buildMessage(memoizedParams()))
+    val app = createApp(writeGcsObject = { _, _, _ -> 321L })
+    app.runWork(buildMessage(taskParams()))
 
     // The job's own model line is transitioned to COMPLETED; the still-LABELING sibling is not in
     // completedModelLines, so it is neither transitioned nor given a done marker. (The done
     // marker for the completed line is written from the footer event_date — not exercised here;
     // see the TODO in VidLabelerApp.resolveSharedEventDate.)
     verifyBlocking(rawImpressionUploadModelLinesService) {
-      markRawImpressionUploadModelLineCompleted(any())
+      markRawImpressionUploadModelLineAvailabilitySyncing(any())
     }
   }
 
@@ -1484,7 +1515,7 @@ class VidLabelerAppTest {
 
     val reader = InMemoryMetricReader.create()
     val meter = SdkMeterProvider.builder().registerMetricReader(reader).build().get("test")
-    val app = createApp(metrics = VidLabelerAppMetrics(meter))
+    val app = createApp(writeGcsObject = { _, _, _ -> 321L }, metrics = VidLabelerAppMetrics(meter))
 
     app.runWork(buildMessage(memoizedParams()))
 
@@ -1587,17 +1618,18 @@ class VidLabelerAppTest {
       preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.LABELING),
       postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED),
     )
+    stubRegisteredEventDate()
     // A non-benign error (not FAILED_PRECONDITION/ABORTED) propagates and is counted.
     rawImpressionUploadModelLinesService.stub {
-      onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doThrow
+      onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doThrow
         StatusRuntimeException(Status.INTERNAL)
     }
 
     val reader = InMemoryMetricReader.create()
     val meter = SdkMeterProvider.builder().registerMetricReader(reader).build().get("test")
-    val app = createApp(metrics = VidLabelerAppMetrics(meter))
+    val app = createApp(writeGcsObject = { _, _, _ -> 321L }, metrics = VidLabelerAppMetrics(meter))
 
-    assertFailsWith<StatusException> { app.runWork(buildMessage(memoizedParams())) }
+    assertFailsWith<StatusException> { app.runWork(buildMessage(taskParams())) }
 
     val collected = reader.collectAllMetrics().associateBy { it.name }
     assertThat(
