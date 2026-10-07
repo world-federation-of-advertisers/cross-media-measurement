@@ -101,6 +101,18 @@ fun requireValidMaxFileBatchSizeBytes(config: VidLabelingConfig) {
   }
 }
 
+/** Validates the bucket-relative raw-impression root used by the Monitor's storage crawl. */
+fun requireValidRawImpressionsBlobPrefix(config: VidLabelingConfig) {
+  val prefix = config.rawImpressionsBlobPrefix
+  require(prefix.isNotEmpty()) {
+    "raw_impressions_blob_prefix must be set for data provider: ${config.dataProvider}"
+  }
+  require(prefix == prefix.trim('/')) {
+    "raw_impressions_blob_prefix must not start or end with '/' for data provider: " +
+      config.dataProvider
+  }
+}
+
 /** Validates labeled-output routing shared by VID labeling and availability synchronization. */
 object VidLabelingStorageConfigValidator {
   fun validate(
@@ -114,6 +126,7 @@ object VidLabelingStorageConfigValidator {
     require(dispatcherRoutes == monitorRoutes) {
       "VID labeling dispatcher and monitor storage routes differ"
     }
+    requireIsolatedRawRoutes(dispatcherRoutes)
 
     val syncConfigsByDataProvider =
       dataAvailabilitySyncConfigs.configsList.associateBy { it.dataProvider }
@@ -170,17 +183,64 @@ object VidLabelingStorageConfigValidator {
     }
   }
 
-  private fun routesByDataProvider(configs: VidLabelingConfigs): Map<String, Pair<String, String>> {
+  private data class StorageRoutes(
+    val labeledBucket: String,
+    val labeledPrefix: String,
+    val rawBucket: String,
+    val rawPrefix: String,
+  )
+
+  private fun routesByDataProvider(configs: VidLabelingConfigs): Map<String, StorageRoutes> {
     val routes =
       configs.configsList.associate { config ->
+        require(config.rawImpressionsStorageParams.hasGcs()) {
+          "Raw-impression storage must use GCS for ${config.dataProvider}"
+        }
+        requireValidRawImpressionsBlobPrefix(config)
         config.dataProvider to
-          (config.vidLabeledImpressionsStorageParams.gcs.bucketName to config.edpImpressionPath)
+          StorageRoutes(
+            config.vidLabeledImpressionsStorageParams.gcs.bucketName,
+            config.edpImpressionPath,
+            config.rawImpressionsStorageParams.gcs.bucketName,
+            config.rawImpressionsBlobPrefix,
+          )
       }
     require(routes.size == configs.configsCount) {
       "VidLabeling config contains duplicate data providers"
     }
     return routes
   }
+
+  private fun requireIsolatedRawRoutes(routes: Map<String, StorageRoutes>) {
+    for ((rawDataProvider, rawRoute) in routes) {
+      for ((labeledDataProvider, labeledRoute) in routes) {
+        require(
+          rawRoute.rawBucket != labeledRoute.labeledBucket ||
+            (rawRoute.rawPrefix != labeledRoute.labeledPrefix &&
+              !rawRoute.rawPrefix.startsWith("${labeledRoute.labeledPrefix}/"))
+        ) {
+          ("Raw-impression prefix for $rawDataProvider is within labeled output for " +
+            labeledDataProvider)
+        }
+      }
+    }
+    val rawRoutes = routes.entries.toList()
+    for (index in 0 until rawRoutes.lastIndex) {
+      for (otherIndex in index + 1..rawRoutes.lastIndex) {
+        val (dataProvider, route) = rawRoutes[index]
+        val (otherDataProvider, otherRoute) = rawRoutes[otherIndex]
+        require(
+          route.rawBucket != otherRoute.rawBucket ||
+            !pathsOverlap(route.rawPrefix, otherRoute.rawPrefix)
+        ) {
+          "Raw-impression prefixes overlap for $dataProvider and $otherDataProvider"
+        }
+      }
+    }
+  }
+
+  private fun pathsOverlap(path: String, otherPath: String): Boolean =
+    path == otherPath || path.startsWith("$otherPath/") || otherPath.startsWith("$path/")
 
   private fun requireValidPath(path: String, owner: String, dataProvider: String) {
     require(path.isNotEmpty()) { "$owner edp_impression_path is missing for $dataProvider" }
