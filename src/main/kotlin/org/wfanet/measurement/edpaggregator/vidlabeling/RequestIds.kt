@@ -112,6 +112,15 @@ object RequestIds {
   fun forMarkRawImpressionUploadModelLineLabeling(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineLabeling:$modelLineName")
 
+  fun forMarkRawImpressionUploadModelLineAvailabilitySyncing(modelLineName: String): String =
+    fromKey("markRawImpressionUploadModelLineAvailabilitySyncing:$modelLineName")
+
+  fun forMarkRawImpressionUploadModelLineAvailabilitySynchronized(
+    modelLineName: String,
+    eventDate: String,
+  ): String =
+    fromKey("markRawImpressionUploadModelLineAvailabilitySynchronized:$modelLineName:$eventDate")
+
   fun forMarkRawImpressionUploadModelLineCompleted(modelLineName: String): String =
     fromKey("markRawImpressionUploadModelLineCompleted:$modelLineName")
 
