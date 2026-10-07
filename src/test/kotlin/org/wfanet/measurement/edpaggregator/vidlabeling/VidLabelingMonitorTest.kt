@@ -119,6 +119,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 /**
@@ -312,6 +313,7 @@ class VidLabelingMonitorTest {
       dispatchSequencer = createSequencer(rpcThrottlers),
       dataProviderName = DATA_PROVIDER,
       stalenessThreshold = STALENESS_THRESHOLD,
+      rawImpressionsStorageRootUri = "gs://raw-bucket",
       rawImpressionsBlobPrefix = RAW_IMPRESSIONS_PREFIX,
       rawInputQuietPeriod = Duration.ZERO,
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
@@ -466,12 +468,20 @@ class VidLabelingMonitorTest {
     createdAt: Instant,
     processingDeferred: Boolean = false,
     replacesRawImpressionUpload: String = "",
+    doneBlobGeneration: Long = 0L,
+    doneBlobCreateTime: Instant? = null,
+    registrationComplete: Boolean = true,
+    doneBlobUri: String = "gs://raw-bucket/edp7/2026-06-01/done",
   ) = rawImpressionUpload {
     name = "$DATA_PROVIDER/rawImpressionUploads/$id"
     this.state = state
-    registrationComplete = true
+    this.registrationComplete = registrationComplete
     createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
-    doneBlobUri = "gs://raw-bucket/edp7/2026-06-01/done"
+    this.doneBlobUri = doneBlobUri
+    this.doneBlobGeneration = doneBlobGeneration
+    if (doneBlobCreateTime != null) {
+      this.doneBlobCreateTime = Timestamps.fromMillis(doneBlobCreateTime.toEpochMilli())
+    }
     this.processingDeferred = processingDeferred
     this.replacesRawImpressionUpload = replacesRawImpressionUpload
   }
@@ -809,6 +819,12 @@ class VidLabelingMonitorTest {
     }
   }
 
+  private suspend fun seedRawVersion(key: String): Long =
+    (rawImpressionsStorageClient.writeBlob(key, flowOf(ByteString.copyFromUtf8("x")))
+        as ConditionalOperationStorageClient.Blob)
+      .freshnessToken
+      .toLong()
+
   private suspend fun seedLabeled(vararg keys: String) {
     for (key in keys) {
       vidLabeledImpressionsStorageClient.writeBlob(key, flowOf(ByteString.copyFromUtf8("x")))
@@ -884,6 +900,175 @@ class VidLabelingMonitorTest {
     val metrics = collectMetrics()
     assertThat(metrics.gaugeValue("edpa.vid_labeling_monitor.zero_impression_dates")).isEqualTo(1)
     assertThat(metrics.gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs")).isEqualTo(0)
+  }
+
+  @Test
+  fun `does not report no-op done rewrite as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(0)
+  }
+
+  @Test
+  fun `reports unchanged manifest after failed upload as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val failedDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val failedUpload =
+      upload(
+        "failed-1",
+        RawImpressionUpload.State.FAILED,
+        FIXED_NOW,
+        doneBlobGeneration = failedDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(failed = listOf(failedUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${failedUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports changed manifest after done rewrite as unregistered`() = runBlocking {
+    val registeredDataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = registeredDataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/data-1")
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports incompletely registered done generation as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val doneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val incompleteUpload =
+      upload(
+        "created-1",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW,
+        doneBlobGeneration = doneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+        registrationComplete = false,
+      )
+    stubUploads(created = listOf(incompleteUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${incompleteUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports marker older than latest registered revision as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.parse("2030-01-01T00:00:00Z"),
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `does not match registered done identity from another bucket`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val doneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val oldBucketUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = doneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+        doneBlobUri = "gs://old-raw-bucket/edp7/2026-06-01/done",
+      )
+    stubUploads(completed = listOf(oldBucketUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${oldBucketUpload.name}/files/file-1"
+        blobUri = "gs://old-raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
   }
 
   @Test
