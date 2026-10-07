@@ -187,6 +187,14 @@ message VidLabelingConfig {
   // `edp_impression_path` in this EDP's `DataAvailabilitySyncConfig` so the
   // writer and the registrar agree on the location.
   string edp_impression_path = 18 [(google.api.field_behavior) = REQUIRED];
+
+  // Blob-key prefix containing this EDP's raw-impression upload directories.
+  // The Monitor scans this prefix directly so it can discover directories that
+  // never produced RawImpressionUpload metadata. This must be a dedicated
+  // raw-input root. Configured labeled-output descendants are excluded by the
+  // Monitor; rank-index and temporary work prefixes must live outside it.
+  string raw_impressions_blob_prefix = 19
+      [(google.api.field_behavior) = REQUIRED];
 }
 
 // Wrapper containing VID Labeling configurations for all EDPs.

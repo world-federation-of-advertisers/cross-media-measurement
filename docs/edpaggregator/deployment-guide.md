@@ -710,6 +710,15 @@ supply:
 Leave `vid_labeling_workers = {}` to skip the phase workers/queues; provide worker
 entries only once your market has adopted VID labeling.
 
+Each `VidLabelingConfig` must set `raw_impressions_blob_prefix` to that DataProvider's dedicated,
+bucket-relative raw-only root, without leading or trailing `/` characters. Keep labeled output,
+rank-index, and temporary work prefixes outside it. Configured labeled-output descendants are
+explicitly excluded from classification, while the storage-config preflight rejects overlapping
+raw roots. The daily Monitor lists object metadata below this prefix to detect upload directories
+that never reached the metadata service. Its
+`staleness_threshold` is also the quiet period before an unfinalized raw directory or late file
+becomes alertable.
+
 Set `vid_labeling_healing_labeled_output_object_prefixes` to the bucket-relative
 `edp_impression_path` values from `VidLabelingConfigs`, each ending in `/`. The controller can read
 the shared EDPA bucket but can delete objects only below these prefixes; its dedicated environment
@@ -739,7 +748,10 @@ per-class envelopes, not per-method bounds: each class contains multiple methods
 has its own caller set. Compare each method's measured traffic and configured server limit before
 tuning these values.
 
-The Terraform module caps both the dispatcher and monitor at one instance. The checked-in Kingdom
+The Terraform module caps both the dispatcher and monitor at one instance. Monitor health requests
+have a 29-minute function timeout, 2 GiB of memory (and therefore one vCPU), and the Cloud Scheduler
+HTTP maximum of 30 minutes; dispatch requests retain their shorter 660-second deadline. The
+checked-in Kingdom
 `RateLimitConfig` gives each VID Repository method its own 5-QPS average / 20-request burst bucket,
 so the two functions' worst-case 4 QPS leaves 20 percent headroom without competing with
 ResultsFulfiller, RequisitionFetcher, EventGroupSync, or DataAvailabilitySync in the shared default
