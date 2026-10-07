@@ -297,6 +297,7 @@ class VidLabelingMonitorFunction : HttpFunction {
         dispatchSequencer = dispatchSequencer,
         dataProviderName = config.dataProvider,
         stalenessThreshold = config.stalenessThreshold.toDuration(),
+        rawImpressionsStorageRootUri = "gs://${config.rawImpressionsStorageParams.gcs.bucketName}",
         rawImpressionsBlobPrefix = config.rawImpressionsBlobPrefix,
         rawInputQuietPeriod = config.stalenessThreshold.toDuration(),
         rawImpressionsExcludedBlobPrefixes = rawImpressionsExcludedBlobPrefixes(config),
