@@ -1018,9 +1018,18 @@ configs {
   impression_metadata_storage_connection { cert_file_path: "..." private_key_file_path: "..." cert_collection_file_path: "..." }
   edp_impression_path: "edp/<edp-id>/vid-labeled-impressions"   # optional today; required in a future release
   # model_line_map { key: "modelLines/INTERNAL" value { model_lines: ["modelLines/EXTERNAL"] } }   # optional
+  # model_line_cutovers {   # optional; cannot overlap model_line_map for the external line
+  #   external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/EXTERNAL"
+  #   historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  #   replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  #   cutover_date { year: 2026 month: 10 day: 1 }
+  # }
   # error_if_gaps_exist: false   # optional
 }
 ```
+
+Configure an identical cutover entry in the corresponding ResultsFulfiller parameters. The
+external, historical, and replacement model lines and the UTC cutover date must match exactly.
 
 ### DataAvailabilityMonitor config (`DataAvailabilityMonitorConfigs`)
 
@@ -1091,11 +1100,26 @@ without converting it to a duplicated unversioned wire schema. Beyond the `data_
 * `impression_max_frequency_per_user` — direct impression measurements only.
 * `model_line_map` — optional external→internal model-line remapping for impression
   lookup.
+* `model_line_cutovers` — optional date-based routing from an external model line to historical
+  and replacement internal model lines.
 * `trustee_params.kek_uri_to_key_name` — required for TrusTEE support; maps an input
   KEK URI to the re-encryption key name on the same key ring (see the EDP-side
   [TrusTEE section](edp-onboarding.md#6-enabling-trustee-optional)).
 * `multi_party_config.supported_noise_types` — restricts accepted noise mechanisms
   for HMSS / TrusTEE requisitions.
+
+```textproto
+model_line_cutovers {
+  external_model_line: "modelProviders/MP/modelSuites/MS/modelLines/EXTERNAL"
+  historical_model_line: "modelProviders/MP/modelSuites/MS/modelLines/HISTORICAL"
+  replacement_model_line: "modelProviders/MP/modelSuites/MS/modelLines/REPLACEMENT"
+  cutover_date { year: 2026 month: 10 day: 1 }
+}
+```
+
+The same entry must be present in `DataAvailabilitySyncConfig`. A cutover uses the historical line
+before midnight UTC on `cutover_date` and the replacement line starting at that instant. Do not put
+the same external model line in both `model_line_map` and `model_line_cutovers`.
 
 ---
 

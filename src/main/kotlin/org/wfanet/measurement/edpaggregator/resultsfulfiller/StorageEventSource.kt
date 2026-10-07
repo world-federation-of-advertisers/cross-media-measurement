@@ -27,7 +27,9 @@ import com.google.protobuf.Descriptors
 import com.google.protobuf.InvalidProtocolBufferException
 import com.google.protobuf.Message
 import com.google.type.Interval
+import com.google.type.interval
 import java.io.IOException
+import java.time.Instant
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.coroutineScope
@@ -38,6 +40,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.wfanet.measurement.common.ExponentialBackoff
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverConfig
+import org.wfanet.measurement.edpaggregator.ModelLineRoute
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions.EventGroupDetails
@@ -51,6 +57,13 @@ data class ResolvedEventReader(
   val reader: EventReader<Message>,
   val eventGroupIdentifier: EventGroupIdentifier,
   val blobUri: String,
+  val readIntervals: List<Interval>,
+)
+
+/** An impression source together with the routed interval that may be read from it. */
+private data class RoutedImpressionDataSource(
+  val source: ImpressionDataSource,
+  val readInterval: Interval?,
 )
 
 /**
@@ -120,6 +133,7 @@ class ProgressTracker(private val totalEventReaders: Int) : AutoCloseable {
  * @property impressionDataSourceProvider facade providing data sources for intervals.
  * @property eventGroupDetailsList event groups with their collection intervals.
  * @property modelLine model line to use for fetching impressions
+ * @property modelLineCutover optional date-based routing for [modelLine].
  * @property kmsClient KMS client for decryption operations
  * @property impressionsStorageConfig storage configuration for reading impressions
  * @property descriptor protobuf descriptor for parsing events
@@ -139,6 +153,7 @@ class StorageEventSource(
   private val impressionDataSourceProvider: ImpressionDataSourceProvider,
   private val eventGroupDetailsList: List<EventGroupDetails>,
   private val modelLine: String,
+  private val modelLineCutover: ModelLineCutoverConfig? = null,
   private val kmsClient: KmsClient?,
   private val impressionsStorageConfig: StorageConfig,
   private val descriptor: Descriptors.Descriptor,
@@ -156,7 +171,7 @@ class StorageEventSource(
   }
 
   /** Cache for unique impression data sources to avoid duplicate API calls. */
-  private var cachedImpressionDataSources: List<ImpressionDataSource>? = null
+  private var cachedImpressionDataSources: List<RoutedImpressionDataSource>? = null
 
   private val useEntityKeyStrategy: Boolean = run {
     require(eventGroupDetailsList.isNotEmpty()) { "eventGroupDetailsList must not be empty" }
@@ -230,7 +245,7 @@ class StorageEventSource(
   }
 
   /** Collects all impression data sources and deduplicates by blob URI. */
-  private suspend fun getUniqueImpressionDataSources(): List<ImpressionDataSource> {
+  private suspend fun getUniqueImpressionDataSources(): List<RoutedImpressionDataSource> {
     cachedImpressionDataSources?.let {
       return it
     }
@@ -248,7 +263,7 @@ class StorageEventSource(
             )
           details.collectionIntervalsList.flatMap { interval ->
             logger.info("EventGroup collection interval: $interval")
-            impressionDataSourceProvider.listImpressionDataSources(modelLine, selector, interval)
+            listRoutedImpressionDataSources(selector, interval)
           }
         }
       } else {
@@ -268,35 +283,63 @@ class StorageEventSource(
           logger.info(
             "Batching ${referenceIds.size} event-group reference IDs for interval: $interval"
           )
-          impressionDataSourceProvider.listImpressionDataSources(
-            modelLine,
+          listRoutedImpressionDataSources(
             ImpressionQuerySelector.ByEventGroupReferenceIds(referenceIds.toList()),
             interval,
           )
         }
       }
-    val result = allSources.distinctBy { it.blobDetails.blobUri }
+    val result =
+      allSources.distinctBy {
+        listOf(it.source.blobDetails.blobUri, it.readInterval?.startTime, it.readInterval?.endTime)
+      }
     cachedImpressionDataSources = result
     return result
+  }
+
+  private suspend fun listRoutedImpressionDataSources(
+    selector: ImpressionQuerySelector,
+    collectionInterval: Interval,
+  ): List<RoutedImpressionDataSource> {
+    val cutover = modelLineCutover
+    if (cutover == null) {
+      return impressionDataSourceProvider
+        .listImpressionDataSources(modelLine, selector, collectionInterval)
+        .map { source -> RoutedImpressionDataSource(source, null) }
+    }
+    return cutover.routesFor(collectionInterval).flatMap { route: ModelLineRoute ->
+      impressionDataSourceProvider
+        .listImpressionDataSources(route.modelLine, selector, route.interval)
+        .mapNotNull { source ->
+          intersect(source.interval, route.interval)?.let { readInterval ->
+            RoutedImpressionDataSource(source, readInterval)
+          }
+        }
+    }
   }
 
   private suspend fun createEventReaders(): List<ResolvedEventReader> {
     logger.info("Creating event readers... ")
     val uniqueSources = getUniqueImpressionDataSources()
 
-    return uniqueSources.map { source ->
-      val eventGroupIdentifier =
-        if (useEntityKeyStrategy) {
-          EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
-        } else {
-          EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
-        }
-      ResolvedEventReader(
-        reader = eventReaderFactory(source.blobDetails),
-        eventGroupIdentifier = eventGroupIdentifier,
-        blobUri = source.blobDetails.blobUri,
-      )
-    }
+    return uniqueSources
+      .groupBy { it.source.blobDetails.blobUri }
+      .values
+      .map { routedSources ->
+        val source = routedSources.first().source
+        val eventGroupIdentifier =
+          if (useEntityKeyStrategy) {
+            EventGroupIdentifier.ByEntityKeys(source.blobDetails.entityKeysList)
+          } else {
+            EventGroupIdentifier.ByReferenceId(source.blobDetails.eventGroupReferenceId)
+          }
+        ResolvedEventReader(
+          reader = eventReaderFactory(source.blobDetails),
+          eventGroupIdentifier = eventGroupIdentifier,
+          blobUri = source.blobDetails.blobUri,
+          readIntervals = routedSources.mapNotNull { it.readInterval }.distinct(),
+        )
+      }
   }
 
   /** Processes events from a single EventReader and returns batch and event counts. */
@@ -320,17 +363,26 @@ class StorageEventSource(
       var emitted = false
       try {
         resolvedReader.reader.readEvents().collect { events ->
+          val routedEvents =
+            if (resolvedReader.readIntervals.isEmpty()) {
+              events
+            } else {
+              events.filter { event ->
+                resolvedReader.readIntervals.any { event.timestamp.isWithin(it) }
+              }
+            }
+          if (routedEvents.isEmpty()) return@collect
           val eventBatch =
             EventBatch(
-              events = events,
-              minTime = events.minOf { it.timestamp },
-              maxTime = events.maxOf { it.timestamp },
+              events = routedEvents,
+              minTime = routedEvents.minOf { it.timestamp },
+              maxTime = routedEvents.maxOf { it.timestamp },
               eventGroupIdentifier = resolvedReader.eventGroupIdentifier,
             )
           sendEventBatch(eventBatch)
           emitted = true
           batchCount++
-          eventCount += events.size
+          eventCount += routedEvents.size
         }
         logger.fine("Read $eventCount events in $batchCount batches for ${resolvedReader.blobUri}")
         return EventReaderResult(batchCount, eventCount)
@@ -403,12 +455,27 @@ class StorageEventSource(
     if (uniqueSources.isEmpty()) return null
 
     // Validate all KEK URIs have the same project ID and location
-    val kekUris = uniqueSources.map { it.blobDetails.encryptedDek.kekUri }
+    val kekUris = uniqueSources.map { it.source.blobDetails.encryptedDek.kekUri }
     validateKekUrisConsistency(kekUris)
 
     // Sort by interval end time in descending order and return the first KEK URI
-    val sortedSources = uniqueSources.sortedByDescending { it.interval.endTime.seconds }
-    return sortedSources.first().blobDetails.encryptedDek.kekUri
+    val sortedSources =
+      uniqueSources.sortedByDescending { (it.readInterval ?: it.source.interval).endTime.seconds }
+    return sortedSources.first().source.blobDetails.encryptedDek.kekUri
+  }
+
+  private fun intersect(first: Interval, second: Interval): Interval? {
+    val start = maxOf(first.startTime.toInstant(), second.startTime.toInstant())
+    val end = minOf(first.endTime.toInstant(), second.endTime.toInstant())
+    if (start >= end) return null
+    return interval {
+      startTime = start.toProtoTime()
+      endTime = end.toProtoTime()
+    }
+  }
+
+  private fun Instant.isWithin(interval: Interval): Boolean {
+    return this >= interval.startTime.toInstant() && this < interval.endTime.toInstant()
   }
 
   /**

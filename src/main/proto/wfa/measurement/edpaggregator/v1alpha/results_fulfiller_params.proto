@@ -24,6 +24,7 @@ package wfa.measurement.edpaggregator.v1alpha;
 
 import "google/api/field_behavior.proto";
 import "google/api/resource.proto";
+import "wfa/measurement/edpaggregator/v1alpha/model_line_cutover.proto";
 import "wfa/measurement/edpaggregator/v1alpha/transport_layer_security_params.proto";
 
 option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
@@ -216,4 +217,10 @@ message ResultsFulfillerParams {
   // UNSPECIFIED and preserves the existing interpretation of
   // `impression_max_frequency_per_user`.
   ImpressionCapMode impression_cap_mode = 11;
+
+  // Date-based model-line routing used during a model-line cutover.
+  //
+  // A requisition model line configured here must not also be present in
+  // `model_line_map`.
+  repeated ModelLineCutover model_line_cutovers = 12;
 }

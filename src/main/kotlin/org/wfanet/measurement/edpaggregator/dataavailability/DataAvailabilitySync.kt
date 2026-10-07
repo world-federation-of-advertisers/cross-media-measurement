@@ -18,6 +18,7 @@ package org.wfanet.measurement.edpaggregator.dataavailability
 
 import com.google.protobuf.ByteString
 import com.google.protobuf.util.JsonFormat
+import com.google.type.Interval
 import com.google.type.interval
 import io.grpc.StatusException
 import io.opentelemetry.api.common.AttributeKey
@@ -42,6 +43,9 @@ import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toProtoTime
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverConfig
+import org.wfanet.measurement.edpaggregator.ModelLineCutoverValidator
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKey
@@ -102,6 +106,8 @@ import org.wfanet.measurement.storage.StorageClient
  *   request.
  * @property modelLineMap Mapping from a source model line to additional model lines that should
  *   receive the same availability interval updates.
+ * @property modelLineCutovers Date-based mappings from an external model line to its before and
+ *   on-or-after internal model lines.
  * @property errorIfGapsExist If true, skip replacing data availability intervals when date gaps are
  *   detected and log a warning. If false (default), log a warning but proceed with replacing data
  *   availability intervals normally. Gap dates are always logged regardless of this setting.
@@ -117,6 +123,7 @@ class DataAvailabilitySync(
   private val throttler: Throttler,
   private val impressionMetadataBatchSize: Int,
   private val modelLineMap: Map<String, List<String>>,
+  private val modelLineCutovers: List<ModelLineCutoverConfig> = emptyList(),
   private val errorIfGapsExist: Boolean,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
 ) {
@@ -137,6 +144,7 @@ class DataAvailabilitySync(
     require(modelLineMap.values.all { it.isNotEmpty() }) {
       "modelLineMap entries must contain at least one model line"
     }
+    ModelLineCutoverValidator.validate(modelLineCutovers, modelLineMap.values.flatten().toSet())
   }
 
   /**
@@ -212,25 +220,10 @@ class DataAvailabilitySync(
 
       // Build availability entries from the response
       val availabilityEntries =
-        modelLineBounds.modelLineBoundsList.flatMap { bound ->
-          val availabilityInterval = interval {
-            startTime = bound.value.startTime
-            endTime = bound.value.endTime
-          }
-          val mappedModelLines = modelLineMap[bound.key]
-          if (mappedModelLines != null) {
-            logger.info(
-              "Model line mapping found: ${bound.key} -> ${mappedModelLines.joinToString(", ")}"
-            )
-          } else {
-            logger.info("No model line mapping found for: ${bound.key}")
-          }
-          val modelLines = mappedModelLines ?: listOf(bound.key)
-          modelLines.map { modelLine ->
-            dataAvailabilityMapEntry {
-              key = modelLine
-              value = availabilityInterval
-            }
+        buildAvailabilityIntervals(modelLineBounds).map { (modelLine, availabilityInterval) ->
+          dataAvailabilityMapEntry {
+            key = modelLine
+            value = availabilityInterval
           }
         }
       check(availabilityEntries.isNotEmpty()) {
@@ -360,6 +353,91 @@ class DataAvailabilitySync(
       syncDuration,
       Attributes.of(DATA_PROVIDER_KEY_ATTR, dataProviderName, SYNC_STATUS_ATTR, syncStatus),
     )
+  }
+
+  private fun buildAvailabilityIntervals(
+    modelLineBounds: ComputeModelLineBoundsResponse
+  ): Map<String, Interval> {
+    val boundsByModelLine: Map<String, Interval> =
+      modelLineBounds.modelLineBoundsList.associate { bound ->
+        bound.key to
+          interval {
+            startTime = bound.value.startTime
+            endTime = bound.value.endTime
+          }
+      }
+    val cutoversByExternalModelLine = modelLineCutovers.associateBy { it.externalModelLine }
+    val availabilityByModelLine = linkedMapOf<String, Interval>()
+
+    for ((internalModelLine, availabilityInterval) in boundsByModelLine) {
+      val mappedModelLines = modelLineMap[internalModelLine]
+      if (mappedModelLines != null) {
+        logger.info(
+          "Model line mapping found: $internalModelLine -> ${mappedModelLines.joinToString(", ")}"
+        )
+      } else {
+        logger.info("No model line mapping found for: $internalModelLine")
+      }
+      val externalModelLines = mappedModelLines ?: listOf(internalModelLine)
+      for (externalModelLine in externalModelLines) {
+        if (externalModelLine !in cutoversByExternalModelLine) {
+          availabilityByModelLine[externalModelLine] = availabilityInterval
+        }
+      }
+    }
+
+    for (cutover in modelLineCutovers) {
+      buildCutoverAvailabilityInterval(cutover, boundsByModelLine)?.let { availabilityInterval ->
+        availabilityByModelLine[cutover.externalModelLine] = availabilityInterval
+      }
+    }
+
+    return availabilityByModelLine
+  }
+
+  private fun buildCutoverAvailabilityInterval(
+    cutover: ModelLineCutoverConfig,
+    boundsByModelLine: Map<String, Interval>,
+  ): Interval? {
+    val boundary = cutover.cutoverInstant
+    val beforeInterval =
+      boundsByModelLine[cutover.historicalModelLine]?.let { bound ->
+        val start = bound.startTime.toInstant()
+        val end = minOf(bound.endTime.toInstant(), boundary)
+        if (start < end) {
+          interval {
+            startTime = start.toProtoTime()
+            endTime = end.toProtoTime()
+          }
+        } else {
+          null
+        }
+      }
+    val onOrAfterInterval =
+      boundsByModelLine[cutover.replacementModelLine]?.let { bound ->
+        val start = maxOf(bound.startTime.toInstant(), boundary)
+        val end = bound.endTime.toInstant()
+        if (start < end) {
+          interval {
+            startTime = start.toProtoTime()
+            endTime = end.toProtoTime()
+          }
+        } else {
+          null
+        }
+      }
+
+    if (beforeInterval == null) return onOrAfterInterval
+    if (onOrAfterInterval == null) return beforeInterval
+
+    require(beforeInterval.endTime == onOrAfterInterval.startTime) {
+      "Availability for ${cutover.externalModelLine} is not contiguous at cutover: " +
+        "${beforeInterval.endTime} != ${onOrAfterInterval.startTime}"
+    }
+    return interval {
+      startTime = beforeInterval.startTime
+      endTime = onOrAfterInterval.endTime
+    }
   }
 
   private fun emitDateStatusMetric(modelLineKey: ModelLineKey, status: String, count: Int) {

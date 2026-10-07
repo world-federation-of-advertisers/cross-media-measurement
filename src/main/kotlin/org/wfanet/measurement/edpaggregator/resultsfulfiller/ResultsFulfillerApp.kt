@@ -34,6 +34,7 @@ import org.wfanet.measurement.common.readByteString
 import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.computation.ResultMinimumThresholds
 import org.wfanet.measurement.edpaggregator.StorageConfig
+import org.wfanet.measurement.edpaggregator.toModelLineCutoverConfig
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
@@ -223,17 +224,22 @@ class ResultsFulfillerApp(
         trusTeeConfig = trusTeeConfig,
         kekUriToKeyNameMap = fulfillerParams.trusteeParams.kekUriToKeyNameMap,
       )
-    val modelLineInfoMapWithAliases =
-      if (fulfillerParams.modelLineMapMap.isEmpty()) {
+    val modelLineInfoMapWithRouting =
+      if (
+        fulfillerParams.modelLineMapMap.isEmpty() && fulfillerParams.modelLineCutoversList.isEmpty()
+      ) {
         modelLineInfoMap
       } else {
+        val cutoversByExternalModelLine =
+          fulfillerParams.modelLineCutoversList
+            .map { it.toModelLineCutoverConfig() }
+            .associateBy { it.externalModelLine }
         modelLineInfoMap.mapValues { (modelLine, modelLineInfo) ->
           val mappedValue = fulfillerParams.modelLineMapMap[modelLine]
-          if (mappedValue == null || mappedValue == modelLineInfo.localAlias) {
-            modelLineInfo
-          } else {
-            modelLineInfo.copy(localAlias = mappedValue)
-          }
+          modelLineInfo.copy(
+            localAlias = mappedValue ?: modelLineInfo.localAlias,
+            modelLineCutover = cutoversByExternalModelLine[modelLine],
+          )
         }
       }
 
@@ -245,7 +251,7 @@ class ResultsFulfillerApp(
         kingdomThrottler = kingdomThrottler,
         privateEncryptionKey = loadPrivateKey(encryptionPrivateKeyFile),
         groupedRequisitions = groupedRequisitions,
-        modelLineInfoMap = modelLineInfoMapWithAliases,
+        modelLineInfoMap = modelLineInfoMapWithRouting,
         pipelineConfiguration = pipelineConfiguration,
         impressionDataSourceProvider = impressionsDataSourceProvider,
         impressionsStorageConfig = impressionsStorageConfig,
