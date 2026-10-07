@@ -1,0 +1,166 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Run EventGroupSync Scale Test
+
+run-name: Run EventGroupSync Scale Test [${{ inputs.environment }}]
+
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - head
+          - qa
+
+permissions:
+  contents: read
+
+concurrency:
+  group: event-group-sync-scale-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  run-test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Record metrics window
+        run: |
+          echo "METRICS_START_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
+
+      - name: Load scale test configuration
+        run: |
+          TFVARS="src/main/terraform/gcloud/cmms/envs/${{ inputs.environment }}.tfvars"
+          event_group_scale_data_provider="$(
+            grep -E '^event_group_scale_data_provider ' "$TFVARS" |
+              head -1 |
+              cut -d'"' -f2
+          )"
+          if [[ -z "$event_group_scale_data_provider" ]]; then
+            echo "event_group_scale_data_provider is not configured in $TFVARS" >&2
+            exit 1
+          fi
+          echo "EVENT_GROUP_SCALE_DATA_PROVIDER=$event_group_scale_data_provider" >> "$GITHUB_ENV"
+
+      - name: Run scale test
+        id: run-test
+        env:
+          GOOGLE_CLOUD_PROJECT: halo-cmm-${{ inputs.environment }}
+          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+          KINGDOM_PUBLIC_API_CERT_HOST: localhost
+          MC_NAME: ${{ vars.MC_NAME }}
+          MC_API_KEY: ${{ secrets.MC_API_KEY }}
+          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+          EVENT_GROUP_SCALE_SEED: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          bazel test \
+            --config=ci \
+            --test_output=streamed \
+            --test_timeout=2700 \
+            --test_env=GOOGLE_APPLICATION_CREDENTIALS \
+            --test_env=GOOGLE_CLOUD_PROJECT \
+            --test_env=KINGDOM_PUBLIC_API_TARGET \
+            --test_env=KINGDOM_PUBLIC_API_CERT_HOST \
+            --test_env=REPORTING_PUBLIC_API_TARGET \
+            --test_env=MC_NAME \
+            --test_env=MC_API_KEY \
+            --test_env=STORAGE_BUCKET \
+            --test_env=EVENT_GROUP_SCALE_DATA_PROVIDER \
+            --test_env=EVENT_GROUP_SCALE_SEED \
+            //src/test/kotlin/org/wfanet/measurement/integration/k8s:EventGroupSyncScaleTest
+
+      - name: Verify exported EventGroupSync metrics
+        env:
+          ACCESS_TOKEN: ${{ steps.auth.outputs.access_token }}
+          GOOGLE_CLOUD_PROJECT: halo-cmm-${{ inputs.environment }}
+        run: |
+          metric_total() {
+            local metric_type="$1"
+            local end_time response
+            end_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            response="$(
+              curl --fail-with-body --silent --show-error --get \
+                --header "Authorization: Bearer $ACCESS_TOKEN" \
+                --data-urlencode "filter=metric.type=\"$metric_type\" AND metric.labels.data_provider_name=\"$EVENT_GROUP_SCALE_DATA_PROVIDER\"" \
+                --data-urlencode "interval.startTime=$METRICS_START_TIME" \
+                --data-urlencode "interval.endTime=$end_time" \
+                --data-urlencode "view=FULL" \
+                --data-urlencode "aggregation.alignmentPeriod=60s" \
+                --data-urlencode "aggregation.perSeriesAligner=ALIGN_DELTA" \
+                "https://monitoring.googleapis.com/v3/projects/$GOOGLE_CLOUD_PROJECT/timeSeries"
+            )"
+            jq -r \
+              '[.timeSeries[]?.points[]?.value | ((.int64Value // .doubleValue // 0) | tonumber)] | add // 0' \
+              <<< "$response"
+          }
+
+          for poll_attempt in {1..12}; do
+            sync_attempts="$(metric_total 'workload.googleapis.com/edpa.event_group.sync_attempts')"
+            sync_success="$(metric_total 'workload.googleapis.com/edpa.event_group.sync_success')"
+            sync_deleted="$(metric_total 'workload.googleapis.com/edpa.event_group.sync_deleted')"
+
+            echo "Cloud Monitoring poll $poll_attempt/12: attempts=$sync_attempts, success=$sync_success, deleted=$sync_deleted"
+            if (( sync_attempts >= 9950 && sync_success >= 9950 && sync_deleted >= 50 )); then
+              echo "EventGroupSync metrics were exported to Cloud Monitoring."
+              exit 0
+            fi
+
+            if (( poll_attempt < 12 )); then
+              sleep 30
+            fi
+          done
+
+          echo "Expected at least 9950 attempts, 9950 successes, and 50 deletions in Cloud Monitoring." >&2
+          exit 1
+
+      - name: Upload Bazel testlogs
+        if: failure() && steps.run-test.outcome == 'failure'
+        continue-on-error: true
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0

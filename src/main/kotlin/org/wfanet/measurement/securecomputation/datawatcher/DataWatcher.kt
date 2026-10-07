@@ -25,6 +25,7 @@ import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.Meter
 import io.opentelemetry.api.trace.Span
+import java.io.IOException
 import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
@@ -47,6 +48,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+
+private class HttpEndpointResponseException(val statusCode: Int, message: String) :
+  IllegalStateException(message)
 
 /*
  * Watcher to observe blob creation events and take the appropriate action for each.
@@ -108,17 +112,31 @@ class DataWatcher(
 
       val processingDurationSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
       onProcessingCompleted(config, path, processingDurationSeconds)
+    } catch (e: InterruptedException) {
+      Thread.currentThread().interrupt()
+      onProcessingFailed(
+        config,
+        path,
+        processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0,
+        e,
+        shouldLog = false,
+      )
+      throw e
     } catch (e: Exception) {
       val elapsedSeconds = processingStartTime.elapsedNow().inWholeMilliseconds / 1000.0
-      val isRetryable = e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES
+      val isRetryable =
+        e is IOException ||
+          e.grpcStatusCode() in RETRYABLE_CONTROL_PLANE_CODES ||
+          (e is HttpEndpointResponseException && isRetryableHttpStatusCode(e.statusCode))
       onProcessingFailed(config, path, elapsedSeconds, e, shouldLog = !isRetryable)
       val isRecoveryOperation =
         WatchedBlobs.OVERRIDE_MODEL_LINES_KEY in objectMetadata ||
           WatchedBlobs.RECOVERY_SOURCE_UPLOAD_KEY in objectMetadata ||
           WatchedBlobs.EVICTION_OPERATION_ID_KEY in objectMetadata
       if (isRetryable || isRecoveryOperation) {
-        // Recovery must be at-least-once: surfacing the failure keeps the Eventarc delivery
-        // unacknowledged so it is retried and, after exhaustion, retained in the configured DLQ.
+        // Retryable failures and recovery operations must be at-least-once. Surfacing the failure
+        // keeps the Eventarc delivery unacknowledged so it is retried and, after exhaustion,
+        // retained in the configured DLQ.
         throw e
       }
     }
@@ -280,8 +298,11 @@ class DataWatcher(
         .build()
     val response = client.send(request, BodyHandlers.ofString())
     val statusCode = response.statusCode()
-    check(statusCode == 200) {
-      "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode"
+    if (statusCode != 200) {
+      throw HttpEndpointResponseException(
+        statusCode,
+        "${config.identifier}: HTTP endpoint ${httpEndpointConfig.endpointUri} returned $statusCode",
+      )
     }
     onHttpDispatch(config, path, statusCode)
   }
@@ -389,6 +410,12 @@ class DataWatcher(
         Status.Code.UNKNOWN,
         Status.Code.UNAVAILABLE,
       )
+
+    private fun isRetryableHttpStatusCode(statusCode: Int): Boolean =
+      statusCode in RETRYABLE_HTTP_STATUS_CODES
+
+    private val RETRYABLE_HTTP_STATUS_CODES = setOf(408, 429, 502, 503, 504)
+
     private const val DATA_WATCHER_PATH_HEADER: String = "X-DataWatcher-Path"
     private const val DATA_WATCHER_GENERATION_HEADER: String = "X-DataWatcher-Generation"
     private const val OVERRIDE_MODEL_LINES_HEADER: String = "X-Override-Model-Lines"

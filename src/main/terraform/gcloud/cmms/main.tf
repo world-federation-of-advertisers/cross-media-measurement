@@ -51,7 +51,7 @@ resource "google_spanner_instance" "spanner_instance" {
 
 resource "google_sql_database_instance" "postgres" {
   name             = var.postgres_instance_name
-  database_version = "POSTGRES_14"
+  database_version = "POSTGRES_16"
   settings {
     tier = var.postgres_instance_tier
 

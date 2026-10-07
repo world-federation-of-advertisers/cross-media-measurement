@@ -51,6 +51,7 @@ class EventQueryMeasurementConsumerSimulatorTest : AbstractMeasurementConsumerSi
       trustedCertificates = emptyMap(),
       eventQuery = STUB_EVENT_QUERY,
       expectedDirectNoiseMechanism = NoiseMechanism.GEOMETRIC,
+      kingdomApiThrottler = kingdomApiThrottler,
       eventRange = EVENT_RANGE,
       onMeasurementsCreated = { throw ShortCircuitException() },
     )

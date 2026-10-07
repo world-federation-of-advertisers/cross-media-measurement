@@ -25,10 +25,13 @@ import com.google.type.dateTime
 import com.google.type.timeZone
 import io.grpc.StatusException
 import java.time.Duration
+import java.time.LocalDate
 import java.util.logging.Logger
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.time.delay
 import okhttp3.HttpUrl
 import okhttp3.OkHttpClient
@@ -40,14 +43,20 @@ import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.getDataProviderRequest
 import org.wfanet.measurement.common.ExponentialBackoff
 import org.wfanet.measurement.common.api.grpc.ResourceList
+import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.coerceAtMost
 import org.wfanet.measurement.loadtest.config.TestIdentifiers
 import org.wfanet.measurement.reporting.service.api.v2alpha.BasicReportKey
+import org.wfanet.measurement.reporting.service.api.v2alpha.ImpressionQualificationFilterKey
 import org.wfanet.measurement.reporting.service.api.v2alpha.ReportingSetKey
 import org.wfanet.measurement.reporting.v2alpha.BasicReport
 import org.wfanet.measurement.reporting.v2alpha.EventGroup
 import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
+import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
+import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
+import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
@@ -57,8 +66,12 @@ import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
 import org.wfanet.measurement.reporting.v2alpha.dimensionSpec
+import org.wfanet.measurement.reporting.v2alpha.eventFilter
+import org.wfanet.measurement.reporting.v2alpha.eventTemplateField
+import org.wfanet.measurement.reporting.v2alpha.impressionQualificationFilterSpec
 import org.wfanet.measurement.reporting.v2alpha.listEventGroupsRequest
 import org.wfanet.measurement.reporting.v2alpha.metricFrequencySpec
+import org.wfanet.measurement.reporting.v2alpha.reportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.reportingInterval
 import org.wfanet.measurement.reporting.v2alpha.reportingSet
 import org.wfanet.measurement.reporting.v2alpha.reportingUnit
@@ -134,64 +147,11 @@ class ReportingUserSimulator(
       }
     }
 
-    val createBasicReportUrl =
-      HttpUrl.Builder()
-        .scheme(reportingGatewayScheme)
-        .host(reportingGatewayHost)
-        .port(reportingGatewayPort)
-        .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
-        .addQueryParameter("basic_report_id", basicReportKey.basicReportId)
-        .build()
-
-    val accessToken = getReportingAccessToken()
-
-    val createBasicReportRequest =
-      Request.Builder()
-        .url(createBasicReportUrl)
-        .post(JsonFormat.printer().print(basicReport).toRequestBody())
-        .header("Content-Type", "application/json; charset=utf-8")
-        .header("Authorization", "Bearer $accessToken")
-        .build()
-
-    val createdBasicReportJson: String =
-      try {
-        val response = okHttpReportingClient.newCall(createBasicReportRequest).execute()
-
-        val responseBody = response.body!!.string()
-        if (!response.isSuccessful) {
-          throw Exception(
-            "Error creating Basic Report: ${response.code} ${response.message} $responseBody"
-          )
-        }
-
-        responseBody
-      } catch (e: StatusException) {
-        throw Exception("Error creating Basic Report", e)
-      }
-
+    val createdBasicReport = createBasicReport(basicReportKey, basicReport)
     logger.info("Basic Report created")
 
-    val createdBasicReport =
-      BasicReport.newBuilder()
-        .also { JsonFormat.parser().ignoringUnknownFields().merge(createdBasicReportJson, it) }
-        .build()
-
-    val getBasicReportUrl =
-      HttpUrl.Builder()
-        .scheme("https")
-        .host(reportingGatewayHost)
-        .port(reportingGatewayPort)
-        .addPathSegments("v2alpha/${basicReportKey.toName()}")
-        .build()
-
-    val getBasicReportRequest =
-      Request.Builder()
-        .url(getBasicReportUrl)
-        .get()
-        .header("Authorization", "Bearer $accessToken")
-        .build()
-
-    val retrievedCompletedBasicReport = pollForCompletedBasicReport(getBasicReportRequest)
+    val retrievedCompletedBasicReport =
+      pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
 
     assertThat(retrievedCompletedBasicReport)
       .ignoringFields(
@@ -225,6 +185,277 @@ class ReportingUserSimulator(
     assertThat(retrievedCompletedBasicReport.resultGroupsList).isNotEmpty()
 
     logger.info("BasicReport ${retrievedCompletedBasicReport.name} is Completed.")
+  }
+
+  /**
+   * Creates a [BasicReport] broken down by media type and impression qualification filter over
+   * [eventGroupReferenceIds], and returns it once it reaches a terminal state.
+   *
+   * Results are one per impression qualification filter: [AMI_FILTER_ID] unfiltered,
+   * [MRC_FILTER_ID] for display, and a custom [MediaType.VIDEO] filter for video. Media type is
+   * neither groupable nor filterable, and at most one custom filter is permitted per report, so
+   * this is the only split available.
+   *
+   * This method does not perform test assertions.
+   *
+   * @param eventGroupReferenceIds EventGroups to report on, spanning at least two DataProviders
+   */
+  suspend fun createMediaTypeAndIqfBasicReport(
+    runId: String,
+    singleEdpEventGroupReferenceIds: Set<String>,
+    eventGroupReferenceIds: Set<String>,
+    eventGroupEntityTypes: Set<String>,
+    reportStart: LocalDate,
+    reportEnd: LocalDate,
+    kPlusReach: Int,
+  ): BasicReport {
+    require(singleEdpEventGroupReferenceIds.isNotEmpty()) { "No single-EDP EventGroups" }
+    require(eventGroupReferenceIds.containsAll(singleEdpEventGroupReferenceIds)) {
+      "The single-EDP EventGroups must be a subset of the reported EventGroups"
+    }
+
+    val measurementConsumerKey =
+      checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
+    val eventGroups: List<EventGroup> =
+      getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
+    val eventGroupsByReferenceId = eventGroups.associateBy { it.eventGroupReferenceId }
+    val singleEdpDataProviders =
+      singleEdpEventGroupReferenceIds
+        .map { eventGroupsByReferenceId.getValue(it).cmmsDataProvider }
+        .distinct()
+    require(singleEdpDataProviders.size == 1) {
+      "The single-EDP EventGroups span more than one DataProvider: $singleEdpDataProviders"
+    }
+    val dataProviderNames: List<String> =
+      eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
+    require(dataProviderNames.size >= 2) {
+      "The cross-publisher result group needs at least two DataProviders, got $dataProviderNames"
+    }
+
+    val campaignGroup = createCampaignGroup(eventGroups, runId)
+    val basicReportKey =
+      BasicReportKey(
+        cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
+        basicReportId = "media-iqf-$runId",
+      )
+
+    val basicReport = basicReport {
+      title = "Media type and impression qualification filter breakdown"
+      this.campaignGroup = campaignGroup.name
+      campaignGroupDisplayName = campaignGroup.displayName
+      modelLine = modelLineName
+      reportingInterval = reportingInterval {
+        this.reportStart = dateTime {
+          year = reportStart.year
+          month = reportStart.monthValue
+          day = reportStart.dayOfMonth
+          timeZone = timeZone { id = REPORT_TIME_ZONE }
+        }
+        this.reportEnd = date {
+          year = reportEnd.year
+          month = reportEnd.monthValue
+          day = reportEnd.dayOfMonth
+        }
+      }
+
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        impressionQualificationFilter = ImpressionQualificationFilterKey(AMI_FILTER_ID).toName()
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        impressionQualificationFilter = ImpressionQualificationFilterKey(MRC_FILTER_ID).toName()
+      }
+      impressionQualificationFilters += reportingImpressionQualificationFilter {
+        custom =
+          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+            // The media type alone does not select: it compiles to `video != null`, which every
+            // event satisfies because an unset message field reads back as its default instance.
+            // The terms are what restrict this to video.
+            filterSpec += impressionQualificationFilterSpec {
+              mediaType = MediaType.VIDEO
+              filters += eventFilter {
+                for (value in CUSTOM_VIDEO_COMPLETED_FRACTIONS) {
+                  terms += eventTemplateField {
+                    path = CUSTOM_VIDEO_FILTER_PATH
+                    this.value = EventTemplateFieldKt.fieldValue { floatValue = value }
+                  }
+                }
+              }
+            }
+          }
+      }
+
+      resultGroupSpecs += resultGroupSpec {
+        title = SINGLE_EDP_GROUP_TITLE
+        reportingUnit = reportingUnit { components += singleEdpDataProviders.single() }
+        metricFrequency = metricFrequencySpec { total = true }
+        dimensionSpec = dimensionSpec {}
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  this.kPlusReach = kPlusReach
+                }
+            }
+        }
+      }
+
+      resultGroupSpecs += resultGroupSpec {
+        title = CROSS_PUB_GROUP_TITLE
+        reportingUnit = reportingUnit { components += dataProviderNames }
+        metricFrequency = metricFrequencySpec { total = true }
+        dimensionSpec = dimensionSpec {}
+        resultGroupMetricSpec = resultGroupMetricSpec {
+          populationSize = true
+          reportingUnit =
+            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
+              cumulative =
+                ResultGroupMetricSpecKt.basicMetricSetSpec {
+                  reach = true
+                  this.kPlusReach = kPlusReach
+                }
+            }
+          component =
+            ResultGroupMetricSpecKt.componentMetricSetSpec {
+              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
+            }
+        }
+      }
+    }
+
+    createBasicReport(basicReportKey, basicReport)
+    logger.info { "Created BasicReport ${basicReportKey.toName()}. Polling for completion." }
+
+    return pollForCompletedBasicReport(buildGetBasicReportRequest(basicReportKey))
+  }
+
+  /** Creates a [BasicReport] resource via the HTTP gateway. */
+  private fun createBasicReport(
+    basicReportKey: BasicReportKey,
+    requestMessage: BasicReport,
+  ): BasicReport {
+    val url =
+      HttpUrl.Builder()
+        .scheme(reportingGatewayScheme)
+        .host(reportingGatewayHost)
+        .port(reportingGatewayPort)
+        .addPathSegments("v2alpha/${measurementConsumerName}/basicReports")
+        .addQueryParameter("basic_report_id", basicReportKey.basicReportId)
+        .build()
+    val request =
+      Request.Builder()
+        .url(url)
+        .post(JsonFormat.printer().print(requestMessage).toRequestBody())
+        .header("Content-Type", "application/json; charset=utf-8")
+        .header("Authorization", "Bearer ${getReportingAccessToken()}")
+        .build()
+
+    val response = okHttpReportingClient.newCall(request).execute()
+    val responseBody = response.body!!.string()
+    if (!response.isSuccessful) {
+      throw Exception(
+        "Error creating Basic Report: ${response.code} ${response.message} $responseBody"
+      )
+    }
+    return BasicReport.newBuilder()
+      .also { JsonFormat.parser().ignoringUnknownFields().merge(responseBody, it) }
+      .build()
+  }
+
+  /** Builds a request reading the [BasicReport] named by [basicReportKey]. */
+  private fun buildGetBasicReportRequest(basicReportKey: BasicReportKey): Request =
+    Request.Builder()
+      .url(
+        HttpUrl.Builder()
+          .scheme(reportingGatewayScheme)
+          .host(reportingGatewayHost)
+          .port(reportingGatewayPort)
+          .addPathSegments("v2alpha/${basicReportKey.toName()}")
+          .build()
+      )
+      .get()
+      .header("Authorization", "Bearer ${getReportingAccessToken()}")
+      .build()
+
+  /**
+   * Returns the EventGroups for [eventGroupReferenceIds], sorted by resource name.
+   *
+   * The order is what the CampaignGroup records its EventGroups in, so it is kept stable across
+   * runs.
+   *
+   * @throws IllegalStateException if any reference ID has no EventGroup
+   */
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun getEventGroups(
+    eventGroupReferenceIds: Set<String>,
+    entityTypes: Set<String>,
+  ): List<EventGroup> {
+    require(entityTypes.isNotEmpty()) {
+      "entity_type_in must be set; CMMS defaults it to [\"campaign\"], which hides every other " +
+        "entity type"
+    }
+    val resourceLists: Flow<ResourceList<EventGroup, String>> =
+      eventGroupsClient.listResources(Int.MAX_VALUE, "") { pageToken: String, _: Int ->
+        val response =
+          try {
+            listEventGroups(
+              listEventGroupsRequest {
+                parent = measurementConsumerName
+                this.pageToken = pageToken
+                pageSize = EVENT_GROUP_PAGE_SIZE
+                structuredFilter =
+                  ListEventGroupsRequestKt.filter { entityTypeIn += entityTypes.sorted() }
+              }
+            )
+          } catch (e: StatusException) {
+            throw Exception("Error listing EventGroups for $measurementConsumerName", e)
+          }
+        ResourceList(response.eventGroupsList, response.nextPageToken)
+      }
+
+    val allEventGroups: List<EventGroup> = resourceLists.flattenConcat().toList()
+    val byReferenceId: Map<String, EventGroup> =
+      allEventGroups
+        .filter { it.eventGroupReferenceId in eventGroupReferenceIds }
+        .associateBy { it.eventGroupReferenceId }
+
+    val missing = eventGroupReferenceIds - byReferenceId.keys
+    check(missing.isEmpty()) {
+      "No EventGroups found for reference IDs $missing. " +
+        "Listed ${allEventGroups.size} EventGroups for $measurementConsumerName with reference IDs " +
+        allEventGroups.map { it.eventGroupReferenceId }.sorted()
+    }
+    return byReferenceId.values.sortedBy { it.name }
+  }
+
+  /** Creates the campaign group enumerating [eventGroups]. */
+  private suspend fun createCampaignGroup(
+    eventGroups: List<EventGroup>,
+    runId: String,
+  ): ReportingSet {
+    val reportingSetId = "media-iqf-$runId"
+    val request = createReportingSetRequest {
+      parent = measurementConsumerName
+      this.reportingSetId = reportingSetId
+      reportingSet = reportingSet {
+        displayName = CAMPAIGN_GROUP_DISPLAY_NAME
+        primitive =
+          ReportingSetKt.primitive { cmmsEventGroups += eventGroups.map { it.cmmsEventGroup } }
+        campaignGroup =
+          ReportingSetKey(
+              checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName)),
+              reportingSetId,
+            )
+            .toName()
+      }
+    }
+    return try {
+      reportingSetsClient.createReportingSet(request)
+    } catch (e: StatusException) {
+      throw Exception("Error creating campaign group", e)
+    }
   }
 
   private suspend fun getEventGroup(): EventGroup {
@@ -354,5 +585,32 @@ class ReportingUserSimulator(
 
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
+
+    /** Result group titles, for callers matching results back to the groups they requested. */
+    const val SINGLE_EDP_GROUP_TITLE = "Single EDP by media type"
+    const val CROSS_PUB_GROUP_TITLE = "Cross-publisher filtered"
+
+    const val AMI_FILTER_ID = "ami"
+    const val MRC_FILTER_ID = "mrc"
+
+    /** Label for the custom video filter, which has no resource name of its own. */
+    const val CUSTOM_VIDEO_FILTER_LABEL = "custom-video"
+
+    /** Event template field the custom video filter restricts on. */
+    const val CUSTOM_VIDEO_FILTER_PATH = "video.completed_fraction"
+
+    /**
+     * Values of [CUSTOM_VIDEO_FILTER_PATH] the custom video filter admits.
+     *
+     * Zero is excluded so the filter also excludes display events, whose unset video field reads
+     * back as zero.
+     */
+    val CUSTOM_VIDEO_COMPLETED_FRACTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f)
+
+    private const val CAMPAIGN_GROUP_DISPLAY_NAME = "Media type and IQF campaign group"
+    private const val REPORT_TIME_ZONE = "UTC"
+
+    /** Page size for ListEventGroups requests. */
+    private const val EVENT_GROUP_PAGE_SIZE = 500 // Use max page size to minimize the RPC count.
   }
 }

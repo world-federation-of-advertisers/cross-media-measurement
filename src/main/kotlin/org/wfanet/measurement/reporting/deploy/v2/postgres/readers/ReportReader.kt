@@ -23,6 +23,7 @@ import java.util.Optional
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.common.db.r2dbc.BoundStatement
 import org.wfanet.measurement.common.db.r2dbc.ReadContext
 import org.wfanet.measurement.common.db.r2dbc.ResultRow
@@ -41,6 +42,13 @@ class ReportReader(private val readContext: ReadContext) {
     val reportId: InternalId,
     val createReportRequestId: String,
     val report: Report,
+  )
+
+  /** The identifiers that link a `Report` to its originating `BasicReport`. */
+  data class BasicReportLink(
+    val externalReportId: String,
+    val createReportRequestId: String,
+    val basicReport: String,
   )
 
   private data class ReportInfo(
@@ -102,6 +110,36 @@ class ReportReader(private val readContext: ReadContext) {
       AND MetricCalculationSpecReportingMetrics.MetricId = Metrics.MetricId
     """
       .trimIndent()
+
+  /** Reads the identifiers that link `Report`s to `BasicReport`s for a MeasurementConsumer. */
+  suspend fun readBasicReportLinks(cmmsMeasurementConsumerId: String): List<BasicReportLink> {
+    val sql =
+      """
+        SELECT
+          Reports.ExternalReportId,
+          Reports.CreateReportRequestId,
+          Reports.ReportDetails
+        FROM MeasurementConsumers
+          JOIN Reports USING (MeasurementConsumerId)
+        WHERE CmmsMeasurementConsumerId = $1
+        ORDER BY Reports.ReportId
+      """
+        .trimIndent()
+
+    val statement = boundStatement(sql) { bind("$1", cmmsMeasurementConsumerId) }
+    return readContext
+      .executeQuery(statement)
+      .consume { row: ResultRow ->
+        val details: Report.Details = row.getProtoMessage("ReportDetails", Report.Details.parser())
+        val createReportRequestId: String? = row["CreateReportRequestId"]
+        BasicReportLink(
+          externalReportId = row["ExternalReportId"],
+          createReportRequestId = createReportRequestId ?: "",
+          basicReport = details.basicReport,
+        )
+      }
+      .toList()
+  }
 
   suspend fun readReportByRequestId(
     measurementConsumerId: InternalId,

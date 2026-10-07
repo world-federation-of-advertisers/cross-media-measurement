@@ -26,10 +26,19 @@ _systemApiAddressName:   "edp-aggregator-system"
 // storage.objectAdmin on the spot-data bucket).
 #SyncEventGroupActivitiesServiceAccount: "sync-event-group-activities"
 
-// Bumped from cpu 25m / memory 256Mi (heap default -Xmx64M): the system API server was
-// OOMKilled while serving the VID-labeling pipeline's concurrent calls (e.g.
-// ListRawImpressionUploadFiles), which stalled memoized pool assignment and hung the cloud test.
+// Sized for the concurrent calls the VID-labeling pipeline makes against the system API server.
 #SystemServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "100m"
+		memory: "1Gi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
+// Sized for the concurrent calls the VID-labeling pipeline makes against the internal API server.
+#InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "100m"
 		memory: "1Gi"
@@ -69,6 +78,10 @@ edpAggregator: #EdpAggregator & {
 
 	deployments: {
 		"edp-aggregator-internal-api-server": {
+			_container: {
+				_javaOptions: maxHeapSize: "512M"
+				resources: #InternalServerResourceRequirements
+			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalEdpAggregatorServerServiceAccount
 			}

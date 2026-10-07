@@ -24,16 +24,28 @@ import com.google.gson.stream.JsonReader
 import com.google.protobuf.util.JsonFormat
 import io.grpc.Channel
 import io.grpc.ClientInterceptors
+import io.grpc.Status
+import io.grpc.StatusException
+import io.grpc.StatusRuntimeException
+import io.opentelemetry.api.common.AttributeKey
+import io.opentelemetry.api.common.Attributes
+import io.opentelemetry.api.metrics.LongCounter
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.io.InputStreamReader
+import java.net.HttpURLConnection
+import java.nio.file.Files
 import java.time.Clock
 import java.time.Duration
+import java.util.logging.Level
 import java.util.logging.Logger
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.api.v2alpha.ClientAccountsGrpcKt.ClientAccountsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.api.v2alpha.UnlinkedClientAccountsGrpcKt.UnlinkedClientAccountsCoroutineStub
@@ -44,7 +56,9 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig
 import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
+import org.wfanet.measurement.common.throttler.MaximumRateThrottler
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.throttler.Throttler
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfig
 import org.wfanet.measurement.config.edpaggregator.EventGroupSyncConfigs
 import org.wfanet.measurement.edpaggregator.ConfigLoader
@@ -55,6 +69,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.storage.BlobUri
 import org.wfanet.measurement.storage.MesosRecordIoStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
+import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
 /*
  * Cloud Run Function that receives a [HTTPRequest] with EventGroupSyncConfig. It updates/registers
@@ -63,13 +78,17 @@ import org.wfanet.measurement.storage.SelectedStorageClient
 class EventGroupSyncFunction() : HttpFunction {
 
   override fun service(request: HttpRequest, response: HttpResponse) {
-    logger.fine("Starting EventGroupSyncFunction")
-    val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
-    logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
+    var failureAttributes: Attributes = Attributes.empty()
     try {
+      logger.fine("Starting EventGroupSyncFunction")
+      val dataWatcherPath: String = request.getFirstHeader(DATA_WATCHER_PATH_HEADER).orElse("")
+      logger.fine("Value of DATA_WATCHER_PATH_HEADER: $dataWatcherPath")
       val requestBody = request.reader.readText()
       val eventGroupSyncConfig =
         ConfigLoader.buildEventGroupSyncConfig(requestBody, runtimeConfigs.configsList)
+      failureAttributes =
+        Attributes.of(DATA_PROVIDER_NAME_ATTRIBUTE, eventGroupSyncConfig.dataProvider)
+      functionFailureCounter.add(0, failureAttributes)
 
       runBlocking {
         Tracing.traceSuspending(
@@ -117,7 +136,7 @@ class EventGroupSyncFunction() : HttpFunction {
                   clientAccountsStub = clientAccountsClient,
                   unlinkedClientAccountsStub = unlinkedClientAccountsClient,
                   eventGroups = eventGroups,
-                  throttler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration),
+                  throttler = kingdomThrottler,
                   listEventGroupPageSize,
                   entityKeyTypes = eventGroupSyncConfig.entityKeyTypesList,
                 )
@@ -126,6 +145,15 @@ class EventGroupSyncFunction() : HttpFunction {
           )
         }
       }
+    } catch (e: Exception) {
+      functionFailureCounter.add(1, failureAttributes)
+      if (isRetryableKingdomFailure(e)) {
+        logger.log(Level.WARNING, "Transient Kingdom failure; requesting redelivery", e)
+        response.setStatusCode(HttpURLConnection.HTTP_UNAVAILABLE)
+        response.writer.write("EventGroup sync failed due to a transient Kingdom error")
+        return
+      }
+      throw e
     } finally {
       // Critical: flush metrics and traces before function terminates
       // Without this, all telemetry recorded during execution will be lost
@@ -135,7 +163,11 @@ class EventGroupSyncFunction() : HttpFunction {
   }
 
   /**
-   * Writes the event group mapping data to blob storage.
+   * Writes the event group mapping data to blob storage after staging it locally.
+   *
+   * The destination is updated only after [mappedData] completes. A failed sync therefore leaves
+   * the previous mapping intact. The conditional write also prevents an older concurrent invocation
+   * from overwriting a mapping published after this invocation started.
    *
    * @param mappedData Flow of MappedEventGroup containing event group reference IDs and resource
    *   names
@@ -151,17 +183,37 @@ class EventGroupSyncFunction() : HttpFunction {
     ) {
       val mappedDataBlobUri =
         SelectedStorageClient.parseBlobUri(eventGroupSyncConfig.eventGroupMapBlobUri)
-      MesosRecordIoStorageClient(
-          SelectedStorageClient(
-            blobUri = mappedDataBlobUri,
-            rootDirectory =
-              if (eventGroupSyncConfig.eventGroupMapStorage.hasFileSystem())
-                File(checkNotNull(fileSystemStorageRoot))
-              else null,
-            projectId = eventGroupSyncConfig.eventGroupMapStorage.gcs.projectId,
-          )
+      val destinationStorageClient =
+        SelectedStorageClient(
+          blobUri = mappedDataBlobUri,
+          rootDirectory =
+            if (eventGroupSyncConfig.eventGroupMapStorage.hasFileSystem())
+              File(checkNotNull(fileSystemStorageRoot))
+            else null,
+          projectId = eventGroupSyncConfig.eventGroupMapStorage.gcs.projectId,
         )
-        .writeBlob(mappedDataBlobUri.key, mappedData.map { it.toByteString() })
+      val destinationFreshnessToken =
+        destinationStorageClient.getFreshnessToken(mappedDataBlobUri.key)
+      val stagingDirectory =
+        withContext(Dispatchers.IO) { Files.createTempDirectory("event-group-map-").toFile() }
+      try {
+        val stagingStorageClient = FileSystemStorageClient(stagingDirectory)
+        MesosRecordIoStorageClient(stagingStorageClient)
+          .writeBlob(STAGING_BLOB_KEY, mappedData.map { it.toByteString() })
+        val stagingBlob = checkNotNull(stagingStorageClient.getBlob(STAGING_BLOB_KEY))
+
+        if (destinationFreshnessToken == null) {
+          destinationStorageClient.writeBlobIfNotFound(mappedDataBlobUri.key, stagingBlob.read())
+        } else {
+          destinationStorageClient.writeBlobIfUnchanged(
+            mappedDataBlobUri.key,
+            destinationFreshnessToken,
+            stagingBlob.read(),
+          )
+        }
+      } finally {
+        withContext(NonCancellable + Dispatchers.IO) { stagingDirectory.deleteRecursively() }
+      }
     }
   }
 
@@ -254,16 +306,33 @@ class EventGroupSyncFunction() : HttpFunction {
   companion object {
     private val logger: Logger = Logger.getLogger(this::class.java.name)
     private const val KINGDOM_SHUTDOWN_DURATION_SECONDS: Long = 3L
-    private const val THROTTLER_DURATION_MILLIS = 1000L
+    private const val DEFAULT_KINGDOM_REQUESTS_PER_SECOND = 4.0
     private const val LIST_EVENT_GROUPS_PAGE_SIZE: Int = 100
+
+    private val RETRYABLE_KINGDOM_STATUS_CODES =
+      setOf(
+        Status.Code.ABORTED,
+        Status.Code.CANCELLED,
+        Status.Code.DEADLINE_EXCEEDED,
+        Status.Code.RESOURCE_EXHAUSTED,
+        Status.Code.UNAVAILABLE,
+      )
 
     private val listEventGroupPageSize: Int =
       System.getenv("LIST_EVENT_GROUPS_PAGE_SIZE")?.toInt() ?: LIST_EVENT_GROUPS_PAGE_SIZE
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
-    private val throttlerDuration =
-      Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
+    private val kingdomThrottler: Throttler by lazy {
+      val requestsPerSecond = System.getenv("KINGDOM_REQUESTS_PER_SECOND")
+      val throttlerMillis = System.getenv("THROTTLER_MILLIS")
+      when {
+        requestsPerSecond != null -> MaximumRateThrottler(requestsPerSecond.toDouble())
+        throttlerMillis != null ->
+          MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(throttlerMillis.toLong()))
+        else -> MaximumRateThrottler(DEFAULT_KINGDOM_REQUESTS_PER_SECOND)
+      }
+    }
     private val channelShutdownDuration =
       Duration.ofSeconds(
         System.getenv("KINGDOM_SHUTDOWN_DURATION_SECONDS")?.toLong()
@@ -272,6 +341,31 @@ class EventGroupSyncFunction() : HttpFunction {
     private val fileSystemStorageRoot = System.getenv("FILE_STORAGE_ROOT")
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
+    private const val STAGING_BLOB_KEY = "event-group-map.recordio"
+    private val DATA_PROVIDER_NAME_ATTRIBUTE = AttributeKey.stringKey("data_provider_name")
+    private val functionFailureCounter: LongCounter by lazy {
+      Instrumentation.meter
+        .counterBuilder("edpa.event_group.sync_function_failure")
+        .setDescription("Number of failed EventGroupSyncFunction executions")
+        .build()
+    }
+
+    private fun isRetryableKingdomFailure(throwable: Throwable): Boolean {
+      var cause: Throwable? = throwable
+      while (cause != null) {
+        val statusCode =
+          when (cause) {
+            is StatusException -> cause.status.code
+            is StatusRuntimeException -> cause.status.code
+            else -> null
+          }
+        if (statusCode != null) {
+          return statusCode in RETRYABLE_KINGDOM_STATUS_CODES
+        }
+        cause = cause.cause
+      }
+      return false
+    }
 
     // Name of the repeated field in the EventGroups message, in both its proto (snake_case) and
     // JSON (camelCase) spellings, since JsonFormat accepts either.
