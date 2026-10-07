@@ -582,7 +582,7 @@ class VidLabelingMonitorTest {
   }
 
   @Test
-  fun `health recovers stale labeling handoff after all jobs succeeded`() = runBlocking {
+  fun `health recovers every stale labeling handoff after all jobs succeeded`() = runBlocking {
     val upload =
       upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW.minus(Duration.ofHours(13)))
     val modelLine = rawImpressionUploadModelLine {
@@ -606,6 +606,15 @@ class VidLabelingMonitorTest {
               day = 1
             }
           }
+          rawImpressionUploadFiles += rawImpressionUploadFile {
+            name = "${upload.name}/files/file2"
+            blobUri = "gs://raw-bucket/2026-06-02/file.parquet"
+            eventDate = date {
+              year = 2026
+              month = 6
+              day = 2
+            }
+          }
         }
       )
     whenever(vidLabelingJobService.listVidLabelingJobs(any()))
@@ -618,28 +627,63 @@ class VidLabelingMonitorTest {
           }
         }
       )
+    var existingRequest: CreateWorkItemRequest? = null
     whenever(workItemsService.createWorkItem(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<CreateWorkItemRequest>(0)
+      if (
+        request.workItem.workItemParams
+          .unpack<WorkItem.WorkItemParams>()
+          .dataPathParams
+          .dataPath
+          .contains("/2026-06-01/")
+      ) {
+        existingRequest = request
+        throw StatusRuntimeException(Status.ALREADY_EXISTS)
+      }
+      request.workItem.toBuilder().setName("workItems/${request.workItemId}").build()
+    }
+    whenever(workItemsService.getWorkItem(any())).thenAnswer {
+      val request = checkNotNull(existingRequest)
       request.workItem.toBuilder().setName("workItems/${request.workItemId}").build()
     }
     whenever(rawImpressionUploadModelLineService.markRawImpressionUploadModelLineCompleted(any()))
       .thenReturn(modelLine.copy { state = RawImpressionUploadModelLine.State.COMPLETED })
 
-    val result = createMonitor(readDoneBlobGeneration = { 1234L }).runHealth()
+    val result =
+      createMonitor(
+          readDoneBlobGeneration = { doneBlobUri ->
+            if (doneBlobUri.contains("/2026-06-01/")) 1234L else 1235L
+          }
+        )
+        .runHealth()
 
     assertThat(result.recoveredAvailabilityHandoffs).isEqualTo(1)
     val ensureCaptor = argumentCaptor<CreateWorkItemRequest>()
-    verifyBlocking(workItemsService) { createWorkItem(ensureCaptor.capture()) }
+    verifyBlocking(workItemsService, times(2)) { createWorkItem(ensureCaptor.capture()) }
     val ensuredWorkItem = ensureCaptor.firstValue.workItem
     assertThat(ensuredWorkItem.queue).isEqualTo("data-availability-sync-queue")
     assertThat(ensuredWorkItem.serializationKey).isEqualTo("data-availability-sync:$DATA_PROVIDER")
-    val workItemParams = ensuredWorkItem.workItemParams.unpack<WorkItem.WorkItemParams>()
-    assertThat(workItemParams.dataPathParams.dataPath)
-      .isEqualTo("$VID_LABELED_IMPRESSIONS_PREFIX/model-line/ml1/2026-06-01/done")
-    assertThat(workItemParams.dataPathParams.generation).isEqualTo(1234L)
-    val appParams = workItemParams.appParams.unpack<DataAvailabilitySyncParams>()
-    assertThat(appParams.rawImpressionUpload).isEqualTo(upload.name)
-    assertThat(appParams.modelLine).isEqualTo(MODEL_LINE)
+    val workItemParams =
+      ensureCaptor.allValues.map { it.workItem.workItemParams.unpack<WorkItem.WorkItemParams>() }
+    assertThat(workItemParams.map { it.dataPathParams.dataPath })
+      .containsExactly(
+        "$VID_LABELED_IMPRESSIONS_PREFIX/model-line/ml1/2026-06-01/done",
+        "$VID_LABELED_IMPRESSIONS_PREFIX/model-line/ml1/2026-06-02/done",
+      )
+      .inOrder()
+    assertThat(workItemParams.map { it.dataPathParams.generation })
+      .containsExactly(1234L, 1235L)
+      .inOrder()
+    assertThat(
+        workItemParams.map { it.appParams.unpack<DataAvailabilitySyncParams>().rawImpressionUpload }
+      )
+      .containsExactly(upload.name, upload.name)
+    assertThat(workItemParams.map { it.appParams.unpack<DataAvailabilitySyncParams>().modelLine })
+      .containsExactly(MODEL_LINE, MODEL_LINE)
+    val getCaptor = argumentCaptor<GetWorkItemRequest>()
+    verifyBlocking(workItemsService) { getWorkItem(getCaptor.capture()) }
+    assertThat(getCaptor.firstValue.name)
+      .isEqualTo("workItems/${ensureCaptor.firstValue.workItemId}")
     val markCaptor = argumentCaptor<MarkRawImpressionUploadModelLineCompletedRequest>()
     verifyBlocking(rawImpressionUploadModelLineService) {
       markRawImpressionUploadModelLineCompleted(markCaptor.capture())
