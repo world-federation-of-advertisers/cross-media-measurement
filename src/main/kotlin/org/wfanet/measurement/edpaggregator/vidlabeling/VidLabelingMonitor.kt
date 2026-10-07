@@ -60,9 +60,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
-import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
-import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -88,7 +85,7 @@ import org.wfanet.measurement.storage.StorageClient
  *   duration-window alerting (no per-tick `SEVERE`, to avoid re-paging until manual recovery).
  *
  * The health pass recovers stalled phase transitions (`POOL_ASSIGNING → RANKING → LABELING →
- * COMPLETED`) by replaying one completed child WorkItem.
+ * AVAILABILITY_SYNCING → COMPLETED`) by replaying one completed child WorkItem.
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
@@ -97,7 +94,6 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
  * @param vidLabeledImpressionsBlobPrefix URI prefix for labeled output.
- * @param readDoneBlobGeneration returns the generation of a labeled-output done object.
  * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock used for staleness evaluation.
  * @param metrics OpenTelemetry instruments recorder.
@@ -120,7 +116,6 @@ class VidLabelingMonitor(
   private val vidLabelingJobStub: VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub,
   private val workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub,
   private val vidLabeledImpressionsBlobPrefix: String,
-  private val readDoneBlobGeneration: suspend (String) -> Long?,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
   private val clock: Clock = Clock.systemUTC(),
   private val metrics: VidLabelingMonitorMetrics = VidLabelingMonitorMetrics(),
@@ -172,8 +167,6 @@ class VidLabelingMonitor(
      * Monitor stops retrying and a human must intervene.
      */
     val unrecoverableRecoveries: Int,
-    /** Durable availability handoffs restored after the labeler stopped during finalization. */
-    val recoveredAvailabilityHandoffs: Int,
   ) {
     val hasIssues: Boolean
       get() =
@@ -249,8 +242,7 @@ class VidLabelingMonitor(
         val outcome =
           when {
             result.dataQualityCheckFailed -> "failed"
-            result.recoveredTransitions > 0 || result.recoveredAvailabilityHandoffs > 0 ->
-              "recovered"
+            result.recoveredTransitions > 0 -> "recovered"
             else -> "succeeded"
           }
         Span.current().setAttribute(XmmTraceAttributes.OUTCOME, outcome)
@@ -260,8 +252,7 @@ class VidLabelingMonitor(
   private suspend fun runHealthInternal(): HealthResult {
     val snapshot = RunSnapshot(listAllUploads().groupBy { it.state })
     val (stuckUploads, failedModelLines) = checkFailuresAndStaleness(snapshot)
-    val availabilityHandoffRecovery = recoverAvailabilityHandoffs(snapshot)
-    val recovery = recoverStuckPhases(snapshot, availabilityHandoffRecovery.recoveredModelLineNames)
+    val recovery = recoverStuckPhases(snapshot)
     val dataQuality = checkDataQuality(snapshot)
     return HealthResult(
       stuckUploads = stuckUploads,
@@ -275,7 +266,6 @@ class VidLabelingMonitor(
       recoveredTransitions = recovery.recovered,
       recoveryExhausted = recovery.exhausted,
       unrecoverableRecoveries = recovery.unrecoverable,
-      recoveredAvailabilityHandoffs = availabilityHandoffRecovery.recoveredModelLineNames.size,
     )
   }
 
@@ -621,160 +611,6 @@ class VidLabelingMonitor(
     val unrecoverable: Int,
   )
 
-  private data class AvailabilityHandoffRecovery(val recoveredModelLineNames: Set<String>)
-
-  /** Restores durable availability WorkItems left missing by interrupted labeler finalization. */
-  private suspend fun recoverAvailabilityHandoffs(
-    snapshot: RunSnapshot
-  ): AvailabilityHandoffRecovery {
-    val staleBeforeNanos =
-      Timestamps.toNanos(Timestamps.fromMillis(clock.millis())) -
-        AVAILABILITY_HANDOFF_RECOVERY_THRESHOLD.toNanos()
-    val candidates =
-      snapshot
-        .uploads(RawImpressionUpload.State.ACTIVE)
-        .flatMap { upload ->
-          snapshot
-            .modelLines(upload.name)
-            .filter { modelLine ->
-              modelLine.state == RawImpressionUploadModelLine.State.LABELING &&
-                Timestamps.toNanos(modelLine.updateTime) < staleBeforeNanos
-            }
-            .map { modelLine -> upload to modelLine }
-        }
-        .sortedByDescending { (_, modelLine) -> Timestamps.toNanos(modelLine.updateTime) }
-        .take(MAX_AVAILABILITY_HANDOFF_RECOVERIES_PER_RUN)
-
-    val recovered = mutableSetOf<String>()
-    for ((upload, modelLine) in candidates) {
-      if (!allVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)) {
-        continue
-      }
-      val eventDates =
-        listUploadFiles(upload.name)
-          .filter { it.hasEventDate() }
-          .map { LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) }
-          .toSet()
-      if (eventDates.isEmpty()) {
-        continue
-      }
-      var allHandoffsEnsured = true
-      for (eventDate in eventDates.sorted()) {
-        val doneBlobUri =
-          LabeledImpressionsBlobKeys.forDoneUri(
-            vidLabeledImpressionsBlobPrefix,
-            modelLine.cmmsModelLine,
-            eventDate,
-          )
-        val generation = readDoneBlobGeneration(doneBlobUri)
-        if (generation == null) {
-          allHandoffsEnsured = false
-          break
-        }
-        val request =
-          DataAvailabilitySyncWorkItems.createRequest(
-            dataProviderName,
-            upload.name,
-            modelLine.cmmsModelLine,
-            eventDate,
-            doneBlobUri,
-            generation,
-            Tracing.currentW3CTraceContext(),
-          )
-        val workItemOutcome = ensureDataAvailabilitySyncWorkItem(request)
-        if (workItemOutcome == null) {
-          allHandoffsEnsured = false
-          break
-        }
-        val workItemName = "workItems/${request.workItemId}"
-        val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
-        Span.current()
-          .addEvent(
-            "edpa.data_availability_sync_work_item.recover",
-            Attributes.builder()
-              .put(XmmTraceAttributes.WORK_ITEM_NAME, workItemName)
-              .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, upload.name)
-              .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine.cmmsModelLine)
-              .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
-              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
-              .put(XmmTraceAttributes.OUTCOME, workItemOutcome)
-              .build(),
-          )
-        VidLabelingTraceLogging.log(
-          logger,
-          Level.INFO,
-          "edpa.data_availability_sync_work_item.recover",
-          XmmTraceAttributes.WORK_ITEM_NAME_STRING to workItemName,
-          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to upload.name,
-          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine.cmmsModelLine,
-          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
-          VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
-          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "availability_work_item_recovery",
-          XmmTraceAttributes.OUTCOME_STRING to workItemOutcome,
-        )
-      }
-      if (!allHandoffsEnsured) {
-        continue
-      }
-      rpcThrottlers.metadataWrite.onReady {
-        rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineCompleted(
-          markRawImpressionUploadModelLineCompletedRequest {
-            name = modelLine.name
-            etag = modelLine.etag
-            requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(modelLine.name)
-          }
-        )
-      }
-      recovered += modelLine.name
-      logger.info("Recovered durable availability WorkItem for ${modelLine.name}")
-    }
-    return AvailabilityHandoffRecovery(recovered)
-  }
-
-  /** Creates [request], validating immutable handoff identity when it already exists. */
-  private suspend fun ensureDataAvailabilitySyncWorkItem(request: CreateWorkItemRequest): String? {
-    try {
-      rpcThrottlers.controlPlane.onReady { workItemsStub.createWorkItem(request) }
-      return "created"
-    } catch (e: StatusException) {
-      if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
-    }
-    val workItemName = "workItems/${request.workItemId}"
-    val existing =
-      rpcThrottlers.controlPlane.onReady {
-        workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
-      }
-    if (!DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
-      logger.warning(
-        "Existing WorkItem $workItemName does not match the current availability handoff"
-      )
-      return null
-    }
-    return "already_exists"
-  }
-
-  @OptIn(ExperimentalCoroutinesApi::class)
-  private suspend fun allVidLabelingJobsSucceeded(uploadName: String, modelLine: String): Boolean {
-    val jobs =
-      vidLabelingJobStub
-        .listResources { pageToken: String ->
-          val response =
-            rpcThrottlers.metadataRead.onReady {
-              vidLabelingJobStub.listVidLabelingJobs(
-                listVidLabelingJobsRequest {
-                  parent = uploadName
-                  filter = ListVidLabelingJobsRequestKt.filter { cmmsModelLine = modelLine }
-                  this.pageToken = pageToken
-                }
-              )
-            }
-          ResourceList(response.vidLabelingJobsList, response.nextPageToken)
-        }
-        .flattenConcat()
-        .toList()
-    return jobs.isNotEmpty() && jobs.all { it.state == VidLabelingJob.State.SUCCEEDED }
-  }
-
   /**
    * Re-triggers stuck memoized phase transitions for this DataProvider and returns how many were
    * recovered and how many are exhausted. A `(upload, model line)` whose child jobs are all
@@ -790,10 +626,7 @@ class VidLabelingMonitor(
    * model line stuck longer than [stalenessThreshold] is recovered, so a legitimately in-flight
    * last-out is never raced.
    */
-  private suspend fun recoverStuckPhases(
-    snapshot: RunSnapshot,
-    completedModelLineNames: Set<String>,
-  ): RecoverySummary {
+  private suspend fun recoverStuckPhases(snapshot: RunSnapshot): RecoverySummary {
     val nowNanos: Long = Timestamps.toNanos(Timestamps.fromMillis(clock.millis()))
     val thresholdNanos: Long = stalenessThreshold.toNanos()
     var recovered = 0
@@ -801,9 +634,6 @@ class VidLabelingMonitor(
     var unrecoverable = 0
     for (upload in snapshot.uploads(RawImpressionUpload.State.ACTIVE)) {
       for (modelLine in snapshot.modelLines(upload.name)) {
-        if (modelLine.name in completedModelLineNames) {
-          continue
-        }
         if (nowNanos - Timestamps.toNanos(modelLine.updateTime) <= thresholdNanos) {
           continue
         }
@@ -814,6 +644,8 @@ class VidLabelingMonitor(
             RawImpressionUploadModelLine.State.RANKING ->
               recoverIfAllRankerJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             RawImpressionUploadModelLine.State.LABELING ->
+              recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ->
               recoverIfAllVidLabelingJobsSucceeded(upload.name, modelLine.cmmsModelLine)
             else -> RecoveryOutcome.NOOP
           }
@@ -1128,7 +960,5 @@ class VidLabelingMonitor(
      * the daily health cadence this is ~one attempt/day, so escalation fires after ~3 days.
      */
     private const val MAX_RECOVERY_ATTEMPTS = WorkItemIds.MAX_MONITOR_RECOVERY_ATTEMPTS
-    private val AVAILABILITY_HANDOFF_RECOVERY_THRESHOLD: Duration = Duration.ofHours(12)
-    private const val MAX_AVAILABILITY_HANDOFF_RECOVERIES_PER_RUN = 20
   }
 }
