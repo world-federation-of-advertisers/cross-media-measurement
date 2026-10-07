@@ -467,6 +467,11 @@ resource "google_bigquery_table" "report_detail" {
     "name": "ReportState",
     "type": "STRING",
     "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsMeasurementConsumer",
+    "type": "STRING",
+    "mode": "NULLABLE"
   }
 ]
 EOF
@@ -522,6 +527,11 @@ resource "google_bigquery_table" "report_detail_edp" {
   },
   {
     "name": "ReportState",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
+    "name": "CmmsMeasurementConsumer",
     "type": "STRING",
     "mode": "NULLABLE"
   }

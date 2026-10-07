@@ -389,15 +389,16 @@ reuse a report or SA across EDPs.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ExternalReportId` | STRING | Report's external API resource ID |
+| `ExternalReportId` | STRING | Report's external API resource ID. Unique only within a MeasurementConsumer |
 | `CmmsDataProvider` | STRING | Your EDP's API resource ID |
-| `ReportState` | STRING | Report state; one of CREATED, REPORT_CREATED, UNPROCESSED_RESULTS_READY, SUCCEEDED, FAILED, INVALID, UNSPECIFIED |
+| `ReportState` | STRING | Report state; one of SUCCEEDED, FAILED, INVALID. Only terminal reports appear in this table |
 | `EventGroupCount` | INT64 | Number of your event groups in this report |
 | `CmmsEventGroupIds` | ARRAY\<STRING\> | CMMS API IDs for your event groups in this report |
 | `CampaignNames` | ARRAY\<STRING\> | Campaign names for your event groups in this report |
 | `BrandNames` | ARRAY\<STRING\> | Brand names for your event groups in this report |
 | `EntityTypes` | ARRAY\<STRING\> | Entity types for your event groups in this report |
 | `EntityIds` | ARRAY\<STRING\> | Entity IDs for your event groups in this report |
+| `CmmsMeasurementConsumer` | STRING | Advertiser's API resource ID |
 
 #### `unlinked_accounts`
 
