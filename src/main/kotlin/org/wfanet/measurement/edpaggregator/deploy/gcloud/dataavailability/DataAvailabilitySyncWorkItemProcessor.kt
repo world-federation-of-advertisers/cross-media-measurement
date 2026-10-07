@@ -44,6 +44,7 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyn
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseContext
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
+import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
@@ -80,6 +81,9 @@ internal data class DataAvailabilitySyncWorkItem(
   val eventDate: LocalDate
     get() =
       LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
+
+  val rawImpressionUploadModelLineName: String
+    get() = appParams.rawImpressionUploadModelLine
 
   companion object {
     fun parse(workItem: WorkItem): DataAvailabilitySyncWorkItem {
@@ -118,6 +122,11 @@ internal data class DataAvailabilitySyncWorkItem(
       requireNotNull(ModelLineKey.fromName(appParams.modelLine)) {
         "model_line must be a ModelLine resource name"
       }
+      requireNotNull(
+        RawImpressionUploadModelLineKey.fromName(appParams.rawImpressionUploadModelLine)
+      ) {
+        "raw_impression_upload_model_line must be a RawImpressionUploadModelLine resource name"
+      }
       require(appParams.hasEventDate()) { "event_date is required" }
       LocalDate.of(appParams.eventDate.year, appParams.eventDate.month, appParams.eventDate.day)
 
@@ -150,6 +159,7 @@ internal class DataAvailabilitySyncWorkItemProcessor(
       (DataAvailabilitySync.Stage) -> Unit,
     ) -> DataAvailabilitySync.Outcome,
   private val verifyDoneObject: suspend (DataAvailabilitySyncWorkItem) -> Unit,
+  private val markAvailabilitySynchronized: suspend (DataAvailabilitySyncWorkItem) -> Unit,
   private val uuidGenerator: () -> String = { UUID.randomUUID().toString() },
   private val activeAttemptRetryDelay: suspend () -> Unit = { delay(30_000L) },
   private val attemptLeaseRenewalDelay: suspend () -> Unit = { delay(60_000L) },
@@ -215,6 +225,7 @@ internal class DataAvailabilitySyncWorkItemProcessor(
         outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
           outcome == DataAvailabilitySync.Outcome.NO_WORK
       ) {
+        markAvailabilitySynchronized(input)
         completeWorkItemAttempt(attempt)
         val traceOutcome =
           if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
