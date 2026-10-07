@@ -54,6 +54,13 @@ variable "uber_jar_path" {
   nullable    = false
 }
 
+variable "memory" {
+  description = "Memory allocated to each function instance."
+  type        = string
+  nullable    = false
+  default     = "512MB"
+}
+
 variable "secrets_to_access" {
   description = "List of secret IDs that the Cloud Function service account should have access to."
   type        = list(string)
