@@ -33,15 +33,15 @@ MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
 %{ if include_platform_columns }
 SELECT
-  * EXCEPT (ReportState),
+  * EXCEPT (ReportState, CmmsMeasurementConsumer),
   COUNT(DISTINCT CmmsDataProvider) OVER (
     PARTITION BY CmmsMeasurementConsumer, ExternalReportId
   ) AS EdpCount,
-  ReportState
+  ReportState,
+  CmmsMeasurementConsumer
 FROM (
 %{ endif }
 SELECT
-  base.CmmsMeasurementConsumer,
   base.ExternalReportId,
   base.CmmsDataProvider,
   COUNT(DISTINCT base.CmmsEventGroupId) AS EventGroupCount,
@@ -62,7 +62,12 @@ SELECT
     WHEN 5 THEN 'FAILED'
     WHEN 6 THEN 'INVALID'
     ELSE 'UNSPECIFIED'
-  END AS ReportState
+  END AS ReportState,
+  -- Last on purpose. BigQuery can only append when altering an existing table,
+  -- so a column declared earlier lands here on already-deployed tables while
+  -- landing first on a fresh one. MERGE ... INSERT ROW is positional, so the
+  -- two must agree.
+  base.CmmsMeasurementConsumer
 FROM (
   SELECT
     br.CmmsMeasurementConsumerId AS CmmsMeasurementConsumer,
