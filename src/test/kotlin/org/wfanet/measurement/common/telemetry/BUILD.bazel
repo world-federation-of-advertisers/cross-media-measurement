@@ -40,6 +40,17 @@ kt_jvm_test(
 )
 
 kt_jvm_test(
+    name = "XmmTraceLoggingTest",
+    srcs = ["XmmTraceLoggingTest.kt"],
+    test_class = "org.wfanet.measurement.common.telemetry.XmmTraceLoggingTest",
+    deps = [
+        "//src/main/kotlin/org/wfanet/measurement/common/telemetry:xmm_tracing",
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "XmmTracingTest",
     srcs = ["XmmTracingTest.kt"],
     test_class = "org.wfanet.measurement.common.telemetry.XmmTracingTest",

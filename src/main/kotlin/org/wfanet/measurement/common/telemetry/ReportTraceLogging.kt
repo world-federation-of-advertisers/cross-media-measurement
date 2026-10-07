@@ -19,14 +19,14 @@ package org.wfanet.measurement.common.telemetry
 import java.util.logging.Level
 import java.util.logging.Logger
 
-/** Writes payload-free lifecycle evidence that can be read when trace export is unavailable. */
+/** Writes report lifecycle evidence using an explicit field allowlist. */
 object ReportTraceLogging {
   /** Logs one lifecycle [event] with allowlisted [fields]. */
   fun log(logger: Logger, event: String, vararg fields: Pair<String, String?>) {
-    log(logger, Level.INFO, null, event, *fields)
+    XmmTraceLogging.log(logger, Level.INFO, event, SAFE_FIELD_NAMES, *fields)
   }
 
-  /** Logs one lifecycle [event] and its [error] with allowlisted [fields]. */
+  /** Logs one lifecycle [event] and retains its [error] for legacy report handlers. */
   fun log(
     logger: Logger,
     level: Level,
@@ -34,7 +34,8 @@ object ReportTraceLogging {
     event: String,
     vararg fields: Pair<String, String?>,
   ) {
-    XmmTraceLogging.log(logger, level, error, event, SAFE_FIELD_NAMES, *fields)
+    val message = XmmTraceLogging.formatMessage(event, SAFE_FIELD_NAMES, *fields)
+    logger.log(level, message, error)
   }
 
   private val SAFE_FIELD_NAMES =

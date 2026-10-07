@@ -24,14 +24,22 @@ object XmmTraceLogging {
   fun log(
     logger: Logger,
     level: Level,
-    error: Throwable?,
     event: String,
     safeFieldNames: Set<String>,
     vararg fields: Pair<String, String?>,
   ) {
+    logger.log(level, formatMessage(event, safeFieldNames, *fields))
+  }
+
+  /** Formats one lifecycle [event] with allowlisted [fields]. */
+  fun formatMessage(
+    event: String,
+    safeFieldNames: Set<String>,
+    vararg fields: Pair<String, String?>,
+  ): String {
     require(EVENT_PATTERN.matches(event)) { "Invalid trace event name" }
 
-    val message = buildString {
+    return buildString {
       append("event=").append(event)
       for ((name, value) in fields) {
         require(name in safeFieldNames) { "Unsupported trace log field: $name" }
@@ -40,7 +48,6 @@ object XmmTraceLogging {
         }
       }
     }
-    logger.log(level, message, error)
   }
 
   val COMMON_SAFE_FIELD_NAMES: Set<String> =

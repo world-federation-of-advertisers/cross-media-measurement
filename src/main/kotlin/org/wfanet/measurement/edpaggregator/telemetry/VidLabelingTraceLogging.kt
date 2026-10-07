@@ -27,7 +27,7 @@ object VidLabelingTraceLogging {
   }
 
   fun log(logger: Logger, level: Level, event: String, vararg fields: Pair<String, String?>) {
-    XmmTraceLogging.log(logger, level, null, event, SAFE_FIELD_NAMES, *fields)
+    XmmTraceLogging.log(logger, level, event, SAFE_FIELD_NAMES, *fields)
   }
 
   private val SAFE_FIELD_NAMES =
