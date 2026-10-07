@@ -55,6 +55,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -226,9 +227,9 @@ internal fun VidLabelingAuthoritativeGraph.withAvailabilityWorkItems(
 internal fun interface VidLabelingStateResolver {
   suspend fun resolve(rawImpressionUpload: String): VidLabelingAuthoritativeGraph
 
+  /** Lists durable availability WorkItems by inspecting their stored application parameters. */
   suspend fun resolveAvailabilityWorkItems(
-    rawImpressionUpload: String,
-    workItemNames: Set<String>,
+    rawImpressionUpload: String
   ): List<VidLabelingAvailabilityWorkItem> = emptyList()
 }
 
@@ -517,6 +518,12 @@ internal class GrpcVidLabelingStateResolver(
   private val workItemAttempts: WorkItemAttemptsCoroutineStub,
   private val routeResolver: VidLabelingRouteResolver,
 ) : VidLabelingStateResolver {
+  private data class ParsedAvailabilityWorkItem(
+    val workItem: WorkItem,
+    val appParams: DataAvailabilitySyncParams,
+    val params: WorkItem.WorkItemParams,
+  )
+
   override suspend fun resolve(rawImpressionUpload: String): VidLabelingAuthoritativeGraph {
     val upload =
       uploads.getRawImpressionUpload(
@@ -630,38 +637,55 @@ internal class GrpcVidLabelingStateResolver(
   }
 
   override suspend fun resolveAvailabilityWorkItems(
-    rawImpressionUpload: String,
-    workItemNames: Set<String>,
+    rawImpressionUpload: String
   ): List<VidLabelingAvailabilityWorkItem> {
-    return workItemNames.sorted().mapNotNull { name ->
-      val workItem = getWorkItemOrNull(name) ?: return@mapNotNull null
-      if (workItem.queue != DATA_AVAILABILITY_SYNC_QUEUE) return@mapNotNull null
-      val params =
-        runCatching { workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java) }
-          .getOrNull() ?: return@mapNotNull null
-      if (!params.appParams.`is`(DataAvailabilitySyncParams::class.java)) return@mapNotNull null
-      if (!params.hasDataPathParams() || !params.dataPathParams.hasGeneration()) {
-        return@mapNotNull null
+    val matching = mutableListOf<ParsedAvailabilityWorkItem>()
+    var pageToken = ""
+    do {
+      val response =
+        workItems.listWorkItems(
+          ListWorkItemsRequest.newBuilder()
+            .setPageSize(WORK_ITEM_PAGE_SIZE)
+            .setPageToken(pageToken)
+            .build()
+        )
+      for (workItem in response.workItemsList) {
+        if (workItem.queue != DATA_AVAILABILITY_SYNC_QUEUE) continue
+        val params =
+          runCatching { workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java) }
+            .getOrNull() ?: continue
+        if (!params.appParams.`is`(DataAvailabilitySyncParams::class.java)) continue
+        if (!params.hasDataPathParams() || !params.dataPathParams.hasGeneration()) continue
+        val appParams =
+          runCatching { params.appParams.unpack(DataAvailabilitySyncParams::class.java) }
+            .getOrNull() ?: continue
+        if (
+          appParams.triggeringRawImpressionUpload != rawImpressionUpload ||
+            appParams.modelLine.isEmpty()
+        ) {
+          continue
+        }
+        matching += ParsedAvailabilityWorkItem(workItem, appParams, params)
       }
-      val appParams =
-        runCatching { params.appParams.unpack(DataAvailabilitySyncParams::class.java) }.getOrNull()
-          ?: return@mapNotNull null
-      if (appParams.rawImpressionUpload != rawImpressionUpload || appParams.modelLine.isEmpty()) {
-        return@mapNotNull null
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+
+    return matching
+      .sortedBy { it.workItem.name }
+      .map { (workItem, appParams, params) ->
+        val dataPath = params.dataPathParams
+        VidLabelingAvailabilityWorkItem(
+          workItem.name,
+          appParams.modelLine,
+          workItem.state.name,
+          workItem.generation,
+          listAttempts(workItem.name).map { it.toAvailabilityAttempt() },
+          if (appParams.hasEventDate()) appParams.eventDate.toIsoDate() else "",
+          dataPath.dataPath,
+          hash(dataPath.dataPath),
+          dataPath.generation,
+        )
       }
-      val dataPath = params.dataPathParams
-      VidLabelingAvailabilityWorkItem(
-        workItem.name,
-        appParams.modelLine,
-        workItem.state.name,
-        workItem.generation,
-        listAttempts(workItem.name).map { it.toAvailabilityAttempt() },
-        if (appParams.hasEventDate()) appParams.eventDate.toIsoDate() else "",
-        dataPath.dataPath,
-        hash(dataPath.dataPath),
-        dataPath.generation,
-      )
-    }
   }
 
   private fun baseIdentifiers(
@@ -993,6 +1017,7 @@ internal class GrpcVidLabelingStateResolver(
     private const val RECOVERY_PREDECESSOR =
       "xmm.edpa.recovery_predecessor_raw_impression_upload.name"
     private const val DATA_AVAILABILITY_SYNC_QUEUE = "data-availability-sync-queue"
+    private const val WORK_ITEM_PAGE_SIZE = 1000
   }
 
   private fun dataProviderName(upload: String): String =
