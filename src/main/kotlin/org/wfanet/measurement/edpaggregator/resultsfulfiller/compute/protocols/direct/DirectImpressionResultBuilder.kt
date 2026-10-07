@@ -142,13 +142,20 @@ class DirectImpressionResultBuilder(
     }
 
     val clipped: DynamicallyClippedImpressions =
-      computeDirectDynamicallyClippedImpressions(
-        directNoiseMechanism = directNoiseMechanism,
-        frequencyData = frequencyData,
-        dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
-        vidSamplingIntervalWidth = samplingRate.toDouble(),
-        resultMinimumThresholds = resultMinimumThresholds,
-      )
+      if (directNoiseMechanism == DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
+        DirectDynamicClipping.computeDeterministicImpressions(
+          frequencyData = frequencyData,
+          vidSamplingIntervalWidth = samplingRate.toDouble(),
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+      } else {
+        DirectDynamicClipping.computeImpressions(
+          frequencyData = frequencyData,
+          dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
+          vidSamplingIntervalWidth = samplingRate.toDouble(),
+          resultMinimumThresholds = resultMinimumThresholds,
+        )
+      }
     logger.info("Dynamic impression clip chosen: ${clipped.clip}")
 
     return MeasurementKt.result {
