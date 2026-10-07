@@ -66,6 +66,8 @@ data class RawImpressionUploadModelLineResult(
    * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
    */
   val markLabelingRequestId: String,
+  /** AIP-155 request ID of the transition to `AVAILABILITY_SYNCING`. */
+  val markAvailabilitySyncingRequestId: String,
   /**
    * AIP-155 `request_id` of the mark that moved this line to `COMPLETED`, or empty if that
    * transition hasn't happened. Used to short-circuit an idempotent replay of the same mark.
@@ -240,6 +242,7 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
                   State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
                   State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
                   State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+                  State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
                 )
                 .map { it.number.toLong() }
             )
@@ -531,12 +534,14 @@ private object RawImpressionUploadModelLineEntity {
       RawImpressionUploadModelLine.MarkPoolAssigningRequestId,
       RawImpressionUploadModelLine.MarkRankingRequestId,
       RawImpressionUploadModelLine.MarkLabelingRequestId,
+      RawImpressionUploadModelLine.MarkAvailabilitySyncingRequestId,
       RawImpressionUploadModelLine.MarkCompletedRequestId,
       RawImpressionUploadModelLine.MarkFailedRequestId,
       RawImpressionUploadModelLine.FailureReason,
       RawImpressionUploadModelLine.EvictionOperationId,
       RawImpressionUploadModelLine.RecoveryAction,
       RawImpressionUploadModelLine.RecoveryPredecessorRawImpressionUploadResourceId,
+      RawImpressionUploadModelLine.PendingAvailabilityDates,
     FROM
       RawImpressionUploadModelLine
     """
@@ -593,12 +598,17 @@ private object RawImpressionUploadModelLineEntity {
           recoveryPredecessorRawImpressionUploadResourceId =
             struct.getString("RecoveryPredecessorRawImpressionUploadResourceId")
         }
+        if (!struct.isNull("PendingAvailabilityDates")) {
+          pendingAvailabilityDates +=
+            struct.getDateList("PendingAvailabilityDates").map { it.toProtoDate() }
+        }
       },
       struct.getLong("RawImpressionUploadId"),
       struct.getLong("RawImpressionUploadModelLineId"),
       markPoolAssigningRequestId = markId("MarkPoolAssigningRequestId"),
       markRankingRequestId = markId("MarkRankingRequestId"),
       markLabelingRequestId = markId("MarkLabelingRequestId"),
+      markAvailabilitySyncingRequestId = markId("MarkAvailabilitySyncingRequestId"),
       markCompletedRequestId = markId("MarkCompletedRequestId"),
       markFailedRequestId = markId("MarkFailedRequestId"),
     )
