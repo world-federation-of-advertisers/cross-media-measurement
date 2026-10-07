@@ -1,0 +1,50 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.internal.kingdom;
+
+option java_package = "org.wfanet.measurement.internal.kingdom";
+option java_multiple_files = true;
+
+message EventGroupHierarchyDetails {
+  // A single level of an EventGroupHierarchy.
+  message Level {
+    // The EventGroup.EntityKey.entity_type of EventGroups at this level.
+    //
+    // Distinct from the entity_type of every other Level of every
+    // EventGroupHierarchy of the same DataProvider. The value "campaign" is
+    // reserved for legacy EventGroups and is never used here.
+    string entity_type = 1;
+
+    // The entity_metadata key holding the ID of the entity at this level.
+    //
+    // Its value forms one segment of EventGroups.EntityPath.
+    string id_field = 2;
+
+    // The entity_metadata keys which describe the entity at this level.
+    //
+    // These are copied onto the EventGroup representing an entity at this
+    // level. Keys which no Level claims are not interpreted.
+    repeated string fields = 3;
+  }
+
+  // The levels of this hierarchy, outermost first.
+  //
+  // A level may be added at the innermost end, which leaves every existing
+  // EventGroups.EntityPath unchanged. Levels are never reordered, removed, or
+  // added at the outermost end.
+  repeated Level levels = 1;
+}
