@@ -27,11 +27,13 @@ import org.wfanet.measurement.storage.StorageClient
 /** Reconciles one configured raw-impression root directly from object metadata. */
 class RawImpressionInputMonitor(
   private val storageClient: StorageClient,
+  storageRootUri: String,
   blobPrefix: String,
   private val quietPeriod: Duration,
   excludedBlobPrefixes: Set<String> = emptySet(),
   private val clock: Clock = Clock.systemUTC(),
 ) {
+  private val storageRootUri = storageRootUri.trimEnd('/')
   private val blobPrefix = blobPrefix.trim('/')
   private val listingPrefix = if (this.blobPrefix.isEmpty()) "" else "${this.blobPrefix}/"
   private val excludedBlobPrefixes =
@@ -39,7 +41,7 @@ class RawImpressionInputMonitor(
       .mapTo(mutableSetOf()) { it.trim('/') }
       .filterTo(mutableSetOf()) { it.isNotEmpty() }
 
-  data class DoneObjectIdentity(val blobKey: String, val generation: Long)
+  data class DoneObjectIdentity(val blobUri: String, val generation: Long)
 
   enum class FindingType(val telemetryValue: String) {
     MISSING_DONE("missing_done"),
@@ -67,6 +69,7 @@ class RawImpressionInputMonitor(
     missingRegisteredBlobKeys: MutableSet<String> = mutableSetOf(),
     registeredDoneObjects: Set<DoneObjectIdentity> = emptySet(),
     ignoredEmptyDoneObjects: Set<DoneObjectIdentity> = emptySet(),
+    isNoOpDoneObject: suspend (DoneObjectIdentity, Instant) -> Boolean = { _, _ -> false },
   ): Result {
     val directories = mutableMapOf<String, DirectoryObservation>()
     var objectsScanned = 0L
@@ -153,7 +156,8 @@ class RawImpressionInputMonitor(
     val doneWithoutDataDirectories = mutableSetOf<String>()
     val unregisteredDoneDirectories = mutableSetOf<String>()
     for ((directory, marker) in doneMarkers) {
-      val identity = marker.generation?.let { DoneObjectIdentity(marker.blobKey, it) }
+      val identity =
+        marker.generation?.let { DoneObjectIdentity("$storageRootUri/${marker.blobKey}", it) }
       if (
         directory !in doneMarkersWithData &&
           isMature(marker.createTime, cutoff) &&
@@ -161,12 +165,13 @@ class RawImpressionInputMonitor(
       ) {
         doneWithoutDataDirectories += directory
       }
-      if (
-        directory in doneMarkersWithData &&
-          isMature(marker.createTime, cutoff) &&
-          (identity == null || identity !in registeredDoneObjects)
-      ) {
-        unregisteredDoneDirectories += directory
+      if (directory in doneMarkersWithData && isMature(marker.createTime, cutoff)) {
+        val isUnregistered =
+          identity == null ||
+            (identity !in registeredDoneObjects && !isNoOpDoneObject(identity, marker.createTime))
+        if (isUnregistered) {
+          unregisteredDoneDirectories += directory
+        }
       }
     }
 

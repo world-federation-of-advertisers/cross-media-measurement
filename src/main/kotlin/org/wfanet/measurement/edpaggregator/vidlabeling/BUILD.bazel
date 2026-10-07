@@ -146,6 +146,7 @@ kt_jvm_library(
     ],
     deps = [
         ":data_availability_sync_work_items",
+        ":raw_impression_upload_manifest_classifier",
         ":request_ids",
         ":vid_labeling_dispatch_sequencer",
         ":work_item_ids",

@@ -23,6 +23,7 @@ import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.trace.Span
 import java.time.Clock
 import java.time.Duration
+import java.time.Instant
 import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
@@ -30,6 +31,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -37,6 +39,7 @@ import org.wfanet.measurement.common.api.grpc.flattenConcat
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.telemetry.XmmTracing
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
@@ -70,6 +73,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
@@ -100,6 +104,7 @@ import org.wfanet.measurement.storage.StorageClient
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
+ * @param rawImpressionsStorageRootUri absolute URI of this EDP's raw-impression storage root.
  * @param rawImpressionsBlobPrefix bucket-relative prefix containing this EDP's raw uploads.
  * @param rawInputQuietPeriod age after which an unfinalized raw-input condition is alertable.
  * @param rawImpressionsExcludedBlobPrefixes known non-raw descendants omitted from classification.
@@ -118,6 +123,7 @@ class VidLabelingMonitor(
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val stalenessThreshold: Duration,
+  private val rawImpressionsStorageRootUri: String,
   private val rawImpressionsBlobPrefix: String,
   private val rawInputQuietPeriod: Duration,
   private val rawImpressionsExcludedBlobPrefixes: Set<String> = emptySet(),
@@ -143,12 +149,14 @@ class VidLabelingMonitor(
   private val rawImpressionInputMonitor: RawImpressionInputMonitor by lazy {
     RawImpressionInputMonitor(
       rawImpressionsStorageClient,
+      rawImpressionsStorageRootUri,
       rawImpressionsBlobPrefix,
       rawInputQuietPeriod,
       excludedBlobPrefixes = rawImpressionsExcludedBlobPrefixes,
       clock = clock,
     )
   }
+  private val manifestClassifier = RawImpressionUploadManifestClassifier()
   private val vidLabeledImpressionsStorageClient: StorageClient by
     lazy(vidLabeledImpressionsStorageClientProvider)
 
@@ -562,7 +570,7 @@ class VidLabelingMonitor(
               }
               .mapTo(mutableSetOf()) { upload ->
                 RawImpressionInputMonitor.DoneObjectIdentity(
-                  SelectedStorageClient.parseBlobUri(upload.doneBlobUri).key,
+                  upload.doneBlobUri,
                   upload.doneBlobGeneration,
                 )
               },
@@ -577,10 +585,13 @@ class VidLabelingMonitor(
               }
               .mapTo(mutableSetOf()) { upload ->
                 RawImpressionInputMonitor.DoneObjectIdentity(
-                  SelectedStorageClient.parseBlobUri(upload.doneBlobUri).key,
+                  upload.doneBlobUri,
                   upload.doneBlobGeneration,
                 )
               },
+          isNoOpDoneObject = { identity, createTime ->
+            isNoOpDoneObject(snapshot, identity, createTime)
+          },
         )
       val missingLabeled =
         checkLabelingCompleteness(snapshot, registeredFiles.eventDatesByCompletedUpload)
@@ -639,6 +650,117 @@ class VidLabelingMonitor(
       DataQualityResult(0L, 0L, 0L, 0L, 0L, 0L, 0L, checkFailed = true)
     }
   }
+
+  private suspend fun isNoOpDoneObject(
+    snapshot: RunSnapshot,
+    identity: RawImpressionInputMonitor.DoneObjectIdentity,
+    createTime: Instant,
+  ): Boolean {
+    val revisions =
+      snapshot.everyUpload().filter { upload -> upload.doneBlobUri == identity.blobUri }
+    if (
+      revisions.isEmpty() ||
+        revisions.any { upload -> upload.doneBlobGeneration == identity.generation }
+    ) {
+      return false
+    }
+    val latestRevision = findLatestRevision(revisions)
+    val latestRegisteredCreateTime =
+      if (latestRevision.hasDoneBlobCreateTime()) {
+        latestRevision.doneBlobCreateTime.toInstant()
+      } else {
+        latestRevision.createTime.toInstant()
+      }
+    if (
+      latestRevision.state == RawImpressionUpload.State.FAILED ||
+        !createTime.isAfter(latestRegisteredCreateTime)
+    ) {
+      return false
+    }
+
+    val doneBlobUri = identity.blobUri
+    val parsedDoneBlobUri = SelectedStorageClient.parseBlobUri(identity.blobUri)
+    val bucket = checkNotNull(parsedDoneBlobUri.bucket)
+    val directory = parsedDoneBlobUri.key.substringBeforeLast('/', missingDelimiterValue = "")
+    val listingPrefix = if (directory.isEmpty()) "" else "$directory/"
+    val blobs =
+      rawImpressionsStorageClient
+        .listBlobs(listingPrefix)
+        .filter { blob ->
+          !blob.blobKey
+            .substringAfterLast('/')
+            .equals(RAW_INPUT_DONE_FILE_NAME, ignoreCase = true) &&
+            !isExcludedRawBlobKey(blob.blobKey)
+        }
+        .toList()
+    val currentFiles =
+      blobs.map { blob ->
+        val generation =
+          (blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken?.toLongOrNull()
+            ?: return false
+        RawImpressionUploadManifestClassifier.File("gs://$bucket/${blob.blobKey}", generation)
+      }
+    val currentName = "$dataProviderName/rawImpressionUploads/monitor-${identity.generation}"
+    val history = revisions.map { upload -> upload.toManifestRevision() }
+    val current =
+      RawImpressionUploadManifestClassifier.Revision(
+        rawImpressionUpload = currentName,
+        doneBlobUri = doneBlobUri,
+        doneBlobGeneration = identity.generation,
+        doneBlobCreateTime = createTime,
+        createTime = createTime,
+        files = currentFiles,
+      )
+    return manifestClassifier.classify(currentName, history + current).classification ==
+      RawImpressionUploadManifestClassifier.Classification.NO_OP
+  }
+
+  private suspend fun RawImpressionUpload.toManifestRevision():
+    RawImpressionUploadManifestClassifier.Revision =
+    RawImpressionUploadManifestClassifier.Revision(
+      rawImpressionUpload = name,
+      doneBlobUri = doneBlobUri,
+      doneBlobGeneration = doneBlobGeneration,
+      doneBlobCreateTime = if (hasDoneBlobCreateTime()) doneBlobCreateTime.toInstant() else null,
+      createTime = createTime.toInstant(),
+      replacesRawImpressionUpload = replacesRawImpressionUpload,
+      uploadHealingOperation = uploadHealingOperation,
+      registrationComplete = registrationComplete,
+      failed = state == RawImpressionUpload.State.FAILED,
+      quarantined = state == RawImpressionUpload.State.CORRECTION_REQUIRED,
+      files =
+        listUploadFiles(name).map { file ->
+          RawImpressionUploadManifestClassifier.File(
+            file.blobUri,
+            file.blobGeneration,
+            file.eventDate,
+          )
+        },
+    )
+
+  private fun findLatestRevision(revisions: List<RawImpressionUpload>): RawImpressionUpload {
+    val timestamped = revisions.filter { it.hasDoneBlobCreateTime() }
+    if (timestamped.isEmpty()) {
+      return revisions.maxWith { left, right ->
+        Timestamps.compare(left.createTime, right.createTime)
+      }
+    }
+    return timestamped.maxWith { left, right ->
+      val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+      if (doneTime != 0) {
+        doneTime
+      } else {
+        val createTime = Timestamps.compare(left.createTime, right.createTime)
+        if (createTime != 0) createTime else left.name.compareTo(right.name)
+      }
+    }
+  }
+
+  private fun isExcludedRawBlobKey(blobKey: String): Boolean =
+    rawImpressionsExcludedBlobPrefixes.any { excludedPrefix ->
+      val normalized = excludedPrefix.trim('/')
+      blobKey == normalized || blobKey.startsWith("$normalized/")
+    }
 
   /** Reads each registered file once without retaining the file protos for the full health run. */
   private suspend fun summarizeRegisteredFiles(
@@ -1068,6 +1190,7 @@ class VidLabelingMonitor(
       .build()
 
   companion object {
+    private const val RAW_INPUT_DONE_FILE_NAME = "done"
     private const val RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE = 1000
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
