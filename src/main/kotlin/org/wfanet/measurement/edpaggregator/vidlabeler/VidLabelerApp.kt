@@ -1157,6 +1157,9 @@ class VidLabelerApp(
     val generation =
       try {
         if (doneBlobUri.scheme == "gs") {
+          // TODO(world-federation-of-advertisers/cross-media-measurement#4577): Use the returned
+          //   generation to create the deterministic DataAvailabilitySync WorkItem and remove the
+          //   internal DataWatcher hop.
           writeGcsObject(
             storageConfig.projectId,
             BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key).build(),
