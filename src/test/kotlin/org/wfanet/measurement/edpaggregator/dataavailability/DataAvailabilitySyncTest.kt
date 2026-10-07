@@ -130,8 +130,6 @@ class DataAvailabilitySyncTest {
     AttributeKey.stringKey("edpa.data_availability_sync.status_code")
 
   companion object {
-    private const val RAW_IMPRESSION_UPLOAD =
-      "dataProviders/dataProvider123/rawImpressionUploads/upload-1"
     private const val SYNC_DURATION_METRIC = "edpa.data_availability.sync_duration"
     private const val RECORDS_SYNCED_METRIC = "edpa.data_availability.records_synced"
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
@@ -249,12 +247,7 @@ class DataAvailabilitySyncTest {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
 
-    seedBlobDetails(
-      storageClient,
-      folderPrefix,
-      listOf(300L to 400L),
-      rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
-    )
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
 
     val dataAvailabilitySync =
       DataAvailabilitySync(
@@ -277,7 +270,7 @@ class DataAvailabilitySyncTest {
     }
     assertThat(batchCaptor.firstValue.requestsCount).isEqualTo(1)
     assertThat(batchCaptor.firstValue.requestsList.single().impressionMetadata.rawImpressionUpload)
-      .isEqualTo(RAW_IMPRESSION_UPLOAD)
+      .isEmpty()
     assertThat(
         batchCaptor.firstValue.requestsList.single().impressionMetadata.outputDoneBlobGeneration
       )
@@ -342,15 +335,10 @@ class DataAvailabilitySyncTest {
   }
 
   @Test
-  fun `sync without generation omits VID provenance pair for recovery`() = runBlocking {
+  fun `sync without generation omits output done generation for recovery`() = runBlocking {
     val fileSystemClient = FileSystemStorageClient(File(tempFolder.root.toString()))
     val storageClient = FakeBlobMetadataStorageClient(fileSystemClient)
-    seedBlobDetails(
-      storageClient,
-      folderPrefix,
-      listOf(300L to 400L),
-      rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
-    )
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
     val dataAvailabilitySync =
       DataAvailabilitySync(
         "edp/edpa_edp",
@@ -2758,7 +2746,6 @@ class DataAvailabilitySyncTest {
     edpImpressionPath: String = "edp/edpa_edp",
     entityKeyGroups: List<EntityKeyGroup> = emptyList(),
     populateEventGroupReferenceId: Boolean = true,
-    rawImpressionUpload: String = "",
   ): List<String> {
     require(prefix.isEmpty() || prefix.endsWith("/")) { "prefix should end with '/'" }
 
@@ -2773,7 +2760,6 @@ class DataAvailabilitySyncTest {
           eventGroupReferenceId = "some-event-group-reference-id"
         }
         modelLine = "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
-        this.rawImpressionUpload = rawImpressionUpload
         interval = interval {
           if (startSeconds != null) {
             startTime = timestamp {
