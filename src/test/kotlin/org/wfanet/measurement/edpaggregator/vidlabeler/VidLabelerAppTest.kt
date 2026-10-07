@@ -35,6 +35,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter
 import io.opentelemetry.sdk.trace.SdkTracerProvider
 import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor
+import java.time.LocalDate
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
@@ -99,6 +100,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
@@ -911,7 +913,9 @@ class VidLabelerAppTest {
   @Test
   fun `runWork reuses existing done generation after a lost response`() = runBlocking {
     stubLastOutWithEventDate()
+    val existing = availabilityWorkItem(UPLOAD, 321L)
     workItemsService.stub {
+      onBlocking { getWorkItem(any()) } doReturn existing
       onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doThrow
         StatusRuntimeException(Status.ALREADY_EXISTS)
     }
@@ -936,6 +940,89 @@ class VidLabelerAppTest {
     verifyBlocking(rawImpressionUploadModelLinesService) {
       markRawImpressionUploadModelLineCompleted(any())
     }
+  }
+
+  @Test
+  fun `runWork writes a new done generation for a later upload of the same model date`() =
+    runBlocking {
+      stubLastOutWithEventDate()
+      workItemsService.stub {
+        onBlocking { getWorkItem(any()) } doReturn
+          availabilityWorkItem("$DATA_PROVIDER_NAME/rawImpressionUploads/previous", 321L)
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            invocation.getArgument<CreateWorkItemRequest>(0).workItem
+          }
+      }
+      rawImpressionUploadModelLinesService.stub {
+        onBlocking { markRawImpressionUploadModelLineCompleted(any()) } doAnswer
+          {
+            rawImpressionUploadModelLine {
+              name = PARENT_NAME
+              cmmsModelLine = MODEL_LINE
+              state = RawImpressionUploadModelLine.State.COMPLETED
+            }
+          }
+      }
+      val doneObjectWritten = AtomicBoolean(false)
+
+      createApp(
+          getGcsObjectGeneration = { _, _, _ -> 321L },
+          writeGcsObject = { _, _, _ ->
+            doneObjectWritten.set(true)
+            322L
+          },
+        )
+        .runWork(buildMessage(taskParams()))
+
+      assertThat(doneObjectWritten.get()).isTrue()
+      val request = argumentCaptor<CreateWorkItemRequest>()
+      verifyBlocking(workItemsService) { createWorkItem(request.capture()) }
+      val params =
+        request.firstValue.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+      assertThat(params.dataPathParams.generation).isEqualTo(322L)
+      assertThat(
+          params.appParams.unpack(DataAvailabilitySyncParams::class.java).rawImpressionUpload
+        )
+        .isEqualTo(UPLOAD)
+      verifyBlocking(rawImpressionUploadModelLinesService) {
+        markRawImpressionUploadModelLineCompleted(any())
+      }
+    }
+
+  @Test
+  fun `runWork rejects an existing WorkItem with different handoff identity`() = runBlocking {
+    stubLastOutWithEventDate()
+    workItemsService.stub {
+      onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doThrow
+        StatusRuntimeException(Status.ALREADY_EXISTS)
+      onBlocking { getWorkItem(any()) } doReturn
+        availabilityWorkItem("$DATA_PROVIDER_NAME/rawImpressionUploads/previous", 321L)
+    }
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        createApp(writeGcsObject = { _, _, _ -> 321L }).runWork(buildMessage(taskParams()))
+      }
+
+    assertThat(error).hasMessageThat().contains("does not match the current availability handoff")
+    verifyBlocking(rawImpressionUploadModelLinesService, never()) {
+      markRawImpressionUploadModelLineCompleted(any())
+    }
+  }
+
+  private fun availabilityWorkItem(rawImpressionUpload: String, generation: Long): WorkItem {
+    val request =
+      DataAvailabilitySyncWorkItems.createRequest(
+        DATA_PROVIDER_NAME,
+        rawImpressionUpload,
+        MODEL_LINE,
+        LocalDate.of(2026, 6, 30),
+        "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done",
+        generation,
+        emptyMap(),
+      )
+    return request.workItem.toBuilder().setName("workItems/${request.workItemId}").build()
   }
 
   @Test
