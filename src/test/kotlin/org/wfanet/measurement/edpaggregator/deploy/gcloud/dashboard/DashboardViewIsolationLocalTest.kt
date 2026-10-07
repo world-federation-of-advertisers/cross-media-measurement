@@ -224,6 +224,35 @@ class DashboardViewIsolationLocalTest {
   }
 
   @Test
+  fun reportDetailScopesJoinsByMeasurementConsumerAndDataProvider() {
+    // ExternalReportingSetId and ExternalReportId are unique only within a
+    // MeasurementConsumer, and ExternalEventGroupId only within a DataProvider. Joining or
+    // grouping on those alone lets one consumer's report pick up another's event groups, or
+    // one provider's metadata land on another's row. Every join that crosses a federated
+    // database boundary must therefore carry the owning key.
+    val sql = readSqlFile("report_detail.sql")
+    for (platformEnabled in listOf(true, false)) {
+      val rendered = render(sql, platformEnabled)
+      // Campaign-group join is scoped by MeasurementConsumer.
+      assertThat(rendered)
+        .contains("ON br.CmmsMeasurementConsumerId = cg.CmmsMeasurementConsumerId")
+      assertThat(rendered).contains("AND br.ExternalCampaignGroupId = cg.ExternalCampaignGroupId")
+      // Kingdom metadata join is scoped by DataProvider.
+      assertThat(rendered).contains("ON cg.CmmsDataProvider = keg.CmmsDataProvider")
+      assertThat(rendered).contains("AND cg.CmmsEventGroupId = keg.CmmsEventGroupId")
+      // The key is carried into the output and the grouping.
+      assertThat(rendered).contains("base.CmmsMeasurementConsumer")
+      assertThat(rendered)
+        .contains(
+          "GROUP BY base.CmmsMeasurementConsumer, base.ExternalReportId, base.CmmsDataProvider"
+        )
+    }
+    // EdpCount counts providers within one consumer's report, not across consumers.
+    assertThat(render(sql, platformEnabled = true))
+      .contains("PARTITION BY CmmsMeasurementConsumer, ExternalReportId")
+  }
+
+  @Test
   fun allSqlFilesUseExternalQuery() {
     for (fileName in SQL_FILES) {
       val sql = readSqlFile(fileName)

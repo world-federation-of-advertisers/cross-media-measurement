@@ -389,7 +389,8 @@ reuse a report or SA across EDPs.
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `ExternalReportId` | STRING | Report's external API resource ID |
+| `CmmsMeasurementConsumer` | STRING | Advertiser's API resource ID |
+| `ExternalReportId` | STRING | Report's external API resource ID. Unique only within a MeasurementConsumer |
 | `CmmsDataProvider` | STRING | Your EDP's API resource ID |
 | `ReportState` | STRING | Report state; one of SUCCEEDED, FAILED, INVALID. Only terminal reports appear in this table |
 | `EventGroupCount` | INT64 | Number of your event groups in this report |

@@ -429,6 +429,11 @@ resource "google_bigquery_table" "report_detail" {
   schema = <<EOF
 [
   {
+    "name": "CmmsMeasurementConsumer",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
+  {
     "name": "ExternalReportId",
     "type": "STRING",
     "mode": "NULLABLE"
@@ -480,6 +485,11 @@ resource "google_bigquery_table" "report_detail_edp" {
 
   schema = <<EOF
 [
+  {
+    "name": "CmmsMeasurementConsumer",
+    "type": "STRING",
+    "mode": "NULLABLE"
+  },
   {
     "name": "ExternalReportId",
     "type": "STRING",

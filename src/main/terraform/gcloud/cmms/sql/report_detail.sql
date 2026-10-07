@@ -25,17 +25,23 @@
 -- EventGroups the report actually measured.
 -- Includes all terminal reports -- SUCCEEDED (4), FAILED (5), and INVALID (6);
 -- the ReportState column carries the state so consumers can distinguish.
+-- ExternalReportingSetId and ExternalReportId are unique only within a
+-- MeasurementConsumer, and ExternalEventGroupId only within a DataProvider, so
+-- every cross-database join and the final grouping are scoped by those keys.
 
 MERGE INTO `${project_id}.${dataset}.${table_name}` T
 USING (
 %{ if include_platform_columns }
 SELECT
   * EXCEPT (ReportState),
-  COUNT(DISTINCT CmmsDataProvider) OVER (PARTITION BY ExternalReportId) AS EdpCount,
+  COUNT(DISTINCT CmmsDataProvider) OVER (
+    PARTITION BY CmmsMeasurementConsumer, ExternalReportId
+  ) AS EdpCount,
   ReportState
 FROM (
 %{ endif }
 SELECT
+  base.CmmsMeasurementConsumer,
   base.ExternalReportId,
   base.CmmsDataProvider,
   COUNT(DISTINCT base.CmmsEventGroupId) AS EventGroupCount,
@@ -59,6 +65,7 @@ SELECT
   END AS ReportState
 FROM (
   SELECT
+    br.CmmsMeasurementConsumerId AS CmmsMeasurementConsumer,
     br.ExternalReportId,
     br.State,
     cg.CmmsDataProvider,
@@ -72,10 +79,13 @@ FROM (
     SELECT * FROM EXTERNAL_QUERY(
       'projects/${project_id}/locations/${region}/connections/reporting-conn',
       '''SELECT
+        mc.CmmsMeasurementConsumerId,
         br.ExternalReportId,
         br.ExternalCampaignGroupId,
         br.State
       FROM BasicReports br
+      JOIN MeasurementConsumers mc
+        ON br.MeasurementConsumerId = mc.MeasurementConsumerId
       WHERE br.State IN (4, 5, 6)''')
   ) br
   JOIN (
@@ -152,10 +162,13 @@ FROM (
           AND e.parentreportingsetid = m.memberreportingsetid
       )
       SELECT DISTINCT
+        mc.cmmsmeasurementconsumerid AS CmmsMeasurementConsumerId,
         rs.externalreportingsetid AS ExternalCampaignGroupId,
         eg.cmmsdataproviderid AS CmmsDataProvider,
         eg.cmmseventgroupid AS CmmsEventGroupId
       FROM reportingsets rs
+      JOIN measurementconsumers mc
+        ON mc.measurementconsumerid = rs.measurementconsumerid
       JOIN campaign_group_members m
         ON m.measurementconsumerid = rs.measurementconsumerid
         AND m.rootreportingsetid = rs.reportingsetid
@@ -166,22 +179,46 @@ FROM (
         ON rseg.measurementconsumerid = eg.measurementconsumerid
         AND rseg.eventgroupid = eg.eventgroupid''')
   ) cg
-    ON br.ExternalCampaignGroupId = cg.ExternalCampaignGroupId
+    ON br.CmmsMeasurementConsumerId = cg.CmmsMeasurementConsumerId
+    AND br.ExternalCampaignGroupId = cg.ExternalCampaignGroupId
   LEFT JOIN (
-    -- Kingdom Spanner: event group -> campaign/brand/entity metadata
-    SELECT * FROM EXTERNAL_QUERY(
-      'projects/${project_id}/locations/${region}/connections/kingdom-conn',
-      '''SELECT
-        eg.ExternalEventGroupId,
-        eg.EntityType,
-        eg.EntityId,
-        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.campaignName') AS CampaignName,
-        JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName
-      FROM EventGroups eg''')
+    -- Kingdom Spanner: event group -> campaign/brand/entity metadata.
+    -- EventGroups and DataProviders are pulled as separate EXTERNAL_QUERY
+    -- calls and joined here: a join inside the pushed-down query is not root
+    -- partitionable under Data Boost. Mirrors mc_details.sql.
+    SELECT
+      `${project_id}.dashboard.externalIdToApiId`(kdp.ExternalDataProviderId) AS CmmsDataProvider,
+      `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId) AS CmmsEventGroupId,
+      keg.EntityType,
+      keg.EntityId,
+      keg.CampaignName,
+      keg.BrandName
+    FROM (
+      SELECT * FROM EXTERNAL_QUERY(
+        'projects/${project_id}/locations/${region}/connections/kingdom-conn',
+        '''SELECT
+          eg.DataProviderId,
+          eg.ExternalEventGroupId,
+          eg.EntityType,
+          eg.EntityId,
+          JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.campaignName') AS CampaignName,
+          JSON_VALUE(TO_JSON(eg.EventGroupDetails), '$.metadata.adMetadata.campaignMetadata.brandName') AS BrandName
+        FROM EventGroups eg''')
+    ) keg
+    JOIN (
+      SELECT * FROM EXTERNAL_QUERY(
+        'projects/${project_id}/locations/${region}/connections/kingdom-conn',
+        '''SELECT
+          dp.DataProviderId,
+          dp.ExternalDataProviderId
+        FROM DataProviders dp''')
+    ) kdp
+      ON keg.DataProviderId = kdp.DataProviderId
   ) keg
-    ON cg.CmmsEventGroupId = `${project_id}.dashboard.externalIdToApiId`(keg.ExternalEventGroupId)
+    ON cg.CmmsDataProvider = keg.CmmsDataProvider
+    AND cg.CmmsEventGroupId = keg.CmmsEventGroupId
 ) base
-GROUP BY base.ExternalReportId, base.CmmsDataProvider
+GROUP BY base.CmmsMeasurementConsumer, base.ExternalReportId, base.CmmsDataProvider
 %{ if include_platform_columns }
 )
 %{ endif }
