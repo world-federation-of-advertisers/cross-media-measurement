@@ -139,6 +139,41 @@ class VidLabelingConfigValidationTest {
     assertThat(exception).hasMessageThat().contains("max_file_batch_size_bytes must be set")
   }
 
+  @Test
+  fun `raw impressions blob prefix passes when bucket-relative`() {
+    requireValidRawImpressionsBlobPrefix(
+      vidLabelingConfig {
+        dataProvider = DATA_PROVIDER
+        rawImpressionsBlobPrefix = "raw-impressions/edp/edp7"
+      }
+    )
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws when missing`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidRawImpressionsBlobPrefix(vidLabelingConfig { dataProvider = DATA_PROVIDER })
+      }
+
+    assertThat(exception).hasMessageThat().contains("raw_impressions_blob_prefix must be set")
+  }
+
+  @Test
+  fun `raw impressions blob prefix throws when slash-delimited`() {
+    val exception =
+      assertFailsWith<IllegalArgumentException> {
+        requireValidRawImpressionsBlobPrefix(
+          vidLabelingConfig {
+            dataProvider = DATA_PROVIDER
+            rawImpressionsBlobPrefix = "/raw-impressions/edp/edp7/"
+          }
+        )
+      }
+
+    assertThat(exception).hasMessageThat().contains("must not start or end with '/'")
+  }
+
   private fun configWithMaxFileBatchSizeBytes(sizeBytes: Long): VidLabelingConfig =
     vidLabelingConfig {
       dataProvider = DATA_PROVIDER
