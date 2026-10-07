@@ -62,6 +62,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequ
 import org.wfanet.measurement.edpaggregator.v1alpha.listVidLabelingJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
@@ -654,64 +655,67 @@ class VidLabelingMonitor(
           .filter { it.hasEventDate() }
           .map { LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) }
           .toSet()
-      check(eventDates.size == 1) {
-        "Expected one footer event date for ${upload.name}, found ${eventDates.sorted()}"
+      if (eventDates.isEmpty()) {
+        continue
       }
-      val eventDate = eventDates.single()
-      val doneBlobUri =
-        LabeledImpressionsBlobKeys.forDoneUri(
-          vidLabeledImpressionsBlobPrefix,
-          modelLine.cmmsModelLine,
-          eventDate,
-        )
-      val generation = readDoneBlobGeneration(doneBlobUri) ?: continue
-      val request =
-        DataAvailabilitySyncWorkItems.createRequest(
-          dataProviderName,
-          upload.name,
-          modelLine.cmmsModelLine,
-          eventDate,
-          doneBlobUri,
-          generation,
-          Tracing.currentW3CTraceContext(),
-        )
-      val workItemName = "workItems/${request.workItemId}"
-      val workItemOutcome =
-        try {
-          rpcThrottlers.controlPlane.onReady { workItemsStub.createWorkItem(request) }
-          "created"
-        } catch (e: StatusException) {
-          if (e.status.code == Status.Code.ALREADY_EXISTS) {
-            "already_exists"
-          } else {
-            throw e
-          }
+      var allHandoffsEnsured = true
+      for (eventDate in eventDates.sorted()) {
+        val doneBlobUri =
+          LabeledImpressionsBlobKeys.forDoneUri(
+            vidLabeledImpressionsBlobPrefix,
+            modelLine.cmmsModelLine,
+            eventDate,
+          )
+        val generation = readDoneBlobGeneration(doneBlobUri)
+        if (generation == null) {
+          allHandoffsEnsured = false
+          break
         }
-      val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
-      Span.current()
-        .addEvent(
+        val request =
+          DataAvailabilitySyncWorkItems.createRequest(
+            dataProviderName,
+            upload.name,
+            modelLine.cmmsModelLine,
+            eventDate,
+            doneBlobUri,
+            generation,
+            Tracing.currentW3CTraceContext(),
+          )
+        val workItemOutcome = ensureDataAvailabilitySyncWorkItem(request)
+        if (workItemOutcome == null) {
+          allHandoffsEnsured = false
+          break
+        }
+        val workItemName = "workItems/${request.workItemId}"
+        val pathHash = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
+        Span.current()
+          .addEvent(
+            "edpa.data_availability_sync_work_item.recover",
+            Attributes.builder()
+              .put(XmmTraceAttributes.WORK_ITEM_NAME, workItemName)
+              .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, upload.name)
+              .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine.cmmsModelLine)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
+              .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
+              .put(XmmTraceAttributes.OUTCOME, workItemOutcome)
+              .build(),
+          )
+        VidLabelingTraceLogging.log(
+          logger,
+          Level.INFO,
           "edpa.data_availability_sync_work_item.recover",
-          Attributes.builder()
-            .put(XmmTraceAttributes.WORK_ITEM_NAME, workItemName)
-            .put(VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME, upload.name)
-            .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, modelLine.cmmsModelLine)
-            .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
-            .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
-            .put(XmmTraceAttributes.OUTCOME, workItemOutcome)
-            .build(),
+          XmmTraceAttributes.WORK_ITEM_NAME_STRING to workItemName,
+          VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to upload.name,
+          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine.cmmsModelLine,
+          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+          VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
+          XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "availability_work_item_recovery",
+          XmmTraceAttributes.OUTCOME_STRING to workItemOutcome,
         )
-      VidLabelingTraceLogging.log(
-        logger,
-        Level.INFO,
-        "edpa.data_availability_sync_work_item.recover",
-        XmmTraceAttributes.WORK_ITEM_NAME_STRING to workItemName,
-        VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_NAME_STRING to upload.name,
-        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to modelLine.cmmsModelLine,
-        VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
-        VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation.toString(),
-        XmmTraceAttributes.LIFECYCLE_STAGE_STRING to "availability_work_item_recovery",
-        XmmTraceAttributes.OUTCOME_STRING to workItemOutcome,
-      )
+      }
+      if (!allHandoffsEnsured) {
+        continue
+      }
       rpcThrottlers.metadataWrite.onReady {
         rawImpressionUploadModelLineStub.markRawImpressionUploadModelLineCompleted(
           markRawImpressionUploadModelLineCompletedRequest {
@@ -725,6 +729,28 @@ class VidLabelingMonitor(
       logger.info("Recovered durable availability WorkItem for ${modelLine.name}")
     }
     return AvailabilityHandoffRecovery(recovered)
+  }
+
+  /** Creates [request], validating immutable handoff identity when it already exists. */
+  private suspend fun ensureDataAvailabilitySyncWorkItem(request: CreateWorkItemRequest): String? {
+    try {
+      rpcThrottlers.controlPlane.onReady { workItemsStub.createWorkItem(request) }
+      return "created"
+    } catch (e: StatusException) {
+      if (e.status.code != Status.Code.ALREADY_EXISTS) throw e
+    }
+    val workItemName = "workItems/${request.workItemId}"
+    val existing =
+      rpcThrottlers.controlPlane.onReady {
+        workItemsStub.getWorkItem(getWorkItemRequest { name = workItemName })
+      }
+    if (!DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
+      logger.warning(
+        "Existing WorkItem $workItemName does not match the current availability handoff"
+      )
+      return null
+    }
+    return "already_exists"
   }
 
   @OptIn(ExperimentalCoroutinesApi::class)
