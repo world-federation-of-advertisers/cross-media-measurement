@@ -84,6 +84,23 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   }
 
   @Test
+  fun `process completes attempt when upload produced no labeled output`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.SUCCEEDED
+      }
+    val processor = processor(synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.NO_WORK })
+
+    processor.process(input())
+
+    verifyBlocking(workItemAttemptsStub) { completeWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub, never()) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  @Test
   fun `process fails attempt and propagates retryable error`() = runBlocking {
     stubAttemptCreation()
     whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
