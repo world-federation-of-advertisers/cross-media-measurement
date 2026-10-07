@@ -211,10 +211,15 @@ internal class DataAvailabilitySyncWorkItemProcessor(
           }
         }
 
-      if (outcome == DataAvailabilitySync.Outcome.PUBLISHED) {
+      if (
+        outcome == DataAvailabilitySync.Outcome.PUBLISHED ||
+          outcome == DataAvailabilitySync.Outcome.NO_WORK
+      ) {
         completeWorkItemAttempt(attempt)
-        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, "succeeded")
-        logLifecycle(input, attempt, outcome = "succeeded", stage = stage, leaseName = leaseName)
+        val traceOutcome =
+          if (outcome == DataAvailabilitySync.Outcome.NO_WORK) "no_work" else "succeeded"
+        Span.current().setAttribute(XmmTraceAttributes.OUTCOME, traceOutcome)
+        logLifecycle(input, attempt, outcome = traceOutcome, stage = stage, leaseName = leaseName)
         return
       }
 
