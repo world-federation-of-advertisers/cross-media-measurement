@@ -36,7 +36,11 @@ import kotlin.text.Charsets.UTF_8
 import kotlin.time.TimeSource
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.flatMapMerge
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.DataProviderKt.dataAvailabilityMapEntry
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt
@@ -68,6 +72,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.updateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.BlobUri
@@ -79,8 +84,8 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * This class coordinates the workflow that occurs after impression data has been fully uploaded to
  * Cloud Storage and signaled by the presence of a "done" blob in the relevant folder. It handles:
- * - Crawling the folder where the "done" blob resides to find and parse impression metadata files
- *   (`.binpb` or `.json`).
+ * - Discovering impression metadata sidecars by either listing an externally written folder or
+ *   resolving the exact deterministic VID Labeler outputs for registered raw inputs.
  * - Persisting impression metadata records via the
  *   [ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub].
  * - Computing model line availability intervals using the impression metadata service.
@@ -92,7 +97,8 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * Typical workflow:
  * 1. A "done" blob path is passed to [sync].
- * 2. Metadata blobs in the same folder are discovered and parsed into [ImpressionMetadata].
+ * 2. Metadata blobs are discovered using the selected [DiscoveryMode] and parsed into
+ *    [ImpressionMetadata].
  * 3. Valid impression metadata are persisted (created or updated).
  * 4. Model line availability intervals are computed from the persisted metadata.
  * 5. The data provider's availability intervals are updated accordingly.
@@ -142,12 +148,41 @@ class DataAvailabilitySync(
     KINGDOM_PUBLICATION,
   }
 
+  /** Selects how metadata sidecars are discovered for one synchronization. */
+  sealed interface DiscoveryMode {
+    /** Lists the done object's folder. Used for externally uploaded labeled impressions. */
+    object FolderScan : DiscoveryMode
+
+    /**
+     * Derives the exact VID Labeler output pair for each registered raw-impression input.
+     *
+     * A missing output and sidecar means that the input produced no labeled impressions. If only
+     * one member of the pair exists, discovery fails so the durable WorkItem can retry.
+     */
+    data class VidLabelerOutputs(
+      val rawImpressionUpload: String,
+      val rawImpressionBlobUris: List<String>,
+      val modelLine: String,
+      val eventDate: LocalDate,
+    ) : DiscoveryMode {
+      init {
+        require(rawImpressionUpload.isNotEmpty()) { "rawImpressionUpload must not be empty" }
+        require(rawImpressionBlobUris.isNotEmpty()) { "rawImpressionBlobUris must not be empty" }
+      }
+    }
+  }
+
   private val validImpressionPathRegex: Regex = Regex("^$edpImpressionPath/[^/]+(/.*)?$")
 
   /** Holds an [ImpressionMetadata] along with its associated impressions blob key. */
   private data class ImpressionMetadataWithBlobKey(
     val impressionMetadata: ImpressionMetadata,
     val impressionsBlobKey: String,
+  )
+
+  private data class MetadataBlobCandidate(
+    val blob: StorageClient.Blob,
+    val expectedImpressionBlobUri: String? = null,
   )
 
   init {
@@ -164,27 +199,23 @@ class DataAvailabilitySync(
   /**
    * Synchronizes impression availability data after a completion signal.
    *
-   * This function is triggered when a "done" blob is detected in Cloud Storage, indicating that all
-   * impression data for a given day have been fully uploaded. The "done" blob resides in the same
-   * folder as the metadata files, and its path is used to determine which folder to crawl when
-   * collecting and processing metadata for that day.
+   * For external uploads, DataWatcher supplies a "done" blob and the containing folder is listed.
+   * For VID Labeler outputs, a durable WorkItem supplies the "done" blob and the exact expected
+   * output keys are derived from registered raw inputs.
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
    * @param dataAvailabilitySyncLease synchronization lease resource name.
    * @param ensureLeaseActive validates the synchronization lease before each mutation.
    * @param doneBlobGeneration the immutable positive generation of that object.
-   * @param expectedRawImpressionUpload required raw upload on WorkItem-triggered sidecars.
-   * @param expectedModelLine required model line on WorkItem-triggered sidecars.
-   * @param expectedEventDate required event date on WorkItem-triggered sidecars.
+   * @param discoveryMode folder scanning for external writes or exact deterministic output
+   *   discovery for a VID Labeler WorkItem.
    * @param onStage called before synchronization enters a new stage.
    */
   suspend fun sync(
     doneBlobPath: String,
     dataAvailabilitySyncLease: String,
     doneBlobGeneration: Long,
-    expectedRawImpressionUpload: String? = null,
-    expectedModelLine: String? = null,
-    expectedEventDate: LocalDate? = null,
+    discoveryMode: DiscoveryMode = DiscoveryMode.FolderScan,
     onStage: (Stage) -> Unit = {},
     ensureLeaseActive: suspend () -> Unit,
   ): Outcome {
@@ -209,20 +240,30 @@ class DataAvailabilitySync(
       }
 
       val doneBlobFolderPath = doneBlobUri.key.substringBeforeLast("/")
-      if (expectedModelLine != null && expectedEventDate != null) {
+      val vidLabelerOutputs = discoveryMode as? DiscoveryMode.VidLabelerOutputs
+      if (vidLabelerOutputs != null) {
         val modelLineId =
-          requireNotNull(ModelLineKey.fromName(expectedModelLine)) {
-              "expectedModelLine is not a valid ModelLine resource name"
+          requireNotNull(ModelLineKey.fromName(vidLabelerOutputs.modelLine)) {
+              "modelLine is not a valid ModelLine resource name"
             }
             .modelLineId
         require(
-          doneBlobUri.key == "$edpImpressionPath/model-line/$modelLineId/$expectedEventDate/done"
+          doneBlobUri.key ==
+            "$edpImpressionPath/model-line/$modelLineId/${vidLabelerOutputs.eventDate}/done"
         ) {
           "Done-object path does not match the expected model line, event date, and filename"
         }
+        require(doneBlobGeneration > 0L) {
+          "doneBlobGeneration must be positive for VID Labeler output discovery"
+        }
       }
-      val impressionMetadataBlobs: Flow<StorageClient.Blob> =
-        storageClient.listBlobs(doneBlobFolderPath)
+      val impressionMetadataBlobs: Flow<MetadataBlobCandidate> =
+        when (discoveryMode) {
+          DiscoveryMode.FolderScan ->
+            storageClient.listBlobs(doneBlobFolderPath).map { MetadataBlobCandidate(it) }
+          is DiscoveryMode.VidLabelerOutputs ->
+            discoverVidLabelerMetadataBlobs(discoveryMode, doneBlobUri)
+        }
 
       // 1. Retrieve blob details from storage and build a map and validate them
       val impressionMetadataMap: Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> =
@@ -230,12 +271,30 @@ class DataAvailabilitySync(
           impressionMetadataBlobs,
           doneBlobUri,
           doneBlobGeneration,
-          expectedModelLine,
-          expectedEventDate,
+          vidLabelerOutputs?.modelLine,
+          vidLabelerOutputs?.eventDate,
+          vidLabelerOutputs?.rawImpressionUpload,
         )
 
       if (impressionMetadataMap.isEmpty()) {
         logger.info("There were no valid impressions metadata.")
+        if (vidLabelerOutputs != null) {
+          // The registered raw inputs were checked and every output/sidecar pair was absent, so
+          // labeling intentionally produced no available impressions. Mark the done object as
+          // fully processed to prevent the monitor from reporting a successful no-output job as
+          // stuck.
+          val syncId = UUID.randomUUID().toString()
+          ensureLeaseActive()
+          storageClient.updateBlobMetadata(
+            blobKey = doneBlobUri.key,
+            metadata =
+              mapOf(
+                DataAvailabilityBlobs.SYNC_ID_KEY to syncId,
+                DataAvailabilityBlobs.SYNCED_BY_KEY to DataAvailabilityBlobs.SYNCED_BY_VALUE,
+                DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY to syncId,
+              ),
+          )
+        }
         // Record sync duration even if no records
         recordSyncDuration(syncStartTime, SYNC_STATUS_SUCCESS)
         return Outcome.NO_WORK
@@ -775,6 +834,56 @@ class DataAvailabilitySync(
       .associateBy { it.blobUri }
   }
 
+  @OptIn(ExperimentalCoroutinesApi::class)
+  private fun discoverVidLabelerMetadataBlobs(
+    discoveryMode: DiscoveryMode.VidLabelerOutputs,
+    doneBlobUri: BlobUri,
+  ): Flow<MetadataBlobCandidate> =
+    discoveryMode.rawImpressionBlobUris.distinct().asFlow().flatMapMerge(
+      MAX_CONCURRENT_OUTPUT_DISCOVERY
+    ) { rawImpressionBlobUri ->
+      flow {
+        val outputBlobKey =
+          if (edpImpressionPath.isEmpty()) {
+            LabeledImpressionsBlobKeys.forInput(
+              rawImpressionBlobUri,
+              discoveryMode.modelLine,
+              discoveryMode.eventDate,
+            )
+          } else {
+            "$edpImpressionPath/" +
+              LabeledImpressionsBlobKeys.forInput(
+                rawImpressionBlobUri,
+                discoveryMode.modelLine,
+                discoveryMode.eventDate,
+              )
+          }
+        val metadataBlobKey = outputBlobKey + VID_LABELER_METADATA_SUFFIX
+        val outputBlob = storageClient.getBlob(outputBlobKey)
+        val metadataBlob = storageClient.getBlob(metadataBlobKey)
+        when {
+          outputBlob == null && metadataBlob == null -> Unit
+          outputBlob == null ->
+            throw IllegalStateException(
+              "VID Labeler metadata sidecar exists without its output: $metadataBlobKey"
+            )
+          metadataBlob == null ->
+            throw IllegalStateException(
+              "VID Labeler output exists without its metadata sidecar: $outputBlobKey"
+            )
+          else ->
+            emit(MetadataBlobCandidate(metadataBlob, absoluteBlobUri(doneBlobUri, outputBlobKey)))
+        }
+      }
+    }
+
+  private fun absoluteBlobUri(doneBlobUri: BlobUri, blobKey: String): String =
+    when (doneBlobUri.scheme) {
+      "gs" -> "${doneBlobUri.scheme}://${doneBlobUri.bucket}/$blobKey"
+      "file" -> "${doneBlobUri.scheme}:///${doneBlobUri.bucket}/$blobKey"
+      else -> throw IllegalArgumentException("Unsupported scheme: ${doneBlobUri.scheme}")
+    }
+
   private fun hasContentChanged(
     scanned: ImpressionMetadata,
     existing: ImpressionMetadata,
@@ -804,7 +913,7 @@ class DataAvailabilitySync(
    *
    * @param impressionMetadataBlobs the flow of [StorageClient.Blob] objects to read and parse.
    * @param doneBlobUri the URI of the "done" blob, used to derive the storage scheme and bucket.
-   * @param doneBlobGeneration the immutable generation of the "done" blob, when available.
+   * @param doneBlobGeneration the immutable positive generation of the "done" blob.
    * @return a map where each key is a [ModelLineKey] and each value is the list of
    *   [ImpressionMetadataWithBlobKey] objects associated with that model line.
    * @throws com.google.protobuf.InvalidProtocolBufferException if a binary `.binpb` blob cannot be
@@ -812,17 +921,23 @@ class DataAvailabilitySync(
    * @throws IllegalArgumentException if a blob has an unsupported file extension.
    */
   private suspend fun createModelLineToImpressionMetadataMap(
-    impressionMetadataBlobs: Flow<StorageClient.Blob>,
+    impressionMetadataBlobs: Flow<MetadataBlobCandidate>,
     doneBlobUri: BlobUri,
     doneBlobGeneration: Long,
-    expectedRawImpressionUpload: String?,
     expectedModelLine: String?,
     expectedEventDate: LocalDate?,
+    rawImpressionUpload: String?,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
     val impressionMetadataMap =
       mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
-    impressionMetadataBlobs.filter(DataAvailabilityBlobs::isMetadataBlob).collect {
-      impressionMetadataBlob ->
+    impressionMetadataBlobs.collect { candidate ->
+      val impressionMetadataBlob = candidate.blob
+      if (
+        candidate.expectedImpressionBlobUri == null &&
+          !DataAvailabilityBlobs.isMetadataBlob(impressionMetadataBlob)
+      ) {
+        return@collect
+      }
       val fileName = impressionMetadataBlob.blobKey.substringAfterLast("/").lowercase()
       val bytes: ByteString = impressionMetadataBlob.read().flatten()
 
@@ -838,6 +953,11 @@ class DataAvailabilitySync(
           throw IllegalArgumentException("Unsupported file extension for metadata: $fileName")
         }
 
+      if (candidate.expectedImpressionBlobUri != null) {
+        require(blobDetails.blobUri == candidate.expectedImpressionBlobUri) {
+          "BlobDetails blob_uri does not match the deterministic VID Labeler output"
+        }
+      }
       // Validate intervals
       require(blobDetails.interval.hasStartTime() && blobDetails.interval.hasEndTime()) {
         "Found interval without start or end time for blob detail with blob_uri = ${blobDetails.blobUri}"
@@ -893,9 +1013,15 @@ class DataAvailabilitySync(
       logger.info("Checking impression blob presence: ${impressionBlobUri.key}")
       val impressionBlob = storageClient.getBlob(impressionBlobUri.key)
       if (impressionBlob == null) {
-        logger.info(
-          "Encrypted impressions blob non found for metadata: ${impressionMetadataBlob.blobKey}."
-        )
+        if (candidate.expectedImpressionBlobUri != null) {
+          throw IllegalStateException(
+            "VID Labeler output disappeared during discovery: ${impressionBlobUri.key}"
+          )
+        } else {
+          logger.info(
+            "Encrypted impressions blob not found for metadata: ${impressionMetadataBlob.blobKey}."
+          )
+        }
       } else {
         logger.info("MetadataBlobUri is: $metadataBlobUri")
         val impressionMetadata = impressionMetadata {
@@ -903,6 +1029,9 @@ class DataAvailabilitySync(
           blobTypeUrl = BLOB_TYPE_URL
           eventGroupReferenceId = blobDetails.eventGroupReferenceId
           modelLine = blobDetails.modelLine
+          if (rawImpressionUpload != null) {
+            this.rawImpressionUpload = rawImpressionUpload
+          }
           outputDoneBlobGeneration = doneBlobGeneration
           interval = blobDetails.interval
           entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
@@ -1012,6 +1141,8 @@ class DataAvailabilitySync(
     private const val FIELD_SEPARATOR = "\u0000"
     private const val PROTO_FILE_SUFFIX = ".binpb"
     private const val JSON_FILE_SUFFIX = ".json"
+    private const val VID_LABELER_METADATA_SUFFIX = ".metadata.binpb"
+    private const val MAX_CONCURRENT_OUTPUT_DISCOVERY = 32
     private const val BLOB_TYPE_URL =
       "type.googleapis.com/wfa.measurement.securecomputation.impressions.BlobDetails"
   }
