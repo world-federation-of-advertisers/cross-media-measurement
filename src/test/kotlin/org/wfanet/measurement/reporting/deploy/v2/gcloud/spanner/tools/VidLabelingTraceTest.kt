@@ -337,19 +337,18 @@ class VidLabelingTraceTest {
   }
 
   @Test
-  fun `queued availability WorkItem keeps completed labeling in progress`() = runBlocking {
+  fun `authoritative queued availability WorkItem needs no telemetry evidence`() = runBlocking {
     val workItem = availabilityWorkItem("QUEUED")
     val graph = testGraph(listOf(NON_MEMOIZED_MODEL_LINE))
-    val resolvedNames = mutableSetOf<String>()
+    var availabilityResolved = false
     val stateResolver =
       object : VidLabelingStateResolver {
         override suspend fun resolve(rawImpressionUpload: String) = graph
 
         override suspend fun resolveAvailabilityWorkItems(
-          rawImpressionUpload: String,
-          workItemNames: Set<String>,
+          rawImpressionUpload: String
         ): List<VidLabelingAvailabilityWorkItem> {
-          resolvedNames += workItemNames
+          availabilityResolved = true
           return listOf(workItem)
         }
       }
@@ -361,19 +360,6 @@ class VidLabelingTraceTest {
           NON_MEMOIZED_STAGES,
           "direct",
           DIRECT_TRACE,
-        ) +
-        entry(
-          "availability_work_item_create",
-          additionalFields =
-            "xmm.work_item.name=${workItem.name} xmm.model_line.name=$NON_MEMOIZED_MODEL_LINE",
-          rawImpressionUpload = RAW_UPLOAD,
-          traceId = DIRECT_AVAILABILITY_TRACE,
-        ) +
-        entry(
-          "work_item_publication",
-          additionalFields =
-            "xmm.work_item.name=${workItem.name} xmm.work_item.publication_attempt=2",
-          traceId = DIRECT_AVAILABILITY_TRACE,
         )
     val collector =
       VidLabelingTraceCollector(
@@ -387,24 +373,16 @@ class VidLabelingTraceTest {
 
     assertThat(collection.executionStatus).isEqualTo(VidLabelingExecutionStatus.IN_PROGRESS)
     assertThat(collection.availabilityWorkItems.single().state).isEqualTo("QUEUED")
-    assertThat(resolvedNames).containsExactly(workItem.name)
+    assertThat(availabilityResolved).isTrue()
     assertThat(
         collection.modelLines
           .single()
           .stages
-          .filter { it.name == "availability_work_item_create" }
-          .any { it.evidenceCount > 0 }
+          .single { it.name == "availability_work_item_create" && it.authoritativeOnly }
+          .evidenceCount
       )
-      .isTrue()
-    assertThat(
-        collection.evidence
-          .first {
-            it.stage == "work_item_publication" &&
-              it.identifiers.containsKey("xmm.work_item.publication_attempt")
-          }
-          .identifiers
-      )
-      .containsEntry("xmm.work_item.publication_attempt", "2")
+      .isEqualTo(0)
+    assertThat(collection.evidence.flatMap { it.identifiers.values }).doesNotContain(workItem.name)
     Unit
   }
 

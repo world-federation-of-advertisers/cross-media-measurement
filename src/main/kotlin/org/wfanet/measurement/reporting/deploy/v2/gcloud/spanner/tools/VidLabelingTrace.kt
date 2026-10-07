@@ -155,7 +155,12 @@ internal class VidLabelingTraceCollector(
     require(request.correlationValueLimit > 0) { "correlationValueLimit must be positive" }
     require(request.traceIdLimit > 0) { "traceIdLimit must be positive" }
 
-    val initialGraph = stateResolver.resolve(request.rawImpressionUpload)
+    val baseGraph = stateResolver.resolve(request.rawImpressionUpload)
+    val availabilityWorkItems =
+      (baseGraph.availabilityWorkItems +
+          stateResolver.resolveAvailabilityWorkItems(request.rawImpressionUpload))
+        .distinctBy { it.name }
+    val initialGraph = baseGraph.withAvailabilityWorkItems(availabilityWorkItems)
     val discoveryGraph =
       initialGraph.copy(
         nodes =
@@ -245,24 +250,13 @@ internal class VidLabelingTraceCollector(
     }
 
     val orderedEvidence = evidence.sortedBy { it.timestamp }
-    val discoveredAvailabilityWorkItems =
-      stateResolver.resolveAvailabilityWorkItems(
-        request.rawImpressionUpload,
-        orderedEvidence
-          .filter { it.stage in AVAILABILITY_WORK_ITEM_DISCOVERY_STAGES }
-          .mapNotNull { it.identifiers[WORK_ITEM] }
-          .toSet(),
-      )
-    val availabilityWorkItems =
-      (initialGraph.availabilityWorkItems + discoveredAvailabilityWorkItems).distinctBy { it.name }
-    val graphWithAvailability = initialGraph.withAvailabilityWorkItems(availabilityWorkItems)
     val authoritativeGraph =
-      graphWithAvailability.copy(
+      initialGraph.copy(
         nodes =
-          graphWithAvailability.nodes +
+          initialGraph.nodes +
             finalStateResolver.resolve(
-              graphWithAvailability.upload,
-              graphWithAvailability.modelLines,
+              initialGraph.upload,
+              initialGraph.modelLines,
               availabilityWorkItems,
             )
       )
@@ -854,8 +848,6 @@ internal class VidLabelingTraceCollector(
         AVAILABILITY_INTERVAL_START,
         RAW_UPLOAD_MODEL_LINE,
       )
-    private val AVAILABILITY_WORK_ITEM_DISCOVERY_STAGES =
-      setOf("availability_work_item_create", "availability_work_item_process")
     private const val AVAILABILITY_INTERVAL_START = "xmm.edpa.availability.interval_start"
     private const val AVAILABILITY_INTERVAL_END = "xmm.edpa.availability.interval_end"
   }
