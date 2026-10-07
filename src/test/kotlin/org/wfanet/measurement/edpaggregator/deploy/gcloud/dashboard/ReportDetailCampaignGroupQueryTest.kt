@@ -91,21 +91,23 @@ class ReportDetailCampaignGroupQueryTest {
     // SetExpressions reference each other, so the link is set by UPDATE below.
     exec(
       """
-      INSERT INTO ReportingSets (MeasurementConsumerId, ReportingSetId, ExternalReportingSetId)
+      INSERT INTO ReportingSets
+        (MeasurementConsumerId, ReportingSetId, ExternalReportingSetId,
+         ReportingSetDetails, ReportingSetDetailsJson)
       VALUES
-        (1, 1,  'primitive-1'),
-        (1, 2,  'primitive-2'),
-        (1, 3,  'primitive-3'),
-        (1, 4,  'composite-direct'),
-        (1, 5,  'composite-nested'),
-        (1, 6,  'composite-of-composite'),
-        (1, 7,  'composite-difference'),
-        (1, 8,  'composite-shared-leaf'),
-        (1, 9,  'cycle-a'),
-        (1, 10, 'cycle-b'),
-        (1, 11, 'primitive-shared-event-group-id'),
-        (1, 12, 'composite-left-operand-only'),
-        (2, 100, 'primitive-1')
+        (1, 1,  'primitive-1', ''::bytea, '{}'),
+        (1, 2,  'primitive-2', ''::bytea, '{}'),
+        (1, 3,  'primitive-3', ''::bytea, '{}'),
+        (1, 4,  'composite-direct', ''::bytea, '{}'),
+        (1, 5,  'composite-nested', ''::bytea, '{}'),
+        (1, 6,  'composite-of-composite', ''::bytea, '{}'),
+        (1, 7,  'composite-difference', ''::bytea, '{}'),
+        (1, 8,  'composite-shared-leaf', ''::bytea, '{}'),
+        (1, 9,  'cycle-a', ''::bytea, '{}'),
+        (1, 10, 'cycle-b', ''::bytea, '{}'),
+        (1, 11, 'primitive-shared-event-group-id', ''::bytea, '{}'),
+        (1, 12, 'composite-left-operand-only', ''::bytea, '{}'),
+        (2, 100, 'primitive-1', ''::bytea, '{}')
       """
     )
 
