@@ -512,6 +512,8 @@ class VidLabelingTraceStateTest {
     assertThat(graph.availabilityWorkItems).hasSize(1)
     assertThat(graph.availabilityWorkItems.single().attemptCount).isEqualTo(2)
     assertThat(graph.availabilityWorkItems.single().failureStage).isEqualTo("SYNCHRONIZATION")
+    assertThat(graph.availabilityWorkItems.single().rawImpressionUploadModelLine)
+      .isEqualTo(UPLOAD + "/rawImpressionUploadModelLines/direct")
     assertThat(
         graph.nodes
           .filter { it.stage.startsWith("availability_work_item") }
@@ -606,6 +608,7 @@ class VidLabelingTraceStateTest {
       DataAvailabilitySyncParams.newBuilder()
         .setDataProvider("dataProviders/123")
         .setRawImpressionUpload(rawImpressionUpload)
+        .setRawImpressionUploadModelLine(UPLOAD + "/rawImpressionUploadModelLines/direct")
         .setModelLine(DIRECT_MODEL_LINE)
         .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
         .build()

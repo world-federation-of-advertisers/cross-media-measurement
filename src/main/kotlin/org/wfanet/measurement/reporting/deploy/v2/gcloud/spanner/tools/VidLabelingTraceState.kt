@@ -94,6 +94,7 @@ internal data class VidLabelingAvailabilityWorkItem(
   val doneBlobUri: String,
   val doneBlobPathHash: String,
   val doneBlobGeneration: Long,
+  val rawImpressionUploadModelLine: String = "",
 ) {
   val attemptCount: Int
     get() = attempts.maxOfOrNull { it.attemptNumber } ?: 0
@@ -137,10 +138,17 @@ internal fun VidLabelingAuthoritativeGraph.withAvailabilityWorkItems(
 ): VidLabelingAuthoritativeGraph {
   val availabilityNodes = buildList {
     for (modelLine in modelLines) {
-      val matching = workItems.filter { it.modelLine == modelLine.cmmsModelLine }
+      val matching =
+        workItems.filter {
+          if (it.rawImpressionUploadModelLine.isNotEmpty()) {
+            it.rawImpressionUploadModelLine == modelLine.name
+          } else {
+            it.modelLine == modelLine.cmmsModelLine
+          }
+        }
       if (
         availabilityWorkItemLookupEnabled &&
-          modelLine.state == RawImpressionUploadModelLine.State.COMPLETED &&
+          modelLine.state in AVAILABILITY_STATES &&
           matching.isEmpty()
       ) {
         add(
@@ -151,6 +159,7 @@ internal fun VidLabelingAuthoritativeGraph.withAvailabilityWorkItems(
             "MISSING",
             mapOf(
               "xmm.edpa.raw_impression_upload.name" to upload.name,
+              "xmm.edpa.raw_impression_upload_model_line.name" to modelLine.name,
               "xmm.model_line.name" to modelLine.cmmsModelLine,
             ),
           )
@@ -160,6 +169,7 @@ internal fun VidLabelingAuthoritativeGraph.withAvailabilityWorkItems(
         val baseIdentifiers =
           mapOf(
             "xmm.edpa.raw_impression_upload.name" to upload.name,
+            "xmm.edpa.raw_impression_upload_model_line.name" to modelLine.name,
             "xmm.model_line.name" to modelLine.cmmsModelLine,
             "xmm.work_item.name" to workItem.name,
             "xmm.work_item.generation" to workItem.generation.toString(),
@@ -223,6 +233,12 @@ internal fun VidLabelingAuthoritativeGraph.withAvailabilityWorkItems(
   }
   return copy(nodes = nodes + availabilityNodes, availabilityWorkItems = workItems)
 }
+
+private val AVAILABILITY_STATES =
+  setOf(
+    RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+    RawImpressionUploadModelLine.State.COMPLETED,
+  )
 
 internal fun interface VidLabelingStateResolver {
   suspend fun resolve(rawImpressionUpload: String): VidLabelingAuthoritativeGraph
@@ -328,7 +344,13 @@ internal class GcsKingdomFinalStateResolver(
       )
       for (modelLine in modelLines) {
         val workItemsForModelLine =
-          availabilityWorkItems.filter { it.modelLine == modelLine.cmmsModelLine }
+          availabilityWorkItems.filter {
+            if (it.rawImpressionUploadModelLine.isNotEmpty()) {
+              it.rawImpressionUploadModelLine == modelLine.name
+            } else {
+              it.modelLine == modelLine.cmmsModelLine
+            }
+          }
         for (workItem in workItemsForModelLine) {
           val doneBlob = readObjectMetadata(workItem.doneBlobUri, workItem.doneBlobGeneration)
           add(
@@ -349,9 +371,7 @@ internal class GcsKingdomFinalStateResolver(
           )
         }
         val rowsForUpload = listMetadata(dataProviderName, upload.name, modelLine.cmmsModelLine)
-        if (
-          modelLine.state == RawImpressionUploadModelLine.State.COMPLETED && rowsForUpload.isEmpty()
-        ) {
+        if (modelLine.state in AVAILABILITY_STATES && rowsForUpload.isEmpty()) {
           add(
             ExpectedTraceNode(
               modelLine.name + ":impression_metadata",
@@ -410,7 +430,7 @@ internal class GcsKingdomFinalStateResolver(
               "MISSING",
               mapOf(MODEL_LINE to modelLine.cmmsModelLine),
               if (
-                modelLine.state == RawImpressionUploadModelLine.State.COMPLETED &&
+                modelLine.state in AVAILABILITY_STATES &&
                   workItemsForModelLine.any { it.state == WorkItem.State.SUCCEEDED.name }
               ) {
                 ExpectedNodeDisposition.REQUIRED
@@ -434,7 +454,7 @@ internal class GcsKingdomFinalStateResolver(
                 AVAILABILITY_INTERVAL_END to Timestamps.toString(row.interval.endTime),
               ),
               if (
-                modelLine.state == RawImpressionUploadModelLine.State.COMPLETED &&
+                modelLine.state in AVAILABILITY_STATES &&
                   workItemsForModelLine.any { it.state == WorkItem.State.SUCCEEDED.name }
               ) {
                 ExpectedNodeDisposition.REQUIRED
@@ -681,6 +701,7 @@ internal class GrpcVidLabelingStateResolver(
           dataPath.dataPath,
           hash(dataPath.dataPath),
           dataPath.generation,
+          appParams.rawImpressionUploadModelLine,
         )
       }
   }

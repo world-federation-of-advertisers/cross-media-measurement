@@ -98,6 +98,7 @@ internal data class VidLabelingModelLineGraph(
   val modelLine: String,
   val route: VidLabelingRoute,
   val stages: List<VidLabelingStageCoverage>,
+  val pendingAvailabilityDates: List<String> = emptyList(),
 ) {
   val missingStages: List<String>
     get() =
@@ -483,6 +484,16 @@ internal class VidLabelingTraceCollector(
             node.disposition == ExpectedNodeDisposition.AUTHORITATIVE_ONLY,
           )
         },
+        graph.modelLines
+          .single { it.cmmsModelLine == modelLine }
+          .pendingAvailabilityDatesList
+          .map { date ->
+            date.year.toString().padStart(4, '0') +
+              "-" +
+              date.month.toString().padStart(2, '0') +
+              "-" +
+              date.day.toString().padStart(2, '0')
+          },
       )
     }
   }
@@ -833,7 +844,8 @@ internal class VidLabelingTraceCollector(
       listOf("upload_registration", "dispatch") + PHASE_ONE_STAGES.sorted() + COMMON_STAGES.drop(2)
     private val FAILED_OUTCOMES = setOf("failed", "error", "aborted")
     private val SUCCEEDED_OUTCOMES = setOf("succeeded", "completed", "published", "resolved")
-    private val ACTIVE_MODEL_LINE_STATES = setOf("CREATED", "POOL_ASSIGNING", "RANKING", "LABELING")
+    private val ACTIVE_MODEL_LINE_STATES =
+      setOf("CREATED", "POOL_ASSIGNING", "RANKING", "LABELING", "AVAILABILITY_SYNCING")
     private val NODE_MATCH_KEY_PRIORITY =
       listOf(
         "xmm.work_item_attempt.name",
@@ -886,6 +898,12 @@ internal object VidLabelingTraceOutput {
     appendLine()
     for (graph in collection.modelLines) {
       appendLine("### `" + safe(graph.modelLine) + "` (" + graph.route.name.lowercase() + ")")
+      if (graph.pendingAvailabilityDates.isNotEmpty()) {
+        appendLine(
+          "Pending availability dates: " +
+            graph.pendingAvailabilityDates.joinToString { "`" + safe(it) + "`" }
+        )
+      }
       for (stage in graph.stages) {
         appendLine(
           "- [" +
@@ -908,14 +926,17 @@ internal object VidLabelingTraceOutput {
       appendLine("## Availability WorkItems")
       appendLine()
       appendLine(
-        "| WorkItem | Model line | State | Generation | Attempts | Latest attempt | " +
+        "| WorkItem | Model-line resource | Model line | State | Generation | Attempts | " +
+          "Latest attempt | " +
           "Failure stage | Error type | Event date | Object |"
       )
-      appendLine("|---|---|---|---:|---:|---|---|---|---|---|")
+      appendLine("|---|---|---|---|---:|---:|---|---|---|---|---|")
       for (workItem in collection.availabilityWorkItems.sortedBy { it.name }) {
         appendLine(
           "| `" +
             safe(workItem.name) +
+            "` | `" +
+            safe(workItem.rawImpressionUploadModelLine) +
             "` | `" +
             safe(workItem.modelLine) +
             "` | " +
