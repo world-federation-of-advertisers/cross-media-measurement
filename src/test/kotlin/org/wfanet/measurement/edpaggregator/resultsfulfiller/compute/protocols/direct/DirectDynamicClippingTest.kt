@@ -45,7 +45,7 @@ class DirectDynamicClippingTest {
   }
 
   private fun stochasticClip(frequencyData: IntArray) =
-    computeDirectDynamicallyClippedImpressions(
+    DirectDynamicClipping.computeImpressions(
       frequencyData = frequencyData,
       dpParams = DP_PARAMS,
       vidSamplingIntervalWidth = 1.0,
@@ -53,7 +53,7 @@ class DirectDynamicClippingTest {
     )
 
   private fun deterministicClip(frequencyData: IntArray) =
-    computeDeterministicDynamicallyClippedImpressions(
+    DirectDynamicClipping.computeDeterministicImpressions(
       frequencyData = frequencyData,
       vidSamplingIntervalWidth = 1.0,
       resultMinimumThresholds = null,

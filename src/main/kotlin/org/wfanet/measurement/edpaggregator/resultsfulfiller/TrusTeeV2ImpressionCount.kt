@@ -26,7 +26,7 @@ import org.wfanet.measurement.api.v2alpha.deterministicCount
 import org.wfanet.measurement.computation.DeterministicTruncatedLaplaceResultNoiser
 import org.wfanet.measurement.computation.HistogramComputations
 import org.wfanet.measurement.computation.ImpressionComputations
-import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.computeDeterministicDynamicallyClippedImpressions
+import org.wfanet.measurement.edpaggregator.resultsfulfiller.compute.protocols.direct.DirectDynamicClipping
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams.TrusTeeV2Config
 
 /** The impression count a `TrusTeeV2` fulfillment carries alongside its frequency vector. */
@@ -98,7 +98,7 @@ object TrusTeeV2ImpressionCount {
           }
           else -> {
             val clipped =
-              computeDeterministicDynamicallyClippedImpressions(
+              DirectDynamicClipping.computeDeterministicImpressions(
                 frequencyData = toIntArray(frequencyData),
                 // The count spans the whole population, so nothing scales it.
                 vidSamplingIntervalWidth = 1.0,

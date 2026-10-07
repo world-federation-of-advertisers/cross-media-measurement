@@ -143,13 +143,13 @@ class DirectImpressionResultBuilder(
 
     val clipped: DynamicallyClippedImpressions =
       if (directNoiseMechanism == DirectNoiseMechanism.DETERMINISTIC_TRUNCATED_LAPLACE) {
-        computeDeterministicDynamicallyClippedImpressions(
+        DirectDynamicClipping.computeDeterministicImpressions(
           frequencyData = frequencyData,
           vidSamplingIntervalWidth = samplingRate.toDouble(),
           resultMinimumThresholds = resultMinimumThresholds,
         )
       } else {
-        computeDirectDynamicallyClippedImpressions(
+        DirectDynamicClipping.computeImpressions(
           frequencyData = frequencyData,
           dpParams = DpParams(privacyParams.epsilon, privacyParams.delta),
           vidSamplingIntervalWidth = samplingRate.toDouble(),
