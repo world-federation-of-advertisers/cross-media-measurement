@@ -19,14 +19,14 @@ package org.wfanet.measurement.common.telemetry
 import java.util.logging.Level
 import java.util.logging.Logger
 
-/** Writes payload-free lifecycle evidence that can be read when trace export is unavailable. */
+/** Writes report lifecycle evidence using an explicit field allowlist. */
 object ReportTraceLogging {
   /** Logs one lifecycle [event] with allowlisted [fields]. */
   fun log(logger: Logger, event: String, vararg fields: Pair<String, String?>) {
-    log(logger, Level.INFO, null, event, *fields)
+    XmmTraceLogging.log(logger, Level.INFO, event, SAFE_FIELD_NAMES, *fields)
   }
 
-  /** Logs one lifecycle [event] and its [error] with allowlisted [fields]. */
+  /** Logs one lifecycle [event] and retains its [error] for legacy report handlers. */
   fun log(
     logger: Logger,
     level: Level,
@@ -34,22 +34,9 @@ object ReportTraceLogging {
     event: String,
     vararg fields: Pair<String, String?>,
   ) {
-    require(EVENT_PATTERN.matches(event)) { "Invalid report trace event name" }
-
-    val message = buildString {
-      append("event=").append(event)
-      for ((name, value) in fields) {
-        require(name in SAFE_FIELD_NAMES) { "Unsupported report trace log field: $name" }
-        if (!value.isNullOrBlank()) {
-          append(' ').append(name).append('=').append(sanitizeToken(value))
-        }
-      }
-    }
+    val message = XmmTraceLogging.formatMessage(event, SAFE_FIELD_NAMES, *fields)
     logger.log(level, message, error)
   }
-
-  private fun sanitizeToken(value: String): String =
-    value.replace(WHITESPACE_PATTERN, "_").take(MAX_VALUE_LENGTH)
 
   private val SAFE_FIELD_NAMES =
     setOf(
@@ -64,22 +51,13 @@ object ReportTraceLogging {
       ReportTraceAttributes.COMPUTATION_NAME_STRING,
       ReportTraceAttributes.COMPUTATION_STAGE_STRING,
       ReportTraceAttributes.COMPUTATION_STAGE_ATTEMPT_STRING,
-      ReportTraceAttributes.WORK_ITEM_NAME_STRING,
-      ReportTraceAttributes.WORK_ITEM_ATTEMPT_NAME_STRING,
       ReportTraceAttributes.DUCHY_ID_STRING,
       ReportTraceAttributes.BASIC_REPORT_STATE_STRING,
       ReportTraceAttributes.REPORT_STATE_STRING,
       ReportTraceAttributes.METRIC_STATE_STRING,
       ReportTraceAttributes.MEASUREMENT_STATE_STRING,
       ReportTraceAttributes.REQUISITION_STATE_STRING,
-      ReportTraceAttributes.LIFECYCLE_STAGE_STRING,
-      ReportTraceAttributes.OUTCOME_STRING,
-      ReportTraceAttributes.ERROR_TYPE_STRING,
-      ReportTraceAttributes.ERROR_CODE_STRING,
       ReportTraceAttributes.ERROR_RETRYABLE_STRING,
       ReportTraceAttributes.REFUSAL_ORIGIN_STRING,
-    )
-  private val EVENT_PATTERN = Regex("[a-zA-Z0-9._-]+")
-  private val WHITESPACE_PATTERN = Regex("\\s+")
-  private const val MAX_VALUE_LENGTH = 1000
+    ) + XmmTraceLogging.COMMON_SAFE_FIELD_NAMES
 }
