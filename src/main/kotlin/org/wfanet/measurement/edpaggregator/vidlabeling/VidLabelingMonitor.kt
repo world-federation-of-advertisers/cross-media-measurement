@@ -28,6 +28,8 @@ import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.toList
 import org.wfanet.measurement.api.v2alpha.ModelLineKey
 import org.wfanet.measurement.common.api.grpc.ResourceList
@@ -41,12 +43,15 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceLogging
 import org.wfanet.measurement.edpaggregator.v1alpha.ListPoolAssignmentJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankerJobsRequestKt
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListVidLabelingJobsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJob
 import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -56,6 +61,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
@@ -89,10 +95,14 @@ import org.wfanet.measurement.storage.StorageClient
  *
  * @param rawImpressionUploadStub stub for `RawImpressionUploadService`.
  * @param rawImpressionUploadModelLineStub stub for `RawImpressionUploadModelLineService`.
+ * @param correctionCandidateStub stub for `RawImpressionUploadCorrectionCandidateService`.
  * @param poolAssignmentJobStub stub for `PoolAssignmentJobService`.
  * @param dispatchSequencer shared sequencer that performs dispatch for this DataProvider.
  * @param dataProviderName resource name of the `DataProvider` this monitor scans.
  * @param stalenessThreshold non-terminal uploads older than this are flagged as stuck.
+ * @param rawImpressionsBlobPrefix bucket-relative prefix containing this EDP's raw uploads.
+ * @param rawInputQuietPeriod age after which an unfinalized raw-input condition is alertable.
+ * @param rawImpressionsExcludedBlobPrefixes known non-raw descendants omitted from classification.
  * @param vidLabeledImpressionsBlobPrefix URI prefix for labeled output.
  * @param rpcThrottlers process-scoped rate limiters shared with the dispatch sequencer.
  * @param clock clock used for staleness evaluation.
@@ -103,9 +113,14 @@ class VidLabelingMonitor(
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub,
   private val rawImpressionUploadModelLineStub:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub,
+  private val correctionCandidateStub:
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub,
   private val dispatchSequencer: VidLabelingDispatchSequencer,
   private val dataProviderName: String,
   private val stalenessThreshold: Duration,
+  private val rawImpressionsBlobPrefix: String,
+  private val rawInputQuietPeriod: Duration,
+  private val rawImpressionsExcludedBlobPrefixes: Set<String> = emptySet(),
   rawImpressionsStorageClientProvider: () -> StorageClient,
   private val rawImpressionUploadFileStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub,
@@ -125,6 +140,15 @@ class VidLabelingMonitor(
   // use; only the `health` data-quality crawl forces these.
   private val rawImpressionsStorageClient: StorageClient by
     lazy(rawImpressionsStorageClientProvider)
+  private val rawImpressionInputMonitor: RawImpressionInputMonitor by lazy {
+    RawImpressionInputMonitor(
+      rawImpressionsStorageClient,
+      rawImpressionsBlobPrefix,
+      rawInputQuietPeriod,
+      excludedBlobPrefixes = rawImpressionsExcludedBlobPrefixes,
+      clock = clock,
+    )
+  }
   private val vidLabeledImpressionsStorageClient: StorageClient by
     lazy(vidLabeledImpressionsStorageClientProvider)
 
@@ -154,6 +178,10 @@ class VidLabelingMonitor(
     val missingDoneBlobs: Long,
     /** Date folders whose done blob exists but that hold no data files. */
     val zeroImpressionDates: Long,
+    /** Done-marker generations with raw data but no matching upload registration. */
+    val unregisteredDoneBlobs: Long,
+    /** Parent/child done-marker pairs that claim at least one common raw file. */
+    val ambiguousDoneMarkerLayouts: Long,
     /** Registered raw impression files whose blob is absent from storage (data loss). */
     val missingRawFiles: Long,
     /** Whether the non-blocking data-quality crawl failed and its counts are unavailable. */
@@ -176,6 +204,8 @@ class VidLabelingMonitor(
           lateArrivingFiles > 0 ||
           missingDoneBlobs > 0 ||
           zeroImpressionDates > 0 ||
+          unregisteredDoneBlobs > 0 ||
+          ambiguousDoneMarkerLayouts > 0 ||
           missingRawFiles > 0 ||
           dataQualityCheckFailed ||
           recoveryExhausted > 0 ||
@@ -261,6 +291,8 @@ class VidLabelingMonitor(
       lateArrivingFiles = dataQuality.lateArrivingFiles,
       missingDoneBlobs = dataQuality.missingDoneBlobs,
       zeroImpressionDates = dataQuality.zeroImpressionDates,
+      unregisteredDoneBlobs = dataQuality.unregisteredDoneBlobs,
+      ambiguousDoneMarkerLayouts = dataQuality.ambiguousDoneMarkerLayouts,
       missingRawFiles = dataQuality.missingRawFiles,
       dataQualityCheckFailed = dataQuality.checkFailed,
       recoveredTransitions = recovery.recovered,
@@ -327,21 +359,31 @@ class VidLabelingMonitor(
 
   /**
    * One tick's view of this DataProvider's uploads (fetched with a single [listAllUploads] and
-   * grouped by state) plus a per-upload model-line cache, so each upload's model lines are listed
-   * at most once per tick across all checks (1 + N list RPCs per tick instead of one list per
-   * check).
+   * grouped by state) plus a per-upload model-line cache.
    */
   private inner class RunSnapshot(
     private val uploadsByState: Map<RawImpressionUpload.State, List<RawImpressionUpload>>
   ) {
+    private val uploadsByName = uploadsByState.values.flatten().associateBy { it.name }
     private val modelLinesByUpload = mutableMapOf<String, List<RawImpressionUploadModelLine>>()
 
     /** Uploads in [state] (empty if none). */
     fun uploads(state: RawImpressionUpload.State): List<RawImpressionUpload> =
-      uploadsByState[state].orEmpty()
+      uploadsByState[state].orEmpty().filter {
+        !it.processingDeferred && it.state != RawImpressionUpload.State.CORRECTION_REQUIRED
+      }
 
-    /** Every upload across all states. */
-    fun allUploads(): List<RawImpressionUpload> = uploadsByState.values.flatten()
+    /** Every non-deferred, non-correction upload across all states. */
+    fun allUploads(): List<RawImpressionUpload> =
+      everyUpload().filter {
+        !it.processingDeferred && it.state != RawImpressionUpload.State.CORRECTION_REQUIRED
+      }
+
+    /** Every upload, including deferred and correction-required revisions. */
+    fun everyUpload(): List<RawImpressionUpload> = uploadsByState.values.flatten()
+
+    /** The upload named [name], if it is present in this tick's complete snapshot. */
+    fun upload(name: String): RawImpressionUpload? = uploadsByName[name]
 
     /** [uploadName]'s model lines, listed once per tick and memoized. */
     suspend fun modelLines(uploadName: String): List<RawImpressionUploadModelLine> =
@@ -349,8 +391,9 @@ class VidLabelingMonitor(
   }
 
   /**
-   * Lists every one of this DataProvider's uploads in a single RPC. An empty `state_in` matches all
-   * states, so one list per tick covers every state; [RunSnapshot] groups the result in memory.
+   * Lists every one of this DataProvider's uploads in one paginated traversal. An empty `state_in`
+   * matches all states, so one traversal per tick covers every state; [RunSnapshot] groups the
+   * result in memory.
    */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
   private suspend fun listAllUploads(): List<RawImpressionUpload> =
@@ -377,9 +420,6 @@ class VidLabelingMonitor(
       }
       .flattenConcat()
       .toList()
-      .filter {
-        !it.processingDeferred && it.state != RawImpressionUpload.State.CORRECTION_REQUIRED
-      }
 
   /** Lists the `RawImpressionUploadModelLine` children of [uploadName]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
@@ -403,9 +443,9 @@ class VidLabelingMonitor(
       .flattenConcat()
       .toList()
 
-  /** Lists the `RawImpressionUploadFile` children of [uploadName]. */
+  /** Streams the `RawImpressionUploadFile` children of [uploadName]. */
   @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
-  private suspend fun listUploadFiles(uploadName: String): List<RawImpressionUploadFile> =
+  private fun streamUploadFiles(uploadName: String): Flow<RawImpressionUploadFile> =
     rawImpressionUploadFileStub
       .listResources { pageToken: String ->
         val response =
@@ -413,6 +453,7 @@ class VidLabelingMonitor(
             rawImpressionUploadFileStub.listRawImpressionUploadFiles(
               listRawImpressionUploadFilesRequest {
                 parent = uploadName
+                pageSize = RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE
                 if (pageToken.isNotEmpty()) {
                   this.pageToken = pageToken
                 }
@@ -422,7 +463,62 @@ class VidLabelingMonitor(
         ResourceList(response.rawImpressionUploadFilesList, response.nextPageToken)
       }
       .flattenConcat()
+
+  /** Lists the `RawImpressionUploadFile` children of [uploadName]. */
+  private suspend fun listUploadFiles(uploadName: String): List<RawImpressionUploadFile> =
+    streamUploadFiles(uploadName).toList()
+
+  @OptIn(ExperimentalCoroutinesApi::class) // For `flattenConcat`.
+  private suspend fun listNoReplacementCorrectionUploadNames(): Set<String> =
+    correctionCandidateStub
+      .listResources { pageToken: String ->
+        val response =
+          rpcThrottlers.metadataRead.onReady {
+            correctionCandidateStub.listRawImpressionUploadCorrectionCandidates(
+              listRawImpressionUploadCorrectionCandidatesRequest {
+                parent = dataProviderName
+                pageSize = 100
+                filter =
+                  ListRawImpressionUploadCorrectionCandidatesRequestKt.filter {
+                    stateIn += RawImpressionUploadCorrectionCandidate.State.NO_REPLACEMENT
+                  }
+                if (pageToken.isNotEmpty()) {
+                  this.pageToken = pageToken
+                }
+              }
+            )
+          }
+        ResourceList(response.rawImpressionUploadCorrectionCandidatesList, response.nextPageToken)
+      }
+      .flattenConcat()
       .toList()
+      .mapTo(mutableSetOf()) { candidate -> candidate.rawImpressionUpload }
+
+  /** Recovers NO_REPLACEMENT decisions after their cleanup-eligible candidate rows are purged. */
+  private suspend fun listDurableNoReplacementUploadNames(snapshot: RunSnapshot): Set<String> {
+    val uploadNames = mutableSetOf<String>()
+    for (upload in
+      snapshot
+        .everyUpload()
+        .filter { it.state == RawImpressionUpload.State.CORRECTION_REQUIRED }
+        .filter { it.replacesRawImpressionUpload.isNotEmpty() }) {
+      var predecessorName = upload.replacesRawImpressionUpload
+      val visitedUploadNames = mutableSetOf<String>()
+      while (predecessorName.isNotEmpty() && visitedUploadNames.add(predecessorName)) {
+        val permanentlyRemoved =
+          snapshot.modelLines(predecessorName).any { modelLine ->
+            modelLine.recoveryAction ==
+              RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+          }
+        if (permanentlyRemoved) {
+          uploadNames += upload.name
+          break
+        }
+        predecessorName = snapshot.upload(predecessorName)?.replacesRawImpressionUpload.orEmpty()
+      }
+    }
+    return uploadNames
+  }
 
   /** Alert-only data-quality signals gathered this run. */
   private data class DataQualityResult(
@@ -430,16 +526,16 @@ class VidLabelingMonitor(
     val lateArrivingFiles: Long,
     val missingDoneBlobs: Long,
     val zeroImpressionDates: Long,
+    val unregisteredDoneBlobs: Long,
+    val ambiguousDoneMarkerLayouts: Long,
     val missingRawFiles: Long,
     val checkFailed: Boolean,
   )
 
-  /** Raw-impression storage-crawl signals (a subset of [DataQualityResult]). */
-  private data class StorageQuality(
-    val missingRawFiles: Long,
-    val missingDoneBlobs: Long,
-    val zeroImpressionDates: Long,
-    val lateArrivingFiles: Long,
+  private data class RegisteredFileSummary(
+    val blobKeys: MutableSet<String>,
+    val eventDatesByCompletedUpload: Map<String, Set<LocalDate>>,
+    val uploadNamesWithFiles: Set<String>,
   )
 
   /**
@@ -451,22 +547,71 @@ class VidLabelingMonitor(
    */
   private suspend fun checkDataQuality(snapshot: RunSnapshot): DataQualityResult {
     return try {
-      val storage = checkRawImpressionStorageQuality(snapshot)
-      val missingLabeled = checkLabelingCompleteness(snapshot)
+      val noReplacementUploadNames =
+        listNoReplacementCorrectionUploadNames() + listDurableNoReplacementUploadNames(snapshot)
+      val registeredFiles = summarizeRegisteredFiles(snapshot, noReplacementUploadNames)
+      val rawInput =
+        rawImpressionInputMonitor.scan(
+          missingRegisteredBlobKeys = registeredFiles.blobKeys,
+          registeredDoneObjects =
+            snapshot
+              .everyUpload()
+              .filter {
+                it.doneBlobGeneration > 0L &&
+                  (it.registrationComplete || it.state != RawImpressionUpload.State.CREATED)
+              }
+              .mapTo(mutableSetOf()) { upload ->
+                RawImpressionInputMonitor.DoneObjectIdentity(
+                  SelectedStorageClient.parseBlobUri(upload.doneBlobUri).key,
+                  upload.doneBlobGeneration,
+                )
+              },
+          ignoredEmptyDoneObjects =
+            snapshot
+              .everyUpload()
+              .filter {
+                it.doneBlobGeneration > 0L &&
+                  (it.name in noReplacementUploadNames ||
+                    (it.state == RawImpressionUpload.State.CORRECTION_REQUIRED &&
+                      it.name !in registeredFiles.uploadNamesWithFiles))
+              }
+              .mapTo(mutableSetOf()) { upload ->
+                RawImpressionInputMonitor.DoneObjectIdentity(
+                  SelectedStorageClient.parseBlobUri(upload.doneBlobUri).key,
+                  upload.doneBlobGeneration,
+                )
+              },
+        )
+      val missingLabeled =
+        checkLabelingCompleteness(snapshot, registeredFiles.eventDatesByCompletedUpload)
       val attrs = dataProviderAttributes()
       metrics.missingLabeledOutputsGauge.set(missingLabeled, attrs)
-      metrics.missingDoneBlobsGauge.set(storage.missingDoneBlobs, attrs)
-      metrics.zeroImpressionDatesGauge.set(storage.zeroImpressionDates, attrs)
-      metrics.lateArrivingFilesGauge.set(storage.lateArrivingFiles, attrs)
-      metrics.missingRawFilesGauge.set(storage.missingRawFiles, attrs)
+      metrics.missingDoneBlobsGauge.set(rawInput.missingDoneDirectories, attrs)
+      metrics.zeroImpressionDatesGauge.set(rawInput.doneWithoutDataDirectories, attrs)
+      metrics.unregisteredDoneBlobsGauge.set(rawInput.unregisteredDoneDirectories, attrs)
+      metrics.lateArrivingFilesGauge.set(rawInput.dataFilesAfterDone, attrs)
+      metrics.ambiguousDoneMarkerLayoutsGauge.set(rawInput.ambiguousDoneLayouts, attrs)
+      metrics.missingRawFilesGauge.set(rawInput.missingRegisteredFiles, attrs)
+      for (finding in rawInput.findings) {
+        VidLabelingTraceLogging.log(
+          logger,
+          Level.WARNING,
+          "edpa.vid_labeling.monitor.raw_input_finding",
+          VidLabelingTraceAttributes.DATA_PROVIDER_NAME_STRING to dataProviderName,
+          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to finding.pathHash,
+          XmmTraceAttributes.OUTCOME_STRING to finding.type.telemetryValue,
+        )
+      }
       // The crawl completed, so the gauges above are fresh and trustworthy this run.
       metrics.dataQualityCheckFailedGauge.set(0, attrs)
       DataQualityResult(
         missingLabeledOutputs = missingLabeled,
-        lateArrivingFiles = storage.lateArrivingFiles,
-        missingDoneBlobs = storage.missingDoneBlobs,
-        zeroImpressionDates = storage.zeroImpressionDates,
-        missingRawFiles = storage.missingRawFiles,
+        lateArrivingFiles = rawInput.dataFilesAfterDone,
+        missingDoneBlobs = rawInput.missingDoneDirectories,
+        zeroImpressionDates = rawInput.doneWithoutDataDirectories,
+        unregisteredDoneBlobs = rawInput.unregisteredDoneDirectories,
+        ambiguousDoneMarkerLayouts = rawInput.ambiguousDoneLayouts,
+        missingRawFiles = rawInput.missingRegisteredFiles,
         checkFailed = false,
       )
     } catch (e: CancellationException) {
@@ -491,67 +636,36 @@ class VidLabelingMonitor(
         XmmTraceAttributes.ERROR_TYPE_STRING to XmmTraceAttributes.errorType(e),
         XmmTraceAttributes.ERROR_CODE_STRING to XmmTraceAttributes.errorCode(e),
       )
-      DataQualityResult(0L, 0L, 0L, 0L, 0L, checkFailed = true)
+      DataQualityResult(0L, 0L, 0L, 0L, 0L, 0L, 0L, checkFailed = true)
     }
   }
 
-  /**
-   * Reconciles registered raw-impression files (the metadata source of truth) against raw storage,
-   * keyed off each file's `event_date`. Reports (a) `missing_raw_files`: a file registered in
-   * metadata whose blob is absent from storage (data loss -- e.g. retention deleted it); (b)
-   * `missing_done_blobs`: an event-date folder with registered files but no `done` blob; (c)
-   * `zero_impression_dates`: a folder whose `done` blob exists but that holds no data files; and
-   * (d) `late_arriving_files`: files whose storage create time is after the folder's `done` blob.
-   * The date folders come from metadata (`event_date` + `blob_uri`), not a string-parsed
-   * `done_blob_uri`, so coverage follows what was registered and metadata-vs-storage divergence is
-   * detectable.
-   */
-  private suspend fun checkRawImpressionStorageQuality(snapshot: RunSnapshot): StorageQuality {
-    // Registered files are the source of truth: each carries its event_date (from the footer) and
-    // blob_uri (its storage location).
-    data class DatedFile(val key: String, val eventDate: LocalDate)
-    val files: List<DatedFile> =
-      snapshot
-        .allUploads()
-        .flatMap { upload -> listUploadFiles(upload.name) }
-        .filter { it.hasEventDate() }
-        .map { file ->
-          DatedFile(
-            SelectedStorageClient.parseBlobUri(file.blobUri).key,
-            LocalDate.of(file.eventDate.year, file.eventDate.month, file.eventDate.day),
-          )
-        }
-
-    // Group registered files by their storage folder. By design every raw impression file for an
-    // event date -- and that date's `done` blob -- lives under the same path segment named for the
-    // date, so a single listing per folder reconciles every file, the `done` blob, and file create
-    // times in one pass (no getBlob per file, no separate getBlob for the `done` blob).
-    val filesByFolder: Map<String, List<DatedFile>> =
-      files.groupBy { it.key.substringBeforeLast('/', "") }
-
-    var missingRawFiles = 0L
-    var missingDoneBlobs = 0L
-    var zeroImpressionDates = 0L
-    var lateArrivingFiles = 0L
-    for ((dateFolder, folderFiles) in filesByFolder) {
-      val blobs = rawImpressionsStorageClient.listBlobs("$dateFolder/").toList()
-      val presentKeys: Set<String> = blobs.map { it.blobKey }.toHashSet()
-
-      // (data loss) A file registered in metadata whose blob is absent from the listing.
-      missingRawFiles += folderFiles.count { it.key !in presentKeys }.toLong()
-
-      val doneBlob = blobs.firstOrNull { it.blobKey == "$dateFolder/done" }
-      if (doneBlob == null) {
-        missingDoneBlobs++
-        continue
+  /** Reads each registered file once without retaining the file protos for the full health run. */
+  private suspend fun summarizeRegisteredFiles(
+    snapshot: RunSnapshot,
+    noReplacementUploadNames: Set<String>,
+  ): RegisteredFileSummary {
+    val completedUploadNames =
+      snapshot.uploads(RawImpressionUpload.State.COMPLETED).mapTo(mutableSetOf()) { upload ->
+        upload.name
       }
-      val dataFiles = blobs.filterNot { it.blobKey.endsWith("/done") }
-      if (dataFiles.isEmpty()) {
-        zeroImpressionDates++
+    val blobKeys = mutableSetOf<String>()
+    val eventDatesByCompletedUpload = mutableMapOf<String, MutableSet<LocalDate>>()
+    val uploadNamesWithFiles = mutableSetOf<String>()
+    streamUploadFiles("$dataProviderName/rawImpressionUploads/-").collect { file ->
+      val uploadName = file.name.substringBeforeLast("/files/", missingDelimiterValue = "")
+      if (uploadName !in noReplacementUploadNames) {
+        blobKeys += SelectedStorageClient.parseBlobUri(file.blobUri).key
       }
-      lateArrivingFiles += dataFiles.count { it.createTime.isAfter(doneBlob.createTime) }.toLong()
+      if (uploadName.isNotEmpty()) {
+        uploadNamesWithFiles += uploadName
+      }
+      if (uploadName in completedUploadNames && file.hasEventDate()) {
+        eventDatesByCompletedUpload.getOrPut(uploadName) { mutableSetOf() } +=
+          LocalDate.of(file.eventDate.year, file.eventDate.month, file.eventDate.day)
+      }
     }
-    return StorageQuality(missingRawFiles, missingDoneBlobs, zeroImpressionDates, lateArrivingFiles)
+    return RegisteredFileSummary(blobKeys, eventDatesByCompletedUpload, uploadNamesWithFiles)
   }
 
   /**
@@ -564,14 +678,13 @@ class VidLabelingMonitor(
    * a legitimately all-dropped date still has its `done` blob (no false positive) while a genuinely
    * unfinalized (model line, date) is flagged.
    */
-  private suspend fun checkLabelingCompleteness(snapshot: RunSnapshot): Long {
+  private suspend fun checkLabelingCompleteness(
+    snapshot: RunSnapshot,
+    eventDatesByCompletedUpload: Map<String, Set<LocalDate>>,
+  ): Long {
     var missing = 0L
     for (upload in snapshot.uploads(RawImpressionUpload.State.COMPLETED)) {
-      val eventDates: Set<LocalDate> =
-        listUploadFiles(upload.name)
-          .filter { it.hasEventDate() }
-          .map { LocalDate.of(it.eventDate.year, it.eventDate.month, it.eventDate.day) }
-          .toSet()
+      val eventDates = eventDatesByCompletedUpload[upload.name].orEmpty()
       if (eventDates.isEmpty()) {
         continue
       }
@@ -955,6 +1068,7 @@ class VidLabelingMonitor(
       .build()
 
   companion object {
+    private const val RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE = 1000
     private val logger: Logger = Logger.getLogger(this::class.java.name)
 
     /**
