@@ -1,0 +1,130 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.reporting;
+
+option java_package = "org.wfanet.measurement.config.reporting";
+option java_multiple_files = true;
+option java_outer_classname = "VirtualDimensionConfigProto";
+
+// The configuration that contains the resolutions for virtual event template
+// fields.
+message VirtualDimensionConfig {
+  // Resolution of a single virtual field.
+  message VirtualFieldResolution {
+    // A field path with respect to the local market Event message with `.`
+    // as the traversal operator, e.g. `common.cross_media_mrc_status`.
+    //
+    // The field at this path must be of enum type and annotated
+    // `virtual: true`. There may be at most one resolution per field path.
+    string field_path = 1;
+
+    // Specifies the criteria for each measurable value of the field.
+    //
+    // There may be at most one ValueResolution per enum value.
+    repeated ValueResolution value_resolutions = 2;
+  }
+
+  // Specifies the criteria for one value of a virtual field.
+  message ValueResolution {
+    // The symbol of the enum value, not a stringification of its integer
+    // value. For example, for MrcStatus.MEETS_MRC we expect "MEETS_MRC" not
+    // "1". The value must have a number greater than 0.
+    string enum_value = 1;
+
+    // Specifies the criteria for this value, per media type or
+    // DataProvider.
+    //
+    // There may be at most one spec per discriminator value.
+    repeated ValueResolutionSpec resolution_specs = 2;
+  }
+
+  // Specifies ValueResolution criteria for a media type or DataProvider.
+  //
+  // Event Template fields used by any filter terms must be applicable to the
+  // discriminating media type, if one is set. Virtual fields must not be
+  // referenced.
+  message ValueResolutionSpec {
+    // MediaType is used to designate how various artifacts should be
+    // interpreted for reporting.
+    //
+    // Mirrors ImpressionQualificationFilterSpec.MediaType. Defined locally
+    // so that VD and IQF stay independent.
+    enum MediaType {
+      // Default value. Unused.
+      MEDIA_TYPE_UNSPECIFIED = 0;
+      // Interpret a set of artifacts as Video
+      VIDEO = 1;
+      // Interpret a set of artifacts as Display
+      DISPLAY = 2;
+      // Interpret a set of artifacts as Other
+      OTHER = 3;
+      // Interpret a set of artifacts as Native, capturing EDP-specific
+      // formats such as carousels or other non-standard format types.
+      NATIVE = 4;
+    }
+
+    // Which events this spec applies to. When unset, the spec applies to all
+    // events regardless of media type or originating DataProvider.
+    oneof discriminator {
+      // The media type of the event.
+      MediaType media_type = 1;
+      // Resource name of the DataProvider the event originates from.
+      string data_provider = 2;
+    }
+
+    // A conjunction of filters.
+    repeated EventFilter filters = 3;
+  }
+
+  // Event filter criteria
+  message EventFilter {
+    // A disjunction of terms that define the filter criteria.
+    repeated EventTemplateField terms = 1;
+  }
+
+  // A representation of an event template field with its value
+  message EventTemplateField {
+    // A field path with respect to the local market Event message
+    // with `.` as the traversal operator.
+    //
+    // For example, if the Event message had an event template `common` with
+    // a field `age_group` then the field path would be `common.age_group`.
+    string path = 1;
+
+    // The value of the event template field
+    message FieldValue {
+      // Value type selector.
+      oneof selector {
+        // The field value as a string
+        string string_value = 1;
+        // The field value as a stringified enum value. This is the symbol
+        // associated with the enum value, not a stringification of its
+        // integer value. For example, for MediaType.VIDEO we expect "VIDEO"
+        // not "1"
+        string enum_value = 2;
+        // The field value as a Boolean
+        bool bool_value = 3;
+        // The field value as a Float
+        float float_value = 4;
+      }
+    }
+    // The value of the field
+    FieldValue value = 2;
+  }
+
+  repeated VirtualFieldResolution virtual_field_resolutions = 1;
+}

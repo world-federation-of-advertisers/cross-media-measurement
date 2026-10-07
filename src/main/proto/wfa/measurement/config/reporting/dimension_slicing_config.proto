@@ -1,0 +1,68 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.config.reporting;
+
+option java_package = "org.wfanet.measurement.config.reporting";
+option java_multiple_files = true;
+option java_outer_classname = "DimensionSlicingConfigProto";
+
+// The configuration that contains slicing policies for groupable event
+// template fields, real or virtual.
+message DimensionSlicingConfig {
+  // Specifies how synthesized buckets are handled for a groupable field.
+  message FieldSlicingPolicy {
+    // A field path with respect to the local market Event message with `.`
+    // as the traversal operator, e.g. `common.us_state`.
+    //
+    // The field at this path must be tagged GROUPABLE. It may be real or
+    // virtual. There may be at most one policy per field path.
+    string field_path = 1;
+
+    // How events outside one of the field's domains are handled.
+    enum Handling {
+      // Default value. Unused.
+      HANDLING_UNSPECIFIED = 0;
+      // Synthesize the bucket and measure it.
+      COMPUTE = 1;
+      // Fail CreateBasicReport, naming the offending DataProvider or media
+      // type.
+      REJECT = 2;
+    }
+
+    // Handling of events in the reporting unit for which the field has no
+    // meaning. These events form the NOT_APPLICABLE bucket.
+    Handling not_applicable_handling = 2;
+
+    // Handling of events from a DataProvider in the reporting unit that has
+    // not declared the source fields this field needs, for the whole
+    // reporting window. These events form the NOT_SUPPORTED bucket.
+    Handling not_supported_handling = 3;
+
+    // Whether to report the NOT_APPLICABLE and NOT_SUPPORTED buckets as a
+    // single NOT_CLASSIFIED bucket.
+    //
+    // Only valid when both `not_applicable_handling` and
+    // `not_supported_handling` are COMPUTE.
+    bool combine_as_not_classified = 4;
+  }
+
+  // The policy for any groupable field with no entry in
+  // `field_slicing_policies`. `field_path` must be unset.
+  FieldSlicingPolicy default_field_slicing_policy = 1;
+
+  repeated FieldSlicingPolicy field_slicing_policies = 2;
+}
