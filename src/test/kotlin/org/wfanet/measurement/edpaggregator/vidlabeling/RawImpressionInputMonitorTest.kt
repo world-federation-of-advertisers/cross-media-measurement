@@ -93,7 +93,7 @@ class RawImpressionInputMonitorTest {
             ignoredEmptyDoneObjects =
               setOf(
                 RawImpressionInputMonitor.DoneObjectIdentity(
-                  blobKey = "raw/removed/done",
+                  blobUri = "gs://bucket/raw/removed/done",
                   generation = 7,
                 )
               )
@@ -218,7 +218,7 @@ class RawImpressionInputMonitorTest {
       val registered =
         monitor.scan(
           registeredDoneObjects =
-            setOf(RawImpressionInputMonitor.DoneObjectIdentity("raw/upload/done", 9))
+            setOf(RawImpressionInputMonitor.DoneObjectIdentity("gs://bucket/raw/upload/done", 9))
         )
       assertThat(registered.unregisteredDoneDirectories).isEqualTo(0)
     }
@@ -229,6 +229,7 @@ class RawImpressionInputMonitorTest {
   ): RawImpressionInputMonitor =
     RawImpressionInputMonitor(
       storageClient = storageClient,
+      storageRootUri = "gs://bucket",
       blobPrefix = "raw",
       quietPeriod = QUIET_PERIOD,
       excludedBlobPrefixes = excludedBlobPrefixes,
