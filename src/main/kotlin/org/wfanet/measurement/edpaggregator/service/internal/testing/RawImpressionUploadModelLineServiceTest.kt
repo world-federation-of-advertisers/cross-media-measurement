@@ -17,6 +17,7 @@ package org.wfanet.measurement.edpaggregator.service.internal.testing
 import com.google.common.truth.Truth.assertThat
 import com.google.common.truth.extensions.proto.ProtoTruth.assertThat
 import com.google.rpc.errorInfo
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusRuntimeException
 import java.time.Instant
@@ -44,6 +45,8 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUpl
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadModelLinesRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineLabelingRequest
@@ -985,6 +988,112 @@ abstract class RawImpressionUploadModelLineServiceTest {
         .isEqualTo(
           RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
         )
+    }
+
+  @Test
+  fun `availability dates complete model line only after every date is synchronized`() =
+    runBlocking {
+      val created =
+        service.createRawImpressionUploadModelLine(
+          createRawImpressionUploadModelLineRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+              cmmsModelLine = CMMS_MODEL_LINE
+            }
+          }
+        )
+      val labeling =
+        service.markRawImpressionUploadModelLineLabeling(
+          markRawImpressionUploadModelLineLabelingRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = created.etag
+          }
+        )
+      val firstDate = date {
+        year = 2026
+        month = 1
+        day = 1
+      }
+      val secondDate = date {
+        year = 2026
+        month = 1
+        day = 2
+      }
+
+      val syncing =
+        service.markRawImpressionUploadModelLineAvailabilitySyncing(
+          markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            etag = labeling.etag
+            pendingAvailabilityDates += listOf(secondDate, firstDate, secondDate)
+          }
+        )
+
+      assertThat(syncing.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+        )
+      assertThat(syncing.pendingAvailabilityDatesList)
+        .containsExactly(firstDate, secondDate)
+        .inOrder()
+
+      val firstSynchronized =
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            eventDate = firstDate
+          }
+        )
+      assertThat(firstSynchronized.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+        )
+      assertThat(firstSynchronized.pendingAvailabilityDatesList).containsExactly(secondDate)
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE)
+
+      val replay =
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            eventDate = firstDate
+          }
+        )
+      assertThat(replay).isEqualTo(firstSynchronized)
+
+      val completed =
+        service.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+            requestId = UUID.randomUUID().toString()
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+            rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+            eventDate = secondDate
+          }
+        )
+      assertThat(completed.state)
+        .isEqualTo(
+          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+        )
+      assertThat(completed.pendingAvailabilityDatesList).isEmpty()
+      assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+        .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED)
     }
 
   @Test

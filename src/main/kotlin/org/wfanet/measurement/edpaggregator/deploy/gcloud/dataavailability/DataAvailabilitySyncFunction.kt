@@ -58,7 +58,10 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -209,6 +212,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       )
     val rawImpressionUploadFilesStub =
       RawImpressionUploadFileServiceCoroutineStub(instrumentedMetadataChannel)
+    val rawImpressionUploadModelLinesStub =
+      RawImpressionUploadModelLineServiceCoroutineStub(instrumentedMetadataChannel)
     val processor =
       DataAvailabilitySyncWorkItemProcessor(
         WorkItemsCoroutineStub(instrumentedControlPlaneChannel),
@@ -241,6 +246,20 @@ class DataAvailabilitySyncFunction() : HttpFunction {
             )
         },
         verifyDoneObject = { workItem -> verifyWorkItemDoneObject(workItem, config) },
+        markAvailabilitySynchronized = { workItem ->
+          rawImpressionUploadModelLinesStub
+            .markRawImpressionUploadModelLineAvailabilitySynchronized(
+              markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+                name = workItem.rawImpressionUploadModelLineName
+                eventDate = workItem.appParams.eventDate
+                requestId =
+                  RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySynchronized(
+                    workItem.rawImpressionUploadModelLineName,
+                    workItem.eventDate.toString(),
+                  )
+              }
+            )
+        },
       )
     runBlocking { processor.process(input) }
   }

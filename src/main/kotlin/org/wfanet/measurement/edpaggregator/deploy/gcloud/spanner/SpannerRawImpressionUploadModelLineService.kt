@@ -21,6 +21,7 @@ import com.google.cloud.spanner.Options
 import com.google.cloud.spanner.SpannerException
 import com.google.protobuf.Timestamp
 import io.grpc.Status
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -55,6 +56,7 @@ import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadNotFoundException
 import org.wfanet.measurement.edpaggregator.service.internal.RawImpressionUploadStateInvalidException
 import org.wfanet.measurement.edpaggregator.service.internal.RequiredFieldNotSetException
+import org.wfanet.measurement.gcloud.common.toCloudDate
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.BatchCreateRawImpressionUploadModelLinesResponse
@@ -63,6 +65,8 @@ import org.wfanet.measurement.internal.edpaggregator.GetRawImpressionUploadModel
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesPageTokenKt
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.internal.edpaggregator.ListRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.MarkRawImpressionUploadModelLineLabelingRequest
@@ -582,6 +586,158 @@ class SpannerRawImpressionUploadModelLineService(
       .modelLine
   }
 
+  override suspend fun markRawImpressionUploadModelLineAvailabilitySyncing(
+    request: MarkRawImpressionUploadModelLineAvailabilitySyncingRequest
+  ): RawImpressionUploadModelLine {
+    if (request.pendingAvailabilityDatesList.isEmpty()) {
+      throw RequiredFieldNotSetException("pending_availability_dates")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    request.pendingAvailabilityDatesList.forEachIndexed { index, date ->
+      validateDate(date.year, date.month, date.day, "pending_availability_dates.$index")
+    }
+    val pendingDates =
+      request.pendingAvailabilityDatesList
+        .distinct()
+        .sortedWith(compareBy({ it.year }, { it.month }, { it.day }))
+    val result =
+      transitionState(
+        request.dataProviderResourceId,
+        request.rawImpressionUploadResourceId,
+        request.rawImpressionUploadModelLineResourceId,
+        request.etag,
+        request.requestId,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
+        validPreviousStates = setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING),
+        markRequestIdColumn = "MarkAvailabilitySyncingRequestId",
+        currentMarkRequestId = { it.markAvailabilitySyncingRequestId },
+      ) {
+        set("PendingAvailabilityDates").toDateArray(pendingDates.map { it.toCloudDate() })
+      }
+    return if (result.isReplay) {
+      result.modelLine
+    } else {
+      result.modelLine.copy {
+        pendingAvailabilityDates.clear()
+        pendingAvailabilityDates += pendingDates
+      }
+    }
+  }
+
+  override suspend fun markRawImpressionUploadModelLineAvailabilitySynchronized(
+    request: MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+  ): RawImpressionUploadModelLine {
+    validateResourceIdsAndRequestId(
+      request.dataProviderResourceId,
+      request.rawImpressionUploadResourceId,
+      request.rawImpressionUploadModelLineResourceId,
+      request.requestId,
+    )
+    if (!request.hasEventDate()) {
+      throw RequiredFieldNotSetException("event_date")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    validateDate(
+      request.eventDate.year,
+      request.eventDate.month,
+      request.eventDate.day,
+      "event_date",
+    )
+
+    val transactionRunner =
+      databaseClient.readWriteTransaction(
+        Options.tag("action=markRawImpressionUploadModelLineAvailabilitySynchronized")
+      )
+    val txnResult =
+      transactionRunner.run { txn ->
+        val result =
+          txn.getRawImpressionUploadModelLineByResourceIds(
+            request.dataProviderResourceId,
+            request.rawImpressionUploadResourceId,
+            request.rawImpressionUploadModelLineResourceId,
+          )
+            ?: throw RawImpressionUploadModelLineNotFoundException(
+                request.dataProviderResourceId,
+                request.rawImpressionUploadResourceId,
+                request.rawImpressionUploadModelLineResourceId,
+              )
+              .asStatusRuntimeException(Status.Code.NOT_FOUND)
+
+        if (
+          result.rawImpressionUploadModelLine.state ==
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+        ) {
+          return@run TransactionResult(result.rawImpressionUploadModelLine, isReplay = true)
+        }
+        if (
+          result.rawImpressionUploadModelLine.state !=
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+        ) {
+          throw RawImpressionUploadModelLineStateInvalidException(
+              request.dataProviderResourceId,
+              request.rawImpressionUploadResourceId,
+              request.rawImpressionUploadModelLineResourceId,
+              result.rawImpressionUploadModelLine.state,
+              setOf(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING),
+            )
+            .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+        }
+
+        val remainingDates =
+          result.rawImpressionUploadModelLine.pendingAvailabilityDatesList.filterNot {
+            it == request.eventDate
+          }
+        if (
+          remainingDates.size == result.rawImpressionUploadModelLine.pendingAvailabilityDatesCount
+        ) {
+          return@run TransactionResult(result.rawImpressionUploadModelLine, isReplay = true)
+        }
+        val nextState =
+          if (remainingDates.isEmpty()) {
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+          } else {
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
+          }
+        txn.updateRawImpressionUploadModelLineState(
+          request.dataProviderResourceId,
+          result.rawImpressionUploadId,
+          result.rawImpressionUploadModelLineId,
+          nextState,
+        ) {
+          set("PendingAvailabilityDates").toDateArray(remainingDates.map { it.toCloudDate() })
+        }
+        if (
+          nextState == State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED &&
+            txn.countNonCompletedRawImpressionUploadModelLines(
+              request.dataProviderResourceId,
+              result.rawImpressionUploadId,
+              result.rawImpressionUploadModelLineId,
+            ) == 0L
+        ) {
+          txn.updateRawImpressionUploadState(
+            request.dataProviderResourceId,
+            result.rawImpressionUploadId,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+          )
+        }
+        TransactionResult(
+          result.rawImpressionUploadModelLine.copy {
+            state = nextState
+            pendingAvailabilityDates.clear()
+            pendingAvailabilityDates += remainingDates
+          }
+        )
+      }
+    if (txnResult.isReplay) {
+      return txnResult.modelLine
+    }
+    val commitTimestamp: Timestamp = transactionRunner.getCommitTimestamp().toProto()
+    return txnResult.modelLine.copy {
+      updateTime = commitTimestamp
+      etag = ETags.computeETag(commitTimestamp.toInstant())
+    }
+  }
+
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
@@ -608,6 +764,7 @@ class SpannerRawImpressionUploadModelLineService(
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
           )
         FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
           setOf(
@@ -882,7 +1039,8 @@ class SpannerRawImpressionUploadModelLineService(
           }
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
           State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
-          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING -> {
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+          State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING -> {
             // Guard on CREATED|FAILED so a retry re-activates a FAILED upload, but a processing
             // transition never resurrects a just-set COMPLETED.
             val parentState =
@@ -991,6 +1149,45 @@ class SpannerRawImpressionUploadModelLineService(
     }
   }
 
+  private fun validateResourceIdsAndRequestId(
+    dataProviderResourceId: String,
+    rawImpressionUploadResourceId: String,
+    rawImpressionUploadModelLineResourceId: String,
+    requestId: String,
+  ) {
+    if (dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (rawImpressionUploadResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (rawImpressionUploadModelLineResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("raw_impression_upload_model_line_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (requestId.isEmpty()) {
+      throw RequiredFieldNotSetException("request_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    try {
+      UUID.fromString(requestId)
+    } catch (e: IllegalArgumentException) {
+      throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun validateDate(year: Int, month: Int, day: Int, fieldName: String) {
+    try {
+      LocalDate.of(year, month, day)
+    } catch (e: RuntimeException) {
+      throw InvalidFieldValueException(fieldName, e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
   companion object {
     private const val RAW_IMPRESSION_UPLOAD_MODEL_LINE_RESOURCE_ID_PREFIX = "riuml"
     private const val MAX_PAGE_SIZE = 100
@@ -1002,6 +1199,7 @@ class SpannerRawImpressionUploadModelLineService(
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING,
         State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING,
+        State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
       )
 
     private val RETRYABLE_FAILURE_REASONS =

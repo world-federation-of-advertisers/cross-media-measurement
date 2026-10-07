@@ -106,3 +106,6 @@ databaseChangeLog:
   - include:
       file: add-vid-labeling-eviction-fence-concurrency.sql
       relativeToChangeLogFile: true
+  - include:
+      file: add-raw-impression-upload-model-line-availability-sync.sql
+      relativeToChangeLogFile: true
