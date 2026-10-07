@@ -33,6 +33,7 @@ import io.opentelemetry.sdk.testing.exporter.InMemoryMetricExporter
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.LocalDate
 import java.util.logging.Handler
 import java.util.logging.LogRecord
 import java.util.logging.Logger
@@ -81,6 +82,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKeyGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
 import org.wfanet.measurement.storage.StorageClient
@@ -151,6 +153,10 @@ class DataAvailabilitySyncTest {
     private const val CMMS_RPC_ERRORS_METRIC = "edpa.data_availability.cmms_rpc_errors"
     private const val DATE_COUNT_METRIC = "edpa.data_availability.date_count"
     private const val DEFAULT_BATCH_SIZE = 100
+    private const val RAW_IMPRESSION_UPLOAD =
+      "dataProviders/dataProvider123/rawImpressionUploads/upload-1"
+    private const val MODEL_LINE =
+      "modelProviders/provider1/modelSuites/suite1/modelLines/modelLine1"
   }
 
   private val dataProvidersServiceMock: DataProvidersCoroutineImplBase = mockService {
@@ -326,6 +332,206 @@ class DataAvailabilitySyncTest {
     assertThat(intervalLog.message).contains("xmm.lifecycle.stage=data_availability_publish")
     assertThat(intervalLog.message).contains("xmm.outcome=published")
     assertThat(leaseChecks).isEqualTo(9)
+  }
+
+  @Test
+  fun `VID Labeler discovery processes only deterministic outputs for the upload`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val eventDate = LocalDate.of(2026, 3, 15)
+    val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+    val outputKey = vidLabelerOutputKey(rawBlobUri, eventDate)
+    val outputUri = "$bucket/$outputKey"
+    val metadataKey = outputKey + ".metadata.binpb"
+    storageClient.writeBlob(outputKey, ByteString.copyFromUtf8("labeled"))
+    writeVidLabelerMetadata(storageClient, metadataKey, outputUri, eventDate)
+    storageClient.writeBlob(
+      "edp/edpa_edp/model-line/modelLine1/$eventDate/unrelated",
+      ByteString.copyFromUtf8("unrelated"),
+    )
+    writeVidLabelerMetadata(
+      storageClient,
+      "edp/edpa_edp/model-line/modelLine1/$eventDate/unrelated.metadata.binpb",
+      "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/unrelated",
+      eventDate,
+    )
+    writeVidLabelerDone(storageClient, eventDate)
+
+    val outcome =
+      newDataAvailabilitySync(storageClient)
+        .sync(
+          "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+          TestDataAvailabilitySyncLease.NAME,
+          doneBlobGeneration = 77L,
+          discoveryMode =
+            DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+              rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
+              rawImpressionBlobUris = listOf(rawBlobUri),
+              modelLine = MODEL_LINE,
+              eventDate = eventDate,
+            ),
+          ensureLeaseActive = {},
+        )
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    val batchCaptor = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock) {
+      batchCreateImpressionMetadata(batchCaptor.capture())
+    }
+    val metadata = batchCaptor.firstValue.requestsList.single().impressionMetadata
+    assertThat(metadata.blobUri).isEqualTo("$bucket/$metadataKey")
+    assertThat(metadata.rawImpressionUpload).isEqualTo(RAW_IMPRESSION_UPLOAD)
+    assertThat(metadata.outputDoneBlobGeneration).isEqualTo(77L)
+  }
+
+  @Test
+  fun `VID Labeler discovery succeeds with no work when every output pair is absent`() =
+    runBlocking {
+      val storageClient =
+        FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+      val eventDate = LocalDate.of(2026, 3, 15)
+      writeVidLabelerDone(storageClient, eventDate)
+
+      val outcome =
+        newDataAvailabilitySync(storageClient)
+          .sync(
+            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = 77L,
+            discoveryMode =
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
+                rawImpressionBlobUris = listOf("gs://raw-bucket/upload/filtered.parquet"),
+                modelLine = MODEL_LINE,
+                eventDate = eventDate,
+              ),
+            ensureLeaseActive = {},
+          )
+
+      assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.NO_WORK)
+      verifyBlocking(impressionMetadataServiceMock, times(0)) {
+        batchCreateImpressionMetadata(any())
+      }
+      val doneMetadata =
+        storageClient.blobMetadata.getValue("edp/edpa_edp/model-line/modelLine1/$eventDate/done")
+      assertThat(doneMetadata)
+        .containsEntry(DataAvailabilityBlobs.SYNCED_BY_KEY, DataAvailabilityBlobs.SYNCED_BY_VALUE)
+      assertThat(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY]).isNotEmpty()
+      assertThat(doneMetadata[DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY])
+        .isEqualTo(doneMetadata[DataAvailabilityBlobs.SYNC_ID_KEY])
+    }
+
+  @Test
+  fun `VID Labeler discovery fails when output exists without sidecar`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val eventDate = LocalDate.of(2026, 3, 15)
+    val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+    storageClient.writeBlob(
+      vidLabelerOutputKey(rawBlobUri, eventDate),
+      ByteString.copyFromUtf8("labeled"),
+    )
+    writeVidLabelerDone(storageClient, eventDate)
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        newDataAvailabilitySync(storageClient)
+          .sync(
+            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = 77L,
+            discoveryMode =
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
+                rawImpressionBlobUris = listOf(rawBlobUri),
+                modelLine = MODEL_LINE,
+                eventDate = eventDate,
+              ),
+            ensureLeaseActive = {},
+          )
+      }
+
+    assertThat(error).hasMessageThat().contains("without its metadata sidecar")
+  }
+
+  @Test
+  fun `VID Labeler discovery fails when sidecar exists without output`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    val eventDate = LocalDate.of(2026, 3, 15)
+    val rawBlobUri = "gs://raw-bucket/upload/input.parquet"
+    val outputKey = vidLabelerOutputKey(rawBlobUri, eventDate)
+    writeVidLabelerMetadata(
+      storageClient,
+      outputKey + ".metadata.binpb",
+      "$bucket/$outputKey",
+      eventDate,
+    )
+    writeVidLabelerDone(storageClient, eventDate)
+
+    val error =
+      assertFailsWith<IllegalStateException> {
+        newDataAvailabilitySync(storageClient)
+          .sync(
+            "$bucket/edp/edpa_edp/model-line/modelLine1/$eventDate/done",
+            TestDataAvailabilitySyncLease.NAME,
+            doneBlobGeneration = 77L,
+            discoveryMode =
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
+                rawImpressionBlobUris = listOf(rawBlobUri),
+                modelLine = MODEL_LINE,
+                eventDate = eventDate,
+              ),
+            ensureLeaseActive = {},
+          )
+      }
+
+    assertThat(error).hasMessageThat().contains("without its output")
+  }
+
+  private fun newDataAvailabilitySync(
+    storageClient: BlobMetadataStorageClient
+  ): DataAvailabilitySync =
+    DataAvailabilitySync(
+      "edp/edpa_edp",
+      storageClient,
+      dataProvidersStub,
+      impressionMetadataStub,
+      "dataProviders/dataProvider123",
+      MinimumIntervalThrottler(Clock.systemUTC(), Duration.ZERO),
+      impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+      modelLineMap = emptyMap(),
+      errorIfGapsExist = true,
+    )
+
+  private fun vidLabelerOutputKey(rawBlobUri: String, eventDate: LocalDate): String =
+    "edp/edpa_edp/" + LabeledImpressionsBlobKeys.forInput(rawBlobUri, MODEL_LINE, eventDate)
+
+  private suspend fun writeVidLabelerMetadata(
+    storageClient: StorageClient,
+    metadataKey: String,
+    outputUri: String,
+    eventDate: LocalDate,
+  ) {
+    val start = eventDate.atStartOfDay(java.time.ZoneOffset.UTC).toEpochSecond()
+    storageClient.writeBlob(
+      metadataKey,
+      blobDetails {
+          blobUri = outputUri
+          eventGroupReferenceId = "some-event-group-reference-id"
+          modelLine = MODEL_LINE
+          interval = interval {
+            startTime = timestamp { seconds = start }
+            endTime = timestamp { seconds = start + 1 }
+          }
+        }
+        .toByteString(),
+    )
+  }
+
+  private suspend fun writeVidLabelerDone(storageClient: StorageClient, eventDate: LocalDate) {
+    storageClient.writeBlob("edp/edpa_edp/model-line/modelLine1/$eventDate/done", ByteString.EMPTY)
   }
 
   @Test

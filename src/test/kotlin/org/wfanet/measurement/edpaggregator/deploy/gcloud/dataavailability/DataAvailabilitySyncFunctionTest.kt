@@ -37,6 +37,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.time.LocalDate
 import java.util.Collections
 import java.util.logging.Logger
 import kotlinx.coroutines.flow.emptyFlow
@@ -79,6 +80,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
@@ -89,6 +92,9 @@ import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncLease
 import org.wfanet.measurement.edpaggregator.v1alpha.dataAvailabilitySyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
@@ -155,6 +161,46 @@ class DataAvailabilitySyncFunctionTest {
                 endTime = timestamp { seconds = 1736467200 } // 2025-01-10T00:00:00Z
               }
             }
+          }
+        }
+    }
+
+  private val rawImpressionUploadFileServiceMock: RawImpressionUploadFileServiceCoroutineImplBase =
+    mockService {
+      onBlocking { listRawImpressionUploadFiles(any<ListRawImpressionUploadFilesRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+          when (request.pageToken) {
+            "" ->
+              listRawImpressionUploadFilesResponse {
+                rawImpressionUploadFiles += rawImpressionUploadFile {
+                  name = "$RAW_UPLOAD/files/file-1"
+                  blobUri = RAW_INPUT_BLOB_URI
+                  sizeBytes = 1L
+                  eventDate = date {
+                    year = 2025
+                    month = 1
+                    day = 5
+                  }
+                  blobGeneration = 1L
+                }
+                nextPageToken = "page-2"
+              }
+            "page-2" ->
+              listRawImpressionUploadFilesResponse {
+                rawImpressionUploadFiles += rawImpressionUploadFile {
+                  name = "$RAW_UPLOAD/files/file-2"
+                  blobUri = OTHER_DATE_RAW_INPUT_BLOB_URI
+                  sizeBytes = 1L
+                  eventDate = date {
+                    year = 2025
+                    month = 1
+                    day = 6
+                  }
+                  blobGeneration = 1L
+                }
+              }
+            else -> error("Unexpected page token: ${request.pageToken}")
           }
         }
     }
@@ -265,6 +311,9 @@ class DataAvailabilitySyncFunctionTest {
       ServerInterceptors.intercept(impressionMetadataServiceMock, metadataCaptureInterceptor)
     )
     addService(
+      ServerInterceptors.intercept(rawImpressionUploadFileServiceMock, metadataCaptureInterceptor)
+    )
+    addService(
       ServerInterceptors.intercept(dataAvailabilitySyncLeaseServiceMock, metadataCaptureInterceptor)
     )
     addService(
@@ -297,6 +346,10 @@ class DataAvailabilitySyncFunctionTest {
                 metadataCaptureInterceptor,
               ),
               ServerInterceptors.intercept(
+                rawImpressionUploadFileServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
+              ServerInterceptors.intercept(
                 dataAvailabilitySyncLeaseServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
@@ -325,7 +378,7 @@ class DataAvailabilitySyncFunctionTest {
   }
 
   @Test
-  fun `WorkItem synchronizes entire folder and completes attempt`() {
+  fun `WorkItem synchronizes only deterministic outputs for its raw upload`() {
     val configBucketDir = File(tempFolder.root, "configbucket")
     configBucketDir.mkdirs()
     File(configBucketDir, "config.textproto")
@@ -337,18 +390,28 @@ class DataAvailabilitySyncFunctionTest {
       )
     val outputDirectory = "edp/edp_name/model-line/some-model-line/2025-01-05"
     File(tempFolder.root, outputDirectory).mkdirs()
+    val workItemEventDate = LocalDate.of(2025, 1, 5)
+    val expectedOutputKey =
+      "edp/edp_name/" +
+        LabeledImpressionsBlobKeys.forInput(RAW_INPUT_BLOB_URI, MODEL_LINE, workItemEventDate)
+    val otherDateOutputKey =
+      "edp/edp_name/" +
+        LabeledImpressionsBlobKeys.forInput(
+          OTHER_DATE_RAW_INPUT_BLOB_URI,
+          MODEL_LINE,
+          workItemEventDate,
+        )
+    val unrelatedOutputKey = "$outputDirectory/unrelated"
     runBlocking {
       val storageClient = FileSystemStorageClient(tempFolder.root)
-      storageClient.writeBlob("$outputDirectory/impressions", emptyFlow())
-      storageClient.writeBlob("$outputDirectory/other-impressions", emptyFlow())
+      storageClient.writeBlob(expectedOutputKey, emptyFlow())
       storageClient.writeBlob(
-        "$outputDirectory/metadata.binpb",
+        "$expectedOutputKey.metadata.binpb",
         flowOf(
           blobDetails {
-              blobUri = "file:////$outputDirectory/impressions"
+              blobUri = "file:////$expectedOutputKey"
               eventGroupReferenceId = "reference-id"
               modelLine = MODEL_LINE
-              rawImpressionUpload = RAW_UPLOAD
               interval = interval {
                 startTime = timestamp { seconds = 1736035200 }
                 endTime = timestamp { seconds = 1736121600 }
@@ -357,14 +420,19 @@ class DataAvailabilitySyncFunctionTest {
             .toByteString()
         ),
       )
+      // This row belongs to a different event date. If the WorkItem fails to filter the listed
+      // RawImpressionUploadFiles by date, this output-without-sidecar makes synchronization fail.
+      storageClient.writeBlob(otherDateOutputKey, emptyFlow())
+      // This valid pair is in the cumulative folder but does not belong to the upload. Exact
+      // discovery must ignore it.
+      storageClient.writeBlob(unrelatedOutputKey, emptyFlow())
       storageClient.writeBlob(
-        "$outputDirectory/other-metadata.binpb",
+        "$unrelatedOutputKey.metadata.binpb",
         flowOf(
           blobDetails {
-              blobUri = "file:////$outputDirectory/other-impressions"
+              blobUri = "file:////$unrelatedOutputKey"
               eventGroupReferenceId = "other-reference-id"
               modelLine = MODEL_LINE
-              rawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/upload-2"
               interval = interval {
                 startTime = timestamp { seconds = 1736035200 }
                 endTime = timestamp { seconds = 1736121600 }
@@ -448,20 +516,20 @@ class DataAvailabilitySyncFunctionTest {
     verifyBlocking(workItemAttemptsServiceMock) { completeWorkItemAttempt(any()) }
     verifyBlocking(workItemAttemptsServiceMock, times(0)) { failWorkItemAttempt(any()) }
     verifyBlocking(workItemsServiceMock, times(0)) { failWorkItem(any()) }
+    val listFiles = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileServiceMock, times(2)) {
+      listRawImpressionUploadFiles(listFiles.capture())
+    }
+    assertThat(listFiles.allValues.map { it.parent }).containsExactly(RAW_UPLOAD, RAW_UPLOAD)
+    assertThat(listFiles.allValues.map { it.pageToken }).containsExactly("", "page-2").inOrder()
     val metadataRequest = argumentCaptor<BatchCreateImpressionMetadataRequest>()
     verifyBlocking(impressionMetadataServiceMock) {
       batchCreateImpressionMetadata(metadataRequest.capture())
     }
-    assertThat(
-        metadataRequest.firstValue.requestsList.map {
-          it.impressionMetadata.outputDoneBlobGeneration
-        }
-      )
-      .containsExactly(123L, 123L)
-    assertThat(
-        metadataRequest.firstValue.requestsList.map { it.impressionMetadata.rawImpressionUpload }
-      )
-      .containsExactly(RAW_UPLOAD, "$DATA_PROVIDER/rawImpressionUploads/upload-2")
+    val metadata = metadataRequest.firstValue.requestsList.single().impressionMetadata
+    assertThat(metadata.blobUri).isEqualTo("file:////$expectedOutputKey.metadata.binpb")
+    assertThat(metadata.outputDoneBlobGeneration).isEqualTo(123L)
+    assertThat(metadata.rawImpressionUpload).isEqualTo(RAW_UPLOAD)
   }
 
   @Test
@@ -992,6 +1060,8 @@ class DataAvailabilitySyncFunctionTest {
 
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val RAW_UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/upload"
+    private const val RAW_INPUT_BLOB_URI = "gs://raw-bucket/upload/input.parquet"
+    private const val OTHER_DATE_RAW_INPUT_BLOB_URI = "gs://raw-bucket/upload/other-date.parquet"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
     private const val WORK_ITEM_NAME = "workItems/das-123"
 
