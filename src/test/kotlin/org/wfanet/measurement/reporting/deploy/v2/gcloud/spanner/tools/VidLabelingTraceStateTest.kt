@@ -23,7 +23,7 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.mockito.kotlin.any
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
+import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -63,6 +63,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt.
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemAttemptsResponse
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ListWorkItemsResponse
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -377,6 +379,25 @@ class VidLabelingTraceStateTest {
         else -> throw Status.NOT_FOUND.asException()
       }
     }
+    whenever(workItems.listWorkItems(any(), any())).thenAnswer { invocation ->
+      val request = invocation.arguments[0] as ListWorkItemsRequest
+      if (request.pageToken.isEmpty()) {
+        ListWorkItemsResponse.newBuilder()
+          .addWorkItems(availabilityWorkItemProto(AVAILABILITY_WORK_ITEM, "SUCCEEDED"))
+          .setNextPageToken("next-page")
+          .build()
+      } else {
+        ListWorkItemsResponse.newBuilder()
+          .addWorkItems(
+            availabilityWorkItemProto(
+              "workItems/other-upload",
+              "FAILED",
+              "dataProviders/123/rawImpressionUploads/other",
+            )
+          )
+          .build()
+      }
+    }
     whenever(attempts.listWorkItemAttempts(any(), any())).thenAnswer { invocation ->
       val request =
         invocation.arguments[0]
@@ -462,8 +483,7 @@ class VidLabelingTraceStateTest {
       )
 
     val initialGraph = resolver.resolve(UPLOAD)
-    val availabilityWorkItems =
-      resolver.resolveAvailabilityWorkItems(UPLOAD, setOf(AVAILABILITY_WORK_ITEM))
+    val availabilityWorkItems = resolver.resolveAvailabilityWorkItems(UPLOAD)
     val graphWithAvailability = initialGraph.withAvailabilityWorkItems(availabilityWorkItems)
     val graph =
       graphWithAvailability.copy(
@@ -498,7 +518,7 @@ class VidLabelingTraceStateTest {
           .map { it.authoritativeState }
       )
       .containsAtLeast("CREATED", "SUCCEEDED")
-    verifyBlocking(workItems, never()) { listWorkItems(any(), any()) }
+    verifyBlocking(workItems, times(2)) { listWorkItems(any(), any()) }
     Unit
   }
 
@@ -577,11 +597,16 @@ class VidLabelingTraceStateTest {
       9,
     )
 
-  private fun availabilityWorkItemProto(name: String, state: String): WorkItem {
+  private fun availabilityWorkItemProto(
+    name: String,
+    state: String,
+    rawImpressionUpload: String = UPLOAD,
+  ): WorkItem {
     val appParams =
       DataAvailabilitySyncParams.newBuilder()
         .setDataProvider("dataProviders/123")
-        .setRawImpressionUpload(UPLOAD)
+        .setTriggeringRawImpressionUpload(rawImpressionUpload)
+        .setRawImpressionUploadModelLine(UPLOAD + "/rawImpressionUploadModelLines/direct")
         .setModelLine(DIRECT_MODEL_LINE)
         .setEventDate(com.google.type.Date.newBuilder().setYear(2026).setMonth(9).setDay(1))
         .build()
