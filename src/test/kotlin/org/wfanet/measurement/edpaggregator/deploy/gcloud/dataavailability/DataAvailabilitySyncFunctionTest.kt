@@ -82,7 +82,10 @@ import org.wfanet.measurement.edpaggregator.v1alpha.EventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadFilesRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ReleaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.RenewDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ValidateDataAvailabilitySyncLeaseRequest
@@ -95,6 +98,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.eventGroupSyncParams
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
@@ -202,6 +206,26 @@ class DataAvailabilitySyncFunctionTest {
                 }
               }
             else -> error("Unexpected page token: ${request.pageToken}")
+          }
+        }
+    }
+
+  private val rawImpressionUploadModelLineServiceMock:
+    RawImpressionUploadModelLineServiceCoroutineImplBase =
+    mockService {
+      onBlocking {
+          markRawImpressionUploadModelLineAvailabilitySynchronized(
+            any<MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest>()
+          )
+        }
+        .thenAnswer { invocation ->
+          val request =
+            invocation.getArgument<MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest>(
+              0
+            )
+          rawImpressionUploadModelLine {
+            name = request.name
+            state = RawImpressionUploadModelLine.State.COMPLETED
           }
         }
     }
@@ -351,6 +375,10 @@ class DataAvailabilitySyncFunctionTest {
                 metadataCaptureInterceptor,
               ),
               ServerInterceptors.intercept(
+                rawImpressionUploadModelLineServiceMock.bindService(),
+                metadataCaptureInterceptor,
+              ),
+              ServerInterceptors.intercept(
                 dataAvailabilitySyncLeaseServiceMock.bindService(),
                 metadataCaptureInterceptor,
               ),
@@ -485,6 +513,7 @@ class DataAvailabilitySyncFunctionTest {
                   dataProvider = DATA_PROVIDER
                   triggeringRawImpressionUpload = RAW_UPLOAD
                   modelLine = MODEL_LINE
+                  rawImpressionUploadModelLine = RAW_MODEL_LINE
                   eventDate = date {
                     year = 2025
                     month = 1
@@ -540,6 +569,13 @@ class DataAvailabilitySyncFunctionTest {
     assertThat(metadata.blobUri).isEqualTo("file:////$expectedOutputKey.metadata.binpb")
     assertThat(metadata.outputDoneBlobGeneration).isEqualTo(123L)
     assertThat(metadata.rawImpressionUpload).isEqualTo(RAW_UPLOAD)
+    val markSynchronized =
+      argumentCaptor<MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest>()
+    verifyBlocking(rawImpressionUploadModelLineServiceMock) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(markSynchronized.capture())
+    }
+    assertThat(markSynchronized.firstValue.name).isEqualTo(RAW_MODEL_LINE)
+    assertThat(markSynchronized.firstValue.eventDate.day).isEqualTo(5)
   }
 
   @Test
@@ -1078,6 +1114,7 @@ class DataAvailabilitySyncFunctionTest {
     private const val DONE_BLOB_GENERATION = 77L
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val RAW_UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/upload"
+    private const val RAW_MODEL_LINE = "$RAW_UPLOAD/rawImpressionUploadModelLines/upload-model-line"
     private const val RAW_INPUT_BLOB_URI = "gs://raw-bucket/upload/input.parquet"
     private const val OTHER_DATE_RAW_INPUT_BLOB_URI = "gs://raw-bucket/upload/other-date.parquet"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/some-model-line"
