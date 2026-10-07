@@ -1143,6 +1143,7 @@ class VidLabelingDispatchSequencer(
         RawImpressionUploadModelLine.State.POOL_ASSIGNING,
         RawImpressionUploadModelLine.State.RANKING,
         RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
       )
 
     /**

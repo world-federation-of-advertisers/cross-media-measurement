@@ -46,7 +46,6 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSeque
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
-import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 
 /**
@@ -307,10 +306,6 @@ class VidLabelingMonitorFunction : HttpFunction {
         vidLabelingJobStub = vidLabelingJobStub,
         workItemsStub = workItemsStub,
         vidLabeledImpressionsBlobPrefix = vidLabeledImpressionsBlobPrefix,
-        readDoneBlobGeneration = { blobUri ->
-          val parsed = SelectedStorageClient.parseBlobUri(blobUri)
-          vidLabeledStorage.get(checkNotNull(parsed.bucket), parsed.key)?.generation
-        },
         rpcThrottlers = rpcThrottlers,
       )
 

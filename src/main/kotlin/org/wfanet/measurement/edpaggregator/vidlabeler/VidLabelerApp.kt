@@ -21,6 +21,7 @@ import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
 import com.google.protobuf.Parser
+import com.google.type.date
 import io.grpc.Status
 import io.grpc.StatusException
 import io.opentelemetry.api.common.Attributes
@@ -63,7 +64,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadModelL
 import org.wfanet.measurement.edpaggregator.v1alpha.getVidLabelingJobRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineCompletedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
@@ -915,13 +916,13 @@ class VidLabelerApp(
       )
     }
     var doneObjectsWritten = 0
-    var parentsCompleted = 0
+    var parentsTransitioned = 0
     for (completedModelLine in completedModelLines) {
       val parent = parentsByModelLine[completedModelLine]
       if (parent == null) {
         logger.warning(
           "RawImpressionUploadModelLine not found for $completedModelLine under $upload; " +
-            "cannot mark COMPLETED"
+            "cannot start availability synchronization"
         )
         logLabelLifecycle(
           Level.WARNING,
@@ -934,13 +935,14 @@ class VidLabelerApp(
         )
         continue
       }
-      // Persist every dated done marker and durable handoff before the parent completion
-      // transition.
+      val doneObjects = mutableMapOf<LocalDate, DoneObject>()
+      // Persist every dated done marker before exposing the availability phase.
       for (eventDate in eventDates.sorted()) {
         val doneObject =
           findReusableDoneObject(
             dataProvider,
             upload,
+            parent.name,
             params.vidLabeledImpressionsStorageParams,
             completedModelLine,
             eventDate,
@@ -952,19 +954,15 @@ class VidLabelerApp(
               dataProvider,
               params,
             )
-        ensureDataAvailabilitySyncWorkItem(
-          dataProvider,
-          upload,
-          completedModelLine,
-          eventDate,
-          doneObject,
-          params,
-        )
+        doneObjects[eventDate] = doneObject
         doneObjectsWritten++
       }
-      val completed =
+      if (doneObjects.isEmpty()) {
+        continue
+      }
+      val transitioned =
         try {
-          markParentCompleted(parent, dataProvider)
+          markParentAvailabilitySyncing(parent, eventDates, dataProvider)
         } catch (e: CancellationException) {
           throw e
         } catch (e: Exception) {
@@ -981,8 +979,9 @@ class VidLabelerApp(
           )
           throw e
         }
-      parentsCompleted++
-      val transitionOutcome = if (completed) "completed" else "already_completed"
+      parentsTransitioned++
+      val transitionOutcome =
+        if (transitioned) "availability_syncing" else "already_availability_syncing"
       Span.current()
         .addEvent(
           "edpa.vid_labeling.label.parent_transition",
@@ -1002,6 +1001,18 @@ class VidLabelerApp(
         VidLabelingTraceAttributes.RAW_IMPRESSION_UPLOAD_MODEL_LINE_NAME_STRING to parent.name,
         VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to completedModelLine,
       )
+      // Publish the durable handoffs only after DataAvailabilitySync can acknowledge their dates.
+      for ((eventDate, doneObject) in doneObjects) {
+        ensureDataAvailabilitySyncWorkItem(
+          dataProvider,
+          upload,
+          parent.name,
+          completedModelLine,
+          eventDate,
+          doneObject,
+          params,
+        )
+      }
     }
     val expectedFinalizations = completedModelLines.size
     val expectedDoneObjects = expectedFinalizations * eventDates.size
@@ -1010,11 +1021,16 @@ class VidLabelerApp(
         expectedFinalizations == 0 -> "no_work"
         eventDates.isEmpty() ||
           doneObjectsWritten < expectedDoneObjects ||
-          parentsCompleted < expectedFinalizations -> "missing"
+          parentsTransitioned < expectedFinalizations -> "missing"
         replay -> "recovered"
         else -> "succeeded"
       }
-    return FinalizationResult(outcome, expectedFinalizations, doneObjectsWritten, parentsCompleted)
+    return FinalizationResult(
+      outcome,
+      expectedFinalizations,
+      doneObjectsWritten,
+      parentsTransitioned,
+    )
   }
 
   /** Lists the authoritative event dates persisted for every registered file in [upload]. */
@@ -1038,22 +1054,31 @@ class VidLabelerApp(
   }
 
   /**
-   * Transitions [parent] to `COMPLETED`, passing its etag for AIP-154 optimistic locking. On an
-   * optimistic-lock failure, re-reads the parent and treats the call as successful only when it is
-   * already `COMPLETED`; otherwise the error is rethrown so a prematurely delivered WorkItem is
-   * retried after the phase transition commits.
+   * Transitions [parent] to `AVAILABILITY_SYNCING` with every event date that downstream work must
+   * acknowledge. An optimistic-lock failure is successful only when the parent has already reached
+   * this phase or completed it.
    */
-  private suspend fun markParentCompleted(
+  private suspend fun markParentAvailabilitySyncing(
     parent: RawImpressionUploadModelLine,
+    eventDates: Set<LocalDate>,
     dataProvider: String,
   ): Boolean {
     try {
       rpcThrottlers.metadataWrite.onReady {
-        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineCompleted(
-          markRawImpressionUploadModelLineCompletedRequest {
+        rawImpressionUploadModelLinesStub.markRawImpressionUploadModelLineAvailabilitySyncing(
+          markRawImpressionUploadModelLineAvailabilitySyncingRequest {
             name = parent.name
             etag = parent.etag
-            requestId = RequestIds.forMarkRawImpressionUploadModelLineCompleted(parent.name)
+            pendingAvailabilityDates +=
+              eventDates.sorted().map { eventDate ->
+                date {
+                  year = eventDate.year
+                  month = eventDate.monthValue
+                  day = eventDate.dayOfMonth
+                }
+              }
+            requestId =
+              RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySyncing(parent.name)
           }
         )
       }
@@ -1079,10 +1104,13 @@ class VidLabelerApp(
             getRawImpressionUploadModelLineRequest { name = parent.name }
           )
         }
-      if (current.state == RawImpressionUploadModelLine.State.COMPLETED) {
+      if (
+        current.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ||
+          current.state == RawImpressionUploadModelLine.State.COMPLETED
+      ) {
         logger.info(
-          "markRawImpressionUploadModelLineCompleted(${parent.name}) observed COMPLETED after " +
-            "${e.status.code}; treating as done"
+          "markRawImpressionUploadModelLineAvailabilitySyncing(${parent.name}) observed " +
+            "${current.state} after ${e.status.code}; treating as done"
         )
         return false
       }
@@ -1265,6 +1293,7 @@ class VidLabelerApp(
   private suspend fun findReusableDoneObject(
     dataProvider: String,
     rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
     outputStorageParams: VidLabelerParams.StorageParams,
     modelLine: String,
     eventDate: LocalDate,
@@ -1286,6 +1315,7 @@ class VidLabelerApp(
       DataAvailabilitySyncWorkItems.createRequest(
         dataProvider,
         rawImpressionUpload,
+        rawImpressionUploadModelLine,
         modelLine,
         eventDate,
         doneUri,
@@ -1317,6 +1347,7 @@ class VidLabelerApp(
   private suspend fun ensureDataAvailabilitySyncWorkItem(
     dataProvider: String,
     rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
     modelLine: String,
     eventDate: LocalDate,
     doneObject: DoneObject,
@@ -1332,6 +1363,7 @@ class VidLabelerApp(
       DataAvailabilitySyncWorkItems.createRequest(
         dataProvider,
         rawImpressionUpload,
+        rawImpressionUploadModelLine,
         modelLine,
         eventDate,
         doneObject.uri,

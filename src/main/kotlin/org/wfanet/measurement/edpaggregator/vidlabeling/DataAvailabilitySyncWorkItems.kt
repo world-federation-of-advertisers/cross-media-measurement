@@ -38,6 +38,7 @@ object DataAvailabilitySyncWorkItems {
   fun createRequest(
     dataProvider: String,
     rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
     modelLine: String,
     eventDate: LocalDate,
     doneBlobUri: String,
@@ -63,6 +64,7 @@ object DataAvailabilitySyncWorkItems {
                   dataAvailabilitySyncParams {
                     this.dataProvider = dataProvider
                     this.rawImpressionUpload = rawImpressionUpload
+                    this.rawImpressionUploadModelLine = rawImpressionUploadModelLine
                     this.modelLine = modelLine
                     this.eventDate = date {
                       year = eventDate.year
