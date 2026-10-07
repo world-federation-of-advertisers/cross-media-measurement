@@ -74,6 +74,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.getWorkItemRequest
 import org.wfanet.measurement.securecomputation.teesdk.BaseTeeApplication
 import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.ParquetStorageClient
@@ -937,7 +938,9 @@ class VidLabelerApp(
       // transition.
       for (eventDate in eventDates.sorted()) {
         val doneObject =
-          findExistingDoneObject(
+          findReusableDoneObject(
+            dataProvider,
+            upload,
             params.vidLabeledImpressionsStorageParams,
             completedModelLine,
             eventDate,
@@ -1261,7 +1264,10 @@ class VidLabelerApp(
     return DoneObject(doneUri, generation)
   }
 
-  private suspend fun findExistingDoneObject(
+  /** Returns the live done object only when its WorkItem belongs to this exact handoff. */
+  private suspend fun findReusableDoneObject(
+    dataProvider: String,
+    rawImpressionUpload: String,
     outputStorageParams: VidLabelerParams.StorageParams,
     modelLine: String,
     eventDate: LocalDate,
@@ -1278,7 +1284,37 @@ class VidLabelerApp(
     val generation =
       getGcsObjectGeneration(storageConfig.projectId, checkNotNull(parsed.bucket), parsed.key)
         ?: return null
-    return DoneObject(doneUri, generation)
+    val doneObject = DoneObject(doneUri, generation)
+    val request =
+      DataAvailabilitySyncWorkItems.createRequest(
+        dataProvider,
+        rawImpressionUpload,
+        modelLine,
+        eventDate,
+        doneUri,
+        generation,
+        Tracing.currentW3CTraceContext(),
+      )
+    val existing =
+      try {
+        rpcThrottlers.controlPlane.onReady {
+          workItemsClient.getWorkItem(
+            getWorkItemRequest { name = "workItems/${request.workItemId}" }
+          )
+        }
+      } catch (e: StatusException) {
+        if (e.status.code == Status.Code.NOT_FOUND) {
+          return null
+        }
+        throw e
+      }
+    if (!DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
+      logger.info(
+        "Replacing done marker $doneUri because its WorkItem belongs to another availability handoff"
+      )
+      return null
+    }
+    return doneObject
   }
 
   private suspend fun ensureDataAvailabilitySyncWorkItem(
@@ -1314,6 +1350,41 @@ class VidLabelerApp(
         throw e
       } catch (e: StatusException) {
         if (e.status.code == Status.Code.ALREADY_EXISTS) {
+          val existing =
+            try {
+              rpcThrottlers.controlPlane.onReady {
+                workItemsClient.getWorkItem(getWorkItemRequest { name = workItemName })
+              }
+            } catch (validationError: Exception) {
+              logAvailabilityWorkItemFailure(
+                params,
+                dataProvider,
+                rawImpressionUpload,
+                modelLine,
+                pathHash,
+                generation,
+                workItemName,
+                validationError,
+              )
+              throw validationError
+            }
+          if (!DataAvailabilitySyncWorkItems.hasSameIdentity(existing, request)) {
+            val validationError =
+              IllegalStateException(
+                "Existing WorkItem $workItemName does not match the current availability handoff"
+              )
+            logAvailabilityWorkItemFailure(
+              params,
+              dataProvider,
+              rawImpressionUpload,
+              modelLine,
+              pathHash,
+              generation,
+              workItemName,
+              validationError,
+            )
+            throw validationError
+          }
           "already_exists"
         } else {
           logAvailabilityWorkItemFailure(
