@@ -134,8 +134,10 @@ message ImpressionMetadata {
     }
   ];
 
-  // Generation of the labeled-output done object for the current blob
-  // contents. Zero for metadata outside the VID-labeling pipeline.
+  // Generation of the labeled-output done object that registered the current
+  // blob contents.
+  //
+  // Positive when set. May be unset for legacy or directly-created metadata.
   int64 output_done_blob_generation = 12
       [(google.api.field_behavior) = OPTIONAL];
 }

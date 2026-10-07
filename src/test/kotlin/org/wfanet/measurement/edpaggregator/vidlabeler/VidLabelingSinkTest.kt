@@ -159,7 +159,6 @@ class VidLabelingSinkTest {
   ) =
     ModelLineContext(
       modelLine = modelLine,
-      rawImpressionUpload = RAW_IMPRESSION_UPLOAD,
       activeWindow = activeWindow,
       assigner = assigner,
       config = VidLabelerParams.ModelLineConfig.getDefaultInstance(),
@@ -272,7 +271,6 @@ class VidLabelingSinkTest {
       assertThat(blobDetails.modelLine).isEqualTo(MODEL_LINE)
       assertThat(blobDetails.interval.startTime).isEqualTo(Timestamps.fromMicros(1_000L))
       assertThat(blobDetails.interval.endTime).isEqualTo(Timestamps.fromMicros(2_000L))
-      assertThat(blobDetails.rawImpressionUpload).isEqualTo(RAW_IMPRESSION_UPLOAD)
       // The pipeline no longer carries event_group_reference_id; the per-blob entity-key union
       // identifies the blob for DataAvailabilitySync instead.
 
@@ -935,8 +933,6 @@ class VidLabelingSinkTest {
     }
 
     private const val DATA_PROVIDER = "dataProviders/edp-1"
-    private const val RAW_IMPRESSION_UPLOAD =
-      "$DATA_PROVIDER/rawImpressionUploads/raw-impression-upload-1"
     private const val MODEL_LINE = "modelProviders/mp1/modelSuites/ms1/modelLines/ml1"
     private const val VID = 42L
     private const val POOL_OFFSET = 10L

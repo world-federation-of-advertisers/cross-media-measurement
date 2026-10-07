@@ -1214,16 +1214,15 @@ class ImpressionMetadataService(
     rawImpressionUploadFieldPath: String,
     generationFieldPath: String,
   ) {
-    if (rawImpressionUpload.isEmpty()) {
-      if (outputDoneBlobGeneration != 0L) {
-        throw InvalidFieldValueException(generationFieldPath)
-      }
-      return
-    }
-    if (outputDoneBlobGeneration <= 0L) {
+    if (outputDoneBlobGeneration < 0L) {
       throw InvalidFieldValueException(generationFieldPath)
     }
-    validateRawImpressionUpload(rawImpressionUpload, parent, rawImpressionUploadFieldPath)
+    if (rawImpressionUpload.isNotEmpty()) {
+      if (outputDoneBlobGeneration == 0L) {
+        throw InvalidFieldValueException(generationFieldPath)
+      }
+      validateRawImpressionUpload(rawImpressionUpload, parent, rawImpressionUploadFieldPath)
+    }
   }
 
   companion object {
