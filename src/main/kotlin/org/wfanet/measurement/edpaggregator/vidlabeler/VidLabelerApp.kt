@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import com.google.cloud.storage.BlobInfo
 import com.google.crypto.tink.KmsClient
 import com.google.protobuf.Any
 import com.google.protobuf.ByteString
@@ -29,6 +30,8 @@ import java.time.LocalDate
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.wfanet.measurement.common.api.grpc.ResourceList
 import org.wfanet.measurement.common.api.grpc.listResources
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
@@ -63,6 +66,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModel
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.utils.ActiveWindow
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
+import org.wfanet.measurement.gcloud.gcs.GcsStorageRetryConfig
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
@@ -115,6 +119,7 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  *   threaded with the per-EDP [KmsClient] for PME decryption.
  * @param buildVidRankMapStorageClient builds a [ConditionalOperationStorageClient] for the
  *   vid-rank-map storage read by [RankIndexStore].
+ * @param writeGcsObject creates a GCS object and returns its immutable generation.
  * @param loadAssigner loads the compiled VID model (C++/JNI) for a model blob URI into a
  *   [VidAssigner].
  * @param buildImpressionConverter builds the per-(WorkItem, model line) [ImpressionConverter],
@@ -144,6 +149,16 @@ class VidLabelerApp(
   private val buildImpressionConverter:
     suspend (modelLine: String, config: VidLabelerParams.ModelLineConfig) -> ImpressionConverter,
   private val rpcThrottlers: VidLabelingRpcThrottlers,
+  private val writeGcsObject:
+    suspend (projectId: String?, blobInfo: BlobInfo, content: ByteArray) -> Long =
+    { projectId, blobInfo, content ->
+      withContext(Dispatchers.IO) {
+        GcsStorageRetryConfig.DEFAULT.buildStorageOptions(projectId = projectId)
+          .service
+          .create(blobInfo, content)
+          .generation
+      }
+    },
   private val eventIdDigestExtractor: EventIdDigestExtractor = EventIdDigestExtractor(),
   // Process-scoped cache of the built memoized rank index, shared across WorkItems so consecutive
   // WorkItems for the same (dataProvider, modelLine) with an unchanged snapshot set reuse the index
@@ -1140,27 +1155,37 @@ class VidLabelerApp(
         eventDate,
       )
     val doneBlobUri = SelectedStorageClient.parseBlobUri(doneUri)
-    val storageClient =
-      SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-    try {
-      storageClient.writeBlob(doneBlobUri.key, ByteString.EMPTY)
-    } catch (e: CancellationException) {
-      throw e
-    } catch (e: Exception) {
-      logLabelFailure(
-        Level.WARNING,
-        "edpa.vid_labeling.label.done_object",
-        params,
-        dataProvider,
-        "label_finalize",
-        "failed",
-        e,
-        VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
-        VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
-        VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to storageUriHash(doneUri),
-      )
-      throw e
-    }
+    val generation =
+      try {
+        if (doneBlobUri.scheme == "gs") {
+          writeGcsObject(
+            storageConfig.projectId,
+            BlobInfo.newBuilder(checkNotNull(doneBlobUri.bucket), doneBlobUri.key).build(),
+            ByteArray(0),
+          )
+        } else {
+          SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+            .writeBlob(doneBlobUri.key, ByteString.EMPTY)
+          null
+        }
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        logLabelFailure(
+          Level.WARNING,
+          "edpa.vid_labeling.label.done_object",
+          params,
+          dataProvider,
+          "label_finalize",
+          "failed",
+          e,
+          VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
+          VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
+          VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to storageUriHash(doneUri),
+        )
+        throw e
+      }
+    val pathHash = storageUriHash(doneUri)
     metrics.doneBlobsWrittenCounter.add(1, Attributes.of(metrics.DATA_PROVIDER_ATTR, dataProvider))
     logger.info("Wrote done marker $doneUri")
     Span.current()
@@ -1169,8 +1194,13 @@ class VidLabelerApp(
         Attributes.builder()
           .put(VidLabelingTraceAttributes.MODEL_LINE_NAME, cmmsModelLine)
           .put(VidLabelingTraceAttributes.LABEL_EVENT_DATE, eventDate.toString())
-          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, storageUriHash(doneUri))
+          .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, pathHash)
           .put(XmmTraceAttributes.OUTCOME, "written")
+          .also { builder ->
+            if (generation != null) {
+              builder.put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, generation)
+            }
+          }
           .build(),
       )
     logLabelLifecycle(
@@ -1182,7 +1212,8 @@ class VidLabelerApp(
       "written",
       VidLabelingTraceAttributes.MODEL_LINE_NAME_STRING to cmmsModelLine,
       VidLabelingTraceAttributes.LABEL_EVENT_DATE_STRING to eventDate.toString(),
-      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to storageUriHash(doneUri),
+      VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH_STRING to pathHash,
+      VidLabelingTraceAttributes.GCS_OBJECT_GENERATION_STRING to generation?.toString(),
     )
   }
 

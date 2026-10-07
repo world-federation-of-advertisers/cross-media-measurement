@@ -16,6 +16,7 @@
 
 package org.wfanet.measurement.edpaggregator.vidlabeler
 
+import com.google.cloud.storage.BlobInfo
 import com.google.common.truth.Truth.assertThat
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.KeyTemplates
@@ -68,6 +69,7 @@ import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.VidLabelingRpcThrottlers
 import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
+import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.EncryptedDek
@@ -84,11 +86,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJob
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.markVidLabelingJobSucceededResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexMap
+import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelingJob
@@ -255,6 +259,9 @@ class VidLabelerAppTest {
       },
     metrics: VidLabelerAppMetrics = VidLabelerAppMetrics(),
     rpcThrottlers: VidLabelingRpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    writeGcsObject: suspend (String?, BlobInfo, ByteArray) -> Long = { _, _, _ ->
+      error("writeGcsObject should not be invoked")
+    },
   ): VidLabelerApp {
     return VidLabelerApp(
       subscriptionId = "test-subscription",
@@ -278,6 +285,7 @@ class VidLabelerAppTest {
         ImpressionConverter { _, _ -> error("impressionConverter should not be invoked") }
       },
       rpcThrottlers = rpcThrottlers,
+      writeGcsObject = writeGcsObject,
       metrics = metrics,
     )
   }
@@ -358,6 +366,57 @@ class VidLabelerAppTest {
 
   private fun buildMessage(params: VidLabelerParams): com.google.protobuf.Any {
     return workItemParams { appParams = params.pack() }.pack()
+  }
+
+  private fun gcsOutputParams(): VidLabelerParams =
+    memoizedParams().copy {
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = "output-project"
+          impressionsBlobPrefix = "gs://output-bucket/labeled"
+        }
+    }
+
+  private fun stubLastOutWithEventDate() {
+    val inputFile = "$UPLOAD/files/file-1"
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.SUCCEEDED
+          etag = "etag-1"
+          rawImpressionUploadFiles += inputFile
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
+            }
+        }
+    }
+    stubModelLineList(
+      preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.LABELING),
+      postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED),
+    )
+    rawImpressionUploadFilesService.stub {
+      onBlocking { getRawImpressionUploadFile(any()) } doReturn
+        rawImpressionUploadFile {
+          name = inputFile
+          blobUri = "gs://raw-bucket/input.parquet"
+          blobGeneration = 123L
+        }
+    }
+    val parquetBlob =
+      mock<ParquetStorageClient.ParquetBlob> {
+        onBlocking { readKeyValueMetadata() } doReturn
+          mapOf(RawImpressionFileMetadata.EVENT_DATE_KEY to "2026-06-30")
+      }
+    mockParquetStorageClient.stub { onBlocking { getBlob(any()) } doReturn parquetBlob }
   }
 
   @Test
@@ -502,6 +561,27 @@ class VidLabelerAppTest {
     assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(3)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(2)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(0)
+  }
+
+  @Test
+  fun `runWork records GCS done object generation`() = runBlocking {
+    stubLastOutWithEventDate()
+    val app = createApp(writeGcsObject = { _, _, _ -> 321L })
+
+    app.runWork(buildMessage(gcsOutputParams()))
+
+    val finalizeSpan =
+      spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
+    val doneEvent = finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.done_object" }
+    assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION))
+      .isEqualTo(321L)
+    val doneLog =
+      logRecords.single {
+        it.message.contains("event=edpa.vid_labeling.label.done_object ") &&
+          it.message.contains("xmm.outcome=written")
+      }
+    assertThat(doneLog.message).contains("xmm.gcs.object.generation=321")
+    assertThat(doneLog.message).doesNotContain("gs://output-bucket")
   }
 
   @Test
