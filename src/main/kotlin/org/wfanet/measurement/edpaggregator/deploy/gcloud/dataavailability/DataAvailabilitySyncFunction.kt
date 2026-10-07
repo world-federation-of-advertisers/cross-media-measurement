@@ -43,6 +43,7 @@ import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
 import org.wfanet.measurement.common.throttler.MinimumIntervalThrottler
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
@@ -56,6 +57,8 @@ import org.wfanet.measurement.edpaggregator.telemetry.Tracing
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
@@ -204,6 +207,8 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         getOrCreateSecureComputationChannel(config),
         grpcTelemetry.newClientInterceptor(),
       )
+    val rawImpressionUploadFilesStub =
+      RawImpressionUploadFileServiceCoroutineStub(instrumentedMetadataChannel)
     val processor =
       DataAvailabilitySyncWorkItemProcessor(
         WorkItemsCoroutineStub(instrumentedControlPlaneChannel),
@@ -214,13 +219,23 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           )
         ),
         synchronize = { workItem, lease, onStage ->
+          val rawImpressionBlobUris =
+            listRawImpressionBlobUris(rawImpressionUploadFilesStub, workItem)
+          check(rawImpressionBlobUris.isNotEmpty()) {
+            "No RawImpressionUploadFile rows matched the WorkItem event date"
+          }
           buildDataAvailabilitySync(config)
             .sync(
               workItem.doneBlobUri,
               dataAvailabilitySyncLease = lease.name,
               doneBlobGeneration = workItem.doneBlobGeneration,
-              expectedModelLine = workItem.appParams.modelLine,
-              expectedEventDate = workItem.eventDate,
+              discoveryMode =
+                DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                  rawImpressionUpload = workItem.appParams.rawImpressionUpload,
+                  rawImpressionBlobUris = rawImpressionBlobUris,
+                  modelLine = workItem.appParams.modelLine,
+                  eventDate = workItem.eventDate,
+                ),
               onStage = onStage,
               ensureLeaseActive = lease::invoke,
             )
@@ -228,6 +243,30 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         verifyDoneObject = { workItem -> verifyWorkItemDoneObject(workItem, config) },
       )
     runBlocking { processor.process(input) }
+  }
+
+  private suspend fun listRawImpressionBlobUris(
+    stub: RawImpressionUploadFileServiceCoroutineStub,
+    workItem: DataAvailabilitySyncWorkItem,
+  ): List<String> {
+    val blobUris = mutableListOf<String>()
+    var pageToken = ""
+    do {
+      val response =
+        stub.listRawImpressionUploadFiles(
+          listRawImpressionUploadFilesRequest {
+            parent = workItem.appParams.rawImpressionUpload
+            pageSize = RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE
+            this.pageToken = pageToken
+          }
+        )
+      blobUris +=
+        response.rawImpressionUploadFilesList
+          .filter { it.eventDate.toLocalDate() == workItem.eventDate }
+          .map { it.blobUri }
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+    return blobUris.distinct()
   }
 
   private fun verifyWorkItemDoneObject(
@@ -354,6 +393,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       Duration.ofMillis(System.getenv("THROTTLER_MILLIS")?.toLong() ?: THROTTLER_DURATION_MILLIS)
 
     private const val DATA_WATHCER_PATH_HEADER: String = "X-DataWatcher-Path"
+    private const val RAW_IMPRESSION_UPLOAD_FILE_PAGE_SIZE = 1000
 
     private val kingdomTarget = EnvVars.checkNotNullOrEmpty("KINGDOM_TARGET")
     private val kingdomCertHost: String? = System.getenv("KINGDOM_CERT_HOST")
