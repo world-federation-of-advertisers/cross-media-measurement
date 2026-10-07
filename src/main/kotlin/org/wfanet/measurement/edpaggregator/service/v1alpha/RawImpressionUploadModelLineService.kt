@@ -18,6 +18,7 @@ import io.grpc.Status
 import io.grpc.StatusException
 import io.grpc.StatusRuntimeException
 import java.io.IOException
+import java.time.LocalDate
 import java.util.UUID
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
@@ -35,6 +36,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.CreateRawImpressionUploadMod
 import org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadModelLineRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadModelLinesResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineAvailabilitySyncingRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineCompletedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineFailedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.MarkRawImpressionUploadModelLineLabelingRequest
@@ -56,6 +59,8 @@ import org.wfanet.measurement.internal.edpaggregator.batchCreateRawImpressionUpl
 import org.wfanet.measurement.internal.edpaggregator.createRawImpressionUploadModelLineRequest as internalCreateRequest
 import org.wfanet.measurement.internal.edpaggregator.getRawImpressionUploadModelLineRequest as internalGetRequest
 import org.wfanet.measurement.internal.edpaggregator.listRawImpressionUploadModelLinesRequest as internalListRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest as internalMarkAvailabilitySynchronizedRequest
+import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineAvailabilitySyncingRequest as internalMarkAvailabilitySyncingRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineCompletedRequest as internalMarkCompletedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineFailedRequest as internalMarkFailedRequest
 import org.wfanet.measurement.internal.edpaggregator.markRawImpressionUploadModelLineLabelingRequest as internalMarkLabelingRequest
@@ -456,6 +461,68 @@ class RawImpressionUploadModelLineService(
     return internalResponse.toPublic()
   }
 
+  override suspend fun markRawImpressionUploadModelLineAvailabilitySyncing(
+    request: MarkRawImpressionUploadModelLineAvailabilitySyncingRequest
+  ): RawImpressionUploadModelLine {
+    val modelLineKey = parseModelLineName(request.name)
+    validateEtagAndRequestId(request.etag, request.requestId)
+    if (request.pendingAvailabilityDatesList.isEmpty()) {
+      throw RequiredFieldNotSetException("pending_availability_dates")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    request.pendingAvailabilityDatesList.forEachIndexed { index, date ->
+      validateDate(date.year, date.month, date.day, "pending_availability_dates.$index")
+    }
+    val internalResponse =
+      try {
+        internalModelLineStub.markRawImpressionUploadModelLineAvailabilitySyncing(
+          internalMarkAvailabilitySyncingRequest {
+            dataProviderResourceId = modelLineKey.dataProviderId
+            rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
+            etag = request.etag
+            pendingAvailabilityDates += request.pendingAvailabilityDatesList
+            requestId = request.requestId
+          }
+        )
+      } catch (e: StatusException) {
+        throw handleInternalError(e)
+      }
+    return internalResponse.toPublic()
+  }
+
+  override suspend fun markRawImpressionUploadModelLineAvailabilitySynchronized(
+    request: MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+  ): RawImpressionUploadModelLine {
+    val modelLineKey = parseModelLineName(request.name)
+    validateRequestId(request.requestId)
+    if (!request.hasEventDate()) {
+      throw RequiredFieldNotSetException("event_date")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    validateDate(
+      request.eventDate.year,
+      request.eventDate.month,
+      request.eventDate.day,
+      "event_date",
+    )
+    val internalResponse =
+      try {
+        internalModelLineStub.markRawImpressionUploadModelLineAvailabilitySynchronized(
+          internalMarkAvailabilitySynchronizedRequest {
+            dataProviderResourceId = modelLineKey.dataProviderId
+            rawImpressionUploadResourceId = modelLineKey.rawImpressionUploadId
+            rawImpressionUploadModelLineResourceId = modelLineKey.rawImpressionUploadModelLineId
+            eventDate = request.eventDate
+            requestId = request.requestId
+          }
+        )
+      } catch (e: StatusException) {
+        throw handleInternalError(e)
+      }
+    return internalResponse.toPublic()
+  }
+
   override suspend fun markRawImpressionUploadModelLineFailed(
     request: MarkRawImpressionUploadModelLineFailedRequest
   ): RawImpressionUploadModelLine {
@@ -566,6 +633,10 @@ class RawImpressionUploadModelLineService(
       throw RequiredFieldNotSetException("etag")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
+    validateRequestId(requestId)
+  }
+
+  private fun validateRequestId(requestId: String) {
     if (requestId.isEmpty()) {
       throw RequiredFieldNotSetException("request_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -574,6 +645,25 @@ class RawImpressionUploadModelLineService(
       UUID.fromString(requestId)
     } catch (e: IllegalArgumentException) {
       throw InvalidFieldValueException("request_id", e)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
+  private fun parseModelLineName(name: String): RawImpressionUploadModelLineKey {
+    if (name.isEmpty()) {
+      throw RequiredFieldNotSetException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return RawImpressionUploadModelLineKey.fromName(name)
+      ?: throw InvalidFieldValueException("name")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+  }
+
+  private fun validateDate(year: Int, month: Int, day: Int, fieldName: String) {
+    try {
+      LocalDate.of(year, month, day)
+    } catch (e: RuntimeException) {
+      throw InvalidFieldValueException(fieldName, e)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
   }
@@ -670,6 +760,7 @@ fun InternalRawImpressionUploadModelLine.toPublic(): RawImpressionUploadModelLin
           )
           .toName()
     }
+    pendingAvailabilityDates += source.pendingAvailabilityDatesList
   }
 }
 
@@ -687,6 +778,8 @@ internal fun RawImpressionUploadModelLineState.toPublic(): RawImpressionUploadMo
       RawImpressionUploadModelLine.State.RANKING
     RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING ->
       RawImpressionUploadModelLine.State.LABELING
+    RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING ->
+      RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
     RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED ->
       RawImpressionUploadModelLine.State.COMPLETED
     RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED ->
@@ -711,6 +804,8 @@ internal fun RawImpressionUploadModelLine.State.toInternal(): RawImpressionUploa
       RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_RANKING
     RawImpressionUploadModelLine.State.LABELING ->
       RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_LABELING
+    RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING ->
+      RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING
     RawImpressionUploadModelLine.State.COMPLETED ->
       RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
     RawImpressionUploadModelLine.State.FAILED ->

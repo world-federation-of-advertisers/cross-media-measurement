@@ -54,4 +54,11 @@ message DataAvailabilitySyncParams {
 
   // Event date represented by the output.
   google.type.Date event_date = 4 [(google.api.field_behavior) = OPTIONAL];
+
+  // Parent model-line pipeline resource completed by this synchronization.
+  string raw_impression_upload_model_line = 5 [
+    (google.api.field_behavior) = OPTIONAL,
+    (google.api.resource_reference).type =
+        "edpaggregator.halo-cmm.org/RawImpressionUploadModelLine"
+  ];
 }

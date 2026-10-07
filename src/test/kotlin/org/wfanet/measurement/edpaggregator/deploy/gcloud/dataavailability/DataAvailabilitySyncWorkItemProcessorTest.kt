@@ -69,12 +69,20 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   @Test
   fun `process completes attempt after synchronization is published`() = runBlocking {
     stubAttemptCreation()
-    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doReturn
-      workItemAttempt {
-        name = ATTEMPT_NAME
-        state = WorkItemAttempt.State.SUCCEEDED
+    var availabilityMarked = false
+    whenever(workItemAttemptsStub.completeWorkItemAttempt(any(), any<Metadata>())) doAnswer
+      {
+        check(availabilityMarked)
+        workItemAttempt {
+          name = ATTEMPT_NAME
+          state = WorkItemAttempt.State.SUCCEEDED
+        }
       }
-    val processor = processor(synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED })
+    val processor =
+      processor(
+        synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
+        markAvailabilitySynchronized = { availabilityMarked = true },
+      )
 
     processor.process(input())
 
@@ -114,6 +122,28 @@ class DataAvailabilitySyncWorkItemProcessorTest {
 
     verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
     verifyBlocking(workItemsStub, never()) { failWorkItem(any(), any<Metadata>()) }
+  }
+
+  @Test
+  fun `process retries when marking availability synchronized fails`() = runBlocking {
+    stubAttemptCreation()
+    whenever(workItemAttemptsStub.failWorkItemAttempt(any(), any<Metadata>())) doReturn
+      workItemAttempt {
+        name = ATTEMPT_NAME
+        state = WorkItemAttempt.State.FAILED
+      }
+    val processor =
+      processor(
+        synchronize = { _, _, _ -> DataAvailabilitySync.Outcome.PUBLISHED },
+        markAvailabilitySynchronized = { throw Status.UNAVAILABLE.asException() },
+      )
+
+    assertFailsWith<StatusException> { processor.process(input()) }
+
+    verifyBlocking(workItemAttemptsStub) { failWorkItemAttempt(any(), any<Metadata>()) }
+    verifyBlocking(workItemAttemptsStub, never()) {
+      completeWorkItemAttempt(any(), any<Metadata>())
+    }
   }
 
   @Test
@@ -211,6 +241,7 @@ class DataAvailabilitySyncWorkItemProcessorTest {
         (DataAvailabilitySync.Stage) -> Unit,
       ) -> DataAvailabilitySync.Outcome,
     verifyDoneObject: suspend (DataAvailabilitySyncWorkItem) -> Unit = {},
+    markAvailabilitySynchronized: suspend (DataAvailabilitySyncWorkItem) -> Unit = {},
     attemptLeaseRenewalDelay: suspend () -> Unit = { awaitCancellation() },
   ) =
     DataAvailabilitySyncWorkItemProcessor(
@@ -219,6 +250,7 @@ class DataAvailabilitySyncWorkItemProcessorTest {
       leaseRunner,
       synchronize,
       verifyDoneObject,
+      markAvailabilitySynchronized,
       uuidGenerator = { ATTEMPT_ID },
       activeAttemptRetryDelay = { error("unexpected active attempt") },
       attemptLeaseRenewalDelay = attemptLeaseRenewalDelay,
@@ -249,6 +281,7 @@ class DataAvailabilitySyncWorkItemProcessorTest {
                 dataProvider = DATA_PROVIDER
                 triggeringRawImpressionUpload = RAW_UPLOAD
                 modelLine = MODEL_LINE
+                rawImpressionUploadModelLine = RAW_MODEL_LINE
                 eventDate = date {
                   year = 2026
                   month = 1
@@ -297,6 +330,8 @@ class DataAvailabilitySyncWorkItemProcessorTest {
   companion object {
     private const val DATA_PROVIDER = "dataProviders/edp123"
     private const val RAW_UPLOAD = "$DATA_PROVIDER/rawImpressionUploads/upload-1"
+    private const val RAW_MODEL_LINE =
+      "$RAW_UPLOAD/rawImpressionUploadModelLines/upload-model-line-1"
     private const val MODEL_LINE = "modelProviders/mp/modelSuites/ms/modelLines/ml"
     private const val WORK_ITEM_NAME = "workItems/das-123"
     private const val ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
