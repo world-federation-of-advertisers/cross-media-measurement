@@ -57,6 +57,7 @@ class RawImpressionUploadManifestClassifier {
     val registrationComplete: Boolean = true,
     val failed: Boolean = false,
     val quarantined: Boolean = false,
+    val manifestBoundary: Boolean = false,
     val files: List<File>,
   )
 
@@ -174,7 +175,10 @@ class RawImpressionUploadManifestClassifier {
     val current = revision.toManifest()
     val predecessor = predecessorOf(revision, revisionsByName)
     if (
-      revision.quarantined || revision.uploadHealingOperation.isNotEmpty() || predecessor == null
+      revision.quarantined ||
+        revision.manifestBoundary ||
+        revision.uploadHealingOperation.isNotEmpty() ||
+        predecessor == null
     ) {
       return current
     }
@@ -195,7 +199,7 @@ class RawImpressionUploadManifestClassifier {
       check(visited.add(current.rawImpressionUpload)) {
         "RawImpressionUpload revision cycle detected at ${current.rawImpressionUpload}"
       }
-      if (current.registrationComplete && !current.quarantined) {
+      if (current.registrationComplete && (!current.quarantined || current.manifestBoundary)) {
         val revisionUris = mutableSetOf<String>()
         for (file in current.files.sortedBy { it.blobUri }) {
           require(revisionUris.add(file.blobUri)) {
@@ -206,7 +210,8 @@ class RawImpressionUploadManifestClassifier {
       }
       val predecessor = predecessorOf(current, revisionsByName)
       if (
-        current.uploadHealingOperation.isNotEmpty() ||
+        current.manifestBoundary ||
+          current.uploadHealingOperation.isNotEmpty() ||
           predecessor == null ||
           stopAtFailedPredecessor && predecessor.failed
       ) {
