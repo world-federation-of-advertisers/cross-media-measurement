@@ -180,10 +180,16 @@ class ImpressionMetadataService(
           DataProviderKey.fromName(request.parent)
             ?: throw InvalidFieldValueException("parent")
               .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        val synchronizationAttemptId =
+          parseSynchronizationAttemptId(
+            request.dataAvailabilitySyncLease,
+            dataProviderKey.dataProviderId,
+          )
 
         internalImpressionMetadataStub.createImpressionMetadata(
           internalCreateImpressionMetadataRequest {
             this.requestId = request.requestId
+            this.synchronizationAttemptId = synchronizationAttemptId
             impressionMetadata = request.impressionMetadata.toInternal(dataProviderKey, null)
           }
         )
@@ -283,9 +289,22 @@ class ImpressionMetadataService(
         } catch (e: InvalidFieldValueException) {
           throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
+        val childSynchronizationAttemptId =
+          parseSynchronizationAttemptId(
+            it.dataAvailabilitySyncLease,
+            dataProviderKey.dataProviderId,
+            "requests.$index.data_availability_sync_lease",
+          )
+        if (childSynchronizationAttemptId != synchronizationAttemptId) {
+          throw InvalidFieldValueException("requests.$index.data_availability_sync_lease") {
+              "must match data_availability_sync_lease"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
 
         internalCreateImpressionMetadataRequest {
           this.requestId = requestId
+          this.synchronizationAttemptId = childSynchronizationAttemptId
           impressionMetadata = it.impressionMetadata.toInternal(dataProviderKey, null)
         }
       }
@@ -364,12 +383,18 @@ class ImpressionMetadataService(
         throw RequiredFieldNotSetException("impression_metadata.name")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
+    val synchronizationAttemptId =
+      parseSynchronizationAttemptId(
+        request.dataAvailabilitySyncLease,
+        dataProviderKey.dataProviderId,
+      )
 
     val internalResponse: InternalImpressionMetadata =
       try {
         internalImpressionMetadataStub.updateImpressionMetadata(
           internalUpdateImpressionMetadataRequest {
             this.requestId = request.requestId
+            this.synchronizationAttemptId = synchronizationAttemptId
             impressionMetadata =
               request.impressionMetadata.toInternal(dataProviderKey, impressionMetadataKey)
           }
@@ -465,6 +490,18 @@ class ImpressionMetadataService(
         } catch (e: InvalidFieldValueException) {
           throw e.asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
+        val childSynchronizationAttemptId =
+          parseSynchronizationAttemptId(
+            it.dataAvailabilitySyncLease,
+            dataProviderKey.dataProviderId,
+            "requests.$index.data_availability_sync_lease",
+          )
+        if (childSynchronizationAttemptId != synchronizationAttemptId) {
+          throw InvalidFieldValueException("requests.$index.data_availability_sync_lease") {
+              "must match data_availability_sync_lease"
+            }
+            .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+        }
 
         val impressionMetadataKey =
           ImpressionMetadataKey.fromName(it.impressionMetadata.name)
@@ -473,6 +510,7 @@ class ImpressionMetadataService(
 
         internalUpdateImpressionMetadataRequest {
           this.requestId = requestId
+          this.synchronizationAttemptId = childSynchronizationAttemptId
           impressionMetadata =
             it.impressionMetadata.toInternal(dataProviderKey, impressionMetadataKey)
         }
@@ -829,14 +867,18 @@ class ImpressionMetadataService(
   private fun parseSynchronizationAttemptId(
     leaseName: String,
     dataProviderResourceId: String,
+    fieldName: String = "data_availability_sync_lease",
   ): String {
-    if (leaseName.isEmpty()) return ""
+    if (leaseName.isEmpty()) {
+      throw RequiredFieldNotSetException(fieldName)
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
     val key =
       DataAvailabilitySyncLeaseKey.fromName(leaseName)
-        ?: throw InvalidFieldValueException("data_availability_sync_lease")
+        ?: throw InvalidFieldValueException(fieldName)
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     if (key.dataProviderId != dataProviderResourceId) {
-      throw InvalidFieldValueException("data_availability_sync_lease")
+      throw InvalidFieldValueException(fieldName)
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
     }
     return key.dataAvailabilitySyncLeaseId
