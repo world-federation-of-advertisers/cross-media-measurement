@@ -104,6 +104,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWork
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams.DataPathParams.StorageEventType
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -911,6 +912,142 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `runWork recovers the missing handoff when another upload date is already durable`() =
+    runBlocking {
+      val existingDate = LocalDate.of(2026, 6, 29)
+      val missingDate = LocalDate.of(2026, 6, 30)
+      val lastWorkItemFile = "$UPLOAD/files/file-2"
+      vidLabelingJobsService.stub {
+        onBlocking { getVidLabelingJob(any()) } doReturn
+          vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+            etag = "etag-1"
+            rawImpressionUploadFiles += lastWorkItemFile
+          }
+        onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+          markVidLabelingJobSucceededResponse {
+            vidLabelingJob = vidLabelingJob {
+              name = VID_LABELING_JOB
+              state = VidLabelingJob.State.SUCCEEDED
+            }
+            lastVidLabelingJobResult =
+              MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+                completedModelLines += MODEL_LINE
+              }
+          }
+      }
+      stubModelLineList(
+        preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+        postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING),
+      )
+      rawImpressionUploadFilesService.stub {
+        onBlocking { listRawImpressionUploadFiles(any()) } doReturn
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = "$UPLOAD/files/file-1"
+              eventDate =
+                com.google.type.date {
+                  year = existingDate.year
+                  month = existingDate.monthValue
+                  day = existingDate.dayOfMonth
+                }
+            }
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = lastWorkItemFile
+              eventDate =
+                com.google.type.date {
+                  year = missingDate.year
+                  month = missingDate.monthValue
+                  day = missingDate.dayOfMonth
+                }
+            }
+          }
+      }
+      val existingWorkItem = availabilityWorkItem(UPLOAD, 321L, existingDate)
+      val workItemRequests = mutableListOf<CreateWorkItemRequest>()
+      workItemsService.stub {
+        onBlocking { getWorkItem(any<GetWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<GetWorkItemRequest>(0)
+            if (request.name == existingWorkItem.name) {
+              existingWorkItem
+            } else {
+              throw Status.NOT_FOUND.asException()
+            }
+          }
+        onBlocking { createWorkItem(any<CreateWorkItemRequest>()) } doAnswer
+          { invocation ->
+            val request = invocation.getArgument<CreateWorkItemRequest>(0)
+            workItemRequests += request
+            if (request.workItemId == existingWorkItem.name.substringAfter("workItems/")) {
+              throw Status.ALREADY_EXISTS.asException()
+            }
+            request.workItem
+          }
+      }
+      rawImpressionUploadModelLinesService.stub {
+        onBlocking { markRawImpressionUploadModelLineAvailabilitySyncing(any()) } doReturn
+          rawImpressionUploadModelLine {
+            name = PARENT_NAME
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          }
+      }
+      val writtenDoneKeys = mutableListOf<String>()
+
+      createApp(
+          getGcsObjectGeneration = { _, _, key ->
+            if (key.endsWith("${existingDate}/done")) 321L else null
+          },
+          writeGcsObject = { _, blobInfo, _ ->
+            writtenDoneKeys += blobInfo.blobId.name
+            322L
+          },
+        )
+        .runWork(buildMessage(taskParams()))
+
+      assertThat(writtenDoneKeys).containsExactly("labeled/model-line/ml1/${missingDate}/done")
+      assertThat(workItemRequests.map { it.workItemId })
+        .containsExactly(
+          existingWorkItem.name.substringAfter("workItems/"),
+          WorkItemIds.forDataAvailabilitySync(
+            VidLabelingTraceAttributes.gcsObjectPathHash(
+              "gs://output-bucket/labeled/model-line/ml1/${missingDate}/done"
+            ),
+            322L,
+          ),
+        )
+        .inOrder()
+      val handoffs =
+        workItemRequests.map {
+          it.workItem.workItemParams.unpack(WorkItem.WorkItemParams::class.java)
+        }
+      assertThat(handoffs.map { it.dataPathParams.generation })
+        .containsExactly(321L, 322L)
+        .inOrder()
+      assertThat(
+          handoffs.map { it.appParams.unpack(DataAvailabilitySyncParams::class.java).eventDate }
+        )
+        .containsExactly(
+          com.google.type.date {
+            year = existingDate.year
+            month = existingDate.monthValue
+            day = existingDate.dayOfMonth
+          },
+          com.google.type.date {
+            year = missingDate.year
+            month = missingDate.monthValue
+            day = missingDate.dayOfMonth
+          },
+        )
+        .inOrder()
+      verifyBlocking(rawImpressionUploadModelLinesService) {
+        markRawImpressionUploadModelLineAvailabilitySyncing(any())
+      }
+    }
+
+  @Test
   fun `runWork logs availability WorkItem failure before parent completion`() = runBlocking {
     stubLastOutWithEventDate()
     workItemsService.stub {
@@ -1038,15 +1175,19 @@ class VidLabelerAppTest {
     }
   }
 
-  private fun availabilityWorkItem(rawImpressionUpload: String, generation: Long): WorkItem {
+  private fun availabilityWorkItem(
+    rawImpressionUpload: String,
+    generation: Long,
+    eventDate: LocalDate = LocalDate.of(2026, 6, 30),
+  ): WorkItem {
     val request =
       DataAvailabilitySyncWorkItems.createRequest(
         DATA_PROVIDER_NAME,
         rawImpressionUpload,
         PARENT_NAME,
         MODEL_LINE,
-        LocalDate.of(2026, 6, 30),
-        "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done",
+        eventDate,
+        "gs://output-bucket/labeled/model-line/ml1/$eventDate/done",
         generation,
         emptyMap(),
       )
