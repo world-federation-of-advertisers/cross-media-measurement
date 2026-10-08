@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:23 dbms:cloudspanner
+-- changeset marcopremier:24 dbms:cloudspanner
 -- comment: Index expired terminal correction candidates for cleanup.
 
 CREATE INDEX RawImpressionUploadCorrectionCandidateByStateAndExpireTime

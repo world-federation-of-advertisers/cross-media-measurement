@@ -29,6 +29,7 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.findRawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getRawImpressionUploadByResourceId
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.getVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
@@ -1749,6 +1750,71 @@ class SpannerUploadHealingOperationServiceTest {
   }
 
   @Test
+  fun `no-replacement completion persists the upload manifest boundary`() = runBlocking {
+    val candidateId = CANDIDATE_IDS[0]
+    insertUploadGraph()
+    insertQuarantinedCandidateUpload(candidateId)
+    insertCorrectionCandidate(candidateId)
+    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+    val candidateStep =
+      createRequest(memoized = true).uploadHealingOperation.stepsList.single().copy {
+        rawImpressionUploadCorrectionCandidateId = candidateId
+      }
+    var operation =
+      service.createUploadHealingOperation(draftRequest(listOf(candidateId), listOf(candidateStep)))
+    operation =
+      service.approveUploadHealingOperation(
+        approveUploadHealingOperationRequest {
+          dataProviderResourceId = DATA_PROVIDER_ID
+          uploadHealingOperationId = OPERATION_ID
+          etag = operation.etag
+          candidateDecisions +=
+            approvalDecision(
+              RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT,
+              candidateId,
+            )
+          requestId = APPROVE_REQUEST_ID
+        }
+      )
+    for (state in
+      listOf(
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_DRAINING,
+        UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_EVICTING,
+      )) {
+      operation =
+        service.advanceUploadHealingOperation(
+          advanceUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            etag = operation.etag
+            this.state = state
+            requestId = UUID.randomUUID().toString()
+          }
+        )
+    }
+
+    service.advanceUploadHealingStep(
+      advanceUploadHealingStepRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingStepId = candidateStep.uploadHealingStepId
+        etag = operation.stepsList.single().etag
+        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+
+    val candidateUpload =
+      spannerDatabase.databaseClient.singleUse().use {
+        it.getRawImpressionUploadByResourceId(DATA_PROVIDER_ID, "upload-$candidateId")
+      }
+    assertThat(candidateUpload.rawImpressionUpload.state)
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT)
+    assertThat(readCorrectionCandidate(candidateId).state)
+      .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
+  }
+
+  @Test
   fun `recovery cannot start before its predecessor completes`() = runBlocking {
     val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
     insertUploadGraph()
@@ -2034,6 +2100,41 @@ class SpannerUploadHealingOperationServiceTest {
           .toStringArray(emptyList())
           .set("AdvanceRequestFingerprints")
           .toBytesArray(emptyList())
+          .set("CreateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .set("UpdateTime")
+          .to(Value.COMMIT_TIMESTAMP)
+          .build()
+      )
+    )
+  }
+
+  private suspend fun insertQuarantinedCandidateUpload(candidateId: String) {
+    spannerDatabase.databaseClient.write(
+      listOf(
+        Mutation.newInsertBuilder("RawImpressionUpload")
+          .set("DataProviderResourceId")
+          .to(DATA_PROVIDER_ID)
+          .set("RawImpressionUploadId")
+          .to(3L)
+          .set("RawImpressionUploadResourceId")
+          .to("upload-$candidateId")
+          .set("DoneBlobUri")
+          .to("$DONE_BLOB_URI/candidate")
+          .set("DoneBlobGeneration")
+          .to(3L)
+          .set("DoneBlobCreateTime")
+          .to(com.google.cloud.Timestamp.ofTimeSecondsAndNanos(3L, 0))
+          .set("RegistrationComplete")
+          .to(true)
+          .set("State")
+          .to(
+            Value.protoEnum(
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+            )
+          )
+          .set("CorrectionCandidateId")
+          .to(candidateId)
           .set("CreateTime")
           .to(Value.COMMIT_TIMESTAMP)
           .set("UpdateTime")
