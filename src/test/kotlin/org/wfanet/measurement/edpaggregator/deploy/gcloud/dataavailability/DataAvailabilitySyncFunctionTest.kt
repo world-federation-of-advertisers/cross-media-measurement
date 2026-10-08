@@ -53,6 +53,7 @@ import org.junit.runner.RunWith
 import org.junit.runners.JUnit4
 import org.mockito.kotlin.any
 import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.stub
 import org.mockito.kotlin.times
 import org.mockito.kotlin.verifyBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvider
@@ -100,6 +101,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.gcloud.testing.FunctionsFrameworkInvokerProcess
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemAttemptRequest
@@ -576,6 +578,137 @@ class DataAvailabilitySyncFunctionTest {
     }
     assertThat(markSynchronized.firstValue.name).isEqualTo(RAW_MODEL_LINE)
     assertThat(markSynchronized.firstValue.eventDate.day).isEqualTo(5)
+  }
+
+  @Test
+  fun `WorkItems process sequential same-date uploads as distinct handoffs`() {
+    val previousRawUpload = "$DATA_PROVIDER/rawImpressionUploads/previous"
+    val previousRawModelLine = "$previousRawUpload/rawImpressionUploadModelLines/upload-model-line"
+    val previousRawInputBlobUri = "gs://raw-bucket/previous/input.parquet"
+    rawImpressionUploadFileServiceMock.stub {
+      onBlocking { listRawImpressionUploadFiles(any<ListRawImpressionUploadFilesRequest>()) }
+        .thenAnswer { invocation ->
+          val request = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0)
+          val (rawInputBlobUri, fileName) =
+            when (request.parent) {
+              previousRawUpload -> previousRawInputBlobUri to "$previousRawUpload/files/file-1"
+              RAW_UPLOAD -> RAW_INPUT_BLOB_URI to "$RAW_UPLOAD/files/file-1"
+              else -> error("Unexpected upload: ${request.parent}")
+            }
+          listRawImpressionUploadFilesResponse {
+            rawImpressionUploadFiles += rawImpressionUploadFile {
+              name = fileName
+              blobUri = rawInputBlobUri
+              sizeBytes = 1L
+              eventDate = date {
+                year = 2025
+                month = 1
+                day = 5
+              }
+              blobGeneration = 1L
+            }
+          }
+        }
+    }
+    val configBucketDir = File(tempFolder.root, "configbucket")
+    configBucketDir.mkdirs()
+    File(configBucketDir, "config.textproto")
+      .writeText(
+        TextFormat.printer()
+          .printToString(
+            dataAvailabilitySyncConfigs { configs += fileSystemDataAvailabilitySyncConfig() }
+          )
+      )
+    val eventDate = LocalDate.of(2025, 1, 5)
+    val outputDirectory = "edp/edp_name/model-line/some-model-line/$eventDate"
+    File(tempFolder.root, outputDirectory).mkdirs()
+    val storageClient = FileSystemStorageClient(tempFolder.root)
+    val expectedOutputs =
+      listOf(previousRawInputBlobUri, RAW_INPUT_BLOB_URI).map { rawInputBlobUri ->
+        "edp/edp_name/" +
+          LabeledImpressionsBlobKeys.forInput(rawInputBlobUri, MODEL_LINE, eventDate)
+      }
+    runBlocking {
+      for ((index, outputKey) in expectedOutputs.withIndex()) {
+        storageClient.writeBlob(outputKey, emptyFlow())
+        storageClient.writeBlob(
+          "$outputKey.metadata.binpb",
+          flowOf(
+            blobDetails {
+                blobUri = "file:////$outputKey"
+                eventGroupReferenceId = "reference-id-$index"
+                modelLine = MODEL_LINE
+                interval = interval {
+                  startTime = timestamp { seconds = 1736035200 }
+                  endTime = timestamp { seconds = 1736121600 }
+                }
+              }
+              .toByteString()
+          ),
+        )
+      }
+    }
+    val port = runBlocking {
+      functionProcess.start(
+        mapOf(
+          "KINGDOM_TARGET" to "localhost:${grpcServer.port}",
+          "KINGDOM_CERT_HOST" to "localhost",
+          "CHANNEL_SHUTDOWN_DURATION_SECONDS" to "3",
+          "IMPRESSION_METADATA_TARGET" to "localhost:${grpcServer.port}",
+          "IMPRESSION_METADATA_CERT_HOST" to "localhost",
+          "SECURE_COMPUTATION_CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
+          "SECURE_COMPUTATION_CERT_HOST" to "localhost",
+          "DATA_AVAILABILITY_FILE_SYSTEM_PATH" to tempFolder.root.path,
+          "EDPA_CONFIG_STORAGE_BUCKET" to "file://${configBucketDir.absolutePath}",
+          "CONFIG_BLOB_KEY" to "config.textproto",
+          "OTEL_METRICS_EXPORTER" to "none",
+          "OTEL_TRACES_EXPORTER" to "none",
+          "OTEL_LOGS_EXPORTER" to "none",
+          "OTEL_PROPAGATORS" to "tracecontext,baggage",
+        )
+      )
+    }
+    val previousWorkItem =
+      availabilityWorkItem(previousRawUpload, previousRawModelLine, eventDate, 321L)
+    val currentWorkItem = availabilityWorkItem(RAW_UPLOAD, RAW_MODEL_LINE, eventDate, 322L)
+    assertThat(currentWorkItem.name).isNotEqualTo(previousWorkItem.name)
+    val client = HttpClient.newHttpClient()
+
+    for (workItem in listOf(previousWorkItem, currentWorkItem)) {
+      val request =
+        HttpRequest.newBuilder()
+          .uri(URI.create("http://localhost:$port"))
+          .header("Content-Type", "application/octet-stream")
+          .POST(HttpRequest.BodyPublishers.ofByteArray(workItem.toByteArray()))
+          .build()
+      val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+      assertThat(response.statusCode()).isEqualTo(200)
+    }
+
+    val metadataRequests = argumentCaptor<BatchCreateImpressionMetadataRequest>()
+    verifyBlocking(impressionMetadataServiceMock, times(2)) {
+      batchCreateImpressionMetadata(metadataRequests.capture())
+    }
+    val persistedMetadata =
+      metadataRequests.allValues.map { it.requestsList.single().impressionMetadata }
+    assertThat(persistedMetadata.map { it.rawImpressionUpload })
+      .containsExactly(previousRawUpload, RAW_UPLOAD)
+      .inOrder()
+    assertThat(persistedMetadata.map { it.outputDoneBlobGeneration })
+      .containsExactly(321L, 322L)
+      .inOrder()
+    assertThat(persistedMetadata.map { it.blobUri })
+      .containsExactlyElementsIn(expectedOutputs.map { "file:////$it.metadata.binpb" })
+      .inOrder()
+    val synchronizedRequests =
+      argumentCaptor<MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest>()
+    verifyBlocking(rawImpressionUploadModelLineServiceMock, times(2)) {
+      markRawImpressionUploadModelLineAvailabilitySynchronized(synchronizedRequests.capture())
+    }
+    assertThat(synchronizedRequests.allValues.map { it.name })
+      .containsExactly(previousRawModelLine, RAW_MODEL_LINE)
+      .inOrder()
+    verifyBlocking(workItemAttemptsServiceMock, times(2)) { completeWorkItemAttempt(any()) }
   }
 
   @Test
@@ -1088,6 +1221,31 @@ class DataAvailabilitySyncFunctionTest {
           modelLines += "some-model-line-mapped"
         }
     }
+
+  private fun availabilityWorkItem(
+    rawImpressionUpload: String,
+    rawImpressionUploadModelLine: String,
+    eventDate: LocalDate,
+    doneGeneration: Long,
+  ): WorkItem {
+    val doneBlobUri = "file:////edp/edp_name/model-line/some-model-line/$eventDate/done"
+    val createRequest =
+      DataAvailabilitySyncWorkItems.createRequest(
+        DATA_PROVIDER,
+        rawImpressionUpload,
+        rawImpressionUploadModelLine,
+        MODEL_LINE,
+        eventDate,
+        doneBlobUri,
+        doneGeneration,
+        emptyMap(),
+      )
+    return createRequest.workItem
+      .toBuilder()
+      .setName("workItems/${createRequest.workItemId}")
+      .setGeneration(1L)
+      .build()
+  }
 
   private fun parseTraceparentTraceId(header: String?): String? {
     header ?: return null
