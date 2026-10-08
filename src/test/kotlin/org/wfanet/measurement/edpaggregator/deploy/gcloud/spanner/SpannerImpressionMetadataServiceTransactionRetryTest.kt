@@ -22,6 +22,7 @@ import com.google.cloud.spanner.Struct
 import com.google.cloud.spanner.Type
 import com.google.cloud.spanner.Value
 import com.google.common.truth.Truth.assertThat
+import java.time.Instant
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -32,6 +33,7 @@ import org.mockito.kotlin.mock
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
 import org.wfanet.measurement.gcloud.spanner.TransactionWork
+import org.wfanet.measurement.internal.edpaggregator.DataAvailabilitySyncLeaseState
 import org.wfanet.measurement.internal.edpaggregator.ImpressionMetadataState as State
 import org.wfanet.measurement.internal.edpaggregator.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.internal.edpaggregator.undeleteImpressionMetadataRequest
@@ -48,6 +50,12 @@ class SpannerImpressionMetadataServiceTransactionRetryTest {
         )
       val transactionContext = mock<AsyncDatabaseClient.TransactionContext>()
       whenever(transactionContext.executeQuery(any(), any())).thenReturn(rows.asFlow())
+      whenever(transactionContext.readRow(any(), any(), any())).thenAnswer { invocation ->
+        when (invocation.getArgument<String>(0)) {
+          "DataAvailabilitySyncLease" -> activeLeaseRow()
+          else -> null
+        }
+      }
       val transactionRunner = RetryingTransactionRunner(transactionContext)
       val databaseClient = mock<AsyncDatabaseClient>()
       whenever(databaseClient.readWriteTransaction(any())).thenReturn(transactionRunner)
@@ -61,6 +69,7 @@ class SpannerImpressionMetadataServiceTransactionRetryTest {
                 undeleteImpressionMetadataRequest {
                   dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                   impressionMetadataResourceId = resourceId
+                  synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 }
               }
           }
@@ -94,6 +103,7 @@ class SpannerImpressionMetadataServiceTransactionRetryTest {
 
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
+    private const val SYNCHRONIZATION_ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     private val COMMIT_TIMESTAMP = Timestamp.ofTimeSecondsAndNanos(1234L, 0)
     private val ENTITY_KEY_TYPE =
       Type.struct(
@@ -133,6 +143,26 @@ class SpannerImpressionMetadataServiceTransactionRetryTest {
         .to(COMMIT_TIMESTAMP)
         .set("EntityKeys")
         .toStructArray(ENTITY_KEY_TYPE, emptyList())
+        .build()
+
+    private fun activeLeaseRow(): Struct =
+      Struct.newBuilder()
+        .set("DataProviderResourceId")
+        .to(DATA_PROVIDER_RESOURCE_ID)
+        .set("SynchronizationAttemptId")
+        .to(SYNCHRONIZATION_ATTEMPT_ID)
+        .set("State")
+        .to(DataAvailabilitySyncLeaseState.DATA_AVAILABILITY_SYNC_LEASE_STATE_ACTIVE)
+        .set("ExpireTime")
+        .to(Timestamp.ofTimeSecondsAndNanos(Instant.now().plusSeconds(3600L).epochSecond, 0))
+        .set("MutationRequestIds")
+        .toStringArray(emptyList())
+        .set("MutationRequestFingerprints")
+        .toBytesArray(emptyList())
+        .set("CreateTime")
+        .to(COMMIT_TIMESTAMP)
+        .set("UpdateTime")
+        .to(COMMIT_TIMESTAMP)
         .build()
   }
 }
