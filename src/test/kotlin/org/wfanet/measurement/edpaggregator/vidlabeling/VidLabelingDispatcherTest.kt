@@ -822,6 +822,45 @@ class VidLabelingDispatcherTest {
   }
 
   @Test
+  fun `rewrite after complete no-replacement deletion uses the empty boundary`() = runBlocking {
+    val old = previousUpload(generation = 90L, nameSuffix = "old")
+    val removed =
+      previousUpload(generation = 100L, nameSuffix = "removed").copy {
+        state = RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
+        replacesRawImpressionUpload = old.name
+      }
+    val oldBlobUri = "file:///test-bucket/$FOLDER_PREFIX/file.parquet"
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += old
+          rawImpressionUploads += removed
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        if (parent == old.name) {
+          rawImpressionUploadFiles += manifestFile(old.name, oldBlobUri, 10L)
+        }
+      }
+    }
+
+    val outcome = createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.NO_WORK)
+    verifyBlocking(correctionCandidateService, never()) {
+      createQuarantinedRawImpressionUpload(any())
+    }
+    verifyBlocking(correctionCandidateService, never()) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(any())
+    }
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
+  }
+
+  @Test
   fun `mixed manifest stores the complete current snapshot`() = runBlocking {
     val edited = createMockBlob("$FOLDER_PREFIX/edited.parquet")
     val added = createMockBlob("$FOLDER_PREFIX/added.parquet")
