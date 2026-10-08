@@ -96,25 +96,25 @@ enum class BlobEncoding {
 
 private const val DONE_BLOB_GENERATION = 77L
 
-private suspend fun DataAvailabilitySync.sync(doneBlobPath: String) {
+private suspend fun DataAvailabilitySync.sync(doneBlobPath: String): DataAvailabilitySync.Outcome =
   sync(doneBlobPath, TestDataAvailabilitySyncLease.NAME, DONE_BLOB_GENERATION) {}
-}
 
-private suspend fun DataAvailabilitySync.sync(doneBlobPath: String, doneBlobGeneration: Long) {
+private suspend fun DataAvailabilitySync.sync(
+  doneBlobPath: String,
+  doneBlobGeneration: Long,
+): DataAvailabilitySync.Outcome =
   sync(doneBlobPath, TestDataAvailabilitySyncLease.NAME, doneBlobGeneration) {}
-}
 
 private suspend fun DataAvailabilitySync.sync(
   doneBlobPath: String,
   ensureLeaseActive: suspend () -> Unit,
-) {
+): DataAvailabilitySync.Outcome =
   sync(
     doneBlobPath,
     TestDataAvailabilitySyncLease.NAME,
     DONE_BLOB_GENERATION,
     ensureLeaseActive = ensureLeaseActive,
   )
-}
 
 private object TestDataAvailabilitySyncLease {
   const val NAME =
