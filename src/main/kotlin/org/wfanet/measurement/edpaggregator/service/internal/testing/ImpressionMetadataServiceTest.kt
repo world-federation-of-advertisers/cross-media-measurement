@@ -82,7 +82,10 @@ abstract class ImpressionMetadataServiceTest {
   fun `getImpressionMetadata returns an impression metadata`() = runBlocking {
     val startTime = Instant.now()
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA
+      }
     )
 
     val impressionMetadata =
@@ -181,7 +184,10 @@ abstract class ImpressionMetadataServiceTest {
 
       val impressionMetadata =
         service.createImpressionMetadata(
-          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+          createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = IMPRESSION_METADATA
+          }
         )
 
       assertThat(impressionMetadata)
@@ -200,6 +206,7 @@ abstract class ImpressionMetadataServiceTest {
       val impressionMetadata =
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata = IMPRESSION_METADATA
             requestId = CREATE_REQUEST_ID
           }
@@ -217,6 +224,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `create impression metadata with existing request_id returns existing impression metadata`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA
         requestId = CREATE_REQUEST_ID
       }
@@ -233,6 +241,7 @@ abstract class ImpressionMetadataServiceTest {
     val impressionMetadata1 =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_1
@@ -245,6 +254,7 @@ abstract class ImpressionMetadataServiceTest {
     val impressionMetadata2 =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_1
@@ -262,6 +272,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws INVALID_ARGUMENT if request id is malformed`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA
         requestId = "invalid-request-id"
       }
@@ -283,7 +294,10 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if impressionMetadata is not set`() =
     runBlocking {
-      val request = createImpressionMetadataRequest { requestId = CREATE_REQUEST_ID }
+      val request = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        requestId = CREATE_REQUEST_ID
+      }
 
       val exception =
         assertFailsWith<StatusRuntimeException> { service.createImpressionMetadata(request) }
@@ -302,6 +316,7 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if dataProviderId not set`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA.copy { clearDataProviderResourceId() }
     }
 
@@ -322,6 +337,7 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if blobUri not set`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA.copy { clearBlobUri() }
     }
 
@@ -343,6 +359,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws ALREADY_EXISTS if blobUri already exists`() = runBlocking {
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata =
           IMPRESSION_METADATA.copy {
             cmmsModelLine =
@@ -355,6 +372,7 @@ abstract class ImpressionMetadataServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA.copy {
                 // same blobUri
@@ -379,6 +397,7 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if blobTypeUrl not set`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA.copy { clearBlobTypeUrl() }
     }
 
@@ -400,6 +419,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `createImpressionMetadata throws INVALID_ARGUMENT if neither eventGroupReferenceId nor entity_keys set`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata =
           IMPRESSION_METADATA.copy {
             clearEventGroupReferenceId()
@@ -428,6 +448,7 @@ abstract class ImpressionMetadataServiceTest {
       val response =
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA.copy {
                 clearEventGroupReferenceId()
@@ -446,6 +467,7 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if cmmsModelLine not set`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA.copy { clearCmmsModelLine() }
     }
 
@@ -466,6 +488,7 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `createImpressionMetadata throws INVALID_ARGUMENT if interval not set`() = runBlocking {
     val request = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA.copy { clearInterval() }
     }
 
@@ -486,10 +509,12 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `batchCreateImpressionMetadata returns created ImpressionMetadata`() = runBlocking {
     val request1 = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA
       requestId = UUID.randomUUID().toString()
     }
     val request2 = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA_2
       requestId = UUID.randomUUID().toString()
     }
@@ -497,6 +522,8 @@ abstract class ImpressionMetadataServiceTest {
     val response =
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           requests += request1
           requests += request2
@@ -518,7 +545,11 @@ abstract class ImpressionMetadataServiceTest {
   fun `batchCreateImpressionMetadata without subrequests returns default response`() = runBlocking {
     val response =
       service.batchCreateImpressionMetadata(
-        batchCreateImpressionMetadataRequest { dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID }
+        batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        }
       )
 
     assertThat(response)
@@ -530,12 +561,15 @@ abstract class ImpressionMetadataServiceTest {
   fun `batchCreateImpressionMetadata is idempotent and creates new items in same request`() =
     runBlocking {
       val idempotentRequest = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA
         requestId = UUID.randomUUID().toString()
       }
       val initialResponse =
         service.batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             requests += idempotentRequest
           }
@@ -552,12 +586,15 @@ abstract class ImpressionMetadataServiceTest {
       val existingImpressionMetadata = initialResponse.impressionMetadataList.single()
 
       val newRequest = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA_2
         requestId = UUID.randomUUID().toString()
       }
       val secondResponse =
         service.batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             requests += idempotentRequest // Idempotent request
             requests += newRequest // New request
@@ -583,7 +620,10 @@ abstract class ImpressionMetadataServiceTest {
     val duplicateBlobUri = "duplicate-blob-uri"
     service.batchCreateImpressionMetadata(
       batchCreateImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata = IMPRESSION_METADATA.copy { blobUri = duplicateBlobUri }
           requestId = UUID.randomUUID().toString()
         }
@@ -591,6 +631,7 @@ abstract class ImpressionMetadataServiceTest {
     )
 
     val conflictingRequest = createImpressionMetadataRequest {
+      synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
       impressionMetadata = IMPRESSION_METADATA_2.copy { blobUri = duplicateBlobUri }
       requestId = UUID.randomUUID().toString()
     }
@@ -599,6 +640,8 @@ abstract class ImpressionMetadataServiceTest {
       assertFailsWith<StatusRuntimeException> {
         service.batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             requests += conflictingRequest
           }
@@ -620,6 +663,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for inconsistent DataProviderId`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA.copy { dataProviderResourceId = "different-dp" }
         requestId = UUID.randomUUID().toString()
       }
@@ -628,6 +672,8 @@ abstract class ImpressionMetadataServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID // Mismatch with request inside
               requests += request
             }
@@ -652,6 +698,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `batchCreateImpressionMetadata throws INVALID_ARGUMENT for duplicate blob uri in the batch requests`() =
     runBlocking {
       val request = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA
         requestId = UUID.randomUUID().toString()
       }
@@ -660,6 +707,8 @@ abstract class ImpressionMetadataServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               requests += request
               requests += request.copy { requestId = UUID.randomUUID().toString() }
@@ -684,11 +733,13 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       val requestId = UUID.randomUUID().toString()
       val request1 = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA
         this.requestId = requestId
       }
 
       val request2 = createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata = IMPRESSION_METADATA_2
         this.requestId = requestId
       }
@@ -697,6 +748,8 @@ abstract class ImpressionMetadataServiceTest {
         assertFailsWith<StatusRuntimeException> {
           service.batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
               requests += request1
               requests += request2
@@ -723,7 +776,10 @@ abstract class ImpressionMetadataServiceTest {
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           requests += createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata = IMPRESSION_METADATA
             requestId = CREATE_REQUEST_ID
           }
@@ -738,7 +794,10 @@ abstract class ImpressionMetadataServiceTest {
       service.batchUpdateImpressionMetadata(
         batchUpdateImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           requests += updateImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA.copy {
                 impressionMetadataResourceId = createdResourceId
@@ -764,7 +823,10 @@ abstract class ImpressionMetadataServiceTest {
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           requests += createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata = IMPRESSION_METADATA
             requestId = UUID.randomUUID().toString()
           }
@@ -779,7 +841,10 @@ abstract class ImpressionMetadataServiceTest {
       service.batchUpdateImpressionMetadata(
         batchUpdateImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           requests += updateImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA.copy { impressionMetadataResourceId = createdResourceId }
             this.requestId = updateRequestId
@@ -791,7 +856,10 @@ abstract class ImpressionMetadataServiceTest {
       service.batchUpdateImpressionMetadata(
         batchUpdateImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           requests += updateImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA.copy { impressionMetadataResourceId = createdResourceId }
             this.requestId = updateRequestId
@@ -810,7 +878,10 @@ abstract class ImpressionMetadataServiceTest {
         service.batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA
               requestId = CREATE_REQUEST_ID
             }
@@ -829,7 +900,10 @@ abstract class ImpressionMetadataServiceTest {
         service.batchUpdateImpressionMetadata(
           batchUpdateImpressionMetadataRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             requests += updateImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata =
                 IMPRESSION_METADATA.copy {
                   impressionMetadataResourceId = createdResourceId
@@ -855,7 +929,10 @@ abstract class ImpressionMetadataServiceTest {
         service.batchUpdateImpressionMetadata(
           batchUpdateImpressionMetadataRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             requests += updateImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata =
                 IMPRESSION_METADATA.copy {
                   impressionMetadataResourceId = "nonexistent-resource-id"
@@ -875,11 +952,15 @@ abstract class ImpressionMetadataServiceTest {
     service.batchCreateImpressionMetadata(
       batchCreateImpressionMetadataRequest {
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata = IMPRESSION_METADATA_2
           requestId = UUID.randomUUID().toString()
         }
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata = IMPRESSION_METADATA_3
           requestId = UUID.randomUUID().toString()
         }
@@ -908,7 +989,10 @@ abstract class ImpressionMetadataServiceTest {
         service
           .batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA
               }
             }
@@ -948,7 +1032,10 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `undeleteImpressionMetadata restores a deleted resource`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA
+      }
     )
     service.deleteImpressionMetadata(
       deleteImpressionMetadataRequest {
@@ -960,6 +1047,7 @@ abstract class ImpressionMetadataServiceTest {
     val restored =
       service.undeleteImpressionMetadata(
         undeleteImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
         }
@@ -971,13 +1059,17 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `undeleteImpressionMetadata throws ALREADY_EXISTS for active resource`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA
+      }
     )
 
     val exception =
       assertFailsWith<StatusRuntimeException> {
         service.undeleteImpressionMetadata(
           undeleteImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
           }
@@ -994,8 +1086,14 @@ abstract class ImpressionMetadataServiceTest {
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
             dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
-            requests += createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+              impressionMetadata = IMPRESSION_METADATA
+            }
+            requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
           }
@@ -1019,6 +1117,7 @@ abstract class ImpressionMetadataServiceTest {
           requests +=
             created.map {
               undeleteImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
                 impressionMetadataResourceId = it.impressionMetadataResourceId
               }
@@ -1103,7 +1202,10 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       val created =
         service.createImpressionMetadata(
-          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+          createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = IMPRESSION_METADATA
+          }
         )
 
       val deleteRequest = deleteImpressionMetadataRequest {
@@ -1145,7 +1247,10 @@ abstract class ImpressionMetadataServiceTest {
   fun `undeleteImpressionMetadata restores and returns ImpressionMetadata`() = runBlocking {
     val created =
       service.createImpressionMetadata(
-        createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+        createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = IMPRESSION_METADATA
+        }
       )
     val deleted =
       service.deleteImpressionMetadata(
@@ -1158,6 +1263,7 @@ abstract class ImpressionMetadataServiceTest {
     val undeleted =
       service.undeleteImpressionMetadata(
         undeleteImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
         }
@@ -1186,7 +1292,10 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `undeleteImpressionMetadata throws INVALID_ARGUMENT when dataProviderResourceId is missing`() =
     runBlocking {
-      val request = undeleteImpressionMetadataRequest { impressionMetadataResourceId = "not-found" }
+      val request = undeleteImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadataResourceId = "not-found"
+      }
 
       val exception =
         assertFailsWith<StatusRuntimeException> { service.undeleteImpressionMetadata(request) }
@@ -1206,6 +1315,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `undeleteImpressionMetadata throws INVALID_ARGUMENT when impressionMetadataResourceId is missing`() =
     runBlocking {
       val request = undeleteImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
       }
 
@@ -1227,6 +1337,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `undeleteImpressionMetadata throws NOT_FOUND when ImpressionMetadata does not exist`() =
     runBlocking {
       val request = undeleteImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         impressionMetadataResourceId = "not-found"
       }
@@ -1250,9 +1361,13 @@ abstract class ImpressionMetadataServiceTest {
   fun `undeleteImpressionMetadata throws ALREADY_EXISTS when ImpressionMetadata is active`() =
     runBlocking {
       service.createImpressionMetadata(
-        createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+        createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = IMPRESSION_METADATA
+        }
       )
       val request = undeleteImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
         impressionMetadataResourceId = IMPRESSION_METADATA_RESOURCE_ID
       }
@@ -1279,11 +1394,17 @@ abstract class ImpressionMetadataServiceTest {
   fun `batchDeleteImpressionMetadata returns deleted ImpressionMetadata`() = runBlocking {
     val created1 =
       service.createImpressionMetadata(
-        createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+        createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = IMPRESSION_METADATA
+        }
       )
     val created2 =
       service.createImpressionMetadata(
-        createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+        createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = IMPRESSION_METADATA_2
+        }
       )
 
     val startTime = Instant.now()
@@ -1332,7 +1453,10 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       val created1 =
         service.createImpressionMetadata(
-          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+          createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = IMPRESSION_METADATA
+          }
         )
 
       val exception =
@@ -1363,12 +1487,16 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       val created1 =
         service.createImpressionMetadata(
-          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+          createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = IMPRESSION_METADATA
+          }
         )
 
       val created2 =
         service.createImpressionMetadata(
           createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA.copy { dataProviderResourceId = "data-provider-2" }
           }
@@ -1406,7 +1534,10 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       val created1 =
         service.createImpressionMetadata(
-          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+          createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = IMPRESSION_METADATA
+          }
         )
 
       val exception =
@@ -1437,7 +1568,10 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       val created1 =
         service.createImpressionMetadata(
-          createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+          createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = IMPRESSION_METADATA
+          }
         )
 
       val exception =
@@ -1500,7 +1634,10 @@ abstract class ImpressionMetadataServiceTest {
   fun `batchDeleteImpressionMetadata throws NOT_FOUND when ImpressionMetadata already deleted`() =
     runBlocking {
       service.createImpressionMetadata(
-        createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+        createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = IMPRESSION_METADATA
+        }
       )
 
       service.deleteImpressionMetadata(
@@ -1554,10 +1691,14 @@ abstract class ImpressionMetadataServiceTest {
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
           }
@@ -1578,13 +1719,18 @@ abstract class ImpressionMetadataServiceTest {
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_4
             }
           }
@@ -1619,13 +1765,18 @@ abstract class ImpressionMetadataServiceTest {
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_4
             }
           }
@@ -1657,7 +1808,12 @@ abstract class ImpressionMetadataServiceTest {
   fun `listImpressionMetadata returns empty when filter matches nothing`() = runBlocking {
     service.batchCreateImpressionMetadata(
       batchCreateImpressionMetadataRequest {
-        requests += createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = IMPRESSION_METADATA_2
+        }
       }
     )
 
@@ -1679,14 +1835,22 @@ abstract class ImpressionMetadataServiceTest {
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
-            requests += createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+              impressionMetadata = IMPRESSION_METADATA
+            }
+            requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_4
             }
           }
@@ -1711,13 +1875,18 @@ abstract class ImpressionMetadataServiceTest {
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_4
             }
           }
@@ -1752,13 +1921,18 @@ abstract class ImpressionMetadataServiceTest {
         service
           .batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_2
               }
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_3
               }
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_4
               }
             }
@@ -1791,13 +1965,18 @@ abstract class ImpressionMetadataServiceTest {
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_4
             }
           }
@@ -1834,13 +2013,18 @@ abstract class ImpressionMetadataServiceTest {
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_4
             }
           }
@@ -1871,19 +2055,27 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `listImpressionMetadata filters by blobUriPrefix`(): Unit = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA
+      }
     )
     val created =
       service
         .batchCreateImpressionMetadata(
           batchCreateImpressionMetadataRequest {
+            dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_2
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_3
             }
             requests += createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               impressionMetadata = IMPRESSION_METADATA_4
             }
           }
@@ -1996,7 +2188,10 @@ abstract class ImpressionMetadataServiceTest {
     return service
       .batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           requests += createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA_2.copy {
                 impressionMetadataResourceId = "impression-metadata-z"
@@ -2004,6 +2199,7 @@ abstract class ImpressionMetadataServiceTest {
               }
           }
           requests += createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA_3.copy {
                 impressionMetadataResourceId = "impression-metadata-a"
@@ -2011,6 +2207,7 @@ abstract class ImpressionMetadataServiceTest {
               }
           }
           requests += createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata =
               IMPRESSION_METADATA_4.copy {
                 impressionMetadataResourceId = "impression-metadata-m"
@@ -2029,10 +2226,14 @@ abstract class ImpressionMetadataServiceTest {
         service
           .batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_2
               }
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_3
               }
             }
@@ -2070,10 +2271,14 @@ abstract class ImpressionMetadataServiceTest {
         service
           .batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_2
               }
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_3
               }
             }
@@ -2102,10 +2307,14 @@ abstract class ImpressionMetadataServiceTest {
         service
           .batchCreateImpressionMetadata(
             batchCreateImpressionMetadataRequest {
+              dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_2
               }
               requests += createImpressionMetadataRequest {
+                synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
                 impressionMetadata = IMPRESSION_METADATA_3
               }
             }
@@ -2181,7 +2390,10 @@ abstract class ImpressionMetadataServiceTest {
   fun `computeModelLineBounds returns bounds`() = runBlocking {
     service.batchCreateImpressionMetadata(
       batchCreateImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_1
@@ -2195,6 +2407,7 @@ abstract class ImpressionMetadataServiceTest {
         }
 
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_1
@@ -2208,6 +2421,7 @@ abstract class ImpressionMetadataServiceTest {
         }
 
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_2
@@ -2268,7 +2482,10 @@ abstract class ImpressionMetadataServiceTest {
   fun `ComputeModelLineBounds returns all model lines for data provider`() = runBlocking {
     service.batchCreateImpressionMetadata(
       batchCreateImpressionMetadataRequest {
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_1
@@ -2281,6 +2498,7 @@ abstract class ImpressionMetadataServiceTest {
             }
         }
         requests += createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata =
             IMPRESSION_METADATA.copy {
               cmmsModelLine = MODEL_LINE_2
@@ -2335,6 +2553,7 @@ abstract class ImpressionMetadataServiceTest {
   fun `ComputeModelLineBounds returns bounds for existing model lines only`() = runBlocking {
     service.createImpressionMetadata(
       createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
         impressionMetadata =
           IMPRESSION_METADATA.copy {
             cmmsModelLine = MODEL_LINE_1
@@ -2371,10 +2590,16 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `ComputeModelLineBounds ignores deleted impressions`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_2
+      }
     )
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_3 }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_3
+      }
     )
 
     service.deleteImpressionMetadata(
@@ -2410,6 +2635,7 @@ abstract class ImpressionMetadataServiceTest {
     val response =
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
         }
       )
@@ -2422,7 +2648,10 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `getImpressionMetadata returns entity_keys`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+      }
     )
 
     val result =
@@ -2446,10 +2675,16 @@ abstract class ImpressionMetadataServiceTest {
       service.batchCreateImpressionMetadata(
         batchCreateImpressionMetadataRequest {
           dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
           requests += createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
             impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
           }
-          requests += createImpressionMetadataRequest { impressionMetadata = secondImpression }
+          requests += createImpressionMetadataRequest {
+            synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+            impressionMetadata = secondImpression
+          }
         }
       )
 
@@ -2469,7 +2704,10 @@ abstract class ImpressionMetadataServiceTest {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           service.createImpressionMetadata(
-            createImpressionMetadataRequest { impressionMetadata = invalid }
+            createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+              impressionMetadata = invalid
+            }
           )
         }
 
@@ -2493,7 +2731,10 @@ abstract class ImpressionMetadataServiceTest {
       val exception =
         assertFailsWith<StatusRuntimeException> {
           service.createImpressionMetadata(
-            createImpressionMetadataRequest { impressionMetadata = invalid }
+            createImpressionMetadataRequest {
+              synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+              impressionMetadata = invalid
+            }
           )
         }
 
@@ -2511,10 +2752,16 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `listImpressionMetadata filters by a single meta entity_key`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+      }
     )
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_2
+      }
     )
 
     val response =
@@ -2535,13 +2782,24 @@ abstract class ImpressionMetadataServiceTest {
     runBlocking {
       service.createImpressionMetadata(
         createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
           impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
         }
       )
       val im2 = IMPRESSION_METADATA_2.copy { entityKeys += ENTITY_KEY_AD_2 }
-      service.createImpressionMetadata(createImpressionMetadataRequest { impressionMetadata = im2 })
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = im2
+        }
+      )
       val im3 = IMPRESSION_METADATA_3.copy { entityKeys += ENTITY_KEY_AD_SET_1 }
-      service.createImpressionMetadata(createImpressionMetadataRequest { impressionMetadata = im3 })
+      service.createImpressionMetadata(
+        createImpressionMetadataRequest {
+          synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+          impressionMetadata = im3
+        }
+      )
 
       val response =
         service.listImpressionMetadata(
@@ -2564,7 +2822,10 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `listImpressionMetadata returns empty when no entity_key matches`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+      }
     )
 
     val response =
@@ -2587,10 +2848,16 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `listImpressionMetadata without entity_key filter returns all rows`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+      }
     )
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_2 }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_2
+      }
     )
 
     val response =
@@ -2628,7 +2895,10 @@ abstract class ImpressionMetadataServiceTest {
   @Test
   fun `entity_keys are preserved across soft delete`() = runBlocking {
     service.createImpressionMetadata(
-      createImpressionMetadataRequest { impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS }
+      createImpressionMetadataRequest {
+        synchronizationAttemptId = SYNCHRONIZATION_ATTEMPT_ID
+        impressionMetadata = IMPRESSION_METADATA_WITH_ENTITY_KEYS
+      }
     )
     service.deleteImpressionMetadata(
       deleteImpressionMetadataRequest {
@@ -2655,6 +2925,7 @@ abstract class ImpressionMetadataServiceTest {
 
   companion object {
     private const val DATA_PROVIDER_RESOURCE_ID = "data-provider-1"
+    private const val SYNCHRONIZATION_ATTEMPT_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
     private const val IMPRESSION_METADATA_RESOURCE_ID = "impression-metadata-1"
     private const val MODEL_LINE_PREFIX =
       "modelProviders/model-provider-1/modelSuites/model-suite-1/modelLines/"
