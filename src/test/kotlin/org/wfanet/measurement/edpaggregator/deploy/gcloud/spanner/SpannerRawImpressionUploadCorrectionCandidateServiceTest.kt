@@ -362,6 +362,80 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     }
 
   @Test
+  fun `create persists an event-date change as one mixed difference`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+      val priorDate = date {
+        year = 2026
+        month = 1
+        day = 1
+      }
+      val currentDate = date {
+        year = 2026
+        month = 1
+        day = 2
+      }
+      val comparison =
+        RawImpressionUploadCorrectionCandidateKt.manifestComparison {
+          val prior = manifestEntry("gs://raw/a", 1L, "prior", priorDate)
+          val current = manifestEntry("gs://raw/a", 1L, UPLOAD_ID, currentDate)
+          priorManifest += prior
+          currentManifest += current
+          differences +=
+            RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+              type =
+                RawImpressionUploadCorrectionCandidate.ManifestDifference.Type
+                  .TYPE_EVENT_DATE_CHANGED
+              this.prior = prior
+              this.current = current
+            }
+        }
+      val request =
+        createRequest().copy {
+          rawImpressionUploadCorrectionCandidate =
+            rawImpressionUploadCorrectionCandidate.copy {
+              classification =
+                RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED
+              priorManifestDigest = manifestDigest(comparison.priorManifestList)
+              currentManifestDigest = manifestDigest(comparison.currentManifestList)
+              manifestComparison = comparison
+            }
+        }
+
+      val created = service.createRawImpressionUploadCorrectionCandidate(request)
+
+      assertThat(created.manifestComparison.differencesList.single().type)
+        .isEqualTo(
+          RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED
+        )
+    }
+
+  @Test
+  fun `create persists prior legacy manifest with unknown generation`() =
+    runBlocking<Unit> {
+      insertRawUpload(
+        1L,
+        UPLOAD_ID,
+        RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      )
+
+      val created =
+        service.createRawImpressionUploadCorrectionCandidate(
+          createRequest(
+            classification =
+              RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED,
+            priorGeneration = 0L,
+          )
+        )
+
+      assertThat(created.manifestComparison.priorManifestList.single().blobGeneration).isEqualTo(0L)
+    }
+
+  @Test
   fun `create rejects second candidate for same upload`() =
     runBlocking<Unit> {
       insertRawUpload(
@@ -561,6 +635,7 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
         .isEqualTo(RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE)
       assertThat(complete.state)
         .isEqualTo(RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE)
+      assertThat(complete.manifestComparison).isEqualTo(mixedManifestComparison)
     }
 
   @Test
@@ -987,8 +1062,9 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
     requestId: String = CREATE_REQUEST_ID,
     classification: RawImpressionUploadCorrectionCandidate.Classification =
       RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_MIXED,
+    priorGeneration: Long = 1L,
   ) = createRawImpressionUploadCorrectionCandidateRequest {
-    val comparison = manifestComparison(classification, uploadId)
+    val comparison = manifestComparison(classification, uploadId, priorGeneration)
     dataProviderResourceId = DATA_PROVIDER_ID
     rawImpressionUploadCorrectionCandidateId = candidateId
     rawImpressionUploadCorrectionCandidate = rawImpressionUploadCorrectionCandidate {
@@ -1021,9 +1097,10 @@ class SpannerRawImpressionUploadCorrectionCandidateServiceTest {
   private fun manifestComparison(
     classification: RawImpressionUploadCorrectionCandidate.Classification,
     currentOwner: String,
+    priorGeneration: Long = 1L,
   ): RawImpressionUploadCorrectionCandidate.ManifestComparison =
     RawImpressionUploadCorrectionCandidateKt.manifestComparison {
-      val priorA = manifestEntry("gs://raw/a", 1L, "prior-a")
+      val priorA = manifestEntry("gs://raw/a", priorGeneration, "prior-a")
       priorManifest += priorA
       when (classification) {
         RawImpressionUploadCorrectionCandidate.Classification.CLASSIFICATION_EDITED -> {
