@@ -54,6 +54,7 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.touchUpload
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.transferVidLabelingEvictionFence
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.unassignRawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadProcessingDeferred
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateRawImpressionUploadState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingOperationState
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateUploadHealingStep
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.db.updateVidLabelingEvictionFenceState
@@ -1032,6 +1033,34 @@ class SpannerUploadHealingOperationService(
             RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
       ) {
         "completed plan candidate has no decision"
+      }
+      if (
+        candidate.decision ==
+          RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
+      ) {
+        val upload =
+          txn.getRawImpressionUploadByResourceId(
+            operation.dataProviderResourceId,
+            candidate.rawImpressionUploadResourceId,
+          )
+        check(
+          upload.rawImpressionUpload.state ==
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ||
+            upload.rawImpressionUpload.state ==
+              RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT
+        ) {
+          "no-replacement candidate upload is not quarantined"
+        }
+        if (
+          upload.rawImpressionUpload.state ==
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED
+        ) {
+          txn.updateRawImpressionUploadState(
+            operation.dataProviderResourceId,
+            upload.rawImpressionUploadId,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT,
+          )
+        }
       }
       txn.completeRawImpressionUploadCorrectionCandidate(candidate)
     }

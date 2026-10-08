@@ -676,6 +676,8 @@ class VidLabelingHealingController(
           registrationComplete = revision.registrationComplete,
           failed = revision.state == RawImpressionUpload.State.FAILED,
           quarantined = revision.state == RawImpressionUpload.State.CORRECTION_REQUIRED,
+          manifestBoundary =
+            revision.state == RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
           files = listPersistedFiles(revision.name),
         )
       }
