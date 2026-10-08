@@ -794,6 +794,7 @@ class VidLabelingDispatcher(
       registrationComplete = registrationComplete,
       failed = state == RawImpressionUpload.State.FAILED,
       quarantined = state == RawImpressionUpload.State.CORRECTION_REQUIRED,
+      manifestBoundary = state == RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
       files = listManifestFiles(name),
     )
   }
