@@ -183,6 +183,27 @@ class RawImpressionUploadManifestClassifierTest {
   }
 
   @Test
+  fun `reconstructPriorManifest stops at an empty no-replacement boundary`() {
+    val revisions =
+      listOf(
+        revision("old", 1, files = files("a", "b")),
+        revision(
+          "removed",
+          2,
+          replaces = "old",
+          manifestBoundary = true,
+          files = emptyList(),
+        ),
+        revision("current", 3, replaces = "removed", files = emptyList()),
+      )
+
+    val result = classifier.classify("current", revisions)
+
+    assertThat(result.classification).isEqualTo(Classification.NO_OP)
+    assertThat(result.priorManifest).isEmpty()
+  }
+
+  @Test
   fun `superseding correction compares with the last healthy manifest`() {
     val revisions =
       listOf(
@@ -329,6 +350,7 @@ class RawImpressionUploadManifestClassifierTest {
     uploadHealingOperation: String = "",
     failed: Boolean = false,
     quarantined: Boolean = false,
+    manifestBoundary: Boolean = false,
     doneBlobCreateTime: Instant? = Instant.ofEpochSecond(order),
     files: List<File>,
   ) =
@@ -342,6 +364,7 @@ class RawImpressionUploadManifestClassifierTest {
       uploadHealingOperation = uploadHealingOperation,
       failed = failed,
       quarantined = quarantined,
+      manifestBoundary = manifestBoundary,
       files = files,
     )
 
