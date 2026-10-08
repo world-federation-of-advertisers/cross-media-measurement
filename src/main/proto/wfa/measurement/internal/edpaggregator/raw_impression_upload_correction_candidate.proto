@@ -29,7 +29,7 @@ message RawImpressionUploadCorrectionCandidate {
     string blob_uri = 1;
     int64 blob_generation = 2;
     google.type.Date event_date = 3;
-    string owner_raw_impression_upload_resource_id = 4;
+    string output_source_raw_impression_upload_resource_id = 4;
   }
 
   message ManifestDifference {
@@ -38,6 +38,7 @@ message RawImpressionUploadCorrectionCandidate {
       TYPE_ADDED = 1;
       TYPE_EDITED = 2;
       TYPE_REMOVED = 3;
+      TYPE_EVENT_DATE_CHANGED = 4;
     }
 
     Type type = 1;
@@ -61,20 +62,16 @@ message RawImpressionUploadCorrectionCandidate {
   enum State {
     STATE_UNSPECIFIED = 0;
     STATE_PENDING = 1;
-    STATE_PLANNED = 2;
-    STATE_APPROVED = 3;
-    STATE_HEALING = 4;
-    STATE_COMPLETE = 5;
-    STATE_NO_REPLACEMENT = 6;
-    STATE_REJECTED = 7;
-    STATE_SUPERSEDED = 8;
-    STATE_MANUAL_INTERVENTION_REQUIRED = 9;
+    STATE_ASSIGNED = 2;
+    STATE_COMPLETE = 3;
+    STATE_SUPERSEDED = 4;
+    STATE_MANUAL_INTERVENTION_REQUIRED = 5;
   }
 
   enum Decision {
     DECISION_UNSPECIFIED = 0;
-    DECISION_CORRECT = 1;
-    DECISION_NO_REPLACEMENT = 2;
+    DECISION_APPLY_CANDIDATE = 1;
+    DECISION_REMOVE_WITHOUT_REPLACEMENT = 2;
   }
 
   string data_provider_resource_id = 1;
