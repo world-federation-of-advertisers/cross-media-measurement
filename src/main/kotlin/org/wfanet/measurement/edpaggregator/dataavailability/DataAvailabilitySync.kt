@@ -160,10 +160,10 @@ class DataAvailabilitySync(
    * collecting and processing metadata for that day.
    *
    * @param doneBlobPath the full Cloud Storage object path of the "done" blob.
-   * @param doneBlobGeneration the immutable generation of that object, when supplied by
-   *   DataWatcher.
+   * @param doneBlobGeneration the immutable positive generation of that object.
    */
-  suspend fun sync(doneBlobPath: String, doneBlobGeneration: Long? = null): Outcome {
+  suspend fun sync(doneBlobPath: String, doneBlobGeneration: Long): Outcome {
+    require(doneBlobGeneration > 0L) { "doneBlobGeneration must be positive" }
     // Start timing for sync duration
     val syncStartTime = TimeSource.Monotonic.markNow()
 
@@ -748,7 +748,7 @@ class DataAvailabilitySync(
   private suspend fun createModelLineToImpressionMetadataMap(
     impressionMetadataBlobs: Flow<StorageClient.Blob>,
     doneBlobUri: BlobUri,
-    doneBlobGeneration: Long?,
+    doneBlobGeneration: Long,
   ): Map<ModelLineKey, List<ImpressionMetadataWithBlobKey>> {
     val impressionMetadataMap =
       mutableMapOf<ModelLineKey, MutableList<ImpressionMetadataWithBlobKey>>()
@@ -822,9 +822,7 @@ class DataAvailabilitySync(
           blobTypeUrl = BLOB_TYPE_URL
           eventGroupReferenceId = blobDetails.eventGroupReferenceId
           modelLine = blobDetails.modelLine
-          if (doneBlobGeneration != null) {
-            outputDoneBlobGeneration = doneBlobGeneration
-          }
+          outputDoneBlobGeneration = doneBlobGeneration
           interval = blobDetails.interval
           entityKeys += blobDetails.entityKeysList.flatMap { it.toEntityKeys() }
         }

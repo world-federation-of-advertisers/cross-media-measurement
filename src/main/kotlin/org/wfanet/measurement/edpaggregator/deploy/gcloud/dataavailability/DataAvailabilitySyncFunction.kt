@@ -148,12 +148,12 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
       Tracing.withW3CTraceContext(request) {
         val generation =
-          request
-            .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
-            .map(String::toLongOrNull)
-            .orElse(null)
-        val objectIdentity =
-          generation?.let { VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, it) }
+          parseDataWatcherGeneration(
+            request
+              .getFirstHeader(VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER)
+              .orElse(null)
+          )
+        val objectIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(doneBlobPath, generation)
         val attributes =
           Attributes.builder()
             .put(
@@ -174,11 +174,9 @@ class DataAvailabilitySyncFunction() : HttpFunction {
               request.getFirstHeader(VidLabelingTraceAttributes.VID_LABELING_JOB_HEADER).ifPresent {
                 builder.put(VidLabelingTraceAttributes.VID_LABELING_JOB_NAME, it)
               }
-              if (objectIdentity != null) {
-                builder
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
-                  .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
-              }
+              builder
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH, objectIdentity.pathHash)
+                .put(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION, objectIdentity.generation)
             }
             .build()
         Tracing.trace("edpa.data_availability.sync", attributes) {
@@ -370,4 +368,15 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       return GrpcChannels(cmmsChannel = cmmsChannel, impressionMetadataChannel = impressionChannel)
     }
   }
+}
+
+internal fun parseDataWatcherGeneration(value: String?): Long {
+  val generation =
+    requireNotNull(value?.toLongOrNull()) {
+      "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must contain a generation"
+    }
+  require(generation > 0L) {
+    "${VidLabelingTraceAttributes.DATA_WATCHER_GENERATION_HEADER} must be positive"
+  }
+  return generation
 }
