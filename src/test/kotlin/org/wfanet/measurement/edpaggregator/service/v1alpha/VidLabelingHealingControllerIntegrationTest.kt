@@ -99,7 +99,6 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManife
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
-import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoveryExecutor
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
@@ -263,11 +262,7 @@ class VidLabelingHealingControllerIntegrationTest {
     }
     val recoverUploader =
       RecoverUploader(uploadsStub, modelLinesStub, rankIndexBlobsStub, ::rewriteDoneBlob)
-    val recoveryExecutor = RecoveryExecutor { source, modelLines ->
-      val result = recoverUploader.recover(source, modelLines)
-      registerCurrentDoneBlob(d2)
-      result
-    }
+    var replayed: DoneBlobReplayer.Request? = null
     val controller =
       VidLabelingHealingController(
         listOf(
@@ -289,8 +284,14 @@ class VidLabelingHealingControllerIntegrationTest {
         plannerFactory = { error("unexpected planning") },
         evictionExecutorFactory = { evictUploader },
         manifestReader = manifestReader(d2),
-        doneBlobReplayerFactory = { DoneBlobReplayer { error("unexpected exact replay") } },
-        recoveryExecutorFactory = { recoveryExecutor },
+        doneBlobReplayerFactory = {
+          DoneBlobReplayer { request ->
+            replayed = request
+            registerCurrentDoneBlob(d2)
+            Unit
+          }
+        },
+        recoveryExecutorFactory = { recoverUploader },
       )
 
     val result = controller.run()
@@ -298,6 +299,12 @@ class VidLabelingHealingControllerIntegrationTest {
     assertThat(result.failedDataProviders).isEqualTo(0)
     val recoveryGeneration = operation.stepsList.single().recoveryDoneBlobGeneration
     assertThat(recoveryGeneration).isNotEqualTo(d2.upload.doneBlobGeneration)
+    val replay = checkNotNull(replayed)
+    assertThat(replay.doneBlobUri).isEqualTo(d2.upload.doneBlobUri)
+    assertThat(replay.doneBlobGeneration).isEqualTo(recoveryGeneration)
+    assertThat(replay.sourceRawImpressionUpload).isEqualTo(d2.upload.name)
+    assertThat(replay.cmmsModelLines).containsExactly(MODEL_LINE)
+    assertThat(replay.uploadHealingOperation).isEqualTo(operation.name)
     val replacement =
       listRevisions(d2.upload.doneBlobUri).single { it.doneBlobGeneration == recoveryGeneration }
     assertThat(replacement.replacesRawImpressionUpload).isEqualTo(d2.upload.name)
