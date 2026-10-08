@@ -149,15 +149,18 @@ suspend fun AsyncDatabaseClient.TransactionContext.claimWorkItemPublication(
 ): WorkItemPublicationClaimResult? {
   val sql = buildString {
     appendLine(WORK_ITEM_PUBLICATION_SQL)
-    appendLine("WHERE NextAttemptTime <= @now")
-    appendLine("  AND (LeaseExpirationTime IS NULL OR LeaseExpirationTime <= @now)")
+    appendLine("WHERE Publication.NextAttemptTime <= @now")
+    appendLine(
+      "  AND (Publication.LeaseExpirationTime IS NULL OR Publication.LeaseExpirationTime <= @now)"
+    )
     if (workItemId != null) {
-      appendLine("  AND WorkItemPublications.WorkItemId = @workItemId")
+      appendLine("  AND Publication.WorkItemId = @workItemId")
     }
-    appendLine("ORDER BY WorkItemPublications.QueueResolutionFailed ASC,")
-    appendLine("  WorkItemPublications.NextAttemptTime ASC,")
-    appendLine("  WorkItemPublications.LeaseExpirationTime ASC,")
-    appendLine("  WorkItemPublications.WorkItemId ASC")
+    appendLine(ORDERING_PREDECESSOR_FILTER)
+    appendLine("ORDER BY Publication.QueueResolutionFailed ASC,")
+    appendLine("  Publication.NextAttemptTime ASC,")
+    appendLine("  Publication.LeaseExpirationTime ASC,")
+    appendLine("  Publication.WorkItemId ASC")
     appendLine("LIMIT 1")
   }
   val row: Struct =
@@ -274,22 +277,67 @@ private suspend fun AsyncDatabaseClient.ReadContext.hasLeaseToken(
 private val WORK_ITEM_PUBLICATION_SQL =
   """
   SELECT
-    WorkItems.WorkItemId,
-    WorkItems.WorkItemResourceId,
-    WorkItems.QueueId,
-    WorkItems.State,
-    WorkItems.WorkItemParams,
-    WorkItems.SerializationKey,
-    WorkItems.Generation,
-    WorkItems.PublicationScheduledGeneration,
-    WorkItems.CreateTime,
-    WorkItems.UpdateTime,
-    WorkItemPublications.IsDeadLetter,
-    WorkItemPublications.AttemptCount,
-    WorkItemPublications.LeaseExpirationTime,
-    WorkItemPublications.NextAttemptTime,
-    WorkItemPublications.QueueResolutionFailed
-  FROM WorkItemPublications
-  JOIN WorkItems USING (WorkItemId)
+    WorkItem.WorkItemId,
+    WorkItem.WorkItemResourceId,
+    WorkItem.QueueId,
+    WorkItem.State,
+    WorkItem.WorkItemParams,
+    WorkItem.SerializationKey,
+    WorkItem.SourceDataPath,
+    WorkItem.SourceObjectGeneration,
+    WorkItem.SourceObjectCreateTime,
+    WorkItem.Generation,
+    WorkItem.PublicationScheduledGeneration,
+    WorkItem.CreateTime,
+    WorkItem.UpdateTime,
+    Publication.IsDeadLetter,
+    Publication.AttemptCount,
+    Publication.LeaseExpirationTime,
+    Publication.NextAttemptTime,
+    Publication.QueueResolutionFailed
+  FROM WorkItemPublications AS Publication
+  JOIN WorkItems AS WorkItem USING (WorkItemId)
+  """
+    .trimIndent()
+
+private val ORDERING_PREDECESSOR_FILTER =
+  """
+    AND (
+      WorkItem.SerializationKey IS NULL
+      OR NOT EXISTS (
+        SELECT 1
+        FROM WorkItemPublications AS EarlierPublication
+        JOIN WorkItems AS EarlierWorkItem USING (WorkItemId)
+        WHERE EarlierWorkItem.QueueId = WorkItem.QueueId
+          AND EarlierWorkItem.SerializationKey = WorkItem.SerializationKey
+          AND (
+            COALESCE(EarlierWorkItem.SourceObjectCreateTime, EarlierWorkItem.CreateTime) <
+              COALESCE(WorkItem.SourceObjectCreateTime, WorkItem.CreateTime)
+            OR (
+              COALESCE(EarlierWorkItem.SourceObjectCreateTime, EarlierWorkItem.CreateTime) =
+                COALESCE(WorkItem.SourceObjectCreateTime, WorkItem.CreateTime)
+              AND COALESCE(EarlierWorkItem.SourceDataPath, '') <
+                COALESCE(WorkItem.SourceDataPath, '')
+            )
+            OR (
+              COALESCE(EarlierWorkItem.SourceObjectCreateTime, EarlierWorkItem.CreateTime) =
+                COALESCE(WorkItem.SourceObjectCreateTime, WorkItem.CreateTime)
+              AND COALESCE(EarlierWorkItem.SourceDataPath, '') =
+                COALESCE(WorkItem.SourceDataPath, '')
+              AND COALESCE(EarlierWorkItem.SourceObjectGeneration, 0) <
+                COALESCE(WorkItem.SourceObjectGeneration, 0)
+            )
+            OR (
+              COALESCE(EarlierWorkItem.SourceObjectCreateTime, EarlierWorkItem.CreateTime) =
+                COALESCE(WorkItem.SourceObjectCreateTime, WorkItem.CreateTime)
+              AND COALESCE(EarlierWorkItem.SourceDataPath, '') =
+                COALESCE(WorkItem.SourceDataPath, '')
+              AND COALESCE(EarlierWorkItem.SourceObjectGeneration, 0) =
+                COALESCE(WorkItem.SourceObjectGeneration, 0)
+              AND EarlierWorkItem.WorkItemId < WorkItem.WorkItemId
+            )
+          )
+      )
+    )
   """
     .trimIndent()

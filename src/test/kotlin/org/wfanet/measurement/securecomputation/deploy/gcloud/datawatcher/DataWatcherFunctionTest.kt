@@ -35,7 +35,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 class DataWatcherFunctionTest {
 
   @Test
-  fun `stashes the object generation in metadata for DataWatcher`() {
+  fun `stashes authoritative source object metadata for DataWatcher`() {
     val capturedMetadata = mutableListOf<Map<String, String>>()
     val pathReceiver: suspend (String, Map<String, String>) -> Unit = { _, metadata ->
       capturedMetadata += metadata
@@ -48,6 +48,7 @@ class DataWatcherFunctionTest {
         "name": "path/to/blob",
         "size": "1",
         "generation": "42",
+        "timeCreated": "2026-08-15T10:15:30Z",
         "metadata": { "impression-metadata-resource-id": "res-123" }
       }
       """
@@ -59,6 +60,10 @@ class DataWatcherFunctionTest {
     // The GCS object generation is stashed under the reserved key so DataWatcher can forward it as
     // the X-DataWatcher-Generation header.
     assertThat(capturedMetadata.single()).containsEntry(DataWatcher.GENERATION_METADATA_KEY, "42")
+    assertThat(capturedMetadata.single())
+      .containsEntry(DataWatcher.CREATE_TIME_METADATA_KEY, "2026-08-15T10:15:30Z")
+    assertThat(capturedMetadata.single())
+      .containsEntry(DataWatcher.EVENT_TYPE_METADATA_KEY, EVENT_TYPE)
     // Existing custom object metadata is preserved alongside the generation.
     assertThat(capturedMetadata.single())
       .containsEntry("impression-metadata-resource-id", "res-123")
