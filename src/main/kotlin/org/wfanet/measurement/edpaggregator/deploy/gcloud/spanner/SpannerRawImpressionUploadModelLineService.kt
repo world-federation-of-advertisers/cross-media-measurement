@@ -402,7 +402,8 @@ class SpannerRawImpressionUploadModelLineService(
           RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
         )
       RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED,
-      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED ->
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_CORRECTION_REQUIRED,
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_REMOVED_WITHOUT_REPLACEMENT ->
         throw RawImpressionUploadStateInvalidException(
             dataProviderResourceId,
             rawImpressionUploadResourceId,
