@@ -29,13 +29,20 @@ concurrency:
 
 jobs:
   cross-company-review-policy:
-    if: github.actor != 'copilot-pull-request-reviewer[bot]'
+    if: github.actor != 'copilot-pull-request-reviewer[bot]' && github.event.requested_reviewer.login != 'copilot'
     name: Check Cross-company review
     runs-on: ubuntu-24.04
     permissions:
       contents: read
       pull-requests: read
     steps:
+      - name: debug info
+        run: |
+          echo "github.actor=${{ github.actor }}"
+          echo "review.user.login=${{ github.event.review.user.login }}"
+          echo "review.state=${{ github.event.review.state }}"
+          echo "${{ github.event.requested_reviewer.login }}"
+
       - name: Fetch approvers
         id: fetch-approvers
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
