@@ -16,7 +16,7 @@ name: Check Cross-company review
 
 on:
   pull_request:
-    types: [reopened, synchronize]
+    types: [opened, reopened, synchronize]
   pull_request_review:
     types: [submitted, dismissed]
 
@@ -99,10 +99,6 @@ jobs:
             const teams = [...teamMembers.keys()]
 
             console.log("Team members:", teamMembers)
-            if (prApprovers.size === 0){
-              console.log("There's no approvers yet. Skipping check")
-              return;
-            }
 
             function getUserTeam(username){
               const userTeams = teams.filter(team => teamMembers.get(team).has(username));
