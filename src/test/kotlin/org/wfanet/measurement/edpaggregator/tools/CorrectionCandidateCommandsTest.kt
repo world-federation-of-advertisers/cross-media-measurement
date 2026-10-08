@@ -17,6 +17,7 @@
 package org.wfanet.measurement.edpaggregator.tools
 
 import com.google.common.truth.Truth.assertThat
+import com.google.type.date
 import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
@@ -73,7 +74,7 @@ class CorrectionCandidateCommandsTest {
       val exitCode =
         commandLine.execute(
           "--data-provider=$DATA_PROVIDER",
-          "--state=PLANNED",
+          "--state=PENDING",
           "--classification=MIXED",
           *CONNECTION_ARGS,
         )
@@ -87,7 +88,7 @@ class CorrectionCandidateCommandsTest {
         >()
       verify(service, times(2)).listRawImpressionUploadCorrectionCandidates(requests.capture())
       assertThat(requests.firstValue.filter.stateInList)
-        .containsExactly(RawImpressionUploadCorrectionCandidate.State.PLANNED)
+        .containsExactly(RawImpressionUploadCorrectionCandidate.State.PENDING)
       assertThat(requests.firstValue.filter.classificationInList)
         .containsExactly(RawImpressionUploadCorrectionCandidate.Classification.MIXED)
       assertThat(requests.secondValue.pageToken).isEqualTo("next")
@@ -108,6 +109,49 @@ class CorrectionCandidateCommandsTest {
     }
 
   @Test
+  fun `manifest differences represent absence and event-date moves explicitly`() {
+    val added =
+      RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+        type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.ADDED
+        currentBlobGeneration = 2L
+        currentEventDate = date {
+          year = 2026
+          month = 1
+          day = 2
+        }
+      }
+    val removed =
+      RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+        type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.REMOVED
+        priorBlobGeneration = 1L
+        priorEventDate = date {
+          year = 2026
+          month = 1
+          day = 1
+        }
+      }
+    val moved =
+      RawImpressionUploadCorrectionCandidateKt.manifestDifference {
+        type = RawImpressionUploadCorrectionCandidate.ManifestDifference.Type.EVENT_DATE_CHANGED
+        priorBlobGeneration = 1L
+        currentBlobGeneration = 2L
+        priorEventDate = removed.priorEventDate
+        currentEventDate = added.currentEventDate
+        priorOutputSourceRawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/prior-upload"
+      }
+
+    assertThat(added.hasPriorBlobGeneration()).isFalse()
+    assertThat(added.hasCurrentBlobGeneration()).isTrue()
+    assertThat(removed.hasPriorBlobGeneration()).isTrue()
+    assertThat(removed.hasCurrentBlobGeneration()).isFalse()
+    assertThat(moved.hasPriorBlobGeneration()).isTrue()
+    assertThat(moved.hasCurrentBlobGeneration()).isTrue()
+    assertThat(moved.priorEventDate).isNotEqualTo(moved.currentEventDate)
+    assertThat(moved.priorOutputSourceRawImpressionUpload)
+      .isEqualTo("$DATA_PROVIDER/rawImpressionUploads/prior-upload")
+  }
+
+  @Test
   fun `commands are registered`() {
     assertThat(CommandLine(VidLabelingHeal()).subcommands.keys)
       .containsAtLeast("list-correction-candidates", "get-correction-candidate")
@@ -119,7 +163,7 @@ class CorrectionCandidateCommandsTest {
       name = "$DATA_PROVIDER/rawImpressionUploadCorrectionCandidates/1"
       rawImpressionUpload = "$DATA_PROVIDER/rawImpressionUploads/upload"
       classification = RawImpressionUploadCorrectionCandidate.Classification.MIXED
-      state = RawImpressionUploadCorrectionCandidate.State.PLANNED
+      state = RawImpressionUploadCorrectionCandidate.State.PENDING
     }
     private val DETAILED_CANDIDATE =
       CANDIDATE.copy {
