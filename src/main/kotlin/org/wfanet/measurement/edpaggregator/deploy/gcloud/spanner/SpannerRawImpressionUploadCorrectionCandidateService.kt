@@ -279,7 +279,7 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
     current: RawImpressionUploadCorrectionCandidate,
     request: AdvanceRawImpressionUploadCorrectionCandidateRequest,
   ): RawImpressionUploadCorrectionCandidate {
-    val allowedActions = allowedActions(current.state)
+    val allowedActions = allowedActions(current)
     if (request.action !in allowedActions) {
       throw Status.FAILED_PRECONDITION.withDescription(
           "Action ${request.action} is not valid from ${current.state}"
@@ -331,8 +331,10 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
         supersedingCandidate.state !in
           setOf(
             RawImpressionUploadCorrectionCandidate.State.STATE_PENDING,
-            RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED,
-          )
+            RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED,
+          ) ||
+          supersedingCandidate.decision !=
+            RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
       ) {
         throw Status.FAILED_PRECONDITION.withDescription(
             "Superseding candidate must still be pending approval"
@@ -363,19 +365,16 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
               )
               .asRuntimeException()
           }
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED
+          state = RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED
           uploadHealingOperationId = request.uploadHealingOperationId
         }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT -> {
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE -> {
+          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_APPLY_CANDIDATE
         }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT -> {
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED
-          decision = RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING -> {
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_HEALING
+        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
+          .APPROVE_REMOVE_WITHOUT_REPLACEMENT -> {
+          decision =
+            RawImpressionUploadCorrectionCandidate.Decision.DECISION_REMOVE_WITHOUT_REPLACEMENT
         }
         AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE -> {
           val operation =
@@ -397,18 +396,7 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
               )
               .asRuntimeException()
           }
-          state =
-            if (
-              current.decision ==
-                RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT
-            ) {
-              RawImpressionUploadCorrectionCandidate.State.STATE_NO_REPLACEMENT
-            } else {
-              RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE
-            }
-        }
-        AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT -> {
-          state = RawImpressionUploadCorrectionCandidate.State.STATE_REJECTED
+          state = RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE
         }
         AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE -> {
           val superseding = checkNotNull(supersedingCandidate)
@@ -521,11 +509,10 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
         if (request.uploadHealingOperationId.isNotEmpty())
           invalid("upload_healing_operation_id must be empty")
       }
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
+      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
+      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
+        .APPROVE_REMOVE_WITHOUT_REPLACEMENT,
       AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-      AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT,
       AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION -> {
         if (request.uploadHealingOperationId.isNotEmpty())
           invalid("upload_healing_operation_id must be empty")
@@ -539,37 +526,33 @@ class SpannerRawImpressionUploadCorrectionCandidateService(
   }
 
   private fun allowedActions(
-    state: RawImpressionUploadCorrectionCandidate.State
+    candidate: RawImpressionUploadCorrectionCandidate
   ): Set<AdvanceRawImpressionUploadCorrectionCandidateRequest.Action> =
-    when (state) {
+    when (candidate.state) {
       RawImpressionUploadCorrectionCandidate.State.STATE_PENDING ->
         setOf(
           AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.ASSIGN_PLAN,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT,
           AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
           AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
         )
-      RawImpressionUploadCorrectionCandidate.State.STATE_PLANNED ->
-        setOf(
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_CORRECT,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_NO_REPLACEMENT,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REJECT,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-        )
-      RawImpressionUploadCorrectionCandidate.State.STATE_APPROVED ->
-        setOf(
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.START_HEALING,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-        )
-      RawImpressionUploadCorrectionCandidate.State.STATE_HEALING ->
-        setOf(
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
-          AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
-        )
+      RawImpressionUploadCorrectionCandidate.State.STATE_ASSIGNED ->
+        if (
+          candidate.decision == RawImpressionUploadCorrectionCandidate.Decision.DECISION_UNSPECIFIED
+        ) {
+          setOf(
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.APPROVE_APPLY_CANDIDATE,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action
+              .APPROVE_REMOVE_WITHOUT_REPLACEMENT,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.SUPERSEDE,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
+          )
+        } else {
+          setOf(
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.COMPLETE,
+            AdvanceRawImpressionUploadCorrectionCandidateRequest.Action.REQUIRE_MANUAL_INTERVENTION,
+          )
+        }
       RawImpressionUploadCorrectionCandidate.State.STATE_COMPLETE,
-      RawImpressionUploadCorrectionCandidate.State.STATE_NO_REPLACEMENT,
-      RawImpressionUploadCorrectionCandidate.State.STATE_REJECTED,
       RawImpressionUploadCorrectionCandidate.State.STATE_SUPERSEDED,
       RawImpressionUploadCorrectionCandidate.State.STATE_MANUAL_INTERVENTION_REQUIRED -> emptySet()
       RawImpressionUploadCorrectionCandidate.State.STATE_UNSPECIFIED,
