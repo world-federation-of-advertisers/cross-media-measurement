@@ -150,6 +150,7 @@ class VidLabelingDispatcher(
     NO_WORK("no_work"),
     STALE("stale"),
     SUPERSEDED("superseded"),
+    INVALID_DONE_MARKER("invalid_done_marker"),
   }
 
   private data class RawBlobVersion(
@@ -157,6 +158,7 @@ class VidLabelingDispatcher(
     val blobUri: String,
     val generation: Long,
     val sizeBytes: Long,
+    val createTime: Instant,
   )
 
   private data class EdpReplacementAuthorization(
@@ -287,6 +289,15 @@ class VidLabelingDispatcher(
           edpReplacementAuthorization?.evictionOperationId
         }
       val currentBlobVersions = resolveBlobVersions(blobs, doneBlobUri)
+      val lateBlobVersionCount =
+        currentBlobVersions.count { it.createTime.isAfter(doneBlobMetadata.createTime) }
+      if (lateBlobVersionCount > 0) {
+        logger.warning(
+          "Rejecting raw-impression revision for $dataProviderName: $lateBlobVersionCount " +
+            "object versions were created after the triggering done object"
+        )
+        return complete(UploadOutcome.INVALID_DONE_MARKER)
+      }
       val candidateBlobs =
         if (previousRevision?.state == RawImpressionUpload.State.FAILED) {
           currentBlobVersions
@@ -773,6 +784,7 @@ class VidLabelingDispatcher(
                   blobUri = BlobUris.buildUri(doneBlobUri, blob.blobKey),
                   generation = metadata.generation,
                   sizeBytes = metadata.sizeBytes,
+                  createTime = metadata.createTime,
                 )
               }
             }
