@@ -14,7 +14,15 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:21 dbms:cloudspanner
--- comment: Associate quarantined uploads with correction candidates.
+-- changeset marcopremier:22 dbms:cloudspanner
+-- comment: Associate quarantined uploads and persist terminal manifest boundaries.
+
+START BATCH DDL;
+
+ALTER PROTO BUNDLE UPDATE (
+  `wfa.measurement.internal.edpaggregator.RawImpressionUploadState`
+);
 
 ALTER TABLE RawImpressionUpload ADD COLUMN CorrectionCandidateId STRING(36);
+
+RUN BATCH;
