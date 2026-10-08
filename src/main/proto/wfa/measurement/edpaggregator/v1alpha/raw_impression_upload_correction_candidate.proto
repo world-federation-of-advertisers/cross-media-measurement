@@ -34,39 +34,84 @@ message RawImpressionUploadCorrectionCandidate {
     plural: "rawImpressionUploadCorrectionCandidates"
   };
 
+  // Manifest-level non-additive classification. No-op and pure-addition
+  // revisions do not create correction candidates.
   enum Classification {
+    // Default unspecified classification.
     CLASSIFICATION_UNSPECIFIED = 0;
+
+    // One or more existing object URIs have different generations, with no
+    // additions, removals, or event-date changes.
     EDITED = 1;
+
+    // One or more prior object URIs are absent, with no additions, generation
+    // edits, or event-date changes.
     REMOVED = 2;
+
+    // More than one change category is present, including add-and-edit,
+    // add-and-remove, or an event-date change (which is a linked remove/add).
     MIXED = 3;
   }
 
+  // Durable candidate lifecycle. Detailed planning, approval, and execution
+  // state belongs to the linked upload-healing operation.
   enum State {
+    // Default unspecified state.
     STATE_UNSPECIFIED = 0;
+
+    // The candidate has not been assigned to a healing operation.
     PENDING = 1;
-    PLANNED = 2;
-    APPROVED = 3;
-    HEALING = 4;
-    COMPLETE = 5;
-    NO_REPLACEMENT = 6;
-    REJECTED = 7;
-    SUPERSEDED = 8;
-    MANUAL_INTERVENTION_REQUIRED = 9;
+
+    // The candidate is assigned to `upload_healing_operation`. The linked
+    // operation is authoritative for planning, approval, and execution state.
+    ASSIGNED = 2;
+
+    // The linked operation completed. `decision` identifies whether the
+    // candidate was applied or removed without replacement.
+    COMPLETE = 3;
+
+    // A newer candidate replaced this candidate before healing completed.
+    SUPERSEDED = 4;
+
+    // Automated processing stopped and an operator must intervene.
+    MANUAL_INTERVENTION_REQUIRED = 5;
   }
 
+  // Operator-approved disposition of the candidate.
   enum Decision {
+    // No decision has been approved.
     DECISION_UNSPECIFIED = 0;
-    DECISION_CORRECT = 1;
-    DECISION_NO_REPLACEMENT = 2;
+
+    // Apply this candidate through its healing operation. Immutable once the
+    // plan is approved.
+    DECISION_APPLY_CANDIDATE = 1;
+
+    // Remove the affected prior output without creating a replacement.
+    // Immutable once the plan is approved.
+    DECISION_REMOVE_WITHOUT_REPLACEMENT = 2;
   }
 
   // One changed raw object in the candidate manifest.
   message ManifestDifference {
+    // Relationship between the effective prior and candidate entries.
     enum Type {
+      // Default unspecified difference type.
       TYPE_UNSPECIFIED = 0;
+
+      // The object URI exists only in the candidate manifest.
       ADDED = 1;
+
+      // The object URI exists in both manifests with the same event date and
+      // a different generation.
       EDITED = 2;
+
+      // The object URI exists only in the effective prior manifest.
       REMOVED = 3;
+
+      // The object URI exists in both manifests with different event dates.
+      // The difference retains both versions so healing can remove the prior
+      // dated output and create the current dated output as one linked change.
+      EVENT_DATE_CHANGED = 4;
     }
 
     // Type of manifest difference.
@@ -75,23 +120,31 @@ message RawImpressionUploadCorrectionCandidate {
     // Cloud Storage URI of the raw impression object.
     string blob_uri = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // Generation in the effective prior manifest, or zero for an addition.
-    int64 prior_blob_generation = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
-
-    // Generation in the candidate manifest, or zero for a removal.
-    int64 current_blob_generation = 4
+    // Positive generation in the effective prior manifest. Present for
+    // EDITED, REMOVED, and EVENT_DATE_CHANGED; absent for ADDED.
+    optional int64 prior_blob_generation = 3
         [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // Event date in the effective prior manifest, if present.
+    // Positive generation in the candidate manifest. Present for ADDED,
+    // EDITED, and EVENT_DATE_CHANGED; absent for REMOVED.
+    optional int64 current_blob_generation = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Event date in the effective prior manifest. Present for EDITED, REMOVED,
+    // and EVENT_DATE_CHANGED; absent for ADDED. For EDITED it equals
+    // current_event_date; for EVENT_DATE_CHANGED it differs.
     google.type.Date prior_event_date = 5
         [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // Event date in the candidate manifest, if present.
+    // Event date in the candidate manifest. Present for ADDED, EDITED, and
+    // EVENT_DATE_CHANGED; absent for REMOVED. For EDITED it equals
+    // prior_event_date; for EVENT_DATE_CHANGED it differs.
     google.type.Date current_event_date = 6
         [(google.api.field_behavior) = OUTPUT_ONLY];
 
-    // RawImpressionUpload that owns the prior visible object, if present.
-    string historical_owner_raw_impression_upload = 7 [
+    // RawImpressionUpload whose processing produced the prior visible labeled
+    // output for this raw object. Absent for ADDED.
+    string prior_output_source_raw_impression_upload = 7 [
       (google.api.field_behavior) = OUTPUT_ONLY,
       (google.api.resource_reference) = {
         type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
