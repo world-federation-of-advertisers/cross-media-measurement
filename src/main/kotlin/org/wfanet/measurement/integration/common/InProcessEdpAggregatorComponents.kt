@@ -91,14 +91,17 @@ import org.wfanet.measurement.edpaggregator.resultsfulfiller.ResultsFulfillerMet
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.TrusTeeConfig
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.testing.TestRequisitionStubFactory
 import org.wfanet.measurement.edpaggregator.v1alpha.CreateImpressionMetadataRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.GroupedRequisitions
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.RequisitionMetadataServiceGrpcKt.RequisitionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ResultsFulfillerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.entityKey
 import org.wfanet.measurement.edpaggregator.v1alpha.impressionMetadata
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.gcloud.pubsub.Subscriber
 import org.wfanet.measurement.gcloud.pubsub.testing.GooglePubSubEmulatorClient
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerDatabaseAdmin
@@ -169,6 +172,11 @@ class InProcessEdpAggregatorComponents(
 
   private val impressionMetadataClient: ImpressionMetadataServiceCoroutineStub by lazy {
     ImpressionMetadataServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
+  }
+
+  private val dataAvailabilitySyncLeaseClient:
+    DataAvailabilitySyncLeaseServiceCoroutineStub by lazy {
+    DataAvailabilitySyncLeaseServiceCoroutineStub(edpAggregatorSystemApi.publicApiChannel)
   }
 
   private lateinit var eventGroupSync: EventGroupSync
@@ -529,12 +537,20 @@ class InProcessEdpAggregatorComponents(
     impressionMetadataList: List<ImpressionMetadata>,
     dataProviderName: String,
   ) {
+    val lease =
+      dataAvailabilitySyncLeaseClient.acquireDataAvailabilitySyncLease(
+        acquireDataAvailabilitySyncLeaseRequest {
+          name = "$dataProviderName/dataAvailabilitySyncLeases/${UUID.randomUUID()}"
+          requestId = UUID.randomUUID().toString()
+        }
+      )
     val createImpressionMetadataRequests: MutableList<CreateImpressionMetadataRequest> =
       mutableListOf()
     impressionMetadataList.forEach {
       createImpressionMetadataRequests.add(
         createImpressionMetadataRequest {
           parent = dataProviderName
+          dataAvailabilitySyncLease = lease.name
           this.impressionMetadata = it
           requestId = UUID.randomUUID().toString()
         }
@@ -548,6 +564,14 @@ class InProcessEdpAggregatorComponents(
       }
     } catch (e: StatusException) {
       throw Exception("Error creating Impressions Metadata", e)
+    } finally {
+      dataAvailabilitySyncLeaseClient.releaseDataAvailabilitySyncLease(
+        releaseDataAvailabilitySyncLeaseRequest {
+          name = lease.name
+          etag = lease.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
     }
   }
 

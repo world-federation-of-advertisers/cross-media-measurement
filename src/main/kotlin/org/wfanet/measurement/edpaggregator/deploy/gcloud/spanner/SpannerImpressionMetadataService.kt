@@ -127,7 +127,15 @@ class SpannerImpressionMetadataService(
 
     val result =
       try {
-          transactionRunner.run { txn -> txn.batchCreateImpressionMetadata(listOf(request)) }
+          transactionRunner.run { txn ->
+            txn.requireActiveDataAvailabilitySyncLease(
+              request.impressionMetadata.dataProviderResourceId,
+              request.synchronizationAttemptId,
+              clock.instant(),
+            )
+            beforeGuardedMutation()
+            txn.batchCreateImpressionMetadata(listOf(request))
+          }
         } catch (e: SpannerException) {
           throw e
         }
@@ -148,6 +156,11 @@ class SpannerImpressionMetadataService(
   override suspend fun batchCreateImpressionMetadata(
     request: BatchCreateImpressionMetadataRequest
   ): BatchCreateImpressionMetadataResponse {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    requireSynchronizationAttemptId(request.synchronizationAttemptId)
     if (request.requestsList.isEmpty()) {
       return BatchCreateImpressionMetadataResponse.getDefaultInstance()
     }
@@ -162,6 +175,10 @@ class SpannerImpressionMetadataService(
       ) {
         val childDataProviderResourceId = subRequest.impressionMetadata.dataProviderResourceId
         throw DataProviderMismatchException(dataProviderResourceId, childDataProviderResourceId)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (subRequest.synchronizationAttemptId != request.synchronizationAttemptId) {
+        throw InvalidFieldValueException("requests.$index.synchronization_attempt_id")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
@@ -203,7 +220,7 @@ class SpannerImpressionMetadataService(
             request.synchronizationAttemptId,
             clock.instant(),
           )
-          if (request.synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
+          beforeGuardedMutation()
           txn.batchCreateImpressionMetadata(request.requestsList)
         }
       } catch (e: SpannerException) {
@@ -242,7 +259,17 @@ class SpannerImpressionMetadataService(
       databaseClient.readWriteTransaction(Options.tag("action=updateImpressionMetadata"))
 
     val result =
-      transactionRunner.run { txn -> txn.batchUpdateImpressionMetadata(listOf(request)) }.single()
+      transactionRunner
+        .run { txn ->
+          txn.requireActiveDataAvailabilitySyncLease(
+            request.impressionMetadata.dataProviderResourceId,
+            request.synchronizationAttemptId,
+            clock.instant(),
+          )
+          beforeGuardedMutation()
+          txn.batchUpdateImpressionMetadata(listOf(request))
+        }
+        .single()
 
     if (result.hasUpdateTime()) {
       return result
@@ -261,6 +288,11 @@ class SpannerImpressionMetadataService(
   override suspend fun batchUpdateImpressionMetadata(
     request: BatchUpdateImpressionMetadataRequest
   ): BatchUpdateImpressionMetadataResponse {
+    if (request.dataProviderResourceId.isEmpty()) {
+      throw RequiredFieldNotSetException("data_provider_resource_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    requireSynchronizationAttemptId(request.synchronizationAttemptId)
     if (request.requestsList.isEmpty()) {
       return BatchUpdateImpressionMetadataResponse.getDefaultInstance()
     }
@@ -275,6 +307,10 @@ class SpannerImpressionMetadataService(
       ) {
         val childDataProviderResourceId = subRequest.impressionMetadata.dataProviderResourceId
         throw DataProviderMismatchException(dataProviderResourceId, childDataProviderResourceId)
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (subRequest.synchronizationAttemptId != request.synchronizationAttemptId) {
+        throw InvalidFieldValueException("requests.$index.synchronization_attempt_id")
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }
 
@@ -315,7 +351,7 @@ class SpannerImpressionMetadataService(
           request.synchronizationAttemptId,
           clock.instant(),
         )
-        if (request.synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
+        beforeGuardedMutation()
         txn.batchUpdateImpressionMetadata(request.requestsList)
       }
 
@@ -483,7 +519,7 @@ class SpannerImpressionMetadataService(
             request.synchronizationAttemptId,
             clock.instant(),
           )
-          if (request.synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
+          beforeGuardedMutation()
           val result =
             txn.getImpressionMetadataByResourceId(
               request.dataProviderResourceId,
@@ -649,7 +685,7 @@ class SpannerImpressionMetadataService(
           synchronizationAttemptId,
           clock.instant(),
         )
-        if (synchronizationAttemptId.isNotEmpty()) beforeGuardedMutation()
+        beforeGuardedMutation()
         val existing =
           txn.getImpressionMetadataByResourceIds(dataProviderResourceId, resourceIds.toList())
         request.requestsList.map { subRequest ->
@@ -701,6 +737,16 @@ class SpannerImpressionMetadataService(
     }
   }
 
+  private fun requireSynchronizationAttemptId(
+    synchronizationAttemptId: String,
+    fieldPathPrefix: String = "",
+  ) {
+    if (synchronizationAttemptId.isEmpty()) {
+      throw RequiredFieldNotSetException("${fieldPathPrefix}synchronization_attempt_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+  }
+
   /**
    * Checks whether the specified create impression metadata request is valid.
    *
@@ -710,6 +756,7 @@ class SpannerImpressionMetadataService(
     request: CreateImpressionMetadataRequest,
     fieldPathPrefix: String,
   ) {
+    requireSynchronizationAttemptId(request.synchronizationAttemptId, fieldPathPrefix)
     val requestId = request.requestId
     if (requestId.isNotEmpty()) {
       try {
@@ -763,6 +810,7 @@ class SpannerImpressionMetadataService(
     request: UndeleteImpressionMetadataRequest,
     fieldPathPrefix: String,
   ) {
+    requireSynchronizationAttemptId(request.synchronizationAttemptId, fieldPathPrefix)
     if (request.dataProviderResourceId.isEmpty()) {
       throw RequiredFieldNotSetException("${fieldPathPrefix}data_provider_resource_id")
         .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
@@ -782,6 +830,7 @@ class SpannerImpressionMetadataService(
     request: UpdateImpressionMetadataRequest,
     fieldPathPrefix: String,
   ) {
+    requireSynchronizationAttemptId(request.synchronizationAttemptId, fieldPathPrefix)
     val requestId = request.requestId
     if (requestId.isNotEmpty()) {
       try {

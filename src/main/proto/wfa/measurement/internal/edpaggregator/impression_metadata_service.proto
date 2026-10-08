@@ -73,6 +73,7 @@ service ImpressionMetadataService {
 message CreateImpressionMetadataRequest {
   ImpressionMetadata impression_metadata = 1;
   string request_id = 2;
+  string synchronization_attempt_id = 3;
 }
 
 message BatchCreateImpressionMetadataRequest {
@@ -94,6 +95,7 @@ message UpdateImpressionMetadataRequest {
 
   // A client-provided request ID for idempotency. Must be a UUID4 string.
   string request_id = 2;
+  string synchronization_attempt_id = 3;
 }
 
 message BatchUpdateImpressionMetadataRequest {

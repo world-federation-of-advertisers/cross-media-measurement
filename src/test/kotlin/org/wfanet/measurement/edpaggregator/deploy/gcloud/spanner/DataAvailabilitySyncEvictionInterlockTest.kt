@@ -297,6 +297,7 @@ class DataAvailabilitySyncEvictionInterlockTest {
                 dataProviderResourceId = DATA_PROVIDER_ID
                 synchronizationAttemptId = lease.synchronizationAttemptId
                 requests += internalCreateImpressionMetadataRequest {
+                  synchronizationAttemptId = lease.synchronizationAttemptId
                   requestId = METADATA_REQUEST_ID
                   impressionMetadata = internalImpressionMetadata {
                     dataProviderResourceId = DATA_PROVIDER_ID
@@ -344,7 +345,7 @@ class DataAvailabilitySyncEvictionInterlockTest {
   }
 
   @Test
-  fun `lease-less metadata mutation is rejected during eviction`(): Unit = runBlocking {
+  fun `metadata mutation without lease is rejected`(): Unit = runBlocking {
     val uploadService = SpannerRawImpressionUploadService(spannerDatabase.databaseClient)
     uploadService.acquireRawImpressionUploadEvictionFence(
       acquireRawImpressionUploadEvictionFenceRequest {
@@ -379,7 +380,7 @@ class DataAvailabilitySyncEvictionInterlockTest {
           )
       }
 
-    assertThat(error.status.code).isEqualTo(Status.Code.UNAVAILABLE)
+    assertThat(error.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   private class PausingBlobMetadataStorageClient(

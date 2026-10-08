@@ -516,6 +516,7 @@ class DataAvailabilitySync(
                     createChunk.forEach { item ->
                       requests += createImpressionMetadataRequest {
                         parent = dataProviderName
+                        this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                         impressionMetadata = item.impressionMetadata
                         requestId = contentAwareRequestId(item.impressionMetadata)
                       }
@@ -543,6 +544,7 @@ class DataAvailabilitySync(
                     this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                     updateChunk.forEach { item ->
                       requests += updateImpressionMetadataRequest {
+                        this.dataAvailabilitySyncLease = dataAvailabilitySyncLease
                         impressionMetadata = item.impressionMetadata
                         requestId = contentAwareRequestId(item.impressionMetadata)
                       }
