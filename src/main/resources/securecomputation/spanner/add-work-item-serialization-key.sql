@@ -14,6 +14,32 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:1 dbms:cloudspanner
+-- changeset marcopremier:2 dbms:cloudspanner
+
+START BATCH DDL;
 
 ALTER TABLE WorkItems ADD COLUMN SerializationKey STRING(1024);
+ALTER TABLE WorkItems ADD COLUMN SourceDataPath STRING(2048);
+ALTER TABLE WorkItems ADD COLUMN SourceObjectGeneration INT64;
+ALTER TABLE WorkItems ADD COLUMN SourceObjectCreateTime TIMESTAMP;
+
+CREATE NULL_FILTERED INDEX WorkItemsBySourceObject
+    ON WorkItems(
+        QueueId,
+        SourceDataPath,
+        SourceObjectCreateTime DESC,
+        SourceObjectGeneration DESC,
+        WorkItemId DESC
+    );
+
+CREATE INDEX WorkItemsBySerializationOrder
+    ON WorkItems(
+        QueueId,
+        SerializationKey,
+        SourceObjectCreateTime,
+        SourceDataPath,
+        SourceObjectGeneration,
+        WorkItemId
+    );
+
+RUN BATCH;

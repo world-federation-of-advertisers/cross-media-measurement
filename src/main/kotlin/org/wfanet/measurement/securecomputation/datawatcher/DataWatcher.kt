@@ -31,6 +31,7 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse.BodyHandlers
 import java.security.MessageDigest
+import java.time.Instant
 import java.util.logging.Level
 import java.util.logging.Logger
 import kotlin.time.TimeSource
@@ -39,6 +40,7 @@ import org.wfanet.measurement.common.grpc.grpcStatusCode
 import org.wfanet.measurement.common.pack
 import org.wfanet.measurement.common.telemetry.W3CTraceContext
 import org.wfanet.measurement.common.toJson
+import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPath
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
@@ -149,13 +151,29 @@ class DataWatcher(
     objectMetadata: Map<String, String>,
   ) {
     val queueConfig = config.controlPlaneQueueSink
-    val objectGeneration = objectMetadata[GENERATION_METADATA_KEY].orEmpty()
+    val objectGeneration =
+      objectMetadata[GENERATION_METADATA_KEY]?.toLongOrNull()?.takeIf { it > 0L }
+        ?: throw IllegalArgumentException("Missing or invalid source object generation")
+    val objectCreateTime =
+      objectMetadata[CREATE_TIME_METADATA_KEY]?.let(Instant::parse)
+        ?: throw IllegalArgumentException("Missing source object creation time")
+    val storageEventType =
+      when (objectMetadata[EVENT_TYPE_METADATA_KEY]) {
+        FINALIZED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.FINALIZED
+        DELETED_EVENT_TYPE -> WorkItem.WorkItemParams.DataPathParams.StorageEventType.DELETED
+        else -> throw IllegalArgumentException("Missing or invalid storage event type")
+      }
     val idempotencyKey = "${config.identifier}\u0000$path\u0000$objectGeneration"
     val workItemId = workItemIdGenerator(idempotencyKey)
     val workItemParams =
       workItemParams {
           appParams = queueConfig.appParams
-          this.dataPathParams = dataPathParams { this.dataPath = path }
+          this.dataPathParams = dataPathParams {
+            this.dataPath = path
+            generation = objectGeneration
+            createTime = objectCreateTime.toProtoTime()
+            eventType = storageEventType
+          }
           traceContext.putAll(W3CTraceContext.inject())
         }
         .pack()
@@ -432,6 +450,10 @@ class DataWatcher(
      * under this key surviving.
      */
     const val GENERATION_METADATA_KEY: String = "__datawatcher_object_generation__"
+    const val CREATE_TIME_METADATA_KEY: String = "__datawatcher_object_create_time__"
+    const val EVENT_TYPE_METADATA_KEY: String = "__datawatcher_storage_event_type__"
+    const val FINALIZED_EVENT_TYPE: String = "google.cloud.storage.object.v1.finalized"
+    const val DELETED_EVENT_TYPE: String = "google.cloud.storage.object.v1.deleted"
     private const val IMPRESSION_METADATA_RESOURCE_ID_HEADER: String =
       "X-Impression-Metadata-Resource-Id"
 
