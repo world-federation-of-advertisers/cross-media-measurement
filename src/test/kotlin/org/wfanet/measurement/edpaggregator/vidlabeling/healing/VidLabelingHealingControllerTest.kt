@@ -586,7 +586,7 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
-  fun `operator recovery records a fresh done generation`() = runBlocking {
+  fun `operator recovery replays a fresh done generation before checkpoint`() = runBlocking {
     val recoveryStep =
       APPROVED_OPERATION.stepsList.single().copy {
         recoveryAction =
@@ -622,7 +622,9 @@ class VidLabelingHealingControllerTest {
     whenever(filesService.listRawImpressionUploadFiles(any()))
       .thenReturn(listRawImpressionUploadFilesResponse {})
     whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    val replayed = mutableListOf<DoneBlobReplayer.Request>()
     whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+      check(replayed.isNotEmpty())
       val request =
         invocation.getArgument<
           org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
@@ -650,7 +652,7 @@ class VidLabelingHealingControllerTest {
       recoveredModelLines = modelLines
       RecoverUploader.Result(source, SOURCE_UPLOAD.doneBlobUri, freshGeneration, modelLines)
     }
-    val replayer = org.mockito.kotlin.mock<DoneBlobReplayer>()
+    val replayer = DoneBlobReplayer { replayed += it }
 
     newController(doneBlobReplayer = replayer, recoveryExecutor = recoveryExecutor).run()
 
@@ -659,18 +661,117 @@ class VidLabelingHealingControllerTest {
     assertThat(operation.stepsList.single().recoveryDoneBlobGeneration).isEqualTo(freshGeneration)
     assertThat(operation.stepsList.single().recoveryDoneBlobGeneration)
       .isNotEqualTo(SOURCE_UPLOAD.doneBlobGeneration)
-    verify(replayer, never()).replay(any())
+    assertThat(replayed).isNotEmpty()
+    assertThat(replayed.map { it.doneBlobUri }.distinct())
+      .containsExactly(SOURCE_UPLOAD.doneBlobUri)
+    assertThat(replayed.map { it.doneBlobGeneration }.distinct()).containsExactly(freshGeneration)
+    assertThat(replayed.map { it.sourceRawImpressionUpload }.distinct())
+      .containsExactly(SOURCE_UPLOAD_NAME)
+    assertThat(replayed.flatMap { it.cmmsModelLines }.distinct()).containsExactly(CMMS_MODEL_LINE)
+    assertThat(replayed.map { it.uploadHealingOperation }.distinct())
+      .containsExactly(OPERATION_NAME)
     Unit
   }
 
   @Test
+  fun `operator recovery reuses its generation after replay fails before checkpoint`() =
+    runBlocking {
+      val recoveryStep =
+        APPROVED_OPERATION.stepsList.single().copy {
+          recoveryAction =
+            RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+          state = UploadHealingStep.State.WAITING_FOR_REPLACEMENT
+          rawImpressionUploadCorrectionCandidate = ""
+        }
+      var operation =
+        APPROVED_OPERATION.copy {
+          state = UploadHealingOperation.State.RECOVERING
+          rawImpressionUploadCorrectionCandidates.clear()
+          steps[0] = recoveryStep
+          etag = "recovering-etag"
+        }
+      whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+        val states =
+          invocation
+            .getArgument<
+              org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+            >(
+              0
+            )
+            .filter
+            .stateInList
+        listUploadHealingOperationsResponse {
+          if (operation.state in states) uploadHealingOperations += operation
+        }
+      }
+      val failedSource = SOURCE_UPLOAD.copy { state = RawImpressionUpload.State.FAILED }
+      whenever(uploadsService.getRawImpressionUpload(any())).thenReturn(failedSource)
+      whenever(uploadsService.listRawImpressionUploads(any()))
+        .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += failedSource })
+      whenever(filesService.listRawImpressionUploadFiles(any()))
+        .thenReturn(listRawImpressionUploadFilesResponse {})
+      whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+      var checkpoints = 0
+      whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+        checkpoints++
+        val request =
+          invocation.getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+          >(
+            0
+          )
+        val updated =
+          operation.stepsList.single().copy {
+            state = UploadHealingStep.State.RECOVERY_STARTED
+            recoveryDoneBlobGeneration = request.recoveryDoneBlobGeneration
+            etag = "recovery-started-etag"
+          }
+        operation =
+          operation.copy {
+            steps[0] = updated
+            etag = "recovery-started-operation-etag"
+          }
+        updated
+      }
+      val freshGeneration = SOURCE_UPLOAD.doneBlobGeneration + 1L
+      var recoveryAttempts = 0
+      val recoveryExecutor = RecoveryExecutor { source, modelLines ->
+        recoveryAttempts++
+        RecoverUploader.Result(source, SOURCE_UPLOAD.doneBlobUri, freshGeneration, modelLines)
+      }
+      var replayAttempts = 0
+      val replayer = DoneBlobReplayer {
+        replayAttempts++
+        if (replayAttempts == 1) throw Status.UNAVAILABLE.asRuntimeException()
+      }
+      val controller =
+        newController(doneBlobReplayer = replayer, recoveryExecutor = recoveryExecutor)
+
+      controller.run()
+
+      assertThat(operation.stepsList.single().state)
+        .isEqualTo(UploadHealingStep.State.WAITING_FOR_REPLACEMENT)
+      assertThat(checkpoints).isEqualTo(0)
+
+      controller.run()
+
+      assertThat(recoveryAttempts).isEqualTo(2)
+      assertThat(replayAttempts).isAtLeast(2)
+      assertThat(checkpoints).isEqualTo(1)
+      assertThat(operation.stepsList.single().state)
+        .isEqualTo(UploadHealingStep.State.RECOVERY_STARTED)
+      assertThat(operation.stepsList.single().recoveryDoneBlobGeneration).isEqualTo(freshGeneration)
+    }
+
+  @Test
   fun `restart completes a partially recorded recovery checkpoint`() = runBlocking {
+    val freshGeneration = SOURCE_UPLOAD.doneBlobGeneration + 1L
     val firstStep =
       APPROVED_OPERATION.stepsList.single().copy {
         recoveryAction =
           RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
         state = UploadHealingStep.State.RECOVERY_STARTED
-        recoveryDoneBlobGeneration = SOURCE_UPLOAD.doneBlobGeneration
+        recoveryDoneBlobGeneration = freshGeneration
       }
     val secondStep =
       firstStep.copy {
@@ -744,15 +845,21 @@ class VidLabelingHealingControllerTest {
         }
       updated
     }
-    val replayer = org.mockito.kotlin.mock<DoneBlobReplayer>()
+    val replayed = mutableListOf<DoneBlobReplayer.Request>()
+    val replayer = DoneBlobReplayer { replayed += it }
 
     newController(doneBlobReplayer = replayer).run()
 
     assertThat(operation.stepsList.map { it.state }.distinct())
       .containsExactly(UploadHealingStep.State.RECOVERY_STARTED)
     assertThat(operation.stepsList.map { it.recoveryDoneBlobGeneration }.distinct())
-      .containsExactly(SOURCE_UPLOAD.doneBlobGeneration)
-    verify(replayer, never()).replay(any())
+      .containsExactly(freshGeneration)
+    assertThat(replayed).isNotEmpty()
+    assertThat(replayed.map { it.doneBlobUri }.distinct())
+      .containsExactly(SOURCE_UPLOAD.doneBlobUri)
+    assertThat(replayed.map { it.doneBlobGeneration }.distinct()).containsExactly(freshGeneration)
+    assertThat(replayed.map { it.sourceRawImpressionUpload }.distinct())
+      .containsExactly(SOURCE_UPLOAD_NAME)
     Unit
   }
 
