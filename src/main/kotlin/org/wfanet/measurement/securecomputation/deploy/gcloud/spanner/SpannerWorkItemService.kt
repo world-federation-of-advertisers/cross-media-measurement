@@ -44,8 +44,10 @@ import org.wfanet.measurement.internal.securecomputation.controlplane.WorkItemsG
 import org.wfanet.measurement.internal.securecomputation.controlplane.copy
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsPageToken
 import org.wfanet.measurement.internal.securecomputation.controlplane.listWorkItemsResponse
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem as PublicWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemPublicationResetResult
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemResult
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.WorkItemSourceObject
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.activeWorkItemAttemptExists
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failActiveWorkItemAttempts
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.failWorkItem
@@ -54,6 +56,7 @@ import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getActi
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.getWorkItemByResourceId
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.insertWorkItemPublication
+import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.prepareSourceObjectWorkItem
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.readWorkItems
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.resetWorkItemPublication
 import org.wfanet.measurement.securecomputation.deploy.gcloud.spanner.db.retryWorkItem
@@ -102,6 +105,7 @@ class SpannerWorkItemsService(
       } catch (e: QueueNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
+    val sourceObject = request.workItem.sourceObject()
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=createWorkItem"))
@@ -111,6 +115,8 @@ class SpannerWorkItemsService(
         transactionRunner.run { txn ->
           val workItemId: Long = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
 
+          val shouldPublish =
+            sourceObject == null || txn.prepareSourceObjectWorkItem(queue.queueId, sourceObject)
           val state: WorkItem.State =
             txn.insertWorkItem(
               workItemId,
@@ -118,8 +124,12 @@ class SpannerWorkItemsService(
               queue.queueId,
               request.workItem.workItemParams,
               request.workItem.serializationKey,
+              sourceObject,
+              if (shouldPublish) WorkItem.State.QUEUED else WorkItem.State.SUCCEEDED,
             )
-          txn.insertWorkItemPublication(workItemId)
+          if (shouldPublish) {
+            txn.insertWorkItemPublication(workItemId)
+          }
 
           Pair(
             workItemId,
@@ -145,7 +155,9 @@ class SpannerWorkItemsService(
         updateTime = commitTimestamp
       }
 
-    workItemPublicationRunner.publishWorkItem(workItemId)
+    if (result.state == WorkItem.State.QUEUED) {
+      workItemPublicationRunner.publishWorkItem(workItemId)
+    }
 
     return result
   }
@@ -158,6 +170,7 @@ class SpannerWorkItemsService(
       } catch (e: QueueNotFoundException) {
         throw e.asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
       }
+    val sourceObject = request.workItem.sourceObject()
 
     val transactionRunner =
       databaseClient.readWriteTransaction(Options.tag("action=ensureWorkItem"))
@@ -194,6 +207,8 @@ class SpannerWorkItemsService(
             EnsuredWorkItem(existing.workItemId, existing.workItem, created = false)
           } catch (e: WorkItemNotFoundException) {
             val workItemId = idGenerator.generateNewId { id -> txn.workItemIdExists(id) }
+            val shouldPublish =
+              sourceObject == null || txn.prepareSourceObjectWorkItem(queue.queueId, sourceObject)
             val state =
               txn.insertWorkItem(
                 workItemId,
@@ -201,8 +216,12 @@ class SpannerWorkItemsService(
                 queue.queueId,
                 request.workItem.workItemParams,
                 request.workItem.serializationKey,
+                sourceObject,
+                if (shouldPublish) WorkItem.State.QUEUED else WorkItem.State.SUCCEEDED,
               )
-            txn.insertWorkItemPublication(workItemId)
+            if (shouldPublish) {
+              txn.insertWorkItemPublication(workItemId)
+            }
             EnsuredWorkItem(
               workItemId,
               request.workItem.copy {
@@ -568,6 +587,45 @@ class SpannerWorkItemsService(
     }
   }
 
+  private fun WorkItem.sourceObject(): WorkItemSourceObject? {
+    if (!workItemParams.`is`(PublicWorkItem.WorkItemParams::class.java)) {
+      return null
+    }
+    val params = workItemParams.unpack(PublicWorkItem.WorkItemParams::class.java)
+    if (!params.hasDataPathParams()) {
+      return null
+    }
+    val dataPathParams = params.dataPathParams
+    if (dataPathParams.dataPath.length > MAX_SOURCE_DATA_PATH_LENGTH) {
+      throw InvalidFieldValueException("work_item_params.data_path_params.data_path")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    val sourceMetadataRequired =
+      serializationKey.isNotEmpty() ||
+        dataPathParams.hasGeneration() ||
+        dataPathParams.hasCreateTime()
+    if (!sourceMetadataRequired) {
+      return null
+    }
+    if (dataPathParams.dataPath.isEmpty()) {
+      throw RequiredFieldNotSetException("work_item_params.data_path_params.data_path")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!dataPathParams.hasGeneration() || dataPathParams.generation <= 0L) {
+      throw InvalidFieldValueException("work_item_params.data_path_params.generation")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (!dataPathParams.hasCreateTime()) {
+      throw RequiredFieldNotSetException("work_item_params.data_path_params.create_time")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    return WorkItemSourceObject(
+      dataPathParams.dataPath,
+      dataPathParams.generation,
+      dataPathParams.createTime.toInstant(),
+    )
+  }
+
   private suspend fun readConcurrentEnsureWinner(request: EnsureWorkItemRequest): EnsuredWorkItem {
     val existing =
       try {
@@ -612,5 +670,6 @@ class SpannerWorkItemsService(
     private const val MAX_PAGE_SIZE = 100
     private const val DEFAULT_PAGE_SIZE = 50
     private const val INITIAL_GENERATION = 1L
+    private const val MAX_SOURCE_DATA_PATH_LENGTH = 2048
   }
 }
