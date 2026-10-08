@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:22 dbms:cloudspanner
+-- changeset marcopremier:23 dbms:cloudspanner
 -- comment: Allow multiple upload revisions for one done generation.
 
 DROP INDEX RawImpressionUploadByDoneBlobGeneration;
