@@ -36,8 +36,11 @@ message DataAvailabilitySyncParams {
     (google.api.resource_reference).type = "halo.wfanet.org/DataProvider"
   ];
 
-  // Resource name of the source raw impression upload.
-  string raw_impression_upload = 2 [
+  // Resource name of the `RawImpressionUpload` whose completion triggered this
+  // synchronization. This does not identify ownership of the cumulative output
+  // manifest; each `BlobDetails.raw_impression_upload` carries per-blob
+  // lineage.
+  string triggering_raw_impression_upload = 2 [
     (google.api.field_behavior) = OPTIONAL,
     (google.api.resource_reference).type =
         "edpaggregator.halo-cmm.org/RawImpressionUpload"
