@@ -47,7 +47,7 @@ class ListCorrectionCandidatesCommand(
 
   @Option(names = ["--state"], description = ["Comma-separated candidate states."], split = ",")
   private var states: List<RawImpressionUploadCorrectionCandidate.State> =
-    listOf(RawImpressionUploadCorrectionCandidate.State.PLANNED)
+    listOf(RawImpressionUploadCorrectionCandidate.State.PENDING)
 
   @Option(
     names = ["--classification"],
