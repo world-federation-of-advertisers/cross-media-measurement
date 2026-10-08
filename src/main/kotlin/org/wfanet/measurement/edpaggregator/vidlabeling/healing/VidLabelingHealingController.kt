@@ -506,6 +506,22 @@ class VidLabelingHealingController(
       val generation =
         group.firstOrNull { it.recoveryDoneBlobGeneration > 0L }?.recoveryDoneBlobGeneration
           ?: error("Recovery group has no recorded done-object generation")
+      if (
+        group.first().recoveryAction ==
+          RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY
+      ) {
+        val source = getUpload(group.first().sourceRawImpressionUpload)
+        doneBlobReplayerFactory(config)
+          .replay(
+            DoneBlobReplayer.Request(
+              source.doneBlobUri,
+              generation,
+              source.name,
+              group.map { it.cmmsModelLine }.distinct(),
+              operation.name,
+            )
+          )
+      }
       for (step in group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
         checkpoint(
           step,
@@ -526,9 +542,20 @@ class VidLabelingHealingController(
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_OPERATOR_RECOVERY -> {
           val source = getUpload(group.first().sourceRawImpressionUpload)
           verifyExactUploadManifest(source, completeSnapshot = false)
-          recoveryExecutorFactory(config)
-            .recover(source.name, group.map { it.cmmsModelLine }.distinct())
-            .doneBlobGeneration
+          val recovery =
+            recoveryExecutorFactory(config)
+              .recover(source.name, group.map { it.cmmsModelLine }.distinct())
+          doneBlobReplayerFactory(config)
+            .replay(
+              DoneBlobReplayer.Request(
+                recovery.doneBlobUri,
+                recovery.doneBlobGeneration,
+                recovery.sourceUpload,
+                recovery.modelLines,
+                operation.name,
+              )
+            )
+          recovery.doneBlobGeneration
         }
         RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT ->
           error("A no-replacement step cannot be a recovery target")
