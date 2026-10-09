@@ -10,8 +10,10 @@ kt_jvm_library(
     srcs = ["RequestIds.kt"],
     visibility = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
         "//src/main/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
         "//src/test/kotlin/org/wfanet/measurement/securecomputation/deploy/gcloud/deadletter:__pkg__",
     ],
 )
@@ -19,6 +21,12 @@ kt_jvm_library(
 kt_jvm_library(
     name = "work_item_ids",
     srcs = ["WorkItemIds.kt"],
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/main/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/edpaggregator:__subpackages__",
+        "//src/test/kotlin/org/wfanet/measurement/reporting/deploy/v2/gcloud/spanner/tools:__pkg__",
+    ],
 )
 
 kt_jvm_library(

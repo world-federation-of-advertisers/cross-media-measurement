@@ -50,6 +50,20 @@ class WorkItemIdsTest {
   }
 
   @Test
+  fun `forMonitorRecovery uses bounded deterministic suffixes`() {
+    val original = WorkItemIds.forVidLabeler("$UPLOAD/vidLabelingJobs/vj1")
+
+    assertThat(WorkItemIds.forMonitorRecovery(original, 1))
+      .isEqualTo("$original-monitor-recovery-1")
+    assertThat(
+        ResourceIds.RFC_1034_REGEX.matches(
+          WorkItemIds.forMonitorRecovery(original, WorkItemIds.MAX_MONITOR_RECOVERY_ATTEMPTS)
+        )
+      )
+      .isTrue()
+  }
+
+  @Test
   fun `ids stay RFC-1034 valid when the driving names contain '_' and are long`() {
     // Kingdom resource ids are base64url (may contain '_') and long; hashing keeps the id bounded
     // and free of invalid characters where a raw concatenation would not be.

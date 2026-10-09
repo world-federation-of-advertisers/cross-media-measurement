@@ -34,13 +34,15 @@ module "reporting_v2_default_node_pool" {
 module "reporting_v2" {
   source = "../modules/reporting"
 
-  iam_service_account_name            = "reporting-v2-internal"
-  postgres_instance                   = google_sql_database_instance.postgres
-  postgres_database_name              = "reporting-v2"
-  spanner_instance                    = google_spanner_instance.spanner_instance
-  reporting_operators                 = var.reporting_operators
-  report_trace_operators              = var.report_trace_operators
-  report_trace_observability_projects = var.report_trace_observability_projects
+  iam_service_account_name                  = "reporting-v2-internal"
+  postgres_instance                         = google_sql_database_instance.postgres
+  postgres_database_name                    = "reporting-v2"
+  spanner_instance                          = google_spanner_instance.spanner_instance
+  reporting_operators                       = var.reporting_operators
+  report_trace_operators                    = var.report_trace_operators
+  report_trace_observability_projects       = var.report_trace_observability_projects
+  vid_labeling_trace_operators              = var.vid_labeling_trace_operators
+  vid_labeling_trace_observability_projects = var.vid_labeling_trace_observability_projects
 }
 
 resource "google_compute_address" "reporting_v2alpha" {
