@@ -865,13 +865,6 @@ abstract class VidLabelingPipelineTestHarness {
             )
           },
           rpcThrottlers = throttlers,
-          writeDoneBlobToStorage = { _, doneUri ->
-            val doneKey = SelectedStorageClient.parseBlobUri(doneUri).key
-            val blob =
-              outputEventStorage.writeBlob(doneKey, flowOf(ByteString.EMPTY))
-                as ConditionalOperationStorageClient.Blob
-            doneUri to blob.freshnessToken.toLong()
-          },
         ),
       )
     appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -1577,6 +1570,11 @@ abstract class VidLabelingPipelineTestHarness {
       val workItem = checkNotNull(workItems[workItemName])
       check(workItem.state == WorkItem.State.QUEUED)
       withheldWorkItems.remove(workItemName)
+      publish(workItem.queue, workItem)
+    }
+
+    suspend fun redeliverWorkItem(workItemName: String) {
+      val workItem = checkNotNull(workItems[workItemName])
       publish(workItem.queue, workItem)
     }
 
