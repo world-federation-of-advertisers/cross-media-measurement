@@ -22,6 +22,7 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.common.truth.Truth.assertThat
+import com.google.type.date
 import java.time.Instant
 import java.time.ZoneOffset
 import kotlinx.coroutines.CompletableDeferred
@@ -77,6 +78,35 @@ class VidLabelingHealingControllerFunctionTest {
           RawImpressionUploadManifestClassifier.File("gs://raw/day/second.avro", 22L),
         )
     }
+  }
+
+  @Test
+  fun `manifest reader preserves persisted dates for exact object generations`() = runBlocking {
+    val storage = mock<Storage>()
+    val done = blob("day/done", 11L)
+    val input = blob("day/input.parquet", 21L)
+    val page = mock<Page<Blob>>()
+    whenever(storage.get("raw", "day/done")).thenReturn(done)
+    whenever(storage.list(eq("raw"), any<Storage.BlobListOption>())).thenReturn(page)
+    whenever(page.iterateAll()).thenReturn(listOf(input, done))
+    val persisted =
+      listOf(
+        RawImpressionUploadManifestClassifier.File(
+          "gs://raw/day/input.parquet",
+          21L,
+          date {
+            year = 2026
+            month = 9
+            day = 1
+          },
+        )
+      )
+
+    val live = GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, persisted)
+
+    val classifier = RawImpressionUploadManifestClassifier()
+    assertThat(live).containsExactlyElementsIn(persisted)
+    assertThat(classifier.digest(live)).isEqualTo(classifier.digest(persisted))
   }
 
   @Test
