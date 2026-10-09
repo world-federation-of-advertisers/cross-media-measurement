@@ -1223,6 +1223,79 @@ abstract class RawImpressionUploadModelLineServiceTest {
   }
 
   @Test
+  fun `same healing operation can process after predecessor reaches availability`() = runBlocking {
+    setEvictionFence(DATA_PROVIDER_RESOURCE_ID, EVICTION_OPERATION_ID)
+    setParentUploadEvictionDisposition(
+      DATA_PROVIDER_RESOURCE_ID,
+      RAW_IMPRESSION_UPLOAD_RESOURCE_ID,
+      EVICTION_OPERATION_ID,
+      processingDeferred = false,
+    )
+    val predecessor = createModelLine()
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId =
+            predecessor.rawImpressionUploadModelLineResourceId
+          etag = predecessor.etag
+        }
+      )
+    service.markRawImpressionUploadModelLineAvailabilitySyncing(
+      markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+        requestId = UUID.randomUUID().toString()
+        dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+        rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+        rawImpressionUploadModelLineResourceId = predecessor.rawImpressionUploadModelLineResourceId
+        etag = labeling.etag
+        pendingAvailabilityDates += date {
+          year = 2026
+          month = 1
+          day = 1
+        }
+      }
+    )
+
+    val successorUploadId = "successor-upload"
+    createParentUpload(DATA_PROVIDER_RESOURCE_ID, successorUploadId)
+    setParentUploadEvictionDisposition(
+      DATA_PROVIDER_RESOURCE_ID,
+      successorUploadId,
+      EVICTION_OPERATION_ID,
+      processingDeferred = false,
+    )
+    val successor =
+      service.createRawImpressionUploadModelLine(
+        createRawImpressionUploadModelLineRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = successorUploadId
+          rawImpressionUploadModelLine = rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+          }
+        }
+      )
+
+    val claimed =
+      service.markRawImpressionUploadModelLinePoolAssigning(
+        markRawImpressionUploadModelLinePoolAssigningRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = successorUploadId
+          rawImpressionUploadModelLineResourceId = successor.rawImpressionUploadModelLineResourceId
+          etag = successor.etag
+        }
+      )
+
+    assertThat(claimed.state)
+      .isEqualTo(
+        RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_POOL_ASSIGNING
+      )
+  }
+
+  @Test
   fun `markRawImpressionUploadModelLineFailed records no-replacement eviction`() = runBlocking {
     val completed = completeSoleModelLine()
 

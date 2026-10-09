@@ -1,6 +1,17 @@
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_test")
 
 kt_jvm_test(
+    name = "VidLabelingDispatchSerializationTest",
+    srcs = ["VidLabelingDispatchSerializationTest.kt"],
+    associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatch_sequencer"],
+    test_class = "org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSerializationTest",
+    deps = [
+        "@wfa_common_jvm//imports/java/com/google/common/truth",
+        "@wfa_common_jvm//imports/java/org/junit",
+    ],
+)
+
+kt_jvm_test(
     name = "VidLabelingRecoveryPredecessorTest",
     srcs = ["VidLabelingRecoveryPredecessorTest.kt"],
     associates = ["//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:vid_labeling_dispatcher"],
