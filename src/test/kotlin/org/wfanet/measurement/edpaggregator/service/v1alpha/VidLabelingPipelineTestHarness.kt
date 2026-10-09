@@ -27,15 +27,6 @@ import com.google.protobuf.Struct
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
-import io.grpc.CallOptions
-import io.grpc.Channel as GrpcChannel
-import io.grpc.ClientCall
-import io.grpc.ClientInterceptor
-import io.grpc.ClientInterceptors
-import io.grpc.ForwardingClientCall
-import io.grpc.ForwardingClientCallListener
-import io.grpc.Metadata
-import io.grpc.MethodDescriptor
 import io.grpc.Status
 import java.io.File
 import java.io.IOException
@@ -52,12 +43,12 @@ import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
@@ -73,6 +64,8 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeout
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.FSDataInputStream
@@ -83,7 +76,6 @@ import org.junit.After
 import org.junit.Before
 import org.junit.ClassRule
 import org.junit.Rule
-import org.junit.Test
 import org.junit.rules.TemporaryFolder
 import org.junit.rules.TestRule
 import org.junit.runner.RunWith
@@ -117,6 +109,8 @@ import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.testing.chainRulesSequentially
 import org.wfanet.measurement.common.throttler.Throttler
+import org.wfanet.measurement.common.toInstant
+import org.wfanet.measurement.common.toLocalDate
 import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.config.securecomputation.WatchedPathKt.httpEndpointSink
 import org.wfanet.measurement.config.securecomputation.watchedPath
@@ -124,10 +118,9 @@ import org.wfanet.measurement.edpaggregator.StorageConfig
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlobs
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncLeaseRunner
-import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySyncTaskPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.GrpcDataAvailabilitySyncLeaseClient
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncTaskProcessor
-import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.DataAvailabilitySyncTaskPublicationRunner
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItem
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItemProcessor
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices as EdpaInternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata as EdpaSchemata
 import org.wfanet.measurement.edpaggregator.rawimpressions.GENERATION_PATH_PREFIX
@@ -141,8 +134,6 @@ import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTask
-import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncTaskServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
@@ -170,13 +161,13 @@ import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.bucketLookup
 import org.wfanet.measurement.edpaggregator.v1alpha.enumLookup
 import org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping
-import org.wfanet.measurement.edpaggregator.v1alpha.listDataAvailabilitySyncTasksRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
@@ -185,11 +176,13 @@ import org.wfanet.measurement.edpaggregator.vidlabeler.ParquetImpressionConverte
 import org.wfanet.measurement.edpaggregator.vidlabeler.PopulationAttributeWriter
 import org.wfanet.measurement.edpaggregator.vidlabeler.VidLabelerApp
 import org.wfanet.measurement.edpaggregator.vidlabeler.VirtualPeopleVidAssigner
+import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
+import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
@@ -209,7 +202,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkI
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CreateWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.EnsureWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemAttemptRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RenewWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
@@ -218,6 +213,7 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 import org.wfanet.measurement.securecomputation.datawatcher.WatchedBlobs
 import org.wfanet.measurement.securecomputation.datawatcher.testing.DataWatcherSubscribingStorageClient
 import org.wfanet.measurement.securecomputation.deploy.gcloud.testing.TestIdTokenProvider
+import org.wfanet.measurement.securecomputation.service.WorkItemGenerationMismatchException
 import org.wfanet.measurement.securecomputation.service.WorkItemInvalidStateException
 import org.wfanet.measurement.storage.BlobChangedException
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
@@ -232,18 +228,18 @@ import org.wfanet.measurement.storage.parquetValue
 import org.wfanet.virtualpeople.common.Gender
 
 @RunWith(JUnit4::class)
-class VidLabelingPipelineIntegrationTest {
-  private val tempFolder = TemporaryFolder()
-  private val edpaDatabase =
+abstract class VidLabelingPipelineTestHarness {
+  protected val tempFolder = TemporaryFolder()
+  protected val edpaDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, EdpaSchemata.EDP_AGGREGATOR_CHANGELOG_PATH)
-  private val workItemTransport = InProcessWorkItemTransport()
-  private val edpaInternalServer = GrpcTestServerRule {
+  protected val workItemTransport = InProcessWorkItemTransport()
+  protected val edpaInternalServer = GrpcTestServerRule {
     EdpaInternalApiServices.build(edpaDatabase.databaseClient, EmptyCoroutineContext)
       .toList()
       .forEach { addService(it) }
   }
 
-  private val modelLines =
+  protected val modelLines =
     listOf(
       modelLine {
         name = MEMOIZED_MODEL_LINE
@@ -262,16 +258,16 @@ class VidLabelingPipelineIntegrationTest {
           EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
       },
     )
-  private val modelLinesService =
+  protected val modelLinesService =
     object : ModelLinesGrpcKt.ModelLinesCoroutineImplBase() {
       override suspend fun listModelLines(request: ListModelLinesRequest) = listModelLinesResponse {
-        modelLines += this@VidLabelingPipelineIntegrationTest.modelLines
+        modelLines += this@VidLabelingPipelineTestHarness.modelLines
       }
 
       override suspend fun getModelLine(request: GetModelLineRequest): ModelLine =
         modelLines.single { it.name == request.name }
     }
-  private val modelRolloutsService =
+  protected val modelRolloutsService =
     object : ModelRolloutsGrpcKt.ModelRolloutsCoroutineImplBase() {
       override suspend fun listModelRollouts(request: ListModelRolloutsRequest) =
         listModelRolloutsResponse {
@@ -281,7 +277,7 @@ class VidLabelingPipelineIntegrationTest {
           }
         }
     }
-  private val modelShardsService =
+  protected val modelShardsService =
     object : ModelShardsGrpcKt.ModelShardsCoroutineImplBase() {
       override suspend fun listModelShards(request: ListModelShardsRequest) =
         listModelShardsResponse {
@@ -298,15 +294,15 @@ class VidLabelingPipelineIntegrationTest {
           }
         }
     }
-  private val dataProvidersService = RecordingDataProvidersService()
-  private val edpaPublicServer = GrpcTestServerRule {
+  protected val dataProvidersService = RecordingDataProvidersService()
+  protected val edpaPublicServer = GrpcTestServerRule {
     Services.build(edpaInternalServer.channel).toList().forEach { addService(it) }
     addService(modelLinesService)
     addService(modelRolloutsService)
     addService(modelShardsService)
     addService(dataProvidersService)
   }
-  private val workItemPublicServer = GrpcTestServerRule {
+  protected val workItemPublicServer = GrpcTestServerRule {
     addService(workItemTransport.workItemsService)
     addService(workItemTransport.workItemAttemptsService)
   }
@@ -321,56 +317,48 @@ class VidLabelingPipelineIntegrationTest {
       workItemPublicServer,
     )
 
-  private lateinit var rootKey: String
-  private lateinit var fileBucket: String
-  private lateinit var fileStorageRoot: File
-  private lateinit var rawPrefix: String
-  private lateinit var outputPrefix: String
-  private lateinit var externalOutputPrefix: String
-  private lateinit var modelBlobUri: String
-  private lateinit var fileStorage: ConditionalOperationStorageClient
-  private lateinit var mapStorage: UriNormalizingStorageClient
-  private lateinit var rawEventStorage: DataWatcherSubscribingStorageClient
-  private lateinit var outputEventStorage: DataWatcherSubscribingStorageClient
-  private lateinit var metadataStorage: RecordingBlobMetadataStorageClient
-  private lateinit var kmsClient: KmsClient
-  private lateinit var rawWatcher: DataWatcher
-  private lateinit var outputWatcher: DataWatcher
-  private lateinit var httpServer: HttpServer
-  private lateinit var appScope: CoroutineScope
-  private val appJobs = mutableListOf<Job>()
-  private val endpointFailure = AtomicReference<Throwable?>()
-  private val externalAvailabilityDeliveries = AtomicInteger()
-  private val taskRpcFaults = LostSuccessfulResponseInterceptor()
-  private val availabilityClock = MutableClock(Clock.systemUTC().instant().plus(Duration.ofDays(1)))
-  private val availabilityTransport = InProcessAvailabilityTaskTransport()
+  protected lateinit var rootKey: String
+  protected lateinit var fileBucket: String
+  protected lateinit var fileStorageRoot: File
+  protected lateinit var rawPrefix: String
+  protected lateinit var outputPrefix: String
+  protected lateinit var externalOutputPrefix: String
+  protected lateinit var modelBlobUri: String
+  protected lateinit var fileStorage: ConditionalOperationStorageClient
+  protected lateinit var mapStorage: UriNormalizingStorageClient
+  protected lateinit var rawEventStorage: DataWatcherSubscribingStorageClient
+  protected lateinit var outputEventStorage: DataWatcherSubscribingStorageClient
+  protected lateinit var metadataStorage: RecordingBlobMetadataStorageClient
+  protected lateinit var kmsClient: KmsClient
+  protected lateinit var rawWatcher: DataWatcher
+  protected lateinit var outputWatcher: DataWatcher
+  protected lateinit var httpServer: HttpServer
+  protected lateinit var appScope: CoroutineScope
+  protected val appJobs = mutableListOf<Job>()
+  protected val endpointFailure = AtomicReference<Throwable?>()
+  protected val externalAvailabilityDeliveries = AtomicInteger()
 
-  private lateinit var uploadsStub:
+  protected lateinit var uploadsStub:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
-  private lateinit var filesStub:
+  protected lateinit var filesStub:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub
-  private lateinit var modelLineRowsStub:
+  protected lateinit var modelLineRowsStub:
     RawImpressionUploadModelLineServiceGrpcKt.RawImpressionUploadModelLineServiceCoroutineStub
-  private lateinit var rankIndexBlobsStub:
+  protected lateinit var rankIndexBlobsStub:
     RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
-  private lateinit var impressionMetadataStub:
+  protected lateinit var impressionMetadataStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
-  private lateinit var availabilityTasksStub:
-    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
-  private lateinit var faultingAvailabilityTasksStub:
-    DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub
-  private lateinit var correctionDetectionStub:
+  protected lateinit var correctionDetectionStub:
     InternalCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
-  private lateinit var correctionCandidatesStub:
+  protected lateinit var correctionCandidatesStub:
     RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineStub
-  private lateinit var operationsStub:
+  protected lateinit var operationsStub:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
-  private lateinit var workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub
-  private lateinit var workItemAttemptsStub: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
-  private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
-  private lateinit var internalDataAvailabilitySync: DataAvailabilitySync
-  private lateinit var availabilityTaskProcessor: DataAvailabilitySyncTaskProcessor
-  private lateinit var availabilityPublicationRunner: DataAvailabilitySyncTaskPublicationRunner
+  protected lateinit var workItemsStub: WorkItemsGrpcKt.WorkItemsCoroutineStub
+  protected lateinit var workItemAttemptsStub: WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineStub
+  protected lateinit var dispatchSequencer: VidLabelingDispatchSequencer
+  protected lateinit var internalDataAvailabilitySync: DataAvailabilitySync
+  private lateinit var availabilityWorkItemProcessor: DataAvailabilitySyncWorkItemProcessor
 
   @Before
   fun setUp() {
@@ -422,14 +410,6 @@ class VidLabelingPipelineIntegrationTest {
     impressionMetadataStub =
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(
         edpaPublicServer.channel
-      )
-    availabilityTasksStub =
-      DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
-        edpaPublicServer.channel
-      )
-    faultingAvailabilityTasksStub =
-      DataAvailabilitySyncTaskServiceGrpcKt.DataAvailabilitySyncTaskServiceCoroutineStub(
-        ClientInterceptors.intercept(edpaPublicServer.channel, taskRpcFaults)
       )
     correctionDetectionStub =
       InternalCorrectionCandidateServiceGrpcKt
@@ -600,19 +580,10 @@ class VidLabelingPipelineIntegrationTest {
     rawEventStorage.subscribe(rawWatcher)
     outputEventStorage.subscribe(outputWatcher)
 
-    availabilityPublicationRunner =
-      DataAvailabilitySyncTaskPublicationRunner(
-        edpaDatabase.databaseClient,
-        availabilityTransport,
-        clock = availabilityClock,
-        pollInterval = Duration.ofMillis(1),
-        leaseDuration = Duration.ofMinutes(1),
-        initialRetryDelay = Duration.ofSeconds(1),
-        maxRetryDelay = Duration.ofSeconds(1),
-      )
-    availabilityTaskProcessor =
-      DataAvailabilitySyncTaskProcessor(
-        faultingAvailabilityTasksStub,
+    availabilityWorkItemProcessor =
+      DataAvailabilitySyncWorkItemProcessor(
+        workItemsStub,
+        workItemAttemptsStub,
         DataAvailabilitySyncLeaseRunner(
           GrpcDataAvailabilitySyncLeaseClient(
             DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(
@@ -620,12 +591,48 @@ class VidLabelingPipelineIntegrationTest {
             )
           )
         ),
-        buildDataAvailabilitySync = { internalDataAvailabilitySync },
-        verifyDoneObject = { task ->
-          val key = SelectedStorageClient.parseBlobUri(task.doneBlobUri).key
-          val generation = checkNotNull(fileStorage.getFreshnessToken(key)).toLong()
-          check(generation == task.doneBlobGeneration)
+        synchronize = { workItem, lease, onStage ->
+          val rawImpressionBlobUris =
+            listUploadFiles(workItem.appParams.triggeringRawImpressionUpload)
+              .filter { it.eventDate.toLocalDate() == workItem.eventDate }
+              .map { it.blobUri }
+          check(rawImpressionBlobUris.isNotEmpty())
+          internalDataAvailabilitySync.sync(
+            workItem.doneBlobUri,
+            dataAvailabilitySyncLease = lease.name,
+            doneBlobGeneration = workItem.doneBlobGeneration,
+            discoveryMode =
+              DataAvailabilitySync.DiscoveryMode.VidLabelerOutputs(
+                rawImpressionUpload = workItem.appParams.triggeringRawImpressionUpload,
+                rawImpressionBlobUris = rawImpressionBlobUris,
+                modelLine = workItem.appParams.modelLine,
+                eventDate = workItem.eventDate,
+              ),
+            onStage = onStage,
+            ensureLeaseActive = lease::invoke,
+          )
         },
+        verifyDoneObject = { workItem ->
+          val key = SelectedStorageClient.parseBlobUri(workItem.doneBlobUri).key
+          val generation = checkNotNull(fileStorage.getFreshnessToken(key)).toLong()
+          check(generation == workItem.doneBlobGeneration)
+        },
+        markAvailabilitySynchronized = { workItem ->
+          modelLineRowsStub.markRawImpressionUploadModelLineAvailabilitySynchronized(
+            markRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+              name = workItem.rawImpressionUploadModelLineName
+              eventDate = workItem.appParams.eventDate
+              requestId =
+                RequestIds.forMarkRawImpressionUploadModelLineAvailabilitySynchronized(
+                  workItem.rawImpressionUploadModelLineName,
+                  workItem.eventDate.toString(),
+                )
+            }
+          )
+        },
+        activeAttemptRetryDelay = { delay(1L) },
+        attemptLeaseRenewalDelay = { delay(1_000L) },
+        attemptUpdateRetryDelay = {},
       )
 
     startApplications()
@@ -640,400 +647,7 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  @Test
-  fun `raw uploads run through both pipelines and data availability`() = runBlocking {
-    workItemTransport.forceNextAcknowledgementRedelivery()
-    availabilityTransport.duplicateNextDelivery = true
-    availabilityTransport.redeliverAfterNextFailure = true
-    taskRpcFaults.loseNextCreateResponse.set(true)
-    taskRpcFaults.loseNextMarkRunningResponse.set(true)
-    val initialFile = writeRawFile("day-1", "initial.parquet", listOf("person-1"))
-    val firstDoneGeneration = finalizeRawUpload("day-1")
-    awaitPipelineIdle()
-
-    val initialUploads = listUploads()
-    assertThat(initialUploads).hasSize(1)
-    assertThat(initialUploads.single().doneBlobGeneration).isEqualTo(firstDoneGeneration)
-    assertThat(listUploadFiles(initialUploads.single().name).single().blobGeneration)
-      .isEqualTo(generationOf(initialFile))
-    assertCompletedForBothPaths(initialUploads.single())
-    assertReadablePeople(MEMOIZED_MODEL_LINE, setOf("person-1"))
-    assertReadablePeople(DIRECT_MODEL_LINE, setOf("person-1"))
-    assertThat(workItemTransport.forcedRetryCount).isEqualTo(1)
-    assertThat(workItemTransport.forcedRetryWorkItemNames).hasSize(1)
-
-    val workItemsAfterInitial = workItemTransport.publishedCount
-    val metadataAfterInitial = listMetadata()
-    val memoizedOutputsAfterInitial = outputGenerations(MEMOIZED_MODEL_LINE)
-    val directOutputsAfterInitial = outputGenerations(DIRECT_MODEL_LINE)
-    val rankIndexesAfterInitial = listRankIndexBlobs(initialUploads.single().name)
-    assertThat(metadataAfterInitial).hasSize(2)
-    assertThat(memoizedOutputsAfterInitial).hasSize(1)
-    assertThat(directOutputsAfterInitial).hasSize(1)
-    assertThat(rankIndexesAfterInitial).hasSize(2)
-    val initialTasks = listAvailabilityTasks(initialUploads.single().name)
-    assertThat(initialTasks).hasSize(2)
-    assertThat(initialTasks.map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.SUCCEEDED)
-    assertThat(initialTasks.map { it.attemptCount }.toSet()).containsExactly(1, 2)
-    assertAvailabilityTaskIdentities(initialUploads.single(), EVENT_DATE)
-    assertThat(taskRpcFaults.droppedCreateResponses.get()).isEqualTo(1)
-    assertThat(taskRpcFaults.droppedMarkRunningResponses.get()).isEqualTo(1)
-    assertThat(availabilityTransport.deliveryCounts.values.any { it == 1 }).isTrue()
-    assertThat(availabilityTransport.deliveryCounts.values.any { it >= 2 }).isTrue()
-    assertThat(externalAvailabilityDeliveries.get()).isEqualTo(0)
-    rawWatcher.receivePath(
-      "$rawPrefix/day-1/done",
-      mapOf(DataWatcher.GENERATION_METADATA_KEY to firstDoneGeneration.toString()),
-    )
-    awaitPipelineIdle()
-    assertThat(listUploads()).hasSize(1)
-    assertThat(workItemTransport.publishedCount).isEqualTo(workItemsAfterInitial)
-    assertThat(listMetadata()).containsExactlyElementsIn(metadataAfterInitial)
-    assertThat(outputGenerations(MEMOIZED_MODEL_LINE)).isEqualTo(memoizedOutputsAfterInitial)
-    assertThat(outputGenerations(DIRECT_MODEL_LINE)).isEqualTo(directOutputsAfterInitial)
-    assertThat(listRankIndexBlobs(initialUploads.single().name))
-      .containsExactlyElementsIn(rankIndexesAfterInitial)
-
-    val additiveFile = writeRawFile("day-1", "additional.parquet", listOf("person-2"))
-    val additiveFileGeneration = generationOf(additiveFile)
-    availabilityTransport.redeliverAfterNextFailure = true
-    taskRpcFaults.loseNextMarkSucceededResponse.set(true)
-    val additiveDoneGeneration = finalizeRawUpload("day-1")
-    awaitPipelineIdle()
-    val revisions = listUploads().filter { it.doneBlobUri == "$rawPrefix/day-1/done" }
-    assertThat(revisions).hasSize(2)
-    val additive = revisions.single { it.doneBlobGeneration == additiveDoneGeneration }
-    assertThat(additive.replacesRawImpressionUpload).isEqualTo(initialUploads.single().name)
-    assertThat(listUploadFiles(additive.name).map { it.blobUri to it.blobGeneration })
-      .containsExactly(additiveFile to additiveFileGeneration)
-    val additiveTasks = listAvailabilityTasks(additive.name)
-    assertThat(additiveTasks.map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.SUCCEEDED)
-    assertAvailabilityTaskIdentities(additive, EVENT_DATE)
-    assertThat(taskRpcFaults.droppedMarkSucceededResponses.get()).isEqualTo(1)
-    assertThat(additiveTasks.any { availabilityTransport.deliveryCounts.getValue(it.name) >= 2 })
-      .isTrue()
-
-    val independentFile =
-      writeRawFile("day-1/advertiser-a", "independent.parquet", listOf("person-3"))
-    val independentFileGeneration = generationOf(independentFile)
-    val independentDoneGeneration = finalizeRawUpload("day-1/advertiser-a")
-    awaitPipelineIdle()
-    val independent =
-      listUploads().single {
-        it.doneBlobUri == "$rawPrefix/day-1/advertiser-a/done" &&
-          it.doneBlobGeneration == independentDoneGeneration
-      }
-    assertThat(independent.replacesRawImpressionUpload).isEmpty()
-    assertThat(listUploadFiles(independent.name).map { it.blobUri to it.blobGeneration })
-      .containsExactly(independentFile to independentFileGeneration)
-    assertReadablePeople(MEMOIZED_MODEL_LINE, setOf("person-1", "person-2", "person-3"))
-    assertReadablePeople(DIRECT_MODEL_LINE, setOf("person-1", "person-2", "person-3"))
-    assertAvailabilityPublished(setOf(MEMOIZED_MODEL_LINE, DIRECT_MODEL_LINE), setOf(EVENT_DATE))
-    assertThat(externalAvailabilityDeliveries.get()).isEqualTo(0)
-    assertEveryRegisteredRawGenerationWasRead()
-  }
-
-  @Test
-  fun `missing task publication is retried without relabeling`() = runBlocking {
-    availabilityTransport.failBeforeNextPublication = true
-    writeRawFile("day-1", "input.parquet", listOf("person-1"))
-    finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val upload = listUploads().single()
-
-    assertThat(availabilityPublicationRunner.publishPendingTasks(limit = 1)).isEqualTo(0)
-
-    val failedTask =
-      listAvailabilityTasks(upload.name).single {
-        it.state == DataAvailabilitySyncTask.State.FAILED
-      }
-    assertThat(failedTask.failureCategory)
-      .isEqualTo(DataAvailabilitySyncTask.FailureCategory.PUBLICATION)
-    assertThat(listMetadata()).isEmpty()
-
-    availabilityClock.advance(Duration.ofSeconds(2))
-    drainAvailabilityTasks()
-
-    assertThat(listAvailabilityTasks(upload.name).map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.SUCCEEDED)
-    assertThat(listMetadata()).hasSize(2)
-    assertReadablePeople(MEMOIZED_MODEL_LINE, setOf("person-1"))
-    assertReadablePeople(DIRECT_MODEL_LINE, setOf("person-1"))
-  }
-
-  @Test
-  fun `lost publication response recovers through the outbox`() =
-    runBlocking<Unit> {
-      writeRawFile("day-1", "input.parquet", listOf("person-1"))
-      finalizeRawUpload("day-1")
-      workItemTransport.awaitIdle()
-      val upload = listUploads().single()
-      availabilityTransport.loseNextResponse = true
-
-      assertThat(availabilityPublicationRunner.publishPendingTasks(limit = 1)).isEqualTo(0)
-      val deliveredTaskName = availabilityTransport.takeNext()
-      assertThat(runCatching { availabilityTaskProcessor.process(deliveredTaskName) }.isFailure)
-        .isTrue()
-      val failedTask = listAvailabilityTasks(upload.name).single { it.name == deliveredTaskName }
-      assertThat(failedTask.state).isEqualTo(DataAvailabilitySyncTask.State.FAILED)
-      assertThat(failedTask.failureCategory)
-        .isEqualTo(DataAvailabilitySyncTask.FailureCategory.PUBLICATION)
-
-      availabilityClock.advance(Duration.ofSeconds(2))
-      drainAvailabilityTasks()
-
-      assertThat(listAvailabilityTasks(upload.name).map { it.state }.toSet())
-        .containsExactly(DataAvailabilitySyncTask.State.SUCCEEDED)
-      assertThat(availabilityTransport.lostResponseTaskNames).containsExactly(deliveredTaskName)
-    }
-
-  @Test
-  fun `task failure before metadata creation recovers by republication`() = runBlocking {
-    val inputFile = writeRawFile("day-1", "input.parquet", listOf("person-1"))
-    finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val upload = listUploads().single()
-    val directTask =
-      listAvailabilityTasks(upload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
-    val directSidecarKey = blobKey(sidecarUri(inputFile, DIRECT_MODEL_LINE, EVENT_DATE))
-    val validSidecar = checkNotNull(fileStorage.getBlob(directSidecarKey)).read().flatten()
-    fileStorage.writeBlob(directSidecarKey, flowOf(ByteString.copyFromUtf8("invalid sidecar")))
-    publishTask(directTask.name)
-    availabilityTaskProcessor.process(directTask.name)
-
-    val failedTask =
-      listAvailabilityTasks(upload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
-    assertThat(failedTask.state).isEqualTo(DataAvailabilitySyncTask.State.FAILED)
-    assertThat(failedTask.failureCategory)
-      .isEqualTo(DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION)
-    assertThat(failedTask.attemptCount).isEqualTo(1)
-    assertThat(listMetadata().none { it.modelLine == DIRECT_MODEL_LINE }).isTrue()
-
-    fileStorage.writeBlob(directSidecarKey, flowOf(validSidecar))
-    availabilityClock.advance(Duration.ofHours(2))
-    drainAvailabilityTasks()
-
-    val recoveredTask =
-      listAvailabilityTasks(upload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
-    assertThat(recoveredTask.state).isEqualTo(DataAvailabilitySyncTask.State.SUCCEEDED)
-    assertThat(recoveredTask.attemptCount).isEqualTo(2)
-    assertThat(listMetadata().any { it.modelLine == DIRECT_MODEL_LINE }).isTrue()
-  }
-
-  @Test
-  fun `task with only stale sidecars fails until its output is restored`() = runBlocking {
-    writeRawFile("day-1", "initial.parquet", listOf("person-1"))
-    finalizeRawUpload("day-1")
-    awaitPipelineIdle()
-
-    val additiveFile = writeRawFile("day-1", "additive.parquet", listOf("person-2"))
-    val additiveDoneGeneration = finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val additiveUpload = listUploads().single { it.doneBlobGeneration == additiveDoneGeneration }
-    val directTask =
-      listAvailabilityTasks(additiveUpload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
-    val sidecarKey = blobKey(sidecarUri(additiveFile, DIRECT_MODEL_LINE, EVENT_DATE))
-    val sidecarBytes = checkNotNull(fileStorage.getBlob(sidecarKey)).read().flatten()
-    checkNotNull(fileStorage.getBlob(sidecarKey)).delete()
-    publishTask(directTask.name)
-    availabilityTaskProcessor.process(directTask.name)
-
-    val failedTask =
-      listAvailabilityTasks(additiveUpload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
-    assertThat(failedTask.state).isEqualTo(DataAvailabilitySyncTask.State.FAILED)
-    assertThat(failedTask.failureCategory)
-      .isEqualTo(DataAvailabilitySyncTask.FailureCategory.SYNCHRONIZATION)
-    assertThat(
-        listMetadata().none {
-          it.rawImpressionUpload == additiveUpload.name && it.modelLine == DIRECT_MODEL_LINE
-        }
-      )
-      .isTrue()
-
-    fileStorage.writeBlob(sidecarKey, flowOf(sidecarBytes))
-    availabilityClock.advance(Duration.ofHours(2))
-    drainAvailabilityTasks()
-
-    val recoveredTask =
-      listAvailabilityTasks(additiveUpload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
-    assertThat(recoveredTask.state).isEqualTo(DataAvailabilitySyncTask.State.SUCCEEDED)
-    assertThat(
-        listMetadata().any {
-          it.rawImpressionUpload == additiveUpload.name && it.modelLine == DIRECT_MODEL_LINE
-        }
-      )
-      .isTrue()
-  }
-
-  @Test
-  fun `overlapping task delivery does not reclaim a running leased attempt`() = runBlocking {
-    writeRawFile("day-1", "input.parquet", listOf("person-1"))
-    finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val upload = listUploads().single()
-    val directTask =
-      listAvailabilityTasks(upload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
-    publishTask(directTask.name)
-    metadataStorage.pauseNextSyncStart()
-
-    val firstDelivery =
-      async(Dispatchers.Default) { availabilityTaskProcessor.process(directTask.name) }
-    metadataStorage.awaitPausedSyncStart()
-    val duplicateResult =
-      async(Dispatchers.Default) {
-          runCatching { availabilityTaskProcessor.process(directTask.name) }
-        }
-        .await()
-
-    assertThat(duplicateResult.isSuccess).isTrue()
-    assertThat(runCatching { availabilityTaskProcessor.process(directTask.name) }.isSuccess)
-      .isTrue()
-    val running = listAvailabilityTasks(upload.name).single { it.name == directTask.name }
-    assertThat(running.state).isEqualTo(DataAvailabilitySyncTask.State.RUNNING)
-    assertThat(running.attemptCount).isEqualTo(1)
-
-    metadataStorage.releasePausedSyncStart()
-    firstDelivery.await()
-    availabilityTaskProcessor.process(directTask.name)
-
-    val succeeded = listAvailabilityTasks(upload.name).single { it.name == directTask.name }
-    assertThat(succeeded.state).isEqualTo(DataAvailabilitySyncTask.State.SUCCEEDED)
-    assertThat(succeeded.attemptCount).isEqualTo(1)
-    val doneKey = blobKey(succeeded.doneBlobUri)
-    val doneBlob = checkNotNull(metadataStorage.getBlob(doneKey))
-    assertThat(DataAvailabilityBlobs.isSynced(doneBlob)).isTrue()
-    assertThat(DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob)).isTrue()
-  }
-
-  @Test
-  fun `external watched path uses DataWatcher while internal output uses tasks`() = runBlocking {
-    val internalDoneKey =
-      blobKey(LabeledImpressionsBlobKeys.forDoneUri(outputPrefix, DIRECT_MODEL_LINE, EVENT_DATE))
-    outputEventStorage.writeBlob(internalDoneKey, flowOf(ByteString.EMPTY))
-    assertThat(externalAvailabilityDeliveries.get()).isEqualTo(0)
-
-    val externalDataUri =
-      "$externalOutputPrefix/model-line/direct/$EVENT_DATE/external-output.riegeli"
-    val externalSidecarUri = "$externalDataUri.metadata.binpb"
-    outputEventStorage.writeBlob(blobKey(externalDataUri), flowOf(ByteString.EMPTY))
-    outputEventStorage.writeBlob(
-      blobKey(externalSidecarUri),
-      flowOf(
-        blobDetails {
-            blobUri = externalDataUri
-            eventGroupReferenceId = "external-event-group"
-            modelLine = DIRECT_MODEL_LINE
-            interval =
-              com.google.type.interval {
-                startTime = EVENT_DATE.atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-                endTime =
-                  EVENT_DATE.plusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-              }
-          }
-          .toByteString()
-      ),
-    )
-    val externalDoneKey = blobKey("$externalOutputPrefix/model-line/direct/$EVENT_DATE/done")
-    outputEventStorage.writeBlob(externalDoneKey, flowOf(ByteString.EMPTY))
-    endpointFailure.getAndSet(null)?.let {
-      throw AssertionError("External finalized-object delivery failed", it)
-    }
-
-    assertThat(externalAvailabilityDeliveries.get()).isEqualTo(1)
-    val metadata = listMetadata().single()
-    assertThat(metadata.modelLine).isEqualTo(DIRECT_MODEL_LINE)
-    assertThat(metadata.rawImpressionUpload).isEmpty()
-    assertThat(metadata.state).isEqualTo(ImpressionMetadata.State.ACTIVE)
-  }
-
-  @Test
-  fun `corrected output synchronizes only after healing releases the fence`() = runBlocking {
-    writeRawFile("day-1", "input.parquet", listOf("stale-person"))
-    val originalDoneGeneration = finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val original = listUploads().single { it.doneBlobGeneration == originalDoneGeneration }
-    assertCompletedForBothPaths(original)
-    assertThat(listAvailabilityTasks(original.name).map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.PENDING)
-
-    writeRawFile("day-1", "input.parquet", listOf("corrected-person"))
-    val correctionDoneGeneration = finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val correction = listUploads().single { it.doneBlobGeneration == correctionDoneGeneration }
-    assertThat(correction.state).isEqualTo(RawImpressionUpload.State.CORRECTION_REQUIRED)
-
-    val controller = buildHealingController()
-    assertThat(controller.run().failedDataProviders).isEqualTo(0)
-    val draft = listHealingOperations().single()
-    approveHealingOperation(draft, RawImpressionUploadCorrectionCandidate.Decision.DECISION_CORRECT)
-
-    assertThat(controller.run().failedDataProviders).isEqualTo(0)
-    assertThat(listAvailabilityTasks(original.name).map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.SUPERSEDED)
-
-    workItemTransport.awaitIdle()
-    endpointFailure.getAndSet(null)?.let {
-      throw AssertionError("Corrected revision replay failed", it)
-    }
-    val replacement = listUploads().single { it.replacesRawImpressionUpload == original.name }
-    assertCompletedForBothPaths(replacement)
-    assertThat(listAvailabilityTasks(replacement.name).map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.PENDING)
-    assertThat(listMetadata()).isEmpty()
-
-    assertThat(controller.run().failedDataProviders).isEqualTo(0)
-    assertThat(listHealingOperations().single().state)
-      .isEqualTo(UploadHealingOperation.State.COMPLETE)
-    drainAvailabilityTasks()
-
-    assertThat(listAvailabilityTasks(replacement.name).map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.SUCCEEDED)
-    assertThat(listMetadata().map { it.rawImpressionUpload }.toSet())
-      .containsExactly(replacement.name)
-    Unit
-  }
-
-  @Test
-  fun `no-replacement correction cancels pending availability tasks`() = runBlocking {
-    writeRawFile("day-1", "input.parquet", listOf("stale-person"))
-    val originalDoneGeneration = finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val original = listUploads().single { it.doneBlobGeneration == originalDoneGeneration }
-    assertCompletedForBothPaths(original)
-    assertThat(listAvailabilityTasks(original.name).map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.PENDING)
-    assertThat(listMetadata()).isEmpty()
-
-    writeRawFile("day-1", "input.parquet", listOf("replacement-person"))
-    val correctionDoneGeneration = finalizeRawUpload("day-1")
-    workItemTransport.awaitIdle()
-    val correction = listUploads().single { it.doneBlobGeneration == correctionDoneGeneration }
-    assertThat(correction.state).isEqualTo(RawImpressionUpload.State.CORRECTION_REQUIRED)
-    assertThat(listModelLines(correction.name)).isEmpty()
-
-    val controller = buildHealingController()
-    assertThat(controller.run().failedDataProviders).isEqualTo(0)
-    val draft = listHealingOperations().single()
-    assertThat(draft.state).isEqualTo(UploadHealingOperation.State.APPROVAL_REQUIRED)
-    approveHealingOperation(
-      draft,
-      RawImpressionUploadCorrectionCandidate.Decision.DECISION_NO_REPLACEMENT,
-    )
-
-    assertThat(controller.run().failedDataProviders).isEqualTo(0)
-
-    val completed = listHealingOperations().single()
-    assertThat(completed.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
-    assertThat(listAvailabilityTasks(original.name).map { it.state }.toSet())
-      .containsExactly(DataAvailabilitySyncTask.State.CANCELLED)
-    assertThat(availabilityPublicationRunner.publishPendingTasks()).isEqualTo(0)
-    assertThat(listMetadata()).isEmpty()
-  }
-
-  private fun buildHealingController(): VidLabelingHealingController {
-    val labeledOutputPrefix = canonicalGcsUri(outputPrefix)
+  protected fun buildHealingController(): VidLabelingHealingController {
     val evictUploader =
       EvictUploader(
         uploadsStub,
@@ -1041,7 +655,7 @@ class VidLabelingPipelineIntegrationTest {
         rankIndexBlobsStub,
         filesStub,
         impressionMetadataStub,
-        labeledOutputPrefix,
+        outputPrefix,
         getBlobGeneration = { blobUri ->
           fileStorage.getFreshnessToken(blobKey(blobUri))?.toLong()
         },
@@ -1071,7 +685,7 @@ class VidLabelingPipelineIntegrationTest {
       listOf(
         VidLabelingHealingController.DataProviderConfig(
           DATA_PROVIDER,
-          labeledOutputPrefix,
+          outputPrefix,
           Duration.ofDays(3650),
         )
       ),
@@ -1119,12 +733,12 @@ class VidLabelingPipelineIntegrationTest {
     )
   }
 
-  private suspend fun listHealingOperations(): List<UploadHealingOperation> =
+  protected suspend fun listHealingOperations(): List<UploadHealingOperation> =
     operationsStub
       .listUploadHealingOperations(listUploadHealingOperationsRequest { parent = DATA_PROVIDER })
       .uploadHealingOperationsList
 
-  private suspend fun approveHealingOperation(
+  protected suspend fun approveHealingOperation(
     operation: UploadHealingOperation,
     decision: RawImpressionUploadCorrectionCandidate.Decision,
   ) {
@@ -1144,7 +758,7 @@ class VidLabelingPipelineIntegrationTest {
     )
   }
 
-  private fun startApplications() {
+  protected fun startApplications() {
     val rawParquetClient = { storageConfig: StorageConfig, kms: KmsClient ->
       parquetClient(
         kms,
@@ -1237,7 +851,6 @@ class VidLabelingPipelineIntegrationTest {
               edpaPublicServer.channel
             ),
           rawImpressionUploadModelLinesStub = modelLineRowsStub,
-          dataAvailabilitySyncTasksStub = faultingAvailabilityTasksStub,
           rankIndexBlobsStub = rankIndexBlobsStub,
           rawImpressionUploadFilesStub = filesStub,
           buildParquetStorageClient = rawParquetClient,
@@ -1257,15 +870,30 @@ class VidLabelingPipelineIntegrationTest {
             val blob =
               outputEventStorage.writeBlob(doneKey, flowOf(ByteString.EMPTY))
                 as ConditionalOperationStorageClient.Blob
-            "gs://$fileBucket/$doneKey" to blob.freshnessToken.toLong()
+            doneUri to blob.freshnessToken.toLong()
           },
         ),
       )
     appScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     appJobs += apps.map { appScope.launch { it.run() } }
+    appJobs +=
+      appScope.launch {
+        val messages =
+          workItemTransport.subscribe(DataAvailabilitySyncWorkItems.QUEUE, WorkItem.parser())
+        for (message in messages) {
+          try {
+            availabilityWorkItemProcessor.process(DataAvailabilitySyncWorkItem.parse(message.body))
+            message.ack()
+          } catch (e: CancellationException) {
+            throw e
+          } catch (_: Exception) {
+            message.nack()
+          }
+        }
+      }
   }
 
-  private suspend fun writeRawFile(
+  protected suspend fun writeRawFile(
     folder: String,
     fileName: String,
     personIds: List<String>,
@@ -1295,7 +923,7 @@ class VidLabelingPipelineIntegrationTest {
     return "gs://$fileBucket/$key"
   }
 
-  private suspend fun finalizeRawUpload(folder: String): Long {
+  protected suspend fun finalizeRawUpload(folder: String): Long {
     val key = "$rootKey/raw/$folder/done"
     val blob = rawEventStorage.writeBlob(key, flowOf(ByteString.EMPTY))
     endpointFailure.getAndSet(null)?.let {
@@ -1304,7 +932,7 @@ class VidLabelingPipelineIntegrationTest {
     return (blob as ConditionalOperationStorageClient.Blob).freshnessToken.toLong()
   }
 
-  private fun parquetClient(
+  protected fun parquetClient(
     kms: KmsClient,
     root: Path = Path("file:///$fileBucket"),
   ): ParquetStorageClient =
@@ -1320,10 +948,10 @@ class VidLabelingPipelineIntegrationTest {
       encryptionConfig = ParquetEncryptionConfig(kmsProvider = { kms }),
     )
 
-  private suspend fun readEventDate(blobUri: String): LocalDate =
+  protected suspend fun readEventDate(blobUri: String): LocalDate =
     readEventDateFromFooter(parquetClient(kmsClient, Path("gs://$fileBucket/")), blobUri)
 
-  private suspend fun blobMetadata(key: String): RawImpressionBlobMetadata {
+  protected suspend fun blobMetadata(key: String): RawImpressionBlobMetadata {
     val blob = checkNotNull(fileStorage.getBlob(key))
     val generation =
       checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken).toLong()
@@ -1332,11 +960,11 @@ class VidLabelingPipelineIntegrationTest {
     return RawImpressionBlobMetadata(generation, blob.size, blob.updateTime)
   }
 
-  private suspend fun generationOf(blobUri: String): Long =
+  protected suspend fun generationOf(blobUri: String): Long =
     checkNotNull(fileStorage.getFreshnessToken(SelectedStorageClient.parseBlobUri(blobUri).key))
       .toLong()
 
-  private suspend fun listUploads(): List<RawImpressionUpload> =
+  protected suspend fun listUploads(): List<RawImpressionUpload> =
     uploadsStub
       .listRawImpressionUploads(
         listRawImpressionUploadsRequest {
@@ -1346,19 +974,19 @@ class VidLabelingPipelineIntegrationTest {
       )
       .rawImpressionUploadsList
 
-  private suspend fun listUploadFiles(upload: String) =
+  protected suspend fun listUploadFiles(upload: String) =
     filesStub
       .listRawImpressionUploadFiles(listRawImpressionUploadFilesRequest { parent = upload })
       .rawImpressionUploadFilesList
 
-  private suspend fun listModelLines(upload: String) =
+  protected suspend fun listModelLines(upload: String) =
     modelLineRowsStub
       .listRawImpressionUploadModelLines(
         listRawImpressionUploadModelLinesRequest { parent = upload }
       )
       .rawImpressionUploadModelLinesList
 
-  private suspend fun listRankIndexBlobs(upload: String, showDeleted: Boolean = false) =
+  protected suspend fun listRankIndexBlobs(upload: String, showDeleted: Boolean = false) =
     rankIndexBlobsStub
       .listRankIndexBlobs(
         listRankIndexBlobsRequest {
@@ -1368,7 +996,7 @@ class VidLabelingPipelineIntegrationTest {
       )
       .rankIndexBlobsList
 
-  private suspend fun assertSnapshotsEvicted(upload: String, originals: List<RankIndexBlob>) {
+  protected suspend fun assertSnapshotsEvicted(upload: String, originals: List<RankIndexBlob>) {
     val afterEviction = listRankIndexBlobs(upload, showDeleted = true).associateBy { it.name }
     assertThat(afterEviction.keys).containsExactlyElementsIn(originals.map { it.name })
     for (original in originals) {
@@ -1381,7 +1009,7 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  private suspend fun listMetadata(showDeleted: Boolean = false): List<ImpressionMetadata> =
+  protected suspend fun listMetadata(showDeleted: Boolean = false): List<ImpressionMetadata> =
     impressionMetadataStub
       .listImpressionMetadata(
         listImpressionMetadataRequest {
@@ -1391,26 +1019,40 @@ class VidLabelingPipelineIntegrationTest {
       )
       .impressionMetadataList
 
-  private suspend fun listAvailabilityTasks(upload: String): List<DataAvailabilitySyncTask> =
-    availabilityTasksStub
-      .listDataAvailabilitySyncTasks(listDataAvailabilitySyncTasksRequest { parent = upload })
-      .dataAvailabilitySyncTasksList
+  protected fun listAvailabilityTasks(upload: String): List<AvailabilityWorkItemRecord> =
+    workItemTransport
+      .workItemsForQueue(DataAvailabilitySyncWorkItems.QUEUE)
+      .map { workItem ->
+        val input = DataAvailabilitySyncWorkItem.parse(workItem)
+        AvailabilityWorkItemRecord(
+          workItem = workItem,
+          attemptCount = workItemTransport.attemptCount(workItem.name),
+          cmmsModelLine = input.appParams.modelLine,
+          rawImpressionUpload = input.appParams.triggeringRawImpressionUpload,
+          doneBlobUri = input.doneBlobUri,
+          doneBlobGeneration = input.doneBlobGeneration,
+          eventDate = input.appParams.eventDate,
+        )
+      }
+      .filter { it.rawImpressionUpload == upload }
 
-  private suspend fun assertAvailabilityTaskIdentities(
+  protected suspend fun processAvailabilityTask(task: AvailabilityWorkItemRecord) {
+    availabilityWorkItemProcessor.process(DataAvailabilitySyncWorkItem.parse(task.workItem))
+  }
+
+  protected suspend fun assertAvailabilityTaskIdentities(
     upload: RawImpressionUpload,
     eventDate: LocalDate,
   ) {
     val tasks = listAvailabilityTasks(upload.name)
     for (task in tasks) {
       val expectedDoneUri =
-        canonicalGcsUri(
-          LabeledImpressionsBlobKeys.forDoneUri(outputPrefix, task.cmmsModelLine, eventDate)
-        )
+        LabeledImpressionsBlobKeys.forDoneUri(outputPrefix, task.cmmsModelLine, eventDate)
       val expectedGeneration =
         checkNotNull(fileStorage.getFreshnessToken(blobKey(expectedDoneUri))).toLong()
       val expectedPathHash = VidLabelingTraceAttributes.gcsObjectPathHash(expectedDoneUri)
-      val expectedId = RequestIds.forDataAvailabilitySyncTask(expectedPathHash, expectedGeneration)
-      assertThat(task.name).isEqualTo("${upload.name}/dataAvailabilitySyncTasks/$expectedId")
+      val expectedId = WorkItemIds.forDataAvailabilitySync(expectedPathHash, expectedGeneration)
+      assertThat(task.name).isEqualTo("workItems/$expectedId")
       assertThat(task.doneBlobUri).isEqualTo(expectedDoneUri)
       assertThat(task.doneBlobGeneration).isEqualTo(expectedGeneration)
       assertThat(task.doneBlobPathHash).isEqualTo(expectedPathHash)
@@ -1420,7 +1062,7 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  private suspend fun assertEveryRegisteredRawGenerationWasRead() {
+  protected suspend fun assertEveryRegisteredRawGenerationWasRead() {
     val registeredFiles = listUploads().flatMap { listUploadFiles(it.name) }
     for (file in registeredFiles) {
       assertThat(GenerationMatchedTestHadoopFileSystem.recordedGenerations(file.blobUri))
@@ -1428,22 +1070,17 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  private fun sidecarUri(inputBlobUri: String, modelLine: String, eventDate: LocalDate): String =
+  protected fun sidecarUri(inputBlobUri: String, modelLine: String, eventDate: LocalDate): String =
     LabeledImpressionsBlobKeys.forInputUri(outputPrefix, inputBlobUri, modelLine, eventDate) +
       ".metadata.binpb"
 
-  private fun blobKey(blobUri: String): String = SelectedStorageClient.parseBlobUri(blobUri).key
+  protected fun blobKey(blobUri: String): String = SelectedStorageClient.parseBlobUri(blobUri).key
 
-  private fun canonicalGcsUri(blobUri: String): String {
-    val parsed = SelectedStorageClient.parseBlobUri(blobUri)
-    return "gs://${parsed.bucket}/${parsed.key}"
-  }
-
-  private suspend fun snapshotOutputArtifacts(
+  protected suspend fun snapshotOutputArtifacts(
     metadata: Collection<ImpressionMetadata>
   ): Map<String, OutputArtifact> = metadata.associate { it.blobUri to snapshotOutputArtifact(it) }
 
-  private suspend fun snapshotOutputArtifact(metadata: ImpressionMetadata): OutputArtifact {
+  protected suspend fun snapshotOutputArtifact(metadata: ImpressionMetadata): OutputArtifact {
     val sidecarBlob = checkNotNull(fileStorage.getBlob(blobKey(metadata.blobUri)))
     val dataUri = BlobDetails.parseFrom(sidecarBlob.read().flatten()).blobUri
     return OutputArtifact(
@@ -1453,7 +1090,7 @@ class VidLabelingPipelineIntegrationTest {
     )
   }
 
-  private suspend fun assertMetadataMatchesSidecar(metadata: ImpressionMetadata) {
+  protected suspend fun assertMetadataMatchesSidecar(metadata: ImpressionMetadata) {
     val details =
       BlobDetails.parseFrom(
         checkNotNull(fileStorage.getBlob(blobKey(metadata.blobUri))).read().flatten()
@@ -1469,7 +1106,7 @@ class VidLabelingPipelineIntegrationTest {
       )
   }
 
-  private suspend fun assertAvailabilityPublished(
+  protected suspend fun assertAvailabilityPublished(
     modelLines: Set<String>,
     eventDates: Set<LocalDate>,
   ) {
@@ -1505,7 +1142,7 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  private suspend fun assertCompletedForBothPaths(upload: RawImpressionUpload) {
+  protected suspend fun assertCompletedForBothPaths(upload: RawImpressionUpload) {
     assertThat(listModelLines(upload.name).associate { it.cmmsModelLine to it.state })
       .containsExactly(
         MEMOIZED_MODEL_LINE,
@@ -1522,7 +1159,7 @@ class VidLabelingPipelineIntegrationTest {
       .contains(MEMOIZED_MODEL_LINE)
   }
 
-  private suspend fun assertReadablePeople(modelLine: String, expectedPeople: Set<String>) {
+  protected suspend fun assertReadablePeople(modelLine: String, expectedPeople: Set<String>) {
     val metadata = listMetadata().filter { it.modelLine == modelLine }
     val labeledEvents =
       metadata.flatMap { row ->
@@ -1548,32 +1185,14 @@ class VidLabelingPipelineIntegrationTest {
     assertThat(vids.all { it in EXPECTED_VID_RANGE }).isTrue()
   }
 
-  private suspend fun awaitPipelineIdle() {
+  protected suspend fun awaitPipelineIdle() {
     workItemTransport.awaitIdle()
-    drainAvailabilityTasks()
     endpointFailure.getAndSet(null)?.let {
       throw AssertionError("Finalized-object delivery failed", it)
     }
   }
 
-  private suspend fun drainAvailabilityTasks() {
-    while (true) {
-      val publishedCount = availabilityPublicationRunner.publishPendingTasks()
-      availabilityTransport.drain(availabilityTaskProcessor::process)
-      if (publishedCount == 0 && availabilityTransport.pendingCount == 0) return
-    }
-  }
-
-  private suspend fun publishTask(taskName: String) {
-    while (true) {
-      check(availabilityPublicationRunner.publishPendingTasks() == 1)
-      val publishedTaskName = availabilityTransport.takeNext()
-      if (publishedTaskName == taskName) return
-      availabilityTaskProcessor.process(publishedTaskName)
-    }
-  }
-
-  private suspend fun outputGenerations(modelLine: String): Map<String, String> =
+  protected suspend fun outputGenerations(modelLine: String): Map<String, String> =
     listMetadata()
       .filter { it.modelLine == modelLine }
       .associate { row ->
@@ -1590,7 +1209,7 @@ class VidLabelingPipelineIntegrationTest {
           )
       }
 
-  private fun vidLabelerParamsTemplate(): VidLabelerParams = vidLabelerParams {
+  protected fun vidLabelerParamsTemplate(): VidLabelerParams = vidLabelerParams {
     dataProvider = DATA_PROVIDER
     rawImpressionsStorageParams =
       VidLabelerParamsKt.storageParams { impressionsBlobPrefix = rawPrefix }
@@ -1602,7 +1221,7 @@ class VidLabelingPipelineIntegrationTest {
       }
   }
 
-  private fun subpoolAssignerParamsTemplate() = subpoolAssignerParams {
+  protected fun subpoolAssignerParamsTemplate() = subpoolAssignerParams {
     dataProvider = DATA_PROVIDER
     rawImpressionStorageParams = SubpoolAssignerParamsKt.storageParams { blobPrefix = rawPrefix }
     vidLabeledImpressionsStorageParams =
@@ -1616,7 +1235,7 @@ class VidLabelingPipelineIntegrationTest {
     maxFileBatchSizeBytes = 10_000_000L
   }
 
-  private fun modelLineConfig(): VidLabelerParams.ModelLineConfig =
+  protected fun modelLineConfig(): VidLabelerParams.ModelLineConfig =
     VidLabelerParamsKt.modelLineConfig {
       labelerInputFieldMapping += labelerInputFieldMapping {
         fieldPath = "event_id.id"
@@ -1655,7 +1274,7 @@ class VidLabelingPipelineIntegrationTest {
       eventTemplateType = TestEvent.getDescriptor().fullName
     }
 
-  private class RecordingDataProvidersService :
+  protected class RecordingDataProvidersService :
     DataProvidersGrpcKt.DataProvidersCoroutineImplBase() {
     val requests = mutableListOf<ReplaceDataAvailabilityIntervalsRequest>()
 
@@ -1670,135 +1289,32 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  private class InProcessAvailabilityTaskTransport : DataAvailabilitySyncTaskPublisher {
-    private val pending = ArrayDeque<String>()
-    val deliveryCounts = mutableMapOf<String, Int>()
-    val lostResponseTaskNames = mutableSetOf<String>()
-    var failBeforeNextPublication = false
-    var loseNextResponse = false
-    var duplicateNextDelivery = false
-    var redeliverAfterNextFailure = false
-    var beforeNextRedelivery: (() -> Unit)? = null
-
-    val pendingCount: Int
-      get() = pending.size
-
-    fun takeNext(): String = pending.removeFirst()
-
-    override suspend fun publish(taskName: String) {
-      if (failBeforeNextPublication) {
-        failBeforeNextPublication = false
-        throw IOException("injected publication failure")
-      }
-      pending.addLast(taskName)
-      if (duplicateNextDelivery) {
-        duplicateNextDelivery = false
-        pending.addLast(taskName)
-      }
-      if (loseNextResponse) {
-        loseNextResponse = false
-        lostResponseTaskNames += taskName
-        throw IOException("injected lost publication response")
-      }
-    }
-
-    suspend fun drain(process: suspend (String) -> Unit) {
-      while (pending.isNotEmpty()) {
-        val taskName = pending.removeFirst()
-        deliveryCounts[taskName] = deliveryCounts.getOrDefault(taskName, 0) + 1
-        try {
-          process(taskName)
-        } catch (e: Exception) {
-          pending.addFirst(taskName)
-          if (redeliverAfterNextFailure) {
-            redeliverAfterNextFailure = false
-            beforeNextRedelivery?.invoke()
-            beforeNextRedelivery = null
-            continue
-          }
-          throw e
-        }
-      }
-    }
-  }
-
-  private class LostSuccessfulResponseInterceptor : ClientInterceptor {
-    val loseNextCreateResponse = AtomicBoolean()
-    val loseNextMarkRunningResponse = AtomicBoolean()
-    val loseNextMarkSucceededResponse = AtomicBoolean()
-    val droppedCreateResponses = AtomicInteger()
-    val droppedMarkRunningResponses = AtomicInteger()
-    val droppedMarkSucceededResponses = AtomicInteger()
-
-    override fun <ReqT : Any, RespT : Any> interceptCall(
-      method: MethodDescriptor<ReqT, RespT>,
-      callOptions: CallOptions,
-      next: GrpcChannel,
-    ): ClientCall<ReqT, RespT> {
-      val fault =
-        when (method.bareMethodName) {
-          "CreateDataAvailabilitySyncTask" -> loseNextCreateResponse to droppedCreateResponses
-          "MarkDataAvailabilitySyncTaskRunning" ->
-            loseNextMarkRunningResponse to droppedMarkRunningResponses
-          "MarkDataAvailabilitySyncTaskSucceeded" ->
-            loseNextMarkSucceededResponse to droppedMarkSucceededResponses
-          else -> return next.newCall(method, callOptions)
-        }
-      return object :
-        ForwardingClientCall.SimpleForwardingClientCall<ReqT, RespT>(
-          next.newCall(method, callOptions)
-        ) {
-        override fun start(responseListener: Listener<RespT>, headers: Metadata) {
-          super.start(
-            object :
-              ForwardingClientCallListener.SimpleForwardingClientCallListener<RespT>(
-                responseListener
-              ) {
-              private var response: RespT? = null
-
-              override fun onMessage(message: RespT) {
-                response = message
-              }
-
-              override fun onClose(status: Status, trailers: Metadata) {
-                if (status.isOk && fault.first.compareAndSet(true, false)) {
-                  fault.second.incrementAndGet()
-                  super.onClose(
-                    Status.UNAVAILABLE.withDescription("injected lost successful response"),
-                    trailers,
-                  )
-                  return
-                }
-                response?.let { super.onMessage(it) }
-                super.onClose(status, trailers)
-              }
-            },
-            headers,
-          )
-        }
-      }
-    }
-  }
-
-  private class MutableClock(private var instant: Instant) : Clock() {
-    override fun instant(): Instant = instant
-
-    override fun getZone() = ZoneOffset.UTC
-
-    override fun withZone(zone: java.time.ZoneId): Clock = this
-
-    fun advance(duration: Duration) {
-      instant = instant.plus(duration)
-    }
-  }
-
-  private data class OutputArtifact(
+  protected data class OutputArtifact(
     val dataUri: String,
     val sidecarGeneration: String,
     val dataGeneration: String,
   )
 
-  private class RecordingBlobMetadataStorageClient(private val delegate: StorageClient) :
+  protected data class AvailabilityWorkItemRecord(
+    val workItem: WorkItem,
+    val attemptCount: Int,
+    val cmmsModelLine: String,
+    val rawImpressionUpload: String,
+    val doneBlobUri: String,
+    val doneBlobGeneration: Long,
+    val eventDate: com.google.type.Date,
+  ) {
+    val name: String
+      get() = workItem.name
+
+    val state: WorkItem.State
+      get() = workItem.state
+
+    val doneBlobPathHash: String
+      get() = VidLabelingTraceAttributes.gcsObjectPathHash(doneBlobUri)
+  }
+
+  protected class RecordingBlobMetadataStorageClient(private val delegate: StorageClient) :
     BlobMetadataStorageClient, StorageClient by delegate {
     private data class BlobVersion(val blobKey: String, val freshnessToken: String)
 
@@ -1861,7 +1377,7 @@ class VidLabelingPipelineIntegrationTest {
   }
 
   /** Adds generation-precondition semantics to the single-process filesystem test backend. */
-  private class GenerationEnforcingStorageClient(
+  protected class GenerationEnforcingStorageClient(
     private val delegate: ConditionalOperationStorageClient
   ) : ConditionalOperationStorageClient {
     override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
@@ -1933,7 +1449,7 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  private class UriNormalizingStorageClient(
+  protected class UriNormalizingStorageClient(
     private val delegate: ConditionalOperationStorageClient
   ) : ConditionalOperationStorageClient {
     override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
@@ -1974,7 +1490,7 @@ class VidLabelingPipelineIntegrationTest {
       if ("://" in blobKey) SelectedStorageClient.parseBlobUri(blobKey).key else blobKey
   }
 
-  private class SuspendingHttpHandler(
+  protected class SuspendingHttpHandler(
     private val onFailure: (Throwable) -> Unit,
     private val block: suspend (HttpExchange) -> Unit,
   ) : HttpHandler {
@@ -1992,13 +1508,16 @@ class VidLabelingPipelineIntegrationTest {
     }
   }
 
-  private class InProcessWorkItemTransport : QueueSubscriber {
+  protected class InProcessWorkItemTransport : QueueSubscriber {
+    private val stateMutex = Mutex()
+    private val clock = Clock.systemUTC()
     private val redeliveryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val channels =
       ConcurrentHashMap<String, Channel<QueueSubscriber.QueueMessage<WorkItem>>>()
     private val workItems = ConcurrentHashMap<String, WorkItem>()
     private val attempts = ConcurrentHashMap<String, WorkItemAttempt>()
     private val attemptParents = ConcurrentHashMap<String, String>()
+    private val currentAttemptByWorkItem = ConcurrentHashMap<String, String>()
     private val failures = ConcurrentHashMap<String, String>()
     private val pending = AtomicInteger()
     private val changes = MutableStateFlow(0L)
@@ -2006,6 +1525,13 @@ class VidLabelingPipelineIntegrationTest {
     private val forceAcknowledgementRedelivery = AtomicInteger()
     private val forcedRetries = AtomicInteger()
     private val forcedRetryWorkItems = ConcurrentHashMap.newKeySet<String>()
+    private val droppedPublications = ConcurrentHashMap<String, AtomicInteger>()
+    private val lostPublicationResponses = ConcurrentHashMap<String, AtomicInteger>()
+    private val duplicatedDeliveries = ConcurrentHashMap<String, AtomicInteger>()
+    private val withheldWorkItems = ConcurrentHashMap.newKeySet<String>()
+    private val deliveryCounts = ConcurrentHashMap<String, AtomicInteger>()
+    private val lostResponseWorkItemNames = ConcurrentHashMap.newKeySet<String>()
+    private val beforeNextRedelivery = AtomicReference<(suspend () -> Unit)?>(null)
     val publishedCount: Int
       get() = sequence.get()
 
@@ -2017,6 +1543,47 @@ class VidLabelingPipelineIntegrationTest {
 
     fun forceNextAcknowledgementRedelivery() {
       check(forceAcknowledgementRedelivery.compareAndSet(0, 1))
+    }
+
+    fun dropNextPublications(queueName: String, count: Int = 1) {
+      check(count > 0)
+      droppedPublications.computeIfAbsent(queueName) { AtomicInteger() }.addAndGet(count)
+    }
+
+    fun loseNextPublicationResponse(queueName: String, count: Int = 1) {
+      check(count > 0)
+      lostPublicationResponses.computeIfAbsent(queueName) { AtomicInteger() }.addAndGet(count)
+    }
+
+    fun duplicateNextDelivery(queueName: String, count: Int = 1) {
+      check(count > 0)
+      duplicatedDeliveries.computeIfAbsent(queueName) { AtomicInteger() }.addAndGet(count)
+    }
+
+    fun beforeNextRedelivery(block: suspend () -> Unit) {
+      check(beforeNextRedelivery.compareAndSet(null, block))
+    }
+
+    fun workItemsForQueue(queueName: String): List<WorkItem> =
+      workItems.values.filter { it.queue == queueName }.sortedBy { it.name }
+
+    fun attemptCount(workItemName: String): Int = attemptParents.values.count { it == workItemName }
+
+    fun deliveryCount(workItemName: String): Int = deliveryCounts[workItemName]?.get() ?: 0
+
+    fun lostResponseWorkItemNames(): Set<String> = lostResponseWorkItemNames.toSet()
+
+    suspend fun republishWorkItem(workItemName: String) {
+      val workItem = checkNotNull(workItems[workItemName])
+      check(workItem.state == WorkItem.State.QUEUED)
+      withheldWorkItems.remove(workItemName)
+      publish(workItem.queue, workItem)
+    }
+
+    suspend fun republishQueuedWorkItems(queueName: String) {
+      for (workItem in workItemsForQueue(queueName).filter { it.state == WorkItem.State.QUEUED }) {
+        republishWorkItem(workItem.name)
+      }
     }
 
     val workItemsService =
@@ -2033,7 +1600,16 @@ class VidLabelingPipelineIntegrationTest {
           if (workItems.putIfAbsent(name, created) != null) {
             throw Status.ALREADY_EXISTS.asRuntimeException()
           }
-          publish(created.queue, created)
+          if (consume(droppedPublications, created.queue)) {
+            withheldWorkItems += created.name
+          } else {
+            publish(created.queue, created)
+          }
+          if (consume(lostPublicationResponses, created.queue)) {
+            lostResponseWorkItemNames += created.name
+            throw Status.UNAVAILABLE.withDescription("injected lost publication response")
+              .asRuntimeException()
+          }
           return created
         }
 
@@ -2051,68 +1627,188 @@ class VidLabelingPipelineIntegrationTest {
 
         override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
           workItems[request.name] ?: throw Status.NOT_FOUND.asRuntimeException()
+
+        override suspend fun failWorkItem(request: FailWorkItemRequest): WorkItem {
+          return stateMutex.withLock {
+            val item = workItems[request.name] ?: throw Status.NOT_FOUND.asRuntimeException()
+            if (
+              request.hasExpectedWorkItemGeneration() &&
+                request.expectedWorkItemGeneration != item.generation
+            ) {
+              throw WorkItemGenerationMismatchException(
+                  item.name,
+                  request.expectedWorkItemGeneration.toString(),
+                  item.generation.toString(),
+                )
+                .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+            }
+            currentAttemptByWorkItem.remove(item.name)?.let { attemptName ->
+              attempts.computeIfPresent(attemptName) { _, attempt ->
+                attempt
+                  .toBuilder()
+                  .setState(WorkItemAttempt.State.FAILED)
+                  .setUpdateTime(clock.instant().toProtoTime())
+                  .build()
+              }
+            }
+            item.toBuilder().setState(WorkItem.State.FAILED).build().also {
+              workItems[request.name] = it
+            }
+          }
+        }
       }
 
     val workItemAttemptsService =
       object : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase() {
         override suspend fun createWorkItemAttempt(
           request: CreateWorkItemAttemptRequest
-        ): WorkItemAttempt {
-          val item = workItems[request.parent] ?: throw Status.NOT_FOUND.asRuntimeException()
-          if (item.state != WorkItem.State.QUEUED) {
-            if (item.state == WorkItem.State.SUCCEEDED && item.name in forcedRetryWorkItems) {
-              forcedRetries.incrementAndGet()
+        ): WorkItemAttempt =
+          stateMutex.withLock {
+            val item = workItems[request.parent] ?: throw Status.NOT_FOUND.asRuntimeException()
+            if (
+              request.hasExpectedWorkItemGeneration() &&
+                request.expectedWorkItemGeneration != item.generation
+            ) {
+              throw WorkItemGenerationMismatchException(
+                  item.name,
+                  request.expectedWorkItemGeneration.toString(),
+                  item.generation.toString(),
+                )
+                .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
             }
-            throw WorkItemInvalidStateException(item.name, item.state.name)
-              .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+            val now = clock.instant()
+            val activeAttemptName = currentAttemptByWorkItem[item.name]
+            val activeAttempt = activeAttemptName?.let { attempts[it] }
+            if (
+              activeAttempt != null &&
+                activeAttempt.state == WorkItemAttempt.State.ACTIVE &&
+                activeAttempt.leaseExpirationTime.toInstant().isAfter(now)
+            ) {
+              throw WorkItemInvalidStateException(item.name, WorkItem.State.RUNNING.name)
+                .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+            }
+            if (activeAttempt != null && activeAttempt.state == WorkItemAttempt.State.ACTIVE) {
+              attempts[activeAttempt.name] =
+                activeAttempt
+                  .toBuilder()
+                  .setState(WorkItemAttempt.State.FAILED)
+                  .setUpdateTime(now.toProtoTime())
+                  .build()
+              currentAttemptByWorkItem.remove(item.name, activeAttempt.name)
+            }
+            if (item.state !in setOf(WorkItem.State.QUEUED, WorkItem.State.RUNNING)) {
+              if (item.state == WorkItem.State.SUCCEEDED && item.name in forcedRetryWorkItems) {
+                forcedRetries.incrementAndGet()
+              }
+              throw WorkItemInvalidStateException(item.name, item.state.name)
+                .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
+            }
+            workItems[request.parent] = item.toBuilder().setState(WorkItem.State.RUNNING).build()
+            val attempt =
+              WorkItemAttempt.newBuilder()
+                .setName("${request.parent}/workItemAttempts/${request.workItemAttemptId}")
+                .setState(WorkItemAttempt.State.ACTIVE)
+                .setAttemptNumber(attemptParents.values.count { it == request.parent } + 1)
+                .setCreateTime(now.toProtoTime())
+                .setUpdateTime(now.toProtoTime())
+                .setLeaseExpirationTime(now.plus(WORK_ITEM_ATTEMPT_LEASE_DURATION).toProtoTime())
+                .build()
+            attempts[attempt.name] = attempt
+            attemptParents[attempt.name] = request.parent
+            currentAttemptByWorkItem[request.parent] = attempt.name
+            attempt
           }
-          check(
-            !request.hasExpectedWorkItemGeneration() ||
-              request.expectedWorkItemGeneration == item.generation
-          )
-          workItems[request.parent] = item.toBuilder().setState(WorkItem.State.RUNNING).build()
-          val attempt =
-            WorkItemAttempt.newBuilder()
-              .setName("${request.parent}/workItemAttempts/${request.workItemAttemptId}")
-              .setState(WorkItemAttempt.State.ACTIVE)
-              .build()
-          attempts[attempt.name] = attempt
-          attemptParents[attempt.name] = request.parent
-          return attempt
-        }
 
         override suspend fun completeWorkItemAttempt(
           request: CompleteWorkItemAttemptRequest
-        ): WorkItemAttempt {
-          val attempt = attempts[request.name] ?: throw Status.NOT_FOUND.asRuntimeException()
-          val completed = attempt.toBuilder().setState(WorkItemAttempt.State.SUCCEEDED).build()
-          attempts[request.name] = completed
-          val parent = request.name.substringBefore("/workItemAttempts/")
-          workItems.computeIfPresent(parent) { _, item ->
-            item.toBuilder().setState(WorkItem.State.SUCCEEDED).build()
+        ): WorkItemAttempt =
+          stateMutex.withLock {
+            val attempt = requireActiveAttempt(request.name, requireUnexpired = true)
+            val parent = checkNotNull(attemptParents[request.name])
+            if (currentAttemptByWorkItem[parent] != request.name) {
+              throw Status.FAILED_PRECONDITION.withDescription("WorkItemAttempt is not current")
+                .asRuntimeException()
+            }
+            val completed =
+              attempt
+                .toBuilder()
+                .setState(WorkItemAttempt.State.SUCCEEDED)
+                .setUpdateTime(clock.instant().toProtoTime())
+                .build()
+            attempts[request.name] = completed
+            currentAttemptByWorkItem.remove(parent, request.name)
+            val item = workItems[parent] ?: throw Status.NOT_FOUND.asRuntimeException()
+            workItems[parent] = item.toBuilder().setState(WorkItem.State.SUCCEEDED).build()
+            completed
           }
-          return completed
-        }
+
+        override suspend fun renewWorkItemAttempt(
+          request: RenewWorkItemAttemptRequest
+        ): WorkItemAttempt =
+          stateMutex.withLock {
+            val attempt = requireActiveAttempt(request.name, requireUnexpired = true)
+            val parent = checkNotNull(attemptParents[request.name])
+            if (currentAttemptByWorkItem[parent] != request.name) {
+              throw Status.FAILED_PRECONDITION.withDescription("WorkItemAttempt is not current")
+                .asRuntimeException()
+            }
+            val now = clock.instant()
+            attempt
+              .toBuilder()
+              .setUpdateTime(now.toProtoTime())
+              .setLeaseExpirationTime(now.plus(WORK_ITEM_ATTEMPT_LEASE_DURATION).toProtoTime())
+              .build()
+              .also { attempts[request.name] = it }
+          }
 
         override suspend fun failWorkItemAttempt(
           request: FailWorkItemAttemptRequest
-        ): WorkItemAttempt {
-          val attempt = attempts[request.name] ?: throw Status.NOT_FOUND.asRuntimeException()
-          val failed = attempt.toBuilder().setState(WorkItemAttempt.State.FAILED).build()
-          attempts[request.name] = failed
-          val parent = checkNotNull(attemptParents[request.name])
-          workItems.computeIfPresent(parent) { _, item ->
-            item.toBuilder().setState(WorkItem.State.QUEUED).build()
+        ): WorkItemAttempt =
+          stateMutex.withLock {
+            val attempt = attempts[request.name] ?: throw Status.NOT_FOUND.asRuntimeException()
+            if (attempt.state == WorkItemAttempt.State.FAILED) return@withLock attempt
+            if (attempt.state != WorkItemAttempt.State.ACTIVE) {
+              throw Status.FAILED_PRECONDITION.withDescription("WorkItemAttempt is not ACTIVE")
+                .asRuntimeException()
+            }
+            val failed =
+              attempt
+                .toBuilder()
+                .setState(WorkItemAttempt.State.FAILED)
+                .setErrorMessage(request.errorMessage)
+                .setUpdateTime(clock.instant().toProtoTime())
+                .build()
+            attempts[request.name] = failed
+            val parent = checkNotNull(attemptParents[request.name])
+            currentAttemptByWorkItem.remove(parent, request.name)
+            failures[parent] = request.errorMessage
+            failed
           }
-          failures[parent] = request.errorMessage
-          return failed
+
+        private fun requireActiveAttempt(
+          attemptName: String,
+          requireUnexpired: Boolean,
+        ): WorkItemAttempt {
+          val attempt = attempts[attemptName] ?: throw Status.NOT_FOUND.asRuntimeException()
+          if (attempt.state != WorkItemAttempt.State.ACTIVE) {
+            throw Status.FAILED_PRECONDITION.withDescription("WorkItemAttempt is not ACTIVE")
+              .asRuntimeException()
+          }
+          if (
+            requireUnexpired && !attempt.leaseExpirationTime.toInstant().isAfter(clock.instant())
+          ) {
+            throw Status.FAILED_PRECONDITION.withDescription("WorkItemAttempt lease expired")
+              .asRuntimeException()
+          }
+          return attempt
         }
       }
 
     private suspend fun publish(queueName: String, workItem: WorkItem) {
-      pending.incrementAndGet()
       enqueue(queueName, workItem)
-      signalChange()
+      if (consume(duplicatedDeliveries, queueName)) {
+        enqueue(queueName, workItem)
+      }
     }
 
     @Suppress("UNCHECKED_CAST")
@@ -2123,6 +1819,8 @@ class VidLabelingPipelineIntegrationTest {
       channel(subscriptionId) as ReceiveChannel<QueueSubscriber.QueueMessage<T>>
 
     private fun enqueue(queueName: String, workItem: WorkItem) {
+      pending.incrementAndGet()
+      deliveryCounts.computeIfAbsent(workItem.name) { AtomicInteger() }.incrementAndGet()
       val ackId = "in-process-${sequence.incrementAndGet()}"
       val consumer =
         object : MessageConsumer {
@@ -2139,7 +1837,16 @@ class VidLabelingPipelineIntegrationTest {
 
           override fun nack() {
             if (attempts.values.count { attemptParents[it.name] == workItem.name } >= 3) {
-              pending.decrementAndGet()
+              redeliveryScope.launch {
+                stateMutex.withLock {
+                  workItems.computeIfPresent(workItem.name) { _, item ->
+                    item.toBuilder().setState(WorkItem.State.FAILED).build()
+                  }
+                  currentAttemptByWorkItem.remove(workItem.name)
+                }
+                pending.decrementAndGet()
+                signalChange()
+              }
             } else {
               scheduleRedelivery(queueName, workItem, "$ackId-retry", this)
             }
@@ -2147,6 +1854,7 @@ class VidLabelingPipelineIntegrationTest {
           }
         }
       channel(queueName).trySend(QueueSubscriber.QueueMessage(workItem, ackId, consumer))
+      signalChange()
     }
 
     private fun scheduleRedelivery(
@@ -2156,9 +1864,20 @@ class VidLabelingPipelineIntegrationTest {
       consumer: MessageConsumer,
     ) {
       redeliveryScope.launch {
+        beforeNextRedelivery.getAndSet(null)?.invoke()
         delay(REDELIVERY_DELAY_MILLIS)
+        deliveryCounts.computeIfAbsent(workItem.name) { AtomicInteger() }.incrementAndGet()
         channel(queueName).send(QueueSubscriber.QueueMessage(workItem, ackId, consumer))
         signalChange()
+      }
+    }
+
+    private fun consume(counters: ConcurrentHashMap<String, AtomicInteger>, key: String): Boolean {
+      val counter = counters[key] ?: return false
+      while (true) {
+        val current = counter.get()
+        if (current <= 0) return false
+        if (counter.compareAndSet(current, current - 1)) return true
       }
     }
 
@@ -2169,7 +1888,7 @@ class VidLabelingPipelineIntegrationTest {
       changes.value = changes.value + 1
     }
 
-    suspend fun awaitIdle() {
+    suspend fun awaitIdle(allowFailures: Boolean = false) {
       withTimeout(120_000L) {
         while (true) {
           val observed = changes.value
@@ -2177,16 +1896,22 @@ class VidLabelingPipelineIntegrationTest {
           changes.first { it != observed }
         }
       }
-      check(failures.isEmpty()) { failures.values.joinToString(separator = "\n") }
+      if (!allowFailures) {
+        check(failures.isEmpty()) { failures.values.joinToString(separator = "\n") }
+      }
     }
 
     override fun close() {
       redeliveryScope.cancel()
       channels.values.forEach { it.close() }
     }
+
+    companion object {
+      private val WORK_ITEM_ATTEMPT_LEASE_DURATION = Duration.ofMinutes(5)
+    }
   }
 
-  private object ImmediateThrottler : Throttler {
+  protected object ImmediateThrottler : Throttler {
     override suspend fun <T> onReady(block: suspend () -> T): T = block()
   }
 
@@ -2199,8 +1924,8 @@ class VidLabelingPipelineIntegrationTest {
 
     private const val DATA_PROVIDER = "dataProviders/dp1"
     private const val MODEL_SUITE = "modelProviders/mp1/modelSuites/ms1"
-    private const val MEMOIZED_MODEL_LINE = "$MODEL_SUITE/modelLines/memoized"
-    private const val DIRECT_MODEL_LINE = "$MODEL_SUITE/modelLines/direct"
+    const val MEMOIZED_MODEL_LINE = "$MODEL_SUITE/modelLines/memoized"
+    const val DIRECT_MODEL_LINE = "$MODEL_SUITE/modelLines/direct"
     private const val MEMOIZED_RELEASE = "$MODEL_SUITE/modelReleases/memoized"
     private const val DIRECT_RELEASE = "$MODEL_SUITE/modelReleases/direct"
     private const val POOL_ASSIGNER_QUEUE = "queues/pool-assigner"
@@ -2219,7 +1944,7 @@ class VidLabelingPipelineIntegrationTest {
     private const val EVICTION_OPERATION_ID_HEADER = "X-Eviction-Operation-Id"
     private const val REDELIVERY_DELAY_MILLIS = 50L
     private val EXPECTED_VID_RANGE = 10_000L..10_099L
-    private val EVENT_DATE: LocalDate = LocalDate.of(2026, 9, 1)
+    val EVENT_DATE: LocalDate = LocalDate.of(2026, 9, 1)
     private val NOW: Instant = EVENT_DATE.plusDays(2).atStartOfDay(ZoneOffset.UTC).toInstant()
 
     private val POPULATION_SPEC: PopulationSpec = populationSpec {
@@ -2259,8 +1984,8 @@ class VidLabelingPipelineIntegrationTest {
  * qualifier used by the production raw-impression readers.
  */
 class GenerationMatchedTestHadoopFileSystem : RawLocalFileSystem() {
-  private val localFileSystem = RawLocalFileSystem()
-  private var fileSystemUri: URI? = null
+  protected val localFileSystem = RawLocalFileSystem()
+  protected var fileSystemUri: URI? = null
 
   override fun initialize(name: URI, configuration: Configuration) {
     fileSystemUri = URI(name.scheme, name.authority, "/", null, null)
@@ -2278,7 +2003,7 @@ class GenerationMatchedTestHadoopFileSystem : RawLocalFileSystem() {
 
   override fun pathToFile(path: Path): File = toLocalPath(path).toUri().let(::File)
 
-  private fun toLocalPath(path: Path): Path {
+  protected fun toLocalPath(path: Path): Path {
     val uri = path.toUri()
     if (uri.scheme == "file") return path
     val rawPath = uri.path
