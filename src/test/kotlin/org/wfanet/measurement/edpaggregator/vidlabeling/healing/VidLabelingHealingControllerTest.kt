@@ -864,6 +864,101 @@ class VidLabelingHealingControllerTest {
   }
 
   @Test
+  fun `availability-syncing replacement completes healing to release the fence`() = runBlocking {
+    val recoveryStep =
+      EVICTING_OPERATION.stepsList.single().copy {
+        state = UploadHealingStep.State.RECOVERY_STARTED
+        recoveryDoneBlobGeneration = CANDIDATE_UPLOAD.doneBlobGeneration
+      }
+    var operation =
+      EVICTING_OPERATION.copy {
+        state = UploadHealingOperation.State.REPLAYING
+        steps[0] = recoveryStep
+      }
+    val replacement =
+      CANDIDATE_UPLOAD.copy {
+        registrationComplete = true
+        state = RawImpressionUpload.State.ACTIVE
+      }
+    whenever(operationsService.listUploadHealingOperations(any())).thenAnswer { invocation ->
+      val states =
+        invocation
+          .getArgument<
+            org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
+          >(
+            0
+          )
+          .filter
+          .stateInList
+      listUploadHealingOperationsResponse {
+        if (operation.state in states) uploadHealingOperations += operation
+      }
+    }
+    whenever(operationsService.getUploadHealingOperation(any())).thenAnswer { operation }
+    whenever(operationsService.advanceUploadHealingStep(any())).thenAnswer { invocation ->
+      val request =
+        invocation.getArgument<
+          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
+        >(
+          0
+        )
+      check(
+        request.action ==
+          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest.Action
+            .CONFIRM_REPLACEMENT
+      )
+      val completed =
+        operation.stepsList.single().copy {
+          state = UploadHealingStep.State.COMPLETE
+          replacementRawImpressionUpload = request.replacementRawImpressionUpload
+        }
+      operation =
+        operation.copy {
+          state = UploadHealingOperation.State.COMPLETE
+          steps[0] = completed
+        }
+      completed
+    }
+    whenever(candidatesService.getRawImpressionUploadCorrectionCandidate(any()))
+      .thenReturn(CANDIDATE.copy { state = RawImpressionUploadCorrectionCandidate.State.ASSIGNED })
+    whenever(uploadsService.getRawImpressionUpload(any())).thenAnswer { invocation ->
+      when (
+        invocation
+          .getArgument<org.wfanet.measurement.edpaggregator.v1alpha.GetRawImpressionUploadRequest>(
+            0
+          )
+          .name
+      ) {
+        SOURCE_UPLOAD_NAME -> SOURCE_UPLOAD
+        CANDIDATE_UPLOAD_NAME -> replacement
+        else -> error("unexpected upload")
+      }
+    }
+    whenever(uploadsService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += listOf(SOURCE_UPLOAD, replacement)
+        }
+      )
+    whenever(modelLinesService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            cmmsModelLine = CMMS_MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+          }
+        }
+      )
+
+    newController().run()
+
+    assertThat(operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    assertThat(operation.stepsList.single().state).isEqualTo(UploadHealingStep.State.COMPLETE)
+    assertThat(operation.stepsList.single().replacementRawImpressionUpload)
+      .isEqualTo(CANDIDATE_UPLOAD_NAME)
+  }
+
+  @Test
   fun `failed replacement moves the operation to needs attention`() = runBlocking {
     val recoveryStep =
       EVICTING_OPERATION.stepsList.single().copy {
