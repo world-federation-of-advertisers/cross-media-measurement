@@ -312,7 +312,7 @@ class VidLabelingHealingControllerTest {
     newController(
         evictionExecutor = evictionExecutor,
         manifestReader =
-          CorrectionManifestReader { _, _ ->
+          CorrectionManifestReader { _, _, _ ->
             listOf(RawImpressionUploadManifestClassifier.File("gs://raw/changed", 9L))
           },
         eventSink = VidLabelingHealingControllerEventSink(events::add),
@@ -1131,7 +1131,7 @@ class VidLabelingHealingControllerTest {
     evictionExecutor: EvictionExecutor = EvictionExecutor { _, _, _ ->
       EvictUploader.EvictionResult(emptyList(), 0, 0, 0)
     },
-    manifestReader: CorrectionManifestReader = CorrectionManifestReader { _, _ -> emptyList() },
+    manifestReader: CorrectionManifestReader = CorrectionManifestReader { _, _, _ -> emptyList() },
     doneBlobReplayer: DoneBlobReplayer = DoneBlobReplayer { _ -> },
     recoveryExecutor: RecoveryExecutor = RecoveryExecutor { _, _ -> error("unexpected recovery") },
     eventSink: VidLabelingHealingControllerEventSink = VidLabelingHealingControllerEventSink {},
