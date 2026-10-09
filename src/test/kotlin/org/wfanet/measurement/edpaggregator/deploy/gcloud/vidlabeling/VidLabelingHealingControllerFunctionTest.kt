@@ -22,6 +22,7 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.common.truth.Truth.assertThat
+import com.google.type.date
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -66,7 +67,8 @@ class VidLabelingHealingControllerFunctionTest {
       whenever(storage.list(eq("raw"), any<Storage.BlobListOption>())).thenReturn(page)
       whenever(page.iterateAll()).thenReturn(listOf(first, done, second, nestedDone))
 
-      val manifest = GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L)
+      val manifest =
+        GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
 
       assertThat(manifest)
         .containsExactly(
@@ -77,6 +79,35 @@ class VidLabelingHealingControllerFunctionTest {
   }
 
   @Test
+  fun `manifest reader preserves persisted dates for exact object generations`() = runBlocking {
+    val storage = mock<Storage>()
+    val done = blob("day/done", 11L)
+    val input = blob("day/input.parquet", 21L)
+    val page = mock<Page<Blob>>()
+    whenever(storage.get("raw", "day/done")).thenReturn(done)
+    whenever(storage.list(eq("raw"), any<Storage.BlobListOption>())).thenReturn(page)
+    whenever(page.iterateAll()).thenReturn(listOf(input, done))
+    val persisted =
+      listOf(
+        RawImpressionUploadManifestClassifier.File(
+          "gs://raw/day/input.parquet",
+          21L,
+          date {
+            year = 2026
+            month = 9
+            day = 1
+          },
+        )
+      )
+
+    val live = GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, persisted)
+
+    val classifier = RawImpressionUploadManifestClassifier()
+    assertThat(live).containsExactlyElementsIn(persisted)
+    assertThat(classifier.digest(live)).isEqualTo(classifier.digest(persisted))
+  }
+
+  @Test
   fun `manifest reader rejects changed done generation`() {
     val storage = mock<Storage>()
     val done = blob("day/done", 12L)
@@ -84,7 +115,9 @@ class VidLabelingHealingControllerFunctionTest {
 
     val error =
       kotlin.test.assertFailsWith<IllegalStateException> {
-        runBlocking { GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L) }
+        runBlocking {
+          GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
+        }
       }
 
     assertThat(error).hasMessageThat().contains("generation changed")
@@ -102,7 +135,9 @@ class VidLabelingHealingControllerFunctionTest {
 
     val error =
       kotlin.test.assertFailsWith<IllegalStateException> {
-        runBlocking { GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L) }
+        runBlocking {
+          GcsCorrectionManifestReader(storage).read("gs://raw/day/done", 11L, emptyList())
+        }
       }
 
     assertThat(error).hasMessageThat().contains("generation changed")
