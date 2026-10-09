@@ -211,6 +211,7 @@ class FailedDispatchRetrier(
             RawImpressionUploadModelLine.State.POOL_ASSIGNING,
           )
         RawImpressionUploadModelLine.State.LABELING,
+        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
         RawImpressionUploadModelLine.State.COMPLETED -> RETRY_PHASES
         RawImpressionUploadModelLine.State.CREATED,
         RawImpressionUploadModelLine.State.FAILED,
@@ -304,17 +305,24 @@ class FailedDispatchRetrier(
           setOf(
             RawImpressionUploadModelLine.State.RANKING,
             RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
             RawImpressionUploadModelLine.State.COMPLETED,
           )
       RawImpressionUploadModelLine.State.RANKING ->
         currentState in
           setOf(
             RawImpressionUploadModelLine.State.LABELING,
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
             RawImpressionUploadModelLine.State.COMPLETED,
           )
       RawImpressionUploadModelLine.State.LABELING ->
-        currentState == RawImpressionUploadModelLine.State.COMPLETED
+        currentState in
+          setOf(
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
       RawImpressionUploadModelLine.State.CREATED,
+      RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
       RawImpressionUploadModelLine.State.COMPLETED,
       RawImpressionUploadModelLine.State.FAILED,
       RawImpressionUploadModelLine.State.STATE_UNSPECIFIED,

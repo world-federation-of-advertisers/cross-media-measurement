@@ -17,6 +17,7 @@ syntax = "proto3";
 package wfa.measurement.internal.edpaggregator;
 
 import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
 import "google/type/interval.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line.proto";
 import "wfa/measurement/internal/edpaggregator/raw_impression_upload_model_line_failure_reason.proto";
@@ -69,6 +70,16 @@ service RawImpressionUploadModelLineService {
   // if the prior state does not allow this transition.
   rpc MarkRawImpressionUploadModelLineLabeling(
       MarkRawImpressionUploadModelLineLabelingRequest)
+      returns (RawImpressionUploadModelLine);
+
+  // Marks a model line as availability-syncing and records pending dates.
+  rpc MarkRawImpressionUploadModelLineAvailabilitySyncing(
+      MarkRawImpressionUploadModelLineAvailabilitySyncingRequest)
+      returns (RawImpressionUploadModelLine);
+
+  // Removes one synchronized date and completes the row when none remain.
+  rpc MarkRawImpressionUploadModelLineAvailabilitySynchronized(
+      MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest)
       returns (RawImpressionUploadModelLine);
 
   // Marks a `RawImpressionUploadModelLine` as `COMPLETED`. Throws
@@ -254,6 +265,25 @@ message MarkRawImpressionUploadModelLineCompletedRequest {
   string etag = 4;
 
   // A request ID provided by the client to ensure idempotency on retry.
+  string request_id = 5;
+}
+
+// Request message for MarkRawImpressionUploadModelLineAvailabilitySyncing.
+message MarkRawImpressionUploadModelLineAvailabilitySyncingRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string raw_impression_upload_model_line_resource_id = 3;
+  string etag = 4;
+  repeated google.type.Date pending_availability_dates = 5;
+  string request_id = 6;
+}
+
+// Request message for MarkRawImpressionUploadModelLineAvailabilitySynchronized.
+message MarkRawImpressionUploadModelLineAvailabilitySynchronizedRequest {
+  string data_provider_resource_id = 1;
+  string raw_impression_upload_resource_id = 2;
+  string raw_impression_upload_model_line_resource_id = 3;
+  google.type.Date event_date = 4;
   string request_id = 5;
 }
 

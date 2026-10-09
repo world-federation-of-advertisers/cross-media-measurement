@@ -170,6 +170,18 @@ variable "pubsub_iam_service_account_member" {
   nullable    = false
 }
 
+variable "data_availability_sync_work_item_queue" {
+  description = "Pub/Sub queue for DataAvailabilitySync WorkItems."
+  type = object({
+    topic_name            = string
+    subscription_name     = string
+    ack_deadline_seconds  = number
+    max_delivery_attempts = number
+    minimum_backoff       = string
+    maximum_backoff       = string
+  })
+}
+
 variable "edp_aggregator_bucket_name" {
   description = "Name of the Google Cloud Storage bucket used by the Edp Aggregator."
   type        = string

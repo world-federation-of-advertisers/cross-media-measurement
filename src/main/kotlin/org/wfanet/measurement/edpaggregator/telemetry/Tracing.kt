@@ -79,6 +79,17 @@ object Tracing {
     }
   }
 
+  /** Installs W3C trace context from a string carrier for synchronous work. */
+  fun <T> withW3CTraceContext(carrier: Map<String, String>, block: () -> T): T {
+    val parentContext = w3cPropagator.extract(Context.current(), carrier, StringMapGetter)
+    val scope = parentContext.makeCurrent()
+    return try {
+      block()
+    } finally {
+      scope.close()
+    }
+  }
+
   @PublishedApi
   internal fun extractW3CContext(request: HttpRequest): Context {
     return w3cPropagator.extract(Context.current(), request, CloudFunctionsHttpRequestGetter)
@@ -239,6 +250,12 @@ object Tracing {
       if (carrier == null) return null
       return carrier.getExtension(key)?.toString()
     }
+  }
+
+  private object StringMapGetter : TextMapGetter<Map<String, String>> {
+    override fun keys(carrier: Map<String, String>): Iterable<String> = carrier.keys
+
+    override fun get(carrier: Map<String, String>?, key: String): String? = carrier?.get(key)
   }
 }
 
