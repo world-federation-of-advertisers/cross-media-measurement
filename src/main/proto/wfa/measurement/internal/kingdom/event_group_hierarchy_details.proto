@@ -32,13 +32,13 @@ message EventGroupHierarchyDetails {
     // The entity_metadata key holding the ID of the entity at this level.
     //
     // Its value forms one segment of EventGroups.EntityPath.
-    string id_field = 2;
+    string id_entity_metadata_key = 2;
 
     // The entity_metadata keys which describe the entity at this level.
     //
     // These are copied onto the EventGroup representing an entity at this
     // level. Keys which no Level claims are not interpreted.
-    repeated string fields = 3;
+    repeated string entity_metadata_keys = 3;
   }
 
   // The levels of this hierarchy, outermost first.
