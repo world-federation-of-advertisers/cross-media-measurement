@@ -84,6 +84,8 @@ import org.wfanet.measurement.edpaggregator.v1alpha.PoolAssignmentJobServiceGrpc
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJob
 import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
@@ -99,6 +101,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.batchCreateVidLabelingJobsRe
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.listPoolAssignmentJobsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankerJobsResponse
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsResponse
@@ -116,6 +119,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemKt.workItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.ConditionalOperationStorageClient
 import org.wfanet.measurement.storage.testing.InMemoryStorageClient
 
 /**
@@ -146,6 +150,9 @@ class VidLabelingMonitorTest {
   private val rawImpressionUploadFileService:
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineImplBase =
     mockService()
+  private val correctionCandidateService:
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt.RawImpressionUploadCorrectionCandidateServiceCoroutineImplBase =
+    mockService()
   private val vidLabelingJobService:
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineImplBase =
     mockService()
@@ -162,6 +169,7 @@ class VidLabelingMonitorTest {
     addService(modelShardsService)
     addService(modelLinesService)
     addService(rawImpressionUploadFileService)
+    addService(correctionCandidateService)
     addService(vidLabelingJobService)
     addService(rankerJobService)
   }
@@ -195,6 +203,10 @@ class VidLabelingMonitorTest {
     RawImpressionUploadFileServiceGrpcKt.RawImpressionUploadFileServiceCoroutineStub(
       grpcTestServerRule.channel
     )
+  }
+  private val correctionCandidateStub by lazy {
+    RawImpressionUploadCorrectionCandidateServiceGrpcKt
+      .RawImpressionUploadCorrectionCandidateServiceCoroutineStub(grpcTestServerRule.channel)
   }
   private val vidLabelingJobStub by lazy {
     VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(grpcTestServerRule.channel)
@@ -297,9 +309,13 @@ class VidLabelingMonitorTest {
     VidLabelingMonitor(
       rawImpressionUploadStub = rawImpressionUploadStub,
       rawImpressionUploadModelLineStub = rawImpressionUploadModelLineStub,
+      correctionCandidateStub = correctionCandidateStub,
       dispatchSequencer = createSequencer(rpcThrottlers),
       dataProviderName = DATA_PROVIDER,
       stalenessThreshold = STALENESS_THRESHOLD,
+      rawImpressionsStorageRootUri = "gs://raw-bucket",
+      rawImpressionsBlobPrefix = RAW_IMPRESSIONS_PREFIX,
+      rawInputQuietPeriod = Duration.ZERO,
       rawImpressionUploadFileStub = rawImpressionUploadFileStub,
       rawImpressionsStorageClientProvider = { rawImpressionsStorageClient },
       vidLabeledImpressionsStorageClientProvider = { vidLabeledImpressionsStorageClient },
@@ -321,6 +337,9 @@ class VidLabelingMonitorTest {
     created: List<RawImpressionUpload> = emptyList(),
     failed: List<RawImpressionUpload> = emptyList(),
     completed: List<RawImpressionUpload> = emptyList(),
+    correctionRequired: List<RawImpressionUpload> = emptyList(),
+    removedWithoutReplacement: List<RawImpressionUpload> = emptyList(),
+    noReplacementCandidates: List<RawImpressionUploadCorrectionCandidate> = emptyList(),
   ) {
     whenever(rawImpressionUploadService.listRawImpressionUploads(any())).thenAnswer { invocation ->
       val request = invocation.getArgument<ListRawImpressionUploadsRequest>(0)
@@ -329,7 +348,7 @@ class VidLabelingMonitorTest {
       // state_in (the dispatcher's dispatch scan) returns just those states.
       val uploads =
         if (states.isEmpty()) {
-          active + created + failed + completed
+          active + created + failed + completed + correctionRequired + removedWithoutReplacement
         } else {
           states.flatMap { state ->
             when (state) {
@@ -337,12 +356,20 @@ class VidLabelingMonitorTest {
               RawImpressionUpload.State.CREATED -> created
               RawImpressionUpload.State.FAILED -> failed
               RawImpressionUpload.State.COMPLETED -> completed
+              RawImpressionUpload.State.CORRECTION_REQUIRED -> correctionRequired
+              RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT -> removedWithoutReplacement
               else -> emptyList()
             }
           }
         }
       listRawImpressionUploadsResponse { rawImpressionUploads += uploads }
     }
+    whenever(correctionCandidateService.listRawImpressionUploadCorrectionCandidates(any()))
+      .thenReturn(
+        listRawImpressionUploadCorrectionCandidatesResponse {
+          rawImpressionUploadCorrectionCandidates += noReplacementCandidates
+        }
+      )
   }
 
   /** Stubs `listRawImpressionUploadModelLines` to return [modelLines] for any parent upload. */
@@ -440,13 +467,23 @@ class VidLabelingMonitorTest {
     state: RawImpressionUpload.State,
     createdAt: Instant,
     processingDeferred: Boolean = false,
+    replacesRawImpressionUpload: String = "",
+    doneBlobGeneration: Long = 0L,
+    doneBlobCreateTime: Instant? = null,
+    registrationComplete: Boolean = true,
+    doneBlobUri: String = "gs://raw-bucket/edp7/2026-06-01/done",
   ) = rawImpressionUpload {
     name = "$DATA_PROVIDER/rawImpressionUploads/$id"
     this.state = state
-    registrationComplete = true
+    this.registrationComplete = registrationComplete
     createTime = Timestamps.fromMillis(createdAt.toEpochMilli())
-    doneBlobUri = "gs://raw-bucket/edp7/2026-06-01/done"
+    this.doneBlobUri = doneBlobUri
+    this.doneBlobGeneration = doneBlobGeneration
+    if (doneBlobCreateTime != null) {
+      this.doneBlobCreateTime = Timestamps.fromMillis(doneBlobCreateTime.toEpochMilli())
+    }
     this.processingDeferred = processingDeferred
+    this.replacesRawImpressionUpload = replacesRawImpressionUpload
   }
 
   private fun createdModelLine(id: String = "ml1") = rawImpressionUploadModelLine {
@@ -782,6 +819,12 @@ class VidLabelingMonitorTest {
     }
   }
 
+  private suspend fun seedRawVersion(key: String): Long =
+    (rawImpressionsStorageClient.writeBlob(key, flowOf(ByteString.copyFromUtf8("x")))
+        as ConditionalOperationStorageClient.Blob)
+      .freshnessToken
+      .toLong()
+
   private suspend fun seedLabeled(vararg keys: String) {
     for (key in keys) {
       vidLabeledImpressionsStorageClient.writeBlob(key, flowOf(ByteString.copyFromUtf8("x")))
@@ -817,42 +860,39 @@ class VidLabelingMonitorTest {
   }
 
   @Test
-  fun `reports missing done blobs for a registered date folder without a done blob`() =
-    runBlocking {
-      stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
-      stubModelLines()
-      stubFiles(
-        rawImpressionUploadFile {
-          blobUri = "gs://raw-bucket/edp7/2026-06-02/data-1"
-          eventDate = date {
-            year = 2026
-            month = 6
-            day = 2
-          }
-        }
-      )
-      seedRaw("edp7/2026-06-02/data-1")
+  fun `reports wholly unregistered raw directory without a done blob`() = runBlocking {
+    stubUploads()
+    stubModelLines()
+    stubFiles()
+    seedRaw("edp7/2026-06-02/data-1")
 
-      createMonitor().runHealth()
+    createMonitor().runHealth()
 
-      assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs"))
-        .isEqualTo(1)
-    }
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs"))
+      .isEqualTo(1)
+  }
 
   @Test
-  fun `reports zero-impression dates for a done blob with no data files`() = runBlocking {
-    stubUploads(active = listOf(upload("active-1", RawImpressionUpload.State.ACTIVE, FIXED_NOW)))
+  fun `health streams registered files across uploads at maximum page size`() = runBlocking {
+    stubUploads()
     stubModelLines()
-    stubFiles(
-      rawImpressionUploadFile {
-        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
-        eventDate = date {
-          year = 2026
-          month = 6
-          day = 1
-        }
-      }
-    )
+    stubFiles()
+
+    createMonitor().runHealth()
+
+    val requests = argumentCaptor<ListRawImpressionUploadFilesRequest>()
+    verifyBlocking(rawImpressionUploadFileService, times(1)) {
+      listRawImpressionUploadFiles(requests.capture())
+    }
+    assertThat(requests.firstValue.parent).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/-")
+    assertThat(requests.firstValue.pageSize).isEqualTo(1000)
+  }
+
+  @Test
+  fun `reports unregistered done-only directory`() = runBlocking {
+    stubUploads()
+    stubModelLines()
+    stubFiles()
     seedRaw("edp7/2026-06-01/done")
 
     createMonitor().runHealth()
@@ -860,6 +900,175 @@ class VidLabelingMonitorTest {
     val metrics = collectMetrics()
     assertThat(metrics.gaugeValue("edpa.vid_labeling_monitor.zero_impression_dates")).isEqualTo(1)
     assertThat(metrics.gaugeValue("edpa.vid_labeling_monitor.missing_done_blobs")).isEqualTo(0)
+  }
+
+  @Test
+  fun `does not report no-op done rewrite as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(0)
+  }
+
+  @Test
+  fun `reports unchanged manifest after failed upload as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val failedDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val failedUpload =
+      upload(
+        "failed-1",
+        RawImpressionUpload.State.FAILED,
+        FIXED_NOW,
+        doneBlobGeneration = failedDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(failed = listOf(failedUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${failedUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports changed manifest after done rewrite as unregistered`() = runBlocking {
+    val registeredDataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = registeredDataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/data-1")
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports incompletely registered done generation as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val doneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val incompleteUpload =
+      upload(
+        "created-1",
+        RawImpressionUpload.State.CREATED,
+        FIXED_NOW,
+        doneBlobGeneration = doneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+        registrationComplete = false,
+      )
+    stubUploads(created = listOf(incompleteUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${incompleteUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `reports marker older than latest registered revision as unregistered`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val registeredDoneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val registeredUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = registeredDoneGeneration,
+        doneBlobCreateTime = Instant.parse("2030-01-01T00:00:00Z"),
+      )
+    stubUploads(completed = listOf(registeredUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${registeredUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+    seedRawVersion("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
+  }
+
+  @Test
+  fun `does not match registered done identity from another bucket`() = runBlocking {
+    val dataGeneration = seedRawVersion("edp7/2026-06-01/data-1")
+    val doneGeneration = seedRawVersion("edp7/2026-06-01/done")
+    val oldBucketUpload =
+      upload(
+        "completed-1",
+        RawImpressionUpload.State.COMPLETED,
+        FIXED_NOW,
+        doneBlobGeneration = doneGeneration,
+        doneBlobCreateTime = Instant.EPOCH,
+        doneBlobUri = "gs://old-raw-bucket/edp7/2026-06-01/done",
+      )
+    stubUploads(completed = listOf(oldBucketUpload))
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${oldBucketUpload.name}/files/file-1"
+        blobUri = "gs://old-raw-bucket/edp7/2026-06-01/data-1"
+        blobGeneration = dataGeneration
+      }
+    )
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.unregisteredDoneBlobs).isEqualTo(1)
   }
 
   @Test
@@ -883,6 +1092,24 @@ class VidLabelingMonitorTest {
     createMonitor().runHealth()
 
     assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.late_arriving_files"))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `reports overlapping parent and child done markers`() = runBlocking {
+    stubUploads()
+    stubModelLines()
+    stubFiles()
+    seedRaw("edp7/2026-06-01/backfill/data")
+    seedRaw("edp7/2026-06-01/backfill/done")
+    seedRaw("edp7/2026-06-01/done")
+
+    val result = createMonitor().runHealth()
+
+    assertThat(result.ambiguousDoneMarkerLayouts).isEqualTo(1)
+    assertThat(
+        collectMetrics().gaugeValue("edpa.vid_labeling_monitor.ambiguous_done_marker_layouts")
+      )
       .isEqualTo(1)
   }
 
@@ -951,6 +1178,67 @@ class VidLabelingMonitorTest {
   }
 
   @Test
+  fun `reports missing files from a nonempty correction upload`() = runBlocking {
+    stubUploads(
+      correctionRequired =
+        listOf(upload("correction-1", RawImpressionUpload.State.CORRECTION_REQUIRED, FIXED_NOW))
+    )
+    stubModelLines()
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "$DATA_PROVIDER/rawImpressionUploads/correction-1/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_raw_files"))
+      .isEqualTo(1)
+  }
+
+  @Test
+  fun `does not report deleted files after no-replacement candidate is purged`() = runBlocking {
+    val predecessor = upload("original-1", RawImpressionUpload.State.FAILED, FIXED_NOW)
+    val correctionUpload =
+      upload(
+        "correction-1",
+        RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT,
+        FIXED_NOW,
+        replacesRawImpressionUpload = predecessor.name,
+      )
+    stubUploads(failed = listOf(predecessor), removedWithoutReplacement = listOf(correctionUpload))
+    stubModelLines(
+      rawImpressionUploadModelLine {
+        name = "${predecessor.name}/modelLines/ml1"
+        state = RawImpressionUploadModelLine.State.FAILED
+        recoveryAction = RawImpressionUploadModelLine.RecoveryAction.RECOVERY_ACTION_NO_REPLACEMENT
+      }
+    )
+    stubFiles(
+      rawImpressionUploadFile {
+        name = "${correctionUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/deleted-data"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      }
+    )
+
+    createMonitor().runHealth()
+
+    assertThat(collectMetrics().gaugeValue("edpa.vid_labeling_monitor.missing_raw_files"))
+      .isEqualTo(0)
+  }
+
+  @Test
   fun `reports missing labeled outputs for a completed model line and date with no done blob`() =
     runBlocking {
       stubUploads(
@@ -966,6 +1254,7 @@ class VidLabelingMonitorTest {
       // One registered file dated 2026-06-01; no labeled done blob for (ml1, 2026-06-01).
       stubFiles(
         rawImpressionUploadFile {
+          name = "$DATA_PROVIDER/rawImpressionUploads/done-1/files/file-1"
           blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
           eventDate = date {
             year = 2026
@@ -997,6 +1286,7 @@ class VidLabelingMonitorTest {
     )
     stubFiles(
       rawImpressionUploadFile {
+        name = "$DATA_PROVIDER/rawImpressionUploads/done-1/files/file-1"
         blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
         eventDate = date {
           year = 2026
@@ -1168,7 +1458,7 @@ class VidLabelingMonitorTest {
     // C3: a successful recovery is not an issue; only exhausted recovery is.
     assertThat(result.hasIssues).isFalse()
     assertThat(recordingThrottlers.kingdom.invocationCount).isEqualTo(0)
-    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(6)
+    assertThat(recordingThrottlers.metadataRead.invocationCount).isEqualTo(7)
     assertThat(recordingThrottlers.metadataWrite.invocationCount).isEqualTo(0)
     assertThat(recordingThrottlers.controlPlane.invocationCount).isEqualTo(2)
   }
@@ -1454,6 +1744,7 @@ class VidLabelingMonitorTest {
     private const val MODEL_RELEASE = "$MODEL_SUITE/modelReleases/mr1"
     private const val MODEL_BLOB_PATH = "gs://models/vid-model-v1.pb"
     private const val VID_LABELED_IMPRESSIONS_PREFIX = "gs://vid-labeled-bucket/edp123"
+    private const val RAW_IMPRESSIONS_PREFIX = "edp7"
     private const val QUEUE_NAME = "queues/vid-labeler-queue"
     private const val POOL_ASSIGNER_QUEUE_NAME = "queues/pool-assigner-queue"
     private const val NUMBER_OF_SHARDS = 2

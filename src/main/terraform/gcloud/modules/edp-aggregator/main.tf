@@ -1023,19 +1023,21 @@ module "vid_labeling_monitor_cloud_function" {
   uber_jar_path                            = var.cloud_function_configs.vid_labeling_monitor.uber_jar_path
   secrets_to_access                        = [for key in local.vid_labeling_function_secrets_access : local.all_secrets[key].secret_id]
 
-  # See the dispatcher cap above. Together the two functions can run at most two 2-QPS clients.
-  # Health scans may traverse multiple metadata pages, so retain the same timeout headroom.
-  timeout_seconds = 600
+  # Storage-first health scans may enumerate the complete retained raw-input history. Keep one
+  # minute of response headroom under Cloud Scheduler's 30-minute HTTP deadline. Two GiB gives the
+  # metadata indexes enough heap and allocates one vCPU for the CPU-bound object-metadata decode.
+  timeout_seconds = 1740
   max_instances   = 1
+  memory          = "2048MB"
 }
 
 module "vid_labeling_monitor_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  # Wait beyond the function's 600-second timeout so Scheduler can receive its terminal response.
+  # Cloud Scheduler HTTP targets allow at most a 30-minute attempt deadline.
   scheduler_config = merge(
     var.vid_labeling_monitor_scheduler_config,
-    { attempt_deadline = "660s" },
+    { attempt_deadline = "1800s" },
   )
   depends_on = [module.vid_labeling_monitor_cloud_function]
 }
@@ -1043,7 +1045,7 @@ module "vid_labeling_monitor_cloud_scheduler" {
 module "vid_labeling_dispatch_cloud_scheduler" {
   source                    = "../cloud-scheduler"
   terraform_service_account = var.terraform_service_account
-  # This job invokes the same function in dispatch mode and needs the same response headroom.
+  # Dispatch mode performs no storage crawl and retains its existing 10-minute execution budget.
   scheduler_config = merge(
     var.vid_labeling_dispatch_scheduler_config,
     { attempt_deadline = "660s" },
