@@ -206,12 +206,15 @@ data class InProgressModelLine(val rawImpressionUploadResourceId: String, val st
  * [excludeRawImpressionUploadId], returning each conflicting upload's resource ID and state.
  *
  * Used to enforce the one-in-flight-upload-per-(DataProvider, model line) rule and to name the
- * blocking upload(s) when the rule rejects a transition.
+ * blocking upload(s) when the rule rejects a transition. An `AVAILABILITY_SYNCING` row belonging to
+ * [permittedEvictionOperationId] is not a conflict: its rank snapshot and labeled output are
+ * already durable, and the shared healing fence postpones availability until recovery completes.
  */
 suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine(
   dataProviderResourceId: String,
   cmmsModelLine: String,
   excludeRawImpressionUploadId: Long,
+  permittedEvictionOperationId: String = "",
   limit: Int = 5,
 ): List<InProgressModelLine> {
   val sql =
@@ -225,6 +228,11 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
       AND RawImpressionUploadModelLine.CmmsModelLine = @cmmsModelLine
       AND RawImpressionUploadModelLine.RawImpressionUploadId != @excludeRawImpressionUploadId
       AND CAST(RawImpressionUploadModelLine.State AS INT64) IN UNNEST(@inProgressStates)
+      AND NOT (
+        @permittedEvictionOperationId != ''
+        AND RawImpressionUploadModelLine.State = @availabilitySyncingState
+        AND RawImpressionUpload.EvictionOperationId = @permittedEvictionOperationId
+      )
     LIMIT @limit
     """
       .trimIndent()
@@ -235,6 +243,9 @@ suspend fun AsyncDatabaseClient.ReadContext.findInProgressModelLinesForModelLine
           bind("dataProviderResourceId").to(dataProviderResourceId)
           bind("cmmsModelLine").to(cmmsModelLine)
           bind("excludeRawImpressionUploadId").to(excludeRawImpressionUploadId)
+          bind("permittedEvictionOperationId").to(permittedEvictionOperationId)
+          bind("availabilitySyncingState")
+            .to(State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING)
           bind("limit").to(limit.toLong())
           bind("inProgressStates")
             .toInt64Array(
