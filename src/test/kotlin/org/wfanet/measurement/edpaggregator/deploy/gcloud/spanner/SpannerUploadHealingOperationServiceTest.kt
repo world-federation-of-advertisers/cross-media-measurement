@@ -64,77 +64,84 @@ class SpannerUploadHealingOperationServiceTest {
     SpannerEmulatorDatabaseRule(spannerEmulator, Schemata.EDP_AGGREGATOR_CHANGELOG_PATH)
 
   @Test
-  fun `operation and step checkpoints are retry safe`() = runBlocking {
-    val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
-    insertUploadGraph()
-    val createRequest = createRequest(memoized = false)
-
-    val created = service.createUploadHealingOperation(createRequest)
-    val replayed = service.createUploadHealingOperation(createRequest)
-
-    assertThat(created.stepsList.single().state)
-      .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION)
-    assertThat(replayed).isEqualTo(created)
-
-    val waitingRequest = advanceUploadHealingStepRequest {
-      dataProviderResourceId = DATA_PROVIDER_ID
-      uploadHealingOperationId = OPERATION_ID
-      uploadHealingStepId = 1L
-      etag = created.stepsList.single().etag
-      action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
-      requestId = WAITING_REQUEST_ID
-    }
-    val waiting = service.advanceUploadHealingStep(waitingRequest)
-    val waitingReplay = service.advanceUploadHealingStep(waitingRequest)
-
-    assertThat(waiting.state)
-      .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT)
-    assertThat(waitingReplay).isEqualTo(waiting)
-    assertThat(waiting.hasEvictionCompleteTime()).isTrue()
-
-    val started =
-      service.advanceUploadHealingStep(
-        advanceUploadHealingStepRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          uploadHealingOperationId = OPERATION_ID
-          uploadHealingStepId = 1L
-          etag = waiting.etag
-          action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
-          recoveryDoneBlobGeneration = RECOVERY_GENERATION
-          requestId = STARTED_REQUEST_ID
-        }
+  fun `availability-syncing replacement completes the operation and checkpoints are retry safe`() =
+    runBlocking {
+      val service = SpannerUploadHealingOperationService(spannerDatabase.databaseClient)
+      insertUploadGraph(
+        replacementUploadState = RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+        replacementModelLineState =
+          RawImpressionUploadModelLineState
+            .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
       )
+      val createRequest = createRequest(memoized = false)
 
-    assertThat(started.recoveryDoneBlobGeneration).isEqualTo(RECOVERY_GENERATION)
-    assertThat(started.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
+      val created = service.createUploadHealingOperation(createRequest)
+      val replayed = service.createUploadHealingOperation(createRequest)
 
-    val completeRequest = advanceUploadHealingStepRequest {
-      dataProviderResourceId = DATA_PROVIDER_ID
-      uploadHealingOperationId = OPERATION_ID
-      uploadHealingStepId = 1L
-      etag = started.etag
-      action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
-      replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
-      requestId = COMPLETE_REQUEST_ID
+      assertThat(created.stepsList.single().state)
+        .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_PENDING_EVICTION)
+      assertThat(replayed).isEqualTo(created)
+
+      val waitingRequest = advanceUploadHealingStepRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingStepId = 1L
+        etag = created.stepsList.single().etag
+        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION
+        requestId = WAITING_REQUEST_ID
+      }
+      val waiting = service.advanceUploadHealingStep(waitingRequest)
+      val waitingReplay = service.advanceUploadHealingStep(waitingRequest)
+
+      assertThat(waiting.state)
+        .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_WAITING_FOR_REPLACEMENT)
+      assertThat(waitingReplay).isEqualTo(waiting)
+      assertThat(waiting.hasEvictionCompleteTime()).isTrue()
+
+      val started =
+        service.advanceUploadHealingStep(
+          advanceUploadHealingStepRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+            uploadHealingStepId = 1L
+            etag = waiting.etag
+            action = AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY
+            recoveryDoneBlobGeneration = RECOVERY_GENERATION
+            requestId = STARTED_REQUEST_ID
+          }
+        )
+
+      assertThat(started.recoveryDoneBlobGeneration).isEqualTo(RECOVERY_GENERATION)
+      assertThat(started.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
+
+      val completeRequest = advanceUploadHealingStepRequest {
+        dataProviderResourceId = DATA_PROVIDER_ID
+        uploadHealingOperationId = OPERATION_ID
+        uploadHealingStepId = 1L
+        etag = started.etag
+        action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
+        replacementRawImpressionUploadResourceId = REPLACEMENT_UPLOAD_ID
+        requestId = COMPLETE_REQUEST_ID
+      }
+      val completed = service.advanceUploadHealingStep(completeRequest)
+
+      assertThat(completed.state)
+        .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
+      assertThat(completed.replacementRawImpressionUploadResourceId)
+        .isEqualTo(REPLACEMENT_UPLOAD_ID)
+      assertThat(completed.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
+      val completedOperation =
+        service.getUploadHealingOperation(
+          getUploadHealingOperationRequest {
+            dataProviderResourceId = DATA_PROVIDER_ID
+            uploadHealingOperationId = OPERATION_ID
+          }
+        )
+      assertThat(completedOperation.state)
+        .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
+      assertThat(service.advanceUploadHealingStep(completeRequest)).isEqualTo(completed)
+      Unit
     }
-    val completed = service.advanceUploadHealingStep(completeRequest)
-
-    assertThat(completed.state)
-      .isEqualTo(UploadHealingStep.State.UPLOAD_HEALING_STEP_STATE_COMPLETE)
-    assertThat(completed.replacementRawImpressionUploadResourceId).isEqualTo(REPLACEMENT_UPLOAD_ID)
-    assertThat(completed.evictionCompleteTime).isEqualTo(waiting.evictionCompleteTime)
-    val completedOperation =
-      service.getUploadHealingOperation(
-        getUploadHealingOperationRequest {
-          dataProviderResourceId = DATA_PROVIDER_ID
-          uploadHealingOperationId = OPERATION_ID
-        }
-      )
-    assertThat(completedOperation.state)
-      .isEqualTo(UploadHealingOperation.State.UPLOAD_HEALING_OPERATION_STATE_COMPLETE)
-    assertThat(service.advanceUploadHealingStep(completeRequest)).isEqualTo(completed)
-    Unit
-  }
 
   @Test
   fun `completion transfers the fence to a pending candidate`() = runBlocking {
@@ -2044,7 +2051,12 @@ class SpannerUploadHealingOperationServiceTest {
         .rawImpressionUploadCorrectionCandidate
     }
 
-  private suspend fun insertUploadGraph() {
+  private suspend fun insertUploadGraph(
+    replacementUploadState: RawImpressionUploadState =
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+    replacementModelLineState: RawImpressionUploadModelLineState =
+      RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
+  ) {
     val sourceUpload =
       Mutation.newInsertBuilder("RawImpressionUpload")
         .set("DataProviderResourceId")
@@ -2119,7 +2131,7 @@ class SpannerUploadHealingOperationServiceTest {
         .set("RegistrationComplete")
         .to(true)
         .set("State")
-        .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED))
+        .to(Value.protoEnum(replacementUploadState))
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
@@ -2138,11 +2150,7 @@ class SpannerUploadHealingOperationServiceTest {
         .set("CmmsModelLine")
         .to(CMMS_MODEL_LINE)
         .set("State")
-        .to(
-          Value.protoEnum(
-            RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
-          )
-        )
+        .to(Value.protoEnum(replacementModelLineState))
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
