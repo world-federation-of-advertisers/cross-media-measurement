@@ -308,9 +308,29 @@ class RecoverUploaderTest {
           recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
         }
 
-      assertThat(error).hasMessageThat().contains("has not been replaced by a completed upload")
+      assertThat(error).hasMessageThat().contains("has not produced durable labeled output")
       assertThat(rewriteCalled).isFalse()
     }
+
+  @Test
+  fun `recover accepts a predecessor waiting for availability synchronization`() = runBlocking {
+    stubSourceUpload()
+    stubModelLine(
+      RawImpressionUploadModelLine.State.FAILED,
+      predecessorState = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+    )
+    stubSnapshot()
+    var rewriteCalled = false
+    val recoverUploader = recoverUploader { _, _, _ ->
+      rewriteCalled = true
+      NEW_GENERATION
+    }
+
+    val result = recoverUploader.recover(UPLOAD, listOf(MODEL_LINE))
+
+    assertThat(result.doneBlobGeneration).isEqualTo(NEW_GENERATION)
+    assertThat(rewriteCalled).isTrue()
+  }
 
   private fun recoverUploader(
     rewriteDoneBlob: suspend (String, Long, Map<String, String>) -> Long
