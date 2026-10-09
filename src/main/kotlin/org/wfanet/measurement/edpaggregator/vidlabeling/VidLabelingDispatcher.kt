@@ -942,7 +942,7 @@ class VidLabelingDispatcher(
               rawImpressionUploadResourceId = quarantinedUpload.rawImpressionUploadResourceId
               this.classification = classification
               priorManifestDigest = comparison.priorManifestDigest
-              currentManifestDigest = comparison.currentManifestDigest
+              currentManifestDigest = datedComparison.currentManifestDigest
               manifestComparison =
                 datedComparison.toCandidateManifestComparison(
                   quarantinedUpload.rawImpressionUploadResourceId
@@ -990,6 +990,8 @@ class VidLabelingDispatcher(
       }
     return copy(
       currentManifest = datedCurrentManifest,
+      currentManifestDigest =
+        manifestClassifier.digest(datedCurrentManifest.values.map { it.file }),
       differences =
         differences.map { difference ->
           difference.copy(
