@@ -621,6 +621,21 @@ class VidLabelerAppTest {
   }
 
   @Test
+  fun `runWork records file-system done object generation`() = runBlocking {
+    stubLastOutWithEventDate()
+    tempFolder.root.resolve("output-bucket").mkdirs()
+    val app = createApp()
+
+    app.runWork(buildMessage(memoizedParams()))
+
+    val finalizeSpan =
+      spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
+    val doneEvent = finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.done_object" }
+    assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION))
+      .isGreaterThan(0L)
+  }
+
+  @Test
   fun `runWork skips relabel but still marks succeeded when job already SUCCEEDED`() = runBlocking {
     // No seedRankIndexBlob(): the already-SUCCEEDED branch skips label(), so MemoizedRankIndex.load
     // is never invoked. The idempotent mark + last-job-out recovery must still run.
