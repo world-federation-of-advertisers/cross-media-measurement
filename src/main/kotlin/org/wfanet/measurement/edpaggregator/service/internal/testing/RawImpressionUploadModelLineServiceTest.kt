@@ -1169,6 +1169,60 @@ abstract class RawImpressionUploadModelLineServiceTest {
     }
 
   @Test
+  fun `markRawImpressionUploadModelLineFailed evicts output awaiting availability`() = runBlocking {
+    val created = createModelLine()
+    val labeling =
+      service.markRawImpressionUploadModelLineLabeling(
+        markRawImpressionUploadModelLineLabelingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = created.etag
+        }
+      )
+    val syncing =
+      service.markRawImpressionUploadModelLineAvailabilitySyncing(
+        markRawImpressionUploadModelLineAvailabilitySyncingRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = labeling.etag
+          pendingAvailabilityDates += date {
+            year = 2026
+            month = 1
+            day = 1
+          }
+        }
+      )
+
+    val evicted =
+      service.markRawImpressionUploadModelLineFailed(
+        markRawImpressionUploadModelLineFailedRequest {
+          requestId = UUID.randomUUID().toString()
+          dataProviderResourceId = DATA_PROVIDER_RESOURCE_ID
+          rawImpressionUploadResourceId = RAW_IMPRESSION_UPLOAD_RESOURCE_ID
+          rawImpressionUploadModelLineResourceId = created.rawImpressionUploadModelLineResourceId
+          etag = syncing.etag
+          errorMessage = "queued availability output is obsolete"
+          failureReason =
+            FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT
+          evictionOperationId = EVICTION_OPERATION_ID
+          recoveryAction =
+            RecoveryAction.RAW_IMPRESSION_UPLOAD_MODEL_LINE_RECOVERY_ACTION_EDP_CORRECTION
+        }
+      )
+
+    assertThat(evicted.state)
+      .isEqualTo(RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED)
+    assertThat(evicted.failureReason)
+      .isEqualTo(FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT)
+    assertThat(getParentUploadState(DATA_PROVIDER_RESOURCE_ID, RAW_IMPRESSION_UPLOAD_RESOURCE_ID))
+      .isEqualTo(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_FAILED)
+  }
+
+  @Test
   fun `markRawImpressionUploadModelLineFailed records no-replacement eviction`() = runBlocking {
     val completed = completeSoleModelLine()
 
