@@ -29,29 +29,19 @@ concurrency:
 
 jobs:
   cross-company-review-policy:
-    # checks if the author of the PR is a Claude agent
-    if: github.actor != 'Copilot' && github.actor != 'copilot-pull-request-reviewer[bot]' && github.event.requested_reviewer.login != 'copilot'
     name: Check Cross-company review
-    # runs on ubuntu 28
     runs-on: ubuntu-24.04
-    # set permission to get Team membership
     permissions:
       contents: read
       pull-requests: read
     steps:
-      # avoids printing github actors
-      - name: Print debug info
-        run: |
-          echo "github.actor=${{ github.actor }}"
-          echo "github.event.review.user.login=${{ github.event.review.user.login }}"
-          echo "github.event.review.state=${{ github.event.review.state }}"
-          echo "github.event.requested_reviewer.login=${{ github.event.requested_reviewer.login }}"
-
       - name: Fetch approvers
         id: fetch-approvers
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            // Remove this before merge
+            const deleteMeBeforeMerge = 14;
             const { owner, repo } = context.repo;
             const pullNumber = context.payload.pull_request.number;
             const pullAuthor = context.payload.pull_request.user.login;
