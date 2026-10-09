@@ -401,12 +401,23 @@ class UploadHealingWorkflow(
     val latest = findLatestUpload(revisions) ?: return null
     if (latest.name == sourceName || !replacesUpload(latest.name, sourceName, revisions))
       return null
-    if (!isRegistrationComplete(latest) || latest.state != RawImpressionUpload.State.COMPLETED) {
+    // Availability cannot complete until this workflow releases the eviction fence.
+    if (
+      !isRegistrationComplete(latest) ||
+        latest.state !in
+          setOf(RawImpressionUpload.State.ACTIVE, RawImpressionUpload.State.COMPLETED)
+    ) {
       return null
     }
     val rows = listModelLines(latest.name).associateBy { it.cmmsModelLine }
     if (
-      steps.any { rows[it.cmmsModelLine]?.state != RawImpressionUploadModelLine.State.COMPLETED }
+      steps.any {
+        rows[it.cmmsModelLine]?.state !in
+          setOf(
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      }
     ) {
       return null
     }

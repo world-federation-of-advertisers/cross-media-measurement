@@ -1392,11 +1392,17 @@ class SpannerUploadHealingOperationService(
     ) {
       "replacement does not descend from the source upload"
     }
+    // Completing the operation releases the fence transactionally. AVAILABILITY_SYNCING is the
+    // last safe pre-fence-release state; its WorkItem cannot acquire a lease until this succeeds.
     precondition(
       replacement.registrationComplete &&
-        replacement.state == RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED
+        replacement.state in
+          setOf(
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_ACTIVE,
+            RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+          )
     ) {
-      "replacement upload has not completed registration and processing"
+      "replacement upload is not ready for availability synchronization"
     }
     if (
       current.recoveryAction !=
@@ -1427,10 +1433,14 @@ class SpannerUploadHealingOperationService(
           .asRuntimeException()
     precondition(
       replacementModelLine.cmmsModelLine == current.cmmsModelLine &&
-        replacementModelLine.state ==
-          RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
+        replacementModelLine.state in
+          setOf(
+            RawImpressionUploadModelLineState
+              .RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
+          )
     ) {
-      "replacement model line has not completed"
+      "replacement model line is not ready for availability synchronization"
     }
     if (current.memoized) {
       val snapshot =

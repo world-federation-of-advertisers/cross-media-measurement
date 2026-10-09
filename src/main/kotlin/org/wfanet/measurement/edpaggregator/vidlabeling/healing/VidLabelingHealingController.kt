@@ -872,14 +872,26 @@ class VidLabelingHealingController(
       if (stillEvicted) return null
       throw ReplacementFailedException("Replacement upload ${latest.name} failed")
     }
-    if (!latest.registrationComplete || latest.state != RawImpressionUpload.State.COMPLETED) {
+    // AVAILABILITY_SYNCING means labeling output is durable. Confirming it releases the healing
+    // fence, which is what allows its availability WorkItems to acquire a lease and finish.
+    if (
+      !latest.registrationComplete ||
+        latest.state !in
+          setOf(RawImpressionUpload.State.ACTIVE, RawImpressionUpload.State.COMPLETED)
+    ) {
       return null
     }
     if (steps.any { rows[it.cmmsModelLine]?.state == RawImpressionUploadModelLine.State.FAILED }) {
       throw ReplacementFailedException("Replacement model line failed for ${latest.name}")
     }
     if (
-      steps.any { rows[it.cmmsModelLine]?.state != RawImpressionUploadModelLine.State.COMPLETED }
+      steps.any {
+        rows[it.cmmsModelLine]?.state !in
+          setOf(
+            RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+            RawImpressionUploadModelLine.State.COMPLETED,
+          )
+      }
     ) {
       return null
     }
