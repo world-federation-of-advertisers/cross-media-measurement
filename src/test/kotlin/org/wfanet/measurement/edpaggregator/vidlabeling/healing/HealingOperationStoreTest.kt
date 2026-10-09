@@ -28,15 +28,11 @@ import org.mockito.kotlin.verify
 import org.mockito.kotlin.whenever
 import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
-import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt as PublicServiceGrpcKt
-import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.labeledOutputManifest
-import org.wfanet.measurement.edpaggregator.v1alpha.reconcileUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingOperationRequest as InternalAdvanceOperationRequest
@@ -75,16 +71,17 @@ class HealingOperationStoreTest {
 
       val result =
         store.reconcileUploadHealingOperation(
-          reconcileUploadHealingOperationRequest {
-            parent = DATA_PROVIDER
-            uploadHealingOperationId = OPERATION_ID
-            requestId = REQUEST_ID
-            uploadHealingOperation = uploadHealingOperation {
-              reason = "correction"
-              rawImpressionUploadCorrectionCandidates += CANDIDATE
-              steps += PUBLIC_STEP
-            }
-          }
+          ReconcileUploadHealingOperationCommand(
+            parent = DATA_PROVIDER,
+            uploadHealingOperationId = OPERATION_ID,
+            requestId = REQUEST_ID,
+            uploadHealingOperation =
+              uploadHealingOperation {
+                reason = "correction"
+                rawImpressionUploadCorrectionCandidates += CANDIDATE
+                steps += PUBLIC_STEP
+              },
+          )
         )
 
       val request = argumentCaptor<InternalReconcileRequest>()
@@ -123,12 +120,12 @@ class HealingOperationStoreTest {
       whenever(readService.getUploadHealingOperation(any())).thenReturn(PUBLIC_OPERATION)
 
       store.advanceUploadHealingOperation(
-        advanceUploadHealingOperationRequest {
-          name = OPERATION
-          etag = "etag"
-          state = UploadHealingOperation.State.EVICTING
-          requestId = REQUEST_ID
-        }
+        AdvanceUploadHealingOperationCommand(
+          name = OPERATION,
+          etag = "etag",
+          state = UploadHealingOperation.State.EVICTING,
+          requestId = REQUEST_ID,
+        )
       )
 
       val request = argumentCaptor<InternalAdvanceOperationRequest>()
@@ -151,13 +148,13 @@ class HealingOperationStoreTest {
 
       val result =
         store.advanceUploadHealingStep(
-          advanceUploadHealingStepRequest {
-            name = STEP
-            etag = "step-etag"
-            action = AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT
-            replacementRawImpressionUpload = REPLACEMENT
-            requestId = REQUEST_ID
-          }
+          AdvanceUploadHealingStepCommand(
+            name = STEP,
+            etag = "step-etag",
+            action = UploadHealingStepAction.CONFIRM_REPLACEMENT,
+            replacementRawImpressionUpload = REPLACEMENT,
+            requestId = REQUEST_ID,
+          )
         )
 
       val request = argumentCaptor<InternalAdvanceStepRequest>()
