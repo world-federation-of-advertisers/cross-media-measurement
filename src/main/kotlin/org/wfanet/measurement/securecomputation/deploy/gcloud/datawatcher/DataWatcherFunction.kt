@@ -40,6 +40,7 @@ import org.wfanet.measurement.common.edpaggregator.EdpAggregatorConfig.getConfig
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.withShutdownTimeout
 import org.wfanet.measurement.common.telemetry.XmmTraceAttributes
+import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.config.securecomputation.DataWatcherConfig
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -88,10 +89,14 @@ class DataWatcherFunction(
         }
       }
 
-      // Extract custom metadata from the GCS object, plus the object generation (the
-      // VidLabelingDispatcher requires it as the X-DataWatcher-Generation header).
+      // Extract custom metadata from the GCS object and the immutable source-object identity.
       val objectMetadata: Map<String, String> =
-        data.metadataMap + (DataWatcher.GENERATION_METADATA_KEY to data.generation.toString())
+        data.metadataMap +
+          mapOf(
+            DataWatcher.GENERATION_METADATA_KEY to data.generation.toString(),
+            DataWatcher.CREATE_TIME_METADATA_KEY to data.timeCreated.toInstant().toString(),
+            DataWatcher.EVENT_TYPE_METADATA_KEY to event.type,
+          )
 
       Tracing.withW3CTraceContext(event) {
         val forwardedMetadata =

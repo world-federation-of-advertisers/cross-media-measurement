@@ -20,4 +20,8 @@ import com.google.protobuf.Message
 
 interface WorkItemPublisher {
   suspend fun publishMessage(queueName: String, message: Message)
+
+  suspend fun publishMessage(queueName: String, message: Message, orderingKey: String) {
+    publishMessage(queueName, message)
+  }
 }
