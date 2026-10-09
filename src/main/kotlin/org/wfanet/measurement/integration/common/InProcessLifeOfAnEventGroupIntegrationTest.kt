@@ -180,7 +180,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
             EventGroupKt.aggregatedActivity {
               interval = dateInterval {
                 startDate = DATE_1
-                endDate = DATE_2
+                endDate = DATE_3
               }
             }
         }
@@ -255,7 +255,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
             filter = filter {
               activityContains = dateInterval {
                 startDate = DATE_1
-                endDate = DATE_3
+                endDate = DATE_4
               }
             }
           }
@@ -294,7 +294,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
             filter = filter {
               activityContains = dateInterval {
                 startDate = DATE_1
-                endDate = DATE_3
+                endDate = DATE_4
               }
             }
           }
@@ -333,7 +333,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
             filter = filter {
               activityContains = dateInterval {
                 startDate = DATE_1
-                endDate = DATE_3
+                endDate = DATE_4
               }
             }
           }
@@ -348,7 +348,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
                   EventGroupKt.aggregatedActivity {
                     interval = dateInterval {
                       startDate = DATE_1
-                      endDate = DATE_3
+                      endDate = DATE_4
                     }
                   }
               }
@@ -358,7 +358,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
                   EventGroupKt.aggregatedActivity {
                     interval = dateInterval {
                       startDate = DATE_0
-                      endDate = DATE_4
+                      endDate = DATE_5
                     }
                   }
               }
@@ -392,7 +392,7 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
             EventGroupKt.aggregatedActivity {
               interval = dateInterval {
                 startDate = DATE_2
-                endDate = DATE_2
+                endDate = DATE_3
               }
             }
         }
@@ -582,6 +582,11 @@ abstract class InProcessLifeOfAnEventGroupIntegrationTest {
       year = 2023
       month = 1
       day = 4
+    }
+    private val DATE_5 = date {
+      year = 2023
+      month = 1
+      day = 5
     }
   }
 }

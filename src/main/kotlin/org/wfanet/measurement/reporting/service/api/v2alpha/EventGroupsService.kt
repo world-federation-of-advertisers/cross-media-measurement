@@ -362,9 +362,9 @@ private fun validateActivityContains(interval: DateInterval) {
     val startDate =
       LocalDate.of(interval.startDate.year, interval.startDate.month, interval.startDate.day)
     val endDate = LocalDate.of(interval.endDate.year, interval.endDate.month, interval.endDate.day)
-    if (startDate.isAfter(endDate)) {
+    if (!startDate.isBefore(endDate)) {
       throw Status.INVALID_ARGUMENT.withDescription(
-          "activity_contains.start_date must be before or equal to activity_contains.end_date"
+          "activity_contains.start_date must be before activity_contains.end_date"
         )
         .asRuntimeException()
     }
