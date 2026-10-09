@@ -201,8 +201,14 @@ class RecoverUploader(
     }
     val replacementRow =
       listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
-    require(replacementRow?.state == RawImpressionUploadModelLine.State.COMPLETED) {
-      "Recovery predecessor $predecessorName has not been replaced by a completed upload for " +
+    require(
+      replacementRow?.state in
+        setOf(
+          RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+          RawImpressionUploadModelLine.State.COMPLETED,
+        )
+    ) {
+      "Recovery predecessor $predecessorName has not produced durable labeled output for " +
         row.cmmsModelLine
     }
     require(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {
