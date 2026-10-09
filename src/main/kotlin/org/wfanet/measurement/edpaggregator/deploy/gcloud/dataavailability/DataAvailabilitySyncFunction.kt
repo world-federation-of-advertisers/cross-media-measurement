@@ -30,10 +30,13 @@ import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.io.File
 import java.time.Clock
 import java.time.Duration
+import java.time.ZoneId
 import java.util.concurrent.ConcurrentHashMap
 import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
+import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -46,6 +49,7 @@ import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfig
 import org.wfanet.measurement.config.edpaggregator.DataAvailabilitySyncConfigs
 import org.wfanet.measurement.config.edpaggregator.TransportLayerSecurityParams
 import org.wfanet.measurement.edpaggregator.ConfigLoader
+import org.wfanet.measurement.edpaggregator.dataavailability.CmmsEventGroupActivityPublisher
 import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilitySync
 import org.wfanet.measurement.edpaggregator.telemetry.EdpaTelemetry
 import org.wfanet.measurement.edpaggregator.telemetry.Tracing
@@ -132,6 +136,28 @@ class DataAvailabilitySyncFunction() : HttpFunction {
       val impressionMetadataServicesClient =
         ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
 
+      val eventGroupActivityPublisher =
+        if (dataAvailabilitySyncConfig.hasEventGroupActivityPublishing()) {
+          val publishingConfig = dataAvailabilitySyncConfig.eventGroupActivityPublishing
+          require(publishingConfig.entityKeyTypesList.isNotEmpty()) {
+            "event_group_activity_publishing.entity_key_types must not be empty"
+          }
+          require(publishingConfig.timeZone.isNotEmpty()) {
+            "event_group_activity_publishing.time_zone must not be empty"
+          }
+          CmmsEventGroupActivityPublisher(
+            EventGroupsCoroutineStub(instrumentedCmmsChannel),
+            EventGroupActivitiesCoroutineStub(instrumentedCmmsChannel),
+            dataAvailabilitySyncConfig.dataProvider,
+            publishingConfig.entityKeyTypesList.toSet(),
+            publishingConfig.maxConcurrentRequests.takeIf { it > 0 }
+              ?: DEFAULT_EVENT_GROUP_ACTIVITY_MAX_CONCURRENT_REQUESTS,
+            ZoneId.of(publishingConfig.timeZone),
+          )
+        } else {
+          null
+        }
+
       val dataAvailabilitySync =
         DataAvailabilitySync(
           dataAvailabilitySyncConfig.edpImpressionPath,
@@ -144,6 +170,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           errorIfGapsExist = dataAvailabilitySyncConfig.errorIfGapsExist,
           modelLineMap =
             dataAvailabilitySyncConfig.modelLineMapMap.mapValues { it.value.modelLinesList },
+          eventGroupActivityPublisher = eventGroupActivityPublisher,
         )
 
       Tracing.withW3CTraceContext(request) {
@@ -268,6 +295,7 @@ class DataAvailabilitySyncFunction() : HttpFunction {
 
     private val globalThrottler = MinimumIntervalThrottler(Clock.systemUTC(), throttlerDuration)
     private const val DEFAULT_IMPRESSION_METADATA_BATCH_SIZE = 100
+    private const val DEFAULT_EVENT_GROUP_ACTIVITY_MAX_CONCURRENT_REQUESTS = 8
     private val impressionMetadataBatchSize =
       System.getenv("IMPRESSION_METADATA_BATCH_SIZE")?.toIntOrNull()?.takeIf { it > 0 }
         ?: DEFAULT_IMPRESSION_METADATA_BATCH_SIZE

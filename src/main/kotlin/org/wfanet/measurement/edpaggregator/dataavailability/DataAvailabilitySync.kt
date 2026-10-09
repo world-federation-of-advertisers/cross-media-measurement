@@ -112,6 +112,8 @@ import org.wfanet.measurement.storage.StorageClient
  *   detected and log a warning. If false (default), log a warning but proceed with replacing data
  *   availability intervals normally. Gap dates are always logged regardless of this setting.
  * @property metrics Metrics recorder for telemetry.
+ * @property eventGroupActivityPublisher Optional publisher for positive EventGroup activity derived
+ *   from finalized impression metadata.
  */
 class DataAvailabilitySync(
   private val edpImpressionPath: String,
@@ -125,6 +127,7 @@ class DataAvailabilitySync(
   private val modelLineMap: Map<String, List<String>>,
   private val errorIfGapsExist: Boolean,
   private val metrics: DataAvailabilitySyncMetrics = DataAvailabilitySyncMetrics(),
+  private val eventGroupActivityPublisher: EventGroupActivityPublisher? = null,
 ) {
   enum class Outcome {
     NO_WORK,
@@ -337,6 +340,19 @@ class DataAvailabilitySync(
           return Outcome.BLOCKED_GAPS
         }
       }
+
+      if (eventGroupActivityPublisher != null) {
+        val publishedActivityCount =
+          eventGroupActivityPublisher.publish(
+            impressionMetadataMap.values.flatten().map { it.impressionMetadata }
+          )
+        Span.current()
+          .addEvent(
+            "edpa.data_availability.event_group_activity_published",
+            Attributes.builder().put(ACTIVITY_COUNT_ATTR, publishedActivityCount.toLong()).build(),
+          )
+      }
+
       throttler.onReady {
         try {
           dataProvidersStub.replaceDataAvailabilityIntervals(
@@ -908,6 +924,8 @@ class DataAvailabilitySync(
       AttributeKey.stringKey("edpa.data_availability_sync.rpc_method")
     private val STATUS_CODE_ATTR: AttributeKey<String> =
       AttributeKey.stringKey("edpa.data_availability_sync.status_code")
+    private val ACTIVITY_COUNT_ATTR: AttributeKey<Long> =
+      AttributeKey.longKey("xmm.edpa.event_group_activity.count")
     private const val SYNC_STATUS_SUCCESS = "success"
     private const val SYNC_STATUS_FAILED = "failed"
     private const val SYNC_STATUS_SKIPPED_GAPS = "skipped_gaps"

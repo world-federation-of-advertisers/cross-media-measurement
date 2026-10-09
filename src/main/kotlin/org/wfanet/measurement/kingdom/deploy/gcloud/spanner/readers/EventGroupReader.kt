@@ -260,7 +260,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
             aggregatedActivity {
               interval = dateInterval {
                 startDate = intervalStart.toProtoDate()
-                endDate = intervalEnd.toProtoDate()
+                endDate = intervalEnd.plusDays(1).toProtoDate()
               }
             }
           )
@@ -273,7 +273,7 @@ private constructor(private val view: EventGroup.View, private val index: Index)
         aggregatedActivity {
           interval = dateInterval {
             startDate = intervalStart.toProtoDate()
-            endDate = intervalEnd.toProtoDate()
+            endDate = intervalEnd.plusDays(1).toProtoDate()
           }
         }
       )

@@ -68,6 +68,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ComputeModelLineBoundsResponseKt.modelLineBoundMapEntry
 import org.wfanet.measurement.edpaggregator.v1alpha.EntityKeyGroup
+import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineImplBase
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.ListImpressionMetadataRequest
@@ -296,6 +297,78 @@ class DataAvailabilitySyncTest {
       )
     assertThat(intervalLog.message).contains("xmm.lifecycle.stage=data_availability_publish")
     assertThat(intervalLog.message).contains("xmm.outcome=published")
+  }
+
+  @Test
+  fun `sync publishes EventGroup activity from scanned metadata`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    var publishedMetadata: Collection<ImpressionMetadata> = emptyList()
+    val publisher = EventGroupActivityPublisher { metadata ->
+      publishedMetadata = metadata
+      1
+    }
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        eventGroupActivityPublisher = publisher,
+      )
+
+    val outcome = dataAvailabilitySync.sync("$bucket/${folderPrefix}done")
+
+    assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
+    assertThat(publishedMetadata).hasSize(1)
+    assertThat(publishedMetadata.single().eventGroupReferenceId)
+      .isEqualTo("some-event-group-reference-id")
+    verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(
+        storageClient.updateBlobMetadataCalls.any {
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY in it.metadata
+        }
+      )
+      .isTrue()
+  }
+
+  @Test
+  fun `sync does not complete publication when EventGroup activity fails`() = runBlocking {
+    val storageClient =
+      FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
+    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    val publisher = EventGroupActivityPublisher { throw Exception("activity publication failed") }
+    val dataAvailabilitySync =
+      DataAvailabilitySync(
+        "edp/edpa_edp",
+        storageClient,
+        dataProvidersStub,
+        impressionMetadataStub,
+        "dataProviders/dataProvider123",
+        MinimumIntervalThrottler(Clock.systemUTC(), Duration.ofMillis(1)),
+        impressionMetadataBatchSize = DEFAULT_BATCH_SIZE,
+        modelLineMap = emptyMap(),
+        errorIfGapsExist = true,
+        eventGroupActivityPublisher = publisher,
+      )
+
+    val exception =
+      assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
+
+    assertThat(exception).hasMessageThat().isEqualTo("activity publication failed")
+    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    assertThat(
+        storageClient.updateBlobMetadataCalls.none {
+          DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY in it.metadata
+        }
+      )
+      .isTrue()
   }
 
   @Test

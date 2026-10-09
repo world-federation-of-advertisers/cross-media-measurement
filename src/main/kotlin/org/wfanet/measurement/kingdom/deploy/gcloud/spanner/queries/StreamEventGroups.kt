@@ -210,8 +210,8 @@ class StreamEventGroups(
               EventGroupActivities.DataProviderId = EventGroups.DataProviderId
               AND EventGroupActivities.EventGroupId = EventGroups.EventGroupId
               AND ActivityDate >= @$ACTIVITY_CONTAINS_START_DATE
-              AND ActivityDate <= @$ACTIVITY_CONTAINS_END_DATE
-          ) = DATE_DIFF(@$ACTIVITY_CONTAINS_END_DATE, @$ACTIVITY_CONTAINS_START_DATE, DAY) + 1
+              AND ActivityDate < @$ACTIVITY_CONTAINS_END_DATE
+          ) = DATE_DIFF(@$ACTIVITY_CONTAINS_END_DATE, @$ACTIVITY_CONTAINS_START_DATE, DAY)
           """
             .trimIndent()
         )

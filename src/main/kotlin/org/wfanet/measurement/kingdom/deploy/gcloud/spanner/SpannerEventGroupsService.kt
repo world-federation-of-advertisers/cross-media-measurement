@@ -347,9 +347,9 @@ class SpannerEventGroupsService(
             .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
         }
 
-      if (startDate > endDate) {
+      if (startDate >= endDate) {
         throw InvalidFieldValueException("filter.activity_contains") {
-            "start_date must be before or equal to end_date"
+            "start_date must be before end_date"
           }
           .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
       }

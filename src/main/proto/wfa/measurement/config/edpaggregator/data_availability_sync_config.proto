@@ -66,6 +66,26 @@ message DataAvailabilitySyncConfig {
   // Gap dates are always logged regardless of this setting.
   bool error_if_gaps_exist = 7;
 
+  // When present, publish positive EventGroup activity from finalized daily
+  // impression metadata.
+  EventGroupActivityPublishingConfig event_group_activity_publishing = 8;
+
+  message EventGroupActivityPublishingConfig {
+    // Entity key types whose values identify EventGroups.
+    repeated string entity_key_types = 1;
+
+    // Maximum number of EventGroup activity requests in flight. Zero uses the
+    // implementation default.
+    int32 max_concurrent_requests = 2;
+
+    // IANA time zone ID used to derive activity dates from impression
+    // timestamps (e.g., "UTC", "America/New_York"). Every local calendar date
+    // containing either interval endpoint or any time between them is
+    // published. Including both endpoint dates intentionally favors
+    // over-reporting activity over omitting a potentially active date.
+    string time_zone = 3;
+  }
+
   // List of model lines to use for a single mapping entry.
   message ModelLineList {
     repeated string model_lines = 1;

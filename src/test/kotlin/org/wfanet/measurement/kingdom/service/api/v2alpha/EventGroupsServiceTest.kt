@@ -1524,9 +1524,9 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains start date is after end date`() {
+  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains interval is empty`() {
     val activityInterval = dateInterval {
-      startDate = DATE_2
+      startDate = DATE_1
       endDate = DATE_1
     }
     val request = listEventGroupsRequest {
@@ -1541,7 +1541,7 @@ class EventGroupsServiceTest {
         }
       }
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("start_date must be before or equal to")
+    assertThat(exception.message).contains("start_date must be before")
   }
 
   @Test
@@ -1699,7 +1699,8 @@ class EventGroupsServiceTest {
                   }
                   dataAvailabilityStartTime = EVENT_GROUP.dataAvailabilityInterval.startTime
                 }
-              // TODO(@SanjayVas): Stop writing the deprecated field once the replacement has been
+              // TODO(@SanjayVas): Stop writing the deprecated field once the replacement has
+              // been
               // available for at least one release.
               eventGroupKeyAfter = after.eventGroupKey
             }
