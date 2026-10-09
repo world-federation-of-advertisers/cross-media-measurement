@@ -1228,9 +1228,10 @@ class VidLabelerApp(
             ByteArray(0),
           )
         } else {
-          SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
-            .writeBlob(doneBlobUri.key, ByteString.EMPTY)
-          null
+          val storage =
+            SelectedStorageClient(doneBlobUri, storageConfig.rootDirectory, storageConfig.projectId)
+          storage.writeBlob(doneBlobUri.key, ByteString.EMPTY)
+          checkNotNull(storage.getFreshnessToken(doneBlobUri.key)).toLong()
         }
       } catch (e: CancellationException) {
         throw e
