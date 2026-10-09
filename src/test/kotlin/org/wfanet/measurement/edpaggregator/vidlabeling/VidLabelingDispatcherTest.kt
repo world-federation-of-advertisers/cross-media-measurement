@@ -721,6 +721,13 @@ class VidLabelingDispatcherTest {
       .isEqualTo(RAW_IMPRESSION_UPLOAD_ID)
     assertThat(manifestComparison.currentManifestList.single().eventDate)
       .isEqualTo(EVENT_DATE_PROTO)
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.currentManifestDigest)
+      .isEqualTo(
+        RawImpressionUploadManifestClassifier()
+          .digest(
+            listOf(RawImpressionUploadManifestClassifier.File(blobUri, 20L, EVENT_DATE_PROTO))
+          )
+      )
     assertThat(manifestComparison.differencesList.single().type)
       .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_EDITED)
     verifyBlocking(rawImpressionUploadService, never()) {
