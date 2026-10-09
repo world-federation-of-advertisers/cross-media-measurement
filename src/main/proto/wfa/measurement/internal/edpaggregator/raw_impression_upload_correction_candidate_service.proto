@@ -82,13 +82,11 @@ message AdvanceRawImpressionUploadCorrectionCandidateRequest {
   enum Action {
     ACTION_UNSPECIFIED = 0;
     ASSIGN_PLAN = 1;
-    APPROVE_CORRECT = 2;
-    APPROVE_NO_REPLACEMENT = 3;
-    START_HEALING = 4;
-    COMPLETE = 5;
-    REJECT = 6;
-    SUPERSEDE = 7;
-    REQUIRE_MANUAL_INTERVENTION = 8;
+    APPROVE_APPLY_CANDIDATE = 2;
+    APPROVE_REMOVE_WITHOUT_REPLACEMENT = 3;
+    COMPLETE = 4;
+    SUPERSEDE = 5;
+    REQUIRE_MANUAL_INTERVENTION = 6;
   }
 
   string data_provider_resource_id = 1;

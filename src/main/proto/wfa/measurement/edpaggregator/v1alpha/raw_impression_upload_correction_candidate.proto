@@ -1,0 +1,216 @@
+// Copyright 2026 The Cross-Media Measurement Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package wfa.measurement.edpaggregator.v1alpha;
+
+import "google/api/field_behavior.proto";
+import "google/api/resource.proto";
+import "google/protobuf/timestamp.proto";
+import "google/type/date.proto";
+
+option java_package = "org.wfanet.measurement.edpaggregator.v1alpha";
+option java_multiple_files = true;
+option java_outer_classname = "RawImpressionUploadCorrectionCandidateProto";
+
+// A quarantined non-additive raw-impression upload revision.
+message RawImpressionUploadCorrectionCandidate {
+  option (google.api.resource) = {
+    type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    pattern: "dataProviders/{data_provider}/rawImpressionUploadCorrectionCandidates/{raw_impression_upload_correction_candidate}"
+    singular: "rawImpressionUploadCorrectionCandidate"
+    plural: "rawImpressionUploadCorrectionCandidates"
+  };
+
+  // Manifest-level non-additive classification. No-op and pure-addition
+  // revisions do not create correction candidates.
+  enum Classification {
+    // Default unspecified classification.
+    CLASSIFICATION_UNSPECIFIED = 0;
+
+    // One or more existing object URIs have different generations, with no
+    // additions, removals, or event-date changes.
+    EDITED = 1;
+
+    // One or more prior object URIs are absent, with no additions, generation
+    // edits, or event-date changes.
+    REMOVED = 2;
+
+    // More than one change category is present, including add-and-edit,
+    // add-and-remove, or an event-date change (which is a linked remove/add).
+    MIXED = 3;
+  }
+
+  // Durable candidate lifecycle. Detailed planning, approval, and execution
+  // state belongs to the linked upload-healing operation.
+  enum State {
+    // Default unspecified state.
+    STATE_UNSPECIFIED = 0;
+
+    // The candidate has not been assigned to a healing operation.
+    PENDING = 1;
+
+    // The candidate is assigned to `upload_healing_operation`. The linked
+    // operation is authoritative for planning, approval, and execution state.
+    ASSIGNED = 2;
+
+    // The linked operation completed. `decision` identifies whether the
+    // candidate was applied or removed without replacement.
+    COMPLETE = 3;
+
+    // A newer candidate replaced this candidate before healing completed.
+    SUPERSEDED = 4;
+
+    // Automated processing stopped and an operator must intervene.
+    MANUAL_INTERVENTION_REQUIRED = 5;
+  }
+
+  // Operator-approved disposition of the candidate.
+  enum Decision {
+    // No decision has been approved.
+    DECISION_UNSPECIFIED = 0;
+
+    // Apply this candidate through its healing operation. Immutable once the
+    // plan is approved.
+    DECISION_APPLY_CANDIDATE = 1;
+
+    // Remove the affected prior output without creating a replacement.
+    // Immutable once the plan is approved.
+    DECISION_REMOVE_WITHOUT_REPLACEMENT = 2;
+  }
+
+  // One changed raw object in the candidate manifest.
+  message ManifestDifference {
+    // Relationship between the effective prior and candidate entries.
+    enum Type {
+      // Default unspecified difference type.
+      TYPE_UNSPECIFIED = 0;
+
+      // The object URI exists only in the candidate manifest.
+      ADDED = 1;
+
+      // The object URI exists in both manifests with the same event date and
+      // a different generation.
+      EDITED = 2;
+
+      // The object URI exists only in the effective prior manifest.
+      REMOVED = 3;
+
+      // The object URI exists in both manifests with different event dates.
+      // The difference retains both versions so healing can remove the prior
+      // dated output and create the current dated output as one linked change.
+      EVENT_DATE_CHANGED = 4;
+    }
+
+    // Type of manifest difference.
+    Type type = 1 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Cloud Storage URI of the raw impression object.
+    string blob_uri = 2 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Positive generation in the effective prior manifest. Present for
+    // EDITED, REMOVED, and EVENT_DATE_CHANGED; absent for ADDED.
+    optional int64 prior_blob_generation = 3
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Positive generation in the candidate manifest. Present for ADDED,
+    // EDITED, and EVENT_DATE_CHANGED; absent for REMOVED.
+    optional int64 current_blob_generation = 4
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Event date in the effective prior manifest. Present for EDITED, REMOVED,
+    // and EVENT_DATE_CHANGED; absent for ADDED. For EDITED it equals
+    // current_event_date; for EVENT_DATE_CHANGED it differs.
+    google.type.Date prior_event_date = 5
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // Event date in the candidate manifest. Present for ADDED, EDITED, and
+    // EVENT_DATE_CHANGED; absent for REMOVED. For EDITED it equals
+    // prior_event_date; for EVENT_DATE_CHANGED it differs.
+    google.type.Date current_event_date = 6
+        [(google.api.field_behavior) = OUTPUT_ONLY];
+
+    // RawImpressionUpload whose processing produced the prior visible labeled
+    // output for this raw object. Absent for ADDED.
+    string prior_output_source_raw_impression_upload = 7 [
+      (google.api.field_behavior) = OUTPUT_ONLY,
+      (google.api.resource_reference) = {
+        type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+      }
+    ];
+  }
+
+  // Resource name.
+  string name = 1 [(google.api.field_behavior) = IDENTIFIER];
+
+  // Quarantined RawImpressionUpload containing the complete candidate manifest.
+  string raw_impression_upload = 2 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUpload"
+    }
+  ];
+
+  // Classification of the non-additive revision.
+  Classification classification = 3 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // SHA-256 digest of the effective prior manifest.
+  bytes prior_manifest_digest = 4 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // SHA-256 digest of the candidate manifest.
+  bytes current_manifest_digest = 5 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Current candidate lifecycle state.
+  State state = 6 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Operator decision, when one has been recorded.
+  Decision decision = 7 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Newer candidate that superseded this candidate, if any.
+  string superseding_raw_impression_upload_correction_candidate = 8 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/RawImpressionUploadCorrectionCandidate"
+    }
+  ];
+
+  // Healing operation assigned to this candidate, if any.
+  string upload_healing_operation = 9 [
+    (google.api.field_behavior) = OUTPUT_ONLY,
+    (google.api.resource_reference) = {
+      type: "edpaggregator.halo-cmm.org/UploadHealingOperation"
+    }
+  ];
+
+  // Time after which a terminal candidate is eligible for cleanup.
+  // Nonterminal candidates are retained.
+  google.protobuf.Timestamp expire_time = 10
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when the candidate was created.
+  google.protobuf.Timestamp create_time = 11
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Time when the candidate was last updated.
+  google.protobuf.Timestamp update_time = 12
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Entity tag for optimistic concurrency control.
+  string etag = 13 [(google.api.field_behavior) = OUTPUT_ONLY];
+
+  // Changed objects and their historical owners; populated only by Get.
+  repeated ManifestDifference manifest_differences = 14
+      [(google.api.field_behavior) = OUTPUT_ONLY];
+}
