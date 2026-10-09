@@ -159,6 +159,12 @@ class RawImpressionUploadManifestClassifier {
     return digestManifest(manifest)
   }
 
+  /** Recomputes [Result.classification] after a caller enriches its manifest differences. */
+  fun reclassify(result: Result): Result =
+    result.copy(
+      classification = classify(result.classification != Classification.NEW, result.differences)
+    )
+
   /** Reconstructs the effective manifest immediately before [revision]. */
   fun reconstructPriorManifest(
     revision: Revision,
