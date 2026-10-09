@@ -23,13 +23,10 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadModelLineKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingStepKey
-import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.ListUploadHealingOperationsResponse
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
-import org.wfanet.measurement.edpaggregator.v1alpha.ReconcileUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
@@ -45,10 +42,40 @@ import org.wfanet.measurement.internal.edpaggregator.reconcileUploadHealingOpera
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingOperation as internalOperation
 import org.wfanet.measurement.internal.edpaggregator.uploadHealingStep as internalStep
 
+data class ReconcileUploadHealingOperationCommand(
+  val parent: String,
+  val uploadHealingOperation: UploadHealingOperation,
+  val uploadHealingOperationId: String,
+  val etag: String = "",
+  val requestId: String,
+)
+
+data class AdvanceUploadHealingOperationCommand(
+  val name: String,
+  val etag: String,
+  val state: UploadHealingOperation.State,
+  val requestId: String,
+)
+
+enum class UploadHealingStepAction {
+  CONFIRM_EVICTION,
+  RECORD_RECOVERY,
+  CONFIRM_REPLACEMENT,
+}
+
+data class AdvanceUploadHealingStepCommand(
+  val name: String,
+  val etag: String,
+  val action: UploadHealingStepAction,
+  val replacementRawImpressionUpload: String = "",
+  val recoveryDoneBlobGeneration: Long = 0L,
+  val requestId: String,
+)
+
 /** Controller access to durable upload-healing operations. */
 interface HealingOperationStore {
   suspend fun reconcileUploadHealingOperation(
-    request: ReconcileUploadHealingOperationRequest
+    request: ReconcileUploadHealingOperationCommand
   ): UploadHealingOperation
 
   suspend fun getUploadHealingOperation(
@@ -60,10 +87,10 @@ interface HealingOperationStore {
   ): ListUploadHealingOperationsResponse
 
   suspend fun advanceUploadHealingOperation(
-    request: AdvanceUploadHealingOperationRequest
+    request: AdvanceUploadHealingOperationCommand
   ): UploadHealingOperation
 
-  suspend fun advanceUploadHealingStep(request: AdvanceUploadHealingStepRequest): UploadHealingStep
+  suspend fun advanceUploadHealingStep(request: AdvanceUploadHealingStepCommand): UploadHealingStep
 }
 
 /** Routes controller mutations to the internal API and reads through the public API. */
@@ -72,7 +99,7 @@ class GrpcHealingOperationStore(
   private val mutationStub: InternalOperationStub,
 ) : HealingOperationStore {
   override suspend fun reconcileUploadHealingOperation(
-    request: ReconcileUploadHealingOperationRequest
+    request: ReconcileUploadHealingOperationCommand
   ): UploadHealingOperation {
     val parent = requireNotNull(DataProviderKey.fromName(request.parent))
     mutationStub.reconcileUploadHealingOperation(
@@ -96,7 +123,7 @@ class GrpcHealingOperationStore(
   ): ListUploadHealingOperationsResponse = readStub.listUploadHealingOperations(request)
 
   override suspend fun advanceUploadHealingOperation(
-    request: AdvanceUploadHealingOperationRequest
+    request: AdvanceUploadHealingOperationCommand
   ): UploadHealingOperation {
     val key = requireNotNull(UploadHealingOperationKey.fromName(request.name))
     mutationStub.advanceUploadHealingOperation(
@@ -112,7 +139,7 @@ class GrpcHealingOperationStore(
   }
 
   override suspend fun advanceUploadHealingStep(
-    request: AdvanceUploadHealingStepRequest
+    request: AdvanceUploadHealingStepCommand
   ): UploadHealingStep {
     val key = requireNotNull(UploadHealingStepKey.fromName(request.name))
     val stepId = requireNotNull(key.uploadHealingStepId.toLongOrNull())
@@ -218,9 +245,17 @@ class GrpcHealingOperationStore(
   private fun RawImpressionUploadModelLine.RecoveryAction.toInternal(): InternalRecoveryAction =
     InternalRecoveryAction.forNumber(number)
 
-  private fun AdvanceUploadHealingStepRequest.Action.toInternal():
+  private fun UploadHealingStepAction.toInternal():
     org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action =
-    org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action.forNumber(
-      number
-    )
+    when (this) {
+      UploadHealingStepAction.CONFIRM_EVICTION ->
+        org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action
+          .CONFIRM_EVICTION
+      UploadHealingStepAction.RECORD_RECOVERY ->
+        org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action
+          .RECORD_RECOVERY
+      UploadHealingStepAction.CONFIRM_REPLACEMENT ->
+        org.wfanet.measurement.internal.edpaggregator.AdvanceUploadHealingStepRequest.Action
+          .CONFIRM_REPLACEMENT
+    }
 }
