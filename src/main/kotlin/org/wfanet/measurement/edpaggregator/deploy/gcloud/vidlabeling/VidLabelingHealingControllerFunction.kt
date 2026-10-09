@@ -23,6 +23,7 @@ import com.google.cloud.storage.BlobId
 import com.google.cloud.storage.BlobInfo
 import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
+import com.google.type.Date
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import io.opentelemetry.api.metrics.LongCounter
@@ -262,6 +263,7 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
   override suspend fun read(
     doneBlobUri: String,
     doneBlobGeneration: Long,
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
   ): Collection<RawImpressionUploadManifestClassifier.File> {
     val done = GcsUri.parse(doneBlobUri)
     val current = checkNotNull(storage.get(done.bucket, done.key)) { "$doneBlobUri does not exist" }
@@ -270,6 +272,7 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
       done.key.substringBeforeLast('/', missingDelimiterValue = "").let {
         if (it.isEmpty()) "" else "$it/"
       }
+    val persistedByIdentity = persistedManifest.associateBy { it.blobUri to it.blobGeneration }
     val manifest =
       storage
         .list(done.bucket, Storage.BlobListOption.prefix(prefix))
@@ -277,9 +280,11 @@ internal class GcsCorrectionManifestReader(private val storage: Storage) :
         .asSequence()
         .filterNot { it.name.substringAfterLast('/').equals("done", ignoreCase = true) }
         .map {
+          val blobUri = "gs://${done.bucket}/${it.name}"
           RawImpressionUploadManifestClassifier.File(
-            "gs://${done.bucket}/${it.name}",
+            blobUri,
             it.generation,
+            persistedByIdentity[blobUri to it.generation]?.eventDate ?: Date.getDefaultInstance(),
           )
         }
         .toList()

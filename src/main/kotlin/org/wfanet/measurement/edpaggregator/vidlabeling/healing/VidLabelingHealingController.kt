@@ -79,6 +79,7 @@ fun interface CorrectionManifestReader {
   suspend fun read(
     doneBlobUri: String,
     doneBlobGeneration: Long,
+    persistedManifest: Collection<RawImpressionUploadManifestClassifier.File>,
   ): Collection<RawImpressionUploadManifestClassifier.File>
 }
 
@@ -642,21 +643,26 @@ class VidLabelingHealingController(
     upload: RawImpressionUpload,
     completeSnapshot: Boolean,
   ): ByteString {
-    val persistedDigest =
+    val persistedManifest =
       if (completeSnapshot) {
-        digestPersistedManifest(upload.name)
+        listPersistedFiles(upload.name)
       } else {
-        digestEffectivePersistedManifest(upload)
+        effectivePersistedManifest(upload)
       }
+    val persistedDigest = manifestClassifier.digest(persistedManifest)
     val liveDigest =
-      manifestClassifier.digest(manifestReader.read(upload.doneBlobUri, upload.doneBlobGeneration))
+      manifestClassifier.digest(
+        manifestReader.read(upload.doneBlobUri, upload.doneBlobGeneration, persistedManifest)
+      )
     if (liveDigest != persistedDigest) {
       throw ManifestMismatchException("Live manifest no longer matches ${upload.name}")
     }
     return liveDigest
   }
 
-  private suspend fun digestEffectivePersistedManifest(upload: RawImpressionUpload): ByteString {
+  private suspend fun effectivePersistedManifest(
+    upload: RawImpressionUpload
+  ): List<RawImpressionUploadManifestClassifier.File> {
     val parent = requireNotNull(RawImpressionUploadKey.fromName(upload.name)).parentKey.toName()
     val revisions =
       listUploads(parent, upload.doneBlobUri).map { revision ->
@@ -681,19 +687,13 @@ class VidLabelingHealingController(
           files = listPersistedFiles(revision.name),
         )
       }
-    return manifestClassifier.digest(
-      manifestClassifier
-        .reconstructEffectiveManifest(
-          requireNotNull(revisions.singleOrNull { it.rawImpressionUpload == upload.name }),
-          revisions,
-        )
-        .values
-        .map { it.file }
-    )
-  }
-
-  private suspend fun digestPersistedManifest(uploadName: String): ByteString {
-    return manifestClassifier.digest(listPersistedFiles(uploadName))
+    return manifestClassifier
+      .reconstructEffectiveManifest(
+        requireNotNull(revisions.singleOrNull { it.rawImpressionUpload == upload.name }),
+        revisions,
+      )
+      .values
+      .map { it.file }
   }
 
   private suspend fun listPersistedFiles(
