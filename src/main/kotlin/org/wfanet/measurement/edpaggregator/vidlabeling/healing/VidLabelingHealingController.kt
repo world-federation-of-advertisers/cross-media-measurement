@@ -34,7 +34,6 @@ import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadCorrectio
 import org.wfanet.measurement.edpaggregator.service.RawImpressionUploadKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
-import org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadCorrectionCandidatesRequestKt
@@ -54,8 +53,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
 import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceRawImpressionUploadEvictionFenceRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationRequest
@@ -66,7 +63,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFiles
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.reconcileUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
@@ -353,13 +349,13 @@ class VidLabelingHealingController(
       }
     val reconciled =
       operationsStub.reconcileUploadHealingOperation(
-        reconcileUploadHealingOperationRequest {
-          parent = config.name
-          uploadHealingOperation = plan
-          uploadHealingOperationId = operationId
-          if (draft != null) etag = draft.etag
-          requestId = RequestIds.forReconcileUploadHealingOperation(operationId, plan.toByteArray())
-        }
+        ReconcileUploadHealingOperationCommand(
+          parent = config.name,
+          uploadHealingOperation = plan,
+          uploadHealingOperationId = operationId,
+          etag = draft?.etag.orEmpty(),
+          requestId = RequestIds.forReconcileUploadHealingOperation(operationId, plan.toByteArray()),
+        )
       )
     eventSink.record(
       VidLabelingHealingControllerEventSink.Event(
@@ -511,7 +507,7 @@ class VidLabelingHealingController(
       val step =
         operation.stepsList.single { it.rawImpressionUploadModelLine == entry.modelLineName }
       if (step.state == UploadHealingStep.State.PENDING_EVICTION) {
-        checkpoint(step, AdvanceUploadHealingStepRequest.Action.CONFIRM_EVICTION)
+        checkpoint(step, UploadHealingStepAction.CONFIRM_EVICTION)
         operation = getOperation(operation.name)
       }
     }
@@ -528,7 +524,7 @@ class VidLabelingHealingController(
       for (step in group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
         checkpoint(
           step,
-          AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+          UploadHealingStepAction.RECORD_RECOVERY,
           recoveryDoneBlobGeneration = replacement.doneBlobGeneration,
         )
         operation = getOperation(operation.name)
@@ -568,7 +564,7 @@ class VidLabelingHealingController(
       for (step in group.filter { it.state == UploadHealingStep.State.WAITING_FOR_REPLACEMENT }) {
         checkpoint(
           step,
-          AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+          UploadHealingStepAction.RECORD_RECOVERY,
           recoveryDoneBlobGeneration = generation,
         )
       }
@@ -610,7 +606,7 @@ class VidLabelingHealingController(
     for (step in group) {
       checkpoint(
         step,
-        AdvanceUploadHealingStepRequest.Action.RECORD_RECOVERY,
+        UploadHealingStepAction.RECORD_RECOVERY,
         recoveryDoneBlobGeneration = recoveryDoneBlobGeneration,
       )
       operation = getOperation(operation.name)
@@ -856,7 +852,7 @@ class VidLabelingHealingController(
   ): UploadHealingOperation {
     var operation = initial
     for (step in steps.filter { it.state != UploadHealingStep.State.COMPLETE }) {
-      checkpoint(step, AdvanceUploadHealingStepRequest.Action.CONFIRM_REPLACEMENT, replacementName)
+      checkpoint(step, UploadHealingStepAction.CONFIRM_REPLACEMENT, replacementName)
       operation = getOperation(operation.name)
     }
     return operation
@@ -864,24 +860,24 @@ class VidLabelingHealingController(
 
   private suspend fun checkpoint(
     step: UploadHealingStep,
-    action: AdvanceUploadHealingStepRequest.Action,
+    action: UploadHealingStepAction,
     replacementName: String = "",
     recoveryDoneBlobGeneration: Long = 0L,
   ) {
     operationsStub.advanceUploadHealingStep(
-      advanceUploadHealingStepRequest {
-        name = step.name
-        etag = step.etag
-        this.action = action
-        replacementRawImpressionUpload = replacementName
-        this.recoveryDoneBlobGeneration = recoveryDoneBlobGeneration
+      AdvanceUploadHealingStepCommand(
+        name = step.name,
+        etag = step.etag,
+        action = action,
+        replacementRawImpressionUpload = replacementName,
+        recoveryDoneBlobGeneration = recoveryDoneBlobGeneration,
         requestId =
           RequestIds.forUploadHealingStep(
             step.name,
             action.name,
             "$replacementName:$recoveryDoneBlobGeneration",
-          )
-      }
+          ),
+      )
     )
   }
 
@@ -890,13 +886,13 @@ class VidLabelingHealingController(
     state: UploadHealingOperation.State,
   ): UploadHealingOperation =
     operationsStub.advanceUploadHealingOperation(
-      advanceUploadHealingOperationRequest {
-        name = operation.name
-        etag = operation.etag
-        this.state = state
+      AdvanceUploadHealingOperationCommand(
+        name = operation.name,
+        etag = operation.etag,
+        state = state,
         requestId =
-          RequestIds.forAdvanceUploadHealingOperation(operation.name, state.name, operation.etag)
-      }
+          RequestIds.forAdvanceUploadHealingOperation(operation.name, state.name, operation.etag),
+      )
     )
 
   private suspend fun moveToNeedsAttention(operationName: String, cause: Throwable) {
