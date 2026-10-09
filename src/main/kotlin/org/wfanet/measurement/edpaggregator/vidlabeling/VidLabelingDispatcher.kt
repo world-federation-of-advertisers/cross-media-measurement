@@ -930,7 +930,7 @@ class VidLabelingDispatcher(
           )
         }
         .orEmpty()
-    val classification = comparison.classification.toCandidateClassification()
+    val classification = datedComparison.classification.toCandidateClassification()
     val classificationLabel = classification.name.removePrefix("CLASSIFICATION_")
     val registration =
       rpcThrottlers.metadataWrite.onReady {
@@ -988,16 +988,19 @@ class VidLabelingDispatcher(
       currentManifest.mapValues { (blobUri, entry) ->
         entry.copy(file = entry.file.copy(eventDate = eventDatesByBlobUri.getValue(blobUri)))
       }
-    return copy(
-      currentManifest = datedCurrentManifest,
-      currentManifestDigest =
-        manifestClassifier.digest(datedCurrentManifest.values.map { it.file }),
-      differences =
-        differences.map { difference ->
-          difference.copy(
-            current = difference.current?.let { datedCurrentManifest.getValue(difference.blobUri) }
-          )
-        },
+    return manifestClassifier.reclassify(
+      copy(
+        currentManifest = datedCurrentManifest,
+        currentManifestDigest =
+          manifestClassifier.digest(datedCurrentManifest.values.map { it.file }),
+        differences =
+          differences.map { difference ->
+            difference.copy(
+              current =
+                difference.current?.let { datedCurrentManifest.getValue(difference.blobUri) }
+            )
+          },
+      )
     )
   }
 
