@@ -14,7 +14,7 @@
 -- See the License for the specific language governing permissions and
 -- limitations under the License.
 
--- changeset marcopremier:24 dbms:cloudspanner
+-- changeset marcopremier:25 dbms:cloudspanner
 -- comment: Remove obsolete client-authored upload-healing fields.
 
 ALTER TABLE UploadHealingOperation
