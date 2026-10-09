@@ -75,6 +75,21 @@ ALTER TABLE EventGroups
 -- The keys and scalar values of EntityMetadata, flattened by the service layer
 -- for full-text search. This cannot be a generated column: EntityMetadata is a
 -- google.protobuf.Struct, and GoogleSQL cannot enumerate its map entries.
+--
+-- Serialized as space-separated "key value" pairs, one pair per scalar leaf,
+-- in the order the keys appear in EntityMetadata, e.g.
+--
+--   campaign_name Summer Sale line_item_id L1 impressions 4200
+--
+-- A nested Struct contributes its leaves with the key path joined by ".", and
+-- every element of a ListValue is emitted under the same key. Null values are
+-- omitted, numbers use their shortest round-trip form, and booleans are
+-- rendered "true" and "false".
+--
+-- The format exists only to feed TOKENIZE_FULLTEXT, which splits on
+-- non-alphanumerics, so the separators are not themselves searchable and the
+-- string is never parsed back. Keys are emitted so that a query for a key name
+-- matches.
 ALTER TABLE EventGroups
   ADD COLUMN EntityMetadataText STRING(MAX);
 
