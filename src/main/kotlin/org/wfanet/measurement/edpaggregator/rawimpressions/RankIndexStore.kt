@@ -93,7 +93,8 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
   /**
    * Streams the `RankIndexMap` records of [blobKey], decrypting with [encryptedDek]. When
    * [expectedChecksum] is non-null and non-empty, the plaintext payload is hashed as it streams and
-   * an [IllegalStateException] is thrown at end-of-stream on mismatch (corruption guard).
+   * an [IllegalStateException] is thrown when the object is missing or at end-of-stream on a
+   * checksum mismatch (integrity guards).
    */
   fun readBlob(
     blobKey: String,
@@ -102,7 +103,10 @@ class RankIndexStore(storageClient: ConditionalOperationStorageClient, kmsClient
     recordBufferCapacity: Int = DEFAULT_READ_RECORD_BUFFER,
   ): Flow<RankIndexMap> =
     flow {
-        val blob = encryptedClient(encryptedDek).getBlob(blobKey) ?: return@flow
+        val blob =
+          checkNotNull(encryptedClient(encryptedDek).getBlob(blobKey)) {
+            "Rank-index blob $blobKey does not exist"
+          }
         val digest =
           if (expectedChecksum != null && !expectedChecksum.isEmpty) {
             MessageDigest.getInstance("SHA-256")
