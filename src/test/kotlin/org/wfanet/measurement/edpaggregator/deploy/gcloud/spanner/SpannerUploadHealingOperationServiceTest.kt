@@ -2669,7 +2669,12 @@ class SpannerUploadHealingOperationServiceTest {
         .rawImpressionUploadCorrectionCandidate
     }
 
-  private suspend fun insertUploadGraph() {
+  private suspend fun insertUploadGraph(
+    replacementUploadState: RawImpressionUploadState =
+      RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED,
+    replacementModelLineState: RawImpressionUploadModelLineState =
+      RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
+  ) {
     val sourceUpload =
       Mutation.newInsertBuilder("RawImpressionUpload")
         .set("DataProviderResourceId")
@@ -2744,7 +2749,7 @@ class SpannerUploadHealingOperationServiceTest {
         .set("RegistrationComplete")
         .to(true)
         .set("State")
-        .to(Value.protoEnum(RawImpressionUploadState.RAW_IMPRESSION_UPLOAD_STATE_COMPLETED))
+        .to(Value.protoEnum(replacementUploadState))
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
@@ -2763,11 +2768,7 @@ class SpannerUploadHealingOperationServiceTest {
         .set("CmmsModelLine")
         .to(CMMS_MODEL_LINE)
         .set("State")
-        .to(
-          Value.protoEnum(
-            RawImpressionUploadModelLineState.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED
-          )
-        )
+        .to(Value.protoEnum(replacementModelLineState))
         .set("CreateTime")
         .to(Value.COMMIT_TIMESTAMP)
         .set("UpdateTime")
@@ -2858,6 +2859,9 @@ class SpannerUploadHealingOperationServiceTest {
     private const val WAITING_REQUEST_ID = "33333333-3333-4333-8333-333333333333"
     private const val COMPLETE_REQUEST_ID = "44444444-4444-4444-8444-444444444444"
     private const val STARTED_REQUEST_ID = "55555555-5555-4555-8555-555555555555"
+    private const val HANDOFF_COMPLETE_REQUEST_ID = "66666666-6666-4666-8666-666666666667"
+    private const val HANDOFF_ATTENTION_REQUEST_ID = "66666666-6666-4666-8666-666666666668"
+    private const val HANDOFF_RETRY_REQUEST_ID = "66666666-6666-4666-8666-666666666669"
     private const val APPROVE_REQUEST_ID = "66666666-6666-4666-8666-666666666666"
     private const val RETRY_REQUEST_ID = "77777777-7777-4777-8777-777777777777"
     private const val RECONCILE_REQUEST_ID = "14141414-1414-4414-8414-141414141414"
