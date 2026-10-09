@@ -19,9 +19,12 @@ package org.wfanet.measurement.edpaggregator.service.v1alpha
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.ByteString
 import java.time.ZoneOffset
+import kotlin.test.assertFailsWith
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
 import org.wfanet.measurement.common.flatten
@@ -30,13 +33,55 @@ import org.wfanet.measurement.edpaggregator.dataavailability.DataAvailabilityBlo
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.DIRECT_MODEL_LINE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.EVENT_DATE
 import org.wfanet.measurement.edpaggregator.service.v1alpha.VidLabelingPipelineTestHarness.Companion.MEMOIZED_MODEL_LINE
+import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.DataAvailabilitySyncWorkItems
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.ensureWorkItemRequest
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
+import org.wfanet.measurement.storage.BlobChangedException
 
 internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestHarness() {
+  @Test
+  fun `concurrent ensure creates and publishes one WorkItem`() = runBlocking {
+    val request = ensureWorkItemRequest {
+      workItemId = "atomic-ensure"
+      workItem = workItem {
+        queue = "queues/contract-test"
+        serializationKey = "contract-key"
+      }
+    }
+
+    val results =
+      List(32) {
+          async(Dispatchers.Default) { runCatching { workItemsStub.ensureWorkItem(request) } }
+        }
+        .awaitAll()
+
+    assertThat(results.all { it.isSuccess }).isTrue()
+    assertThat(results.map { it.getOrThrow().name }.toSet())
+      .containsExactly("workItems/atomic-ensure")
+    assertThat(workItemTransport.workItemsForQueue("queues/contract-test")).hasSize(1)
+    assertThat(workItemTransport.publishedCount).isEqualTo(1)
+  }
+
+  @Test
+  fun `rapid file overwrites have unique generations and reject stale reads`() = runBlocking {
+    val key = "$rootKey/generation-contract/probe"
+    val first = fileStorage.writeBlob(key, flowOf(ByteString.copyFromUtf8("first")))
+    val generations = mutableSetOf(checkNotNull(fileStorage.getFreshnessToken(key)))
+
+    repeat(100) { index ->
+      fileStorage.writeBlob(key, flowOf(ByteString.copyFromUtf8("version-$index")))
+      assertThat(generations.add(checkNotNull(fileStorage.getFreshnessToken(key)))).isTrue()
+    }
+
+    assertFailsWith<BlobChangedException> { first.read().toList() }
+    Unit
+  }
+
   @Test
   fun `missing WorkItem publication is retried without relabeling`() = runBlocking {
     workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE, count = 2)
@@ -73,6 +118,29 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
       assertThat(workItemTransport.lostResponseWorkItemNames()).hasSize(1)
       assertThat(listMetadata()).hasSize(2)
     }
+
+  @Test
+  fun `lost WorkItem success response redelivers without repeating the result`() = runBlocking {
+    setVisibleModelLines(DIRECT_MODEL_LINE)
+    workItemRpcFaults.armAfterCommit(
+      "wfa.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempts/" +
+        "CompleteWorkItemAttempt"
+    )
+
+    writeRawFile("lost-success-response", "input.parquet", listOf("person"))
+    val generation = finalizeRawUpload("lost-success-response")
+    awaitPipelineIdle()
+    val upload = listUploads().single { it.doneBlobGeneration == generation }
+
+    assertThat(vidLabelerWorkItems()).hasSize(1)
+    val labelingWork = vidLabelerWorkItems().single()
+    assertThat(labelingWork.state).isEqualTo(WorkItem.State.SUCCEEDED)
+    assertThat(workItemTransport.deliveryCount(labelingWork.name)).isAtLeast(2)
+    assertThat(listAvailabilityTasks(upload.name).single().state)
+      .isEqualTo(WorkItem.State.SUCCEEDED)
+    assertThat(listMetadata()).hasSize(1)
+    assertReadablePeople(DIRECT_MODEL_LINE, setOf("person"))
+  }
 
   @Test
   fun `WorkItem failure before metadata creation recovers by redelivery`() = runBlocking {
@@ -155,6 +223,59 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
   }
 
   @Test
+  fun `missing labeled data retries after its exact output is restored`() = runBlocking {
+    workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE, count = 2)
+    val inputFile = writeRawFile("missing-data", "input.parquet", listOf("person-1"))
+    finalizeRawUpload("missing-data")
+    workItemTransport.awaitIdle()
+    val upload = listUploads().single()
+    val directTask =
+      listAvailabilityTasks(upload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
+    val sidecarKey = blobKey(sidecarUri(inputFile, DIRECT_MODEL_LINE, EVENT_DATE))
+    val details =
+      BlobDetails.parseFrom(checkNotNull(fileStorage.getBlob(sidecarKey)).read().flatten())
+    val dataKey = blobKey(details.blobUri)
+    val dataBytes = checkNotNull(fileStorage.getBlob(dataKey)).read().flatten()
+    checkNotNull(fileStorage.getBlob(dataKey)).delete()
+    workItemTransport.beforeNextRedelivery { fileStorage.writeBlob(dataKey, flowOf(dataBytes)) }
+
+    workItemTransport.republishQueuedWorkItems(DataAvailabilitySyncWorkItems.QUEUE)
+    awaitPipelineIdle()
+
+    val recovered = listAvailabilityTasks(upload.name).single { it.name == directTask.name }
+    assertThat(recovered.state).isEqualTo(WorkItem.State.SUCCEEDED)
+    assertThat(recovered.attemptCount).isEqualTo(2)
+    assertThat(
+        listMetadata().any {
+          it.rawImpressionUpload == upload.name && it.modelLine == DIRECT_MODEL_LINE
+        }
+      )
+      .isTrue()
+  }
+
+  @Test
+  fun `lost availability publication response retries one logical update`() = runBlocking {
+    setVisibleModelLines(DIRECT_MODEL_LINE)
+    workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE)
+    writeRawFile("publication-response", "input.parquet", listOf("person-1"))
+    finalizeRawUpload("publication-response")
+    workItemTransport.awaitIdle()
+    val upload = listUploads().single()
+    dataProvidersService.loseNextResponseAfterCommit()
+
+    workItemTransport.republishQueuedWorkItems(DataAvailabilitySyncWorkItems.QUEUE)
+    awaitPipelineIdle()
+
+    val task = listAvailabilityTasks(upload.name).single()
+    assertThat(task.state).isEqualTo(WorkItem.State.SUCCEEDED)
+    assertThat(task.attemptCount).isEqualTo(2)
+    assertThat(dataProvidersService.requests).hasSize(2)
+    assertThat(dataProvidersService.requests.toSet()).hasSize(1)
+    assertThat(listMetadata()).hasSize(1)
+    assertAvailabilityPublished(setOf(DIRECT_MODEL_LINE), setOf(EVENT_DATE))
+  }
+
+  @Test
   fun `overlapping WorkItem delivery does not reclaim a running attempt`() = runBlocking {
     workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE, count = 2)
     writeRawFile("day-1", "input.parquet", listOf("person-1"))
@@ -186,6 +307,35 @@ internal class VidLabelingAvailabilityIntegrationTest : VidLabelingPipelineTestH
     val doneBlob = checkNotNull(metadataStorage.getBlob(doneKey))
     assertThat(DataAvailabilityBlobs.isSynced(doneBlob)).isTrue()
     assertThat(DataAvailabilityBlobs.isDataAvailabilityPublished(doneBlob)).isTrue()
+  }
+
+  @Test
+  fun `healing fence drains an active synchronization and blocks a new one`() = runBlocking {
+    workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE, count = 2)
+    writeRawFile("fence-race", "input.parquet", listOf("old-person"))
+    finalizeRawUpload("fence-race")
+    workItemTransport.awaitIdle()
+    val upload = listUploads().single()
+    val directTask =
+      listAvailabilityTasks(upload.name).single { it.cmmsModelLine == DIRECT_MODEL_LINE }
+    metadataStorage.pauseNextSyncStart()
+
+    val processing =
+      async(Dispatchers.Default) { runCatching { processAvailabilityTask(directTask) } }
+    metadataStorage.awaitPausedSyncStart()
+    writeRawFile("fence-race", "input.parquet", listOf("corrected-person"))
+    finalizeRawUpload("fence-race")
+    workItemTransport.awaitIdle()
+    assertThat(listCorrectionCandidates()).hasSize(1)
+
+    metadataStorage.releasePausedSyncStart()
+    assertThat(processing.await().isSuccess).isTrue()
+    assertThat(listMetadata().map { it.modelLine }).containsExactly(DIRECT_MODEL_LINE)
+
+    val memoizedTask =
+      listAvailabilityTasks(upload.name).single { it.cmmsModelLine == MEMOIZED_MODEL_LINE }
+    assertThat(runCatching { processAvailabilityTask(memoizedTask) }.isFailure).isTrue()
+    assertThat(listMetadata().none { it.modelLine == MEMOIZED_MODEL_LINE }).isTrue()
   }
 
   @Test

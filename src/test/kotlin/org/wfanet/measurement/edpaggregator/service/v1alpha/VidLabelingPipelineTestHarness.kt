@@ -27,6 +27,12 @@ import com.google.protobuf.Struct
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpHandler
 import com.sun.net.httpserver.HttpServer
+import io.grpc.ForwardingServerCall
+import io.grpc.Metadata
+import io.grpc.ServerCall
+import io.grpc.ServerCallHandler
+import io.grpc.ServerInterceptor
+import io.grpc.ServerInterceptors
 import io.grpc.Status
 import java.io.File
 import java.io.IOException
@@ -38,6 +44,7 @@ import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
@@ -56,12 +63,14 @@ import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -123,8 +132,12 @@ import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataA
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncWorkItemProcessor
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices as EdpaInternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata as EdpaSchemata
+import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigest
+import org.wfanet.measurement.edpaggregator.rawimpressions.EventIdDigestExtractor
 import org.wfanet.measurement.edpaggregator.rawimpressions.GENERATION_PATH_PREFIX
+import org.wfanet.measurement.edpaggregator.rawimpressions.RankIndexStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.RawImpressionFileMetadata
+import org.wfanet.measurement.edpaggregator.rawimpressions.SubpoolFingerprintsStore
 import org.wfanet.measurement.edpaggregator.rawimpressions.readEventDateFromFooter
 import org.wfanet.measurement.edpaggregator.resultsfulfiller.StorageEventReader
 import org.wfanet.measurement.edpaggregator.subpoolassigner.SubpoolAssignerApp
@@ -132,6 +145,8 @@ import org.wfanet.measurement.edpaggregator.subpoolassigner.VirtualPeoplePoolEmi
 import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.testing.TestEncryptedStorage
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.tools.DispatchFailer
+import org.wfanet.measurement.edpaggregator.tools.FailedDispatchRetrier
 import org.wfanet.measurement.edpaggregator.v1alpha.BlobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
@@ -144,6 +159,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RankerJobServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidate
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadCorrectionCandidateServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadFileServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLine
 import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadModelLineServiceGrpcKt
@@ -154,20 +170,24 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServic
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParamsKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingJobServiceGrpcKt
+import org.wfanet.measurement.edpaggregator.v1alpha.VidRankBuilderParams
 import org.wfanet.measurement.edpaggregator.v1alpha.ageBucket
 import org.wfanet.measurement.edpaggregator.v1alpha.ageRange
 import org.wfanet.measurement.edpaggregator.v1alpha.approveUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.blobDetails
 import org.wfanet.measurement.edpaggregator.v1alpha.bucketLookup
 import org.wfanet.measurement.edpaggregator.v1alpha.enumLookup
+import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.labelerInputFieldMapping
 import org.wfanet.measurement.edpaggregator.v1alpha.listImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadCorrectionCandidatesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadFilesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.markRawImpressionUploadModelLineAvailabilitySynchronizedRequest
+import org.wfanet.measurement.edpaggregator.v1alpha.retryUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.scalarColumn
 import org.wfanet.measurement.edpaggregator.v1alpha.subpoolAssignerParams
 import org.wfanet.measurement.edpaggregator.v1alpha.vidLabelerParams
@@ -182,19 +202,30 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManif
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
+import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingMonitor
 import org.wfanet.measurement.edpaggregator.vidlabeling.WorkItemIds
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.EvictUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcCorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.GrpcHealingOperationStore
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RawImpressionUploadCorrectionPlanner
-import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoveryExecutor
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.RecoverUploader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.VidLabelingHealingController
+import org.wfanet.measurement.edpaggregator.vidrankbuilder.EventIdDigestBytes
+import org.wfanet.measurement.edpaggregator.vidrankbuilder.LastSeenDayBytes
+import org.wfanet.measurement.edpaggregator.vidrankbuilder.SubpoolRanker
+import org.wfanet.measurement.edpaggregator.vidrankbuilder.SubpoolRetention
+import org.wfanet.measurement.edpaggregator.vidrankbuilder.VidRankBuilder
 import org.wfanet.measurement.edpaggregator.vidrankbuilder.VidRankBuilderApp
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorDatabaseRule
 import org.wfanet.measurement.gcloud.spanner.testing.SpannerEmulatorRule
+import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate as InternalCandidate
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateServiceGrpcKt as InternalCorrectionCandidateServiceGrpcKt
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt as InternalUploadHealingOperationServiceGrpcKt
+import org.wfanet.measurement.internal.edpaggregator.createQuarantinedRawImpressionUploadRequest
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUpload as internalRawImpressionUpload
+import org.wfanet.measurement.internal.edpaggregator.rawImpressionUploadCorrectionCandidate as internalCandidate
+import org.wfanet.measurement.internal.edpaggregator.registerDetectedRawImpressionUploadCorrectionCandidateRequest
 import org.wfanet.measurement.queue.MessageConsumer
 import org.wfanet.measurement.queue.QueueSubscriber
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.CompleteWorkItemAttemptRequest
@@ -206,6 +237,7 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.FailWorkIte
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.GetWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.RenewWorkItemAttemptRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem
+import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItem.WorkItemParams
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttempt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemAttemptsGrpcKt
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGrpcKt
@@ -227,8 +259,43 @@ import org.wfanet.measurement.storage.parquetRow
 import org.wfanet.measurement.storage.parquetValue
 import org.wfanet.virtualpeople.common.Gender
 
+data class PipelineHarnessConfig(
+  val extraModelLines: List<ModelLineFixture> = emptyList(),
+  val initiallyVisibleModelLines: Set<String>? = null,
+  val numberOfShards: Int = 1,
+  val rankStripes: Int = 1,
+  val maxFileBatchSizeBytes: Long = 10_000_000L,
+  val retentionDays: Int = 30,
+  val initialToday: LocalDate = LocalDate.of(2026, 9, 3),
+)
+
+data class ModelLineFixture(
+  val name: String,
+  val release: String,
+  val memoized: Boolean,
+  val activeStart: Instant,
+  val activeEnd: Instant? = null,
+)
+
+data class RawEventFixture(
+  val eventId: String,
+  val personId: String,
+  val eventDate: LocalDate,
+  val gender: String = "MALE",
+  val ageGroup: String = "YEARS_18_TO_34",
+)
+
+data class RankEntryFixture(
+  val digest: EventIdDigest,
+  val poolOffset: Long,
+  val rank: Int,
+  val lastSeen: LocalDate,
+)
+
 @RunWith(JUnit4::class)
-abstract class VidLabelingPipelineTestHarness {
+abstract class VidLabelingPipelineTestHarness(
+  protected val pipelineConfig: PipelineHarnessConfig = PipelineHarnessConfig()
+) {
   protected val tempFolder = TemporaryFolder()
   protected val edpaDatabase =
     SpannerEmulatorDatabaseRule(spannerEmulator, EdpaSchemata.EDP_AGGREGATOR_CHANGELOG_PATH)
@@ -239,29 +306,39 @@ abstract class VidLabelingPipelineTestHarness {
       .forEach { addService(it) }
   }
 
-  protected val modelLines =
+  protected val modelLineFixtures =
     listOf(
+      ModelLineFixture(
+        MEMOIZED_MODEL_LINE,
+        MEMOIZED_RELEASE,
+        memoized = true,
+        EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
+      ),
+      ModelLineFixture(
+        DIRECT_MODEL_LINE,
+        DIRECT_RELEASE,
+        memoized = false,
+        EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant(),
+        EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant(),
+      ),
+    ) + pipelineConfig.extraModelLines
+  protected val visibleModelLineNames = ConcurrentHashMap.newKeySet<String>()
+  protected val today = AtomicReference(pipelineConfig.initialToday)
+  protected val modelLines =
+    modelLineFixtures.map { fixture ->
       modelLine {
-        name = MEMOIZED_MODEL_LINE
+        name = fixture.name
         type = ModelLine.Type.PROD
-        activeStartTime =
-          EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-        activeEndTime =
-          EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-      },
-      modelLine {
-        name = DIRECT_MODEL_LINE
-        type = ModelLine.Type.PROD
-        activeStartTime =
-          EVENT_DATE.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-        activeEndTime =
-          EVENT_DATE.plusDays(10).atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-      },
-    )
+        activeStartTime = fixture.activeStart.toProtoTime()
+        fixture.activeEnd?.let { activeEndTime = it.toProtoTime() }
+      }
+    }
   protected val modelLinesService =
     object : ModelLinesGrpcKt.ModelLinesCoroutineImplBase() {
       override suspend fun listModelLines(request: ListModelLinesRequest) = listModelLinesResponse {
-        modelLines += this@VidLabelingPipelineTestHarness.modelLines
+        modelLines +=
+          this@VidLabelingPipelineTestHarness.modelLines.filter { it.name in visibleModelLineNames }
       }
 
       override suspend fun getModelLine(request: GetModelLineRequest): ModelLine =
@@ -272,8 +349,7 @@ abstract class VidLabelingPipelineTestHarness {
       override suspend fun listModelRollouts(request: ListModelRolloutsRequest) =
         listModelRolloutsResponse {
           modelRollouts += modelRollout {
-            modelRelease =
-              if (request.parent == MEMOIZED_MODEL_LINE) MEMOIZED_RELEASE else DIRECT_RELEASE
+            modelRelease = modelLineFixtures.single { it.name == request.parent }.release
           }
         }
     }
@@ -281,30 +357,34 @@ abstract class VidLabelingPipelineTestHarness {
     object : ModelShardsGrpcKt.ModelShardsCoroutineImplBase() {
       override suspend fun listModelShards(request: ListModelShardsRequest) =
         listModelShardsResponse {
-          modelShards += modelShard {
-            name = "$DATA_PROVIDER/modelShards/memoized"
-            modelRelease = MEMOIZED_RELEASE
-            modelBlob = modelBlob { modelBlobPath = modelBlobUri }
-            memoizedVidAssignmentEnabled = true
-          }
-          modelShards += modelShard {
-            name = "$DATA_PROVIDER/modelShards/direct"
-            modelRelease = DIRECT_RELEASE
-            modelBlob = modelBlob { modelBlobPath = modelBlobUri }
-          }
+          modelShards +=
+            modelLineFixtures.map { fixture ->
+              modelShard {
+                name = "$DATA_PROVIDER/modelShards/${fixture.name.substringAfterLast('/')}"
+                modelRelease = fixture.release
+                modelBlob = modelBlob { modelBlobPath = modelBlobUri }
+                memoizedVidAssignmentEnabled = fixture.memoized
+              }
+            }
         }
     }
   protected val dataProvidersService = RecordingDataProvidersService()
+  protected val edpaBeforeCallFaults = BeforeCallFaultInterceptor()
   protected val edpaPublicServer = GrpcTestServerRule {
-    Services.build(edpaInternalServer.channel).toList().forEach { addService(it) }
+    Services.build(edpaInternalServer.channel).toList().forEach {
+      addService(ServerInterceptors.intercept(it, edpaBeforeCallFaults))
+    }
     addService(modelLinesService)
     addService(modelRolloutsService)
     addService(modelShardsService)
     addService(dataProvidersService)
   }
+  protected val workItemRpcFaults = BeforeCallFaultInterceptor()
   protected val workItemPublicServer = GrpcTestServerRule {
-    addService(workItemTransport.workItemsService)
-    addService(workItemTransport.workItemAttemptsService)
+    addService(ServerInterceptors.intercept(workItemTransport.workItemsService, workItemRpcFaults))
+    addService(
+      ServerInterceptors.intercept(workItemTransport.workItemAttemptsService, workItemRpcFaults)
+    )
   }
 
   @get:Rule
@@ -324,6 +404,7 @@ abstract class VidLabelingPipelineTestHarness {
   protected lateinit var outputPrefix: String
   protected lateinit var externalOutputPrefix: String
   protected lateinit var modelBlobUri: String
+  protected lateinit var kekUri: String
   protected lateinit var fileStorage: ConditionalOperationStorageClient
   protected lateinit var mapStorage: UriNormalizingStorageClient
   protected lateinit var rawEventStorage: DataWatcherSubscribingStorageClient
@@ -337,6 +418,7 @@ abstract class VidLabelingPipelineTestHarness {
   protected val appJobs = mutableListOf<Job>()
   protected val endpointFailure = AtomicReference<Throwable?>()
   protected val externalAvailabilityDeliveries = AtomicInteger()
+  private val outputDeleteHook = AtomicReference<OutputDeleteHook?>()
 
   protected lateinit var uploadsStub:
     RawImpressionUploadServiceGrpcKt.RawImpressionUploadServiceCoroutineStub
@@ -364,6 +446,10 @@ abstract class VidLabelingPipelineTestHarness {
   fun setUp() {
     AeadConfig.register()
     GenerationMatchedTestHadoopFileSystem.resetRecordedReads()
+    visibleModelLineNames.clear()
+    visibleModelLineNames +=
+      pipelineConfig.initiallyVisibleModelLines ?: modelLineFixtures.map { it.name }
+    today.set(pipelineConfig.initialToday)
     val absoluteRoot = tempFolder.root.toPath().toAbsolutePath().toString().removePrefix("/")
     fileBucket = absoluteRoot.substringBefore('/')
     rootKey = absoluteRoot.substringAfter('/')
@@ -372,10 +458,11 @@ abstract class VidLabelingPipelineTestHarness {
     outputPrefix = "file:///$fileBucket/$rootKey/output"
     externalOutputPrefix = "gs://$fileBucket/$rootKey/output/external"
     modelBlobUri = "file:///$fileBucket/$rootKey/models/model.riegeli"
+    kekUri = "fake-kms://vid-labeling/$rootKey"
     fileStorage = GenerationEnforcingStorageClient(FileSystemStorageClient(fileStorageRoot))
     mapStorage = UriNormalizingStorageClient(fileStorage)
     metadataStorage = RecordingBlobMetadataStorageClient(fileStorage)
-    kmsClient = TestEncryptedStorage.buildFakeKmsClient(KEK_URI, keyTemplate = "AES128_GCM")
+    kmsClient = TestEncryptedStorage.buildFakeKmsClient(kekUri, keyTemplate = "AES128_GCM")
 
     runBlocking {
       val modelPath =
@@ -444,13 +531,12 @@ abstract class VidLabelingPipelineTestHarness {
         subpoolAssignerParamsTemplate = subpoolAssignerParamsTemplate(),
         queueName = VID_LABELER_QUEUE,
         poolAssignerQueueName = POOL_ASSIGNER_QUEUE,
-        numberOfShards = 1,
-        modelLineConfigs =
-          mapOf(MEMOIZED_MODEL_LINE to modelLineConfig, DIRECT_MODEL_LINE to modelLineConfig),
+        numberOfShards = pipelineConfig.numberOfShards,
+        modelLineConfigs = modelLineFixtures.associate { it.name to modelLineConfig },
         rawImpressionUploadFileStub = filesStub,
         vidLabelingJobStub =
           VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
-        maxFileBatchSizeBytes = 10_000_000L,
+        maxFileBatchSizeBytes = pipelineConfig.maxFileBatchSizeBytes,
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
       )
 
@@ -470,8 +556,7 @@ abstract class VidLabelingPipelineTestHarness {
           exchange.requestHeaders.getFirst(OVERRIDE_MODEL_LINES_HEADER)?.split(',').orEmpty(),
         recoverySourceUpload = exchange.requestHeaders.getFirst(RECOVERY_SOURCE_UPLOAD_HEADER),
         recoveryOperationId = exchange.requestHeaders.getFirst(EVICTION_OPERATION_ID_HEADER),
-        modelLineConfigs =
-          mapOf(MEMOIZED_MODEL_LINE to modelLineConfig, DIRECT_MODEL_LINE to modelLineConfig),
+        modelLineConfigs = modelLineFixtures.associate { it.name to modelLineConfig },
         readEventDate = { uri -> readEventDate(uri) },
         readBlobMetadata = { key -> blobMetadata(key) },
         rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
@@ -647,7 +732,10 @@ abstract class VidLabelingPipelineTestHarness {
     }
   }
 
-  protected fun buildHealingController(): VidLabelingHealingController {
+  protected fun buildHealingController(
+    correctionRetention: Duration = Duration.ofDays(3650),
+    dataProviderNames: List<String> = listOf(DATA_PROVIDER),
+  ): VidLabelingHealingController {
     val evictUploader =
       EvictUploader(
         uploadsStub,
@@ -661,15 +749,19 @@ abstract class VidLabelingPipelineTestHarness {
         },
         deleteBlob = { blobUri, generation ->
           val key = blobKey(blobUri)
-          val currentGeneration = fileStorage.getFreshnessToken(key)?.toLong()
-          if (currentGeneration != generation) {
+          val blob = fileStorage.getBlob(key) as? ConditionalOperationStorageClient.Blob
+          if (blob?.freshnessToken?.toLong() != generation) {
             false
           } else {
-            val blob = fileStorage.getBlob(key)
-            if (blob == null) false
-            else {
+            outputDeleteHook
+              .get()
+              ?.takeIf { it.blobUri == blobUri }
+              ?.let { hook -> if (outputDeleteHook.compareAndSet(hook, null)) hook.block() }
+            try {
               blob.delete()
               true
+            } catch (_: BlobChangedException) {
+              false
             }
           }
         },
@@ -681,14 +773,31 @@ abstract class VidLabelingPipelineTestHarness {
           edpaInternalServer.channel
         ),
       )
-    return VidLabelingHealingController(
-      listOf(
-        VidLabelingHealingController.DataProviderConfig(
-          DATA_PROVIDER,
-          outputPrefix,
-          Duration.ofDays(3650),
+    val recoverUploader =
+      RecoverUploader(uploadsStub, modelLineRowsStub, rankIndexBlobsStub) {
+        doneBlobUri,
+        expectedGeneration,
+        metadata ->
+        val key = blobKey(doneBlobUri)
+        check(fileStorage.getFreshnessToken(key)?.toLong() == expectedGeneration)
+        val blob = fileStorage.writeBlob(key, flowOf(ByteString.EMPTY))
+        val generation =
+          checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken).toLong()
+        rawWatcher.receivePath(
+          doneBlobUri,
+          metadata + (DataWatcher.GENERATION_METADATA_KEY to generation.toString()),
         )
-      ),
+        generation
+      }
+    return VidLabelingHealingController(
+      dataProviderNames.map { dataProviderName ->
+        VidLabelingHealingController.DataProviderConfig(
+          dataProviderName,
+          if (dataProviderName == DATA_PROVIDER) outputPrefix
+          else "$outputPrefix/${dataProviderName.substringAfterLast('/')}",
+          correctionRetention,
+        )
+      },
       correctionCandidatesStub,
       GrpcCorrectionCandidateCleaner(correctionDetectionStub),
       operationStore,
@@ -704,14 +813,33 @@ abstract class VidLabelingPipelineTestHarness {
         )
       },
       evictionExecutorFactory = { evictUploader },
-      manifestReader = { doneBlobUri, doneBlobGeneration ->
-        val revision =
-          listUploads().single {
-            it.doneBlobUri == doneBlobUri && it.doneBlobGeneration == doneBlobGeneration
+      manifestReader = { doneBlobUri, doneBlobGeneration, persistedManifest ->
+        val doneKey = blobKey(doneBlobUri)
+        check(generationOf(doneBlobUri) == doneBlobGeneration)
+        val prefix =
+          doneKey.substringBeforeLast('/', missingDelimiterValue = "").let {
+            if (it.isEmpty()) "" else "$it/"
           }
-        listUploadFiles(revision.name).map {
-          RawImpressionUploadManifestClassifier.File(it.blobUri, it.blobGeneration, it.eventDate)
-        }
+        val persistedByIdentity = persistedManifest.associateBy { it.blobUri to it.blobGeneration }
+        val manifest =
+          fileStorage
+            .listBlobs(prefix)
+            .toList()
+            .filterNot { it.blobKey.substringAfterLast('/').equals("done", ignoreCase = true) }
+            .map { blob ->
+              val blobUri = "gs://$fileBucket/${blob.blobKey}"
+              val generation =
+                checkNotNull((blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken)
+                  .toLong()
+              RawImpressionUploadManifestClassifier.File(
+                blobUri,
+                generation,
+                persistedByIdentity[blobUri to generation]?.eventDate
+                  ?: com.google.type.Date.getDefaultInstance(),
+              )
+            }
+        check(generationOf(doneBlobUri) == doneBlobGeneration)
+        manifest
       },
       doneBlobReplayerFactory = {
         DoneBlobReplayer { request ->
@@ -727,36 +855,297 @@ abstract class VidLabelingPipelineTestHarness {
           )
         }
       },
-      recoveryExecutorFactory = {
-        RecoveryExecutor { _, _ -> error("no-replacement healing must not recover an upload") }
-      },
+      recoveryExecutorFactory = { recoverUploader },
     )
   }
 
-  protected suspend fun listHealingOperations(): List<UploadHealingOperation> =
+  protected fun beforeOutputDelete(blobUri: String, block: suspend () -> Unit) {
+    check(outputDeleteHook.compareAndSet(null, OutputDeleteHook(blobUri, block)))
+  }
+
+  protected fun buildVidLabelingMonitor(
+    stalenessThreshold: Duration = Duration.ZERO,
+    rawInputQuietPeriod: Duration = Duration.ZERO,
+  ): VidLabelingMonitor =
+    VidLabelingMonitor(
+      rawImpressionUploadStub = uploadsStub,
+      rawImpressionUploadModelLineStub = modelLineRowsStub,
+      correctionCandidateStub = correctionCandidatesStub,
+      dispatchSequencer = dispatchSequencer,
+      dataProviderName = DATA_PROVIDER,
+      stalenessThreshold = stalenessThreshold,
+      rawImpressionsStorageRootUri = "gs://$fileBucket/",
+      rawImpressionsBlobPrefix = "$rootKey/raw",
+      rawInputQuietPeriod = rawInputQuietPeriod,
+      rawImpressionsExcludedBlobPrefixes =
+        setOf("$rootKey/output", "$rootKey/rank", "$rootKey/models", "$rootKey/tmp"),
+      rawImpressionsStorageClientProvider = { fileStorage },
+      rawImpressionUploadFileStub = filesStub,
+      vidLabeledImpressionsStorageClientProvider = {
+        PrefixingStorageClient(fileStorage, SelectedStorageClient.parseBlobUri(outputPrefix).key)
+      },
+      poolAssignmentJobStub =
+        PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+          edpaPublicServer.channel
+        ),
+      rankerJobStub =
+        RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
+      vidLabelingJobStub =
+        VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
+      workItemsStub = workItemsStub,
+      vidLabeledImpressionsBlobPrefix = SelectedStorageClient.parseBlobUri(outputPrefix).key,
+      rpcThrottlers = VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    )
+
+  protected fun buildDispatchFailer(): DispatchFailer =
+    DispatchFailer(uploadsStub, modelLineRowsStub)
+
+  protected fun buildFailedDispatchRetrier(): FailedDispatchRetrier =
+    FailedDispatchRetrier(
+      modelLineRowsStub,
+      PoolAssignmentJobServiceGrpcKt.PoolAssignmentJobServiceCoroutineStub(
+        edpaPublicServer.channel
+      ),
+      RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
+      VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
+      workItemsStub,
+      VidLabelingRpcThrottlersTestHelper.alwaysReady(),
+    )
+
+  protected suspend fun runRankBuilderDirect(workItem: WorkItem): VidRankBuilder.Result {
+    val params =
+      workItem.workItemParams
+        .unpack(WorkItemParams::class.java)
+        .appParams
+        .unpack(VidRankBuilderParams::class.java)
+    val throttlers = VidLabelingRpcThrottlersTestHelper.alwaysReady()
+    val rankIndexStore = RankIndexStore(mapStorage, kmsClient)
+    val runDate = today.get()
+    val retention =
+      SubpoolRetention(
+        rankIndexBlobsStub,
+        rankIndexStore,
+        params.dataProvider,
+        params.modelLine,
+        pipelineConfig.retentionDays,
+        runDate,
+        throttlers,
+      )
+    val subpoolRanker =
+      SubpoolRanker(
+        SubpoolFingerprintsStore(mapStorage, kmsClient),
+        rankIndexStore,
+        rankIndexBlobsStub,
+        modelLineRowsStub,
+        retention,
+        params.dataProvider,
+        params.rawImpressionUpload,
+        params.modelLine,
+        SelectedStorageClient.parseBlobUri(params.vidRankMapStorageParams.blobPrefix).key,
+        params.encryptedSubpoolMapsDek.kekUri,
+        params.encryptedSubpoolMapsDek,
+        params.maxEventDate,
+        pipelineConfig.retentionDays,
+        runDate,
+        throttlers,
+        workerDispatcher = Dispatchers.Default,
+        stripes = pipelineConfig.rankStripes,
+        maxInFlightRecords = 2,
+      )
+    return VidRankBuilder(
+        subpoolRanker,
+        RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
+        modelLineRowsStub,
+        VidLabelingJobServiceGrpcKt.VidLabelingJobServiceCoroutineStub(edpaPublicServer.channel),
+        filesStub,
+        workItemsStub,
+        params.rawImpressionUpload,
+        params.modelLine,
+        params.rankerJob,
+        params.subpoolMapBlobUrisMap,
+        params.subpoolRankedSizesMap,
+        vidLabelerParamsFromRankBuilder(params),
+        VID_LABELER_QUEUE,
+        params.maxFileBatchSizeBytes,
+        throttlers,
+      )
+      .run()
+  }
+
+  private fun vidLabelerParamsFromRankBuilder(params: VidRankBuilderParams): VidLabelerParams =
+    vidLabelerParams {
+      dataProvider = params.dataProvider
+      rawImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.rawImpressionStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.rawImpressionStorageParams.blobPrefix
+        }
+      vidLabeledImpressionsStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.vidLabeledImpressionsStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.vidLabeledImpressionsStorageParams.blobPrefix
+        }
+      modelLineConfigs[params.modelLine] =
+        VidLabelerParamsKt.modelLineConfig {
+          labelerInputFieldMapping.addAll(params.labelerInputFieldMappingList)
+          eventTemplateFieldMapping.putAll(params.eventTemplateFieldMappingMap)
+          eventTemplateDescriptorBlobUri = params.eventTemplateDescriptorBlobUri
+          eventTemplateType = params.eventTemplateType
+          populationSpecBlobUri = params.populationSpecBlobUri
+          requiredEntityKeyFieldMapping.putAll(params.requiredEntityKeyFieldMappingMap)
+          optionalEntityKeyFieldMapping.putAll(params.optionalEntityKeyFieldMappingMap)
+          if (params.hasActiveStartTime()) activeStartTime = params.activeStartTime
+          if (params.hasActiveEndTime()) activeEndTime = params.activeEndTime
+        }
+      modelLines += params.modelLine
+      modelBlobPaths[params.modelLine] = params.modelBlobPath
+      modelStorageParams =
+        VidLabelerParamsKt.storageParams {
+          gcsProjectId = params.modelStorageParams.gcsProjectId
+          impressionsBlobPrefix = params.modelStorageParams.blobPrefix
+        }
+      memoizedParams =
+        VidLabelerParamsKt.memoizedParams {
+          vidRankMapStorageParams =
+            VidLabelerParamsKt.storageParams {
+              gcsProjectId = params.vidRankMapStorageParams.gcsProjectId
+              impressionsBlobPrefix = params.vidRankMapStorageParams.blobPrefix
+            }
+        }
+    }
+
+  protected suspend fun listHealingOperations(
+    dataProviderName: String = DATA_PROVIDER
+  ): List<UploadHealingOperation> =
     operationsStub
-      .listUploadHealingOperations(listUploadHealingOperationsRequest { parent = DATA_PROVIDER })
+      .listUploadHealingOperations(listUploadHealingOperationsRequest { parent = dataProviderName })
       .uploadHealingOperationsList
+
+  protected suspend fun listCorrectionCandidates(
+    dataProviderName: String = DATA_PROVIDER
+  ): List<RawImpressionUploadCorrectionCandidate> =
+    correctionCandidatesStub
+      .listRawImpressionUploadCorrectionCandidates(
+        listRawImpressionUploadCorrectionCandidatesRequest { parent = dataProviderName }
+      )
+      .rawImpressionUploadCorrectionCandidatesList
+
+  protected suspend fun registerSyntheticCorrectionCandidate(
+    dataProviderResourceId: String,
+    candidateId: String,
+  ) {
+    val doneBlobUri = "gs://synthetic-$dataProviderResourceId/raw/done"
+    val quarantined =
+      correctionDetectionStub.createQuarantinedRawImpressionUpload(
+        createQuarantinedRawImpressionUploadRequest {
+          this.dataProviderResourceId = dataProviderResourceId
+          rawImpressionUpload = internalRawImpressionUpload {
+            this.doneBlobUri = doneBlobUri
+            doneBlobGeneration = 2L
+            doneBlobCreateTime = Clock.systemUTC().instant().toProtoTime()
+          }
+          rawImpressionUploadCorrectionCandidateId = candidateId
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    val blobUri = "gs://synthetic-$dataProviderResourceId/raw/input.parquet"
+    val prior =
+      org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
+        .manifestEntry {
+          this.blobUri = blobUri
+          blobGeneration = 1L
+          outputSourceRawImpressionUploadResourceId = "prior-$candidateId"
+        }
+    val current =
+      org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
+        .manifestEntry {
+          this.blobUri = blobUri
+          blobGeneration = 2L
+          outputSourceRawImpressionUploadResourceId = quarantined.rawImpressionUploadResourceId
+        }
+    val comparison =
+      org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
+        .manifestComparison {
+          priorManifest += prior
+          currentManifest += current
+          differences +=
+            org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidateKt
+              .manifestDifference {
+                type = InternalCandidate.ManifestDifference.Type.TYPE_EDITED
+                this.prior = prior
+                this.current = current
+              }
+        }
+    correctionDetectionStub.registerDetectedRawImpressionUploadCorrectionCandidate(
+      registerDetectedRawImpressionUploadCorrectionCandidateRequest {
+        this.dataProviderResourceId = dataProviderResourceId
+        rawImpressionUploadCorrectionCandidateId = candidateId
+        rawImpressionUploadCorrectionCandidate = internalCandidate {
+          rawImpressionUploadResourceId = quarantined.rawImpressionUploadResourceId
+          classification = InternalCandidate.Classification.CLASSIFICATION_EDITED
+          priorManifestDigest =
+            RawImpressionUploadManifestClassifier()
+              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 1L)))
+          currentManifestDigest =
+            RawImpressionUploadManifestClassifier()
+              .digest(listOf(RawImpressionUploadManifestClassifier.File(blobUri, 2L)))
+          manifestComparison = comparison
+          expireTime = Clock.systemUTC().instant().plus(Duration.ofDays(1)).toProtoTime()
+        }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+  }
+
+  protected suspend fun getCorrectionCandidate(
+    name: String
+  ): RawImpressionUploadCorrectionCandidate =
+    correctionCandidatesStub.getRawImpressionUploadCorrectionCandidate(
+      getRawImpressionUploadCorrectionCandidateRequest { this.name = name }
+    )
 
   protected suspend fun approveHealingOperation(
     operation: UploadHealingOperation,
     decision: RawImpressionUploadCorrectionCandidate.Decision,
-  ) {
+  ): UploadHealingOperation =
+    approveHealingOperation(
+      operation,
+      operation.rawImpressionUploadCorrectionCandidatesList.associateWith { decision },
+    )
+
+  protected suspend fun retryHealingOperation(
+    operation: UploadHealingOperation,
+    requestId: String = "123e4567-e89b-42d3-a456-426614174092",
+  ): UploadHealingOperation =
+    operationsStub.retryUploadHealingOperation(
+      retryUploadHealingOperationRequest {
+        name = operation.name
+        etag = operation.etag
+        this.requestId = requestId
+      }
+    )
+
+  protected suspend fun approveHealingOperation(
+    operation: UploadHealingOperation,
+    decisions: Map<String, RawImpressionUploadCorrectionCandidate.Decision>,
+    requestId: String = "123e4567-e89b-42d3-a456-426614174099",
+    etag: String = operation.etag,
+  ): UploadHealingOperation =
     operationsStub.approveUploadHealingOperation(
       approveUploadHealingOperationRequest {
         name = operation.name
         candidateDecisions +=
-          org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequestKt
-            .candidateDecision {
-              rawImpressionUploadCorrectionCandidate =
-                operation.rawImpressionUploadCorrectionCandidatesList.single()
-              this.decision = decision
-            }
-        etag = operation.etag
-        requestId = "123e4567-e89b-42d3-a456-426614174099"
+          decisions.map { (candidate, decision) ->
+            org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequestKt
+              .candidateDecision {
+                rawImpressionUploadCorrectionCandidate = candidate
+                this.decision = decision
+              }
+          }
+        this.etag = etag
+        this.requestId = requestId
       }
     )
-  }
 
   protected fun startApplications() {
     val rawParquetClient = { storageConfig: StorageConfig, kms: KmsClient ->
@@ -807,7 +1196,7 @@ abstract class VidLabelingPipelineTestHarness {
           loadPoolEmitLabeler = { _, uri ->
             VirtualPeoplePoolEmitLabeler.fromCompiledNodeBlob(modelBytes(uri))
           },
-          getSubpoolMapKekUri = { KEK_URI },
+          getSubpoolMapKekUri = { kekUri },
           rpcThrottlers = throttlers,
         ),
         VidRankBuilderApp(
@@ -817,7 +1206,7 @@ abstract class VidLabelingPipelineTestHarness {
           workItemsClient = workItemsStub,
           workItemAttemptsClient = workItemAttemptsStub,
           kmsClients = mapOf(DATA_PROVIDER to kmsClient),
-          retentionDaysByDataProvider = mapOf(DATA_PROVIDER to 30),
+          retentionDaysByDataProvider = mapOf(DATA_PROVIDER to pipelineConfig.retentionDays),
           rankerJobsStub =
             RankerJobServiceGrpcKt.RankerJobServiceCoroutineStub(edpaPublicServer.channel),
           rankIndexBlobsStub = rankIndexBlobsStub,
@@ -831,8 +1220,8 @@ abstract class VidLabelingPipelineTestHarness {
           rpcThrottlers = throttlers,
           buildSubpoolMapStorageClient = { mapStorage },
           buildVidRankMapStorageClient = { mapStorage },
-          today = { EVENT_DATE.plusDays(2) },
-          rankStripes = 1,
+          today = today::get,
+          rankStripes = pipelineConfig.rankStripes,
           maxInFlightRecords = 2,
         ),
         VidLabelerApp(
@@ -842,7 +1231,7 @@ abstract class VidLabelingPipelineTestHarness {
           workItemsClient = workItemsStub,
           workItemAttemptsClient = workItemAttemptsStub,
           kmsClients = mapOf(DATA_PROVIDER to kmsClient),
-          encryptKekUris = mapOf(DATA_PROVIDER to KEK_URI),
+          encryptKekUris = mapOf(DATA_PROVIDER to kekUri),
           getStorageConfig = {
             StorageConfig(rootDirectory = File("/"), blobPrefix = it.impressionsBlobPrefix)
           },
@@ -891,21 +1280,40 @@ abstract class VidLabelingPipelineTestHarness {
     fileName: String,
     personIds: List<String>,
     eventDate: LocalDate = EVENT_DATE,
+    gender: String = "MALE",
+    ageGroup: String = "YEARS_18_TO_34",
+  ): String =
+    writeRawEvents(
+      folder,
+      fileName,
+      personIds.mapIndexed { index, personId ->
+        RawEventFixture("$personId-$index", personId, eventDate, gender, ageGroup)
+      },
+    )
+
+  protected suspend fun writeRawEvents(
+    folder: String,
+    fileName: String,
+    events: List<RawEventFixture>,
   ): String {
+    require(events.isNotEmpty())
+    val eventDates = events.mapTo(mutableSetOf()) { it.eventDate }
+    require(eventDates.size == 1) { "one Parquet file must have exactly one event date" }
+    val eventDate = eventDates.single()
     val key = "$rootKey/raw/$folder/$fileName"
     val eventTimeMicros = eventDate.atStartOfDay(ZoneOffset.UTC).toInstant().toEpochMilli() * 1_000L
     parquetClient(kmsClient)
       .writeBlob(
         key,
         flow {
-          for ((index, personId) in personIds.withIndex()) {
+          for ((index, event) in events.withIndex()) {
             emit(
               parquetRow {
-                  columns[EVENT_ID_COLUMN] = parquetValue { stringValue = "$personId-$index" }
+                  columns[EVENT_ID_COLUMN] = parquetValue { stringValue = event.eventId }
                   columns[EVENT_TIME_COLUMN] = parquetValue { int64Value = eventTimeMicros + index }
-                  columns[PERSON_ID_COLUMN] = parquetValue { stringValue = personId }
-                  columns[GENDER_COLUMN] = parquetValue { stringValue = "MALE" }
-                  columns[AGE_GROUP_COLUMN] = parquetValue { stringValue = "YEARS_18_TO_34" }
+                  columns[PERSON_ID_COLUMN] = parquetValue { stringValue = event.personId }
+                  columns[GENDER_COLUMN] = parquetValue { stringValue = event.gender }
+                  columns[AGE_GROUP_COLUMN] = parquetValue { stringValue = event.ageGroup }
                 }
                 .toByteString()
             )
@@ -914,6 +1322,96 @@ abstract class VidLabelingPipelineTestHarness {
         mapOf(RawImpressionFileMetadata.EVENT_DATE_KEY to eventDate.toString()),
       )
     return "gs://$fileBucket/$key"
+  }
+
+  protected fun withholdNextPoolAssignmentPublications(count: Int = 1) {
+    workItemTransport.dropNextPublications(POOL_ASSIGNER_QUEUE, count)
+  }
+
+  protected fun withholdNextVidLabelerPublications(count: Int = 1) {
+    workItemTransport.dropNextPublications(VID_LABELER_QUEUE, count)
+  }
+
+  protected fun withholdNextRankBuilderPublications(count: Int = 1) {
+    workItemTransport.dropNextPublications(RANK_BUILDER_QUEUE, count)
+  }
+
+  protected fun withholdNextAvailabilityPublications(count: Int = 1) {
+    workItemTransport.dropNextPublications(DataAvailabilitySyncWorkItems.QUEUE, count)
+  }
+
+  protected suspend fun republishQueuedPoolAssignments() {
+    workItemTransport.republishQueuedWorkItems(POOL_ASSIGNER_QUEUE)
+  }
+
+  protected suspend fun republishQueuedVidLabelers() {
+    workItemTransport.republishQueuedWorkItems(VID_LABELER_QUEUE)
+  }
+
+  protected suspend fun republishQueuedRankBuilders() {
+    workItemTransport.republishQueuedWorkItems(RANK_BUILDER_QUEUE)
+  }
+
+  protected suspend fun republishQueuedAvailability() {
+    workItemTransport.republishQueuedWorkItems(DataAvailabilitySyncWorkItems.QUEUE)
+  }
+
+  protected fun duplicateNextPoolAssignmentDelivery() {
+    workItemTransport.duplicateNextDelivery(POOL_ASSIGNER_QUEUE)
+  }
+
+  protected fun duplicateNextRankBuilderDelivery() {
+    workItemTransport.duplicateNextDelivery(RANK_BUILDER_QUEUE)
+  }
+
+  protected fun duplicateNextVidLabelerDelivery() {
+    workItemTransport.duplicateNextDelivery(VID_LABELER_QUEUE)
+  }
+
+  protected fun holdNextPoolAssignmentRedelivery() {
+    workItemTransport.holdNextRedelivery(POOL_ASSIGNER_QUEUE)
+  }
+
+  protected suspend fun awaitHeldPoolAssignmentRedelivery() {
+    workItemTransport.awaitHeldRedelivery()
+  }
+
+  protected fun releaseHeldPoolAssignmentRedelivery() {
+    workItemTransport.releaseHeldRedelivery()
+  }
+
+  protected fun holdNextRankBuilderRedelivery() {
+    workItemTransport.holdNextRedelivery(RANK_BUILDER_QUEUE)
+  }
+
+  protected suspend fun awaitHeldRankBuilderRedelivery() {
+    workItemTransport.awaitHeldRedelivery()
+  }
+
+  protected fun releaseHeldRankBuilderRedelivery() {
+    workItemTransport.releaseHeldRedelivery()
+  }
+
+  protected fun holdNextVidLabelerRedelivery() {
+    workItemTransport.holdNextRedelivery(VID_LABELER_QUEUE)
+  }
+
+  protected suspend fun awaitHeldVidLabelerRedelivery() {
+    workItemTransport.awaitHeldRedelivery()
+  }
+
+  protected fun releaseHeldVidLabelerRedelivery() {
+    workItemTransport.releaseHeldRedelivery()
+  }
+
+  protected fun setVisibleModelLines(vararg modelLineNames: String) {
+    require(modelLineNames.all { requested -> modelLineFixtures.any { it.name == requested } })
+    visibleModelLineNames.clear()
+    visibleModelLineNames += modelLineNames
+  }
+
+  protected fun setToday(date: LocalDate) {
+    today.set(date)
   }
 
   protected suspend fun finalizeRawUpload(folder: String): Long {
@@ -934,7 +1432,7 @@ abstract class VidLabelingPipelineTestHarness {
         set("fs.file.impl", "org.apache.hadoop.fs.RawLocalFileSystem")
         set("fs.gs.impl", GenerationMatchedTestHadoopFileSystem::class.java.name)
         setBoolean("fs.gs.impl.disable.cache", true)
-        set("parquet.encryption.uniform.key", KEK_URI)
+        set("parquet.encryption.uniform.key", kekUri)
         setBoolean("parquet.encryption.plaintext.footer", true)
       },
       root,
@@ -957,37 +1455,104 @@ abstract class VidLabelingPipelineTestHarness {
     checkNotNull(fileStorage.getFreshnessToken(SelectedStorageClient.parseBlobUri(blobUri).key))
       .toLong()
 
-  protected suspend fun listUploads(): List<RawImpressionUpload> =
-    uploadsStub
-      .listRawImpressionUploads(
-        listRawImpressionUploadsRequest {
-          parent = DATA_PROVIDER
-          filter = ListRawImpressionUploadsRequestKt.filter {}
+  protected suspend fun listUploads(): List<RawImpressionUpload> = buildList {
+    var pageToken = ""
+    do {
+      val response =
+        uploadsStub.listRawImpressionUploads(
+          listRawImpressionUploadsRequest {
+            parent = DATA_PROVIDER
+            filter = ListRawImpressionUploadsRequestKt.filter {}
+            this.pageToken = pageToken
+          }
+        )
+      addAll(response.rawImpressionUploadsList)
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+  }
+
+  protected suspend fun listUploadFiles(upload: String): List<RawImpressionUploadFile> = buildList {
+    var pageToken = ""
+    do {
+      val response =
+        filesStub.listRawImpressionUploadFiles(
+          listRawImpressionUploadFilesRequest {
+            parent = upload
+            this.pageToken = pageToken
+          }
+        )
+      addAll(response.rawImpressionUploadFilesList)
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+  }
+
+  protected suspend fun listModelLines(upload: String): List<RawImpressionUploadModelLine> =
+    buildList {
+      var pageToken = ""
+      do {
+        val response =
+          modelLineRowsStub.listRawImpressionUploadModelLines(
+            listRawImpressionUploadModelLinesRequest {
+              parent = upload
+              this.pageToken = pageToken
+            }
+          )
+        addAll(response.rawImpressionUploadModelLinesList)
+        pageToken = response.nextPageToken
+      } while (pageToken.isNotEmpty())
+    }
+
+  protected suspend fun listRankIndexBlobs(
+    upload: String,
+    showDeleted: Boolean = false,
+  ): List<RankIndexBlob> = buildList {
+    var pageToken = ""
+    do {
+      val response =
+        rankIndexBlobsStub.listRankIndexBlobs(
+          listRankIndexBlobsRequest {
+            parent = upload
+            this.showDeleted = showDeleted
+            this.pageToken = pageToken
+          }
+        )
+      addAll(response.rankIndexBlobsList)
+      pageToken = response.nextPageToken
+    } while (pageToken.isNotEmpty())
+  }
+
+  protected suspend fun rankEntries(
+    upload: RawImpressionUpload,
+    blobType: RankIndexBlob.BlobType,
+  ): List<RankEntryFixture> {
+    val store = RankIndexStore(mapStorage, kmsClient)
+    return buildList {
+      for (blob in listRankIndexBlobs(upload.name).filter { it.blobType == blobType }) {
+        store.readBlob(blob.blobUri, blob.encryptedDek, blob.blobChecksum).collect { record ->
+          repeat(record.ranksCount) { index ->
+            val digestOffset = index * EventIdDigestBytes.WIDTH
+            add(
+              RankEntryFixture(
+                EventIdDigest(
+                  EventIdDigestBytes.readHi(record.fingerprints, digestOffset),
+                  EventIdDigestBytes.readLo(record.fingerprints, digestOffset + 8),
+                ),
+                record.poolOffset,
+                record.getRanks(index),
+                LocalDate.ofEpochDay(
+                  LastSeenDayBytes.read(record.lastSeenDays, index * LastSeenDayBytes.WIDTH)
+                    .toLong()
+                ),
+              )
+            )
+          }
         }
-      )
-      .rawImpressionUploadsList
+      }
+    }
+  }
 
-  protected suspend fun listUploadFiles(upload: String) =
-    filesStub
-      .listRawImpressionUploadFiles(listRawImpressionUploadFilesRequest { parent = upload })
-      .rawImpressionUploadFilesList
-
-  protected suspend fun listModelLines(upload: String) =
-    modelLineRowsStub
-      .listRawImpressionUploadModelLines(
-        listRawImpressionUploadModelLinesRequest { parent = upload }
-      )
-      .rawImpressionUploadModelLinesList
-
-  protected suspend fun listRankIndexBlobs(upload: String, showDeleted: Boolean = false) =
-    rankIndexBlobsStub
-      .listRankIndexBlobs(
-        listRankIndexBlobsRequest {
-          parent = upload
-          this.showDeleted = showDeleted
-        }
-      )
-      .rankIndexBlobsList
+  protected fun digest(eventId: String): EventIdDigest =
+    EventIdDigestExtractor().extract(ByteString.copyFromUtf8(eventId))
 
   protected suspend fun assertSnapshotsEvicted(upload: String, originals: List<RankIndexBlob>) {
     val afterEviction = listRankIndexBlobs(upload, showDeleted = true).associateBy { it.name }
@@ -1003,14 +1568,21 @@ abstract class VidLabelingPipelineTestHarness {
   }
 
   protected suspend fun listMetadata(showDeleted: Boolean = false): List<ImpressionMetadata> =
-    impressionMetadataStub
-      .listImpressionMetadata(
-        listImpressionMetadataRequest {
-          parent = DATA_PROVIDER
-          this.showDeleted = showDeleted
-        }
-      )
-      .impressionMetadataList
+    buildList {
+      var pageToken = ""
+      do {
+        val response =
+          impressionMetadataStub.listImpressionMetadata(
+            listImpressionMetadataRequest {
+              parent = DATA_PROVIDER
+              this.showDeleted = showDeleted
+              this.pageToken = pageToken
+            }
+          )
+        addAll(response.impressionMetadataList)
+        pageToken = response.nextPageToken
+      } while (pageToken.isNotEmpty())
+    }
 
   protected fun listAvailabilityTasks(upload: String): List<AvailabilityWorkItemRecord> =
     workItemTransport
@@ -1028,6 +1600,15 @@ abstract class VidLabelingPipelineTestHarness {
         )
       }
       .filter { it.rawImpressionUpload == upload }
+
+  protected fun poolAssignmentWorkItems(): List<WorkItem> =
+    workItemTransport.workItemsForQueue(POOL_ASSIGNER_QUEUE)
+
+  protected fun rankBuilderWorkItems(): List<WorkItem> =
+    workItemTransport.workItemsForQueue(RANK_BUILDER_QUEUE)
+
+  protected fun vidLabelerWorkItems(): List<WorkItem> =
+    workItemTransport.workItemsForQueue(VID_LABELER_QUEUE)
 
   protected suspend fun processAvailabilityTask(task: AvailabilityWorkItemRecord) {
     availabilityWorkItemProcessor.process(DataAvailabilitySyncWorkItem.parse(task.workItem))
@@ -1110,8 +1691,9 @@ abstract class VidLabelingPipelineTestHarness {
         it.key to it.value
       }
     assertThat(publishedIntervals.keys).containsExactlyElementsIn(modelLines)
-    val expectedStart = eventDates.min().atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
-    val expectedEnd = eventDates.max().atStartOfDay(ZoneOffset.UTC).toInstant().toProtoTime()
+    val metadata = listMetadata().filter { it.modelLine in modelLines }
+    val expectedStart = metadata.minBy { it.interval.startTime.toInstant() }.interval.startTime
+    val expectedEnd = metadata.maxBy { it.interval.endTime.toInstant() }.interval.endTime
     for (modelLine in modelLines) {
       val interval = publishedIntervals.getValue(modelLine)
       assertThat(interval.startTime).isEqualTo(expectedStart)
@@ -1153,9 +1735,15 @@ abstract class VidLabelingPipelineTestHarness {
   }
 
   protected suspend fun assertReadablePeople(modelLine: String, expectedPeople: Set<String>) {
+    val labeledPeople = readLabeledPeople(modelLine)
+    assertThat(labeledPeople.map { it.personId }).containsExactlyElementsIn(expectedPeople)
+    assertThat(labeledPeople.all { it.vid in EXPECTED_VID_RANGE }).isTrue()
+  }
+
+  protected suspend fun readLabeledPeople(modelLine: String): List<LabeledPersonImpression> {
     val metadata = listMetadata().filter { it.modelLine == modelLine }
-    val labeledEvents =
-      metadata.flatMap { row ->
+    return metadata
+      .flatMap { row ->
         val sidecarKey = SelectedStorageClient.parseBlobUri(row.blobUri).key
         val details =
           BlobDetails.parseFrom(checkNotNull(fileStorage.getBlob(sidecarKey)).read().flatten())
@@ -1169,20 +1757,31 @@ abstract class VidLabelingPipelineTestHarness {
           .toList()
           .flatten()
       }
-    val people =
-      labeledEvents.flatMap { event ->
-        event.entityKeys.filter { it.entityType == "person" }.map { it.entityId }
+      .flatMap { event ->
+        event.entityKeys
+          .filter { it.entityType == "person" }
+          .map { entityKey ->
+            LabeledPersonImpression(
+              personId = entityKey.entityId,
+              vid = event.vid,
+              eventDate = event.timestamp.atZone(ZoneOffset.UTC).toLocalDate(),
+            )
+          }
       }
-    assertThat(people).containsExactlyElementsIn(expectedPeople)
-    val vids = labeledEvents.map { it.vid }
-    assertThat(vids.all { it in EXPECTED_VID_RANGE }).isTrue()
   }
 
-  protected suspend fun awaitPipelineIdle() {
-    workItemTransport.awaitIdle()
+  protected suspend fun awaitPipelineIdle(allowFailures: Boolean = false) {
+    workItemTransport.awaitIdle(allowFailures)
     endpointFailure.getAndSet(null)?.let {
       throw AssertionError("Finalized-object delivery failed", it)
     }
+  }
+
+  protected suspend fun drainSequencer() {
+    do {
+      val result = dispatchSequencer.dispatchNext()
+      awaitPipelineIdle()
+    } while (result.dispatchedUpload != null || result.queuedUploads > 0)
   }
 
   protected suspend fun outputGenerations(modelLine: String): Map<String, String> =
@@ -1201,6 +1800,22 @@ abstract class VidLabelingPipelineTestHarness {
             fileStorage.getFreshnessToken(SelectedStorageClient.parseBlobUri(dataUri).key)
           )
       }
+
+  protected suspend fun labeledOutputGeneration(
+    inputBlobUri: String,
+    modelLine: String,
+    eventDate: LocalDate,
+  ): String {
+    val details =
+      BlobDetails.parseFrom(
+        checkNotNull(fileStorage.getBlob(blobKey(sidecarUri(inputBlobUri, modelLine, eventDate))))
+          .read()
+          .flatten()
+      )
+    return checkNotNull(
+      fileStorage.getFreshnessToken(SelectedStorageClient.parseBlobUri(details.blobUri).key)
+    )
+  }
 
   protected fun vidLabelerParamsTemplate(): VidLabelerParams = vidLabelerParams {
     dataProvider = DATA_PROVIDER
@@ -1225,7 +1840,7 @@ abstract class VidLabelingPipelineTestHarness {
       SubpoolAssignerParamsKt.storageParams { blobPrefix = "file:///$fileBucket/$rootKey/rank" }
     modelStorageParams =
       SubpoolAssignerParamsKt.storageParams { blobPrefix = modelBlobUri.substringBeforeLast('/') }
-    maxFileBatchSizeBytes = 10_000_000L
+    maxFileBatchSizeBytes = pipelineConfig.maxFileBatchSizeBytes
   }
 
   protected fun modelLineConfig(): VidLabelerParams.ModelLineConfig =
@@ -1247,6 +1862,7 @@ abstract class VidLabelingPipelineTestHarness {
         enumLookup = enumLookup {
           column = GENDER_COLUMN
           lookupTable["MALE"] = Gender.GENDER_MALE.name
+          lookupTable["FEMALE"] = Gender.GENDER_FEMALE.name
         }
       }
       labelerInputFieldMapping += labelerInputFieldMapping {
@@ -1257,6 +1873,14 @@ abstract class VidLabelingPipelineTestHarness {
             bucketTable["YEARS_18_TO_34"] = ageBucket {
               minAge = 16
               maxAge = 34
+            }
+            bucketTable["YEARS_35_TO_54"] = ageBucket {
+              minAge = 35
+              maxAge = 54
+            }
+            bucketTable["YEARS_55_PLUS"] = ageBucket {
+              minAge = 55
+              maxAge = 99
             }
           }
         }
@@ -1270,14 +1894,108 @@ abstract class VidLabelingPipelineTestHarness {
   protected class RecordingDataProvidersService :
     DataProvidersGrpcKt.DataProvidersCoroutineImplBase() {
     val requests = mutableListOf<ReplaceDataAvailabilityIntervalsRequest>()
+    private val lostResponsesAfterCommit = AtomicInteger()
+
+    fun loseNextResponseAfterCommit() {
+      lostResponsesAfterCommit.incrementAndGet()
+    }
 
     override suspend fun replaceDataAvailabilityIntervals(
       request: ReplaceDataAvailabilityIntervalsRequest
     ): DataProvider {
       synchronized(requests) { requests += request }
+      if (lostResponsesAfterCommit.getAndUpdate { count -> maxOf(0, count - 1) } > 0) {
+        throw Status.UNAVAILABLE.withDescription("injected response loss after commit")
+          .asRuntimeException()
+      }
       return dataProvider {
         name = request.name
         dataAvailabilityIntervals += request.dataAvailabilityIntervalsList
+      }
+    }
+  }
+
+  protected class BeforeCallFaultInterceptor : ServerInterceptor {
+    private enum class Stage {
+      BEFORE_HANDLER,
+      AFTER_COMMIT_BEFORE_RESPONSE,
+    }
+
+    private data class Fault(
+      val fullMethodName: String,
+      val stage: Stage,
+      var skip: Int,
+      var remaining: Int,
+    )
+
+    private var fault: Fault? = null
+
+    @Synchronized
+    fun arm(fullMethodName: String, skip: Int = 0, count: Int = 1) {
+      arm(fullMethodName, Stage.BEFORE_HANDLER, skip, count)
+    }
+
+    @Synchronized
+    fun armAfterCommit(fullMethodName: String, skip: Int = 0, count: Int = 1) {
+      arm(fullMethodName, Stage.AFTER_COMMIT_BEFORE_RESPONSE, skip, count)
+    }
+
+    private fun arm(fullMethodName: String, stage: Stage, skip: Int, count: Int) {
+      require(skip >= 0)
+      require(count > 0)
+      check(fault == null)
+      fault = Fault(fullMethodName, stage, skip, count)
+    }
+
+    @Synchronized
+    fun clear() {
+      fault = null
+    }
+
+    override fun <ReqT : Any, RespT : Any> interceptCall(
+      call: ServerCall<ReqT, RespT>,
+      headers: Metadata,
+      next: ServerCallHandler<ReqT, RespT>,
+    ): ServerCall.Listener<ReqT> {
+      val stage =
+        synchronized(this) {
+          val current = fault
+          when {
+            current == null || current.fullMethodName != call.methodDescriptor.fullMethodName ->
+              null
+            current.skip > 0 -> {
+              current.skip--
+              null
+            }
+            else -> {
+              current.remaining--
+              if (current.remaining == 0) fault = null
+              current.stage
+            }
+          }
+        }
+      return when (stage) {
+        null -> next.startCall(call, headers)
+        Stage.BEFORE_HANDLER -> {
+          call.close(Status.UNAVAILABLE.withDescription("injected before-call failure"), Metadata())
+          object : ServerCall.Listener<ReqT>() {}
+        }
+        Stage.AFTER_COMMIT_BEFORE_RESPONSE -> {
+          val forwardingCall =
+            object : ForwardingServerCall.SimpleForwardingServerCall<ReqT, RespT>(call) {
+              override fun close(status: Status, trailers: Metadata) {
+                if (status.isOk) {
+                  super.close(
+                    Status.UNAVAILABLE.withDescription("injected response loss after commit"),
+                    trailers,
+                  )
+                } else {
+                  super.close(status, trailers)
+                }
+              }
+            }
+          next.startCall(forwardingCall, headers)
+        }
       }
     }
   }
@@ -1286,6 +2004,14 @@ abstract class VidLabelingPipelineTestHarness {
     val dataUri: String,
     val sidecarGeneration: String,
     val dataGeneration: String,
+  )
+
+  private data class OutputDeleteHook(val blobUri: String, val block: suspend () -> Unit)
+
+  protected data class LabeledPersonImpression(
+    val personId: String,
+    val vid: Long,
+    val eventDate: LocalDate,
   )
 
   protected data class AvailabilityWorkItemRecord(
@@ -1366,6 +2092,23 @@ abstract class VidLabelingPipelineTestHarness {
         blob.blobKey,
         (blob as? ConditionalOperationStorageClient.Blob)?.freshnessToken
           ?: "${blob.createTime}:${blob.updateTime}",
+      )
+  }
+
+  private class PrefixingStorageClient(
+    private val delegate: StorageClient,
+    private val prefix: String,
+  ) : StorageClient {
+    override suspend fun writeBlob(blobKey: String, content: Flow<ByteString>): StorageClient.Blob =
+      delegate.writeBlob("${prefix.trimEnd('/')}/$blobKey", content)
+
+    override suspend fun getBlob(blobKey: String): StorageClient.Blob? =
+      delegate.getBlob("${prefix.trimEnd('/')}/$blobKey")
+
+    override suspend fun listBlobs(prefix: String?): Flow<StorageClient.Blob> =
+      delegate.listBlobs(
+        if (prefix.isNullOrEmpty()) "${this.prefix.trimEnd('/')}/"
+        else "${this.prefix.trimEnd('/')}/$prefix"
       )
   }
 
@@ -1502,6 +2245,12 @@ abstract class VidLabelingPipelineTestHarness {
   }
 
   protected class InProcessWorkItemTransport : QueueSubscriber {
+    private data class RedeliveryGate(
+      val queueName: String,
+      val held: CompletableDeferred<Unit> = CompletableDeferred(),
+      val release: CompletableDeferred<Unit> = CompletableDeferred(),
+    )
+
     private val stateMutex = Mutex()
     private val clock = Clock.systemUTC()
     private val redeliveryScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
@@ -1525,6 +2274,7 @@ abstract class VidLabelingPipelineTestHarness {
     private val deliveryCounts = ConcurrentHashMap<String, AtomicInteger>()
     private val lostResponseWorkItemNames = ConcurrentHashMap.newKeySet<String>()
     private val beforeNextRedelivery = AtomicReference<(suspend () -> Unit)?>(null)
+    private val redeliveryGate = AtomicReference<RedeliveryGate?>()
     val publishedCount: Int
       get() = sequence.get()
 
@@ -1555,6 +2305,18 @@ abstract class VidLabelingPipelineTestHarness {
 
     fun beforeNextRedelivery(block: suspend () -> Unit) {
       check(beforeNextRedelivery.compareAndSet(null, block))
+    }
+
+    fun holdNextRedelivery(queueName: String) {
+      check(redeliveryGate.compareAndSet(null, RedeliveryGate(queueName)))
+    }
+
+    suspend fun awaitHeldRedelivery() {
+      checkNotNull(redeliveryGate.get()).held.await()
+    }
+
+    fun releaseHeldRedelivery() {
+      checkNotNull(redeliveryGate.get()).release.complete(Unit)
     }
 
     fun workItemsForQueue(queueName: String): List<WorkItem> =
@@ -1598,29 +2360,36 @@ abstract class VidLabelingPipelineTestHarness {
           if (workItems.putIfAbsent(name, created) != null) {
             throw Status.ALREADY_EXISTS.asRuntimeException()
           }
-          if (consume(droppedPublications, created.queue)) {
-            withheldWorkItems += created.name
-          } else {
-            publish(created.queue, created)
-          }
-          if (consume(lostPublicationResponses, created.queue)) {
-            lostResponseWorkItemNames += created.name
-            throw Status.UNAVAILABLE.withDescription("injected lost publication response")
-              .asRuntimeException()
-          }
+          publishCreatedWorkItem(created)
           return created
         }
 
         override suspend fun ensureWorkItem(request: EnsureWorkItemRequest): WorkItem {
           val name = "workItems/${request.workItemId}"
-          val existing = workItems[name]
-          if (existing != null) return existing
-          return createWorkItem(
-            CreateWorkItemRequest.newBuilder()
-              .setWorkItemId(request.workItemId)
-              .setWorkItem(request.workItem)
-              .build()
-          )
+          var created = false
+          val ensured =
+            checkNotNull(
+              workItems.compute(name) { _, existing ->
+                existing
+                  ?: request.workItem
+                    .toBuilder()
+                    .setName(name)
+                    .setState(WorkItem.State.QUEUED)
+                    .setGeneration(1L)
+                    .build()
+                    .also { created = true }
+              }
+            )
+          if (
+            ensured.queue != request.workItem.queue ||
+              ensured.workItemParams != request.workItem.workItemParams ||
+              ensured.serializationKey != request.workItem.serializationKey
+          ) {
+            throw Status.ALREADY_EXISTS.withDescription("WorkItem immutable fields do not match")
+              .asRuntimeException()
+          }
+          if (created) publishCreatedWorkItem(ensured)
+          return ensured
         }
 
         override suspend fun getWorkItem(request: GetWorkItemRequest): WorkItem =
@@ -1655,6 +2424,19 @@ abstract class VidLabelingPipelineTestHarness {
           }
         }
       }
+
+    private suspend fun publishCreatedWorkItem(created: WorkItem) {
+      if (consume(droppedPublications, created.queue)) {
+        withheldWorkItems += created.name
+      } else {
+        publish(created.queue, created)
+      }
+      if (consume(lostPublicationResponses, created.queue)) {
+        lostResponseWorkItemNames += created.name
+        throw Status.UNAVAILABLE.withDescription("injected lost publication response")
+          .asRuntimeException()
+      }
+    }
 
     val workItemAttemptsService =
       object : WorkItemAttemptsGrpcKt.WorkItemAttemptsCoroutineImplBase() {
@@ -1863,6 +2645,14 @@ abstract class VidLabelingPipelineTestHarness {
     ) {
       redeliveryScope.launch {
         beforeNextRedelivery.getAndSet(null)?.invoke()
+        redeliveryGate
+          .get()
+          ?.takeIf { it.queueName == queueName }
+          ?.let { gate ->
+            gate.held.complete(Unit)
+            gate.release.await()
+            redeliveryGate.compareAndSet(gate, null)
+          }
         delay(REDELIVERY_DELAY_MILLIS)
         deliveryCounts.computeIfAbsent(workItem.name) { AtomicInteger() }.incrementAndGet()
         channel(queueName).send(QueueSubscriber.QueueMessage(workItem, ackId, consumer))
@@ -1883,7 +2673,7 @@ abstract class VidLabelingPipelineTestHarness {
       channels.computeIfAbsent(queueName) { Channel(Channel.UNLIMITED) }
 
     private fun signalChange() {
-      changes.value = changes.value + 1
+      changes.update { it + 1L }
     }
 
     suspend fun awaitIdle(allowFailures: Boolean = false) {
@@ -1929,7 +2719,6 @@ abstract class VidLabelingPipelineTestHarness {
     private const val POOL_ASSIGNER_QUEUE = "queues/pool-assigner"
     private const val RANK_BUILDER_QUEUE = "queues/rank-builder"
     private const val VID_LABELER_QUEUE = "queues/vid-labeler"
-    private const val KEK_URI = "fake-kms://vid-labeling"
     private const val EVENT_ID_COLUMN = "event_id"
     private const val EVENT_TIME_COLUMN = "event_time_usec"
     private const val PERSON_ID_COLUMN = "person_id"
