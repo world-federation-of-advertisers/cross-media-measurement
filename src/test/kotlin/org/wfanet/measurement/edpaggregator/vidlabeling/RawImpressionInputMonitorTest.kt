@@ -119,6 +119,30 @@ class RawImpressionInputMonitorTest {
     }
 
   @Test
+  fun `scan keeps an empty marker empty when another directory has finalized data`() =
+    runBlocking<Unit> {
+      val storage =
+        FakeStorageClient(
+          blob("raw/empty-late/done", OLD.minusSeconds(120), generation = 1),
+          blob("raw/empty-late/data.parquet", OLD.minusSeconds(60), size = 1),
+          blob("raw/populated/data.parquet", OLD.minusSeconds(120), size = 1),
+          blob("raw/populated/done", OLD.minusSeconds(60), generation = 2),
+        )
+
+      val result = createMonitor(storage).scan()
+
+      assertThat(result.doneWithoutDataDirectories).isEqualTo(1)
+      assertThat(result.unregisteredDoneDirectories).isEqualTo(1)
+      assertThat(result.dataFilesAfterDone).isEqualTo(1)
+      assertThat(result.findings.map { it.type })
+        .containsExactly(
+          RawImpressionInputMonitor.FindingType.DONE_WITHOUT_DATA,
+          RawImpressionInputMonitor.FindingType.UNREGISTERED_DONE,
+          RawImpressionInputMonitor.FindingType.DATA_AFTER_DONE,
+        )
+    }
+
+  @Test
   fun `scan accepts later child backfill marker`() =
     runBlocking<Unit> {
       val storage =
