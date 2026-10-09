@@ -120,9 +120,9 @@ class RawImpressionInputMonitor(
         }
       observation.dataCreateTimes.forEach { createTimeMillis ->
         val createTime = Instant.ofEpochMilli(createTimeMillis)
-        ancestorMarkers.forEach { (markerDirectory, _) -> doneMarkersWithData += markerDirectory }
         val finalizingMarkers =
           ancestorMarkers.filter { (_, marker) -> marker.createTime >= createTime }
+        finalizingMarkers.forEach { (markerDirectory, _) -> doneMarkersWithData += markerDirectory }
         if (finalizingMarkers.size > 1) {
           for (index in 0 until finalizingMarkers.lastIndex) {
             for (otherIndex in index + 1..finalizingMarkers.lastIndex) {

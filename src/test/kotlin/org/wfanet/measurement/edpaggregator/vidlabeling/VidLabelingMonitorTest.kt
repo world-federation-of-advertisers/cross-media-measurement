@@ -1330,13 +1330,23 @@ class VidLabelingMonitorTest {
     )
     stubFiles(
       rawImpressionUploadFile {
-        blobUri = "gs://raw-bucket/edp7/2026-06-01/data-1"
+        name = "${mainUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/main"
         eventDate = date {
           year = 2026
           month = 6
           day = 1
         }
-      }
+      },
+      rawImpressionUploadFile {
+        name = "${advertiserUpload.name}/files/file-1"
+        blobUri = "gs://raw-bucket/edp7/2026-06-01/advertiser"
+        eventDate = date {
+          year = 2026
+          month = 6
+          day = 1
+        }
+      },
     )
     seedLabeled(
       LabeledImpressionsBlobKeys.forDone(mainUpload.name, MODEL_LINE, LocalDate.of(2026, 6, 1))
