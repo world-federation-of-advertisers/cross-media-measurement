@@ -12,6 +12,7 @@ kt_jvm_test(
     test_class = "org.wfanet.measurement.edpaggregator.deploy.gcloud.dataavailability.DataAvailabilitySyncFunctionTest",
     deps = [
         "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeler:labeled_impressions_blob_key",
+        "//src/main/kotlin/org/wfanet/measurement/edpaggregator/vidlabeling:data_availability_sync_work_items",
         "//src/main/proto/wfa/measurement/config/edpaggregator:data_availability_sync_configs_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/v1alpha:data_availability_sync_lease_service_kt_jvm_grpc_proto",

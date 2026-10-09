@@ -19,6 +19,7 @@ package org.wfanet.measurement.edpaggregator.deploy.gcloud.vidlabeling
 import com.google.cloud.functions.HttpFunction
 import com.google.cloud.functions.HttpRequest
 import com.google.cloud.functions.HttpResponse
+import com.google.cloud.storage.Storage
 import com.google.cloud.storage.StorageOptions
 import io.opentelemetry.instrumentation.grpc.v1_6.GrpcTelemetry
 import java.util.logging.Level
@@ -278,6 +279,11 @@ class VidLabelingMonitorFunction : HttpFunction {
         rpcThrottlers = rpcThrottlers,
       )
 
+    val vidLabeledBucket = config.vidLabeledImpressionsStorageParams.gcs.bucketName
+    val vidLabeledStorage: Storage by lazy {
+      createGoogleCloudStorage(config.vidLabeledImpressionsStorageParams.gcs.projectId)
+    }
+    val vidLabeledImpressionsBlobPrefix = "gs://$vidLabeledBucket/${config.edpImpressionPath}"
     val monitor =
       VidLabelingMonitor(
         rawImpressionUploadStub = rawImpressionUploadStub,
@@ -293,15 +299,13 @@ class VidLabelingMonitorFunction : HttpFunction {
           )
         },
         vidLabeledImpressionsStorageClientProvider = {
-          createStorageClient(
-            config.vidLabeledImpressionsStorageParams.gcs.bucketName,
-            config.vidLabeledImpressionsStorageParams.gcs.projectId,
-          )
+          GcsStorageClient(vidLabeledStorage, vidLabeledBucket)
         },
         poolAssignmentJobStub = poolAssignmentJobStub,
         rankerJobStub = rankerJobStub,
         vidLabelingJobStub = vidLabelingJobStub,
         workItemsStub = workItemsStub,
+        vidLabeledImpressionsBlobPrefix = vidLabeledImpressionsBlobPrefix,
         rpcThrottlers = rpcThrottlers,
       )
 
@@ -360,17 +364,17 @@ class VidLabelingMonitorFunction : HttpFunction {
 
     /** Builds a bucket-rooted [StorageClient] for the data-quality crawl. */
     private fun createStorageClient(bucketName: String, projectId: String): StorageClient {
-      return GcsStorageClient(
-        StorageOptions.newBuilder()
-          .also { builder ->
-            if (projectId.isNotEmpty()) {
-              builder.setProjectId(projectId)
-            }
-          }
-          .build()
-          .service,
-        bucketName,
-      )
+      return GcsStorageClient(createGoogleCloudStorage(projectId), bucketName)
     }
+
+    private fun createGoogleCloudStorage(projectId: String): Storage =
+      StorageOptions.newBuilder()
+        .also { builder ->
+          if (projectId.isNotEmpty()) {
+            builder.setProjectId(projectId)
+          }
+        }
+        .build()
+        .service
   }
 }
