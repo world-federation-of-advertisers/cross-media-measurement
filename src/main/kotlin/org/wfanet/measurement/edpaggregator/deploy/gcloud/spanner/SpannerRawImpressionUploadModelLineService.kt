@@ -768,6 +768,7 @@ class SpannerRawImpressionUploadModelLineService(
           )
         FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
           setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
           )
