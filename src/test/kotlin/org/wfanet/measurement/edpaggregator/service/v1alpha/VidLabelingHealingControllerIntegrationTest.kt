@@ -552,7 +552,7 @@ class VidLabelingHealingControllerIntegrationTest {
   }
 
   private fun manifestReader(source: UploadFixture): CorrectionManifestReader =
-    CorrectionManifestReader { doneBlobUri, doneBlobGeneration ->
+    CorrectionManifestReader { doneBlobUri, doneBlobGeneration, _ ->
       check(doneBlobUri == source.upload.doneBlobUri)
       check(blobMetadata.getValue(source.doneKey).generation == doneBlobGeneration)
       listOf(
