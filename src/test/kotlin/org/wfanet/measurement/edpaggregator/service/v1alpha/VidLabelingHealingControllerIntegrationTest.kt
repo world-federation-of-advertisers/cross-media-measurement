@@ -52,6 +52,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRawImpressionUploadsRequestKt
 import org.wfanet.measurement.edpaggregator.v1alpha.RankIndexBlob
@@ -66,6 +67,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.copy
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankIndexBlobRequest
@@ -88,6 +90,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
@@ -151,6 +154,8 @@ class VidLabelingHealingControllerIntegrationTest {
     RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
   private lateinit var impressionMetadataStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+  private lateinit var dataAvailabilitySyncLeasesStub:
+    DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
 
   private val rawStorage = InMemoryStorageClient()
@@ -173,6 +178,8 @@ class VidLabelingHealingControllerIntegrationTest {
     rankIndexBlobsStub = RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel)
     impressionMetadataStub =
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel)
+    dataAvailabilitySyncLeasesStub =
+      DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(channel)
     dispatchSequencer = mock()
     dispatchSequencer.stub {
       onBlocking { resolveShardInfo(any()) } doReturn
@@ -372,9 +379,18 @@ class VidLabelingHealingControllerIntegrationTest {
         MODEL_LINE,
         eventDate,
       )
+    val synchronizationAttemptId = UUID.randomUUID().toString()
+    val lease =
+      dataAvailabilitySyncLeasesStub.acquireDataAvailabilitySyncLease(
+        acquireDataAvailabilitySyncLeaseRequest {
+          name = "$DATA_PROVIDER/dataAvailabilitySyncLeases/$synchronizationAttemptId"
+          requestId = UUID.randomUUID().toString()
+        }
+      )
     impressionMetadataStub.createImpressionMetadata(
       createImpressionMetadataRequest {
         parent = DATA_PROVIDER
+        dataAvailabilitySyncLease = lease.name
         impressionMetadata = impressionMetadata {
           blobUri = outputUri + METADATA_SUFFIX
           blobTypeUrl = "type.googleapis.com/wfa.measurement.LabeledImpressionsMetadata"
@@ -385,6 +401,13 @@ class VidLabelingHealingControllerIntegrationTest {
             endTime = doneCreateTime.plusSeconds(1).toProtoTime()
           }
         }
+        requestId = UUID.randomUUID().toString()
+      }
+    )
+    dataAvailabilitySyncLeasesStub.releaseDataAvailabilitySyncLease(
+      releaseDataAvailabilitySyncLeaseRequest {
+        name = lease.name
+        etag = lease.etag
         requestId = UUID.randomUUID().toString()
       }
     )
