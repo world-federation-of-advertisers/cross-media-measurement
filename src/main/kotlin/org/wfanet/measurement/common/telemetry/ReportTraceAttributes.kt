@@ -16,8 +16,6 @@
 
 package org.wfanet.measurement.common.telemetry
 
-import io.grpc.StatusException
-import io.grpc.StatusRuntimeException
 import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
 import org.wfanet.measurement.api.v2alpha.MeasurementSpec
@@ -35,18 +33,18 @@ object ReportTraceAttributes {
   const val COMPUTATION_NAME_STRING = "xmm.computation.name"
   const val COMPUTATION_STAGE_STRING = "xmm.computation.stage"
   const val COMPUTATION_STAGE_ATTEMPT_STRING = "xmm.computation.stage_attempt"
-  const val WORK_ITEM_NAME_STRING = "xmm.work_item.name"
-  const val WORK_ITEM_ATTEMPT_NAME_STRING = "xmm.work_item_attempt.name"
+  const val WORK_ITEM_NAME_STRING = XmmTraceAttributes.WORK_ITEM_NAME_STRING
+  const val WORK_ITEM_ATTEMPT_NAME_STRING = XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME_STRING
   const val DUCHY_ID_STRING = "xmm.duchy.id"
   const val BASIC_REPORT_STATE_STRING = "xmm.basic_report.state"
   const val REPORT_STATE_STRING = "xmm.report.state"
   const val METRIC_STATE_STRING = "xmm.metric.state"
   const val MEASUREMENT_STATE_STRING = "xmm.measurement.state"
   const val REQUISITION_STATE_STRING = "xmm.requisition.state"
-  const val LIFECYCLE_STAGE_STRING = "xmm.lifecycle.stage"
-  const val OUTCOME_STRING = "xmm.outcome"
-  const val ERROR_TYPE_STRING = "xmm.error.type"
-  const val ERROR_CODE_STRING = "xmm.error.code"
+  const val LIFECYCLE_STAGE_STRING = XmmTraceAttributes.LIFECYCLE_STAGE_STRING
+  const val OUTCOME_STRING = XmmTraceAttributes.OUTCOME_STRING
+  const val ERROR_TYPE_STRING = XmmTraceAttributes.ERROR_TYPE_STRING
+  const val ERROR_CODE_STRING = XmmTraceAttributes.ERROR_CODE_STRING
   const val ERROR_RETRYABLE_STRING = "xmm.error.retryable"
   const val CANCELLATION_ORIGIN_STRING = "xmm.cancellation.origin"
   const val COMPUTATION_PARTICIPANT_STATE_STRING = "xmm.computation_participant.state"
@@ -69,19 +67,18 @@ object ReportTraceAttributes {
   val COMPUTATION_STAGE: AttributeKey<String> = AttributeKey.stringKey(COMPUTATION_STAGE_STRING)
   val COMPUTATION_STAGE_ATTEMPT: AttributeKey<Long> =
     AttributeKey.longKey(COMPUTATION_STAGE_ATTEMPT_STRING)
-  val WORK_ITEM_NAME: AttributeKey<String> = AttributeKey.stringKey(WORK_ITEM_NAME_STRING)
-  val WORK_ITEM_ATTEMPT_NAME: AttributeKey<String> =
-    AttributeKey.stringKey(WORK_ITEM_ATTEMPT_NAME_STRING)
+  val WORK_ITEM_NAME: AttributeKey<String> = XmmTraceAttributes.WORK_ITEM_NAME
+  val WORK_ITEM_ATTEMPT_NAME: AttributeKey<String> = XmmTraceAttributes.WORK_ITEM_ATTEMPT_NAME
   val DUCHY_ID: AttributeKey<String> = AttributeKey.stringKey(DUCHY_ID_STRING)
   val BASIC_REPORT_STATE: AttributeKey<String> = AttributeKey.stringKey(BASIC_REPORT_STATE_STRING)
   val REPORT_STATE: AttributeKey<String> = AttributeKey.stringKey(REPORT_STATE_STRING)
   val METRIC_STATE: AttributeKey<String> = AttributeKey.stringKey(METRIC_STATE_STRING)
   val MEASUREMENT_STATE: AttributeKey<String> = AttributeKey.stringKey(MEASUREMENT_STATE_STRING)
   val REQUISITION_STATE: AttributeKey<String> = AttributeKey.stringKey(REQUISITION_STATE_STRING)
-  val LIFECYCLE_STAGE: AttributeKey<String> = AttributeKey.stringKey(LIFECYCLE_STAGE_STRING)
-  val OUTCOME: AttributeKey<String> = AttributeKey.stringKey(OUTCOME_STRING)
-  val ERROR_TYPE: AttributeKey<String> = AttributeKey.stringKey(ERROR_TYPE_STRING)
-  val ERROR_CODE: AttributeKey<String> = AttributeKey.stringKey(ERROR_CODE_STRING)
+  val LIFECYCLE_STAGE: AttributeKey<String> = XmmTraceAttributes.LIFECYCLE_STAGE
+  val OUTCOME: AttributeKey<String> = XmmTraceAttributes.OUTCOME
+  val ERROR_TYPE: AttributeKey<String> = XmmTraceAttributes.ERROR_TYPE
+  val ERROR_CODE: AttributeKey<String> = XmmTraceAttributes.ERROR_CODE
   val ERROR_RETRYABLE: AttributeKey<Boolean> = AttributeKey.booleanKey(ERROR_RETRYABLE_STRING)
   val CANCELLATION_ORIGIN: AttributeKey<String> = AttributeKey.stringKey(CANCELLATION_ORIGIN_STRING)
   val COMPUTATION_PARTICIPANT_STATE: AttributeKey<String> =
@@ -107,22 +104,8 @@ object ReportTraceAttributes {
   }
 
   /** Returns a bounded, human-readable exception class name suitable for a span label. */
-  fun errorType(error: Throwable): String {
-    return error::class.java.name.substringAfterLast('.').replace('$', '.').take(200)
-  }
+  fun errorType(error: Throwable): String = XmmTraceAttributes.errorType(error)
 
   /** Returns a stable gRPC status code from [error] or one of its wrapped causes. */
-  fun errorCode(error: Throwable): String? {
-    return generateSequence(error) { it.cause }
-      .take(20)
-      .mapNotNull {
-        when (it) {
-          is StatusException -> it.status.code.name
-          is StatusRuntimeException -> it.status.code.name
-          else -> null
-        }
-      }
-      .firstOrNull()
-      ?.let { "grpc.$it" }
-  }
+  fun errorCode(error: Throwable): String? = XmmTraceAttributes.errorCode(error)
 }
