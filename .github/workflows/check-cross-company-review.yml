@@ -29,8 +29,10 @@ concurrency:
 
 jobs:
   cross-company-review-policy:
+    # checks if the author of the PR is a Claude agent
     if: github.actor != 'copilot-pull-request-reviewer[bot]' && github.event.requested_reviewer.login != 'copilot'
     name: Check Cross-company review
+    # runs on ubuntu 26
     runs-on: ubuntu-24.04
     permissions:
       contents: read
