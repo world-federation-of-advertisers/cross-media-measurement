@@ -1076,7 +1076,7 @@ class EvictUploaderTest {
   }
 
   @Test
-  fun `plan rejects queued or running work anywhere under data provider`(): Unit = runBlocking {
+  fun `plan rejects processing work anywhere under data provider`(): Unit = runBlocking {
     whenever(uploadService.listRawImpressionUploads(any()))
       .thenReturn(
         listRawImpressionUploadsResponse {
@@ -1094,11 +1094,6 @@ class EvictUploaderTest {
             cmmsModelLine = MODEL_LINE
             state = RawImpressionUploadModelLine.State.CREATED
           }
-          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
-            name = modelLineName("running-upload")
-            cmmsModelLine = "modelProviders/mp/modelSuites/ms/modelLines/other"
-            state = RawImpressionUploadModelLine.State.RANKING
-          }
         }
       )
 
@@ -1110,7 +1105,6 @@ class EvictUploaderTest {
     assertThat(error).hasMessageThat().contains("VID-labeling pipeline is currently processing")
     assertThat(error).hasMessageThat().contains("Retry after all VID-labeling processing")
     assertThat(error).hasMessageThat().contains(modelLineName("queued-upload"))
-    assertThat(error).hasMessageThat().contains(modelLineName("running-upload"))
     val request = argumentCaptor<ListRawImpressionUploadModelLinesRequest>()
     verifyBlocking(modelLineService) { listRawImpressionUploadModelLines(request.capture()) }
     assertThat(request.firstValue.parent).isEqualTo("$DATA_PROVIDER/rawImpressionUploads/-")
@@ -1123,6 +1117,37 @@ class EvictUploaderTest {
           RawImpressionUploadModelLine.State.LABELING,
         )
       )
+  }
+
+  @Test
+  fun `plan accepts output waiting for availability synchronization`(): Unit = runBlocking {
+    whenever(uploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += rawImpressionUpload {
+            name = uploadName("up1")
+            createTime = T1.toProtoTime()
+            doneBlobUri = "gs://raw/up1/done"
+            doneBlobGeneration = 1L
+          }
+        }
+      )
+    whenever(modelLineService.listRawImpressionUploadModelLines(any()))
+      .thenReturn(
+        listRawImpressionUploadModelLinesResponse {
+          rawImpressionUploadModelLines += rawImpressionUploadModelLine {
+            name = modelLineName("up1")
+            cmmsModelLine = MODEL_LINE
+            state = RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+            etag = "etag-up1"
+          }
+        }
+      )
+    stubSnapshotRows("up1")
+
+    val plan = evictUploader.plan(listOf(uploadName("up1")), cutoffTime = T0)
+
+    assertThat(plan.cascade.map { it.modelLineName }).containsExactly(modelLineName("up1"))
   }
 
   @Test

@@ -363,6 +363,21 @@ fun AsyncDatabaseClient.TransactionContext.replaceUploadHealingOperationPlan(
   insertUploadHealingSteps(operation)
 }
 
+/** Records an idempotency key without changing the persisted plan. */
+fun AsyncDatabaseClient.TransactionContext.recordUploadHealingOperationMutation(
+  operation: UploadHealingOperation,
+  mutationRequestIds: List<String>,
+  mutationRequestFingerprints: List<ByteString>,
+) {
+  bufferUpdateMutation("UploadHealingOperation") {
+    set("DataProviderResourceId").to(operation.dataProviderResourceId)
+    set("UploadHealingOperationId").to(operation.uploadHealingOperationId)
+    set("MutationRequestIds").toStringArray(mutationRequestIds)
+    set("MutationRequestFingerprints")
+      .toBytesArray(mutationRequestFingerprints.map { it.toGcloudByteArray() })
+  }
+}
+
 private fun AsyncDatabaseClient.TransactionContext.insertUploadHealingSteps(
   operation: UploadHealingOperation
 ) {

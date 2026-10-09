@@ -768,6 +768,7 @@ class SpannerRawImpressionUploadModelLineService(
           )
         FailureReason.RAW_IMPRESSION_UPLOAD_MODEL_LINE_FAILURE_REASON_EVICTED_OUTPUT ->
           setOf(
+            State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_AVAILABILITY_SYNCING,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_COMPLETED,
             State.RAW_IMPRESSION_UPLOAD_MODEL_LINE_STATE_FAILED,
           )
@@ -968,13 +969,16 @@ class SpannerRawImpressionUploadModelLineService(
             .asStatusRuntimeException(Status.Code.FAILED_PRECONDITION)
         }
 
-        if (nextState in PROCESSING_STATES) {
-          txn.requireProcessingAllowedDuringEviction(
-            dataProviderResourceId,
-            rawImpressionUploadResourceId,
-            currentState,
-          )
-        }
+        val permittedEvictionOperationId =
+          if (nextState in PROCESSING_STATES) {
+            txn.requireProcessingAllowedDuringEviction(
+              dataProviderResourceId,
+              rawImpressionUploadResourceId,
+              currentState,
+            )
+          } else {
+            ""
+          }
 
         // One upload in-flight per (DataProvider, cmms_model_line): concurrent Phase-1 rankers
         // would corrupt the shared cumulative rank index.
@@ -984,6 +988,7 @@ class SpannerRawImpressionUploadModelLineService(
               dataProviderResourceId,
               result.rawImpressionUploadModelLine.cmmsModelLine,
               excludeRawImpressionUploadId = result.rawImpressionUploadId,
+              permittedEvictionOperationId = permittedEvictionOperationId,
             )
           if (conflicts.isNotEmpty()) {
             throw RawImpressionUploadModelLineConcurrentException(
@@ -1100,17 +1105,19 @@ class SpannerRawImpressionUploadModelLineService(
     dataProviderResourceId: String,
     rawImpressionUploadResourceId: String,
     currentState: State,
-  ) {
-    val fence = getVidLabelingEvictionFence(dataProviderResourceId) ?: return
+  ): String {
+    val fence = getVidLabelingEvictionFence(dataProviderResourceId) ?: return ""
     val upload =
       getRawImpressionUploadByResourceId(dataProviderResourceId, rawImpressionUploadResourceId)
         .rawImpressionUpload
+    if (upload.evictionOperationId == fence.evictionOperationId) {
+      return fence.evictionOperationId
+    }
     if (
-      upload.evictionOperationId == fence.evictionOperationId ||
-        (fence.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING &&
-          currentState in PROCESSING_STATES)
+      fence.state != VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING &&
+        currentState in PROCESSING_STATES
     ) {
-      return
+      return ""
     }
     throw Status.FAILED_PRECONDITION.withDescription(
         "RawImpressionUpload $rawImpressionUploadResourceId is waiting for VID-labeling " +

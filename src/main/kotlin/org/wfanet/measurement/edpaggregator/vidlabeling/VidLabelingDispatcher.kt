@@ -986,7 +986,7 @@ class VidLabelingDispatcher(
     )
   }
 
-  /** Requires the latest replacement of this row's predecessor to own a live completed snapshot. */
+  /** Requires the latest replacement of this row's predecessor to own durable labeled output. */
   private suspend fun requireRecoveryPredecessorReady(row: RawImpressionUploadModelLine) {
     val predecessorName = row.recoveryPredecessorRawImpressionUpload
     if (predecessorName.isEmpty()) return
@@ -1008,8 +1008,8 @@ class VidLabelingDispatcher(
     }
     val replacementRow =
       listModelLines(latest.name).firstOrNull { it.cmmsModelLine == row.cmmsModelLine }
-    check(replacementRow?.state == RawImpressionUploadModelLine.State.COMPLETED) {
-      "Recovery predecessor $predecessorName has not been replaced by a completed upload for " +
+    check(replacementRow != null && isRecoveryPredecessorReadyState(replacementRow.state)) {
+      "Recovery predecessor $predecessorName has not produced durable labeled output for " +
         row.cmmsModelLine
     }
     check(hasActiveSnapshot(latest.name, row.cmmsModelLine)) {
@@ -1262,3 +1262,10 @@ data class RawImpressionBlobMetadata(
   val sizeBytes: Long,
   val createTime: Instant,
 )
+
+internal fun isRecoveryPredecessorReadyState(state: RawImpressionUploadModelLine.State): Boolean =
+  state in
+    setOf(
+      RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
+      RawImpressionUploadModelLine.State.COMPLETED,
+    )

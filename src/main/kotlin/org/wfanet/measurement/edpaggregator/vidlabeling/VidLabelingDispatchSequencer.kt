@@ -76,6 +76,13 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.WorkItemsGr
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.createWorkItemRequest
 import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
 
+internal fun availabilitySyncingBlocksDispatch(
+  blockingUploadHealingOperation: String,
+  candidateUploadHealingOperation: String,
+): Boolean =
+  candidateUploadHealingOperation.isEmpty() ||
+    blockingUploadHealingOperation != candidateUploadHealingOperation
+
 /**
  * Sequences VID labeling dispatch for one `DataProvider`.
  *
@@ -85,9 +92,9 @@ import org.wfanet.measurement.securecomputation.controlplane.v1alpha.workItem
  * resolution, and the work-creation steps are defined exactly once.
  *
  * [dispatchNext] enforces the core invariant: **at most one upload per `(DataProvider, ModelLine)`
- * runs at a time.** A model line is dispatched only if no upload currently has that same
- * `cmmsModelLine` running, which protects the cumulative rank index from concurrent Phase-1 runs;
- * different model lines proceed in parallel.
+ * runs in Phase 0-2 at a time.** Availability handoff normally remains ordered behind that work;
+ * only a dependent upload in the same healing operation may start after its predecessor has durable
+ * output but is waiting for availability. Different model lines proceed in parallel.
  *
  * Both paths are handled: a **memoized** model line dispatches Phase-0 (pre-creating a
  * `PoolAssignmentJob` per shard, publishing one SubpoolAssigner `WorkItem` per shard on the
@@ -173,9 +180,10 @@ class VidLabelingDispatchSequencer(
    * Dispatches each `CREATED` model line whose `(DataProvider, ModelLine)` is not already running.
    *
    * Serialization is per `(DataProvider, ModelLine)`, not per `DataProvider`: a model line is
-   * dispatched only if no upload currently has that same `cmmsModelLine` in a running state
-   * ([IN_PROGRESS_STATES]) — that is what protects the cumulative rank index from concurrent
-   * Phase-1 runs. Different model lines, whether on the same or different uploads, run in parallel.
+   * dispatched only if no upload currently has that same `cmmsModelLine` in [PROCESSING_STATES] —
+   * that is what protects the cumulative rank index from concurrent Phase-1 runs. A predecessor
+   * waiting for availability blocks normal uploads but not the next step of the same healing
+   * operation. Different model lines, whether on the same or different uploads, run in parallel.
    * Within a single model line, uploads are dispatched oldest-first (FIFO).
    *
    * Safe to call concurrently with another invocation (e.g. the fast path racing the monitor): the
@@ -206,14 +214,27 @@ class VidLabelingDispatchSequencer(
     val modelLinesByUpload: Map<String, List<RawImpressionUploadModelLine>> =
       uploads.associate { it.name to listUploadModelLines(it.name) }
 
-    // Model lines already running anywhere for this DataProvider; never start a second upload for
-    // one of them.
+    // Phase 0-2 work always serializes per model line. Availability handoff also serializes normal
+    // uploads, but it does not block the next recovery step in the same healing operation: Phase 2
+    // output and the rank snapshot are already durable, while the fence intentionally postpones
+    // availability until the recovery chain is complete.
     val busyModelLines: MutableSet<String> =
       modelLinesByUpload.values
         .flatten()
-        .filter { it.state in IN_PROGRESS_STATES }
+        .filter { it.state in PROCESSING_STATES }
         .map { it.cmmsModelLine }
         .toMutableSet()
+    val availabilityOperationsByModelLine = mutableMapOf<String, MutableList<String>>()
+    for (upload in uploads) {
+      for (modelLine in
+        modelLinesByUpload.getValue(upload.name).filter {
+          it.state == RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING
+        }) {
+        availabilityOperationsByModelLine
+          .getOrPut(modelLine.cmmsModelLine) { mutableListOf() }
+          .add(upload.uploadHealingOperation)
+      }
+    }
 
     var dispatchedUpload: String? = null
     var queuedModelLines = 0
@@ -223,7 +244,11 @@ class VidLabelingDispatchSequencer(
       val nonMemoized = mutableListOf<BundledModelLine>()
       for (modelLine in modelLinesByUpload.getValue(upload.name)) {
         if (modelLine.state != RawImpressionUploadModelLine.State.CREATED) continue
-        if (modelLine.cmmsModelLine in busyModelLines) {
+        val blockedByAvailability =
+          availabilityOperationsByModelLine[modelLine.cmmsModelLine].orEmpty().any {
+            availabilitySyncingBlocksDispatch(it, upload.uploadHealingOperation)
+          }
+        if (modelLine.cmmsModelLine in busyModelLines || blockedByAvailability) {
           queuedModelLines++
           continue
         }
@@ -1134,16 +1159,12 @@ class VidLabelingDispatchSequencer(
     /** Maximum `CreateVidLabelingJobRequest`s per `BatchCreateVidLabelingJobs` call. */
     private const val DEFAULT_MAX_JOBS_PER_BATCH_CREATE = 50
 
-    /**
-     * Model-line states that count as "running" for `(DataProvider, ModelLine)` serialization: a
-     * model line in any of these is in flight and must not be started in a second upload.
-     */
-    private val IN_PROGRESS_STATES: Set<RawImpressionUploadModelLine.State> =
+    /** Phase 0-2 states that always block a second upload for the same model line. */
+    private val PROCESSING_STATES: Set<RawImpressionUploadModelLine.State> =
       setOf(
         RawImpressionUploadModelLine.State.POOL_ASSIGNING,
         RawImpressionUploadModelLine.State.RANKING,
         RawImpressionUploadModelLine.State.LABELING,
-        RawImpressionUploadModelLine.State.AVAILABILITY_SYNCING,
       )
 
     /**
