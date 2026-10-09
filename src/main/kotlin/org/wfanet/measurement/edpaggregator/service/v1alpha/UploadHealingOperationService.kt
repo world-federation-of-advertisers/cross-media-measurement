@@ -33,7 +33,6 @@ import org.wfanet.measurement.edpaggregator.service.RequiredFieldNotSetException
 import org.wfanet.measurement.edpaggregator.service.UploadHealingOperationKey
 import org.wfanet.measurement.edpaggregator.service.UploadHealingStepKey
 import org.wfanet.measurement.edpaggregator.v1alpha.ApproveUploadHealingOperationRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.FinalizeUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.GetUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifest
 import org.wfanet.measurement.edpaggregator.v1alpha.LabeledOutputManifestKt
@@ -50,7 +49,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.listUploadHealingOperationsR
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifest as InternalLabeledOutputManifest
-import org.wfanet.measurement.internal.edpaggregator.LabeledOutputManifestKt as InternalLabeledOutputManifestKt
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsPageToken as InternalListOperationsPageToken
 import org.wfanet.measurement.internal.edpaggregator.ListUploadHealingOperationsRequestKt as InternalListOperationsRequestKt
 import org.wfanet.measurement.internal.edpaggregator.RawImpressionUploadCorrectionCandidate as InternalCandidate
@@ -59,9 +57,7 @@ import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperation as I
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub as InternalOperationStub
 import org.wfanet.measurement.internal.edpaggregator.UploadHealingStep as InternalStep
 import org.wfanet.measurement.internal.edpaggregator.approveUploadHealingOperationRequest as internalApproveOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.finalizeUploadHealingOperationRequest as internalFinalizeOperationRequest
 import org.wfanet.measurement.internal.edpaggregator.getUploadHealingOperationRequest as internalGetOperationRequest
-import org.wfanet.measurement.internal.edpaggregator.labeledOutputManifest as internalLabeledOutputManifest
 import org.wfanet.measurement.internal.edpaggregator.listUploadHealingOperationsRequest as internalListOperationsRequest
 import org.wfanet.measurement.internal.edpaggregator.retryUploadHealingOperationRequest as internalRetryOperationRequest
 
@@ -199,53 +195,6 @@ class UploadHealingOperationService(
     }
   }
 
-  override suspend fun finalizeUploadHealingOperation(
-    request: FinalizeUploadHealingOperationRequest
-  ): UploadHealingOperation {
-    val key = parseOperation(request.name)
-    if (request.etag.isBlank()) required("etag")
-    validateUuid(request.requestId, "request_id")
-    if (request.stepManifestsList.isEmpty()) required("step_manifests")
-    val stepManifests =
-      request.stepManifestsList.map { stepManifest ->
-        val stepKey =
-          UploadHealingStepKey.fromName(stepManifest.uploadHealingStep)
-            ?: invalid("step_manifests.upload_healing_step")
-        if (stepKey.parentKey != key) invalid("step_manifests.upload_healing_step")
-        if (!stepManifest.hasLabeledOutputManifest()) {
-          required("step_manifests.labeled_output_manifest")
-        }
-        org.wfanet.measurement.internal.edpaggregator.FinalizeUploadHealingOperationRequestKt
-          .stepManifest {
-            uploadHealingStepId =
-              stepKey.uploadHealingStepId.toLongOrNull()
-                ?: invalid("step_manifests.upload_healing_step")
-            labeledOutputManifest = stepManifest.labeledOutputManifest.toInternal()
-          }
-      }
-    if (stepManifests.map { it.uploadHealingStepId }.distinct().size != stepManifests.size) {
-      invalid("step_manifests")
-    }
-    return try {
-      internalOperationStub
-        .finalizeUploadHealingOperation(
-          internalFinalizeOperationRequest {
-            dataProviderResourceId = key.dataProviderId
-            uploadHealingOperationId = key.uploadHealingOperationId
-            this.stepManifests += stepManifests
-            etag = request.etag
-            requestId = request.requestId
-          }
-        )
-        .toPublic()
-    } catch (e: StatusException) {
-      throw translateInternalError(
-        e,
-        "UploadHealingOperation ${request.name} could not be finalized",
-      )
-    }
-  }
-
   override suspend fun retryUploadHealingOperation(
     request: RetryUploadHealingOperationRequest
   ): UploadHealingOperation {
@@ -346,17 +295,6 @@ class UploadHealingOperationService(
       updateTime = this@toPublic.updateTime
       etag = this@toPublic.etag
       recoveryDoneBlobGeneration = this@toPublic.recoveryDoneBlobGeneration
-    }
-
-  private fun LabeledOutputManifest.toInternal(): InternalLabeledOutputManifest =
-    internalLabeledOutputManifest {
-      blobs +=
-        this@toInternal.blobsList.map { blob ->
-          InternalLabeledOutputManifestKt.blobVersion {
-            blobUri = blob.blobUri
-            if (blob.hasGeneration()) generation = blob.generation
-          }
-        }
     }
 
   private fun InternalLabeledOutputManifest.toPublic(): LabeledOutputManifest =
