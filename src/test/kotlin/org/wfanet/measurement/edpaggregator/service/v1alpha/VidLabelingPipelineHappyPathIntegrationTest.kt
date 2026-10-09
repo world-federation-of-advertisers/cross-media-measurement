@@ -28,6 +28,48 @@ import org.wfanet.measurement.securecomputation.datawatcher.DataWatcher
 
 internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipelineTestHarness() {
   @Test
+  fun `five chronological days preserve memoized VIDs through availability`() = runBlocking {
+    val dates = (0L..4L).map(EVENT_DATE::plusDays)
+    for ((index, date) in dates.withIndex()) {
+      writeRawFile(
+        "chronological/day-${index + 1}",
+        "input.parquet",
+        listOf("stable-person", "day-${index + 1}-person"),
+        date,
+      )
+      finalizeRawUpload("chronological/day-${index + 1}")
+      awaitPipelineIdle()
+    }
+
+    val uploads = listUploads().sortedBy { it.createTime.seconds }
+    assertThat(uploads).hasSize(5)
+    for ((index, upload) in uploads.withIndex()) {
+      assertCompletedForBothPaths(upload)
+      val tasks = listAvailabilityTasks(upload.name)
+      assertThat(tasks).hasSize(2)
+      assertThat(tasks.map { it.state }.toSet()).containsExactly(WorkItem.State.SUCCEEDED)
+      assertThat(tasks.map { it.eventDate }.toSet())
+        .containsExactly(
+          com.google.type.date {
+            year = dates[index].year
+            month = dates[index].monthValue
+            day = dates[index].dayOfMonth
+          }
+        )
+      assertThat(listMetadata().count { it.rawImpressionUpload == upload.name }).isEqualTo(2)
+    }
+
+    val memoized = readLabeledPeople(MEMOIZED_MODEL_LINE)
+    val direct = readLabeledPeople(DIRECT_MODEL_LINE)
+    assertThat(memoized).hasSize(10)
+    assertThat(direct).hasSize(10)
+    assertThat(memoized.map { it.eventDate }.toSet()).containsExactlyElementsIn(dates)
+    assertThat(direct.map { it.eventDate }.toSet()).containsExactlyElementsIn(dates)
+    assertThat(memoized.filter { it.personId == "stable-person" }.map { it.vid }.toSet()).hasSize(1)
+    assertAvailabilityPublished(setOf(MEMOIZED_MODEL_LINE, DIRECT_MODEL_LINE), dates.toSet())
+  }
+
+  @Test
   fun `raw uploads run through both pipelines and data availability`() = runBlocking {
     workItemTransport.forceNextAcknowledgementRedelivery()
     workItemTransport.duplicateNextDelivery(DataAvailabilitySyncWorkItems.QUEUE)
@@ -92,6 +134,17 @@ internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipeline
     assertAvailabilityTaskIdentities(additive, EVENT_DATE)
     assertThat(additiveTasks.any { workItemTransport.deliveryCount(it.name) >= 2 }).isTrue()
 
+    val workItemsAfterAdditive = workItemTransport.publishedCount
+    val metadataAfterAdditive = listMetadata()
+    rawWatcher.receivePath(
+      "$rawPrefix/day-1/done",
+      mapOf(DataWatcher.GENERATION_METADATA_KEY to firstDoneGeneration.toString()),
+    )
+    awaitPipelineIdle()
+    assertThat(listUploads().filter { it.doneBlobUri == "$rawPrefix/day-1/done" }).hasSize(2)
+    assertThat(workItemTransport.publishedCount).isEqualTo(workItemsAfterAdditive)
+    assertThat(listMetadata()).containsExactlyElementsIn(metadataAfterAdditive)
+
     val independentFile =
       writeRawFile("day-1/advertiser-a", "independent.parquet", listOf("person-3"))
     val independentFileGeneration = generationOf(independentFile)
@@ -110,5 +163,18 @@ internal class VidLabelingPipelineHappyPathIntegrationTest : VidLabelingPipeline
     assertAvailabilityPublished(setOf(MEMOIZED_MODEL_LINE, DIRECT_MODEL_LINE), setOf(EVENT_DATE))
     assertThat(externalAvailabilityDeliveries.get()).isEqualTo(0)
     assertEveryRegisteredRawGenerationWasRead()
+  }
+
+  @Test
+  fun `upload with multiple event dates is rejected atomically`() = runBlocking {
+    writeRawFile("mixed-dates", "day-1.parquet", listOf("person-1"), EVENT_DATE)
+    writeRawFile("mixed-dates", "day-2.parquet", listOf("person-2"), EVENT_DATE.plusDays(1))
+
+    val result = runCatching { finalizeRawUpload("mixed-dates") }
+    workItemTransport.awaitIdle()
+
+    assertThat(result.isFailure).isTrue()
+    assertThat(listUploads()).isEmpty()
+    assertThat(listMetadata()).isEmpty()
   }
 }
