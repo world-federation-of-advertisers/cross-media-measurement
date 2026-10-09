@@ -57,6 +57,7 @@ class RawImpressionUploadManifestClassifier {
     val registrationComplete: Boolean = true,
     val failed: Boolean = false,
     val quarantined: Boolean = false,
+    val manifestBoundary: Boolean = false,
     val files: List<File>,
   )
 
@@ -95,8 +96,10 @@ class RawImpressionUploadManifestClassifier {
         val prior = priorManifest[blobUri]
         val currentEntry = currentManifest[blobUri]
         if (
-          prior?.file?.blobGeneration == currentEntry?.file?.blobGeneration &&
-            prior?.file?.eventDate == currentEntry?.file?.eventDate
+          prior != null &&
+            currentEntry != null &&
+            prior.file.blobGeneration == currentEntry.file.blobGeneration &&
+            !eventDateChanged(prior.file, currentEntry.file)
         ) {
           null
         } else {
@@ -132,7 +135,7 @@ class RawImpressionUploadManifestClassifier {
               when {
                 difference.prior == null -> InternalCandidate.ManifestDifference.Type.TYPE_ADDED
                 difference.current == null -> InternalCandidate.ManifestDifference.Type.TYPE_REMOVED
-                difference.prior.file.eventDate != difference.current.file.eventDate ->
+                eventDateChanged(difference.prior.file, difference.current.file) ->
                   InternalCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED
                 else -> InternalCandidate.ManifestDifference.Type.TYPE_EDITED
               }
@@ -156,6 +159,12 @@ class RawImpressionUploadManifestClassifier {
     return digestManifest(manifest)
   }
 
+  /** Recomputes [Result.classification] after a caller enriches its manifest differences. */
+  fun reclassify(result: Result): Result =
+    result.copy(
+      classification = classify(result.classification != Classification.NEW, result.differences)
+    )
+
   /** Reconstructs the effective manifest immediately before [revision]. */
   fun reconstructPriorManifest(
     revision: Revision,
@@ -172,7 +181,10 @@ class RawImpressionUploadManifestClassifier {
     val current = revision.toManifest()
     val predecessor = predecessorOf(revision, revisionsByName)
     if (
-      revision.quarantined || revision.uploadHealingOperation.isNotEmpty() || predecessor == null
+      revision.quarantined ||
+        revision.manifestBoundary ||
+        revision.uploadHealingOperation.isNotEmpty() ||
+        predecessor == null
     ) {
       return current
     }
@@ -193,7 +205,7 @@ class RawImpressionUploadManifestClassifier {
       check(visited.add(current.rawImpressionUpload)) {
         "RawImpressionUpload revision cycle detected at ${current.rawImpressionUpload}"
       }
-      if (current.registrationComplete && !current.quarantined) {
+      if (current.registrationComplete && (!current.quarantined || current.manifestBoundary)) {
         val revisionUris = mutableSetOf<String>()
         for (file in current.files.sortedBy { it.blobUri }) {
           require(revisionUris.add(file.blobUri)) {
@@ -204,7 +216,8 @@ class RawImpressionUploadManifestClassifier {
       }
       val predecessor = predecessorOf(current, revisionsByName)
       if (
-        current.uploadHealingOperation.isNotEmpty() ||
+        current.manifestBoundary ||
+          current.uploadHealingOperation.isNotEmpty() ||
           predecessor == null ||
           stopAtFailedPredecessor && predecessor.failed
       ) {
@@ -252,15 +265,11 @@ class RawImpressionUploadManifestClassifier {
     val hasAdditions = differences.any { it.prior == null }
     val hasEdits =
       differences.any {
-        it.prior != null &&
-          it.current != null &&
-          it.prior.file.eventDate == it.current.file.eventDate
+        it.prior != null && it.current != null && !eventDateChanged(it.prior.file, it.current.file)
       }
     val hasEventDateChanges =
       differences.any {
-        it.prior != null &&
-          it.current != null &&
-          it.prior.file.eventDate != it.current.file.eventDate
+        it.prior != null && it.current != null && eventDateChanged(it.prior.file, it.current.file)
       }
     val hasRemovals = differences.any { it.current == null }
     return when {
@@ -270,6 +279,11 @@ class RawImpressionUploadManifestClassifier {
       else -> Classification.MIXED
     }
   }
+
+  private fun eventDateChanged(prior: File, current: File): Boolean =
+    prior.eventDate != Date.getDefaultInstance() &&
+      current.eventDate != Date.getDefaultInstance() &&
+      prior.eventDate != current.eventDate
 
   private fun digestManifest(manifest: Map<String, ManifestEntry>): ByteString {
     val digest = MessageDigest.getInstance("SHA-256")

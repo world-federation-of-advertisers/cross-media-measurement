@@ -232,6 +232,8 @@ class VidLabelingDispatcherFunctionTest {
           "MODEL_SHARDS_CERT_HOST" to "localhost",
           "RAW_IMPRESSION_UPLOAD_TARGET" to "localhost:${grpcServer.port}",
           "RAW_IMPRESSION_UPLOAD_CERT_HOST" to "localhost",
+          "CORRECTION_DETECTION_TARGET" to "localhost:${grpcServer.port}",
+          "CORRECTION_DETECTION_CERT_HOST" to "localhost",
           "CONTROL_PLANE_TARGET" to "localhost:${grpcServer.port}",
           "CONTROL_PLANE_CERT_HOST" to "localhost",
           "VID_LABELER_QUEUE_NAME" to "queues/vid-labeler",

@@ -711,12 +711,23 @@ class VidLabelingDispatcherTest {
       )
     val manifestComparison =
       candidate.firstValue.rawImpressionUploadCorrectionCandidate.manifestComparison
-    assertThat(manifestComparison.priorManifestList.single().ownerRawImpressionUploadResourceId)
+    assertThat(
+        manifestComparison.priorManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
       .isEqualTo("previous")
-    assertThat(manifestComparison.currentManifestList.single().ownerRawImpressionUploadResourceId)
+    assertThat(
+        manifestComparison.currentManifestList.single().outputSourceRawImpressionUploadResourceId
+      )
       .isEqualTo(RAW_IMPRESSION_UPLOAD_ID)
     assertThat(manifestComparison.currentManifestList.single().eventDate)
       .isEqualTo(EVENT_DATE_PROTO)
+    assertThat(candidate.firstValue.rawImpressionUploadCorrectionCandidate.currentManifestDigest)
+      .isEqualTo(
+        RawImpressionUploadManifestClassifier()
+          .digest(
+            listOf(RawImpressionUploadManifestClassifier.File(blobUri, 20L, EVENT_DATE_PROTO))
+          )
+      )
     assertThat(manifestComparison.differencesList.single().type)
       .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_EDITED)
     verifyBlocking(rawImpressionUploadService, never()) {
@@ -726,6 +737,50 @@ class VidLabelingDispatcherTest {
       batchCreateRawImpressionUploadModelLines(any())
     }
     verifyBlocking(modelLinesService, never()) { listModelLines(any()) }
+  }
+
+  @Test
+  fun `event date move uses the dated mixed classification`() = runBlocking {
+    val blob = createMockBlob("$FOLDER_PREFIX/file.parquet")
+    val blobUri =
+      BlobUris.buildUri(SelectedStorageClient.parseBlobUri(DONE_BLOB_PATH), blob.blobKey)
+    val previous = previousUpload()
+    whenever(storageClient.listBlobs(any())).thenReturn(flowOf(blob))
+    stubRawImpressionUploadCreation()
+    stubCorrectionCandidateRegistration()
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(listRawImpressionUploadsResponse { rawImpressionUploads += previous })
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any()))
+      .thenReturn(
+        listRawImpressionUploadFilesResponse {
+          rawImpressionUploadFiles += manifestFile(previous.name, blobUri, 10L)
+        }
+      )
+    val movedDate = EVENT_DATE.plusDays(1)
+
+    createDispatcher(
+        readEventDate = { movedDate },
+        readBlobMetadata = { RawImpressionBlobMetadata(20L, 100L, RAW_BLOB_CREATE_TIME) },
+      )
+      .upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    val candidate = argumentCaptor<RegisterDetectedRawImpressionUploadCorrectionCandidateRequest>()
+    verifyBlocking(correctionCandidateService) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(candidate.capture())
+    }
+    val registered = candidate.firstValue.rawImpressionUploadCorrectionCandidate
+    assertThat(registered.classification)
+      .isEqualTo(InternalCandidate.Classification.CLASSIFICATION_MIXED)
+    assertThat(registered.manifestComparison.differencesList.single().type)
+      .isEqualTo(InternalCandidate.ManifestDifference.Type.TYPE_EVENT_DATE_CHANGED)
+    assertThat(registered.manifestComparison.currentManifestList.single().eventDate)
+      .isEqualTo(
+        date {
+          year = movedDate.year
+          month = movedDate.monthValue
+          day = movedDate.dayOfMonth
+        }
+      )
   }
 
   @Test
@@ -815,6 +870,45 @@ class VidLabelingDispatcherTest {
     verifyBlocking(rawImpressionUploadModelLineService, never()) {
       batchCreateRawImpressionUploadModelLines(any())
     }
+  }
+
+  @Test
+  fun `rewrite after complete no-replacement deletion uses the empty boundary`() = runBlocking {
+    val old = previousUpload(generation = 90L, nameSuffix = "old")
+    val removed =
+      previousUpload(generation = 100L, nameSuffix = "removed").copy {
+        state = RawImpressionUpload.State.REMOVED_WITHOUT_REPLACEMENT
+        replacesRawImpressionUpload = old.name
+      }
+    val oldBlobUri = "file:///test-bucket/$FOLDER_PREFIX/file.parquet"
+    whenever(storageClient.listBlobs(any())).thenReturn(emptyFlow())
+    whenever(rawImpressionUploadService.listRawImpressionUploads(any()))
+      .thenReturn(
+        listRawImpressionUploadsResponse {
+          rawImpressionUploads += old
+          rawImpressionUploads += removed
+        }
+      )
+    whenever(rawImpressionUploadFileService.listRawImpressionUploadFiles(any())).thenAnswer {
+      invocation ->
+      val parent = invocation.getArgument<ListRawImpressionUploadFilesRequest>(0).parent
+      listRawImpressionUploadFilesResponse {
+        if (parent == old.name) {
+          rawImpressionUploadFiles += manifestFile(old.name, oldBlobUri, 10L)
+        }
+      }
+    }
+
+    val outcome = createDispatcher().upload(DONE_BLOB_PATH, DONE_BLOB_GENERATION)
+
+    assertThat(outcome).isEqualTo(VidLabelingDispatcher.UploadOutcome.NO_WORK)
+    verifyBlocking(correctionCandidateService, never()) {
+      createQuarantinedRawImpressionUpload(any())
+    }
+    verifyBlocking(correctionCandidateService, never()) {
+      registerDetectedRawImpressionUploadCorrectionCandidate(any())
+    }
+    verifyBlocking(rawImpressionUploadService, never()) { createRawImpressionUpload(any()) }
   }
 
   @Test

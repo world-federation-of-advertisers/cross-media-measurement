@@ -34,8 +34,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingStep
-import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelingEvictionFenceState
-import org.wfanet.measurement.edpaggregator.v1alpha.acquireRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.advanceUploadHealingStepRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createUploadHealingOperationRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.getRawImpressionUploadRequest
@@ -43,7 +41,6 @@ import org.wfanet.measurement.edpaggregator.v1alpha.getUploadHealingOperationReq
 import org.wfanet.measurement.edpaggregator.v1alpha.listRankIndexBlobsRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadModelLinesRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.listRawImpressionUploadsRequest
-import org.wfanet.measurement.edpaggregator.v1alpha.releaseRawImpressionUploadEvictionFenceRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.uploadHealingStep
 import org.wfanet.measurement.edpaggregator.vidlabeling.RequestIds
@@ -113,7 +110,6 @@ class UploadHealingWorkflow(
     var operation = getOperation(operationName)
     var evictionResult: EvictUploader.EvictionResult? = null
     if (operation.state == UploadHealingOperation.State.COMPLETE) {
-      releaseEvictionFence(operation)
       return Progress(operation, "Healing operation ${operation.name} is complete.")
     }
 
@@ -236,42 +232,7 @@ class UploadHealingWorkflow(
     check(operation.state == UploadHealingOperation.State.COMPLETE) {
       "All healing steps are complete but ${operation.name} is still ${operation.state}"
     }
-    releaseEvictionFence(operation)
     return Progress(operation, "Healing operation ${operation.name} is complete.", evictionResult)
-  }
-
-  private suspend fun releaseEvictionFence(operation: UploadHealingOperation) {
-    val operationKey =
-      requireNotNull(UploadHealingOperationKey.fromName(operation.name)) {
-        "Malformed UploadHealingOperation resource name: ${operation.name}"
-      }
-    val dataProvider = dataProviderOf(operation.badRawImpressionUploadsList.first())
-    val fenceState = VidLabelingEvictionFenceState.VID_LABELING_EVICTION_FENCE_STATE_EVICTING
-    val fence =
-      uploadsStub.acquireRawImpressionUploadEvictionFence(
-        acquireRawImpressionUploadEvictionFenceRequest {
-          parent = dataProvider
-          evictionOperationId = operationKey.uploadHealingOperationId
-          state = fenceState
-          requestId =
-            RequestIds.forAcquireUploadEvictionFence(
-              operationKey.uploadHealingOperationId,
-              fenceState.name,
-            )
-        }
-      )
-    uploadsStub.releaseRawImpressionUploadEvictionFence(
-      releaseRawImpressionUploadEvictionFenceRequest {
-        parent = dataProvider
-        evictionOperationId = operationKey.uploadHealingOperationId
-        etag = fence.etag
-        requestId =
-          RequestIds.forReleaseUploadEvictionFence(
-            operationKey.uploadHealingOperationId,
-            fence.etag,
-          )
-      }
-    )
   }
 
   private suspend fun checkpoint(
@@ -482,7 +443,13 @@ class UploadHealingWorkflow(
     val timestamped = uploads.filter { it.hasDoneBlobCreateTime() }
     return if (timestamped.isNotEmpty()) {
       timestamped.maxWithOrNull { left, right ->
-        Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        val doneTime = Timestamps.compare(left.doneBlobCreateTime, right.doneBlobCreateTime)
+        if (doneTime != 0) {
+          doneTime
+        } else {
+          val createTime = Timestamps.compare(left.createTime, right.createTime)
+          if (createTime != 0) createTime else left.name.compareTo(right.name)
+        }
       }
     } else {
       uploads.maxWithOrNull { left, right -> Timestamps.compare(left.createTime, right.createTime) }
