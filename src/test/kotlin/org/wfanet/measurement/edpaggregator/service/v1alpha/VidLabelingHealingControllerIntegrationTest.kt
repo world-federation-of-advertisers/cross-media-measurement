@@ -97,6 +97,7 @@ import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadat
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionUploadManifestClassifier
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatcher
+import org.wfanet.measurement.edpaggregator.vidlabeling.healing.AdvanceUploadHealingStepCommand
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionCandidateCleaner
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.CorrectionManifestReader
 import org.wfanet.measurement.edpaggregator.vidlabeling.healing.DoneBlobReplayer
@@ -249,12 +250,7 @@ class VidLabelingHealingControllerIntegrationTest {
     }
     whenever(operationStore.getUploadHealingOperation(any())).thenAnswer { operation }
     whenever(operationStore.advanceUploadHealingStep(any())).thenAnswer { invocation ->
-      val request =
-        invocation.getArgument<
-          org.wfanet.measurement.edpaggregator.v1alpha.AdvanceUploadHealingStepRequest
-        >(
-          0
-        )
+      val request = invocation.getArgument<AdvanceUploadHealingStepCommand>(0)
       val updated =
         operation.stepsList.single().copy {
           state = UploadHealingStep.State.RECOVERY_STARTED
