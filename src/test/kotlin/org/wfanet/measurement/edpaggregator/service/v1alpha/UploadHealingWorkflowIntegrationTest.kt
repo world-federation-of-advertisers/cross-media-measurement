@@ -48,6 +48,7 @@ import org.wfanet.measurement.common.toProtoTime
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.InternalApiServices
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.spanner.testing.Schemata
 import org.wfanet.measurement.edpaggregator.testing.VidLabelingRpcThrottlersTestHelper
+import org.wfanet.measurement.edpaggregator.v1alpha.DataAvailabilitySyncLeaseServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.ListRankIndexBlobsRequestKt
@@ -62,6 +63,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.RawImpressionUploadServiceGr
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperation
 import org.wfanet.measurement.edpaggregator.v1alpha.UploadHealingOperationServiceGrpcKt
 import org.wfanet.measurement.edpaggregator.v1alpha.VidLabelerParams
+import org.wfanet.measurement.edpaggregator.v1alpha.acquireDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.batchUndeleteImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createImpressionMetadataRequest
 import org.wfanet.measurement.edpaggregator.v1alpha.createRankIndexBlobRequest
@@ -85,6 +87,7 @@ import org.wfanet.measurement.edpaggregator.v1alpha.rankIndexBlob
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUpload
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadFile
 import org.wfanet.measurement.edpaggregator.v1alpha.rawImpressionUploadModelLine
+import org.wfanet.measurement.edpaggregator.v1alpha.releaseDataAvailabilitySyncLeaseRequest
 import org.wfanet.measurement.edpaggregator.vidlabeler.LabeledImpressionsBlobKeys
 import org.wfanet.measurement.edpaggregator.vidlabeling.RawImpressionBlobMetadata
 import org.wfanet.measurement.edpaggregator.vidlabeling.VidLabelingDispatchSequencer
@@ -130,6 +133,8 @@ class UploadHealingWorkflowIntegrationTest {
     RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub
   private lateinit var impressionMetadataStub:
     ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
+  private lateinit var leasesStub:
+    DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub
   private lateinit var operationsStub:
     UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub
   private lateinit var dispatchSequencer: VidLabelingDispatchSequencer
@@ -156,6 +161,8 @@ class UploadHealingWorkflowIntegrationTest {
     rankIndexBlobsStub = RankIndexBlobServiceGrpcKt.RankIndexBlobServiceCoroutineStub(channel)
     impressionMetadataStub =
       ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub(channel)
+    leasesStub =
+      DataAvailabilitySyncLeaseServiceGrpcKt.DataAvailabilitySyncLeaseServiceCoroutineStub(channel)
     operationsStub =
       UploadHealingOperationServiceGrpcKt.UploadHealingOperationServiceCoroutineStub(channel)
     dispatchSequencer = mock()
@@ -284,6 +291,15 @@ class UploadHealingWorkflowIntegrationTest {
     val completed = workflow.resume(started.operation.name)
 
     assertThat(completed.operation.state).isEqualTo(UploadHealingOperation.State.COMPLETE)
+    withSynchronizationLease { leaseName ->
+      impressionMetadataStub.batchUndeleteImpressionMetadata(
+        batchUndeleteImpressionMetadataRequest {
+          parent = DATA_PROVIDER
+          dataAvailabilitySyncLease = leaseName
+          names += listOf(d2, d3, d4, d5).map { it.metadata.name }
+        }
+      )
+    }
     assertThat(
         completed.operation.stepsList.associate {
           it.sourceRawImpressionUpload to it.replacementRawImpressionUpload
@@ -389,10 +405,11 @@ class UploadHealingWorkflowIntegrationTest {
       )
     val outputBlobUris = setOf(outputUri, outputUri + METADATA_SUFFIX)
     this.outputBlobUris += outputBlobUris
-    val metadata =
+    val metadata = withSynchronizationLease { leaseName ->
       impressionMetadataStub.createImpressionMetadata(
         createImpressionMetadataRequest {
           parent = DATA_PROVIDER
+          dataAvailabilitySyncLease = leaseName
           impressionMetadata = impressionMetadata {
             blobUri = outputUri + METADATA_SUFFIX
             blobTypeUrl = "type.googleapis.com/wfa.measurement.LabeledImpressionsMetadata"
@@ -406,6 +423,7 @@ class UploadHealingWorkflowIntegrationTest {
           requestId = UUID.randomUUID().toString()
         }
       )
+    }
     return UploadFixture(
       upload = completedUpload,
       modelLine = completedModelLine,
@@ -477,16 +495,31 @@ class UploadHealingWorkflowIntegrationTest {
         .rawImpressionUploadModelLinesList
         .single()
     val completedModelLine = completeModelLine(createdModelLine, replacement.name)
-    impressionMetadataStub.batchUndeleteImpressionMetadata(
-      batchUndeleteImpressionMetadataRequest {
-        parent = DATA_PROVIDER
-        names += source.metadata.name
-      }
-    )
     outputBlobUris += source.outputBlobUris
     val completedUpload =
       uploadsStub.getRawImpressionUpload(getRawImpressionUploadRequest { name = replacement.name })
     return ReplacementFixture(completedUpload, completedModelLine)
+  }
+
+  private suspend fun <T> withSynchronizationLease(block: suspend (String) -> T): T {
+    val lease =
+      leasesStub.acquireDataAvailabilitySyncLease(
+        acquireDataAvailabilitySyncLeaseRequest {
+          name = "$DATA_PROVIDER/dataAvailabilitySyncLeases/${UUID.randomUUID()}"
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    return try {
+      block(lease.name)
+    } finally {
+      leasesStub.releaseDataAvailabilitySyncLease(
+        releaseDataAvailabilitySyncLeaseRequest {
+          name = lease.name
+          etag = lease.etag
+          requestId = UUID.randomUUID().toString()
+        }
+      )
+    }
   }
 
   private suspend fun completeModelLine(

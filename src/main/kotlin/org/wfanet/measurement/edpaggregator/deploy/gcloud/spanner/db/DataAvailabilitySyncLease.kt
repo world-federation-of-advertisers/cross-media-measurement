@@ -75,7 +75,6 @@ suspend fun AsyncDatabaseClient.ReadContext.requireActiveDataAvailabilitySyncLea
       )
       .asRuntimeException()
   }
-  if (synchronizationAttemptId.isEmpty()) return
   val lease =
     findDataAvailabilitySyncLease(dataProviderResourceId, synchronizationAttemptId)
       ?.dataAvailabilitySyncLease
