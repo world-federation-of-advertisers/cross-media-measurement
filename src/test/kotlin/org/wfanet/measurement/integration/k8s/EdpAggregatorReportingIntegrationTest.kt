@@ -432,7 +432,7 @@ class EdpAggregatorReportingIntegrationTest {
     val report =
       reportingSystem.harness.createBasicReportOverEventGroups(
         runId = UUID.randomUUID().toString(),
-        title = "Media type and impression qualification filter breakdown",
+        reportTitle = "Media type and impression qualification filter breakdown",
         eventGroupReferenceIds = REPORT_EVENT_GROUP_REF_IDS,
         eventGroupEntityTypes = reportEventGroupEntityTypes,
         reportStart = REPORT_START,
@@ -453,7 +453,7 @@ class EdpAggregatorReportingIntegrationTest {
     val report =
       reportingSystem.harness.createBasicReportOverEventGroups(
         runId = UUID.randomUUID().toString(),
-        title = "Weekly cumulative and non-cumulative metrics by gender",
+        reportTitle = "Weekly cumulative and non-cumulative metrics by gender",
         eventGroupReferenceIds = WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
         eventGroupEntityTypes = weeklyReportEventGroupEntityTypes,
         reportStart = WEEKLY_REPORT_START,
@@ -533,9 +533,7 @@ class EdpAggregatorReportingIntegrationTest {
   ): List<ResultGroupSpec> {
     val eventGroupsByReferenceId = eventGroups.associateBy { it.eventGroupReferenceId }
     val singleEdpDataProviders =
-      SINGLE_EDP_EVENT_GROUP_REF_IDS.map {
-          eventGroupsByReferenceId.getValue(it).cmmsDataProvider
-        }
+      SINGLE_EDP_EVENT_GROUP_REF_IDS.map { eventGroupsByReferenceId.getValue(it).cmmsDataProvider }
         .distinct()
     require(singleEdpDataProviders.size == 1) {
       "The single-EDP EventGroups span more than one DataProvider: $singleEdpDataProviders"
@@ -624,9 +622,8 @@ class EdpAggregatorReportingIntegrationTest {
           .that(metricSet.nonCumulative.reach)
           .isAtLeast(0L)
         // The union over every EDP reaches at least as many people as any one of them.
-        for ((component, componentMetricSet) in result.metricSet.componentsList.associate {
-          it.key to it.value
-        }) {
+        for ((component, componentMetricSet) in
+          result.metricSet.componentsList.associate { it.key to it.value }) {
           assertWithMessage("$gender week $week $component vs union")
             .that(componentMetricSet.nonCumulative.reach)
             .isAtMost(metricSet.nonCumulative.reach)

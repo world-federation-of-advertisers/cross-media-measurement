@@ -202,7 +202,7 @@ class ReportingUserSimulator(
    */
   suspend fun createBasicReportOverEventGroups(
     runId: String,
-    title: String,
+    reportTitle: String,
     eventGroupReferenceIds: Set<String>,
     eventGroupEntityTypes: Set<String>,
     reportStart: LocalDate,
@@ -222,7 +222,6 @@ class ReportingUserSimulator(
         basicReportId = "basic-report-$runId",
       )
 
-    val reportTitle = title
     val basicReport = basicReport {
       title = reportTitle
       this.campaignGroup = campaignGroup.name
