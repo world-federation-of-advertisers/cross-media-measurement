@@ -56,12 +56,14 @@ import org.wfanet.measurement.reporting.v2alpha.EventGroupsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.EventTemplateFieldKt
 import org.wfanet.measurement.reporting.v2alpha.ListEventGroupsRequestKt
 import org.wfanet.measurement.reporting.v2alpha.MediaType
+import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilter
 import org.wfanet.measurement.reporting.v2alpha.ReportingImpressionQualificationFilterKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingInterval
 import org.wfanet.measurement.reporting.v2alpha.ReportingSet
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetKt
 import org.wfanet.measurement.reporting.v2alpha.ReportingSetsGrpcKt
 import org.wfanet.measurement.reporting.v2alpha.ResultGroupMetricSpecKt
+import org.wfanet.measurement.reporting.v2alpha.ResultGroupSpec
 import org.wfanet.measurement.reporting.v2alpha.basicReport
 import org.wfanet.measurement.reporting.v2alpha.copy
 import org.wfanet.measurement.reporting.v2alpha.createReportingSetRequest
@@ -188,59 +190,41 @@ class ReportingUserSimulator(
   }
 
   /**
-   * Creates a [BasicReport] broken down by media type and impression qualification filter over
-   * [eventGroupReferenceIds], and returns it once it reaches a terminal state.
-   *
-   * Results are one per impression qualification filter: [AMI_FILTER_ID] unfiltered,
-   * [MRC_FILTER_ID] for display, and a custom [MediaType.VIDEO] filter for video. Media type is
-   * neither groupable nor filterable, and at most one custom filter is permitted per report, so
-   * this is the only split available.
+   * Creates the [BasicReport] that [buildResultGroupSpecs] describes over [eventGroupReferenceIds],
+   * and returns it once it reaches a terminal state.
    *
    * This method does not perform test assertions.
    *
-   * @param eventGroupReferenceIds EventGroups to report on, spanning at least two DataProviders
+   * @param eventGroupReferenceIds EventGroups to report on
+   * @param qualificationFilters the filters results are broken down by
+   * @param buildResultGroupSpecs builds the result group specs from the resolved EventGroups, each
+   *   of which carries the DataProvider it belongs to
    */
-  suspend fun createMediaTypeAndIqfBasicReport(
+  suspend fun createBasicReportOverEventGroups(
     runId: String,
-    singleEdpEventGroupReferenceIds: Set<String>,
+    title: String,
     eventGroupReferenceIds: Set<String>,
     eventGroupEntityTypes: Set<String>,
     reportStart: LocalDate,
     reportEnd: LocalDate,
-    kPlusReach: Int,
+    qualificationFilters: List<ReportingImpressionQualificationFilter>,
+    buildResultGroupSpecs: (eventGroups: List<EventGroup>) -> List<ResultGroupSpec>,
   ): BasicReport {
-    require(singleEdpEventGroupReferenceIds.isNotEmpty()) { "No single-EDP EventGroups" }
-    require(eventGroupReferenceIds.containsAll(singleEdpEventGroupReferenceIds)) {
-      "The single-EDP EventGroups must be a subset of the reported EventGroups"
-    }
-
     val measurementConsumerKey =
       checkNotNull(MeasurementConsumerKey.fromName(measurementConsumerName))
     val eventGroups: List<EventGroup> =
       getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
-    val eventGroupsByReferenceId = eventGroups.associateBy { it.eventGroupReferenceId }
-    val singleEdpDataProviders =
-      singleEdpEventGroupReferenceIds
-        .map { eventGroupsByReferenceId.getValue(it).cmmsDataProvider }
-        .distinct()
-    require(singleEdpDataProviders.size == 1) {
-      "The single-EDP EventGroups span more than one DataProvider: $singleEdpDataProviders"
-    }
-    val dataProviderNames: List<String> =
-      eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
-    require(dataProviderNames.size >= 2) {
-      "The cross-publisher result group needs at least two DataProviders, got $dataProviderNames"
-    }
 
     val campaignGroup = createCampaignGroup(eventGroups, runId)
     val basicReportKey =
       BasicReportKey(
         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
-        basicReportId = "media-iqf-$runId",
+        basicReportId = "basic-report-$runId",
       )
 
+    val reportTitle = title
     val basicReport = basicReport {
-      title = "Media type and impression qualification filter breakdown"
+      title = reportTitle
       this.campaignGroup = campaignGroup.name
       campaignGroupDisplayName = campaignGroup.displayName
       modelLine = modelLineName
@@ -258,71 +242,8 @@ class ReportingUserSimulator(
         }
       }
 
-      impressionQualificationFilters += reportingImpressionQualificationFilter {
-        impressionQualificationFilter = ImpressionQualificationFilterKey(AMI_FILTER_ID).toName()
-      }
-      impressionQualificationFilters += reportingImpressionQualificationFilter {
-        impressionQualificationFilter = ImpressionQualificationFilterKey(MRC_FILTER_ID).toName()
-      }
-      impressionQualificationFilters += reportingImpressionQualificationFilter {
-        custom =
-          ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-            // The media type alone does not select: it compiles to `video != null`, which every
-            // event satisfies because an unset message field reads back as its default instance.
-            // The terms are what restrict this to video.
-            filterSpec += impressionQualificationFilterSpec {
-              mediaType = MediaType.VIDEO
-              filters += eventFilter {
-                for (value in CUSTOM_VIDEO_COMPLETED_FRACTIONS) {
-                  terms += eventTemplateField {
-                    path = CUSTOM_VIDEO_FILTER_PATH
-                    this.value = EventTemplateFieldKt.fieldValue { floatValue = value }
-                  }
-                }
-              }
-            }
-          }
-      }
-
-      resultGroupSpecs += resultGroupSpec {
-        title = SINGLE_EDP_GROUP_TITLE
-        reportingUnit = reportingUnit { components += singleEdpDataProviders.single() }
-        metricFrequency = metricFrequencySpec { total = true }
-        dimensionSpec = dimensionSpec {}
-        resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
-          component =
-            ResultGroupMetricSpecKt.componentMetricSetSpec {
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  this.kPlusReach = kPlusReach
-                }
-            }
-        }
-      }
-
-      resultGroupSpecs += resultGroupSpec {
-        title = CROSS_PUB_GROUP_TITLE
-        reportingUnit = reportingUnit { components += dataProviderNames }
-        metricFrequency = metricFrequencySpec { total = true }
-        dimensionSpec = dimensionSpec {}
-        resultGroupMetricSpec = resultGroupMetricSpec {
-          populationSize = true
-          reportingUnit =
-            ResultGroupMetricSpecKt.reportingUnitMetricSetSpec {
-              cumulative =
-                ResultGroupMetricSpecKt.basicMetricSetSpec {
-                  reach = true
-                  this.kPlusReach = kPlusReach
-                }
-            }
-          component =
-            ResultGroupMetricSpecKt.componentMetricSetSpec {
-              cumulative = ResultGroupMetricSpecKt.basicMetricSetSpec { reach = true }
-            }
-        }
-      }
+      impressionQualificationFilters += qualificationFilters
+      resultGroupSpecs += buildResultGroupSpecs(eventGroups)
     }
 
     createBasicReport(basicReportKey, basicReport)
@@ -435,7 +356,7 @@ class ReportingUserSimulator(
     eventGroups: List<EventGroup>,
     runId: String,
   ): ReportingSet {
-    val reportingSetId = "media-iqf-$runId"
+    val reportingSetId = "campaign-$runId"
     val request = createReportingSetRequest {
       parent = measurementConsumerName
       this.reportingSetId = reportingSetId
@@ -607,8 +528,44 @@ class ReportingUserSimulator(
      */
     val CUSTOM_VIDEO_COMPLETED_FRACTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f)
 
-    private const val CAMPAIGN_GROUP_DISPLAY_NAME = "Media type and IQF campaign group"
+    private const val CAMPAIGN_GROUP_DISPLAY_NAME = "High overlap campaign group"
     private const val REPORT_TIME_ZONE = "UTC"
+
+    /**
+     * Breaks results down by [AMI_FILTER_ID] unfiltered, [MRC_FILTER_ID] for display, and a custom
+     * [MediaType.VIDEO] filter for video.
+     *
+     * Media type is neither groupable nor filterable, and at most one custom filter is permitted
+     * per report, so this is the only split available.
+     */
+    fun mediaTypeQualificationFilters(): List<ReportingImpressionQualificationFilter> =
+      listOf(
+        reportingImpressionQualificationFilter {
+          impressionQualificationFilter = ImpressionQualificationFilterKey(AMI_FILTER_ID).toName()
+        },
+        reportingImpressionQualificationFilter {
+          impressionQualificationFilter = ImpressionQualificationFilterKey(MRC_FILTER_ID).toName()
+        },
+        reportingImpressionQualificationFilter {
+          custom =
+            ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
+              // The media type alone does not select: it compiles to `video != null`, which every
+              // event satisfies because an unset message field reads back as its default instance.
+              // The terms are what restrict this to video.
+              filterSpec += impressionQualificationFilterSpec {
+                mediaType = MediaType.VIDEO
+                filters += eventFilter {
+                  for (value in CUSTOM_VIDEO_COMPLETED_FRACTIONS) {
+                    terms += eventTemplateField {
+                      path = CUSTOM_VIDEO_FILTER_PATH
+                      this.value = EventTemplateFieldKt.fieldValue { floatValue = value }
+                    }
+                  }
+                }
+              }
+            }
+        },
+      )
 
     /** Page size for ListEventGroups requests. */
     private const val EVENT_GROUP_PAGE_SIZE = 500 // Use max page size to minimize the RPC count.
