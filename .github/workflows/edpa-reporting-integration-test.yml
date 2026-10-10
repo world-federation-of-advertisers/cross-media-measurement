@@ -75,7 +75,6 @@ jobs:
           REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
           ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
           HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
-          HIGH_OVERLAP_EDPS: ${{ vars.HIGH_OVERLAP_EDPS }}
           PDP_NAME: ${{ vars.PDP_NAME }}
           EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
           EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
@@ -93,7 +92,6 @@ jobs:
           build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
           build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
           build --define high_overlap_model_line=$HIGH_OVERLAP_MODEL_LINE
-          build --define high_overlap_edps=$HIGH_OVERLAP_EDPS
           build --define pdp_name=$PDP_NAME
           build --define edp7_kek_uri=$EDP7_KEK_URI
           build --define edpa_meta_kek_uri=$EDPA_META_KEK_URI

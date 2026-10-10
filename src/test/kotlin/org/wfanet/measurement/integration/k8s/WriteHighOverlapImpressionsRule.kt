@@ -117,16 +117,16 @@ class WriteHighOverlapImpressionsRule(
     AeadConfig.register()
     StreamingAeadConfig.register()
     // Fail rather than silently skip: the caller has already restricted the config to the EDPs it
-    // says are provisioned, so an EDP with no KMS handling means the dataset would be written
-    // short with no signal, and every downstream reach assertion would be quietly wrong.
+    // covers, so an EDP with no KMS handling means the dataset would be written short with no
+    // signal, and every downstream reach assertion would be quietly wrong.
     val unhandled =
       config.eventGroupsList
         .map { it.edpName }
         .filterNot { it in gcpKmsKekUriByEdp || it in AWS_KMS_EDPS }
         .toSortedSet()
     check(unhandled.isEmpty()) {
-      "No KMS configuration for high overlap EDP(s) $unhandled. Add them to gcpKmsKekUriByEdp or " +
-        "AWS_KMS_EDPS, or drop them from the config's edp_names."
+      "No KMS configuration for high overlap EDP(s) $unhandled. Add them to GCP_KMS_EDPS or " +
+        "AWS_KMS_EDPS, or drop them from the caller's EDP set."
     }
 
     writeGcpKmsEdps(modelLine)

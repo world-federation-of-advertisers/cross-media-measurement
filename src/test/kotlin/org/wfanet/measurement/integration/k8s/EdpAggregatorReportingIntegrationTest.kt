@@ -735,16 +735,10 @@ class EdpAggregatorReportingIntegrationTest {
       )
     }
 
-    /** EDPs this environment has provisioned. */
-    private val EDP_NAMES: Set<String> =
-      TEST_CONFIG.edpNames
-        .split(",")
-        .map { it.trim() }
-        .filter { it.isNotEmpty() }
-        .toSet()
-        .ifEmpty { setOf("edp7", "edpa_meta") }
+    /** EDPs this test covers, a subset of the four the high overlap dataset defines. */
+    private val EDP_NAMES: Set<String> = setOf("edp7", "edpa_meta")
 
-    /** Config restricted to the provisioned EDPs, empty when the dataset is not configured. */
+    /** Config restricted to [EDP_NAMES], empty when the dataset is not configured. */
     val PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {
       if (MODEL_LINE.isEmpty()) {
         ImpressionTestDataConfig.getDefaultInstance()

@@ -78,10 +78,8 @@ message EdpaReportingIntegrationTestConfig {
   string model_line = 12
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
-  // Comma-separated names of the EDPs this environment has provisioned.
-  //
-  // Empty defaults to the EDPs every environment has.
-  string edp_names = 13;
+  reserved 13;
+  reserved "edp_names";
 
   // DataProvider that owns the high overlap Population.
   string population_data_provider = 14
