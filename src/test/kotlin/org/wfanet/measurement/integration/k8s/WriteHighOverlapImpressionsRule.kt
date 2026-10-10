@@ -66,8 +66,8 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * @property bucket impressions bucket
  * @property modelLineProvider yields the 2026 model line resource name to stamp; null or empty
  *   disables the rule
- * @param edp7KekUri Google Cloud KMS KEK URI for edp7; empty falls back to the KEK for the project
- *   the test runs in
+ * @param edp7KekUri Google Cloud KMS KEK URI shared by [GCP_KMS_EDPS]; empty falls back to the KEK
+ *   for the project the test runs in
  * @property edpaMetaKekUri AWS KMS KEK URI for edpa_meta
  * @property edpaMetaAwsRoleArn AWS role assumed via web-identity federation
  * @property edpaMetaAwsRegion AWS region of the edpa_meta KMS key
@@ -88,7 +88,9 @@ class WriteHighOverlapImpressionsRule(
 
   /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK, by KEK URI. */
   private val gcpKmsKekUriByEdp: Map<String, String> =
-    mapOf(EDP7_NAME to edp7KekUri.ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() })
+    GCP_KMS_EDPS.associateWith {
+      edp7KekUri.ifEmpty { Edp7StorageKek.BY_PROJECT[PROJECT_ID].orEmpty() }
+    }
 
   // Resolved only once the rule actually runs, so environments without a high overlap model line
   // never parse the specs and a malformed one cannot break the low overlap data set's run.
@@ -115,16 +117,16 @@ class WriteHighOverlapImpressionsRule(
     AeadConfig.register()
     StreamingAeadConfig.register()
     // Fail rather than silently skip: the caller has already restricted the config to the EDPs it
-    // says are provisioned, so an EDP with no KMS handling means the dataset would be written
-    // short with no signal, and every downstream reach assertion would be quietly wrong.
+    // covers, so an EDP with no KMS handling means the dataset would be written short with no
+    // signal, and every downstream reach assertion would be quietly wrong.
     val unhandled =
       config.eventGroupsList
         .map { it.edpName }
         .filterNot { it in gcpKmsKekUriByEdp || it in AWS_KMS_EDPS }
         .toSortedSet()
     check(unhandled.isEmpty()) {
-      "No KMS configuration for high overlap EDP(s) $unhandled. Add them to gcpKmsKekUriByEdp or " +
-        "AWS_KMS_EDPS, or drop them from the config's edp_names."
+      "No KMS configuration for high overlap EDP(s) $unhandled. Add them to GCP_KMS_EDPS or " +
+        "AWS_KMS_EDPS, or drop them from the caller's EDP set."
     }
 
     writeGcpKmsEdps(modelLine)
@@ -254,11 +256,19 @@ class WriteHighOverlapImpressionsRule(
     private const val GCS_SCHEME = "gs://"
     private const val EDP7_NAME = "edp7"
     private const val EDPA_META_NAME = "edpa_meta"
+    private const val EDPA_VIDEO_PUB_NAME = "edpa_video_pub"
     private const val AWS_ROLE_SESSION_NAME = "high-overlap-correctness-test"
 
     private fun env(name: String): String = System.getenv(name).orEmpty()
 
     private val PROJECT_ID: String = env("GOOGLE_CLOUD_PROJECT")
+
+    /**
+     * EDPs whose impressions are encrypted with a Google Cloud KMS KEK, all of them edp7's: the
+     * synthetic EDPs have no KMS project of their own, and the Workload Identity condition gating
+     * the key admits the ResultsFulfiller service account and image signature, not an EDP.
+     */
+    private val GCP_KMS_EDPS: Set<String> = setOf(EDP7_NAME, EDPA_VIDEO_PUB_NAME)
 
     /** EDPs whose impressions are encrypted with an AWS KMS KEK. */
     private val AWS_KMS_EDPS: Set<String> = setOf(EDPA_META_NAME)

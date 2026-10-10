@@ -33,10 +33,24 @@ _systemApiAddressName: string @tag("system_api_address_name")
 // a thread, so this should be greater than the number of Heralds.
 #SystemServerGrpcThreads: 5
 
+#InternalServerMaxHeapSize: "256M"
+
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
 		memory: "352Mi"
+	}
+	limits: {
+		memory: ResourceRequirements.requests.memory
+	}
+}
+
+#CancellationJobMaxHeapSize: "128M"
+
+#CancellationJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
+	requests: {
+		cpu:    "10m"
+		memory: "256Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -95,6 +109,7 @@ kingdom: #Kingdom & {
 			_container: {
 				_grpcThreadPoolSize: #InternalServerGrpcThreads
 				resources:           #InternalServerResourceRequirements
+				_javaOptions: maxHeapSize: #InternalServerMaxHeapSize
 			}
 			spec: template: spec: #ServiceAccountPodSpec & {
 				serviceAccountName: #InternalServerServiceAccount
@@ -111,6 +126,12 @@ kingdom: #Kingdom & {
 	}
 
 	cronJobs: {
+		"pending-measurements-cancellation": {
+			_container: {
+				_javaOptions: maxHeapSize: #CancellationJobMaxHeapSize
+				resources: #CancellationJobResourceRequirements
+			}
+		}
 		"operational-metrics": {
 			_container: {
 				_javaOptions: maxHeapSize: "48M"

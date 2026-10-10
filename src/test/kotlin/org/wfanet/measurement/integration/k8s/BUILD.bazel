@@ -252,7 +252,6 @@ expand_template(
         "{access_public_api_target}": "$(access_public_api_target)",
         "{access_public_api_cert_host}": "localhost",
         "{model_line}": "$(high_overlap_model_line)",
-        "{edp_names}": "$(high_overlap_edps)",
         "{population_data_provider}": "$(pdp_name)",
         "{edp7_kek_uri}": "$(edp7_kek_uri)",
         "{edpa_meta_kek_uri}": "$(edpa_meta_kek_uri)",

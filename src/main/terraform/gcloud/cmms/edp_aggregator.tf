@@ -14,7 +14,7 @@
 
 locals {
 
-  edp_display_names = ["edp7", "edpa_meta"]
+  edp_display_names = ["edp7", "edpa_meta", "edpa_video_pub"]
 
   edpa_tee_app_tls_key = {
     secret_id         = "edpa-tee-app-tls-key",
@@ -181,7 +181,7 @@ locals {
   }
 
   requisition_fetcher_scheduler_config = {
-    schedule                  = "*/15 * * * *" # Every 15 minutes
+    schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"
