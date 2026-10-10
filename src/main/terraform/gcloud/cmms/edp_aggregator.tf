@@ -181,7 +181,7 @@ locals {
   }
 
   requisition_fetcher_scheduler_config = {
-    schedule                  = "*/15 * * * *" # Every 15 minutes
+    schedule                  = "*/5 * * * *" # Every 5 minutes
     time_zone                 = "UTC"
     name                      = "requisition-fetcher-scheduler"
     function_url              = "https://${data.google_client_config.default.region}-${data.google_client_config.default.project}.cloudfunctions.net/requisition-fetcher"

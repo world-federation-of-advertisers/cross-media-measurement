@@ -31,4 +31,8 @@ objectSets: [
 
 populationRequisitionFulfiller: #PopulationRequisitionFulfiller & {
 	_config: _populationRequisitionFulfillerConfig
+	deployment: _container: {
+		_javaOptions: maxHeapSize: "128M"
+		resources: requests: memory: "320Mi"
+	}
 }
