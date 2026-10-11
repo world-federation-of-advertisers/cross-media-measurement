@@ -50,7 +50,8 @@ private fun run(@CommandLine.Mixin flags: HighOverlapSeedingFlags) {
       val present = config.eventGroupsList.map { it.edpName }.toSet()
       val missing = requested - present
       require(missing.isEmpty()) { "--edp-name values absent from the dataset: $missing" }
-      config.toBuilder()
+      config
+        .toBuilder()
         .clearEventGroups()
         .addAllEventGroups(config.eventGroupsList.filter { it.edpName in requested })
         .build()

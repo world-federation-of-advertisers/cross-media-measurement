@@ -26,7 +26,6 @@ import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.Synthetic
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.TestEvent
 import org.wfanet.measurement.aws.kms.AwsKmsClientFactory
 import org.wfanet.measurement.common.crypto.tink.AwsWebIdentityCredentials
-import org.wfanet.measurement.integration.common.ImpressionTestDataConfigs
 import org.wfanet.measurement.loadtest.dataprovider.EntityKey
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeyedLabeledEventDateShard
 import org.wfanet.measurement.loadtest.dataprovider.EntityKeysWithLabeledEvents
@@ -34,8 +33,8 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 
 /**
- * Writes the high overlap synthetic dataset as pre-labeled impressions, stamped with the 2026
- * model line.
+ * Writes the high overlap synthetic dataset as pre-labeled impressions, stamped with the 2026 model
+ * line.
  *
  * This is **additive**: it writes under its own model line and its own date window, so the 2021
  * fixture's event groups, specs and blobs are untouched. Impressions are stored under

@@ -135,11 +135,7 @@ class EdpAggregatorReportingIntegrationTest {
       val key = HighOverlapDataset.manifestBlobKey(modelLineId)
       val blobUri = SelectedStorageClient.parseBlobUri("gs://${TEST_CONFIG.storageBucket}/$key")
       val blob =
-        SelectedStorageClient(
-            blobUri = blobUri,
-            rootDirectory = null,
-            projectId = googleProjectId,
-          )
+        SelectedStorageClient(blobUri = blobUri, rootDirectory = null, projectId = googleProjectId)
           .getBlob(key)
           ?: error(
             "No seeded dataset for $MODEL_LINE: $key is absent. Run the high overlap seeding job."
