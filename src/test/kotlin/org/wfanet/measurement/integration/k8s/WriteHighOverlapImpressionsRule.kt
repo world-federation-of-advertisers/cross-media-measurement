@@ -257,6 +257,7 @@ class WriteHighOverlapImpressionsRule(
     private const val EDP7_NAME = "edp7"
     private const val EDPA_META_NAME = "edpa_meta"
     private const val EDPA_VIDEO_PUB_NAME = "edpa_video_pub"
+    private const val EDPA_RETAIL_PUB_NAME = "edpa_retail_pub"
     private const val AWS_ROLE_SESSION_NAME = "high-overlap-correctness-test"
 
     private fun env(name: String): String = System.getenv(name).orEmpty()
@@ -268,7 +269,8 @@ class WriteHighOverlapImpressionsRule(
      * synthetic EDPs have no KMS project of their own, and the Workload Identity condition gating
      * the key admits the ResultsFulfiller service account and image signature, not an EDP.
      */
-    private val GCP_KMS_EDPS: Set<String> = setOf(EDP7_NAME, EDPA_VIDEO_PUB_NAME)
+    private val GCP_KMS_EDPS: Set<String> =
+      setOf(EDP7_NAME, EDPA_VIDEO_PUB_NAME, EDPA_RETAIL_PUB_NAME)
 
     /** EDPs whose impressions are encrypted with an AWS KMS KEK. */
     private val AWS_KMS_EDPS: Set<String> = setOf(EDPA_META_NAME)

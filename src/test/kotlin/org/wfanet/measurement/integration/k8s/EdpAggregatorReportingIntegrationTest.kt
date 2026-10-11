@@ -1031,11 +1031,16 @@ class EdpAggregatorReportingIntegrationTest {
     /**
      * EventGroups the weekly report covers, spanning every EDP in [EDP_NAMES].
      *
-     * `e7-meta-video` carries one entity key per EDP and runs to 2026-05-15; `e7-video` runs the
-     * whole dataset, so edp7 and edpa_video_pub still contribute after that date.
+     * `all4` runs the whole dataset, so every EDP contributes to every week. `e7-meta-video` runs
+     * only to 2026-05-15, so non-cumulative reach falls away over the last weeks while cumulative
+     * reach holds.
      */
     private val WEEKLY_REPORT_EVENT_GROUP_REF_IDS =
       setOf(
+        "ad_group-high-overlap-all4-edp7-1",
+        "ad_group-high-overlap-all4-edpa_meta-1",
+        "ad_group-high-overlap-all4-edpa_video_pub-1",
+        "ad_group-high-overlap-all4-edpa_retail_pub-1",
         "campaign-high-overlap-e7-meta-video-edp7",
         "campaign-high-overlap-e7-meta-video-edpa_meta",
         "campaign-high-overlap-e7-meta-video-edpa_video_pub",
@@ -1085,8 +1090,9 @@ class EdpAggregatorReportingIntegrationTest {
       )
     }
 
-    /** EDPs this test covers, a subset of the four the high overlap dataset defines. */
-    private val EDP_NAMES: Set<String> = setOf("edp7", "edpa_meta", "edpa_video_pub")
+    /** EDPs this test covers: every one the high overlap dataset defines. */
+    private val EDP_NAMES: Set<String> =
+      setOf("edp7", "edpa_meta", "edpa_video_pub", "edpa_retail_pub")
 
     /** Config restricted to [EDP_NAMES], empty when the dataset is not configured. */
     val PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {
@@ -1214,21 +1220,15 @@ class EdpAggregatorReportingIntegrationTest {
     private val createDoneBlobs = CreateDoneBlobs()
     private val reportingSystem = ReportingSystem()
 
-    // DO_NOT_SUBMIT: the seeding rules are temporarily omitted while the weekly report is brought
-    // up. What they write persists — impressions in storage, EventGroups and data availability
-    // intervals in the Kingdom — so a run reuses what the last seeded run left behind. Restore
-    // the chain below before merging; an environment seeded for the first time needs it.
-    //
-    // @ClassRule
-    // @JvmField
-    // val chainedRule =
-    //   chainRulesSequentially(
-    //     provisionModelResources,
-    //     uploadEventGroups,
-    //     writeImpressions,
-    //     createDoneBlobs,
-    //     reportingSystem,
-    //   )
-    @ClassRule @JvmField val chainedRule = chainRulesSequentially(reportingSystem)
+    @ClassRule
+    @JvmField
+    val chainedRule =
+      chainRulesSequentially(
+        provisionModelResources,
+        uploadEventGroups,
+        writeImpressions,
+        createDoneBlobs,
+        reportingSystem,
+      )
   }
 }
