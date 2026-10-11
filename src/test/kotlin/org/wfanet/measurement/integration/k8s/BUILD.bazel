@@ -267,8 +267,6 @@ kt_jvm_library(
     srcs = [
         "Edp7CloudTestConstants.kt",
         "EdpAggregatorReportingIntegrationTest.kt",
-        "HighOverlapModelResourcesRule.kt",
-        "WriteHighOverlapImpressionsRule.kt",
     ],
     data = [
         "//src/main/k8s/local:open_id_providers_config.json",
@@ -286,6 +284,7 @@ kt_jvm_library(
         "//imports/java/okhttp3/tls",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:event_group_config",
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:high_overlap_dataset",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:impression_test_data_configs",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
         "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
@@ -308,6 +307,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/config/reporting:metric_spec_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:edpa_reporting_integration_test_config_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:high_overlap_dataset_manifest_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:basic_report_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/reporting/v2alpha:event_groups_service_kt_jvm_grpc_proto",

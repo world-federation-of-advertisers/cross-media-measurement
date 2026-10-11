@@ -1,0 +1,119 @@
+# Copyright 2026 The Cross-Media Measurement Authors
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Seed High Overlap Dataset
+
+run-name: Seed High Overlap Dataset [${{ inputs.environment }}]
+
+# What this writes persists and the dataset is deterministic, so this is not part of a test run.
+# Run it when the dataset's specs change, or when an environment gains an EDP. Tests read the
+# manifest it leaves behind and refuse to run against a dataset that no longer matches their specs.
+on:
+  workflow_call:
+    inputs:
+      environment:
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub-managed environment"
+        required: true
+        type: choice
+        options:
+          - dev
+          - qa
+          - head
+
+permissions:
+  contents: read
+
+jobs:
+  seed:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    environment: ${{ inputs.environment }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Set up Bazel
+        uses: world-federation-of-advertisers/actions/setup-bazel@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+
+      - name: Write auth.bazelrc
+        env:
+          BUILDBUDDY_API_KEY: ${{ secrets.BUILDBUDDY_API_KEY }}
+        run: |
+          cat << EOF > auth.bazelrc
+          build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
+          EOF
+
+      - name: Write ~/.bazelrc
+        run: |
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          EOF
+
+      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
+      # (accounts.google.com) OIDC token, the same path the reporting integration test uses.
+      - name: Get AWS web identity token
+        id: aws_token
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            const token = await core.getIDToken('${{ vars.EDPA_META_AWS_AUDIENCE }}')
+            const fs = require('fs')
+            fs.writeFileSync('/tmp/aws_web_identity_token', token)
+
+      - name: Seed the dataset
+        env:
+          GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
+          AWS_WEB_IDENTITY_TOKEN_FILE: /tmp/aws_web_identity_token
+          HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
+          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+          MC_NAME: ${{ vars.MC_NAME }}
+          PDP_NAME: ${{ vars.PDP_NAME }}
+          KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
+          EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
+          EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
+          EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$HIGH_OVERLAP_MODEL_LINE" ]]; then
+            echo "HIGH_OVERLAP_MODEL_LINE is unset for ${{ inputs.environment }}; nothing to seed."
+            exit 0
+          fi
+          bazelisk run \
+            //src/main/kotlin/org/wfanet/measurement/integration/common:HighOverlapSeedingJob -- \
+            --model-line="$HIGH_OVERLAP_MODEL_LINE" \
+            --storage-bucket="$STORAGE_BUCKET" \
+            --google-project-id="$GOOGLE_CLOUD_PROJECT" \
+            --measurement-consumer="$MC_NAME" \
+            --population-data-provider="$PDP_NAME" \
+            --kingdom-public-api-target="$KINGDOM_PUBLIC_API_TARGET" \
+            --kingdom-public-api-cert-host=localhost \
+            --impression-test-data-config=high_overlap_impression_test_data_config.textproto \
+            --edp7-kek-uri="$EDP7_KEK_URI" \
+            --edpa-meta-kek-uri="$EDPA_META_KEK_URI" \
+            --edpa-meta-aws-role-arn="$EDPA_META_AWS_ROLE_ARN" \
+            --edpa-meta-aws-region="$EDPA_META_AWS_REGION"

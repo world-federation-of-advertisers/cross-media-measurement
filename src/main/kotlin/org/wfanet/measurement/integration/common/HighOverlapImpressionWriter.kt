@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.k8s
+package org.wfanet.measurement.integration.common
 
 import com.google.crypto.tink.KmsClient
 import com.google.crypto.tink.aead.AeadConfig
@@ -20,10 +20,6 @@ import com.google.crypto.tink.integration.gcpkms.GcpKmsClient
 import com.google.crypto.tink.streamingaead.StreamingAeadConfig
 import java.time.LocalDate
 import java.util.logging.Logger
-import kotlinx.coroutines.runBlocking
-import org.junit.rules.TestRule
-import org.junit.runner.Description
-import org.junit.runners.model.Statement
 import org.measurement.integration.k8s.testing.ImpressionTestDataConfig
 import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_group_metadata.testing.SyntheticEventGroupSpec
@@ -38,8 +34,8 @@ import org.wfanet.measurement.loadtest.dataprovider.SyntheticDataGeneration
 import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 
 /**
- * JUnit [TestRule] that writes the high overlap synthetic dataset as pre-labeled impressions,
- * stamped with the 2026 model line.
+ * Writes the high overlap synthetic dataset as pre-labeled impressions, stamped with the 2026
+ * model line.
  *
  * This is **additive**: it writes under its own model line and its own date window, so the 2021
  * fixture's event groups, specs and blobs are untouched. Impressions are stored under
@@ -64,8 +60,6 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * @property configProvider yields the high overlap [ImpressionTestDataConfig]
  * @property populationSpecProvider yields the high overlap synthetic population
  * @property bucket impressions bucket
- * @property modelLineProvider yields the 2026 model line resource name to stamp; null or empty
- *   disables the rule
  * @param edp7KekUri Google Cloud KMS KEK URI shared by [GCP_KMS_EDPS]; empty falls back to the KEK
  *   for the project the test runs in
  * @property edpaMetaKekUri AWS KMS KEK URI for edpa_meta
@@ -75,16 +69,15 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
 // TODO(world-federation-of-advertisers/cross-media-measurement#4564): Extract a shared
 // SyntheticDataSeeder from GenerateSyntheticData and reduce this rule to a
 // lifecycle wrapper around it.
-class WriteHighOverlapImpressionsRule(
+class HighOverlapImpressionWriter(
   private val configProvider: () -> ImpressionTestDataConfig,
   private val populationSpecProvider: () -> PopulationSpec,
   private val bucket: String,
-  private val modelLineProvider: () -> String?,
   edp7KekUri: String,
   private val edpaMetaKekUri: String,
   private val edpaMetaAwsRoleArn: String,
   private val edpaMetaAwsRegion: String,
-) : TestRule {
+) {
 
   /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK, by KEK URI. */
   private val gcpKmsKekUriByEdp: Map<String, String> =
@@ -97,21 +90,8 @@ class WriteHighOverlapImpressionsRule(
   private val config: ImpressionTestDataConfig by lazy { configProvider() }
   private val populationSpec: PopulationSpec by lazy { populationSpecProvider() }
 
-  override fun apply(base: Statement, description: Description): Statement {
-    return object : Statement() {
-      override fun evaluate() {
-        val modelLine = modelLineProvider()
-        if (modelLine.isNullOrEmpty()) {
-          logger.info("No high overlap model line configured; skipping its impression write.")
-        } else {
-          runBlocking { write(modelLine) }
-        }
-        base.evaluate()
-      }
-    }
-  }
-
-  private suspend fun write(modelLine: String) {
+  /** Writes every provisioned EDP's high overlap impressions for [modelLine]. */
+  suspend fun write(modelLine: String) {
     // ImpressionsWriter / EncryptedStorage generate a per-blob StreamingAEAD DEK wrapped by the KMS
     // AEAD KEK, so both Tink configs must be registered. register() is idempotent.
     AeadConfig.register()

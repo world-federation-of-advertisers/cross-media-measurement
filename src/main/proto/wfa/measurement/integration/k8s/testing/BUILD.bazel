@@ -51,6 +51,24 @@ kt_jvm_proto_library(
 )
 
 proto_library(
+    name = "high_overlap_dataset_manifest_proto",
+    srcs = ["high_overlap_dataset_manifest.proto"],
+    strip_import_prefix = IMPORT_PREFIX,
+    deps = [
+        "@com_google_protobuf//:timestamp_proto",
+    ],
+)
+
+kt_jvm_proto_library(
+    name = "high_overlap_dataset_manifest_kt_jvm_proto",
+    visibility = [
+        "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
+        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
+    ],
+    deps = [":high_overlap_dataset_manifest_proto"],
+)
+
+proto_library(
     name = "impression_test_data_config_proto",
     srcs = ["impression_test_data_config.proto"],
     strip_import_prefix = IMPORT_PREFIX,

@@ -1,4 +1,4 @@
-load("@rules_java//java:defs.bzl", "java_library")
+load("@rules_java//java:defs.bzl", "java_binary", "java_library")
 load("@wfa_rules_kotlin_jvm//kotlin:defs.bzl", "kt_jvm_library")
 load("//src/main/proto/wfa/measurement/internal/kingdom:all_protos.bzl", "KINGDOM_INTERNAL_PROTOS")  # buildifier: disable=bzl-visibility
 
@@ -354,6 +354,114 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
         "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "high_overlap_dataset",
+    srcs = ["HighOverlapDataset.kt"],
+    data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
+    deps = [
+        ":impression_test_data_configs",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "high_overlap_model_resources",
+    srcs = ["HighOverlapModelResources.kt"],
+    data = ["//src/main/k8s/testing/secretfiles:secret_files"],
+    deps = [
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_line_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_lines_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_release_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_releases_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollout_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:model_rollouts_service_kt_jvm_grpc_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha:populations_service_kt_jvm_grpc",
+        "@wfa_common_jvm//imports/java/com/google/common:guava",
+        "@wfa_common_jvm//imports/java/io/grpc:api",
+        "@wfa_common_jvm//imports/java/org/jetbrains/annotations",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/crypto:signing_certs",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common/grpc",
+    ],
+)
+
+kt_jvm_library(
+    name = "high_overlap_impression_writer",
+    srcs = ["HighOverlapImpressionWriter.kt"],
+    data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
+    deps = [
+        ":event_group_config",
+        ":impression_test_data_configs",
+        "//imports/java/com/google/crypto/tink/integration/gcpkms",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:labeled_event",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/dataprovider:synthetic_data_generation",
+        "//src/main/kotlin/org/wfanet/measurement/loadtest/edpaggregator/testing:impression_writer",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_group_metadata/testing:simulator_synthetic_data_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/crypto/tink",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/aws/kms:aws_kms_client_factory",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+kt_jvm_library(
+    name = "high_overlap_seeding_job",
+    srcs = ["HighOverlapSeedingJob.kt"],
+    data = ["//src/main/proto/wfa/measurement/loadtest/dataprovider:specs"],
+    deps = [
+        ":high_overlap_dataset",
+        ":high_overlap_impression_writer",
+        ":high_overlap_model_resources",
+        ":high_overlap_seeder",
+        ":impression_test_data_configs",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/api/v2alpha/event_templates/testing/v1:test_event_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/java/picocli",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+    ],
+)
+
+java_binary(
+    name = "HighOverlapSeedingJob",
+    main_class = "org.wfanet.measurement.integration.common.HighOverlapSeedingJobKt",
+    runtime_deps = [":high_overlap_seeding_job"],
+)
+
+kt_jvm_library(
+    name = "high_overlap_seeder",
+    srcs = ["HighOverlapSeeder.kt"],
+    deps = [
+        ":event_group_config",
+        ":high_overlap_dataset",
+        ":high_overlap_impression_writer",
+        ":high_overlap_model_resources",
+        ":impression_test_data_configs",
+        "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
+        "//src/main/proto/wfa/measurement/api/v2alpha:population_spec_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:high_overlap_dataset_manifest_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
+        "@wfa_common_jvm//imports/java/com/google/cloud/storage",
+        "@wfa_common_jvm//imports/java/com/google/protobuf",
+        "@wfa_common_jvm//imports/kotlin/com/google/type:interval_kt_jvm_proto",
+        "@wfa_common_jvm//imports/kotlin/kotlinx/coroutines:core",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/common",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:mesos_recordio_storage_client",
+        "@wfa_common_jvm//src/main/kotlin/org/wfanet/measurement/storage:selected_storage_client",
     ],
 )
 
