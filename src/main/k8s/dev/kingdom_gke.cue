@@ -38,7 +38,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 #InternalServerResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "500m"
-		memory: "352Mi"
+		memory: "768Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
@@ -50,7 +50,7 @@ _systemApiAddressName: string @tag("system_api_address_name")
 #CancellationJobResourceRequirements: ResourceRequirements=#ResourceRequirements & {
 	requests: {
 		cpu:    "10m"
-		memory: "256Mi"
+		memory: "384Mi"
 	}
 	limits: {
 		memory: ResourceRequirements.requests.memory
