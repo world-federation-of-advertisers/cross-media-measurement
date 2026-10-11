@@ -610,7 +610,7 @@ class EdpAggregatorReportingIntegrationTest {
   }
 
   /**
-   * Checks that the report covers every week of the interval for every gender, and that each
+   * Checks that the report covers every week of the interval for every series, and that each
    * period's metrics cohere.
    *
    * Non-cumulative reach is only required to be non-negative: the `e7-meta-video` flight ends
@@ -629,26 +629,28 @@ class EdpAggregatorReportingIntegrationTest {
         .containsExactly(GENDER_FIELD_PATH)
     }
 
-    val genders: Set<String> = resultGroup.resultsList.map { genderOf(it) }.toSet()
-    assertThat(genders).hasSize(EXPECTED_GENDER_COUNT)
+    assertThat(resultGroup.resultsList.map { genderOf(it) }.toSet())
+      .hasSize(EXPECTED_GENDER_COUNT)
 
-    for (gender in genders) {
-      val periods = resultGroup.resultsList.filter { genderOf(it) == gender }
-      assertWithMessage("$gender periods").that(periods).hasSize(WEEKLY_PERIOD_COUNT)
+    for ((series, results) in weeklySeries(resultGroup)) {
+      assertWithMessage("$series periods").that(results).hasSize(WEEKLY_PERIOD_COUNT)
+      assertWithMessage("$series period ends")
+        .that(results.map { it.metadata.metricEndTime.seconds }.toSet())
+        .hasSize(WEEKLY_PERIOD_COUNT)
 
-      for (result in periods) {
+      for (result in results) {
         val metricSet = result.metricSet.reportingUnit
         val week = result.metadata.metricEndTime.seconds
-        assertWithMessage("$gender week $week cumulative reach")
+        assertWithMessage("$series week $week cumulative reach")
           .that(metricSet.cumulative.reach)
           .isGreaterThan(0L)
-        assertWithMessage("$gender week $week non-cumulative reach")
+        assertWithMessage("$series week $week non-cumulative reach")
           .that(metricSet.nonCumulative.reach)
           .isAtLeast(0L)
         // The union over every EDP reaches at least as many people as any one of them.
         for ((component, componentMetricSet) in
           result.metricSet.componentsList.associate { it.key to it.value }) {
-          assertWithMessage("$gender week $week $component vs union")
+          assertWithMessage("$series week $week $component vs union")
             .that(componentMetricSet.nonCumulative.reach)
             .isAtMost(metricSet.nonCumulative.reach)
         }
@@ -658,15 +660,24 @@ class EdpAggregatorReportingIntegrationTest {
 
   /** Checks that cumulative reach never decreases as the interval extends. */
   private fun assertCumulativeReachIsMonotonic(report: BasicReport) {
-    val resultGroup = resultGroupOf(report, WEEKLY_GROUP_TITLE)
-    for ((gender, results) in resultGroup.resultsList.groupBy { genderOf(it) }) {
+    for ((series, results) in weeklySeries(resultGroupOf(report, WEEKLY_GROUP_TITLE))) {
       val reachByWeek: List<Long> =
         results
           .sortedBy { it.metadata.metricEndTime.seconds }
           .map { it.metricSet.reportingUnit.cumulative.reach }
-      assertWithMessage("$gender cumulative reach by week").that(reachByWeek).isInOrder()
+      assertWithMessage("$series cumulative reach by week").that(reachByWeek).isInOrder()
     }
   }
+
+  /**
+   * The weekly results keyed by the series each one belongs to.
+   *
+   * A result is identified by its grouping and its impression qualification filter together: the
+   * report carries one weekly series per (gender, filter) pair, and the filters are the effective
+   * ones the Reporting system resolves rather than only those the request names.
+   */
+  private fun weeklySeries(resultGroup: ResultGroup): Map<String, List<ResultGroup.Result>> =
+    resultGroup.resultsList.groupBy { "${genderOf(it)}/${filterLabel(it)}" }
 
   /**
    * Checks each group's population against the whole synthetic population.
@@ -678,7 +689,8 @@ class EdpAggregatorReportingIntegrationTest {
     for (resultGroup in report.resultGroupsList) {
       for (result in resultGroup.resultsList) {
         val populationSize = result.metricSet.populationSize
-        val message = "${resultGroup.title} ${genderOf(result)} population size"
+        val message =
+          "${resultGroup.title} ${genderOf(result)}/${filterLabel(result)} population size"
         assertWithMessage(message).that(populationSize).isGreaterThan(0L)
         assertWithMessage(message).that(populationSize).isAtMost(expectedPopulationSize)
       }
@@ -697,7 +709,7 @@ class EdpAggregatorReportingIntegrationTest {
     for (result in resultGroup.resultsList) {
       val metricSet = result.metricSet.reportingUnit
       val contributions: List<Long> = metricSet.stackedIncrementalReachList
-      val message = "${genderOf(result)} stacked incremental reach"
+      val message = "${genderOf(result)}/${filterLabel(result)} stacked incremental reach"
 
       assertWithMessage(message).that(contributions).hasSize(EDP_NAMES.size)
       for (contribution in contributions) {
