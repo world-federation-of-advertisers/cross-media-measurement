@@ -54,7 +54,6 @@ import okhttp3.tls.HeldCertificate
 import okhttp3.tls.decodeCertificatePem
 import org.junit.ClassRule
 import org.junit.FixMethodOrder
-import org.junit.Ignore
 import org.junit.Test
 import org.junit.rules.TestRule
 import org.junit.runner.Description
@@ -426,9 +425,6 @@ class EdpAggregatorReportingIntegrationTest {
     }
   }
 
-  // DO_NOT_SUBMIT: temporarily ignored so the weekly report has the whole test timeout while it is
-  // being brought up. Restore before merging.
-  @Ignore
   @Test
   fun `media type and impression qualification filter report succeeds`() = runBlocking {
     check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
@@ -629,8 +625,7 @@ class EdpAggregatorReportingIntegrationTest {
         .containsExactly(GENDER_FIELD_PATH)
     }
 
-    assertThat(resultGroup.resultsList.map { genderOf(it) }.toSet())
-      .hasSize(EXPECTED_GENDER_COUNT)
+    assertThat(resultGroup.resultsList.map { genderOf(it) }.toSet()).hasSize(EXPECTED_GENDER_COUNT)
 
     for ((series, results) in weeklySeries(resultGroup)) {
       assertWithMessage("$series periods").that(results).hasSize(WEEKLY_PERIOD_COUNT)
