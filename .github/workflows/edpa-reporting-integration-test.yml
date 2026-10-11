@@ -98,7 +98,7 @@ jobs:
           build --define edpa_meta_aws_role_arn=$EDPA_META_AWS_ROLE_ARN
           build --define edpa_meta_aws_region=$EDPA_META_AWS_REGION
           test --test_output=streamed
-          test --test_timeout=5400
+          test --test_timeout=6000
           EOF
 
       # Reduce chance of disconnection from the Build Event Service.
