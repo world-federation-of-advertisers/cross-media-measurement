@@ -107,6 +107,8 @@ class ReportDetailCampaignGroupQueryTest {
         (1, 10, 'cycle-b', ''::bytea, '{}'),
         (1, 11, 'primitive-shared-event-group-id', ''::bytea, '{}'),
         (1, 12, 'composite-left-operand-only', ''::bytea, '{}'),
+        (1, 13, 'composite-right-nested', ''::bytea, '{}'),
+        (1, 14, 'composite-intersection', ''::bytea, '{}'),
         (2, 100, 'primitive-1', ''::bytea, '{}')
       """
     )
@@ -148,7 +150,12 @@ class ReportDetailCampaignGroupQueryTest {
         (1, 9,  60, 1, NULL, 10,  NULL, 1),
         (1, 10, 70, 1, NULL, 9,   NULL, 2),
         -- left operand only
-        (1, 12, 80, 1, NULL, 1,   NULL, NULL)
+        (1, 12, 80, 1, NULL, 1,   NULL, NULL),
+        -- nested expression on the right
+        (1, 13, 90, 1, NULL, 2,   91,   NULL),
+        (1, 13, 91, 1, NULL, 3,   NULL, NULL),
+        -- INTERSECTION: documented to yield a superset
+        (1, 14, 100, 3, NULL, 1,  NULL, 3)
       """
     )
 
@@ -163,8 +170,10 @@ class ReportDetailCampaignGroupQueryTest {
         WHEN 9  THEN 60
         WHEN 10 THEN 70
         WHEN 12 THEN 80
+        WHEN 13 THEN 90
+        WHEN 14 THEN 100
       END
-      WHERE MeasurementConsumerId = 1 AND ReportingSetId IN (4, 5, 6, 7, 8, 9, 10, 12)
+      WHERE MeasurementConsumerId = 1 AND ReportingSetId IN (4, 5, 6, 7, 8, 9, 10, 12, 13, 14)
       """
     )
     txn.commit()
@@ -246,6 +255,26 @@ class ReportDetailCampaignGroupQueryTest {
   }
 
   @Test
+  fun compositeWithNestedExpressionOnTheRightResolvesThroughTheNesting() {
+    assertThat(resolve("composite-right-nested"))
+      .containsExactly(
+        Resolved("mc-alpha", "composite-right-nested", "dp-a", "eg-2"),
+        Resolved("mc-alpha", "composite-right-nested", "dp-b", "eg-3"),
+      )
+  }
+
+  @Test
+  fun intersectionOperationYieldsTheDocumentedSuperset() {
+    // As with DIFFERENCE, the walk ignores Operation: an INTERSECTION campaign group reports
+    // every reachable event group, not only those common to both operands.
+    assertThat(resolve("composite-intersection"))
+      .containsExactly(
+        Resolved("mc-alpha", "composite-intersection", "dp-a", "eg-1"),
+        Resolved("mc-alpha", "composite-intersection", "dp-b", "eg-3"),
+      )
+  }
+
+  @Test
   fun leafReachedThroughMultiplePathsIsReturnedOnce() {
     assertThat(resolve("composite-shared-leaf"))
       .containsExactly(Resolved("mc-alpha", "composite-shared-leaf", "dp-a", "eg-1"))
@@ -303,6 +332,8 @@ class ReportDetailCampaignGroupQueryTest {
         "composite-difference",
         "composite-shared-leaf",
         "composite-left-operand-only",
+        "composite-right-nested",
+        "composite-intersection",
       )
   }
 
