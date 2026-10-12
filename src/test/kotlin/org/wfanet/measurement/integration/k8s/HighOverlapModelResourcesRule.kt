@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package org.wfanet.measurement.integration.common
+package org.wfanet.measurement.integration.k8s
 
 import com.google.common.hash.Hashing
 import io.grpc.ManagedChannel
@@ -23,6 +23,9 @@ import java.time.LocalDate
 import java.time.ZoneOffset
 import java.util.logging.Logger
 import org.jetbrains.annotations.Blocking
+import org.junit.rules.TestRule
+import org.junit.runner.Description
+import org.junit.runners.model.Statement
 import org.wfanet.measurement.api.v2alpha.ListModelReleasesRequestKt
 import org.wfanet.measurement.api.v2alpha.ListModelRolloutsRequestKt
 import org.wfanet.measurement.api.v2alpha.ModelLine
@@ -50,8 +53,8 @@ import org.wfanet.measurement.common.toInstant
 import org.wfanet.measurement.common.toProtoDate
 
 /**
- * Ensures the high overlap [Population] exists and that the high overlap [ModelLine] has a
- * [ModelRelease] and rollout pointing at it.
+ * JUnit [TestRule] that ensures the high overlap [Population] exists and that the high overlap
+ * [ModelLine] has a [ModelRelease] and rollout pointing at it.
  *
  * The ModelLine itself is **not** created here — nothing in this repository creates a ModelLine, so
  * it is provisioned once per environment by an operator and looked up by resource name. Because
@@ -77,28 +80,34 @@ import org.wfanet.measurement.common.toProtoDate
  * @property kingdomPublicApiTarget Kingdom public API target
  * @property kingdomPublicApiCertHost expected DNS-ID in the Kingdom's TLS certificate
  */
-class HighOverlapModelResources(
+class HighOverlapModelResourcesRule(
   private val populationSpecProvider: () -> PopulationSpec,
   private val populationDataProvider: String,
   private val modelLineName: String,
   private val earliestEventDateProvider: () -> LocalDate,
   private val kingdomPublicApiTarget: String,
   private val kingdomPublicApiCertHost: String?,
-) {
+) : TestRule {
 
-  /** Provisions the Population, ModelRelease and ModelRollout the dataset is measured against. */
+  override fun apply(base: Statement, description: Description): Statement {
+    return object : Statement() {
+      override fun evaluate() {
+        if (modelLineName.isEmpty()) {
+          logger.info("No high overlap model line configured; skipping its model resources.")
+        } else if (populationDataProvider.isEmpty()) {
+          logger.warning(
+            "No population_data_provider configured; skipping high overlap model resources."
+          )
+        } else {
+          provision()
+        }
+        base.evaluate()
+      }
+    }
+  }
+
   @Blocking
-  fun provision() {
-    if (modelLineName.isEmpty()) {
-      logger.info("No high overlap model line configured; skipping its model resources.")
-      return
-    }
-    if (populationDataProvider.isEmpty()) {
-      logger.warning(
-        "No population_data_provider configured; skipping high overlap model resources."
-      )
-      return
-    }
+  private fun provision() {
     val pdpChannel: ManagedChannel = buildChannel(PDP_CERT_FILE, PDP_KEY_FILE)
     val mpChannel: ManagedChannel = buildChannel(MP_CERT_FILE, MP_KEY_FILE)
     try {

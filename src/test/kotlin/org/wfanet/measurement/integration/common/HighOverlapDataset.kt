@@ -24,7 +24,7 @@ import org.wfanet.measurement.common.toLocalDate
 /**
  * Views of the high overlap dataset derived from its specs.
  *
- * Shared by the job that seeds the dataset and the tests that report over it, so both agree on
+ * Shared by the test that seeds the dataset and the one that reports over it, so both agree on
  * which EventGroups, dates and fingerprint a given [ImpressionTestDataConfig] implies.
  */
 object HighOverlapDataset {

@@ -61,10 +61,7 @@ proto_library(
 
 kt_jvm_proto_library(
     name = "high_overlap_dataset_manifest_kt_jvm_proto",
-    visibility = [
-        "//src/main/kotlin/org/wfanet/measurement/integration/common:__pkg__",
-        "//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__",
-    ],
+    visibility = ["//src/test/kotlin/org/wfanet/measurement/integration/k8s:__pkg__"],
     deps = [":high_overlap_dataset_manifest_proto"],
 )
 

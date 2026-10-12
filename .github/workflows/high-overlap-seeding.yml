@@ -4,7 +4,7 @@
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
-#      http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,9 +16,11 @@ name: Seed High Overlap Dataset
 
 run-name: Seed High Overlap Dataset [${{ inputs.environment }}]
 
-# What this writes persists and the dataset is deterministic, so this is not part of a test run.
-# Run it when the dataset's specs change, or when an environment gains an EDP. Tests read the
-# manifest it leaves behind and refuse to run against a dataset that no longer matches their specs.
+# What this writes persists and the dataset is deterministic, so it is not part of a test run. Ask
+# for it when the dataset's specs change, or when an environment gains an EDP. The reporting
+# integration test reads the manifest it leaves behind and refuses to run against a dataset that no
+# longer matches its specs. Where HIGH_OVERLAP_MODEL_LINE is unset the test seeds nothing and
+# passes.
 on:
   workflow_call:
     inputs:
@@ -67,53 +69,85 @@ jobs:
           build --remote_header=x-buildbuddy-api-key=$BUILDBUDDY_API_KEY
           EOF
 
+      # Seeding reads the same generated test config as the reporting integration test, so it is
+      # given the same defines.
       - name: Write ~/.bazelrc
-        run: |
-          cat << EOF > ~/.bazelrc
-          common --config=ci
-          EOF
-
-      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
-      # (accounts.google.com) OIDC token, the same path the reporting integration test uses.
-      - name: Get AWS web identity token
-        id: aws_token
-        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
-        with:
-          script: |
-            const token = await core.getIDToken('${{ vars.EDPA_META_AWS_AUDIENCE }}')
-            const fs = require('fs')
-            fs.writeFileSync('/tmp/aws_web_identity_token', token)
-
-      - name: Seed the dataset
         env:
-          GOOGLE_CLOUD_PROJECT: ${{ vars.GCLOUD_PROJECT }}
-          AWS_WEB_IDENTITY_TOKEN_FILE: /tmp/aws_web_identity_token
-          HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
-          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
-          MC_NAME: ${{ vars.MC_NAME }}
-          PDP_NAME: ${{ vars.PDP_NAME }}
           KINGDOM_PUBLIC_API_TARGET: ${{ vars.KINGDOM_PUBLIC_API_TARGET }}
+          MC_NAME: ${{ vars.MC_NAME }}
+          MC_API_KEY: ${{ secrets.MC_API_KEY }}
+          STORAGE_BUCKET: secure-computation-storage-${{ inputs.environment }}-bucket
+          REPORTING_SERVICE_ENDPOINT: ${{ vars.REPORTING_SERVICE_ENDPOINT }}
+          REPORTING_TOKEN_AUDIENCE: ${{ vars.REPORTING_TOKEN_AUDIENCE }}
+          REPORTING_PUBLIC_API_TARGET: ${{ vars.REPORTING_PUBLIC_API_TARGET }}
+          ACCESS_PUBLIC_API_TARGET: ${{ vars.ACCESS_PUBLIC_API_TARGET }}
+          HIGH_OVERLAP_MODEL_LINE: ${{ vars.HIGH_OVERLAP_MODEL_LINE }}
+          PDP_NAME: ${{ vars.PDP_NAME }}
           EDP7_KEK_URI: ${{ vars.EDP7_KEK_URI }}
           EDPA_META_KEK_URI: ${{ vars.EDPA_META_KEK_URI }}
           EDPA_META_AWS_ROLE_ARN: ${{ vars.EDPA_META_AWS_ROLE_ARN }}
           EDPA_META_AWS_REGION: ${{ vars.EDPA_META_AWS_REGION }}
         run: |
-          set -euo pipefail
-          if [[ -z "$HIGH_OVERLAP_MODEL_LINE" ]]; then
-            echo "HIGH_OVERLAP_MODEL_LINE is unset for ${{ inputs.environment }}; nothing to seed."
-            exit 0
-          fi
-          bazelisk run \
-            //src/main/kotlin/org/wfanet/measurement/integration/common:HighOverlapSeedingJob -- \
-            --model-line="$HIGH_OVERLAP_MODEL_LINE" \
-            --storage-bucket="$STORAGE_BUCKET" \
-            --google-project-id="$GOOGLE_CLOUD_PROJECT" \
-            --measurement-consumer="$MC_NAME" \
-            --population-data-provider="$PDP_NAME" \
-            --kingdom-public-api-target="$KINGDOM_PUBLIC_API_TARGET" \
-            --kingdom-public-api-cert-host=localhost \
-            --impression-test-data-config=high_overlap_impression_test_data_config.textproto \
-            --edp7-kek-uri="$EDP7_KEK_URI" \
-            --edpa-meta-kek-uri="$EDPA_META_KEK_URI" \
-            --edpa-meta-aws-role-arn="$EDPA_META_AWS_ROLE_ARN" \
-            --edpa-meta-aws-region="$EDPA_META_AWS_REGION"
+          cat << EOF > ~/.bazelrc
+          common --config=ci
+          build --define kingdom_public_api_target=$KINGDOM_PUBLIC_API_TARGET
+          build --define mc_name=$MC_NAME
+          build --define mc_api_key=$MC_API_KEY
+          build --define storage_bucket=$STORAGE_BUCKET
+          build --define reporting_service_endpoint=$REPORTING_SERVICE_ENDPOINT
+          build --define reporting_token_audience=$REPORTING_TOKEN_AUDIENCE
+          build --define reporting_public_api_target=$REPORTING_PUBLIC_API_TARGET
+          build --define access_public_api_target=$ACCESS_PUBLIC_API_TARGET
+          build --define high_overlap_model_line=$HIGH_OVERLAP_MODEL_LINE
+          build --define pdp_name=$PDP_NAME
+          build --define edp7_kek_uri=$EDP7_KEK_URI
+          build --define edpa_meta_kek_uri=$EDPA_META_KEK_URI
+          build --define edpa_meta_aws_role_arn=$EDPA_META_AWS_ROLE_ARN
+          build --define edpa_meta_aws_region=$EDPA_META_AWS_REGION
+          test --test_output=streamed
+          test --test_timeout=6000
+          EOF
+
+      # Reduce chance of disconnection from the Build Event Service.
+      - name: Set TCP keepalive
+        run: sudo sysctl -w net.ipv4.tcp_keepalive_time=60
+
+      # The edpa_meta AWS KMS client authenticates via web-identity federation using a Google
+      # (accounts.google.com) OIDC token. The AWS role EDPA_META_AWS_ROLE_ARN
+      # (GcpSyntheticDataKmsRole) trusts the CI service account's numeric subject
+      # (accounts.google.com:sub) and has no audience condition. Mint a fresh id_token for the CI
+      # service account here (right before seeding, for maximum validity headroom) and point
+      # AWS_WEB_IDENTITY_TOKEN_FILE at it.
+      - name: Mint Google web-identity token for AWS
+        id: aws_auth
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ vars.TF_SERVICE_ACCOUNT }}
+          token_format: 'id_token'
+          id_token_audience: ${{ vars.EDPA_META_AWS_AUDIENCE }}
+          create_credentials_file: false
+          export_environment_variables: false
+
+      - name: Write AWS web-identity token file
+        env:
+          AWS_WEB_IDENTITY_ID_TOKEN: ${{ steps.aws_auth.outputs.id_token }}
+        run: |
+          token_file="$RUNNER_TEMP/aws-web-identity-token"
+          printf '%s' "$AWS_WEB_IDENTITY_ID_TOKEN" > "$token_file"
+          chmod 600 "$token_file"
+          echo "AWS_WEB_IDENTITY_TOKEN_FILE=$token_file" >> "$GITHUB_ENV"
+
+      - name: Seed the dataset
+        id: seed
+        run: |
+          bazel test \
+          --test_env=GOOGLE_APPLICATION_CREDENTIALS \
+          --test_env=GOOGLE_CLOUD_PROJECT \
+          --test_env=AWS_WEB_IDENTITY_TOKEN_FILE \
+          //src/test/kotlin/org/wfanet/measurement/integration/k8s:HighOverlapSeedingTest
+
+      - name: Upload Bazel testlogs
+        continue-on-error: true
+        uses: world-federation-of-advertisers/actions/bazel-upload-testlogs@390a9ea948eef416333f8c257ef6116552a42d23 # v2.6.0
+        if: failure() && steps.seed.outcome == 'failure'
