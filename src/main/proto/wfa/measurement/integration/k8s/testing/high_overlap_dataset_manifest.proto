@@ -48,4 +48,7 @@ message HighOverlapDatasetManifest {
 
   // When seeding finished.
   google.protobuf.Timestamp generate_time = 4;
+
+  // Impression rows exported to BigQuery.
+  int64 impression_row_count = 5;
 }

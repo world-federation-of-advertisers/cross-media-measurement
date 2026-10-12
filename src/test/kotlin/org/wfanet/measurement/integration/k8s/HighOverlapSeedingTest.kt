@@ -16,6 +16,10 @@
 
 package org.wfanet.measurement.integration.k8s
 
+import com.google.cloud.bigquery.BigQueryOptions
+import com.google.cloud.bigquery.QueryJobConfiguration
+import com.google.cloud.bigquery.QueryParameterValue
+import com.google.cloud.bigquery.storage.v1.BigQueryWriteClient
 import com.google.cloud.storage.StorageOptions
 import com.google.common.truth.Truth.assertThat
 import com.google.protobuf.TypeRegistry
@@ -91,6 +95,7 @@ class HighOverlapSeedingTest {
       .isEqualTo(HighOverlapDataset.fingerprint(IMPRESSION_TEST_DATA_CONFIG, POPULATION_SPEC))
     assertThat(manifest.seededEdpsList).containsExactlyElementsIn(EDP_NAMES)
     assertThat(manifest.modelLine).isEqualTo(MODEL_LINE)
+    assertThat(manifest.impressionRowCount).isEqualTo(exportedRowCount())
   }
 
   /** Uploads the high overlap EventGroups and waits for `EventGroupSync` to pick them up. */
@@ -306,6 +311,7 @@ class HighOverlapSeedingTest {
         seededEdps += EDP_NAMES.sorted()
         modelLine = MODEL_LINE
         generateTime = timestamp { seconds = Clock.systemUTC().instant().epochSecond }
+        impressionRowCount = impressionExporter.rowCount
       }
       val key = HighOverlapDataset.manifestBlobKey(MODEL_LINE_ID)
       val blobUri = SelectedStorageClient.parseBlobUri("gs://${TEST_CONFIG.storageBucket}/$key")
@@ -372,6 +378,9 @@ class HighOverlapSeedingTest {
     private val EDP_NAMES: Set<String> =
       setOf("edp7", "edpa_meta", "edpa_video_pub", "edpa_retail_pub")
 
+    private const val BIGQUERY_DATASET_ID = "high_overlap"
+    private const val BIGQUERY_TABLE_ID = "impressions"
+
     /** Config restricted to [EDP_NAMES], empty when the dataset is not configured. */
     private val PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {
       if (MODEL_LINE.isEmpty()) {
@@ -413,6 +422,24 @@ class HighOverlapSeedingTest {
       return HighOverlapDatasetManifest.parseFrom(blob.read().flatten())
     }
 
+    /** Rows BigQuery actually holds for [MODEL_LINE]. */
+    private fun exportedRowCount(): Long {
+      val query =
+        QueryJobConfiguration.newBuilder(
+            "SELECT COUNT(*) AS row_count FROM `$BIGQUERY_DATASET_ID.$BIGQUERY_TABLE_ID` " +
+              "WHERE model_line = @model_line"
+          )
+          .addNamedParameter("model_line", QueryParameterValue.string(MODEL_LINE))
+          .build()
+      return BigQueryOptions.getDefaultInstance()
+        .service
+        .query(query)
+        .iterateAll()
+        .first()
+        .get("row_count")
+        .longValue
+    }
+
     private val modelResources =
       HighOverlapModelResourcesRule(
         populationSpecProvider = { POPULATION_SPEC },
@@ -423,6 +450,20 @@ class HighOverlapSeedingTest {
         kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
       )
     private val uploadEventGroups = UploadEventGroups()
+
+    val impressionExporter: HighOverlapImpressionExporter by lazy {
+      HighOverlapImpressionExporter(
+        bigQuery = BigQueryOptions.getDefaultInstance().service,
+        writeClient = BigQueryWriteClient.create(),
+        projectId = googleProjectId(),
+        datasetId = BIGQUERY_DATASET_ID,
+        tableId = BIGQUERY_TABLE_ID,
+        modelLine = MODEL_LINE,
+        specFingerprint =
+          HighOverlapDataset.fingerprint(IMPRESSION_TEST_DATA_CONFIG, POPULATION_SPEC),
+      )
+    }
+
     private val writeImpressions =
       WriteHighOverlapImpressionsRule(
         configProvider = { PROVISIONED_CONFIG },
@@ -433,6 +474,7 @@ class HighOverlapSeedingTest {
         edpaMetaKekUri = TEST_CONFIG.edpaMetaKekUri,
         edpaMetaAwsRoleArn = TEST_CONFIG.edpaMetaAwsRoleArn,
         edpaMetaAwsRegion = TEST_CONFIG.edpaMetaAwsRegion,
+        exporter = impressionExporter,
       )
     private val createDoneBlobs = CreateDoneBlobs()
     private val writeManifest = WriteManifest()

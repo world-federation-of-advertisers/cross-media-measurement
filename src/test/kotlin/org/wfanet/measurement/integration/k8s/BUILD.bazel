@@ -358,6 +358,7 @@ kt_jvm_library(
     name = "high_overlap_seeding_test",
     srcs = [
         "Edp7CloudTestConstants.kt",
+        "HighOverlapImpressionExporter.kt",
         "HighOverlapModelResourcesRule.kt",
         "HighOverlapSeedingTest.kt",
         "WriteHighOverlapImpressionsRule.kt",
@@ -367,6 +368,7 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/loadtest/dataprovider:specs",
     ],
     deps = [
+        "//imports/java/com/google/cloud/bigquery/storage",
         "//imports/java/com/google/crypto/tink/integration/gcpkms",
         "//src/main/kotlin/org/wfanet/measurement/api/v2alpha:resource_key",
         "//src/main/kotlin/org/wfanet/measurement/integration/common:event_group_config",
@@ -388,8 +390,10 @@ kt_jvm_library(
         "//src/main/proto/wfa/measurement/edpaggregator/eventgroups/v1alpha:event_group_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:edpa_reporting_integration_test_config_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:high_overlap_dataset_manifest_kt_jvm_proto",
+        "//src/main/proto/wfa/measurement/integration/k8s/testing:high_overlap_impression_row_kt_jvm_proto",
         "//src/main/proto/wfa/measurement/integration/k8s/testing:impression_test_data_config_kt_jvm_proto",
         "//src/test/kotlin/org/wfanet/measurement/integration/common:high_overlap_dataset",
+        "@wfa_common_jvm//imports/java/com/google/cloud/bigquery",
         "@wfa_common_jvm//imports/java/com/google/cloud/storage",
         "@wfa_common_jvm//imports/java/com/google/common:guava",
         "@wfa_common_jvm//imports/java/com/google/common/truth",

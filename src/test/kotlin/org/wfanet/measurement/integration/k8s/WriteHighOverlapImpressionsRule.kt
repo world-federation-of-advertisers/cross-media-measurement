@@ -71,6 +71,7 @@ import org.wfanet.measurement.loadtest.edpaggregator.testing.ImpressionsWriter
  * @property edpaMetaKekUri AWS KMS KEK URI for edpa_meta
  * @property edpaMetaAwsRoleArn AWS role assumed via web-identity federation
  * @property edpaMetaAwsRegion AWS region of the edpa_meta KMS key
+ * @property exporter receives each impression as it is written
  */
 // TODO(world-federation-of-advertisers/cross-media-measurement#4564): Extract a shared
 // SyntheticDataSeeder from GenerateSyntheticData and reduce this rule to a
@@ -84,6 +85,7 @@ class WriteHighOverlapImpressionsRule(
   private val edpaMetaKekUri: String,
   private val edpaMetaAwsRoleArn: String,
   private val edpaMetaAwsRegion: String,
+  private val exporter: HighOverlapImpressionExporter,
 ) : TestRule {
 
   /** EDPs whose impressions are encrypted with a Google Cloud KMS KEK, by KEK URI. */
@@ -104,7 +106,10 @@ class WriteHighOverlapImpressionsRule(
         if (modelLine.isNullOrEmpty()) {
           logger.info("No high overlap model line configured; skipping its impression write.")
         } else {
-          runBlocking { write(modelLine) }
+          exporter.use {
+            it.deleteExistingRows()
+            runBlocking { write(modelLine) }
+          }
         }
         base.evaluate()
       }
@@ -236,9 +241,14 @@ class WriteHighOverlapImpressionsRule(
           resolveSpec(entityKeySpec.dataSpecResourcePath),
         )
       for (shard in events) {
+        // onEach is lazy, so each event reaches the exporter as the impressions writer pulls it.
+        val labeledEvents =
+          shard.labeledEvents.onEach {
+            exporter.add(eventGroup.edpName, eventGroup.eventGroupReferenceId, entityKey, it)
+          }
         shardsByDate
           .getOrPut(shard.localDate) { mutableListOf() }
-          .add(EntityKeysWithLabeledEvents(listOf(entityKey), shard.labeledEvents))
+          .add(EntityKeysWithLabeledEvents(listOf(entityKey), labeledEvents))
       }
     }
     return shardsByDate.entries
