@@ -17,8 +17,6 @@
 package org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard
 
 import com.google.common.truth.Truth.assertThat
-import java.nio.file.Files
-import java.nio.file.Paths
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
@@ -30,6 +28,7 @@ import org.wfanet.measurement.common.db.r2dbc.ResultRow
 import org.wfanet.measurement.common.db.r2dbc.boundStatement
 import org.wfanet.measurement.common.db.r2dbc.postgres.PostgresDatabaseClient
 import org.wfanet.measurement.common.db.r2dbc.postgres.testing.PostgresDatabaseProviderRule
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.testing.DashboardSqlTemplates.readSqlFile
 import org.wfanet.measurement.reporting.deploy.v2.postgres.testing.Schemata
 
 /**
@@ -347,17 +346,7 @@ class ReportDetailCampaignGroupQueryTest {
      * from the Terraform template so the test exercises production SQL rather than a copy.
      */
     private val PUSHED_DOWN_QUERY: String by lazy {
-      val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
-      val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
-      val template =
-        Files.readString(
-          Paths.get(
-            runfilesDir,
-            workspace,
-            "src/main/terraform/gcloud/cmms/sql",
-            "report_detail.sql",
-          )
-        )
+      val template = readSqlFile("report_detail.sql")
       val connectionIndex = template.indexOf("reporting-postgres-conn")
       check(connectionIndex >= 0) { "reporting-postgres-conn not found in report_detail.sql" }
       val start = template.indexOf("'''", connectionIndex)

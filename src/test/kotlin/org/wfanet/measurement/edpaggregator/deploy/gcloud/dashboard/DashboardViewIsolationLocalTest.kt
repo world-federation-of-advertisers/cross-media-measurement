@@ -20,6 +20,8 @@ import com.google.common.truth.Truth.assertThat
 import java.nio.file.Files
 import java.nio.file.Paths
 import org.junit.Test
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.testing.DashboardSqlTemplates.readSqlFile
+import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.testing.DashboardSqlTemplates.render
 import org.wfanet.measurement.edpaggregator.deploy.gcloud.dashboard.tools.DashboardComplianceMetrics
 
 /** Validates dashboard SQL templates for correct EDP isolation structure. */
@@ -37,54 +39,11 @@ class DashboardViewIsolationLocalTest {
       )
   }
 
-  private fun readSqlFile(fileName: String): String {
-    val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
-    val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
-    val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms/sql", fileName)
-    return Files.readString(path)
-  }
-
   private fun readTerraformFile(fileName: String): String {
     val runfilesDir = System.getenv("TEST_SRCDIR") ?: "."
     val workspace = System.getenv("TEST_WORKSPACE") ?: "__main__"
     val path = Paths.get(runfilesDir, workspace, "src/main/terraform/gcloud/cmms", fileName)
     return Files.readString(path)
-  }
-
-  /**
-   * Renders a templatefile-style SQL template by resolving the `include_platform_columns`
-   * conditionals. Handles both the positive (`%{ if include_platform_columns }`) and negated (`%{
-   * if !include_platform_columns }`) directives, plus `%{ else }`. Assumes the conditionals are not
-   * nested (true for the dashboard SQL).
-   */
-  private fun render(template: String, platformEnabled: Boolean): String {
-    val result = StringBuilder()
-    var inConditional = false
-    var conditionMet = false
-    var keep = true
-
-    for (line in template.lines()) {
-      val trimmed = line.trim()
-      when {
-        trimmed == "%{ if include_platform_columns }" -> {
-          inConditional = true
-          conditionMet = platformEnabled
-          keep = conditionMet
-        }
-        trimmed == "%{ if !include_platform_columns }" -> {
-          inConditional = true
-          conditionMet = !platformEnabled
-          keep = conditionMet
-        }
-        trimmed == "%{ else }" -> keep = inConditional && !conditionMet
-        trimmed == "%{ endif }" -> {
-          inConditional = false
-          keep = true
-        }
-        keep -> result.appendLine(line)
-      }
-    }
-    return result.toString()
   }
 
   @Test
