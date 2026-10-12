@@ -58,6 +58,7 @@ import org.wfanet.measurement.api.v2alpha.PopulationSpec
 import org.wfanet.measurement.api.v2alpha.event_templates.testing.v1.Common
 import org.wfanet.measurement.common.crypto.SigningCerts
 import org.wfanet.measurement.common.crypto.readPrivateKey
+import org.wfanet.measurement.common.flatten
 import org.wfanet.measurement.common.grpc.buildMutualTlsChannel
 import org.wfanet.measurement.common.grpc.testing.OpenIdProvider
 import org.wfanet.measurement.common.parseTextProto

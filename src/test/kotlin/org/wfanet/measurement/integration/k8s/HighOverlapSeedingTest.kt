@@ -246,8 +246,7 @@ class HighOverlapSeedingTest {
           } else {
             runBlocking {
               val paths =
-                HighOverlapDataset.datesByImpressionPath(PROVISIONED_CONFIG).flatMap {
-                  (impressionPath, dates) ->
+                DATES_BY_IMPRESSION_PATH.flatMap { (impressionPath, dates) ->
                   dates.map { date ->
                     "gs://$bucket/$impressionPath/model-line/$MODEL_LINE_ID/$date/done"
                   }
@@ -387,6 +386,11 @@ class HighOverlapSeedingTest {
       }
     }
 
+    /** Resolving this parses every synthetic spec from disk, so both readers share one copy. */
+    private val DATES_BY_IMPRESSION_PATH: Map<String, Set<LocalDate>> by lazy {
+      HighOverlapDataset.datesByImpressionPath(PROVISIONED_CONFIG)
+    }
+
     private fun googleProjectId(): String =
       System.getenv("GOOGLE_CLOUD_PROJECT") ?: error("GOOGLE_CLOUD_PROJECT must be set")
 
@@ -414,9 +418,7 @@ class HighOverlapSeedingTest {
         populationSpecProvider = { POPULATION_SPEC },
         populationDataProvider = TEST_CONFIG.populationDataProvider,
         modelLineName = MODEL_LINE,
-        earliestEventDateProvider = {
-          HighOverlapDataset.datesByImpressionPath(PROVISIONED_CONFIG).values.flatten().min()
-        },
+        earliestEventDateProvider = { DATES_BY_IMPRESSION_PATH.values.flatten().min() },
         kingdomPublicApiTarget = TEST_CONFIG.kingdomPublicApiTarget,
         kingdomPublicApiCertHost = TEST_CONFIG.kingdomPublicApiCertHost.ifEmpty { null },
       )
