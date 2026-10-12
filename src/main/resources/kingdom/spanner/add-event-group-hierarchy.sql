@@ -72,30 +72,21 @@ ALTER TABLE EventGroups
 ALTER TABLE EventGroups
   ADD COLUMN EntityPath STRING(MAX);
 
--- The keys and scalar values of EntityMetadata, flattened by the service layer
--- for full-text search. This cannot be a generated column: EntityMetadata is a
--- google.protobuf.Struct, and GoogleSQL cannot enumerate its map entries.
+-- EntityMetadata as JSON, written by the service layer alongside the protobuf
+-- column. This cannot be a generated column: EntityMetadata is a
+-- google.protobuf.Struct, and GoogleSQL has no PROTO-to-JSON conversion. The
+-- two representations are written in the same transaction.
 --
--- Serialized as space-separated "key value" pairs, one pair per scalar leaf,
--- in the order the keys appear in EntityMetadata, e.g.
---
---   campaign_name Summer Sale line_item_id L1 impressions 4200
---
--- A nested Struct contributes its leaves with the key path joined by ".", and
--- every element of a ListValue is emitted under the same key. Null values are
--- omitted, numbers use their shortest round-trip form, and booleans are
--- rendered "true" and "false".
---
--- The format exists only to feed TOKENIZE_FULLTEXT, which splits on
--- non-alphanumerics, so the separators are not themselves searchable and the
--- string is never parsed back. Keys are emitted so that a query for a key name
--- matches.
+-- Stored as JSON rather than flattened text so that no custom serialization
+-- format has to be defined and maintained, and so that a TOKENIZE_JSON column
+-- and a JSON search index can be added later for JSON_CONTAINS and
+-- key-existence queries.
 ALTER TABLE EventGroups
-  ADD COLUMN EntityMetadataText STRING(MAX);
+  ADD COLUMN EntityMetadataJson JSON;
 
 ALTER TABLE EventGroups
   ADD COLUMN EntityMetadata_Tokens TOKENLIST AS (
-    TOKENIZE_FULLTEXT(EntityMetadataText)
+    TOKENIZE_FULLTEXT(TO_JSON_STRING(EntityMetadataJson))
   ) HIDDEN;
 
 -- The expression of a generated column cannot be altered in place, so
