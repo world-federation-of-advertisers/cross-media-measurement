@@ -73,6 +73,32 @@ class EventGroupActivityReader : BaseSpannerReader<EventGroupActivityReader.Resu
     }
   }
 
+  /** Reads activities for the Cartesian product of [eventGroupIds] and [activityDates]. */
+  suspend fun readByEventGroupIdsAndDates(
+    readContext: AsyncDatabaseClient.ReadContext,
+    dataProviderId: InternalId,
+    eventGroupIds: Collection<InternalId>,
+    activityDates: Collection<Date>,
+  ): Map<Pair<InternalId, Date>, Result> {
+    return buildMap {
+      fillStatementBuilder {
+          appendClause(
+            """
+            WHERE EventGroupActivities.DataProviderId = @${Params.DATA_PROVIDER_ID}
+            AND EventGroupActivities.EventGroupId IN UNNEST(@eventGroupIds)
+            AND EventGroupActivities.ActivityDate IN UNNEST(@${Params.ACTIVITY_DATES})
+          """
+              .trimIndent()
+          )
+          bind(Params.DATA_PROVIDER_ID to dataProviderId)
+          bind("eventGroupIds").toInt64Array(eventGroupIds.map { it.value })
+          bind(Params.ACTIVITY_DATES).toDateArray(activityDates.map { it.toCloudDate() })
+        }
+        .execute(readContext)
+        .collect { put(it.internalEventGroupId to it.eventGroupActivity.date, it) }
+    }
+  }
+
   override suspend fun translate(struct: Struct): Result =
     Result(
       buildEventGroupActivity(struct),

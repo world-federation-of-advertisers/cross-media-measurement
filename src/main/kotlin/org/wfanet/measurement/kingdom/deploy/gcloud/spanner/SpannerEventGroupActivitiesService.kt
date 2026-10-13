@@ -17,12 +17,16 @@ package org.wfanet.measurement.kingdom.deploy.gcloud.spanner
 import com.google.protobuf.Empty
 import com.google.type.Date
 import io.grpc.Status
+import java.time.DateTimeException
+import java.time.LocalDate
 import kotlin.coroutines.CoroutineContext
 import kotlin.coroutines.EmptyCoroutineContext
 import org.wfanet.measurement.common.grpc.grpcRequire
 import org.wfanet.measurement.common.identity.ExternalId
 import org.wfanet.measurement.common.identity.IdGenerator
 import org.wfanet.measurement.gcloud.spanner.AsyncDatabaseClient
+import org.wfanet.measurement.internal.kingdom.AddEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.AddEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.BatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesResponse
@@ -46,6 +50,7 @@ import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.DataProvider
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupActivityReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.EventGroupReader
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.readers.MeasurementConsumerReader
+import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.AddEventGroupActivities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchDeleteEventGroupActivities
 import org.wfanet.measurement.kingdom.deploy.gcloud.spanner.writers.BatchUpdateEventGroupActivities
 
@@ -54,6 +59,75 @@ class SpannerEventGroupActivitiesService(
   private val client: AsyncDatabaseClient,
   coroutineContext: CoroutineContext = EmptyCoroutineContext,
 ) : EventGroupActivitiesCoroutineImplBase(coroutineContext) {
+  override suspend fun addEventGroupActivities(
+    request: AddEventGroupActivitiesRequest
+  ): AddEventGroupActivitiesResponse {
+    if (request.externalDataProviderId == 0L) {
+      throw RequiredFieldNotSetException("external_data_provider_id")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.externalEventGroupIdsList.isEmpty()) {
+      throw RequiredFieldNotSetException("external_event_group_ids")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (request.datesList.isEmpty()) {
+      throw RequiredFieldNotSetException("dates")
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+    if (
+      request.externalEventGroupIdsCount.toLong() * request.datesCount.toLong() >
+        MAX_ACTIVITY_PAIRS
+    ) {
+      throw InvalidFieldValueException("external_event_group_ids") { fieldPath ->
+          "The product of $fieldPath and dates must be at most $MAX_ACTIVITY_PAIRS"
+        }
+        .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+    }
+
+    val externalEventGroupIds = mutableSetOf<Long>()
+    request.externalEventGroupIdsList.forEachIndexed { index, externalEventGroupId ->
+      if (externalEventGroupId == 0L) {
+        throw RequiredFieldNotSetException("external_event_group_ids.$index")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!externalEventGroupIds.add(externalEventGroupId)) {
+        throw InvalidFieldValueException("external_event_group_ids") { fieldPath ->
+            "$fieldPath contains duplicate values."
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    val dates = mutableSetOf<Date>()
+    request.datesList.forEachIndexed { index, date ->
+      try {
+        if (date.year !in 1..9999) {
+          throw DateTimeException("Year must be between 1 and 9999")
+        }
+        LocalDate.of(date.year, date.month, date.day)
+      } catch (_: DateTimeException) {
+        throw InvalidFieldValueException("dates.$index")
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+      if (!dates.add(date)) {
+        throw InvalidFieldValueException("dates") { fieldPath ->
+            "$fieldPath contains duplicate values."
+          }
+          .asStatusRuntimeException(Status.Code.INVALID_ARGUMENT)
+      }
+    }
+
+    try {
+      return AddEventGroupActivities(request).execute(client, idGenerator)
+    } catch (e: DataProviderNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: EventGroupNotFoundException) {
+      throw e.asStatusRuntimeException(Status.Code.NOT_FOUND)
+    } catch (e: KingdomInternalException) {
+      throw e.asStatusRuntimeException(Status.Code.INTERNAL, "Unexpected internal error.")
+    }
+  }
+
   override suspend fun batchUpdateEventGroupActivities(
     request: BatchUpdateEventGroupActivitiesRequest
   ): BatchUpdateEventGroupActivitiesResponse {
@@ -352,6 +426,7 @@ class SpannerEventGroupActivitiesService(
   }
 
   companion object {
+    private const val MAX_ACTIVITY_PAIRS = 1000L
     private const val MAX_PAGE_SIZE = 1000
     private const val DEFAULT_PAGE_SIZE = 50
   }

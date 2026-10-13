@@ -37,6 +37,8 @@ import org.wfanet.measurement.api.v2alpha.ListEventGroupActivitiesRequestKt
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerEventGroupKey
 import org.wfanet.measurement.api.v2alpha.MeasurementConsumerKey
 import org.wfanet.measurement.api.v2alpha.UpdateEventGroupActivityRequest
+import org.wfanet.measurement.api.v2alpha.addEventGroupActivitiesRequest
+import org.wfanet.measurement.api.v2alpha.addEventGroupActivitiesResponse
 import org.wfanet.measurement.api.v2alpha.batchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.api.v2alpha.batchUpdateEventGroupActivitiesResponse
@@ -55,12 +57,15 @@ import org.wfanet.measurement.common.grpc.testing.GrpcTestServerRule
 import org.wfanet.measurement.common.grpc.testing.mockService
 import org.wfanet.measurement.common.identity.apiIdToExternalId
 import org.wfanet.measurement.common.testing.verifyProtoArgument
+import org.wfanet.measurement.internal.kingdom.AddEventGroupActivitiesResponse as InternalAddEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.BatchUpdateEventGroupActivitiesResponse as InternalBatchUpdateEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineImplBase
 import org.wfanet.measurement.internal.kingdom.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesPageTokenKt.after
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesRequestKt.filter as internalFilter
 import org.wfanet.measurement.internal.kingdom.ListEventGroupActivitiesResponse as InternalListEventGroupActivitiesResponse
+import org.wfanet.measurement.internal.kingdom.addEventGroupActivitiesRequest as internalAddEventGroupActivitiesRequest
+import org.wfanet.measurement.internal.kingdom.addEventGroupActivitiesResponse as internalAddEventGroupActivitiesResponse
 import org.wfanet.measurement.internal.kingdom.batchDeleteEventGroupActivitiesRequest as internalBatchDeleteEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesRequest as internalBatchUpdateEventGroupActivitiesRequest
 import org.wfanet.measurement.internal.kingdom.batchUpdateEventGroupActivitiesResponse as internalBatchUpdateEventGroupActivitiesResponse
@@ -96,6 +101,8 @@ private const val MAX_PAGE_SIZE = 1000
 class EventGroupActivitiesServiceTest {
 
   private val internalServiceMock: EventGroupActivitiesCoroutineImplBase = mockService {
+    onBlocking { addEventGroupActivities(any()) }
+      .thenReturn(InternalAddEventGroupActivitiesResponse.getDefaultInstance())
     onBlocking { batchUpdateEventGroupActivities(any()) }
       .thenReturn(InternalBatchUpdateEventGroupActivitiesResponse.getDefaultInstance())
     onBlocking { deleteEventGroupActivity(any()) }.thenReturn(Empty.getDefaultInstance())
@@ -112,6 +119,170 @@ class EventGroupActivitiesServiceTest {
   fun initService() {
     service =
       EventGroupActivitiesService(EventGroupActivitiesCoroutineStub(grpcTestServerRule.channel))
+  }
+
+  @Test
+  fun `addEventGroupActivities adds dates for multiple EventGroups`() {
+    val firstDate = date {
+      year = 2026
+      month = 1
+      day = 1
+    }
+    val secondDate = date {
+      year = 2026
+      month = 1
+      day = 2
+    }
+    val request = addEventGroupActivitiesRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroups += EVENT_GROUP_NAME
+      eventGroups += SECOND_EVENT_GROUP_NAME
+      dates += firstDate
+      dates += secondDate
+    }
+    internalServiceMock.stub {
+      onBlocking { addEventGroupActivities(any()) }
+        .thenReturn(
+          internalAddEventGroupActivitiesResponse {
+            eventGroupActivities += createInternalEventGroupActivity(firstDate)
+            eventGroupActivities +=
+              createInternalEventGroupActivity(secondDate, EVENT_GROUP_EXTERNAL_ID)
+            eventGroupActivities +=
+              createInternalEventGroupActivity(firstDate, SECOND_EVENT_GROUP_EXTERNAL_ID)
+            eventGroupActivities +=
+              createInternalEventGroupActivity(secondDate, SECOND_EVENT_GROUP_EXTERNAL_ID)
+          }
+        )
+    }
+
+    val response =
+      withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+        runBlocking { service.addEventGroupActivities(request) }
+      }
+
+    verifyProtoArgument(
+        internalServiceMock,
+        EventGroupActivitiesCoroutineImplBase::addEventGroupActivities,
+      )
+      .isEqualTo(
+        internalAddEventGroupActivitiesRequest {
+          externalDataProviderId = DATA_PROVIDER_EXTERNAL_ID
+          externalEventGroupIds += EVENT_GROUP_EXTERNAL_ID
+          externalEventGroupIds += SECOND_EVENT_GROUP_EXTERNAL_ID
+          dates += firstDate
+          dates += secondDate
+        }
+      )
+    assertThat(response)
+      .isEqualTo(
+        addEventGroupActivitiesResponse {
+          eventGroupActivities += eventGroupActivity {
+            name = "$EVENT_GROUP_NAME/eventGroupActivities/2026-01-01"
+            date = firstDate
+          }
+          eventGroupActivities += eventGroupActivity {
+            name = "$EVENT_GROUP_NAME/eventGroupActivities/2026-01-02"
+            date = secondDate
+          }
+          eventGroupActivities += eventGroupActivity {
+            name = "$SECOND_EVENT_GROUP_NAME/eventGroupActivities/2026-01-01"
+            date = firstDate
+          }
+          eventGroupActivities += eventGroupActivity {
+            name = "$SECOND_EVENT_GROUP_NAME/eventGroupActivities/2026-01-02"
+            date = secondDate
+          }
+        }
+      )
+  }
+
+  @Test
+  fun `addEventGroupActivities throws INVALID_ARGUMENT when EventGroup has different parent`() {
+    val request = addEventGroupActivitiesRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroups += "${makeDataProvider(DATA_PROVIDER_EXTERNAL_ID + 1)}/eventGroups/AAAAAAAAAHs"
+      dates += date {
+        year = 2026
+        month = 1
+        day = 1
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.addEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `addEventGroupActivities throws INVALID_ARGUMENT when event_groups is empty`() {
+    val request = addEventGroupActivitiesRequest {
+      parent = DATA_PROVIDER_NAME
+      dates += date {
+        year = 2026
+        month = 1
+        day = 1
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.addEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `addEventGroupActivities throws INVALID_ARGUMENT when pair limit is exceeded`() {
+    val request = addEventGroupActivitiesRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroups += List(1001) { EVENT_GROUP_NAME }
+      dates += date {
+        year = 2026
+        month = 1
+        day = 1
+      }
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.addEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
+  }
+
+  @Test
+  fun `addEventGroupActivities throws INVALID_ARGUMENT when dates contain duplicates`() {
+    val activityDate = date {
+      year = 2026
+      month = 1
+      day = 1
+    }
+    val request = addEventGroupActivitiesRequest {
+      parent = DATA_PROVIDER_NAME
+      eventGroups += EVENT_GROUP_NAME
+      dates += activityDate
+      dates += activityDate
+    }
+
+    val exception =
+      assertFailsWith<StatusRuntimeException> {
+        withDataProviderPrincipal(DATA_PROVIDER_NAME) {
+          runBlocking { service.addEventGroupActivities(request) }
+        }
+      }
+
+    assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
   }
 
   @Test

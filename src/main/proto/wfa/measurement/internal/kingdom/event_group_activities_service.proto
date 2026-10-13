@@ -29,6 +29,9 @@ service EventGroupActivities {
   rpc BatchUpdateEventGroupActivities(BatchUpdateEventGroupActivitiesRequest)
       returns (BatchUpdateEventGroupActivitiesResponse);
 
+  rpc AddEventGroupActivities(AddEventGroupActivitiesRequest)
+      returns (AddEventGroupActivitiesResponse);
+
   rpc DeleteEventGroupActivity(DeleteEventGroupActivityRequest)
       returns (google.protobuf.Empty);
 
@@ -57,6 +60,23 @@ message BatchUpdateEventGroupActivitiesRequest {
 }
 
 message BatchUpdateEventGroupActivitiesResponse {
+  repeated EventGroupActivity event_group_activities = 1;
+}
+
+message AddEventGroupActivitiesRequest {
+  // External ID of the parent DataProvider. Required.
+  fixed64 external_data_provider_id = 1;
+
+  // External IDs of the EventGroups. Required and must not contain duplicate
+  // values.
+  repeated fixed64 external_event_group_ids = 2;
+
+  // Dates to add for every EventGroup. Required and must not contain duplicate
+  // values. The product of EventGroups and dates must not exceed 1000.
+  repeated google.type.Date dates = 3;
+}
+
+message AddEventGroupActivitiesResponse {
   repeated EventGroupActivity event_group_activities = 1;
 }
 
