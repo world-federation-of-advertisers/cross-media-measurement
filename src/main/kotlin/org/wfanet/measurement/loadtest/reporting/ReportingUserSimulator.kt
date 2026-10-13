@@ -226,7 +226,7 @@ class ReportingUserSimulator(
     val basicReport = basicReport {
       title = reportTitle
       this.campaignGroup = campaignGroup.name
-      campaignGroupDisplayName = campaignGroup.displayName
+      this.campaignGroupDisplayName = campaignGroup.displayName
       modelLine = modelLineName
       reportingInterval = reportingInterval {
         this.reportStart = dateTime {
