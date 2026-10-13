@@ -207,7 +207,7 @@ class ReportingUserSimulator(
     eventGroupEntityTypes: Set<String>,
     reportStart: LocalDate,
     reportEnd: LocalDate,
-    qualificationFilters: List<ReportingImpressionQualificationFilter>,
+    qualificationFilters: Iterable<ReportingImpressionQualificationFilter>,
     buildResultGroupSpecs: (eventGroups: List<EventGroup>) -> List<ResultGroupSpec>,
   ): BasicReport {
     val measurementConsumerKey =
@@ -530,14 +530,10 @@ class ReportingUserSimulator(
     private const val CAMPAIGN_GROUP_DISPLAY_NAME = "High overlap campaign group"
     private const val REPORT_TIME_ZONE = "UTC"
 
-    /**
-     * Breaks results down by [AMI_FILTER_ID] unfiltered, [MRC_FILTER_ID] for display, and a custom
-     * [MediaType.VIDEO] filter for video.
-     *
-     * Media type is neither groupable nor filterable, and at most one custom filter is permitted
-     * per report, so this is the only split available.
-     */
+    /** Returns the impression qualification filters that break results down by media type. */
     fun mediaTypeQualificationFilters(): List<ReportingImpressionQualificationFilter> =
+      // Media type is neither groupable nor filterable, and at most one custom filter is permitted
+      // per report, so this is the only split available.
       listOf(
         reportingImpressionQualificationFilter {
           impressionQualificationFilter = ImpressionQualificationFilterKey(AMI_FILTER_ID).toName()
@@ -548,9 +544,8 @@ class ReportingUserSimulator(
         reportingImpressionQualificationFilter {
           custom =
             ReportingImpressionQualificationFilterKt.customImpressionQualificationFilterSpec {
-              // The media type alone does not select: it compiles to `video != null`, which every
-              // event satisfies because an unset message field reads back as its default instance.
-              // The terms are what restrict this to video.
+              // TODO(world-federation-of-advertisers/cross-media-measurement#4529): Drop the terms
+              // once media_type selects on its own.
               filterSpec += impressionQualificationFilterSpec {
                 mediaType = MediaType.VIDEO
                 filters += eventFilter {

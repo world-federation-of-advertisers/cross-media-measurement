@@ -112,8 +112,9 @@ import org.wfanet.measurement.storage.SelectedStorageClient
  * here. Every rule is a no-op unless `model_line` is set, so an environment opts in only once its
  * ModelLine has been provisioned.
  *
- * Tests run in name order so that the cheaper media type report reports its result before the
- * weekly report, which computes far more metrics, risks exhausting the test timeout.
+ * Test methods run in name order, so they must be named to sort lexicographically in ascending
+ * order of size. A cheaper report then reaches its result before a larger one can exhaust the test
+ * timeout.
  */
 @FixMethodOrder(MethodSorters.NAME_ASCENDING)
 class EdpAggregatorReportingIntegrationTest {
@@ -465,7 +466,7 @@ class EdpAggregatorReportingIntegrationTest {
                 ImpressionQualificationFilterKey(ReportingUserSimulator.AMI_FILTER_ID).toName()
             }
           ),
-        buildResultGroupSpecs = ::weeklyResultGroupSpecs,
+        buildResultGroupSpecs = ::buildWeeklyResultGroupSpecs,
       )
 
     assertThat(report.state).isEqualTo(BasicReport.State.SUCCEEDED)
@@ -482,13 +483,13 @@ class EdpAggregatorReportingIntegrationTest {
    * not supported for cumulative weekly. `stacked_incremental_reach` is likewise rejected unless
    * the frequency is total, so it is out of scope here.
    */
-  private fun weeklyResultGroupSpecs(
+  private fun buildWeeklyResultGroupSpecs(
     eventGroups: List<ReportingEventGroup>
   ): List<ResultGroupSpec> {
     val dataProviderNames: List<String> =
       eventGroups.map { it.cmmsDataProvider }.distinct().sorted()
-    require(dataProviderNames.size == EDP_NAMES.size) {
-      "Expected one DataProvider per EDP in $EDP_NAMES, got $dataProviderNames"
+    require(dataProviderNames.size == EDP_DISPLAY_NAMES.size) {
+      "Expected one DataProvider per EDP in $EDP_DISPLAY_NAMES, got $dataProviderNames"
     }
 
     return listOf(
@@ -706,7 +707,7 @@ class EdpAggregatorReportingIntegrationTest {
       val contributions: List<Long> = metricSet.stackedIncrementalReachList
       val message = "${genderOf(result)}/${filterLabel(result)} stacked incremental reach"
 
-      assertWithMessage(message).that(contributions).hasSize(EDP_NAMES.size)
+      assertWithMessage(message).that(contributions).hasSize(EDP_DISPLAY_NAMES.size)
       for (contribution in contributions) {
         assertWithMessage(message).that(contribution).isAtLeast(0L)
       }
@@ -1024,7 +1025,7 @@ class EdpAggregatorReportingIntegrationTest {
     private const val WEEKLY_PERIOD_COUNT = 6
 
     /**
-     * EventGroups the weekly report covers, spanning every EDP in [EDP_NAMES].
+     * EventGroups the weekly report covers, spanning every EDP in [EDP_DISPLAY_NAMES].
      *
      * `all4` runs the whole dataset, so every EDP contributes to every week. `e7-meta-video` runs
      * only to 2026-05-15, so non-cumulative reach falls away over the last weeks while cumulative
@@ -1086,10 +1087,10 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     /** EDPs this test covers: every one the high overlap dataset defines. */
-    private val EDP_NAMES: Set<String> =
+    private val EDP_DISPLAY_NAMES: Set<String> =
       setOf("edp7", "edpa_meta", "edpa_video_pub", "edpa_retail_pub")
 
-    /** Config restricted to [EDP_NAMES], empty when the dataset is not configured. */
+    /** Config restricted to [EDP_DISPLAY_NAMES], empty when the dataset is not configured. */
     val PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {
       if (MODEL_LINE.isEmpty()) {
         ImpressionTestDataConfig.getDefaultInstance()
@@ -1097,7 +1098,7 @@ class EdpAggregatorReportingIntegrationTest {
         IMPRESSION_TEST_DATA_CONFIG.toBuilder()
           .clearEventGroups()
           .addAllEventGroups(
-            IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.filter { it.edpName in EDP_NAMES }
+            IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.filter { it.edpName in EDP_DISPLAY_NAMES }
           )
           .build()
       }

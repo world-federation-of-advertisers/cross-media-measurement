@@ -78,9 +78,6 @@ message EdpaReportingIntegrationTestConfig {
   string model_line = 12
       [(google.api.resource_reference).type = "halo.wfanet.org/ModelLine"];
 
-  reserved 13;
-  reserved "edp_names";
-
   // DataProvider that owns the high overlap Population.
   string population_data_provider = 14
       [(google.api.resource_reference).type = "halo.wfanet.org/DataProvider"];
