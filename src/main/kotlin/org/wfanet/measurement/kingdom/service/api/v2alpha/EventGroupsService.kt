@@ -397,8 +397,7 @@ class EventGroupsService(
     if (requestEventGroup.hasEncryptedMetadata()) {
       grpcRequire(
         requestEventGroup.hasMeasurementConsumerPublicKey() ||
-          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading
-          // this
+          // TODO(world-federation-of-advertisers/cross-media-measurement#1301): Stop reading this
           // field.
           requestEventGroup.hasSignedMeasurementConsumerPublicKey()
       ) {
@@ -713,9 +712,9 @@ class EventGroupsService(
         LocalDate.of(interval.startDate.year, interval.startDate.month, interval.startDate.day)
       val endDate =
         LocalDate.of(interval.endDate.year, interval.endDate.month, interval.endDate.day)
-      if (!startDate.isBefore(endDate)) {
+      if (startDate.isAfter(endDate)) {
         throw Status.INVALID_ARGUMENT.withDescription(
-            "activity_contains.start_date must be before activity_contains.end_date"
+            "activity_contains.start_date must be before or equal to activity_contains.end_date"
           )
           .asRuntimeException()
       }

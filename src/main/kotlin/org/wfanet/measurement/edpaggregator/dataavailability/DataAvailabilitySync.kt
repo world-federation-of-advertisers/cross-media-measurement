@@ -341,18 +341,6 @@ class DataAvailabilitySync(
         }
       }
 
-      if (eventGroupActivityPublisher != null) {
-        val publishedActivityCount =
-          eventGroupActivityPublisher.publish(
-            impressionMetadataMap.values.flatten().map { it.impressionMetadata }
-          )
-        Span.current()
-          .addEvent(
-            "edpa.data_availability.event_group_activity_published",
-            Attributes.builder().put(ACTIVITY_COUNT_ATTR, publishedActivityCount.toLong()).build(),
-          )
-      }
-
       throttler.onReady {
         try {
           dataProvidersStub.replaceDataAvailabilityIntervals(
@@ -387,6 +375,18 @@ class DataAvailabilitySync(
         )
       for (entry in availabilityEntries) {
         logAvailabilityInterval(entry.key, entry.value, "published")
+      }
+
+      if (eventGroupActivityPublisher != null) {
+        val publishedActivityCount =
+          eventGroupActivityPublisher.publish(
+            impressionMetadataMap.values.flatten().map { it.impressionMetadata }
+          )
+        Span.current()
+          .addEvent(
+            "edpa.data_availability.event_group_activity_published",
+            Attributes.builder().put(ACTIVITY_COUNT_ATTR, publishedActivityCount.toLong()).build(),
+          )
       }
 
       // This marker is the durable completion signal for both phases of synchronization. Only

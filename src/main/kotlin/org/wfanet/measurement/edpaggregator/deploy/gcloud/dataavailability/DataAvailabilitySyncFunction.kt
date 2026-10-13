@@ -36,7 +36,6 @@ import java.util.logging.Logger
 import kotlinx.coroutines.runBlocking
 import org.wfanet.measurement.api.v2alpha.DataProvidersGrpcKt.DataProvidersCoroutineStub
 import org.wfanet.measurement.api.v2alpha.EventGroupActivitiesGrpcKt.EventGroupActivitiesCoroutineStub
-import org.wfanet.measurement.api.v2alpha.EventGroupsGrpcKt.EventGroupsCoroutineStub
 import org.wfanet.measurement.common.EnvVars
 import org.wfanet.measurement.common.Instrumentation
 import org.wfanet.measurement.common.crypto.SigningCerts
@@ -57,6 +56,8 @@ import org.wfanet.measurement.edpaggregator.telemetry.VidLabelingTraceAttributes
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadataServiceGrpcKt.ImpressionMetadataServiceCoroutineStub
 import org.wfanet.measurement.gcloud.gcs.GcsStorageClient
 import org.wfanet.measurement.storage.BlobMetadataStorageClient
+import org.wfanet.measurement.storage.MesosRecordIoStorageClient
+import org.wfanet.measurement.storage.SelectedStorageClient
 import org.wfanet.measurement.storage.StorageClient
 import org.wfanet.measurement.storage.filesystem.FileSystemStorageClient
 
@@ -145,9 +146,32 @@ class DataAvailabilitySyncFunction() : HttpFunction {
           require(publishingConfig.timeZone.isNotEmpty()) {
             "event_group_activity_publishing.time_zone must not be empty"
           }
+          require(publishingConfig.eventGroupMapBlobUri.isNotEmpty()) {
+            "event_group_activity_publishing.event_group_map_blob_uri must not be empty"
+          }
+          val eventGroupMapBlobUri =
+            SelectedStorageClient.parseBlobUri(publishingConfig.eventGroupMapBlobUri)
+          val eventGroupMapStorageClient =
+            MesosRecordIoStorageClient(
+              SelectedStorageClient(
+                blobUri = eventGroupMapBlobUri,
+                rootDirectory =
+                  if (publishingConfig.eventGroupMapStorage.hasFileSystem()) {
+                    File(
+                      checkNotNull(fileSystemPath) {
+                        "DATA_AVAILABILITY_FILE_SYSTEM_PATH must be set for file storage"
+                      }
+                    )
+                  } else {
+                    null
+                  },
+                projectId = publishingConfig.eventGroupMapStorage.gcs.projectId,
+              )
+            )
           CmmsEventGroupActivityPublisher(
-            EventGroupsCoroutineStub(instrumentedCmmsChannel),
             EventGroupActivitiesCoroutineStub(instrumentedCmmsChannel),
+            eventGroupMapStorageClient,
+            eventGroupMapBlobUri.key,
             dataAvailabilitySyncConfig.dataProvider,
             publishingConfig.entityKeyTypesList.toSet(),
             publishingConfig.maxConcurrentRequests.takeIf { it > 0 }

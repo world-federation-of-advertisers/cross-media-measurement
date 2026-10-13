@@ -2548,11 +2548,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
               externalDataProviderIdIn += dataProvider.externalDataProviderId
               activityContains = dateInterval {
                 startDate = date1
-                endDate = date {
-                  year = 2023
-                  month = 1
-                  day = 3
-                }
+                endDate = date2
               }
             }
           }
@@ -2571,7 +2567,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
                 endDate = date {
                   year = 2023
                   month = 1
-                  day = 4
+                  day = 3
                 }
               }
             }
@@ -2640,7 +2636,7 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
     }
 
   @Test
-  fun `streamEventGroups throws INVALID_ARGUMENT when activity_contains interval is empty`() =
+  fun `streamEventGroups throws INVALID_ARGUMENT when activity_contains start_date is after end_date`() =
     runBlocking {
       val exception =
         assertFailsWith<StatusRuntimeException> {
@@ -2653,7 +2649,11 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
                     month = 2
                     day = 1
                   }
-                  endDate = startDate
+                  endDate = date {
+                    year = 2023
+                    month = 1
+                    day = 1
+                  }
                 }
               }
             }
@@ -2661,7 +2661,9 @@ abstract class EventGroupsServiceTest<T : EventGroupsCoroutineImplBase> {
         }
 
       assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-      assertThat(exception).hasMessageThat().contains("start_date must be before end_date")
+      assertThat(exception)
+        .hasMessageThat()
+        .contains("start_date must be before or equal to end_date")
     }
 
   @Test

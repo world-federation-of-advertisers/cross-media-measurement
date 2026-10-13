@@ -303,7 +303,19 @@ class DataAvailabilitySyncTest {
   fun `sync publishes EventGroup activity from scanned metadata`() = runBlocking {
     val storageClient =
       FakeBlobMetadataStorageClient(FileSystemStorageClient(File(tempFolder.root.toString())))
-    seedBlobDetails(storageClient, folderPrefix, listOf(300L to 400L))
+    seedBlobDetails(
+      storageClient,
+      folderPrefix,
+      listOf(300L to 400L),
+      entityKeyGroups =
+        listOf(
+          entityKeyGroup {
+            entityType = "campaign"
+            entityIds += "campaign-1"
+          }
+        ),
+      populateEventGroupReferenceId = false,
+    )
     var publishedMetadata: Collection<ImpressionMetadata> = emptyList()
     val publisher = EventGroupActivityPublisher { metadata ->
       publishedMetadata = metadata
@@ -327,8 +339,14 @@ class DataAvailabilitySyncTest {
 
     assertThat(outcome).isEqualTo(DataAvailabilitySync.Outcome.PUBLISHED)
     assertThat(publishedMetadata).hasSize(1)
-    assertThat(publishedMetadata.single().eventGroupReferenceId)
-      .isEqualTo("some-event-group-reference-id")
+    assertThat(publishedMetadata.single().eventGroupReferenceId).isEmpty()
+    assertThat(publishedMetadata.single().entityKeysList)
+      .containsExactly(
+        entityKey {
+          entityType = "campaign"
+          entityId = "campaign-1"
+        }
+      )
     verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
     assertThat(
         storageClient.updateBlobMetadataCalls.any {
@@ -362,7 +380,7 @@ class DataAvailabilitySyncTest {
       assertFailsWith<Exception> { dataAvailabilitySync.sync("$bucket/${folderPrefix}done") }
 
     assertThat(exception).hasMessageThat().isEqualTo("activity publication failed")
-    verifyBlocking(dataProvidersServiceMock, times(0)) { replaceDataAvailabilityIntervals(any()) }
+    verifyBlocking(dataProvidersServiceMock) { replaceDataAvailabilityIntervals(any()) }
     assertThat(
         storageClient.updateBlobMetadataCalls.none {
           DataAvailabilityBlobs.PUBLISHED_SYNC_ID_KEY in it.metadata

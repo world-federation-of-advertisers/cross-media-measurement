@@ -668,7 +668,7 @@ class EventGroupsServiceTest {
   }
 
   @Test
-  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains interval is empty`() {
+  fun `listEventGroups throws INVALID_ARGUMENT when activity_contains start date is after end date`() {
     val request = listEventGroupsRequest {
       parent = MEASUREMENT_CONSUMER_NAME
       structuredFilter =
@@ -679,7 +679,11 @@ class EventGroupsServiceTest {
               month = 2
               day = 1
             }
-            endDate = startDate
+            endDate = date {
+              year = 2023
+              month = 1
+              day = 1
+            }
           }
         }
     }
@@ -692,7 +696,8 @@ class EventGroupsServiceTest {
       }
 
     assertThat(exception.status.code).isEqualTo(Status.Code.INVALID_ARGUMENT)
-    assertThat(exception.message).contains("activity_contains.start_date must be before")
+    assertThat(exception.message)
+      .contains("activity_contains.start_date must be before or equal to")
   }
 
   @Test

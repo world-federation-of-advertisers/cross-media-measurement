@@ -70,6 +70,9 @@ message DataAvailabilitySyncConfig {
   // impression metadata.
   EventGroupActivityPublishingConfig event_group_activity_publishing = 8;
 
+  // This publisher only appends activity. A `SyncEventGroupActivities` process
+  // for the same DataProvider must use APPEND mode; SYNC mode can remove
+  // concurrently-published dates.
   message EventGroupActivityPublishingConfig {
     // Entity key types whose values identify EventGroups.
     repeated string entity_key_types = 1;
@@ -84,6 +87,12 @@ message DataAvailabilitySyncConfig {
     // published. Including both endpoint dates intentionally favors
     // over-reporting activity over omitting a potentially active date.
     string time_zone = 3;
+
+    // Blob URI containing `MappedEventGroup` records in Mesos RecordIO format.
+    string event_group_map_blob_uri = 4;
+
+    // Storage containing the EventGroup map.
+    StorageParams event_group_map_storage = 5;
   }
 
   // List of model lines to use for a single mapping entry.
