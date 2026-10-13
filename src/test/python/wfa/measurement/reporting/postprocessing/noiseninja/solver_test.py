@@ -20,6 +20,7 @@ from unittest.mock import MagicMock
 from qpsolvers import Solution
 
 from noiseninja.noised_measurements import Measurement
+from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from noiseninja.solver import Solver
 from wfa.measurement.internal.reporting.postprocessing import (
@@ -202,6 +203,45 @@ class SolverTest(unittest.TestCase):
         self.assertGreaterEqual(solution[2], 0.0)
         self.assertGreaterEqual(solution[3], 0.0)
         self.assertGreaterEqual(solution[4], 0.0)
+
+    def test_solve_enforces_ordered_sets_relation(self):
+        spec = SetMeasurementsSpec()
+        spec.add_ordered_sets_relation(OrderedSets({1}, {2}))
+        spec.add_measurement(1, Measurement(10, 1, "larger_set"))
+        spec.add_measurement(2, Measurement(20, 1, "smaller_set"))
+
+        solution, report_post_processor_status = Solver(
+            spec).solve_and_translate()
+
+        self.assertIn(report_post_processor_status.status_code, [
+            StatusCode.SOLUTION_FOUND_WITH_HIGHS,
+            StatusCode.SOLUTION_FOUND_WITH_OSQP
+        ])
+        self.assertLess(
+            max(report_post_processor_status.primal_equality_residual,
+                report_post_processor_status.primal_inequality_residual),
+            TOLERANCE)
+        self.assertGreaterEqual(solution[1], solution[2] - TOLERANCE)
+
+    def test_solver_rejects_empty_ordered_set(self):
+        spec = SetMeasurementsSpec()
+        spec.add_ordered_sets_relation(OrderedSets(set(), {1}))
+        spec.add_measurement(1, Measurement(10, 1, "measurement"))
+
+        with self.assertRaisesRegex(
+            ValueError, "empty larger set or empty smaller set"):
+            Solver(spec)
+
+    def test_solver_rejects_ordered_sets_of_different_lengths(self):
+        spec = SetMeasurementsSpec()
+        spec.add_ordered_sets_relation(OrderedSets({1}, {2, 3}))
+        spec.add_measurement(1, Measurement(10, 1, "measurement_01"))
+        spec.add_measurement(2, Measurement(20, 1, "measurement_02"))
+        spec.add_measurement(3, Measurement(30, 1, "measurement_03"))
+
+        with self.assertRaisesRegex(
+            ValueError, "sets of different length"):
+            Solver(spec)
 
     def test_solve_fails_when_solution_has_negative_results(self):
         spec = SetMeasurementsSpec()
