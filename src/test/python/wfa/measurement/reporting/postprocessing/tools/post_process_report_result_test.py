@@ -710,12 +710,13 @@ class PostProcessReportResultTest(unittest.TestCase):
             self._set_up_failed_post_processor(mock_processor_class)
         )
 
-        with self.assertRaises(NoiseCorrectionFailure) as raised:
-            processor.process(
-                self.cmms_measurement_consumer_id,
-                self.external_report_result_id,
-                [],
-            )
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertRaises(NoiseCorrectionFailure) as raised:
+                processor.process(
+                    self.cmms_measurement_consumer_id,
+                    self.external_report_result_id,
+                    [],
+                )
 
         self.assertEqual(
             len(raised.exception.summary_results),
@@ -729,6 +730,32 @@ class PostProcessReportResultTest(unittest.TestCase):
         )
         self.assertNotIn('918273645', str(raised.exception))
         self.assertNotIn('12.5', str(raised.exception))
+
+        contexts = [
+            context
+            for summary_result in raised.exception.summary_results
+            for context in summary_result.reporting_set_contexts
+        ]
+        expected_identifiers = {
+            (
+                result.dimension.external_reporting_set_id,
+                result.external_reporting_set_result_id,
+            )
+            for result in self.mock_list_reporing_set_results_response.reporting_set_results
+        }
+        self.assertEqual(
+            {
+                (
+                    context.external_reporting_set_id,
+                    context.external_reporting_set_result_id,
+                )
+                for context in contexts
+            },
+            expected_identifiers,
+        )
+        self.assertTrue(
+            all(context.data_provider_resource_names for context in contexts)
+        )
 
     @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
     def test_all_summaries_are_processed_and_internal_errors_are_preserved(

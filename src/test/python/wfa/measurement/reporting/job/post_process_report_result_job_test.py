@@ -401,12 +401,23 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         successful_summary.cmms_measurement_consumer_id = "mc_id_1"
         successful_summary.external_report_result_id = 101
 
+        context = post_process_report_result.ReportingSetDiagnosticContext(
+            external_reporting_set_id="reporting-set-1",
+            external_reporting_set_result_id=123456789,
+            primitive_reporting_set_ids=("primitive-reporting-set-1",),
+            data_provider_resource_names=("dataProviders/provider-1",),
+            window_end_dates=("2026-09-30",),
+        )
         return post_process_report_result.NoiseCorrectionFailure([
             post_process_report_result.ReportSummaryProcessingResult(
-                0, failed_result
+                report_summary_index=0,
+                result=failed_result,
+                reporting_set_contexts=(context,),
             ),
             post_process_report_result.ReportSummaryProcessingResult(
-                1, successful_result
+                report_summary_index=1,
+                result=successful_result,
+                reporting_set_contexts=(context,),
             ),
         ])
 
@@ -439,6 +450,9 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertIn("primal_equality_residual=3.5", logs)
         self.assertNotIn("918273645", logs)
         self.assertNotIn("12.5", logs)
+        self.assertNotIn("primitive-reporting-set-1", logs)
+        self.assertNotIn("dataProviders/provider-1", logs)
+        self.assertNotIn("2026-09-30", logs)
         self.mock_basic_reports_stub.FailBasicReport.assert_called_once()
 
     def test_noise_correction_failure_logs_values_when_enabled(self):
@@ -472,6 +486,9 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         self.assertIn("918273645", logs)
         self.assertIn("12.5", logs)
         self.assertIn("reporting-set-1", logs)
+        self.assertIn("primitive-reporting-set-1", logs)
+        self.assertIn("dataProviders/provider-1", logs)
+        self.assertIn("2026-09-30", logs)
 
     @mock.patch.object(logging, "info", autospec=True)
     def test_fail_basic_report_logs_started_and_succeeded(self, mock_info):

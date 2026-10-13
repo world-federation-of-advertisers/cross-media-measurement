@@ -13,7 +13,9 @@
 # limitations under the License.
 """A tool for fetching, correcting, and updating a report."""
 
+from dataclasses import asdict
 from dataclasses import dataclass
+import json
 from typing import Any
 from typing import Optional
 from typing import TypeAlias
@@ -68,11 +70,23 @@ _SUCCESS_STATUS_CODES = frozenset({
 
 
 @dataclass(frozen=True)
+class ReportingSetDiagnosticContext:
+    """Source identifiers for one reporting-set result."""
+
+    external_reporting_set_id: str
+    external_reporting_set_result_id: int
+    primitive_reporting_set_ids: tuple[str, ...]
+    data_provider_resource_names: tuple[str, ...]
+    window_end_dates: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ReportSummaryProcessingResult:
     """Result and bounded exception metadata for one report summary."""
 
     report_summary_index: int
     result: ReportPostProcessorResult
+    reporting_set_contexts: tuple[ReportingSetDiagnosticContext, ...] = ()
     internal_error_type: str | None = None
 
 
@@ -157,16 +171,25 @@ def log_noise_correction_diagnostic(
         len(result.large_corrections),
     ]
     if values_enabled:
-        message += " xmm.noise_correction.result=%s"
-        args.append(
-            json_format.MessageToJson(
+        message += " xmm.noise_correction.diagnostic=%s"
+        diagnostic = {
+            "report_post_processor_result": json_format.MessageToDict(
                 result,
                 preserving_proto_field_name=True,
-                indent=None,
-                sort_keys=True,
-            )
+            ),
+            "reporting_set_contexts": [
+                asdict(context)
+                for context in summary_result.reporting_set_contexts
+            ],
+        }
+        args.append(
+            json.dumps(diagnostic, separators=(",", ":"), sort_keys=True)
         )
     logging.warning(message, *args)
+
+
+def _date_to_iso_string(date) -> str:
+    return f"{date.year:04d}-{date.month:02d}-{date.day:02d}"
 
 
 class PostProcessReportResult:
@@ -252,7 +275,9 @@ class PostProcessReportResult:
             self._potential_direct_thresholding_edps
         )
         data_provider_ids_by_reporting_set_id = {}
-        if configured_edps:
+        if (
+            configured_edps or noise_correction_value_logging.is_enabled()
+        ):
             data_provider_ids_by_reporting_set_id = (
                 self._get_data_provider_ids_by_primitive_reporting_set_id(
                     cmms_measurement_consumer_id,
@@ -283,6 +308,11 @@ class PostProcessReportResult:
             logging.info("No report summaries were generated.")
             return
 
+        reporting_set_results_by_id = {
+            result.external_reporting_set_result_id: result
+            for result in reporting_set_results
+        }
+
         # Runs report post processor on each report summary v2.
         all_updated_measurements: dict[str, float] = {}
         summary_results: list[ReportSummaryProcessingResult] = []
@@ -312,10 +342,54 @@ class PostProcessReportResult:
                 )
                 result.pre_correction_report_summary_v2.CopyFrom(report_summary)
 
+            reporting_set_contexts = []
+            for set_result in report_summary.report_summary_set_results:
+                source_result = reporting_set_results_by_id.get(
+                    set_result.external_reporting_set_result_id
+                )
+                if source_result is None:
+                    continue
+                external_reporting_set_id = (
+                    source_result.dimension.external_reporting_set_id
+                )
+                primitive_reporting_set_ids = tuple(
+                    sorted(
+                        external_reporting_set_id_map.get(
+                            external_reporting_set_id, set()
+                        )
+                    )
+                )
+                data_provider_resource_names = tuple(
+                    f"dataProviders/{data_provider_id}"
+                    for data_provider_id in sorted({
+                        data_provider_id
+                        for primitive_reporting_set_id in primitive_reporting_set_ids
+                        for data_provider_id in data_provider_ids_by_reporting_set_id.get(
+                            primitive_reporting_set_id, set()
+                        )
+                    })
+                )
+                window_end_dates = tuple(
+                    sorted({
+                        _date_to_iso_string(window.key.end)
+                        for window in source_result.reporting_window_results
+                    })
+                )
+                reporting_set_contexts.append(
+                    ReportingSetDiagnosticContext(
+                        external_reporting_set_id,
+                        source_result.external_reporting_set_result_id,
+                        primitive_reporting_set_ids,
+                        data_provider_resource_names,
+                        window_end_dates,
+                    )
+                )
+
             summary_result = ReportSummaryProcessingResult(
-                report_summary_index,
-                result,
-                internal_error_type,
+                report_summary_index=report_summary_index,
+                result=result,
+                reporting_set_contexts=tuple(reporting_set_contexts),
+                internal_error_type=internal_error_type,
             )
             summary_results.append(summary_result)
             if not _summary_failed(summary_result):
