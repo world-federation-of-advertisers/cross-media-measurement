@@ -64,7 +64,7 @@ import org.wfanet.measurement.edpaggregator.telemetry.withSpan
 data class SpotRecord(
   val parent: String,
   val eventGroupActivityDate: Instant,
-  val operation: SpotOperation? = null,
+  val operation: SpotOperation?,
 )
 
 /** Explicit mutation applied to a [SpotRecord] in [SyncMode.PATCH]. */
@@ -130,9 +130,9 @@ class EventGroupActivitySync(
   private val throttler: Throttler,
   private val dataProviderName: String,
   private val listPageSize: Int,
+  private val preview: Boolean,
   private val batchSize: Int = 1000,
   private val mode: SyncMode = SyncMode.SYNC,
-  private val preview: Boolean = false,
   private val maxAttempts: Int = 3,
   private val retryBackoff: ExponentialBackoff = ExponentialBackoff(),
   private val tracer: Tracer = GlobalOpenTelemetry.getTracer("wfa.edpa"),

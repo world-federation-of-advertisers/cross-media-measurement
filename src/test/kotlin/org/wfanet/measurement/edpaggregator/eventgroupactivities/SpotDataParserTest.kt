@@ -48,8 +48,12 @@ class SpotDataParserTest {
 
     assertThat(records)
       .containsExactly(
-        SpotRecord("dataProviders/dp1/eventGroups/eg1", Instant.parse("2026-01-01T00:00:00Z")),
-        SpotRecord("dataProviders/dp1/eventGroups/eg2", Instant.parse("2026-01-02T12:30:00Z")),
+        SpotRecord(
+          "dataProviders/dp1/eventGroups/eg1",
+          Instant.parse("2026-01-01T00:00:00Z"),
+          null,
+        ),
+        SpotRecord("dataProviders/dp1/eventGroups/eg2", Instant.parse("2026-01-02T12:30:00Z"), null),
       )
       .inOrder()
   }
