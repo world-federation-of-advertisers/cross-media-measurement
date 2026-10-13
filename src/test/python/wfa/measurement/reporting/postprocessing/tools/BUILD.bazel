@@ -72,6 +72,7 @@ py_test(
     srcs = ["post_process_report_result_test.py"],
     data = [":sample_reports"],
     deps = [
+        "//src/main/python/wfa/measurement/reporting/postprocessing/noiseninja",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:post_process_report_result",
         "//src/main/python/wfa/measurement/reporting/postprocessing/tools:potential_direct_result_minimum_thresholds",
         requirement("absl-py"),

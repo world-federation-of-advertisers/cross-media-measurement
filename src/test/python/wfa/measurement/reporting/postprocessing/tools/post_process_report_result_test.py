@@ -17,6 +17,7 @@ from unittest.mock import MagicMock
 from unittest.mock import patch
 from unittest.mock import ANY
 
+from noiseninja import noise_correction_value_logging
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import (
     PostProcessReportResult, )
 from src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result import compute_basic_metric_set
@@ -25,6 +26,7 @@ from tools.potential_direct_result_minimum_thresholds import (
 )
 from wfa.measurement.internal.reporting.postprocessing import (
     report_post_processor_result_pb2, )
+from wfa.measurement.internal.reporting.postprocessing import report_summary_v2_pb2
 
 from google.protobuf import text_format
 from wfa.measurement.internal.reporting.v2 import report_result_pb2
@@ -366,9 +368,25 @@ class PostProcessReportResultTest(unittest.TestCase):
         self.assertTrue(
             any('Could not fully reconcile' in m for m in cm.output),
             f"expected reconciliation warning, got: {cm.output}")
-        self.assertTrue(
+        self.assertFalse(
             any('reach=None' in m for m in cm.output),
-            f"warning should render reach=None, got: {cm.output}")
+            f"warning should redact reach, got: {cm.output}")
+        self.assertFalse(
+            any('impressions=5' in m for m in cm.output),
+            f"warning should redact impressions, got: {cm.output}")
+
+    def test_compute_basic_metric_set_value_logging_can_be_enabled(self):
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertLogs(level='WARNING') as cm:
+                compute_basic_metric_set(
+                    reach=None,
+                    frequency_values=[100],
+                    impressions=5,
+                    population=1000,
+                )
+
+        self.assertTrue(any('reach=None' in m for m in cm.output))
+        self.assertTrue(any('impressions=5' in m for m in cm.output))
 
     def test_compute_basic_metric_set_zero_reach_zeros_k_plus_reach(self):
         """reach=0 (rather than None) means "nobody was reached"; the
@@ -646,6 +664,84 @@ class PostProcessReportResultTest(unittest.TestCase):
             },
         )
 
+    def _set_up_failed_post_processor(self, mock_processor_class):
+        self.mock_report_results_stub.ListReportingSetResults.return_value = (
+            self.mock_list_reporing_set_results_response
+        )
+        self.mock_reporting_sets_stub.BatchGetReportingSets.return_value = (
+            self.mock_batch_get_reporting_set_response
+        )
+        report_summary = report_summary_v2_pb2.ReportSummaryV2(
+            cmms_measurement_consumer_id="mc-diagnostic",
+            external_report_result_id=987654321,
+        )
+        set_result = report_summary.report_summary_set_results.add(
+            external_reporting_set_result_id=123456789,
+            impression_filter="ami",
+            set_operation="union",
+            data_providers=["reporting-set-1"],
+        )
+        set_result.whole_campaign_result.reach.value = 918273645
+        set_result.whole_campaign_result.reach.standard_deviation = 12.5
+        set_result.whole_campaign_result.reach.metric = "synthetic-reach"
+        result = report_post_processor_result_pb2.ReportPostProcessorResult(
+            status=report_post_processor_result_pb2.ReportPostProcessorStatus(
+                status_code=(
+                    report_post_processor_result_pb2.ReportPostProcessorStatus.SOLUTION_NOT_FOUND
+                ),
+                primal_equality_residual=3.5,
+                primal_inequality_residual=4.5,
+            )
+        )
+        result.pre_correction_report_summary_v2.CopyFrom(report_summary)
+        mock_processor_class.return_value.process.return_value = result
+        return PostProcessReportResult(
+            self.mock_report_results_stub, self.mock_reporting_sets_stub
+        )
+
+    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
+    def test_failed_correction_logs_status_without_values_by_default(
+        self, mock_processor_class
+    ):
+        processor = self._set_up_failed_post_processor(mock_processor_class)
+
+        with self.assertLogs(level='WARNING') as captured:
+            with self.assertRaisesRegex(ValueError, 'SOLUTION_NOT_FOUND'):
+                processor.process(
+                    self.cmms_measurement_consumer_id,
+                    self.external_report_result_id,
+                    [],
+                )
+
+        logs = '\n'.join(captured.output)
+        self.assertIn('measurement_values_logging_enabled=false', logs)
+        self.assertIn('status=SOLUTION_NOT_FOUND', logs)
+        self.assertIn('primal_equality_residual=3.5', logs)
+        self.assertNotIn('918273645', logs)
+        self.assertNotIn('12.5', logs)
+
+    @patch('src.main.python.wfa.measurement.reporting.postprocessing.tools.post_process_report_result.ReportSummaryV2Processor')
+    def test_failed_correction_logs_pre_correction_values_when_enabled(
+        self, mock_processor_class
+    ):
+        processor = self._set_up_failed_post_processor(mock_processor_class)
+
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertLogs(level='WARNING') as captured:
+                with self.assertRaisesRegex(ValueError, 'SOLUTION_NOT_FOUND'):
+                    processor.process(
+                        self.cmms_measurement_consumer_id,
+                        self.external_report_result_id,
+                        [],
+                    )
+
+        logs = '\n'.join(captured.output)
+        self.assertIn('measurement_values_logging_enabled=true', logs)
+        self.assertIn('pre_correction_report_summary_v2', logs)
+        self.assertIn('918273645', logs)
+        self.assertIn('12.5', logs)
+        self.assertIn('reporting-set-1', logs)
+
     def test_post_process_report_result_raises_on_large_corrections(self):
         # Loads a real fixture whose noisy values force the solver to apply
         # corrections that exceed 7 sigma (e.g. reach going from 16.6M to 0).
@@ -664,10 +760,16 @@ class PostProcessReportResultTest(unittest.TestCase):
         report_result_processor = PostProcessReportResult(
             self.mock_report_results_stub, self.mock_reporting_sets_stub)
 
-        with self.assertRaisesRegex(ValueError, 'large corrections'):
+        with self.assertRaisesRegex(ValueError, 'large corrections') as raised:
             report_result_processor.process(
                 self.cmms_measurement_consumer_id,
                 self.external_report_result_id, [])
+
+        message = str(raised.exception)
+        self.assertIn('count=', message)
+        self.assertNotIn('original_value', message)
+        self.assertNotIn('corrected_value', message)
+        self.assertNotIn('sigma', message)
 
     def test_get_data_provider_ids_returns_empty_map_without_rpc(self):
         report_result_processor = PostProcessReportResult(
@@ -1073,8 +1175,23 @@ class PostProcessReportResultTest(unittest.TestCase):
         self._set_window_reach(request, 2, end_day=15, reach=1000,
                                k_plus_reach=[1000, 500, 200])
 
-        processor._reconcile_cross_window_identities(
-            request, reporting_set_results)
+        with self.assertLogs(level='INFO') as captured:
+            processor._reconcile_cross_window_identities(
+                request, reporting_set_results)
+
+        logs = '\n'.join(captured.output)
+        self.assertIn('total=1 weekly=2', logs)
+        self.assertNotIn('whole=0', logs)
+        self.assertNotIn('last_weekly=1000', logs)
+
+        with noise_correction_value_logging.measurement_value_logging(True):
+            with self.assertLogs(level='INFO') as captured:
+                processor._reconcile_cross_window_identities(
+                    request, reporting_set_results
+                )
+        logs = '\n'.join(captured.output)
+        self.assertIn('whole=0', logs)
+        self.assertIn('last_weekly=1000', logs)
 
         last_weekly = request.reporting_set_results[
             2].reporting_window_results[0]

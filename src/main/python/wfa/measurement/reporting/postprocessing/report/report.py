@@ -26,6 +26,7 @@ from typing import TypeAlias
 from absl import logging
 from qpsolvers import Solution
 
+from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import KReachMeasurements
 from noiseninja.noised_measurements import Measurement
 from noiseninja.noised_measurements import MeasurementSet
@@ -805,11 +806,15 @@ class Report:
           STANDARD_DEVIATION_TEST_THRESHOLD*measurement.sigma,
           LARGE_CORRECTION_THRESHOLD
         ):
-          logging.warning(
-            f"Measurement {measurement.name} has a large correction: original="
-            f"{measurement.value}, corrected={corrected_measurement.value}, "
-            f"sigma={measurement.sigma}."
-          )
+          if noise_correction_value_logging.is_enabled():
+            logging.warning(
+              f"Measurement {measurement.name} has a large correction: original="
+              f"{measurement.value}, corrected={corrected_measurement.value}, "
+              f"sigma={measurement.sigma}."
+            )
+          else:
+            logging.warning(
+                "Measurement %s has a large correction.", measurement.name)
           report_post_processor_result.large_corrections.add(
             metric_title=measurement_name,
             original_value=round(measurement.value),

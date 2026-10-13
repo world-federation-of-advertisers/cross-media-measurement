@@ -61,6 +61,15 @@ _CERT_COLLECTION_FILE = flags.DEFINE_string(
     "The path to the certificate collection file for validating the server's cert.",
     required=True)
 flags.DEFINE_alias("cert-collection-file", "cert_collection_file")
+_LOG_NOISE_CORRECTION_VALUES = flags.DEFINE_boolean(
+    "log_noise_correction_values",
+    False,
+    "Log DP-noised pre-correction and corrected measurement values. This may "
+    "include reach, impression, frequency, and correction values.",
+)
+flags.DEFINE_alias(
+    "log-noise-correction-values", "log_noise_correction_values"
+)
 _AMI_MRC_EXEMPTED_EDPS = flags.DEFINE_list(
     "ami_mrc_exempted_edps",
     [],
@@ -236,6 +245,9 @@ def main(argv):
             logging.info("Create PostProcessReportResultJob.")
             job = post_process_report_result_job.PostProcessReportResultJob(
                 internal_reporting_channel,
+                log_noise_correction_values=(
+                    _LOG_NOISE_CORRECTION_VALUES.value
+                ),
                 ami_mrc_exempted_edps=_AMI_MRC_EXEMPTED_EDPS.value,
                 potential_direct_result_minimum_thresholds=(
                     potential_direct_result_minimum_thresholds

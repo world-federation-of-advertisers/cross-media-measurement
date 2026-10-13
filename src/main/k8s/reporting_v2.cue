@@ -20,6 +20,7 @@ package k8s
 
 	_reportSchedulingCronSchedule:      string | *"30 6 * * *"  // Daily at 6:30 AM
 	_reportResultProcessorCronSchedule: string | *"*/5 * * * *" // Every 5 minutes.
+	_logNoiseCorrectionValues:          bool | *false
 	// These values are conservative upper bounds across all policies that could have produced a
 	// pending result, not necessarily the thresholds currently used by any one EDP. An empty EDP
 	// list and zero threshold settings disable potential Direct threshold correction.
@@ -377,6 +378,7 @@ package k8s
 			_container: {
 				args: [
 					"--cert-collection-file=/var/run/secrets/files/reporting_root.pem",
+					"--log-noise-correction-values=\(_logNoiseCorrectionValues)",
 					"--potential-direct-result-min-users=\(_potentialDirectResultMinUsers)",
 					"--potential-direct-result-min-impressions=\(_potentialDirectResultMinImpressions)",
 				] + [ for edp in _potentialDirectThresholdingEdps {

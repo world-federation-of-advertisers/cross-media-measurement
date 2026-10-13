@@ -19,7 +19,9 @@ from typing import TypeAlias
 from collections.abc import Iterable
 
 from absl import logging
+from google.protobuf import json_format
 
+from noiseninja import noise_correction_value_logging
 from wfa.measurement.internal.reporting.postprocessing import \
     report_summary_v2_pb2
 from wfa.measurement.internal.reporting.postprocessing import \
@@ -37,6 +39,7 @@ from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2
 from wfa.measurement.internal.reporting.v2 import reporting_sets_service_pb2_grpc
 from wfa.measurement.internal.reporting.v2 import result_group_pb2
 
+ReportQuality = report_post_processor_result_pb2.ReportQuality
 ReportingSet = reporting_set_pb2.ReportingSet
 ReportPostProcessorStatus = report_post_processor_result_pb2.ReportPostProcessorStatus
 ReportPostProcessorResult = report_post_processor_result_pb2.ReportPostProcessorResult
@@ -59,6 +62,61 @@ _BATCH_GET_REPORTING_SETS_LIMIT = 1000
 def _get_cmms_data_provider_id(edp_name: str) -> str:
     """Converts an EDP resource name to a raw CMMS DataProvider ID."""
     return edp_name.split("/")[-1]
+
+
+def _log_noise_correction_failure(
+    result: ReportPostProcessorResult,
+    report_summary_index: int,
+) -> None:
+    """Logs bounded solver state and optional measurement-value diagnostics."""
+    values_enabled = noise_correction_value_logging.is_enabled()
+    status = result.status
+    pre_quality = result.pre_correction_quality
+    post_quality = result.post_correction_quality
+    report_summary = result.pre_correction_report_summary_v2
+    logging.warning(
+        "xmm.noise_correction.failure=true "
+        "xmm.noise_correction.measurement_values_logging_enabled=%s "
+        "xmm.noise_correction.report_summary_index=%d "
+        "xmm.measurement_consumer.id=%s "
+        "xmm.report_result.id=%d "
+        "xmm.noise_correction.status=%s "
+        "xmm.noise_correction.primal_equality_residual=%s "
+        "xmm.noise_correction.primal_inequality_residual=%s "
+        "xmm.noise_correction.pre_zero_variance_quality=%s "
+        "xmm.noise_correction.pre_union_quality=%s "
+        "xmm.noise_correction.post_zero_variance_quality=%s "
+        "xmm.noise_correction.post_union_quality=%s "
+        "xmm.noise_correction.uncorrected_measurement_count=%d "
+        "xmm.noise_correction.large_correction_count=%d",
+        str(values_enabled).lower(),
+        report_summary_index,
+        report_summary.cmms_measurement_consumer_id,
+        report_summary.external_report_result_id,
+        ReportPostProcessorStatus.StatusCode.Name(status.status_code),
+        status.primal_equality_residual,
+        status.primal_inequality_residual,
+        ReportQuality.ZeroVarianceMeasurementsStatus.Name(
+            pre_quality.zero_variance_measurements_status
+        ),
+        ReportQuality.IndependenceCheckStatus.Name(pre_quality.union_status),
+        ReportQuality.ZeroVarianceMeasurementsStatus.Name(
+            post_quality.zero_variance_measurements_status
+        ),
+        ReportQuality.IndependenceCheckStatus.Name(post_quality.union_status),
+        len(result.uncorrected_measurements),
+        len(result.large_corrections),
+    )
+    if values_enabled:
+        logging.warning(
+            "xmm.noise_correction.result=%s",
+            json_format.MessageToJson(
+                result,
+                preserving_proto_field_name=True,
+                indent=None,
+                sort_keys=True,
+            ),
+        )
 
 
 class PostProcessReportResult:
@@ -176,9 +234,8 @@ class PostProcessReportResult:
             return
 
         # Runs report post processor on each report summary v2.
-        # TODO(@ple13): Write the status to the output log.
         all_updated_measurements: dict[str, float] = {}
-        for report_summary in report_summaries:
+        for report_summary_index, report_summary in enumerate(report_summaries):
             result = ReportSummaryV2Processor(
                 report_summary,
                 ami_mrc_exempted_reporting_set_ids,
@@ -200,14 +257,34 @@ class PostProcessReportResult:
                     ReportPostProcessorStatus.PARTIAL_SOLUTION_FOUND_WITH_OSQP,
             ]:
                 if result.large_corrections:
+                    _log_noise_correction_failure(
+                        result, report_summary_index
+                    )
+                    if noise_correction_value_logging.is_enabled():
+                        details = f": {list(result.large_corrections)}"
+                    else:
+                        metric_titles = sorted(
+                            correction.metric_title
+                            for correction in result.large_corrections
+                        )
+                        details = (
+                            f" (count={len(result.large_corrections)}, "
+                            f"metrics={metric_titles})"
+                        )
                     raise ValueError(
                         "Noise correction produced large corrections for a"
-                        f" report summary: {list(result.large_corrections)}")
+                        f" report summary{details}"
+                    )
                 all_updated_measurements.update(result.updated_measurements)
             else:
+                _log_noise_correction_failure(result, report_summary_index)
+                status_name = ReportPostProcessorStatus.StatusCode.Name(
+                    result.status.status_code
+                )
                 raise ValueError(
                     "Noise correction failed for a report summary with status:"
-                    f" {result.status.status_code}")
+                    f" {status_name}"
+                )
 
         # Creates AddProcessedResultValuesRequest for each report summary.
         request = self._create_add_processed_result_values_requests(
@@ -445,11 +522,17 @@ class PostProcessReportResult:
             # cross-window reach identity to reconcile when one side has
             # no cumulative reach measurement.
             if whole_reach <= 0 or last_weekly_reach <= 0:
-                logging.info(
-                    'Skipping cross-window reach reconciliation for dim '
-                    '(total=%d weekly=%d): one side has no positive '
-                    'cumulative reach (whole=%d, last_weekly=%d).',
-                    total_id, weekly_id, whole_reach, last_weekly_reach)
+                if noise_correction_value_logging.is_enabled():
+                    logging.info(
+                        'Skipping cross-window reach reconciliation for dim '
+                        '(total=%d weekly=%d): one side has no positive '
+                        'cumulative reach (whole=%d, last_weekly=%d).',
+                        total_id, weekly_id, whole_reach, last_weekly_reach)
+                else:
+                    logging.info(
+                        'Skipping cross-window reach reconciliation for dim '
+                        '(total=%d weekly=%d): one side has no positive '
+                        'cumulative reach.', total_id, weekly_id)
                 continue
             # Population gates everything below: both the cross-window
             # snap and the Rule 1 sweep mutate via _snap_cumulative_reach,
@@ -941,13 +1024,21 @@ def compute_basic_metric_set(
                     # BasicMetricSet that violates rule 2. Use %s for reach
                     # because reach may be None when only the histogram and
                     # impressions were supplied.
-                    logging.warning(
-                        "Could not fully reconcile sum(k_plus_reach) <= "
-                        "impressions: leftover residue %d (reach=%s, "
-                        "impressions=%d). Preserving reach == "
-                        "k_plus_reach[0]; sum(k_plus_reach) will exceed "
-                        "impressions by this residue.",
-                        excess, reach, impressions)
+                    if noise_correction_value_logging.is_enabled():
+                        logging.warning(
+                            "Could not fully reconcile sum(k_plus_reach) <= "
+                            "impressions: leftover residue %d (reach=%s, "
+                            "impressions=%d). Preserving reach == "
+                            "k_plus_reach[0]; sum(k_plus_reach) will exceed "
+                            "impressions by this residue.",
+                            excess, reach, impressions)
+                    else:
+                        logging.warning(
+                            "Could not fully reconcile sum(k_plus_reach) <= "
+                            "impressions. Preserving reach == "
+                            "k_plus_reach[0]; sum(k_plus_reach) will exceed "
+                            "impressions."
+                        )
         basic_metric_set.k_plus_reach.extend(k_plus_reach_values)
 
     _recompute_derived_fields(basic_metric_set, population)

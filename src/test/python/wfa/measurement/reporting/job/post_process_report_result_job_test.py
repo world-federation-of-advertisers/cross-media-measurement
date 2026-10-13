@@ -24,6 +24,7 @@ from wfa.measurement.internal.reporting.v2 import report_results_service_pb2
 from google.rpc import error_details_pb2
 from google.rpc import status_pb2
 from google.protobuf import any_pb2
+from noiseninja import noise_correction_value_logging
 from job import post_process_report_result_job
 from tools import post_process_report_result
 from tools.potential_direct_result_minimum_thresholds import (
@@ -133,13 +134,35 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         mock_channel = mock.create_autospec(grpc.Channel)
         self.job = post_process_report_result_job.PostProcessReportResultJob(
-            mock_channel
+            mock_channel,
+            log_noise_correction_values=False,
         )
 
     def tearDown(self):
         for patch in self.patches:
             patch.stop()
         super().tearDown()
+
+    def test_value_logging_context_is_enabled_only_during_processing(self):
+        mock_channel = mock.create_autospec(grpc.Channel)
+        job = post_process_report_result_job.PostProcessReportResultJob(
+            mock_channel,
+            log_noise_correction_values=True,
+        )
+        basic_report = BasicReport(
+            cmms_measurement_consumer_id="mc_id_1",
+            external_basic_report_id="basic_report_1",
+            external_report_result_id=101,
+        )
+
+        def process(*unused_args):
+            self.assertTrue(noise_correction_value_logging.is_enabled())
+            return None
+
+        self.mock_post_processor.process.side_effect = process
+
+        self.assertTrue(job._process_basic_report(basic_report))
+        self.assertFalse(noise_correction_value_logging.is_enabled())
 
     def test_execute_unprocessed_reports_successfully(self):
         # Sets up mock objects.
@@ -191,6 +214,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
         job_with_exemption = (
             post_process_report_result_job.PostProcessReportResultJob(
                 mock_channel,
+                log_noise_correction_values=False,
                 ami_mrc_exempted_edps=[
                     "dataProviders/edp1",
                     "dataProviders/edp2",
@@ -232,6 +256,7 @@ class PostProcessReportResultJobTest(unittest.TestCase):
 
         post_process_report_result_job.PostProcessReportResultJob(
             mock_channel,
+            log_noise_correction_values=False,
             potential_direct_result_minimum_thresholds=thresholds,
             potential_direct_thresholding_edps=["dataProviders/edp1"],
         )

@@ -22,6 +22,7 @@ import grpc
 from grpc_status import rpc_status
 
 from google.rpc import error_details_pb2
+from noiseninja import noise_correction_value_logging
 from wfa.measurement.internal.reporting.v2 import basic_report_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2
 from wfa.measurement.internal.reporting.v2 import basic_reports_service_pb2_grpc
@@ -193,6 +194,7 @@ class PostProcessReportResultJob:
     def __init__(
         self,
         internal_reporting_channel: grpc.Channel,
+        log_noise_correction_values: bool,
         ami_mrc_exempted_edps: Iterable[str] | None = None,
         potential_direct_result_minimum_thresholds: (
             PotentialDirectResultMinimumThresholds | None
@@ -204,6 +206,8 @@ class PostProcessReportResultJob:
         Args:
             internal_reporting_channel: A gRPC channel to the internal reporting
                 server.
+            log_noise_correction_values: Whether to log DP-noised and corrected
+                measurement values.
             ami_mrc_exempted_edps: The list of EDPs resource name for which the
                 AMI >= MRC consistency checks are disabled.
             potential_direct_result_minimum_thresholds: Conservative upper
@@ -239,12 +243,17 @@ class PostProcessReportResultJob:
                 ),
             )
         )
+        self._log_noise_correction_values = log_noise_correction_values
         self._ami_mrc_exempted_edps = ami_mrc_exempted_edps or []
 
     def _process_basic_report(
         self, basic_report: basic_report_pb2.BasicReport
     ) -> bool:
-        with _report_trace_logging_context(basic_report):
+        with _report_trace_logging_context(
+            basic_report
+        ), noise_correction_value_logging.measurement_value_logging(
+            self._log_noise_correction_values
+        ):
             return self._process_basic_report_with_trace(basic_report)
 
     def _process_basic_report_with_trace(

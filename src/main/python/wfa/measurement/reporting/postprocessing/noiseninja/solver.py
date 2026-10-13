@@ -21,6 +21,7 @@ from qpsolvers import Problem
 from qpsolvers import Solution
 from qpsolvers import solve_problem
 
+from noiseninja import noise_correction_value_logging
 from noiseninja.noised_measurements import OrderedSets
 from noiseninja.noised_measurements import SetMeasurementsSpec
 from wfa.measurement.internal.reporting.postprocessing import report_post_processor_result_pb2
@@ -80,7 +81,11 @@ class Solver:
     self.base_value = np.array(list(
         (mean_measurement_by_variable[i]
          for i in range(0, self.num_variables))))
-    logging.debug(f"The base values are {self.base_value}.")
+    if noise_correction_value_logging.is_enabled():
+      logging.debug(f"The base values are {self.base_value}.")
+    else:
+      logging.debug(
+          "Initialized the solver base vector with %d values.", self.num_variables)
 
   def _add_measurement_targets(self, set_measurement_spec: SetMeasurementsSpec,
       variable_index_by_set_id: dict[int, int]):
