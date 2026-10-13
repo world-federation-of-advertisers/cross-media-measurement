@@ -62,7 +62,7 @@ The ε values above are 10× the original ones. At the original ε, σ was 182,0
 and the aggregator EDPs' true reach was in the low tens of thousands, so every
 reach measurement was noise-dominated and the post-processor zeroed it. Two
 levers close that gap — more reach, and less noise — and this dataset uses both,
-because automated tests report over a 1–2 week window rather than the full
+because automated tests report over a six-week window rather than the full
 90-day flight, which cuts the reach available to any single report.
 
 Note this file is shared across dev, qa and head. There is no environment-scoped

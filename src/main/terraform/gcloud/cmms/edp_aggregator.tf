@@ -266,6 +266,8 @@ locals {
       extra_env_vars = join(",", compact([
         var.requisition_fetcher_env_var,
         "SECURE_COMPUTATION_CONTROL_PLANE_TARGET=${var.secure_computation_public_api_target}",
+        # Below the module's timeout_seconds, so the drain ticker fires before the function dies.
+        "FLUSH_INTERVAL=1m",
       ]))
       secret_mappings = join(",", compact([
         var.requisition_fetcher_secret_mapping,

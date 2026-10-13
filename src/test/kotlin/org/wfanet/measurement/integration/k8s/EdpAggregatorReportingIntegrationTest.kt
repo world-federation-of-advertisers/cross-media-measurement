@@ -434,6 +434,7 @@ class EdpAggregatorReportingIntegrationTest {
       reportingSystem.harness.createBasicReportOverEventGroups(
         runId = UUID.randomUUID().toString(),
         reportTitle = "Media type and impression qualification filter breakdown",
+        campaignGroupDisplayName = CAMPAIGN_GROUP_DISPLAY_NAME,
         eventGroupReferenceIds = REPORT_EVENT_GROUP_REF_IDS,
         eventGroupEntityTypes = reportEventGroupEntityTypes,
         reportStart = REPORT_START,
@@ -448,13 +449,14 @@ class EdpAggregatorReportingIntegrationTest {
   }
 
   @Test
-  fun `weekly report grouped by gender across EDPs succeeds`() = runBlocking {
+  fun `weekly report grouped by demographic across EDPs succeeds`() = runBlocking {
     check(MODEL_LINE.isNotEmpty()) { "model_line must be set to run this test" }
 
     val report =
       reportingSystem.harness.createBasicReportOverEventGroups(
         runId = UUID.randomUUID().toString(),
-        reportTitle = "Weekly cumulative and non-cumulative metrics by gender",
+        reportTitle = "Weekly cumulative and non-cumulative metrics by demographic",
+        campaignGroupDisplayName = CAMPAIGN_GROUP_DISPLAY_NAME,
         eventGroupReferenceIds = WEEKLY_REPORT_EVENT_GROUP_REF_IDS,
         eventGroupEntityTypes = weeklyReportEventGroupEntityTypes,
         reportStart = WEEKLY_REPORT_START,
@@ -477,7 +479,7 @@ class EdpAggregatorReportingIntegrationTest {
   }
 
   /**
-   * A single result group over every reported DataProvider, weekly, grouped by gender.
+   * A single result group over every reported DataProvider, weekly, grouped by demographic.
    *
    * Only `reach` and `percent_reach` are requested cumulatively; the remaining basic metrics are
    * not supported for cumulative weekly. `stacked_incremental_reach` is likewise rejected unless
@@ -498,7 +500,11 @@ class EdpAggregatorReportingIntegrationTest {
         reportingUnit = reportingUnit { components += dataProviderNames }
         metricFrequency = metricFrequencySpec { weekly = WEEKLY_METRIC_FREQUENCY }
         dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += GENDER_FIELD_PATH }
+          grouping =
+            DimensionSpecKt.grouping {
+              eventTemplateFields += GENDER_FIELD_PATH
+              eventTemplateFields += AGE_GROUP_FIELD_PATH
+            }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
           populationSize = true
@@ -530,7 +536,11 @@ class EdpAggregatorReportingIntegrationTest {
         reportingUnit = reportingUnit { components += dataProviderNames }
         metricFrequency = metricFrequencySpec { total = true }
         dimensionSpec = dimensionSpec {
-          grouping = DimensionSpecKt.grouping { eventTemplateFields += GENDER_FIELD_PATH }
+          grouping =
+            DimensionSpecKt.grouping {
+              eventTemplateFields += GENDER_FIELD_PATH
+              eventTemplateFields += AGE_GROUP_FIELD_PATH
+            }
         }
         resultGroupMetricSpec = resultGroupMetricSpec {
           populationSize = true
@@ -618,15 +628,16 @@ class EdpAggregatorReportingIntegrationTest {
       .containsExactly(WEEKLY_GROUP_TITLE, TOTAL_GROUP_TITLE)
     val resultGroup = resultGroupOf(report, WEEKLY_GROUP_TITLE)
 
-    // Every result belongs to exactly one group, so that genderOf identifies it.
+    // Every result carries both groupings, so that demographicOf identifies it.
     for (result in resultGroup.resultsList) {
       val groupings = result.metadata.dimensionSpecSummary.groupingsList
       assertWithMessage("groupings of ${result.metadata.metricEndTime}")
         .that(groupings.map { it.path })
-        .containsExactly(GENDER_FIELD_PATH)
+        .containsExactly(GENDER_FIELD_PATH, AGE_GROUP_FIELD_PATH)
     }
 
-    assertThat(resultGroup.resultsList.map { genderOf(it) }.toSet()).hasSize(EXPECTED_GENDER_COUNT)
+    assertThat(resultGroup.resultsList.map { demographicOf(it) }.toSet())
+      .hasSize(EXPECTED_DEMOGRAPHIC_COUNT)
 
     for ((series, results) in weeklySeries(resultGroup)) {
       assertWithMessage("$series periods").that(results).hasSize(WEEKLY_PERIOD_COUNT)
@@ -669,16 +680,16 @@ class EdpAggregatorReportingIntegrationTest {
    * The weekly results keyed by the series each one belongs to.
    *
    * A result is identified by its grouping and its impression qualification filter together: the
-   * report carries one weekly series per (gender, filter) pair, and the filters are the effective
+   * report carries one weekly series per (demographic cell, filter) pair, and the filters are the
    * ones the Reporting system resolves rather than only those the request names.
    */
   private fun weeklySeries(resultGroup: ResultGroup): Map<String, List<ResultGroup.Result>> =
-    resultGroup.resultsList.groupBy { "${genderOf(it)}/${filterLabel(it)}" }
+    resultGroup.resultsList.groupBy { "${demographicOf(it)}/${filterLabel(it)}" }
 
   /**
    * Checks each group's population against the whole synthetic population.
    *
-   * Bounded rather than exact: grouping on gender splits the population, so each group reports its
+   * Bounded rather than exact: grouping splits the population, so each group reports only its
    * own share.
    */
   private fun assertPopulationSizeMatchesSpec(report: BasicReport) {
@@ -686,7 +697,7 @@ class EdpAggregatorReportingIntegrationTest {
       for (result in resultGroup.resultsList) {
         val populationSize = result.metricSet.populationSize
         val message =
-          "${resultGroup.title} ${genderOf(result)}/${filterLabel(result)} population size"
+          "${resultGroup.title} ${demographicOf(result)}/${filterLabel(result)} population size"
         assertWithMessage(message).that(populationSize).isGreaterThan(0L)
         assertWithMessage(message).that(populationSize).isAtMost(expectedPopulationSize)
       }
@@ -705,7 +716,8 @@ class EdpAggregatorReportingIntegrationTest {
     for (result in resultGroup.resultsList) {
       val metricSet = result.metricSet.reportingUnit
       val contributions: List<Long> = metricSet.stackedIncrementalReachList
-      val message = "${genderOf(result)}/${filterLabel(result)} stacked incremental reach"
+      val message =
+        "${demographicOf(result)}/${filterLabel(result)} stacked incremental reach"
 
       assertWithMessage(message).that(contributions).hasSize(EDP_DISPLAY_NAMES.size)
       for (contribution in contributions) {
@@ -723,8 +735,12 @@ class EdpAggregatorReportingIntegrationTest {
   private fun resultGroupOf(report: BasicReport, title: String): ResultGroup =
     report.resultGroupsList.single { it.title == title }
 
-  private fun genderOf(result: ResultGroup.Result): String =
-    result.metadata.dimensionSpecSummary.groupingsList.single().value.enumValue
+  private fun groupingValue(result: ResultGroup.Result, path: String): String =
+    result.metadata.dimensionSpecSummary.groupingsList.single { it.path == path }.value.enumValue
+
+  /** The demographic cell a result belongs to, as `gender/ageGroup`. */
+  private fun demographicOf(result: ResultGroup.Result): String =
+    "${groupingValue(result, GENDER_FIELD_PATH)}/${groupingValue(result, AGE_GROUP_FIELD_PATH)}"
 
   /**
    * Checks that every line item carries data and that filtered reach is bounded by unfiltered.
@@ -990,13 +1006,15 @@ class EdpAggregatorReportingIntegrationTest {
         "ad_group-high-overlap-meta-video-edpa_meta-1",
       )
 
+    private const val CAMPAIGN_GROUP_DISPLAY_NAME = "High overlap campaign group"
+
     /** Titles of the weekly report's two result groups. */
-    private const val WEEKLY_GROUP_TITLE = "Weekly by gender"
+    private const val WEEKLY_GROUP_TITLE = "Weekly by demographic"
 
-    private const val TOTAL_GROUP_TITLE = "Whole interval by gender"
+    private const val TOTAL_GROUP_TITLE = "Whole interval by demographic"
 
-    /** `MALE` and `FEMALE`; the synthetic population declares no other gender. */
-    private const val EXPECTED_GENDER_COUNT = 2
+    /** 2 genders x 3 age groups; the synthetic population declares no other values. */
+    private const val EXPECTED_DEMOGRAPHIC_COUNT = 6
 
     /**
      * How far the stacked incremental contributions may sum away from the union reach.
@@ -1009,6 +1027,8 @@ class EdpAggregatorReportingIntegrationTest {
     /** Dimension the weekly report groups on. */
     private const val GENDER_FIELD_PATH = "common.gender"
 
+    private const val AGE_GROUP_FIELD_PATH = "common.age_group"
+
     /**
      * Reporting interval of the weekly report: whole weeks, so no partial period is reported.
      *
@@ -1018,11 +1038,11 @@ class EdpAggregatorReportingIntegrationTest {
      */
     private val WEEKLY_REPORT_START: LocalDate = LocalDate.of(2026, 4, 15)
 
-    private val WEEKLY_REPORT_END: LocalDate = LocalDate.of(2026, 5, 27)
+    private val WEEKLY_REPORT_END: LocalDate = LocalDate.of(2026, 6, 17)
 
     private val WEEKLY_METRIC_FREQUENCY: DayOfWeek = DayOfWeek.WEDNESDAY
 
-    private const val WEEKLY_PERIOD_COUNT = 6
+    private const val WEEKLY_PERIOD_COUNT = 9
 
     /**
      * EventGroups the weekly report covers, spanning every EDP in [EDP_DISPLAY_NAMES].
@@ -1087,8 +1107,9 @@ class EdpAggregatorReportingIntegrationTest {
     }
 
     /** EDPs this test covers: every one the high overlap dataset defines. */
-    private val EDP_DISPLAY_NAMES: Set<String> =
-      setOf("edp7", "edpa_meta", "edpa_video_pub", "edpa_retail_pub")
+    private val EDP_DISPLAY_NAMES: Set<String> by lazy {
+      IMPRESSION_TEST_DATA_CONFIG.eventGroupsList.map { it.edpName }.toSet()
+    }
 
     /** Config restricted to [EDP_DISPLAY_NAMES], empty when the dataset is not configured. */
     val PROVISIONED_CONFIG: ImpressionTestDataConfig by lazy {

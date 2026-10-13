@@ -203,6 +203,7 @@ class ReportingUserSimulator(
   suspend fun createBasicReportOverEventGroups(
     runId: String,
     reportTitle: String,
+    campaignGroupDisplayName: String,
     eventGroupReferenceIds: Set<String>,
     eventGroupEntityTypes: Set<String>,
     reportStart: LocalDate,
@@ -215,7 +216,7 @@ class ReportingUserSimulator(
     val eventGroups: List<EventGroup> =
       getEventGroups(eventGroupReferenceIds, eventGroupEntityTypes)
 
-    val campaignGroup = createCampaignGroup(eventGroups, runId)
+    val campaignGroup = createCampaignGroup(eventGroups, runId, campaignGroupDisplayName)
     val basicReportKey =
       BasicReportKey(
         cmmsMeasurementConsumerId = measurementConsumerKey.measurementConsumerId,
@@ -354,13 +355,14 @@ class ReportingUserSimulator(
   private suspend fun createCampaignGroup(
     eventGroups: List<EventGroup>,
     runId: String,
+    displayName: String,
   ): ReportingSet {
     val reportingSetId = "campaign-$runId"
     val request = createReportingSetRequest {
       parent = measurementConsumerName
       this.reportingSetId = reportingSetId
       reportingSet = reportingSet {
-        displayName = CAMPAIGN_GROUP_DISPLAY_NAME
+        this.displayName = displayName
         primitive =
           ReportingSetKt.primitive { cmmsEventGroups += eventGroups.map { it.cmmsEventGroup } }
         campaignGroup =
@@ -527,7 +529,6 @@ class ReportingUserSimulator(
      */
     val CUSTOM_VIDEO_COMPLETED_FRACTIONS = listOf(0.25f, 0.5f, 0.75f, 1.0f)
 
-    private const val CAMPAIGN_GROUP_DISPLAY_NAME = "High overlap campaign group"
     private const val REPORT_TIME_ZONE = "UTC"
 
     /** Returns the impression qualification filters that break results down by media type. */
