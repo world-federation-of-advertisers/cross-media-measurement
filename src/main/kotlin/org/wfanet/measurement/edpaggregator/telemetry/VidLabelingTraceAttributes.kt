@@ -17,9 +17,43 @@
 package org.wfanet.measurement.edpaggregator.telemetry
 
 import io.opentelemetry.api.common.AttributeKey
+import java.nio.charset.StandardCharsets.UTF_8
+import java.security.MessageDigest
 
 /** Stable OpenTelemetry attributes for one VID-labeling pipeline execution. */
 object VidLabelingTraceAttributes {
+  data class GcsObjectIdentity(val pathHash: String, val generation: Long)
+
+  /** Returns the stable, payload-free identity for one exact GCS object version. */
+  fun gcsObjectIdentity(uri: String, generation: Long): GcsObjectIdentity =
+    GcsObjectIdentity(gcsObjectPathHash(uri), generation)
+
+  /** Returns a SHA-256 digest of a full `gs://bucket/key` URI. */
+  fun gcsObjectPathHash(uri: String): String =
+    MessageDigest.getInstance("SHA-256").digest(uri.toByteArray(UTF_8)).joinToString("") { byte ->
+      (byte.toInt() and 0xff).toString(16).padStart(2, '0')
+    }
+
+  const val RAW_IMPRESSION_UPLOAD_METADATA_KEY = "xmm-raw-impression-upload"
+  const val MODEL_LINE_METADATA_KEY = "xmm-model-line"
+  const val VID_LABELING_JOB_METADATA_KEY = "xmm-vid-labeling-job"
+  const val TRACEPARENT_METADATA_KEY = "xmm-traceparent"
+  const val TRACESTATE_METADATA_KEY = "xmm-tracestate"
+  const val TRACE_CONTEXT_SOURCE_METADATA_KEY = "xmm-trace-context-source"
+  const val TRACE_CONTEXT_SOURCE_VID_LABELER = "vid-labeler"
+  val PERSISTED_BOUNDARY_METADATA_KEYS: Set<String> =
+    setOf(
+      RAW_IMPRESSION_UPLOAD_METADATA_KEY,
+      MODEL_LINE_METADATA_KEY,
+      VID_LABELING_JOB_METADATA_KEY,
+      TRACEPARENT_METADATA_KEY,
+      TRACESTATE_METADATA_KEY,
+      TRACE_CONTEXT_SOURCE_METADATA_KEY,
+    )
+  const val RAW_IMPRESSION_UPLOAD_HEADER = "X-Raw-Impression-Upload"
+  const val MODEL_LINE_HEADER = "X-Model-Line"
+  const val VID_LABELING_JOB_HEADER = "X-Vid-Labeling-Job"
+  const val DATA_WATCHER_GENERATION_HEADER = "X-DataWatcher-Generation"
   const val DATA_PROVIDER_NAME_STRING = "xmm.data_provider.name"
   const val MODEL_LINE_NAME_STRING = "xmm.model_line.name"
   const val MODEL_LINE_NAMES_STRING = "xmm.model_line.names"
@@ -51,6 +85,9 @@ object VidLabelingTraceAttributes {
   const val LABEL_EXPECTED_FINALIZATIONS_STRING = "xmm.edpa.label.expected_finalizations"
   const val LABEL_DONE_OBJECTS_WRITTEN_STRING = "xmm.edpa.label.done_objects_written"
   const val LABEL_PARENTS_COMPLETED_STRING = "xmm.edpa.label.parents_completed"
+  const val IMPRESSION_METADATA_ACTION_STRING = "xmm.edpa.impression_metadata.action"
+  const val AVAILABILITY_INTERVAL_START_STRING = "xmm.edpa.availability.interval_start"
+  const val AVAILABILITY_INTERVAL_END_STRING = "xmm.edpa.availability.interval_end"
 
   val DATA_PROVIDER_NAME: AttributeKey<String> = AttributeKey.stringKey(DATA_PROVIDER_NAME_STRING)
   val MODEL_LINE_NAME: AttributeKey<String> = AttributeKey.stringKey(MODEL_LINE_NAME_STRING)
@@ -122,5 +159,8 @@ object VidLabelingTraceAttributes {
       LABEL_EXPECTED_FINALIZATIONS_STRING,
       LABEL_DONE_OBJECTS_WRITTEN_STRING,
       LABEL_PARENTS_COMPLETED_STRING,
+      IMPRESSION_METADATA_ACTION_STRING,
+      AVAILABILITY_INTERVAL_START_STRING,
+      AVAILABILITY_INTERVAL_END_STRING,
     )
 }

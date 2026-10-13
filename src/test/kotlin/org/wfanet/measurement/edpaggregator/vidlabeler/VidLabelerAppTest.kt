@@ -271,7 +271,9 @@ class VidLabelerAppTest {
       workItemAttemptsClient = workItemAttemptsStub,
       kmsClients = kmsClients,
       encryptKekUris = encryptKekUris,
-      getStorageConfig = { StorageConfig(rootDirectory = tempFolder.root) },
+      getStorageConfig = {
+        StorageConfig(rootDirectory = tempFolder.root, projectId = it.gcsProjectId)
+      },
       vidLabelingJobsStub = vidLabelingJobsStub,
       rawImpressionUploadModelLinesStub = rawImpressionUploadModelLinesStub,
       rankIndexBlobsStub = rankIndexBlobsStub,
@@ -639,6 +641,89 @@ class VidLabelerAppTest {
     assertThat(transition.attributes.get(VidLabelingTraceAttributes.MODEL_LINE_NAME))
       .isEqualTo(MODEL_LINE)
     assertThat(transition.attributes.get(XmmTraceAttributes.OUTCOME)).isEqualTo("completed")
+  }
+
+  @Test
+  fun `runWork creates GCS done object without trace metadata`() = runBlocking {
+    val inputFile = "$UPLOAD/files/file-1"
+    vidLabelingJobsService.stub {
+      onBlocking { getVidLabelingJob(any()) } doReturn
+        vidLabelingJob {
+          name = VID_LABELING_JOB
+          state = VidLabelingJob.State.SUCCEEDED
+          etag = "etag-1"
+          rawImpressionUploadFiles += inputFile
+        }
+      onBlocking { markVidLabelingJobSucceeded(any()) } doReturn
+        markVidLabelingJobSucceededResponse {
+          vidLabelingJob = vidLabelingJob {
+            name = VID_LABELING_JOB
+            state = VidLabelingJob.State.SUCCEEDED
+          }
+          lastVidLabelingJobResult =
+            MarkVidLabelingJobSucceededResponseKt.lastVidLabelingJobResult {
+              completedModelLines += MODEL_LINE
+            }
+        }
+    }
+    stubModelLineList(
+      preMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.LABELING),
+      postMark = listOf(MODEL_LINE to RawImpressionUploadModelLine.State.COMPLETED),
+    )
+    rawImpressionUploadFilesService.stub {
+      onBlocking { getRawImpressionUploadFile(any()) } doReturn
+        rawImpressionUploadFile {
+          name = inputFile
+          blobUri = "gs://raw-bucket/input.parquet"
+          blobGeneration = 123L
+        }
+    }
+    val parquetBlob =
+      mock<ParquetStorageClient.ParquetBlob> {
+        onBlocking { readKeyValueMetadata() } doReturn
+          mapOf(RawImpressionFileMetadata.EVENT_DATE_KEY to "2026-06-30")
+      }
+    mockParquetStorageClient.stub { onBlocking { getBlob(any()) } doReturn parquetBlob }
+    val capturedProject = AtomicReference<String?>()
+    val capturedBlobInfo = AtomicReference<BlobInfo>()
+    val capturedContent = AtomicReference<ByteArray>()
+    val params =
+      memoizedParams().copy {
+        vidLabeledImpressionsStorageParams =
+          VidLabelerParamsKt.storageParams {
+            gcsProjectId = "output-project"
+            impressionsBlobPrefix = "gs://output-bucket/labeled"
+          }
+      }
+    val app =
+      createApp(
+        writeGcsObject = { projectId, blobInfo, content ->
+          capturedProject.set(projectId)
+          capturedBlobInfo.set(blobInfo)
+          capturedContent.set(content)
+          321L
+        }
+      )
+
+    app.runWork(buildMessage(params))
+
+    assertThat(capturedProject.get()).isEqualTo("output-project")
+    val blobInfo = capturedBlobInfo.get()
+    assertThat(blobInfo.blobId.bucket).isEqualTo("output-bucket")
+    assertThat(blobInfo.blobId.name).endsWith("/model-line/ml1/2026-06-30/done")
+    assertThat(capturedContent.get()).isEmpty()
+    assertThat(blobInfo.metadata.orEmpty()).isEmpty()
+    val finalizeSpan =
+      spanExporter.finishedSpanItems.single { it.name == "edpa.vid_labeling.label.finalize" }
+    val doneEvent = finalizeSpan.events.single { it.name == "edpa.vid_labeling.label.done_object" }
+    assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_GENERATION))
+      .isEqualTo(321L)
+    assertThat(doneEvent.attributes.get(VidLabelingTraceAttributes.GCS_OBJECT_PATH_HASH))
+      .isEqualTo(
+        VidLabelingTraceAttributes.gcsObjectPathHash(
+          "gs://output-bucket/labeled/model-line/ml1/2026-06-30/done"
+        )
+      )
   }
 
   @Test

@@ -35,6 +35,27 @@ class VidLabelingTraceLoggingTest {
   }
 
   @Test
+  fun `GCS object identity is identical across pipeline stages`() {
+    val uri = "gs://test-bucket/model-line/ml/2026-09-23/done"
+    val generation = 123L
+
+    val vidLabelerIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(uri, generation)
+    val dataWatcherIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(uri, generation)
+    val dataAvailabilityIdentity = VidLabelingTraceAttributes.gcsObjectIdentity(uri, generation)
+
+    assertThat(dataWatcherIdentity).isEqualTo(vidLabelerIdentity)
+    assertThat(dataAvailabilityIdentity).isEqualTo(vidLabelerIdentity)
+    assertThat(
+        VidLabelingTraceAttributes.gcsObjectIdentity(
+            "gs://different-bucket/model-line/ml/2026-09-23/done",
+            generation,
+          )
+          .pathHash
+      )
+      .isNotEqualTo(vidLabelerIdentity.pathHash)
+  }
+
+  @Test
   fun `log writes allowlisted VID lifecycle fields`() {
     val records = mutableListOf<LogRecord>()
     val logger = Logger.getAnonymousLogger().apply { addHandler(recordingHandler(records)) }
