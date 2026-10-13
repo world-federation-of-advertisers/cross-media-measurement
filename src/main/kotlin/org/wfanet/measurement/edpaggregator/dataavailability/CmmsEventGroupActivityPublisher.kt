@@ -17,10 +17,7 @@
 package org.wfanet.measurement.edpaggregator.dataavailability
 
 import io.grpc.StatusException
-import io.opentelemetry.api.common.AttributeKey
 import io.opentelemetry.api.common.Attributes
-import io.opentelemetry.api.metrics.LongCounter
-import io.opentelemetry.api.metrics.Meter
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
@@ -33,26 +30,6 @@ import org.wfanet.measurement.common.toProtoDate
 import org.wfanet.measurement.edpaggregator.eventgroups.v1alpha.MappedEventGroup
 import org.wfanet.measurement.edpaggregator.v1alpha.ImpressionMetadata
 import org.wfanet.measurement.storage.StorageClient
-
-/** OpenTelemetry instruments used when publishing EventGroup activity. */
-class EventGroupActivityPublisherMetrics(meter: Meter) {
-  val mapRecordsMissingEntityKeyCounter: LongCounter =
-    meter
-      .counterBuilder("edpa.event_group_activity.map_records_missing_entity_key")
-      .setDescription("Number of EventGroup map records skipped because entity_key is absent")
-      .build()
-
-  val unmappedEntityKeysCounter: LongCounter =
-    meter
-      .counterBuilder("edpa.event_group_activity.unmapped_entity_keys")
-      .setDescription("Number of impression metadata entity keys absent from the EventGroup map")
-      .build()
-
-  companion object {
-    internal val DATA_PROVIDER_NAME_ATTR: AttributeKey<String> =
-      AttributeKey.stringKey("data_provider_name")
-  }
-}
 
 /**
  * Publishes EventGroup activity through the CMMS Public API.
@@ -71,6 +48,8 @@ class CmmsEventGroupActivityPublisher(
   private val marketTimeZone: ZoneId,
   private val metrics: EventGroupActivityPublisherMetrics,
 ) {
+  private var cachedEventGroupMap: LoadedEventGroupMap? = null
+
   init {
     require(eventGroupMapBlobKey.isNotEmpty()) { "eventGroupMapBlobKey must not be empty" }
   }
@@ -90,7 +69,7 @@ class CmmsEventGroupActivityPublisher(
       return 0
     }
 
-    val eventGroupMap = loadEventGroupMap(activitiesByEntityKey.keys)
+    val eventGroupMap = cachedEventGroupMap ?: loadEventGroupMap().also { cachedEventGroupMap = it }
     val unmatchedEntityKeyCount =
       activitiesByEntityKey.keys.count {
         it.entityType in eventGroupMap.entityTypes && it !in eventGroupMap.eventGroupsByEntityKey
@@ -128,7 +107,7 @@ class CmmsEventGroupActivityPublisher(
     return datesByEventGroup.values.sumOf { it.size }
   }
 
-  private suspend fun loadEventGroupMap(requestedEntityKeys: Set<EntityKey>): LoadedEventGroupMap {
+  private suspend fun loadEventGroupMap(): LoadedEventGroupMap {
     val blob =
       checkNotNull(eventGroupMapStorageClient.getBlob(eventGroupMapBlobKey)) {
         "EventGroup map blob not found: $eventGroupMapBlobKey"
@@ -150,11 +129,9 @@ class CmmsEventGroupActivityPublisher(
       val entityKey =
         EntityKey(mappedEventGroup.entityKey.entityType, mappedEventGroup.entityKey.entityId)
       entityTypes += entityKey.entityType
-      if (entityKey in requestedEntityKeys) {
-        eventGroupsByEntityKey
-          .getOrPut(entityKey) { mutableSetOf() }
-          .add(mappedEventGroup.eventGroupResource)
-      }
+      eventGroupsByEntityKey
+        .getOrPut(entityKey) { mutableSetOf() }
+        .add(mappedEventGroup.eventGroupResource)
     }
 
     if (missingEntityKeyCount > 0) {

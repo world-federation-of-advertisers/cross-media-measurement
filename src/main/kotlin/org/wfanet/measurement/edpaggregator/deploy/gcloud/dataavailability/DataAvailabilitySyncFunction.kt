@@ -139,44 +139,44 @@ class DataAvailabilitySyncFunction() : HttpFunction {
         ImpressionMetadataServiceCoroutineStub(instrumentedImpMetadataChannel)
 
       val eventGroupActivityPublisher =
-        if (dataAvailabilitySyncConfig.hasEventGroupActivityPublishing()) {
-          val publishingConfig = dataAvailabilitySyncConfig.eventGroupActivityPublishing
-          require(publishingConfig.marketTimeZone.isNotEmpty()) {
-            "event_group_activity_publishing.market_time_zone must not be empty"
-          }
-          require(publishingConfig.eventGroupMapBlobUri.isNotEmpty()) {
-            "event_group_activity_publishing.event_group_map_blob_uri must not be empty"
-          }
-          val eventGroupMapBlobUri =
-            SelectedStorageClient.parseBlobUri(publishingConfig.eventGroupMapBlobUri)
-          val eventGroupMapStorageClient =
-            MesosRecordIoStorageClient(
-              SelectedStorageClient(
-                blobUri = eventGroupMapBlobUri,
-                rootDirectory =
-                  if (publishingConfig.eventGroupMapStorage.hasFileSystem()) {
-                    File(
-                      checkNotNull(fileSystemPath) {
-                        "DATA_AVAILABILITY_FILE_SYSTEM_PATH must be set for file storage"
-                      }
-                    )
-                  } else {
-                    null
-                  },
-                projectId = publishingConfig.eventGroupMapStorage.gcs.projectId,
+        dataAvailabilitySyncConfig.eventGroupActivityPublishing
+          .takeIf { dataAvailabilitySyncConfig.hasEventGroupActivityPublishing() }
+          ?.let { publishingConfig ->
+            val marketTimeZoneId = publishingConfig.marketTimeZone.id
+            require(marketTimeZoneId.isNotEmpty()) {
+              "event_group_activity_publishing.market_time_zone.id must not be empty"
+            }
+            require(publishingConfig.eventGroupMapBlobUri.isNotEmpty()) {
+              "event_group_activity_publishing.event_group_map_blob_uri must not be empty"
+            }
+            val eventGroupMapBlobUri =
+              SelectedStorageClient.parseBlobUri(publishingConfig.eventGroupMapBlobUri)
+            val eventGroupMapStorageClient =
+              MesosRecordIoStorageClient(
+                SelectedStorageClient(
+                  blobUri = eventGroupMapBlobUri,
+                  rootDirectory =
+                    if (publishingConfig.eventGroupMapStorage.hasFileSystem()) {
+                      File(
+                        checkNotNull(fileSystemPath) {
+                          "DATA_AVAILABILITY_FILE_SYSTEM_PATH must be set for file storage"
+                        }
+                      )
+                    } else {
+                      null
+                    },
+                  projectId = publishingConfig.eventGroupMapStorage.gcs.projectId,
+                )
               )
+            CmmsEventGroupActivityPublisher(
+              EventGroupActivitiesCoroutineStub(instrumentedCmmsChannel),
+              eventGroupMapStorageClient,
+              eventGroupMapBlobUri.key,
+              dataAvailabilitySyncConfig.dataProvider,
+              ZoneId.of(marketTimeZoneId),
+              EventGroupActivityPublisherMetrics(Instrumentation.meter),
             )
-          CmmsEventGroupActivityPublisher(
-            EventGroupActivitiesCoroutineStub(instrumentedCmmsChannel),
-            eventGroupMapStorageClient,
-            eventGroupMapBlobUri.key,
-            dataAvailabilitySyncConfig.dataProvider,
-            ZoneId.of(publishingConfig.marketTimeZone),
-            EventGroupActivityPublisherMetrics(Instrumentation.meter),
-          )
-        } else {
-          null
-        }
+          }
 
       val dataAvailabilitySync =
         DataAvailabilitySync(
